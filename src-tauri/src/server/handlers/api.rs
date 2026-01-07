@@ -829,11 +829,25 @@ pub async fn chat_completions(
                             provider_str, selected_provider
                         ),
                     );
-                    let fallback_cred = state
-                        .pool_service
-                        .select_credential(db, &selected_provider, Some(&request.model))
-                        .ok()
-                        .flatten();
+
+                    // 检查 selected_provider 是否是有效的 PoolProviderType
+                    let fallback_cred = if selected_provider.parse::<crate::ProviderType>().is_ok()
+                    {
+                        // 是有效的 PoolProviderType，尝试从 Provider Pool 查找
+                        state
+                            .pool_service
+                            .select_credential(db, &selected_provider, Some(&request.model))
+                            .ok()
+                            .flatten()
+                    } else {
+                        // 不是有效的 PoolProviderType，跳过 Provider Pool 查找
+                        eprintln!(
+                            "[CHAT_COMPLETIONS] selected_provider '{}' 不是有效的 PoolProviderType，跳过 Provider Pool 查找",
+                            selected_provider
+                        );
+                        None
+                    };
+
                     if fallback_cred.is_some() {
                         eprintln!(
                             "[CHAT_COMPLETIONS] 回退凭证找到: provider={}",
