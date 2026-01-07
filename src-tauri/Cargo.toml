@@ -1,6 +1,6 @@
 [package]
 name = "proxycast"
-version = "0.33.0"
+version = "0.34.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -66,6 +66,7 @@ tokio-util = "0.7"
 arboard = "3"
 glob = "0.3.3"
 hex = "0.4.3"
+portable-pty = "0.8"
 
 # Platform specific dependencies for browser interceptor
 
