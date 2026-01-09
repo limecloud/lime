@@ -49,6 +49,25 @@
   margin-left: 4px;
 }
 
+/* 多终端容器包装器 */
+.term-container-wrapper {
+  flex-grow: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 每个终端容器独立定位 */
+.term-container-wrapper .term-connectelem {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 5px;
+  margin-left: 4px;
+}
+
 /* 关键：xterm 容器必须填满父元素 */
 .term-connectelem .xterm {
   height: 100%;

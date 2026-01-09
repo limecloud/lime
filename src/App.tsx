@@ -52,21 +52,22 @@ const MainContent = styled.main`
   min-height: 0;
 `;
 
-const PageWrapper = styled.div`
+const PageWrapper = styled.div<{ $isActive: boolean }>`
   flex: 1;
   padding: 24px;
   overflow: auto;
+  display: ${(props) => (props.$isActive ? "block" : "none")};
 `;
 
 /**
  * 全屏页面容器（无 padding）
  * 用于终端等需要全屏显示的插件
  */
-const FullscreenWrapper = styled.div`
+const FullscreenWrapper = styled.div<{ $isActive: boolean }>`
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  display: flex;
+  display: ${(props) => (props.$isActive ? "flex" : "none")};
   flex-direction: column;
   position: relative;
 `;
@@ -124,106 +125,109 @@ function AppContent() {
   }, []);
 
   /**
-   * 渲染当前页面
+   * 渲染所有页面（保持挂载状态）
    *
-   * 根据 currentPage 状态渲染对应的页面组件
-   * - 静态页面: 直接渲染对应组件
-   * - 动态插件页面: 使用 PluginUIRenderer 渲染
+   * 所有页面组件都会被渲染，但只有当前页面可见
+   * 这样可以保持页面状态，避免切换时重置
    *
    * _需求: 2.2, 3.2_
    */
-  const renderPage = () => {
-    // 检查是否为动态插件页面 (plugin:xxx 格式)
-    if (currentPage.startsWith("plugin:")) {
-      const pluginId = currentPage.slice(7); // 移除 "plugin:" 前缀
-
-      // 需要全屏显示的插件列表（终端已内置，不再需要插件）
-      const fullscreenPlugins: string[] = [];
-      const isFullscreen = fullscreenPlugins.includes(pluginId);
-
-      if (isFullscreen) {
-        return (
-          <FullscreenWrapper>
-            <PluginUIRenderer pluginId={pluginId} onNavigate={setCurrentPage} />
-          </FullscreenWrapper>
-        );
-      }
-
-      return (
-        <PageWrapper>
-          <PluginUIRenderer pluginId={pluginId} onNavigate={setCurrentPage} />
+  const renderAllPages = () => {
+    return (
+      <>
+        {/* Provider Pool 页面 */}
+        <PageWrapper $isActive={currentPage === "provider-pool"}>
+          <ProviderPoolPage />
         </PageWrapper>
-      );
-    }
 
-    // 静态页面路由
-    switch (currentPage) {
-      case "provider-pool":
-        return (
-          <PageWrapper>
-            <ProviderPoolPage />
-          </PageWrapper>
-        );
-      case "api-server":
-        return (
-          <PageWrapper>
-            <ApiServerPage />
-          </PageWrapper>
-        );
-      case "agent":
-        // Agent 页面有自己的布局，不需要 PageWrapper
-        return (
+        {/* API Server 页面 */}
+        <PageWrapper $isActive={currentPage === "api-server"}>
+          <ApiServerPage />
+        </PageWrapper>
+
+        {/* Agent 页面 - 使用 div 包装以支持显示/隐藏 */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: currentPage === "agent" ? "flex" : "none",
+            flexDirection: "column",
+          }}
+        >
           <AgentChatPage onNavigate={(page) => setCurrentPage(page as Page)} />
-        );
-      case "terminal":
-        // 终端工作区 - 分块布局（对齐 Waveterm TileLayout）
-        return <TerminalWorkspace onNavigate={setCurrentPage} />;
-      case "sysinfo":
-        // 系统监控页面
-        return (
-          <FullscreenWrapper>
-            <SysinfoView />
-          </FullscreenWrapper>
-        );
-      case "files":
-        // 文件浏览器页面
-        return (
-          <FullscreenWrapper>
-            <FileBrowserView />
-          </FullscreenWrapper>
-        );
-      case "web":
-        // 内嵌浏览器页面
-        return (
-          <FullscreenWrapper>
-            <WebView />
-          </FullscreenWrapper>
-        );
-      case "tools":
-        return (
-          <PageWrapper>
-            <ToolsPage onNavigate={setCurrentPage} />
-          </PageWrapper>
-        );
-      case "plugins":
-        return (
-          <PageWrapper>
-            <PluginsPage />
-          </PageWrapper>
-        );
-      case "settings":
-        return (
-          <PageWrapper>
-            <SettingsPage />
-          </PageWrapper>
-        );
-      default:
-        return (
-          <PageWrapper>
-            <ApiServerPage />
-          </PageWrapper>
-        );
-    }
+        </div>
+
+        {/* 终端工作区 - 使用 div 包装以支持显示/隐藏 */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: currentPage === "terminal" ? "flex" : "none",
+            flexDirection: "column",
+          }}
+        >
+          <TerminalWorkspace onNavigate={setCurrentPage} />
+        </div>
+
+        {/* 系统监控页面 */}
+        <FullscreenWrapper $isActive={currentPage === "sysinfo"}>
+          <SysinfoView />
+        </FullscreenWrapper>
+
+        {/* 文件浏览器页面 */}
+        <FullscreenWrapper $isActive={currentPage === "files"}>
+          <FileBrowserView />
+        </FullscreenWrapper>
+
+        {/* 内嵌浏览器页面 */}
+        <FullscreenWrapper $isActive={currentPage === "web"}>
+          <WebView />
+        </FullscreenWrapper>
+
+        {/* Tools 页面 */}
+        <PageWrapper $isActive={currentPage === "tools"}>
+          <ToolsPage onNavigate={setCurrentPage} />
+        </PageWrapper>
+
+        {/* Plugins 页面 */}
+        <PageWrapper $isActive={currentPage === "plugins"}>
+          <PluginsPage />
+        </PageWrapper>
+
+        {/* Settings 页面 */}
+        <PageWrapper $isActive={currentPage === "settings"}>
+          <SettingsPage />
+        </PageWrapper>
+
+        {/* 动态插件页面 */}
+        {currentPage.startsWith("plugin:") &&
+          (() => {
+            const pluginId = currentPage.slice(7);
+            const fullscreenPlugins: string[] = [];
+            const isFullscreen = fullscreenPlugins.includes(pluginId);
+
+            if (isFullscreen) {
+              return (
+                <FullscreenWrapper $isActive={true}>
+                  <PluginUIRenderer
+                    pluginId={pluginId}
+                    onNavigate={setCurrentPage}
+                  />
+                </FullscreenWrapper>
+              );
+            }
+
+            return (
+              <PageWrapper $isActive={true}>
+                <PluginUIRenderer
+                  pluginId={pluginId}
+                  onNavigate={setCurrentPage}
+                />
+              </PageWrapper>
+            );
+          })()}
+      </>
+    );
   };
 
   // 引导完成回调
@@ -251,7 +255,7 @@ function AppContent() {
     <ComponentDebugProvider>
       <AppContainer>
         <AppSidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-        <MainContent>{renderPage()}</MainContent>
+        <MainContent>{renderAllPages()}</MainContent>
         {/* ProxyCast Connect 确认弹窗 */}
         {/* _Requirements: 5.2_ */}
         <ConnectConfirmDialog

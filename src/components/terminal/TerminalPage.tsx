@@ -1,12 +1,12 @@
 /**
  * @file TerminalPage.tsx
- * @description 内置终端页面组件 - 对齐 waveterm 单容器架构
+ * @description 内置终端页面组件 - 多容器架构保持状态
  * @module components/terminal/TerminalPage
  *
- * ## 架构说明（对齐 waveterm）
- * - 只有一个 term-connectelem（终端容器）
- * - 切换标签页时，销毁旧的 TermWrap，创建新的 TermWrap
- * - 这样可以避免多个终端容器导致的布局问题
+ * ## 架构说明
+ * - 每个标签页有独立的终端容器和 TermWrap 实例
+ * - 切换标签页时，只是显示/隐藏对应的容器
+ * - 保持所有终端的状态，不销毁 TermWrap
  *
  * _Requirements: 8.7, 8.8, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
  */
@@ -43,6 +43,7 @@ interface Tab {
   title: string;
   status: SessionStatus;
   isSSH?: boolean;
+  termWrap?: TermWrap; // 保持 TermWrap 实例
 }
 
 // ============================================================================
@@ -375,7 +376,7 @@ const EmptyTabsPlaceholder: React.FC<{
 );
 
 // ============================================================================
-// 主组件 - 对齐 waveterm 单容器架构
+// 主组件 - 多容器架构保持状态
 // ============================================================================
 
 export function TerminalPage() {
@@ -392,18 +393,16 @@ export function TerminalPage() {
   const [fontSize, setFontSize] = useState<number>(loadFontSizePreference());
   const tabIdCounter = useRef(0);
 
-  // 单一终端容器引用（对齐 waveterm 的 connectElemRef）
-  const connectElemRef = useRef<HTMLDivElement>(null);
-  // 当前 TermWrap 实例引用（对齐 waveterm 的 model.termRef）
-  const termWrapRef = useRef<TermWrap | null>(null);
+  // 终端容器的父容器引用
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
 
   // 获取当前活动的标签页
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   // 获取当前活动的 TermWrap
   const getActiveTermWrap = useCallback(() => {
-    return termWrapRef.current;
-  }, []);
+    return activeTab?.termWrap || null;
+  }, [activeTab]);
 
   // 创建新终端
   const handleNewTerminal = useCallback(async () => {
@@ -453,6 +452,11 @@ export function TerminalPage() {
       const tab = tabs.find((t) => t.id === tabId);
       if (tab) {
         try {
+          // 销毁 TermWrap
+          if (tab.termWrap) {
+            tab.termWrap.dispose();
+          }
+          // 关闭后端会话
           await closeTerminal(tab.sessionId);
         } catch (err) {
           console.error("[TerminalPage] 关闭终端会话失败:", err);
@@ -477,10 +481,15 @@ export function TerminalPage() {
   const handleThemeChange = useCallback((theme: ThemeName) => {
     setCurrentTheme(theme);
     saveThemePreference(theme);
-    // 更新当前终端的主题
-    if (termWrapRef.current) {
-      termWrapRef.current.setTheme(theme);
-    }
+    // 更新所有终端的主题
+    setTabs((prev) =>
+      prev.map((tab) => {
+        if (tab.termWrap) {
+          tab.termWrap.setTheme(theme);
+        }
+        return tab;
+      }),
+    );
   }, []);
 
   // 字体大小变化
@@ -488,10 +497,15 @@ export function TerminalPage() {
   const handleFontSizeChange = useCallback((size: number) => {
     setFontSize(size);
     saveFontSizePreference(size);
-    // 更新当前终端的字体大小
-    if (termWrapRef.current) {
-      termWrapRef.current.setFontSize(size);
-    }
+    // 更新所有终端的字体大小
+    setTabs((prev) =>
+      prev.map((tab) => {
+        if (tab.termWrap) {
+          tab.termWrap.setFontSize(size);
+        }
+        return tab;
+      }),
+    );
   }, []);
 
   // 搜索功能
@@ -578,162 +592,181 @@ export function TerminalPage() {
   }, []);
 
   // ============================================================================
-  // 核心：当活动标签页变化时，重新创建 TermWrap（对齐 waveterm）
+  // 核心：为每个标签页创建独立的终端容器和 TermWrap
   // ============================================================================
 
-  // 键盘事件处理器（对齐 waveterm 的 handleTerminalKeydown）
+  // 键盘事件处理器
   // 返回 true = 允许事件传递到终端
   // 返回 false = 阻止事件传递到终端（已处理）
-  const handleTerminalKeydown = useCallback((e: KeyboardEvent): boolean => {
-    // 只处理 keydown 事件
-    if (e.type !== "keydown") {
-      return true;
-    }
-
-    const termWrap = termWrapRef.current;
-    if (!termWrap) return true;
-
-    const isMac = /mac/i.test(navigator.userAgent);
-
-    // Shift+End - 滚动到底部
-    if (
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      e.key === "End"
-    ) {
-      termWrap.terminal.scrollToBottom();
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-
-    // Shift+Home - 滚动到顶部
-    if (
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      e.key === "Home"
-    ) {
-      termWrap.terminal.scrollToLine(0);
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-
-    // Cmd+End (macOS) - 滚动到底部
-    if (
-      isMac &&
-      e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.shiftKey &&
-      e.key === "End"
-    ) {
-      termWrap.terminal.scrollToBottom();
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-
-    // Cmd+Home (macOS) - 滚动到顶部
-    if (
-      isMac &&
-      e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.shiftKey &&
-      e.key === "Home"
-    ) {
-      termWrap.terminal.scrollToLine(0);
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-
-    // Shift+PageDown - 向下滚动一页
-    if (
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      e.key === "PageDown"
-    ) {
-      termWrap.terminal.scrollPages(1);
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-
-    // Shift+PageUp - 向上滚动一页
-    if (
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      e.key === "PageUp"
-    ) {
-      termWrap.terminal.scrollPages(-1);
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-
-    // 未处理的事件，允许传递到终端
-    return true;
-  }, []);
-
-  useEffect(() => {
-    const container = connectElemRef.current;
-    if (!container || !activeTab) {
-      // 没有活动标签页，清理旧的 TermWrap
-      if (termWrapRef.current) {
-        termWrapRef.current.dispose();
-        termWrapRef.current = null;
+  const handleTerminalKeydown = useCallback(
+    (e: KeyboardEvent): boolean => {
+      // 只处理 keydown 事件
+      if (e.type !== "keydown") {
+        return true;
       }
-      return;
-    }
 
-    // 销毁旧的 TermWrap
-    if (termWrapRef.current) {
-      termWrapRef.current.dispose();
-      termWrapRef.current = null;
-    }
+      const termWrap = getActiveTermWrap();
+      if (!termWrap) return true;
 
-    // 清空容器
-    container.innerHTML = "";
+      const isMac = /mac/i.test(navigator.userAgent);
 
-    // 创建新的 TermWrap（对齐 waveterm）
-    const termWrap = new TermWrap(activeTab.sessionId, container, {
-      onStatusChange: (status) => handleStatusChange(activeTab.id, status),
-      themeName: currentTheme,
-      fontSize: fontSize,
-      keydownHandler: handleTerminalKeydown,
+      // Shift+End - 滚动到底部
+      if (
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        e.key === "End"
+      ) {
+        termWrap.terminal.scrollToBottom();
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Shift+Home - 滚动到顶部
+      if (
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        e.key === "Home"
+      ) {
+        termWrap.terminal.scrollToLine(0);
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Cmd+End (macOS) - 滚动到底部
+      if (
+        isMac &&
+        e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key === "End"
+      ) {
+        termWrap.terminal.scrollToBottom();
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Cmd+Home (macOS) - 滚动到顶部
+      if (
+        isMac &&
+        e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key === "Home"
+      ) {
+        termWrap.terminal.scrollToLine(0);
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Shift+PageDown - 向下滚动一页
+      if (
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        e.key === "PageDown"
+      ) {
+        termWrap.terminal.scrollPages(1);
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // Shift+PageUp - 向上滚动一页
+      if (
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        e.key === "PageUp"
+      ) {
+        termWrap.terminal.scrollPages(-1);
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+
+      // 未处理的事件，允许传递到终端
+      return true;
+    },
+    [getActiveTermWrap],
+  );
+
+  // 为新标签页创建终端
+  useEffect(() => {
+    const container = terminalContainerRef.current;
+    if (!container) return;
+
+    // 为每个没有 termWrap 的标签页创建终端
+    tabs.forEach((tab) => {
+      if (tab.termWrap) return; // 已有 TermWrap，跳过
+
+      // 创建独立的容器
+      const termContainer = document.createElement("div");
+      termContainer.className = "term-connectelem";
+      termContainer.dataset.tabId = tab.id;
+      termContainer.style.display = tab.id === activeTabId ? "block" : "none";
+      container.appendChild(termContainer);
+
+      // 创建 TermWrap
+      const termWrap = new TermWrap(tab.sessionId, termContainer, {
+        onStatusChange: (status) => handleStatusChange(tab.id, status),
+        themeName: currentTheme,
+        fontSize: fontSize,
+        keydownHandler: handleTerminalKeydown,
+      });
+
+      // 保存到标签页
+      tab.termWrap = termWrap;
+
+      // 设置 ResizeObserver
+      const rszObs = new ResizeObserver(() => {
+        termWrap.handleResize_debounced();
+      });
+      rszObs.observe(termContainer);
+
+      // 异步初始化终端
+      termWrap.initTerminal().catch(console.error);
+
+      // 如果是当前活动标签，自动聚焦
+      if (tab.id === activeTabId) {
+        setTimeout(() => termWrap.focus(), 10);
+      }
+
+      // 清理函数会在标签页关闭时由 handleCloseTab 调用
     });
 
-    termWrapRef.current = termWrap;
-
-    // 设置 ResizeObserver（对齐 waveterm）
-    const rszObs = new ResizeObserver(() => {
-      termWrap.handleResize_debounced();
+    // 更新容器显示状态
+    const allContainers = container.querySelectorAll(".term-connectelem");
+    allContainers.forEach((elem) => {
+      const htmlElem = elem as HTMLElement;
+      const tabId = htmlElem.dataset.tabId;
+      htmlElem.style.display = tabId === activeTabId ? "block" : "none";
     });
-    rszObs.observe(container);
 
-    // 异步初始化终端（对齐 waveterm 的 fireAndForget）
-    termWrap.initTerminal().catch(console.error);
-
-    // 自动聚焦
-    setTimeout(() => termWrap.focus(), 10);
-
-    return () => {
-      termWrap.dispose();
-      rszObs.disconnect();
-    };
-    // 注意：handleTerminalKeydown 使用 useCallback 且无依赖，不会导致重新创建
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab?.sessionId, currentTheme, fontSize, handleStatusChange]);
+    // 聚焦当前活动终端
+    if (activeTab?.termWrap) {
+      setTimeout(() => activeTab.termWrap?.focus(), 10);
+    }
+  }, [
+    tabs,
+    activeTabId,
+    currentTheme,
+    fontSize,
+    handleStatusChange,
+    handleTerminalKeydown,
+    activeTab,
+  ]);
 
   // 没有标签页时显示空状态
   if (tabs.length === 0) {
@@ -794,11 +827,11 @@ export function TerminalPage() {
         onClearSearch={handleClearSearch}
       />
 
-      {/* 单一终端容器（对齐 waveterm 的 term-connectelem） */}
+      {/* 多终端容器（每个标签页一个容器） */}
       <div
-        ref={connectElemRef}
-        className="term-connectelem"
-        onClick={() => termWrapRef.current?.focus()}
+        ref={terminalContainerRef}
+        className="term-container-wrapper"
+        onClick={() => activeTab?.termWrap?.focus()}
       />
 
       {/* 错误提示 */}
