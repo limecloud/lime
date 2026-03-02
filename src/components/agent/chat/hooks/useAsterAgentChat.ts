@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
 import { safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -72,6 +73,18 @@ const normalizeActionType = (
     return "ask_user";
   }
   return null;
+};
+
+const WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE = "workspace_path_auto_created";
+
+const isWorkspacePathErrorMessage = (message: string): boolean => {
+  return (
+    message.includes("Workspace 路径不存在") ||
+    message.includes("Workspace 路径不是目录") ||
+    message.includes("Workspace 路径存在但不是目录") ||
+    message.includes("工作区目录缺失") ||
+    message.includes("workspace path")
+  );
 };
 
 const appendActionRequiredToParts = (
@@ -972,6 +985,10 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [pendingActions, setPendingActions] = useState<ActionRequired[]>([]);
+  const [workspacePathMissing, setWorkspacePathMissing] = useState<{
+    content: string;
+    images: MessageImage[];
+  } | null>(null);
 
   const initialPreferencesRef = useRef<AgentPreferences>(
     resolveWorkspaceAgentPreferences(workspaceId),
@@ -1748,6 +1765,9 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
               break;
 
             case "warning": {
+              if (data.code === WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE) {
+                break;
+              }
               const warningKey = `${activeSessionId}:${data.code || data.message}`;
               if (!warnedKeysRef.current.has(warningKey)) {
                 warnedKeysRef.current.add(warningKey);
@@ -1790,9 +1810,12 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
         );
       } catch (error) {
         console.error("[AsterChat] 发送失败:", error);
-        const errMsg = String(error);
+        const errMsg =
+          error instanceof Error ? error.message : String(error);
         if (errMsg.includes("429") || errMsg.toLowerCase().includes("rate limit")) {
           toast.warning("请求过于频繁，请稍后重试");
+        } else if (isWorkspacePathErrorMessage(errMsg)) {
+          setWorkspacePathMissing({ content, images });
         } else {
           toast.error(`发送失败: ${error}`);
         }
@@ -1843,6 +1866,31 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
     setIsSending(false);
     toast.info("已停止生成");
   }, [sessionId]);
+
+  // 修复 workspace 路径并重试
+  const fixWorkspacePathAndRetry = useCallback(
+    async (newPath: string) => {
+      if (!workspacePathMissing) return;
+      const { content: retryContent, images: retryImages } = workspacePathMissing;
+      setWorkspacePathMissing(null);
+      try {
+        await invoke("workspace_update", {
+          id: workspaceId,
+          request: { rootPath: newPath },
+        });
+        await sendMessage(retryContent, retryImages, false, false, true);
+      } catch (err) {
+        toast.error(
+          `修复路径失败: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    },
+    [workspaceId, workspacePathMissing, sendMessage],
+  );
+
+  const dismissWorkspacePathError = useCallback(() => {
+    setWorkspacePathMissing(null);
+  }, []);
 
   // 确认权限请求
   const confirmAction = useCallback(
@@ -2460,5 +2508,10 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
     // Aster 特有功能
     pendingActions,
     confirmAction,
+
+    // Workspace 路径修复
+    workspacePathMissing,
+    fixWorkspacePathAndRetry,
+    dismissWorkspacePathError,
   };
 }

@@ -185,6 +185,9 @@ pub struct WorkspaceUpdate {
     /// 标签列表
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
+    /// 新根目录路径
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_path: Option<PathBuf>,
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ProjectType } from "@/lib/api/project";
+import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 
 /** Workspace 列表项 */
 export interface Workspace {
@@ -37,6 +38,7 @@ export interface CreateWorkspaceRequest {
 export interface UpdateWorkspaceRequest {
   name?: string;
   settings?: WorkspaceSettings;
+  rootPath?: string;
 }
 
 /** Hook 返回类型 */
@@ -63,6 +65,14 @@ export interface UseWorkspaceReturn {
   getByPath: (rootPath: string) => Promise<Workspace | null>;
 }
 
+interface WorkspaceEnsureResult {
+  workspaceId: string;
+  rootPath: string;
+  existed: boolean;
+  created: boolean;
+  repaired: boolean;
+}
+
 /**
  * Workspace 管理 Hook
  */
@@ -87,6 +97,24 @@ export function useWorkspace(): UseWorkspaceReturn {
 
       setWorkspaces(list);
       setCurrentWorkspace(defaultWs);
+
+      if (defaultWs?.id) {
+        const ensureResult = await invoke<WorkspaceEnsureResult>(
+          "workspace_ensure_ready",
+          { id: defaultWs.id },
+        );
+        if (ensureResult.created) {
+          recordWorkspaceRepair({
+            workspaceId: ensureResult.workspaceId,
+            rootPath: ensureResult.rootPath,
+            source: "workspace_refresh",
+          });
+          console.info(
+            "[Workspace] 默认工作区目录缺失，已自动修复:",
+            ensureResult.rootPath,
+          );
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -133,6 +161,21 @@ export function useWorkspace(): UseWorkspaceReturn {
   const setDefault = useCallback(
     async (id: string): Promise<void> => {
       await invoke("workspace_set_default", { id });
+      const ensureResult = await invoke<WorkspaceEnsureResult>(
+        "workspace_ensure_ready",
+        { id },
+      );
+      if (ensureResult.created) {
+        recordWorkspaceRepair({
+          workspaceId: ensureResult.workspaceId,
+          rootPath: ensureResult.rootPath,
+          source: "workspace_set_default",
+        });
+        console.info(
+          "[Workspace] 切换默认工作区时检测到目录缺失，已自动修复:",
+          ensureResult.rootPath,
+        );
+      }
       await refresh();
     },
     [refresh],

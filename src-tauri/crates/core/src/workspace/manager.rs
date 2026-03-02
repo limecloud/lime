@@ -363,6 +363,12 @@ impl WorkspaceManager {
             params_vec.push(Box::new(tags_json));
         }
 
+        if let Some(ref root_path) = updates.root_path {
+            let root_path_str = root_path.to_str().ok_or("无效的路径")?.to_string();
+            set_clauses.push("root_path = ?");
+            params_vec.push(Box::new(root_path_str));
+        }
+
         params_vec.push(Box::new(id.clone()));
 
         let sql = format!(

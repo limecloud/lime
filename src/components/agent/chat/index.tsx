@@ -9,6 +9,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import styled from "styled-components";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { useAgentChatUnified } from "./hooks";
 import { useSessionFiles } from "./hooks/useSessionFiles";
 import { useContentSync } from "./hooks/useContentSync";
@@ -71,6 +73,7 @@ import { skillsApi, type Skill } from "@/lib/api/skills";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { LatestRunStatusBadge } from "@/components/execution/LatestRunStatusBadge";
 import { setActiveContentTarget } from "@/lib/activeContentTarget";
+import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 
 import type { MessageImage } from "./types";
 import type {
@@ -338,6 +341,9 @@ export function AgentChatPage({
     null,
   );
 
+  // 主动 workspace 健康检查失败标记（区别于 workspacePathMissing 发送失败场景）
+  const [workspaceHealthError, setWorkspaceHealthError] = useState(false);
+
   // 引用的角色列表（用于注入到消息中）
   const [mentionedCharacters, setMentionedCharacters] = useState<Character[]>(
     [],
@@ -456,6 +462,36 @@ export function AgentChatPage({
     loadData();
   }, [projectId, contentId, lockTheme, initialTheme]);
 
+  // 当 projectId 变化时主动检查 workspace 目录健康状态
+  // 静默修复（auto-created）或显示 banner 提示用户重新选择
+  useEffect(() => {
+    setWorkspaceHealthError(false);
+    const normalizedId = normalizeProjectId(projectId);
+    if (!normalizedId) return;
+
+    invoke<{ created: boolean; rootPath: string }>("workspace_ensure_ready", {
+      id: normalizedId,
+    })
+      .then(({ created, rootPath }) => {
+        if (created) {
+          recordWorkspaceRepair({
+            workspaceId: normalizedId,
+            rootPath,
+            source: "agent_chat_page",
+          });
+          console.info(
+            "[AgentChatPage] workspace 目录已自动修复:",
+            rootPath,
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn("[AgentChatPage] workspace 目录检查失败:", message);
+        setWorkspaceHealthError(true);
+      });
+  }, [projectId]);
+
   useEffect(() => {
     const normalizedProjectId = normalizeProjectId(projectId);
     if (!normalizedProjectId) {
@@ -520,6 +556,9 @@ export function AgentChatPage({
     switchTopic: originalSwitchTopic,
     deleteTopic,
     renameTopic,
+    workspacePathMissing,
+    fixWorkspacePathAndRetry,
+    dismissWorkspacePathError,
   } = useAgentChatUnified({
     systemPrompt,
     onWriteFile: (content, fileName) => {
@@ -1873,6 +1912,29 @@ export function AgentChatPage({
     _onNavigate?.("resources");
   }, [_onNavigate]);
 
+  const handleSelectWorkspaceDirectory = useCallback(async () => {
+    const newPath = await openDialog({ directory: true, multiple: false });
+    if (!newPath) return;
+    if (workspacePathMissing) {
+      // 发送失败场景：更新路径并重试原来的消息
+      await fixWorkspacePathAndRetry(newPath);
+    } else if (projectId) {
+      // 主动健康检查发现问题：只更新路径，不需要重试
+      try {
+        await invoke("workspace_update", {
+          id: projectId,
+          request: { rootPath: newPath },
+        });
+        setWorkspaceHealthError(false);
+        toast.success("工作区目录已更新");
+      } catch (err) {
+        toast.error(
+          `更新路径失败: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }, [fixWorkspacePathAndRetry, projectId, workspacePathMissing]);
+
   // 聊天区域内容
   const chatContent = (
     <ChatContainer>
@@ -1942,6 +2004,29 @@ export function AgentChatPage({
 
         {showChatLayout && (
           <>
+            {(workspacePathMissing || workspaceHealthError) && (
+              <div className="mx-4 mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                <span className="flex-1">工作区目录不存在，请重新选择一个本地目录后继续</span>
+                <button
+                  type="button"
+                  onClick={() => void handleSelectWorkspaceDirectory()}
+                  className="shrink-0 rounded-md bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 dark:bg-amber-800 dark:text-amber-100 dark:hover:bg-amber-700"
+                >
+                  重新选择目录
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWorkspaceHealthError(false);
+                    dismissWorkspacePathError();
+                  }}
+                  className="shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+                  aria-label="关闭"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <Inputbar
               input={input}
               setInput={setInput}

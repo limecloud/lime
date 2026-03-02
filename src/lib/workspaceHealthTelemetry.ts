@@ -1,0 +1,82 @@
+export type WorkspaceRepairSource =
+  | "app_startup"
+  | "workspace_refresh"
+  | "workspace_set_default"
+  | "projects_refresh"
+  | "agent_chat_page";
+
+export interface WorkspaceRepairRecord {
+  timestamp: string;
+  workspace_id: string;
+  root_path: string;
+  source: WorkspaceRepairSource;
+}
+
+export interface RecordWorkspaceRepairInput {
+  workspaceId: string;
+  rootPath: string;
+  source: WorkspaceRepairSource;
+}
+
+const WORKSPACE_REPAIR_HISTORY_KEY = "proxycast.workspace_repair_history.v1";
+const MAX_WORKSPACE_REPAIR_HISTORY = 50;
+
+export function recordWorkspaceRepair(
+  input: RecordWorkspaceRepairInput,
+): void {
+  if (!input.workspaceId || !input.rootPath) return;
+
+  const nextRecord: WorkspaceRepairRecord = {
+    timestamp: new Date().toISOString(),
+    workspace_id: input.workspaceId,
+    root_path: input.rootPath,
+    source: input.source,
+  };
+
+  const history = readWorkspaceRepairHistory();
+  history.push(nextRecord);
+  const trimmed = history.slice(-MAX_WORKSPACE_REPAIR_HISTORY);
+  writeWorkspaceRepairHistory(trimmed);
+}
+
+export function getWorkspaceRepairHistory(limit = 50): WorkspaceRepairRecord[] {
+  if (limit <= 0) return [];
+  const history = readWorkspaceRepairHistory();
+  return history.slice(-limit).reverse();
+}
+
+export function clearWorkspaceRepairHistory(): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.removeItem(WORKSPACE_REPAIR_HISTORY_KEY);
+}
+
+function readWorkspaceRepairHistory(): WorkspaceRepairRecord[] {
+  if (typeof localStorage === "undefined") return [];
+
+  const raw = localStorage.getItem(WORKSPACE_REPAIR_HISTORY_KEY);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isWorkspaceRepairRecord);
+  } catch {
+    return [];
+  }
+}
+
+function writeWorkspaceRepairHistory(records: WorkspaceRepairRecord[]): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(WORKSPACE_REPAIR_HISTORY_KEY, JSON.stringify(records));
+}
+
+function isWorkspaceRepairRecord(value: unknown): value is WorkspaceRepairRecord {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.timestamp === "string" &&
+    typeof record.workspace_id === "string" &&
+    typeof record.root_path === "string" &&
+    typeof record.source === "string"
+  );
+}

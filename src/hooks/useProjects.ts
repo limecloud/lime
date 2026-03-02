@@ -13,6 +13,15 @@ import type {
   ProjectUpdate,
   ProjectFilter,
 } from "@/types/project";
+import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
+
+interface WorkspaceEnsureResult {
+  workspaceId: string;
+  rootPath: string;
+  existed: boolean;
+  created: boolean;
+  repaired: boolean;
+}
 // WorkspaceType 用于类型定义，暂未使用
 // import type { WorkspaceType } from '@/types/workspace';
 
@@ -64,6 +73,24 @@ export function useProjects(): UseProjectsReturn {
         invoke<Project[]>("workspace_list"),
         invoke<Project | null>("workspace_get_default"),
       ]);
+
+      if (defaultProj?.id) {
+        const ensureResult = await invoke<WorkspaceEnsureResult>(
+          "workspace_ensure_ready",
+          { id: defaultProj.id },
+        );
+        if (ensureResult.created) {
+          recordWorkspaceRepair({
+            workspaceId: ensureResult.workspaceId,
+            rootPath: ensureResult.rootPath,
+            source: "projects_refresh",
+          });
+          console.info(
+            "[Projects] 默认项目目录缺失，已自动修复:",
+            ensureResult.rootPath,
+          );
+        }
+      }
 
       setProjects(list);
       setDefaultProject(defaultProj);

@@ -18,3 +18,4 @@ pub mod sysinfo_service;
 pub mod update_check_service;
 pub mod update_window;
 pub mod web_search_prompt_service;
+pub mod workspace_health_service;
