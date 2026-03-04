@@ -172,6 +172,7 @@ jobs:
           OPENSSL_NO_VENDOR: "1"
         with:
           tauriScript: npx tauri
+          projectPath: src-tauri
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: 'ProxyCast ${{ github.event.inputs.version || github.ref_name }}'
           releaseBody: ${{ env.RELEASE_BODY }}
@@ -194,6 +195,7 @@ jobs:
           RUSTC_WRAPPER: sccache
         with:
           tauriScript: npx tauri
+          projectPath: src-tauri
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: 'ProxyCast ${{ github.event.inputs.version || github.ref_name }}'
           releaseBody: ${{ env.RELEASE_BODY }}
@@ -226,6 +228,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tauriScript: npx tauri
+          projectPath: src-tauri
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: 'ProxyCast ${{ github.event.inputs.version || github.ref_name }}'
           releaseBody: ${{ env.RELEASE_BODY }}
@@ -254,6 +257,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tauriScript: npx tauri
+          projectPath: src-tauri
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: 'ProxyCast ${{ github.event.inputs.version || github.ref_name }}'
           releaseBody: ${{ env.RELEASE_BODY }}
@@ -276,6 +280,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
           tauriScript: npx tauri
+          projectPath: src-tauri
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: 'ProxyCast ${{ github.event.inputs.version || github.ref_name }}'
           releaseBody: ${{ env.RELEASE_BODY }}
