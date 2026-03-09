@@ -1,52 +1,27 @@
-## ProxyCast v0.81.0
-
-### ✨ 新功能
-
-- 主题工作台（Theme Workbench）完整实现：双区域架构（对话区 + 画布区）、上下文管理、版本快照、分支话题
-- 主题工作台侧边栏：上下文列表、编排工作台、网络检索、技能面板
-- 主题工作台技能面板（ThemeWorkbenchSkillsPanel）：支持技能快捷调用
-- 文档画布增强：内容审阅面板、自动续写、文本风格化、版本管理
-- 文档导出功能
-- 图片上传到会话和文稿导入功能
-- 默认技能系统：内置 social_post_with_cover、video_generate、cover_generate、image_generate、library、research、typesetting 等技能
-- 主题上下文工作区 hook：管理上下文筛选、激活、检索
-- 话题分支看板 hook：支持话题分支创建和切换
-- 内容同步增强：支持主题工作台文档状态同步
-- 上下文搜索工具：支持素材库和网络检索
-- 任务文件画布同步
-- 媒体生成统一接口和全局默认设置
-- 视频生成设置页面
-- 语音设置页面增强
-- 工作台右侧面板大幅扩展：支持主题工作台集成
-- Provider Pool 服务增强：优化模型路由和池管理
-- Execution Run 命令扩展：支持主题工作台状态查询
-- 文档编辑器焦点事件管理
-
-### 🐛 修复
-
-- 修复主题工作台内容提取逻辑：AI 普通对话不再被误判为文档内容写入画布
-- 修复 default_skills 测试断言逻辑
-- 修复 content_cmd 测试中 i32 溢出问题
-- 修复 WSL 连接和 live_sync 中的小问题
+## ProxyCast v0.82.0
 
 ### 🔧 优化与重构
 
-- 上下文列表 UI 优化：改进间距、字体、自定义 checkbox 样式、选中状态视觉反馈
-- InputbarCore 重构：增强输入栏功能和样式
-- LayoutTransition 优化
-- DocumentToolbar / BubbleToolbar / NotionEditor 增强
-- CanvasFactory 重构：支持更多画布类型
-- DropdownMenu / Popover / Select UI 组件优化
-- I18n 补丁提供者和 DOM 替换器优化
-- CrashRecoveryPanel 改进
-- WorkbenchStore 扩展
-- 系统提示词增强
+- 大量 Rust 代码质量改进：为枚举类型添加 `#[derive(Default)]` 属性
+- 实现 `FromStr` trait 替代手动 `from_str` 方法，提升代码规范性和类型安全性
+- 修复不必要的 `unwrap()` 调用，改用更安全的 `if let` 模式
+- 优化代码结构：修复 TypeScript lint 错误，移除未使用的变量和函数
+- 修复 `react-hooks/exhaustive-deps` 警告，优化 Hook 依赖项
+
+### 🐛 修复
+
+- 修复 ThemeWorkbenchSidebar 组件中的 20+ 个 ESLint 错误
+- 修复 useConfiguredProviders hook 中的依赖项警告
+- 修复 Rust 代码中的 33 个 clippy 警告
+- 修复 sticky_manager.rs 中的不必要的 unwrap 调用
+- 修复 poster_material_dao.rs 中的不必要的 unwrap 调用
 
 ### 📦 其他
 
-- 新增大量测试覆盖：ThemeWorkbenchSidebar、useThemeContextWorkspace、useTopicBranchBoard、useContentSync、skillCommand、contextSearch、taskFileCanvasSync、extractDocumentContent 等
-- E2E 冒烟测试脚本
+- AI 代码质量验证全部通过（57 个文件，平均分 97/100）
+- 代码格式化和 lint 检查全部通过
+- 为未来的 Rust 代码改进打下基础
 
 ---
 
-**完整变更**: v0.80.0...v0.81.0
+**完整变更**: v0.81.0...v0.82.0
