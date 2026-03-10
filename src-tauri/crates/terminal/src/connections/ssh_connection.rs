@@ -24,7 +24,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, Ordering};
 use std::sync::Arc;
 
@@ -2114,7 +2114,7 @@ pub trait SSHAuthCallback: Send + Sync {
 pub struct NoOpAuthCallback;
 
 impl SSHAuthCallback for NoOpAuthCallback {
-    fn request_passphrase(&self, _key_path: &PathBuf) -> Option<String> {
+    fn request_passphrase(&self, _key_path: &Path) -> Option<String> {
         None
     }
 
