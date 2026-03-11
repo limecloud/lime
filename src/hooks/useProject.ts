@@ -6,7 +6,11 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  getProject as getApiProject,
+  updateProject as updateApiProject,
+} from "@/lib/api/project";
+import { toProjectView } from "@/lib/projectView";
 import type { Project, ProjectUpdate } from "@/types/project";
 
 /** Hook 返回类型 */
@@ -51,11 +55,8 @@ export function useProject(projectId: string | null): UseProjectReturn {
       setLoading(true);
       setError(null);
 
-      const result = await invoke<Project | null>("workspace_get", {
-        id: projectId,
-      });
-
-      setProject(result);
+      const result = await getApiProject(projectId);
+      setProject(result ? toProjectView(result) : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -70,13 +71,10 @@ export function useProject(projectId: string | null): UseProjectReturn {
         throw new Error("项目 ID 不能为空");
       }
 
-      const result = await invoke<Project>("workspace_update", {
-        id: projectId,
-        request: updateData,
-      });
-
-      setProject(result);
-      return result;
+      const result = await updateApiProject(projectId, updateData);
+      const nextProject = toProjectView(result);
+      setProject(nextProject);
+      return nextProject;
     },
     [projectId],
   );

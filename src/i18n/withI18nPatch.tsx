@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { Config, getConfig } from "@/hooks/useTauri";
+import { getConfig, type Config } from "@/lib/api/appConfig";
 import { I18nPatchProvider } from "./I18nPatchProvider";
 import { Language } from "./text-map";
 import { replaceTextInDOM } from "./dom-replacer";

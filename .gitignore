@@ -28,8 +28,9 @@ __pycache__/
 .history
 docs/prd/
 
-# Internal roadmap (private)
+# Internal roadmap&gongzonghao (private)
 docs/roadmap/
+docs/gongzonghao/
 
 # Issues tracking (internal use only)
 .issues/

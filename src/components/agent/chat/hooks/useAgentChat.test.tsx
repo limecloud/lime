@@ -7,7 +7,7 @@ const {
   mockStopAgentProcess,
   mockGetAgentProcessStatus,
   mockCreateAgentSession,
-  mockSendAgentMessageStream,
+  mockSendAsterMessageStream,
   mockListAgentSessions,
   mockDeleteAgentSession,
   mockGetAgentSessionMessages,
@@ -24,7 +24,7 @@ const {
   mockStopAgentProcess: vi.fn(),
   mockGetAgentProcessStatus: vi.fn(),
   mockCreateAgentSession: vi.fn(),
-  mockSendAgentMessageStream: vi.fn(),
+  mockSendAsterMessageStream: vi.fn(),
   mockListAgentSessions: vi.fn(),
   mockDeleteAgentSession: vi.fn(),
   mockGetAgentSessionMessages: vi.fn(),
@@ -38,21 +38,24 @@ const {
   mockGetProviderConfig: vi.fn(),
 }));
 
-vi.mock("@/lib/api/agent", () => ({
+vi.mock("@/lib/api/agentRuntime", () => ({
   startAgentProcess: mockStartAgentProcess,
   stopAgentProcess: mockStopAgentProcess,
   getAgentProcessStatus: mockGetAgentProcessStatus,
   createAgentSession: mockCreateAgentSession,
-  sendAgentMessageStream: mockSendAgentMessageStream,
+  sendAsterMessageStream: mockSendAsterMessageStream,
   listAgentSessions: mockListAgentSessions,
   deleteAgentSession: mockDeleteAgentSession,
   getAgentSessionMessages: mockGetAgentSessionMessages,
   renameAgentSession: mockRenameAgentSession,
   generateAgentTitle: mockGenerateAgentTitle,
-  parseStreamEvent: mockParseStreamEvent,
   confirmAsterAction: mockConfirmAsterAction,
   submitAsterElicitationResponse: mockSubmitAsterElicitationResponse,
   stopAsterSession: mockStopAsterSession,
+}));
+
+vi.mock("@/lib/api/agentStream", () => ({
+  parseStreamEvent: mockParseStreamEvent,
 }));
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -151,7 +154,7 @@ beforeEach(() => {
   mockStopAgentProcess.mockResolvedValue(undefined);
   mockGetAgentProcessStatus.mockResolvedValue({ running: false });
   mockCreateAgentSession.mockResolvedValue({ session_id: "session-created" });
-  mockSendAgentMessageStream.mockResolvedValue(undefined);
+  mockSendAsterMessageStream.mockResolvedValue(undefined);
   mockListAgentSessions.mockResolvedValue([]);
   mockDeleteAgentSession.mockResolvedValue(undefined);
   mockGetAgentSessionMessages.mockResolvedValue([]);
@@ -201,8 +204,7 @@ describe("useAgentChat 偏好持久化", () => {
       ).toBe("gemini-2.5-pro");
       expect(
         JSON.parse(
-          localStorage.getItem(`agent_pref_migrated_${workspaceId}`) ||
-            "false",
+          localStorage.getItem(`agent_pref_migrated_${workspaceId}`) || "false",
         ),
       ).toBe(true);
     } finally {
@@ -255,12 +257,14 @@ describe("useAgentChat 偏好持久化", () => {
       const value = secondMount.getValue();
       expect(value.providerType).toBe("gemini");
       expect(value.model).toBe("gemini-2.5-pro");
-      expect(JSON.parse(localStorage.getItem("agent_pref_provider_global") || "null")).toBe(
-        "gemini",
-      );
-      expect(JSON.parse(localStorage.getItem("agent_pref_model_global") || "null")).toBe(
-        "gemini-2.5-pro",
-      );
+      expect(
+        JSON.parse(
+          localStorage.getItem("agent_pref_provider_global") || "null",
+        ),
+      ).toBe("gemini");
+      expect(
+        JSON.parse(localStorage.getItem("agent_pref_model_global") || "null"),
+      ).toBe("gemini-2.5-pro");
     } finally {
       secondMount.unmount();
     }

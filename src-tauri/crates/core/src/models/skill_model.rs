@@ -1,6 +1,38 @@
+use super::app_type::AppType;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+pub const VIDEO_GENERATE_SKILL_DIRECTORY: &str = "video_generate";
+pub const BROADCAST_GENERATE_SKILL_DIRECTORY: &str = "broadcast_generate";
+pub const COVER_GENERATE_SKILL_DIRECTORY: &str = "cover_generate";
+pub const MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY: &str = "modal_resource_search";
+pub const IMAGE_GENERATE_SKILL_DIRECTORY: &str = "image_generate";
+pub const LIBRARY_SKILL_DIRECTORY: &str = "library";
+pub const URL_PARSE_SKILL_DIRECTORY: &str = "url_parse";
+pub const RESEARCH_SKILL_DIRECTORY: &str = "research";
+pub const TYPESETTING_SKILL_DIRECTORY: &str = "typesetting";
+pub const SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY: &str = "social_post_with_cover";
+
+pub const DEFAULT_PROXYCAST_SKILL_DIRECTORIES: [&str; 10] = [
+    VIDEO_GENERATE_SKILL_DIRECTORY,
+    BROADCAST_GENERATE_SKILL_DIRECTORY,
+    COVER_GENERATE_SKILL_DIRECTORY,
+    MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
+    IMAGE_GENERATE_SKILL_DIRECTORY,
+    LIBRARY_SKILL_DIRECTORY,
+    URL_PARSE_SKILL_DIRECTORY,
+    RESEARCH_SKILL_DIRECTORY,
+    TYPESETTING_SKILL_DIRECTORY,
+    SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
+];
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SkillSourceKind {
+    Builtin,
+    Other,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Skill {
@@ -11,6 +43,8 @@ pub struct Skill {
     #[serde(rename = "readmeUrl", skip_serializing_if = "Option::is_none")]
     pub readme_url: Option<String>,
     pub installed: bool,
+    #[serde(rename = "sourceKind")]
+    pub source_kind: SkillSourceKind,
     #[serde(rename = "repoOwner", skip_serializing_if = "Option::is_none")]
     pub repo_owner: Option<String>,
     #[serde(rename = "repoName", skip_serializing_if = "Option::is_none")]
@@ -103,6 +137,18 @@ pub fn get_default_skill_repos() -> Vec<SkillRepo> {
     ]
 }
 
+pub fn is_default_proxycast_skill(directory: &str) -> bool {
+    DEFAULT_PROXYCAST_SKILL_DIRECTORIES.contains(&directory)
+}
+
+pub fn resolve_skill_source_kind(app_type: &AppType, directory: &str) -> SkillSourceKind {
+    if matches!(app_type, AppType::ProxyCast) && is_default_proxycast_skill(directory) {
+        SkillSourceKind::Builtin
+    } else {
+        SkillSourceKind::Other
+    }
+}
+
 pub type SkillStates = HashMap<String, SkillState>;
 
 #[cfg(test)]
@@ -169,5 +215,30 @@ mod tests {
         let repo = proxycast_repo.unwrap();
         assert_eq!(repo.branch, "main");
         assert!(repo.enabled);
+    }
+
+    #[test]
+    fn test_default_proxycast_skill_directories_include_embedded_defaults() {
+        assert!(is_default_proxycast_skill(VIDEO_GENERATE_SKILL_DIRECTORY));
+        assert!(is_default_proxycast_skill(
+            SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY
+        ));
+        assert!(!is_default_proxycast_skill("custom-skill"));
+    }
+
+    #[test]
+    fn test_resolve_skill_source_kind_only_marks_proxycast_defaults_as_builtin() {
+        assert_eq!(
+            resolve_skill_source_kind(&AppType::ProxyCast, VIDEO_GENERATE_SKILL_DIRECTORY),
+            SkillSourceKind::Builtin
+        );
+        assert_eq!(
+            resolve_skill_source_kind(&AppType::ProxyCast, "custom-skill"),
+            SkillSourceKind::Other
+        );
+        assert_eq!(
+            resolve_skill_source_kind(&AppType::Claude, VIDEO_GENERATE_SKILL_DIRECTORY),
+            SkillSourceKind::Other
+        );
     }
 }

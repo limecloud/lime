@@ -6,8 +6,8 @@
 
 use crate::agent::aster_state::{ProviderConfig, SessionConfigBuilder};
 use crate::agent::{
-    AsterAgentState, AsterAgentWrapper, HeartbeatServiceAdapter, SessionDetail, SessionInfo,
-    TauriAgentEvent,
+    AsterAgentState, AsterAgentWrapper, HeartbeatServiceAdapter, ProxyCastScheduler, SessionDetail,
+    SessionInfo, SubAgentRole, TauriAgentEvent,
 };
 use crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState;
 use crate::commands::webview_cmd::{
@@ -19,13 +19,16 @@ use crate::database::DbConnection;
 use crate::mcp::{McpManagerState, McpServerConfig};
 use crate::services::execution_tracker_service::{ExecutionTracker, RunFinalizeOptions, RunSource};
 use crate::services::heartbeat_service::HeartbeatServiceState;
-use crate::services::memory_profile_prompt_service::merge_system_prompt_with_memory_profile;
+use crate::services::memory_profile_prompt_service::{
+    merge_system_prompt_with_memory_profile, merge_system_prompt_with_memory_sources,
+};
 use crate::services::web_search_prompt_service::merge_system_prompt_with_web_search;
 use crate::services::web_search_runtime_service::apply_web_search_runtime_env;
 use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_relocate;
 use crate::workspace::WorkspaceManager;
 use crate::LogState;
 use aster::agents::extension::{Envs, ExtensionConfig};
+use aster::agents::subagent_scheduler::{SchedulerExecutionResult, SubAgentTask};
 use aster::agents::{Agent, AgentEvent};
 use aster::chrome_mcp::get_chrome_mcp_tools;
 use aster::conversation::message::{Message, MessageContent};
@@ -36,6 +39,7 @@ use aster::permission::{Permission, PermissionConfirmation, PrincipalType};
 use aster::sandbox::{
     detect_best_sandbox, execute_in_sandbox, ResourceLimits, SandboxConfig as ProcessSandboxConfig,
 };
+use aster::tools::task_output_tool::TaskOutputInput;
 use aster::tools::{
     BashTool, KillShellTool, PermissionBehavior, PermissionCheckResult, TaskManager,
     TaskOutputTool, TaskTool, Tool, ToolContext, ToolError, ToolOptions, ToolResult,
@@ -48,6 +52,10 @@ use proxycast_agent::request_tool_policy::REQUEST_TOOL_POLICY_MARKER;
 use proxycast_agent::request_tool_policy::{
     merge_system_prompt_with_request_tool_policy, resolve_request_tool_policy,
     stream_reply_with_policy, ReplyAttemptError, RequestToolPolicy,
+};
+use proxycast_agent::{
+    durable_memory_permission_pattern, is_virtual_memory_path, resolve_virtual_memory_path,
+    virtual_memory_relative_path, DURABLE_MEMORY_VIRTUAL_ROOT,
 };
 use proxycast_services::api_key_provider_service::ApiKeyProviderService;
 use proxycast_services::mcp_service::McpService;
@@ -84,6 +92,8 @@ const PROXYCAST_CREATE_IMAGE_TASK_TOOL_NAME: &str = "proxycast_create_image_gene
 const PROXYCAST_CREATE_URL_PARSE_TASK_TOOL_NAME: &str = "proxycast_create_url_parse_task";
 const PROXYCAST_CREATE_TYPESETTING_TASK_TOOL_NAME: &str = "proxycast_create_typesetting_task";
 const AUTO_CONTINUE_PROMPT_MARKER: &str = "【自动续写策略】";
+const PROXYCAST_TOOL_METADATA_BEGIN: &str = "[ProxyCast 工具元数据开始]";
+const PROXYCAST_TOOL_METADATA_END: &str = "[ProxyCast 工具元数据结束]";
 
 static SHARED_TASK_MANAGER: OnceLock<Arc<TaskManager>> = OnceLock::new();
 
@@ -847,6 +857,321 @@ fn normalize_workspace_tool_permission_behavior(
     }
 }
 
+fn append_workspace_bash_summary(
+    mut output: String,
+    exit_code: i32,
+    stdout_length: usize,
+    stderr_length: usize,
+    sandboxed: bool,
+    sandbox_type: &str,
+) -> String {
+    if !output.is_empty() && !output.ends_with('\n') {
+        output.push('\n');
+    }
+
+    let output_truncated = output.contains("[output truncated:");
+    output.push_str("\n[ProxyCast 执行摘要]\n");
+    output.push_str(&format!("exit_code: {exit_code}\n"));
+    output.push_str(&format!("stdout_length: {stdout_length}\n"));
+    output.push_str(&format!("stderr_length: {stderr_length}\n"));
+    output.push_str(&format!("sandboxed: {sandboxed}\n"));
+    output.push_str(&format!("sandbox_type: {sandbox_type}\n"));
+    output.push_str(&format!("output_truncated: {output_truncated}"));
+    output
+}
+
+fn output_contains_proxycast_metadata_block(output: &str) -> bool {
+    output.contains(PROXYCAST_TOOL_METADATA_BEGIN) && output.contains(PROXYCAST_TOOL_METADATA_END)
+}
+
+fn append_proxycast_tool_metadata_block(
+    mut content: String,
+    metadata: &serde_json::Map<String, serde_json::Value>,
+) -> String {
+    if output_contains_proxycast_metadata_block(&content) {
+        return content;
+    }
+
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    if !content.is_empty() {
+        content.push('\n');
+    }
+
+    let metadata_json = serde_json::to_string(metadata).unwrap_or_else(|_| "{}".to_string());
+    content.push_str(PROXYCAST_TOOL_METADATA_BEGIN);
+    content.push('\n');
+    content.push_str(&metadata_json);
+    content.push('\n');
+    content.push_str(PROXYCAST_TOOL_METADATA_END);
+    content
+}
+
+fn encode_tool_result_for_harness_observability(result: ToolResult) -> ToolResult {
+    let mut metadata = result.metadata.clone();
+    let base_content = if result.success {
+        result.output.unwrap_or_default()
+    } else {
+        metadata
+            .entry("reported_success".to_string())
+            .or_insert_with(|| serde_json::json!(false));
+        result
+            .error
+            .unwrap_or_else(|| "工具执行失败，但未返回错误详情".to_string())
+    };
+
+    if result.success && metadata.is_empty() {
+        return ToolResult::success(base_content);
+    }
+
+    let encoded_output =
+        if metadata.is_empty() || output_contains_proxycast_metadata_block(&base_content) {
+            base_content
+        } else {
+            let metadata_object = metadata
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<serde_json::Map<String, serde_json::Value>>();
+            append_proxycast_tool_metadata_block(base_content, &metadata_object)
+        };
+
+    ToolResult::success(encoded_output).with_metadata_map(metadata)
+}
+
+fn remap_virtual_memory_path_param(
+    params: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Result<bool, ToolError> {
+    let Some(raw_path) = params.get(key).and_then(|value| value.as_str()) else {
+        return Ok(false);
+    };
+
+    let Some(mapped_path) =
+        resolve_virtual_memory_path(raw_path).map_err(ToolError::invalid_params)?
+    else {
+        return Ok(false);
+    };
+
+    params.insert(
+        key.to_string(),
+        serde_json::Value::String(mapped_path.to_string_lossy().to_string()),
+    );
+    Ok(true)
+}
+
+fn remap_virtual_memory_glob_pattern(
+    params: &mut serde_json::Map<String, serde_json::Value>,
+) -> Result<bool, ToolError> {
+    let Some(pattern) = params.get("pattern").and_then(|value| value.as_str()) else {
+        return Ok(false);
+    };
+    if !is_virtual_memory_path(pattern) {
+        return Ok(false);
+    }
+
+    let relative_pattern = virtual_memory_relative_path(pattern).unwrap_or_default();
+    if relative_pattern.split('/').any(|segment| segment == "..") {
+        return Err(ToolError::invalid_params(
+            "glob.pattern 中的 `/memories/` 路径不允许包含 `..`".to_string(),
+        ));
+    }
+
+    let root_path = resolve_virtual_memory_path(DURABLE_MEMORY_VIRTUAL_ROOT)
+        .map_err(ToolError::invalid_params)?
+        .ok_or_else(|| ToolError::invalid_params("无法解析 durable memory 根目录".to_string()))?;
+
+    let normalized_pattern = relative_pattern.trim_start_matches('/');
+    let normalized_pattern = if normalized_pattern.is_empty() {
+        "**/*".to_string()
+    } else {
+        normalized_pattern.to_string()
+    };
+
+    params.insert(
+        "path".to_string(),
+        serde_json::Value::String(root_path.to_string_lossy().to_string()),
+    );
+    params.insert(
+        "pattern".to_string(),
+        serde_json::Value::String(normalized_pattern),
+    );
+    Ok(true)
+}
+
+fn normalize_params_for_durable_memory_support(
+    tool_name: &str,
+    params: &serde_json::Value,
+) -> Result<serde_json::Value, ToolError> {
+    let Some(map) = params.as_object() else {
+        return Ok(params.clone());
+    };
+
+    let mut normalized = map.clone();
+    let mut changed = false;
+
+    match tool_name {
+        "read" | "write" | "edit" | "grep" => {
+            changed |= remap_virtual_memory_path_param(&mut normalized, "path")?;
+        }
+        "glob" => {
+            changed |= remap_virtual_memory_path_param(&mut normalized, "path")?;
+            changed |= remap_virtual_memory_glob_pattern(&mut normalized)?;
+        }
+        _ => {}
+    }
+
+    if changed {
+        Ok(serde_json::Value::Object(normalized))
+    } else {
+        Ok(params.clone())
+    }
+}
+
+struct DurableMemoryMappedTool {
+    delegate: Box<dyn Tool>,
+}
+
+impl DurableMemoryMappedTool {
+    fn new(delegate: Box<dyn Tool>) -> Self {
+        Self { delegate }
+    }
+}
+
+#[async_trait]
+impl Tool for DurableMemoryMappedTool {
+    fn name(&self) -> &str {
+        self.delegate.name()
+    }
+
+    fn description(&self) -> &str {
+        self.delegate.description()
+    }
+
+    fn dynamic_description(&self) -> Option<String> {
+        self.delegate.dynamic_description()
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        self.delegate.input_schema()
+    }
+
+    fn options(&self) -> ToolOptions {
+        self.delegate.options()
+    }
+
+    async fn check_permissions(
+        &self,
+        params: &serde_json::Value,
+        context: &ToolContext,
+    ) -> PermissionCheckResult {
+        let normalized_params =
+            match normalize_params_for_durable_memory_support(self.name(), params) {
+                Ok(value) => value,
+                Err(error) => {
+                    return PermissionCheckResult::deny(format!(
+                        "durable memory 参数无效: {error}"
+                    ));
+                }
+            };
+
+        let mut result = self
+            .delegate
+            .check_permissions(&normalized_params, context)
+            .await;
+
+        if result.updated_params.is_none() && normalized_params != *params {
+            result.updated_params = Some(normalized_params);
+        }
+        result
+    }
+
+    async fn execute(
+        &self,
+        params: serde_json::Value,
+        context: &ToolContext,
+    ) -> Result<ToolResult, ToolError> {
+        let normalized_params = normalize_params_for_durable_memory_support(self.name(), &params)?;
+        self.delegate.execute(normalized_params, context).await
+    }
+}
+
+struct HarnessObservedTool {
+    delegate: Box<dyn Tool>,
+}
+
+impl HarnessObservedTool {
+    fn new(delegate: Box<dyn Tool>) -> Self {
+        Self { delegate }
+    }
+}
+
+#[async_trait]
+impl Tool for HarnessObservedTool {
+    fn name(&self) -> &str {
+        self.delegate.name()
+    }
+
+    fn description(&self) -> &str {
+        self.delegate.description()
+    }
+
+    fn dynamic_description(&self) -> Option<String> {
+        self.delegate.dynamic_description()
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        self.delegate.input_schema()
+    }
+
+    fn options(&self) -> ToolOptions {
+        self.delegate.options()
+    }
+
+    async fn check_permissions(
+        &self,
+        params: &serde_json::Value,
+        context: &ToolContext,
+    ) -> PermissionCheckResult {
+        self.delegate.check_permissions(params, context).await
+    }
+
+    async fn execute(
+        &self,
+        params: serde_json::Value,
+        context: &ToolContext,
+    ) -> Result<ToolResult, ToolError> {
+        self.delegate
+            .execute(params, context)
+            .await
+            .map(encode_tool_result_for_harness_observability)
+    }
+}
+
+fn wrap_registry_native_tools_for_harness_observability(registry: &mut aster::tools::ToolRegistry) {
+    let tool_names = registry
+        .native_tool_names()
+        .into_iter()
+        .map(|name| name.to_string())
+        .collect::<Vec<_>>();
+
+    for tool_name in tool_names {
+        let Some(tool) = registry.unregister(&tool_name) else {
+            continue;
+        };
+        registry.register(Box::new(HarnessObservedTool::new(tool)));
+    }
+}
+
+fn wrap_registry_native_tools_for_durable_memory_fs(registry: &mut aster::tools::ToolRegistry) {
+    for tool_name in ["read", "write", "edit", "glob", "grep"] {
+        let Some(tool) = registry.unregister(tool_name) else {
+            continue;
+        };
+        registry.register(Box::new(DurableMemoryMappedTool::new(tool)));
+    }
+}
+
 #[async_trait]
 impl Tool for WorkspaceSandboxedBashTool {
     fn name(&self) -> &str {
@@ -938,7 +1263,14 @@ impl Tool for WorkspaceSandboxedBashTool {
         .map_err(|_| ToolError::timeout(Duration::from_secs(timeout_secs)))?
         .map_err(|e| ToolError::execution_failed(format!("sandbox 执行失败: {e}")))?;
 
-        let output = Self::format_output(&execution.stdout, &execution.stderr, execution.exit_code);
+        let output = append_workspace_bash_summary(
+            Self::format_output(&execution.stdout, &execution.stderr, execution.exit_code),
+            execution.exit_code,
+            execution.stdout.len(),
+            execution.stderr.len(),
+            execution.sandboxed,
+            &format!("{:?}", execution.sandbox_type),
+        );
         if execution.exit_code == 0 {
             Ok(ToolResult::success(output)
                 .with_metadata("exit_code", serde_json::json!(execution.exit_code))
@@ -950,7 +1282,7 @@ impl Tool for WorkspaceSandboxedBashTool {
                     serde_json::json!(format!("{:?}", execution.sandbox_type)),
                 ))
         } else {
-            Ok(ToolResult::error(output)
+            Ok(ToolResult::success(output)
                 .with_metadata("exit_code", serde_json::json!(execution.exit_code))
                 .with_metadata("stdout_length", serde_json::json!(execution.stdout.len()))
                 .with_metadata("stderr_length", serde_json::json!(execution.stderr.len()))
@@ -958,7 +1290,8 @@ impl Tool for WorkspaceSandboxedBashTool {
                 .with_metadata(
                     "sandbox_type",
                     serde_json::json!(format!("{:?}", execution.sandbox_type)),
-                ))
+                )
+                .with_metadata("reported_success", serde_json::json!(false)))
         }
     }
 }
@@ -1016,6 +1349,354 @@ impl Tool for WorkspaceTaskTool {
     ) -> Result<ToolResult, ToolError> {
         let normalized_params = normalize_shell_command_params(&params);
         self.delegate.execute(normalized_params, context).await
+    }
+}
+
+struct WorkspaceTaskOutputTool {
+    delegate: TaskOutputTool,
+    task_manager: Arc<TaskManager>,
+}
+
+impl WorkspaceTaskOutputTool {
+    fn new(task_manager: Arc<TaskManager>) -> Self {
+        Self {
+            delegate: TaskOutputTool::with_manager(task_manager.clone()),
+            task_manager,
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for WorkspaceTaskOutputTool {
+    fn name(&self) -> &str {
+        self.delegate.name()
+    }
+
+    fn description(&self) -> &str {
+        self.delegate.description()
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        self.delegate.input_schema()
+    }
+
+    fn options(&self) -> ToolOptions {
+        self.delegate.options()
+    }
+
+    async fn check_permissions(
+        &self,
+        params: &serde_json::Value,
+        context: &ToolContext,
+    ) -> PermissionCheckResult {
+        self.delegate.check_permissions(params, context).await
+    }
+
+    async fn execute(
+        &self,
+        params: serde_json::Value,
+        context: &ToolContext,
+    ) -> Result<ToolResult, ToolError> {
+        let input = serde_json::from_value::<TaskOutputInput>(params.clone()).ok();
+        let mut result = self.delegate.execute(params, context).await?;
+
+        let Some(task_id) = input.map(|value| value.task_id) else {
+            return Ok(result);
+        };
+
+        let Some(state) = self.task_manager.get_status(&task_id).await else {
+            return Ok(result);
+        };
+
+        result = result
+            .with_metadata(
+                "output_file",
+                serde_json::json!(state.output_file.to_string_lossy().to_string()),
+            )
+            .with_metadata(
+                "working_directory",
+                serde_json::json!(state.working_directory.to_string_lossy().to_string()),
+            )
+            .with_metadata("session_id", serde_json::json!(state.session_id))
+            .with_metadata("status", serde_json::json!(state.status.to_string()));
+
+        if let Some(exit_code) = state.exit_code {
+            result = result.with_metadata("exit_code", serde_json::json!(exit_code));
+        }
+
+        Ok(result)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SubAgentTaskToolInput {
+    prompt: String,
+    task_type: Option<String>,
+    description: Option<String>,
+    role: Option<String>,
+    timeout_secs: Option<u64>,
+    model: Option<String>,
+    return_summary: Option<bool>,
+    allowed_tools: Option<Vec<String>>,
+    denied_tools: Option<Vec<String>>,
+    max_tokens: Option<usize>,
+}
+
+fn parse_subagent_role(raw: Option<&str>) -> Result<SubAgentRole, ToolError> {
+    let normalized = raw
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_else(|| "executor".to_string());
+
+    match normalized.as_str() {
+        "" | "executor" | "execute" | "code" => Ok(SubAgentRole::Executor),
+        "planner" | "plan" => Ok(SubAgentRole::Planner),
+        "explorer" | "explore" | "research" => Ok(SubAgentRole::Explorer),
+        _ => Err(ToolError::invalid_params(format!(
+            "未知 SubAgent 角色: {}，支持 explorer/planner/executor",
+            normalized
+        ))),
+    }
+}
+
+fn default_subagent_task_type(role: SubAgentRole) -> &'static str {
+    match role {
+        SubAgentRole::Explorer => "explore",
+        SubAgentRole::Planner => "plan",
+        SubAgentRole::Executor => "code",
+    }
+}
+
+fn build_subagent_task_definition(
+    input: &SubAgentTaskToolInput,
+    role: SubAgentRole,
+) -> Result<SubAgentTask, ToolError> {
+    let prompt = input.prompt.trim();
+    if prompt.is_empty() {
+        return Err(ToolError::invalid_params(
+            "SubAgentTask.prompt 不能为空".to_string(),
+        ));
+    }
+
+    let task_type = input
+        .task_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(default_subagent_task_type(role));
+
+    let mut task = SubAgentTask::new(uuid::Uuid::new_v4().to_string(), task_type, prompt);
+
+    if let Some(description) = input
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        task = task.with_description(description.to_string());
+    }
+
+    if let Some(timeout_secs) = input.timeout_secs.filter(|value| *value > 0) {
+        task = task.with_timeout(Duration::from_secs(timeout_secs));
+    }
+
+    if let Some(model) = input
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        task = task.with_model(model.to_string());
+    }
+
+    if let Some(return_summary) = input.return_summary {
+        task = task.with_summary(return_summary);
+    }
+
+    if let Some(allowed_tools) = input
+        .allowed_tools
+        .as_ref()
+        .filter(|items| !items.is_empty())
+    {
+        task = task.with_allowed_tools(allowed_tools.clone());
+    }
+
+    if let Some(denied_tools) = input
+        .denied_tools
+        .as_ref()
+        .filter(|items| !items.is_empty())
+    {
+        task = task.with_denied_tools(denied_tools.clone());
+    }
+
+    if let Some(max_tokens) = input.max_tokens.filter(|value| *value > 0) {
+        task = task.with_max_tokens(max_tokens);
+    }
+
+    Ok(task)
+}
+
+fn summarize_subagent_execution(
+    role: SubAgentRole,
+    execution: &SchedulerExecutionResult,
+) -> String {
+    let merged_summary = execution
+        .merged_summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| {
+            execution.results.iter().find_map(|result| {
+                result
+                    .summary
+                    .as_deref()
+                    .or(result.output.as_deref())
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(ToString::to_string)
+            })
+        })
+        .unwrap_or_else(|| "未返回摘要".to_string());
+
+    format!(
+        "SubAgent({}) 完成：成功 {}，失败 {}，跳过 {}。{}",
+        role,
+        execution.successful_count,
+        execution.failed_count,
+        execution.skipped_count,
+        merged_summary
+    )
+}
+
+#[derive(Debug, Clone)]
+struct SubAgentTaskTool {
+    db: DbConnection,
+    app_handle: AppHandle,
+}
+
+impl SubAgentTaskTool {
+    fn new(db: DbConnection, app_handle: AppHandle) -> Self {
+        Self { db, app_handle }
+    }
+}
+
+#[async_trait]
+impl Tool for SubAgentTaskTool {
+    fn name(&self) -> &str {
+        "SubAgentTask"
+    }
+
+    fn description(&self) -> &str {
+        "将独立子问题委派给隔离上下文的子代理执行，并返回摘要结果"
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "子代理要执行的任务说明"
+                },
+                "taskType": {
+                    "type": "string",
+                    "description": "任务类型，例如 explore、plan、code、review"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "展示给用户的任务标题"
+                },
+                "role": {
+                    "type": "string",
+                    "description": "子代理角色：explorer、planner、executor"
+                },
+                "timeoutSecs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "单个子任务超时时间（秒）"
+                },
+                "model": {
+                    "type": "string",
+                    "description": "可选模型名"
+                },
+                "returnSummary": {
+                    "type": "boolean",
+                    "description": "是否优先返回摘要"
+                },
+                "allowedTools": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "显式允许的工具列表"
+                },
+                "deniedTools": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "显式拒绝的工具列表"
+                },
+                "maxTokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "子代理最大 token 限制"
+                }
+            },
+            "required": ["prompt"],
+            "additionalProperties": false
+        })
+    }
+
+    fn options(&self) -> ToolOptions {
+        ToolOptions::new()
+            .with_max_retries(0)
+            .with_base_timeout(Duration::from_secs(900))
+            .with_dynamic_timeout(false)
+    }
+
+    async fn execute(
+        &self,
+        params: serde_json::Value,
+        context: &ToolContext,
+    ) -> Result<ToolResult, ToolError> {
+        let input: SubAgentTaskToolInput = serde_json::from_value(params)
+            .map_err(|err| ToolError::invalid_params(format!("SubAgentTask 参数无效: {err}")))?;
+        let role = parse_subagent_role(input.role.as_deref())?;
+        let task = build_subagent_task_definition(&input, role)?;
+        let task_id = task.id.clone();
+
+        let mut scheduler =
+            ProxyCastScheduler::new(self.db.clone()).with_app_handle(self.app_handle.clone());
+        if !context.session_id.trim().is_empty() {
+            scheduler = scheduler.with_event_session_id(context.session_id.clone());
+        }
+        scheduler.init(None).await;
+
+        let execution = scheduler
+            .execute_with_role(vec![task], None, role)
+            .await
+            .map_err(|err| ToolError::execution_failed(format!("SubAgentTask 执行失败: {err}")))?;
+
+        let summary = summarize_subagent_execution(role, &execution);
+        let metadata = serde_json::json!({
+            "task_id": task_id,
+            "role": role.to_string(),
+            "success": execution.success,
+            "successful_count": execution.successful_count,
+            "failed_count": execution.failed_count,
+            "skipped_count": execution.skipped_count,
+            "merged_summary": execution.merged_summary,
+            "results": execution.results,
+            "total_token_usage": execution.total_token_usage,
+        });
+
+        if execution.success {
+            Ok(ToolResult::success(summary)
+                .with_metadata("subagent", metadata)
+                .with_metadata("role", serde_json::json!(role.to_string())))
+        } else {
+            Ok(ToolResult::error(summary)
+                .with_metadata("subagent", metadata)
+                .with_metadata("role", serde_json::json!(role.to_string())))
+        }
     }
 }
 
@@ -2586,7 +3267,9 @@ async fn apply_workspace_sandbox_permissions(
     };
 
     let escaped_root = regex::escape(workspace_root);
-    let workspace_path_pattern = format!(r"^({escaped_root}|\.|\./|\.\./).*$");
+    let virtual_memory_path_pattern = durable_memory_permission_pattern();
+    let workspace_path_pattern =
+        format!(r"^(?:({escaped_root}|\.|\./|\.\./).*$|{virtual_memory_path_pattern})");
     let workspace_abs_path_pattern = format!(r"^({escaped_root}).*$");
     let analyze_image_path_pattern = format!(
         r"^(base64:[A-Za-z0-9+/=]+|file://({escaped_root}).*|({escaped_root}|\.|\./|\.\./).*)$"
@@ -2610,14 +3293,16 @@ async fn apply_workspace_sandbox_permissions(
                     min: None,
                     max: None,
                     required: true,
-                    description: Some("read.path 必须在 workspace 内或相对路径".to_string()),
+                    description: Some(
+                        "read.path 必须在 workspace、相对路径或 `/memories/...` 内".to_string(),
+                    ),
                 }]
             },
             scope: PermissionScope::Session,
             reason: Some(if auto_mode {
                 "Auto 模式：允许读取任意路径".to_string()
             } else {
-                "仅允许读取当前 workspace 内容".to_string()
+                "仅允许读取当前 workspace 或 `/memories/` 内容".to_string()
             }),
             expires_at: None,
             metadata: HashMap::new(),
@@ -2639,14 +3324,16 @@ async fn apply_workspace_sandbox_permissions(
                     min: None,
                     max: None,
                     required: true,
-                    description: Some("write.path 必须在 workspace 内或相对路径".to_string()),
+                    description: Some(
+                        "write.path 必须在 workspace、相对路径或 `/memories/...` 内".to_string(),
+                    ),
                 }]
             },
             scope: PermissionScope::Session,
             reason: Some(if auto_mode {
                 "Auto 模式：允许写入任意路径".to_string()
             } else {
-                "仅允许写入当前 workspace 内容".to_string()
+                "仅允许写入当前 workspace 或 `/memories/` 内容".to_string()
             }),
             expires_at: None,
             metadata: HashMap::new(),
@@ -2668,14 +3355,16 @@ async fn apply_workspace_sandbox_permissions(
                     min: None,
                     max: None,
                     required: true,
-                    description: Some("edit.path 必须在 workspace 内或相对路径".to_string()),
+                    description: Some(
+                        "edit.path 必须在 workspace、相对路径或 `/memories/...` 内".to_string(),
+                    ),
                 }]
             },
             scope: PermissionScope::Session,
             reason: Some(if auto_mode {
                 "Auto 模式：允许编辑任意路径".to_string()
             } else {
-                "仅允许编辑当前 workspace 内容".to_string()
+                "仅允许编辑当前 workspace 或 `/memories/` 内容".to_string()
             }),
             expires_at: None,
             metadata: HashMap::new(),
@@ -2697,14 +3386,16 @@ async fn apply_workspace_sandbox_permissions(
                     min: None,
                     max: None,
                     required: false,
-                    description: Some("glob.path 必须在 workspace 内或相对路径".to_string()),
+                    description: Some(
+                        "glob.path 必须在 workspace、相对路径或 `/memories/...` 内".to_string(),
+                    ),
                 }]
             },
             scope: PermissionScope::Session,
             reason: Some(if auto_mode {
                 "Auto 模式：允许任意路径搜索文件".to_string()
             } else {
-                "仅允许在当前 workspace 搜索文件".to_string()
+                "仅允许在当前 workspace 或 `/memories/` 搜索文件".to_string()
             }),
             expires_at: None,
             metadata: HashMap::new(),
@@ -2726,14 +3417,16 @@ async fn apply_workspace_sandbox_permissions(
                     min: None,
                     max: None,
                     required: false,
-                    description: Some("grep.path 必须在 workspace 内或相对路径".to_string()),
+                    description: Some(
+                        "grep.path 必须在 workspace、相对路径或 `/memories/...` 内".to_string(),
+                    ),
                 }]
             },
             scope: PermissionScope::Session,
             reason: Some(if auto_mode {
                 "Auto 模式：允许任意路径搜索内容".to_string()
             } else {
-                "仅允许在当前 workspace 搜索内容".to_string()
+                "仅允许在当前 workspace 或 `/memories/` 搜索内容".to_string()
             }),
             expires_at: None,
             metadata: HashMap::new(),
@@ -2982,6 +3675,7 @@ async fn apply_workspace_sandbox_permissions(
 
     for tool_name in [
         "Skill",
+        "SubAgentTask",
         "TaskOutput",
         "KillShell",
         "TodoWrite",
@@ -3067,7 +3761,11 @@ async fn apply_workspace_sandbox_permissions(
         auto_mode,
         task_manager.clone(),
     )));
-    registry.register(Box::new(TaskOutputTool::with_manager(task_manager.clone())));
+    registry.register(Box::new(SubAgentTaskTool::new(
+        db.clone(),
+        app_handle.clone(),
+    )));
+    registry.register(Box::new(WorkspaceTaskOutputTool::new(task_manager.clone())));
     registry.register(Box::new(KillShellTool::with_task_manager(task_manager)));
 
     if let Some(workspace_bash_tool) = sandboxed_bash_tool {
@@ -3090,6 +3788,8 @@ async fn apply_workspace_sandbox_permissions(
 
     // 注册浏览器 MCP 工具
     register_browser_mcp_tools_to_registry(&mut registry);
+    wrap_registry_native_tools_for_durable_memory_fs(&mut registry);
+    wrap_registry_native_tools_for_harness_observability(&mut registry);
 
     Ok(apply_outcome)
 }
@@ -3345,12 +4045,15 @@ pub async fn aster_agent_chat_stream(
             }
         };
 
+        let prompt_with_memory = merge_system_prompt_with_memory_sources(
+            merge_system_prompt_with_memory_profile(resolved_prompt, &runtime_config),
+            &runtime_config,
+            Path::new(&workspace_root),
+            None,
+        );
         let merged_prompt = merge_system_prompt_with_auto_continue(
             merge_system_prompt_with_request_tool_policy(
-                merge_system_prompt_with_web_search(
-                    merge_system_prompt_with_memory_profile(resolved_prompt, &runtime_config),
-                    &runtime_config,
-                ),
+                merge_system_prompt_with_web_search(prompt_with_memory, &runtime_config),
                 &request_tool_policy,
             ),
             auto_continue_config.as_ref(),
@@ -3856,7 +4559,10 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use regex::Regex;
-    use std::path::PathBuf;
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::TempDir;
 
     struct DummyTool {
         name: String,
@@ -3894,6 +4600,33 @@ mod tests {
             _context: &ToolContext,
         ) -> Result<ToolResult, ToolError> {
             Ok(ToolResult::success("ok"))
+        }
+    }
+
+    fn durable_memory_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct DurableMemoryEnvGuard {
+        previous: Option<OsString>,
+    }
+
+    impl DurableMemoryEnvGuard {
+        fn set(path: &Path) -> Self {
+            let previous = std::env::var_os("PROXYCAST_DURABLE_MEMORY_DIR");
+            std::env::set_var("PROXYCAST_DURABLE_MEMORY_DIR", path.as_os_str());
+            Self { previous }
+        }
+    }
+
+    impl Drop for DurableMemoryEnvGuard {
+        fn drop(&mut self) {
+            if let Some(value) = &self.previous {
+                std::env::set_var("PROXYCAST_DURABLE_MEMORY_DIR", value);
+            } else {
+                std::env::remove_var("PROXYCAST_DURABLE_MEMORY_DIR");
+            }
         }
     }
 
@@ -4235,10 +4968,183 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_params_for_durable_memory_support_maps_read_path() {
+        let _lock = durable_memory_test_lock().lock().expect("lock env");
+        let tmp = TempDir::new().expect("create temp dir");
+        let _env = DurableMemoryEnvGuard::set(tmp.path());
+
+        let input = serde_json::json!({
+            "path": "/memories/preferences.md"
+        });
+        let normalized = normalize_params_for_durable_memory_support("read", &input)
+            .expect("normalize read params");
+        let expected = tmp
+            .path()
+            .join("preferences.md")
+            .to_string_lossy()
+            .to_string();
+
+        assert_eq!(
+            normalized.get("path").and_then(|value| value.as_str()),
+            Some(expected.as_str())
+        );
+    }
+
+    #[test]
+    fn test_normalize_params_for_durable_memory_support_rewrites_glob_pattern() {
+        let _lock = durable_memory_test_lock().lock().expect("lock env");
+        let tmp = TempDir::new().expect("create temp dir");
+        let _env = DurableMemoryEnvGuard::set(tmp.path());
+
+        let input = serde_json::json!({
+            "pattern": "/memories/**/*.md"
+        });
+        let normalized = normalize_params_for_durable_memory_support("glob", &input)
+            .expect("normalize glob params");
+        let expected_root = tmp.path().to_string_lossy().to_string();
+
+        assert_eq!(
+            normalized.get("path").and_then(|value| value.as_str()),
+            Some(expected_root.as_str())
+        );
+        assert_eq!(
+            normalized.get("pattern").and_then(|value| value.as_str()),
+            Some("**/*.md")
+        );
+    }
+
+    #[test]
+    fn test_normalize_params_for_durable_memory_support_rejects_glob_parent_segments() {
+        let _lock = durable_memory_test_lock().lock().expect("lock env");
+        let tmp = TempDir::new().expect("create temp dir");
+        let _env = DurableMemoryEnvGuard::set(tmp.path());
+
+        let input = serde_json::json!({
+            "pattern": "/memories/../escape.md"
+        });
+        let error = normalize_params_for_durable_memory_support("glob", &input)
+            .expect_err("should reject parent path");
+
+        assert!(error.to_string().contains("不允许包含 `..`"));
+    }
+
+    #[test]
+    fn test_encode_tool_result_for_harness_observability_appends_metadata_block() {
+        let result = ToolResult::success("任务已完成")
+            .with_metadata("output_file", serde_json::json!("/tmp/task.log"))
+            .with_metadata("exit_code", serde_json::json!(0));
+
+        let encoded = encode_tool_result_for_harness_observability(result);
+        assert!(encoded.success);
+        assert!(encoded
+            .output
+            .as_deref()
+            .unwrap_or_default()
+            .contains(PROXYCAST_TOOL_METADATA_BEGIN));
+        assert!(encoded
+            .output
+            .as_deref()
+            .unwrap_or_default()
+            .contains("\"output_file\":\"/tmp/task.log\""));
+    }
+
+    #[test]
+    fn test_encode_tool_result_for_harness_observability_converts_error_to_success_output() {
+        let result =
+            ToolResult::error("执行失败").with_metadata("failed_count", serde_json::json!(1));
+
+        let encoded = encode_tool_result_for_harness_observability(result);
+        assert!(encoded.success);
+        let output = encoded.output.as_deref().unwrap_or_default();
+        assert!(output.contains("执行失败"));
+        assert!(output.contains(PROXYCAST_TOOL_METADATA_BEGIN));
+        assert!(output.contains("\"reported_success\":false"));
+    }
+
+    #[test]
+    fn test_encode_tool_result_for_harness_observability_is_idempotent() {
+        let initial = ToolResult::success(format!(
+            "ok\n\n{PROXYCAST_TOOL_METADATA_BEGIN}\n{{\"reported_success\":false}}\n{PROXYCAST_TOOL_METADATA_END}"
+        ))
+        .with_metadata("reported_success", serde_json::json!(false));
+
+        let encoded = encode_tool_result_for_harness_observability(initial);
+        let output = encoded.output.as_deref().unwrap_or_default();
+        assert_eq!(output.matches(PROXYCAST_TOOL_METADATA_BEGIN).count(), 1);
+        assert_eq!(output.matches(PROXYCAST_TOOL_METADATA_END).count(), 1);
+    }
+
+    #[test]
     fn test_shared_task_manager_returns_same_instance() {
         let first = shared_task_manager();
         let second = shared_task_manager();
         assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    fn test_parse_subagent_role_supports_aliases() {
+        assert_eq!(
+            parse_subagent_role(Some("explore")).unwrap(),
+            SubAgentRole::Explorer
+        );
+        assert_eq!(
+            parse_subagent_role(Some("plan")).unwrap(),
+            SubAgentRole::Planner
+        );
+        assert_eq!(
+            parse_subagent_role(Some("code")).unwrap(),
+            SubAgentRole::Executor
+        );
+        assert_eq!(parse_subagent_role(None).unwrap(), SubAgentRole::Executor);
+    }
+
+    #[test]
+    fn test_build_subagent_task_definition_uses_role_defaults() {
+        let input = SubAgentTaskToolInput {
+            prompt: "分析当前 harness 缺口".to_string(),
+            task_type: None,
+            description: None,
+            role: Some("explorer".to_string()),
+            timeout_secs: Some(45),
+            model: None,
+            return_summary: None,
+            allowed_tools: None,
+            denied_tools: None,
+            max_tokens: None,
+        };
+
+        let task = build_subagent_task_definition(&input, SubAgentRole::Explorer).unwrap();
+        assert_eq!(task.task_type, "explore");
+        assert_eq!(task.timeout.map(|value| value.as_secs()), Some(45));
+        assert!(task.return_summary);
+    }
+
+    #[test]
+    fn test_build_subagent_task_definition_applies_optional_fields() {
+        let input = SubAgentTaskToolInput {
+            prompt: "实现 harness 面板".to_string(),
+            task_type: Some("code".to_string()),
+            description: Some("实现前端面板".to_string()),
+            role: Some("executor".to_string()),
+            timeout_secs: Some(120),
+            model: Some("claude-sonnet-4-20250514".to_string()),
+            return_summary: Some(false),
+            allowed_tools: Some(vec!["read_file".to_string(), "write_file".to_string()]),
+            denied_tools: Some(vec!["execute_command".to_string()]),
+            max_tokens: Some(4096),
+        };
+
+        let task = build_subagent_task_definition(&input, SubAgentRole::Executor).unwrap();
+        assert_eq!(task.task_type, "code");
+        assert_eq!(task.description.as_deref(), Some("实现前端面板"));
+        assert_eq!(task.model.as_deref(), Some("claude-sonnet-4-20250514"));
+        assert!(!task.return_summary);
+        assert_eq!(
+            task.allowed_tools,
+            Some(vec!["read_file".to_string(), "write_file".to_string()])
+        );
+        assert_eq!(task.denied_tools, Some(vec!["execute_command".to_string()]));
+        assert_eq!(task.max_tokens, Some(4096));
     }
 
     #[test]

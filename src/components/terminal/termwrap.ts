@@ -35,7 +35,7 @@ import {
   decodeBytes,
   encodeBase64,
   type SessionStatus,
-} from "@/lib/terminal-api";
+} from "@/lib/api/terminal";
 import {
   type ThemeName,
   getTheme,

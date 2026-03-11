@@ -1,64 +1,61 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const VIDEO_GENERATE_SKILL_NAME: &str = "video_generate";
+use proxycast_core::models::{
+    BROADCAST_GENERATE_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
+    IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY, MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
+    RESEARCH_SKILL_DIRECTORY, SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY,
+    URL_PARSE_SKILL_DIRECTORY, VIDEO_GENERATE_SKILL_DIRECTORY,
+};
+
 const VIDEO_GENERATE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/video_generate/SKILL.md");
 
-const BROADCAST_GENERATE_SKILL_NAME: &str = "broadcast_generate";
 const BROADCAST_GENERATE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/broadcast_generate/SKILL.md");
 
-const COVER_GENERATE_SKILL_NAME: &str = "cover_generate";
 const COVER_GENERATE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/cover_generate/SKILL.md");
 
-const MODAL_RESOURCE_SEARCH_SKILL_NAME: &str = "modal_resource_search";
 const MODAL_RESOURCE_SEARCH_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/modal_resource_search/SKILL.md");
 
-const IMAGE_GENERATE_SKILL_NAME: &str = "image_generate";
 const IMAGE_GENERATE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/image_generate/SKILL.md");
 
-const LIBRARY_SKILL_NAME: &str = "library";
 const LIBRARY_SKILL_CONTENT: &str = include_str!("../../resources/default-skills/library/SKILL.md");
 
-const URL_PARSE_SKILL_NAME: &str = "url_parse";
 const URL_PARSE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/url_parse/SKILL.md");
 
-const RESEARCH_SKILL_NAME: &str = "research";
 const RESEARCH_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/research/SKILL.md");
 
-const TYPESETTING_SKILL_NAME: &str = "typesetting";
 const TYPESETTING_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/typesetting/SKILL.md");
 
-const SOCIAL_POST_WITH_COVER_SKILL_NAME: &str = "social_post_with_cover";
 const SOCIAL_POST_WITH_COVER_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/social_post_with_cover/SKILL.md");
 
 fn default_skills() -> [(&'static str, &'static str); 10] {
     [
-        (VIDEO_GENERATE_SKILL_NAME, VIDEO_GENERATE_SKILL_CONTENT),
+        (VIDEO_GENERATE_SKILL_DIRECTORY, VIDEO_GENERATE_SKILL_CONTENT),
         (
-            BROADCAST_GENERATE_SKILL_NAME,
+            BROADCAST_GENERATE_SKILL_DIRECTORY,
             BROADCAST_GENERATE_SKILL_CONTENT,
         ),
-        (COVER_GENERATE_SKILL_NAME, COVER_GENERATE_SKILL_CONTENT),
+        (COVER_GENERATE_SKILL_DIRECTORY, COVER_GENERATE_SKILL_CONTENT),
         (
-            MODAL_RESOURCE_SEARCH_SKILL_NAME,
+            MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
             MODAL_RESOURCE_SEARCH_SKILL_CONTENT,
         ),
-        (IMAGE_GENERATE_SKILL_NAME, IMAGE_GENERATE_SKILL_CONTENT),
-        (LIBRARY_SKILL_NAME, LIBRARY_SKILL_CONTENT),
-        (URL_PARSE_SKILL_NAME, URL_PARSE_SKILL_CONTENT),
-        (RESEARCH_SKILL_NAME, RESEARCH_SKILL_CONTENT),
-        (TYPESETTING_SKILL_NAME, TYPESETTING_SKILL_CONTENT),
+        (IMAGE_GENERATE_SKILL_DIRECTORY, IMAGE_GENERATE_SKILL_CONTENT),
+        (LIBRARY_SKILL_DIRECTORY, LIBRARY_SKILL_CONTENT),
+        (URL_PARSE_SKILL_DIRECTORY, URL_PARSE_SKILL_CONTENT),
+        (RESEARCH_SKILL_DIRECTORY, RESEARCH_SKILL_CONTENT),
+        (TYPESETTING_SKILL_DIRECTORY, TYPESETTING_SKILL_CONTENT),
         (
-            SOCIAL_POST_WITH_COVER_SKILL_NAME,
+            SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
             SOCIAL_POST_WITH_COVER_SKILL_CONTENT,
         ),
     ]
@@ -135,13 +132,13 @@ mod tests {
     fn should_install_default_skill_when_missing() {
         let temp = tempfile::tempdir().expect("create temp dir");
         let installed = ensure_default_local_skills_in_home(temp.path()).expect("install");
-        assert!(installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_NAME.to_string()));
+        assert!(installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY.to_string()));
 
         let skill_md_path = temp
             .path()
             .join(".proxycast")
             .join("skills")
-            .join(SOCIAL_POST_WITH_COVER_SKILL_NAME)
+            .join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY)
             .join("SKILL.md");
         assert!(skill_md_path.exists());
     }
@@ -153,7 +150,7 @@ mod tests {
             .path()
             .join(".proxycast")
             .join("skills")
-            .join(SOCIAL_POST_WITH_COVER_SKILL_NAME);
+            .join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY);
         fs::create_dir_all(&skill_dir).expect("create skill dir");
         let skill_md_path = skill_dir.join("SKILL.md");
         // 无版本号的自定义内容不应被覆盖
@@ -162,7 +159,7 @@ mod tests {
 
         let installed = ensure_default_local_skills_in_home(temp.path()).expect("install");
         assert!(
-            !installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_NAME.to_string()),
+            !installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY.to_string()),
             "无版本信息的已存在 skill 不应被重新安装"
         );
 
@@ -177,7 +174,7 @@ mod tests {
             .path()
             .join(".proxycast")
             .join("skills")
-            .join(SOCIAL_POST_WITH_COVER_SKILL_NAME);
+            .join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY);
         fs::create_dir_all(&skill_dir).expect("create skill dir");
         let skill_md_path = skill_dir.join("SKILL.md");
         // 旧版本内容
@@ -186,7 +183,7 @@ mod tests {
 
         let installed = ensure_default_local_skills_in_home(temp.path()).expect("install");
         assert!(
-            installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_NAME.to_string()),
+            installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY.to_string()),
             "内置版本更新时应自动升级"
         );
 

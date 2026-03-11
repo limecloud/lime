@@ -23,6 +23,7 @@ import {
   Plug,
   Route,
   Search,
+  Variable,
   Monitor,
   ShieldCheck,
   HeartPulse,
@@ -172,6 +173,11 @@ export function useSettingsCategory(): CategoryGroup[] {
           key: SettingsTabs.WebSearch,
           label: t("settings.tab.webSearch", "网络搜索"),
           icon: Search,
+        },
+        {
+          key: SettingsTabs.Environment,
+          label: t("settings.tab.environment", "环境变量"),
+          icon: Variable,
         },
         {
           key: SettingsTabs.ChromeRelay,

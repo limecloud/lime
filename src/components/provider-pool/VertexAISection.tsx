@@ -8,7 +8,10 @@ import {
   EyeOff,
   ArrowRight,
 } from "lucide-react";
-import type { VertexApiKeyEntry, VertexModelAlias } from "@/hooks/useTauri";
+import type {
+  VertexApiKeyEntry,
+  VertexModelAlias,
+} from "@/lib/api/providerRuntime";
 
 interface VertexAISectionProps {
   entries: VertexApiKeyEntry[] | undefined;

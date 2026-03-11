@@ -11,6 +11,7 @@ const {
   mockGetOrCreateDefaultProject,
   mockGetContent,
   mockGetThemeWorkbenchDocumentState,
+  mockEnsureWorkspaceReady,
   mockUpdateContent,
   mockGetProjectMemory,
   mockToast,
@@ -34,6 +35,7 @@ const {
   mockGetOrCreateDefaultProject: vi.fn(),
   mockGetContent: vi.fn(),
   mockGetThemeWorkbenchDocumentState: vi.fn(),
+  mockEnsureWorkspaceReady: vi.fn(),
   mockUpdateContent: vi.fn(),
   mockGetProjectMemory: vi.fn(),
   mockToast: {
@@ -240,8 +242,14 @@ vi.mock("@/components/content-creator/canvas/CanvasFactory", () => ({
   CanvasFactory: () => <div data-testid="canvas-factory" />,
 }));
 
-vi.mock("@/components/general-chat/canvas", () => ({
+vi.mock("@/components/general-chat/bridge", () => ({
   CanvasPanel: () => <div data-testid="general-canvas" />,
+  DEFAULT_CANVAS_STATE: {
+    isOpen: false,
+    contentType: null,
+    content: "",
+    isEditing: false,
+  },
 }));
 
 vi.mock("@/components/artifact", () => ({
@@ -304,6 +312,7 @@ vi.mock("@/lib/api/project", () => ({
   getOrCreateDefaultProject: mockGetOrCreateDefaultProject,
   getContent: mockGetContent,
   getThemeWorkbenchDocumentState: mockGetThemeWorkbenchDocumentState,
+  ensureWorkspaceReady: mockEnsureWorkspaceReady,
   updateContent: mockUpdateContent,
 }));
 
@@ -487,6 +496,16 @@ beforeEach(() => {
   mockGetOrCreateDefaultProject.mockResolvedValue(null);
   mockGetContent.mockResolvedValue(null);
   mockGetThemeWorkbenchDocumentState.mockResolvedValue(null);
+  mockEnsureWorkspaceReady.mockResolvedValue({
+    workspaceId: "workspace-test",
+    rootPath: "/tmp/workspace-test",
+    existed: true,
+    created: false,
+    repaired: false,
+    relocated: false,
+    previousRootPath: null,
+    warning: null,
+  });
   mockUpdateContent.mockResolvedValue(undefined);
   mockGetProjectMemory.mockResolvedValue(null);
   mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
@@ -2029,8 +2048,96 @@ describe("AgentChatPage 视频主题工作台", () => {
     await flushEffects(10);
 
     expect(container.querySelector('[data-testid="inputbar"]')).toBeNull();
-    expect(container.querySelector('[data-testid="theme-workbench-sidebar"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="theme-workbench-sidebar"]'),
+    ).toBeNull();
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
     expect(sharedSendMessageMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("AgentChatPage 海报主题工作台", () => {
+  it("海报主题工作台不应渲染底部通用输入条、左侧上下文栏，也不应自动发起请求", async () => {
+    mockUseThemeContextWorkspace.mockReturnValue(
+      createMockThemeContextWorkspaceState({
+        enabled: true,
+      }),
+    );
+
+    const container = renderPage({
+      projectId: "project-poster",
+      contentId: "content-poster",
+      theme: "poster",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    expect(container.querySelector('[data-testid="inputbar"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="theme-workbench-sidebar"]'),
+    ).toBeNull();
+    expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("AgentChatPage 小说主题工作台", () => {
+  it("小说主题工作台普通进入时不应自动发起请求", async () => {
+    mockIsContentCreationTheme.mockReturnValue(true);
+    mockUseThemeContextWorkspace.mockReturnValue(
+      createMockThemeContextWorkspaceState({
+        enabled: true,
+      }),
+    );
+
+    const container = renderPage({
+      projectId: "project-novel",
+      contentId: "content-novel",
+      theme: "novel",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    expect(
+      container.querySelector('[data-testid="theme-workbench-sidebar"]'),
+    ).not.toBeNull();
+    expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("小说主题工作台带初始意图时仍应自动发送首条请求", async () => {
+    mockIsContentCreationTheme.mockReturnValue(true);
+    mockUseThemeContextWorkspace.mockReturnValue(
+      createMockThemeContextWorkspaceState({
+        enabled: true,
+      }),
+    );
+
+    const initialUserPrompt = "请基于当前设定生成第一章开篇。";
+    const onInitialUserPromptConsumed = vi.fn();
+
+    renderPage({
+      projectId: "project-novel-intent",
+      contentId: "content-novel-intent",
+      theme: "novel",
+      lockTheme: true,
+      initialUserPrompt,
+      onInitialUserPromptConsumed,
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).toHaveBeenCalledWith(
+      initialUserPrompt,
+      [],
+      false,
+      false,
+      false,
+      undefined,
+      "mock-model",
+      undefined,
+      undefined,
+    );
+    expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
+    expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });
 });

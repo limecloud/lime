@@ -19,7 +19,9 @@ use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
 use crate::config::GlobalConfigManagerState;
 use crate::database::dao::chat::{ChatDao, ChatMessage, ChatMode, ChatSession};
 use crate::database::DbConnection;
-use crate::services::memory_profile_prompt_service::merge_system_prompt_with_memory_profile;
+use crate::services::memory_profile_prompt_service::{
+    merge_system_prompt_with_memory_profile, merge_system_prompt_with_memory_sources,
+};
 use crate::services::request_tool_policy_prompt_service::{
     execute_web_search_preflight_if_needed, merge_system_prompt_with_request_tool_policy,
     resolve_request_tool_policy, RequestToolPolicy, WebSearchExecutionTracker,
@@ -128,8 +130,14 @@ pub async fn chat_create_session(
     let session_id = uuid::Uuid::new_v4().to_string();
 
     let config = config_manager.config();
+    let working_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let merged_system_prompt = merge_system_prompt_with_web_search(
-        merge_system_prompt_with_memory_profile(request.system_prompt.clone(), &config),
+        merge_system_prompt_with_memory_sources(
+            merge_system_prompt_with_memory_profile(request.system_prompt.clone(), &config),
+            &config,
+            &working_dir,
+            None,
+        ),
         &config,
     );
 
@@ -365,8 +373,14 @@ pub async fn chat_send_message(
     // 根据模式处理
     let config = config_manager.config();
     apply_web_search_runtime_env(&config);
+    let working_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let merged_system_prompt = merge_system_prompt_with_web_search(
-        merge_system_prompt_with_memory_profile(session.system_prompt.clone(), &config),
+        merge_system_prompt_with_memory_sources(
+            merge_system_prompt_with_memory_profile(session.system_prompt.clone(), &config),
+            &config,
+            &working_dir,
+            None,
+        ),
         &config,
     );
 

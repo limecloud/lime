@@ -8,7 +8,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -16,15 +15,15 @@ import {
   startAgentProcess,
   getAgentProcessStatus,
   createAgentSession,
-  sendAgentMessageStream,
-  parseStreamEvent,
+  sendAsterMessageStream,
   sendTerminalCommandResponse,
   sendTermScrollbackResponse,
-  type StreamEvent,
   type TerminalCommandRequest,
   type TermScrollbackRequest,
-} from "@/lib/api/agent";
-import { writeToTerminal } from "@/lib/terminal-api";
+} from "@/lib/api/agentRuntime";
+import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
+import { requireDefaultProjectId } from "@/lib/api/project";
+import { writeToTerminal } from "@/lib/api/terminal";
 import type {
   AIMessage,
   AIMessageImage,
@@ -48,10 +47,6 @@ const DEFAULT_CONFIG: TerminalAIConfig = {
   contextLines: 50,
   autoExecute: false, // 默认需要手动批准
 };
-
-interface WorkspaceSummary {
-  id: string;
-}
 
 /**
  * 加载持久化数据
@@ -163,14 +158,8 @@ export function useTerminalAI(
       return workspaceIdRef.current;
     }
 
-    const workspace = await invoke<WorkspaceSummary | null>(
-      "workspace_get_default",
-    );
-    const resolvedWorkspaceId = workspace?.id?.trim();
-    if (!resolvedWorkspaceId) {
-      throw new Error("未找到默认工作区，请先创建或选择项目");
-    }
-
+    const resolvedWorkspaceId =
+      await requireDefaultProjectId("未找到默认工作区，请先创建或选择项目");
     workspaceIdRef.current = resolvedWorkspaceId;
     return resolvedWorkspaceId;
   }, []);
@@ -444,20 +433,21 @@ export function useTerminalAI(
           media_type: img.mediaType,
         }));
 
-        // 如果已连接终端，启用 terminal_mode（使用 TerminalTool 替代 BashTool）
-        const useTerminalMode = terminalSessionId !== null;
-
         const resolvedWorkspaceId = await ensureWorkspaceId();
 
-        await sendAgentMessageStream(
+        await sendAsterMessageStream(
           messageContent,
+          activeSessionId,
           eventName,
           resolvedWorkspaceId,
-          activeSessionId,
-          modelId,
           imagesToSend,
-          providerId,
-          useTerminalMode,
+          providerId
+            ? {
+                provider_id: providerId,
+                provider_name: providerId,
+                model_name: modelId || "claude-sonnet-4-20250514",
+              }
+            : undefined,
         );
       } catch (error) {
         console.error("[useTerminalAI] 发送消息失败:", error);
@@ -469,14 +459,7 @@ export function useTerminalAI(
         }
       }
     },
-    [
-      ensureSession,
-      ensureWorkspaceId,
-      getTerminalContext,
-      modelId,
-      providerId,
-      terminalSessionId,
-    ],
+    [ensureSession, ensureWorkspaceId, getTerminalContext, modelId, providerId],
   );
 
   /**

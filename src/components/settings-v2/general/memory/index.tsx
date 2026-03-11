@@ -2,22 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Brain, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getConfig,
   getMemoryAutoIndex,
   getMemoryEffectiveSources,
-  getMemoryOverview as getContextMemoryOverview,
-  saveConfig,
   toggleMemoryAuto,
   updateMemoryAutoNote,
   type AutoMemoryIndexResponse,
-  type Config,
   type EffectiveMemorySourcesResponse,
   type MemoryAutoConfig,
   type MemoryConfig,
   type MemoryProfileConfig,
   type MemoryResolveConfig,
   type MemorySourcesConfig,
-} from "@/hooks/useTauri";
+  getMemoryOverview as getContextMemoryOverview,
+} from "@/lib/api/memoryRuntime";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { getUnifiedMemoryStats } from "@/lib/api/unifiedMemory";
 import { getProjectMemory } from "@/lib/api/memory";
 import {
@@ -148,7 +146,9 @@ function MultiSelectSection({
     <div className="rounded-lg border p-4 space-y-3">
       <div>
         <h3 className="text-sm font-medium">{title}</h3>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -208,13 +208,14 @@ export function MemorySettings() {
       const currentProjectId = targetProjectId ?? projectId;
       setLoadingLayerMetrics(true);
       try {
-        const [unifiedStats, contextOverview, projectMemory] = await Promise.all([
-          getUnifiedMemoryStats(),
-          getContextMemoryOverview(200).catch(() => null),
-          currentProjectId
-            ? getProjectMemory(currentProjectId).catch(() => null)
-            : Promise.resolve(null),
-        ]);
+        const [unifiedStats, contextOverview, projectMemory] =
+          await Promise.all([
+            getUnifiedMemoryStats(),
+            getContextMemoryOverview(200).catch(() => null),
+            currentProjectId
+              ? getProjectMemory(currentProjectId).catch(() => null)
+              : Promise.resolve(null),
+          ]);
 
         setLayerMetrics(
           buildLayerMetrics({
@@ -381,7 +382,10 @@ export function MemorySettings() {
 
     setSavingAutoNote(true);
     try {
-      const index = await updateMemoryAutoNote(note, autoTopic.trim() || undefined);
+      const index = await updateMemoryAutoNote(
+        note,
+        autoTopic.trim() || undefined,
+      );
       setAutoIndex(index);
       setAutoNote("");
       setMessage("已写入自动记忆");
@@ -457,7 +461,9 @@ export function MemorySettings() {
       </div>
 
       <div className="rounded-lg border p-4 space-y-3">
-        <h3 className="text-sm font-medium">以下哪个选项最能形容你现在的状态?</h3>
+        <h3 className="text-sm font-medium">
+          以下哪个选项最能形容你现在的状态?
+        </h3>
         <div className="flex flex-wrap gap-2">
           {STATUS_OPTIONS.map((option) => {
             const selected = profile.current_status === option;
@@ -513,7 +519,9 @@ export function MemorySettings() {
             disabled={loadingLayerMetrics}
             className="inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-60"
           >
-            <RefreshCw className={cn("h-3 w-3", loadingLayerMetrics && "animate-spin")} />
+            <RefreshCw
+              className={cn("h-3 w-3", loadingLayerMetrics && "animate-spin")}
+            />
             刷新
           </button>
         </div>
@@ -566,7 +574,9 @@ export function MemorySettings() {
             disabled={loadingSourceState}
             className="inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-60"
           >
-            <RefreshCw className={cn("h-3 w-3", loadingSourceState && "animate-spin")} />
+            <RefreshCw
+              className={cn("h-3 w-3", loadingSourceState && "animate-spin")}
+            />
             刷新来源
           </button>
         </div>
@@ -611,7 +621,9 @@ export function MemorySettings() {
           </label>
 
           <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">项目本地私有文件</span>
+            <span className="text-xs text-muted-foreground">
+              项目本地私有文件
+            </span>
             <input
               type="text"
               value={sourcesConfig.project_local_memory_path || ""}
@@ -805,7 +817,9 @@ export function MemorySettings() {
           </label>
 
           <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">自动记忆根目录</span>
+            <span className="text-xs text-muted-foreground">
+              自动记忆根目录
+            </span>
             <input
               type="text"
               value={autoConfig.root_dir || ""}
@@ -859,7 +873,9 @@ export function MemorySettings() {
               {autoIndex.preview_lines.join("\n")}
             </pre>
           ) : (
-            <p className="text-xs text-muted-foreground">暂无自动记忆入口内容</p>
+            <p className="text-xs text-muted-foreground">
+              暂无自动记忆入口内容
+            </p>
           )}
         </div>
       </div>
@@ -877,7 +893,10 @@ export function MemorySettings() {
         {effectiveSources ? (
           <div className="space-y-2">
             {effectiveSources.sources.map((source) => (
-              <div key={`${source.kind}-${source.path}`} className="rounded border bg-background/60 px-3 py-2">
+              <div
+                key={`${source.kind}-${source.path}`}
+                className="rounded border bg-background/60 px-3 py-2"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium">{source.kind}</span>
                   <span
@@ -888,10 +907,16 @@ export function MemorySettings() {
                         : "text-muted-foreground border-muted",
                     )}
                   >
-                    {source.loaded ? "已加载" : source.exists ? "存在未命中" : "未发现"}
+                    {source.loaded
+                      ? "已加载"
+                      : source.exists
+                        ? "存在未命中"
+                        : "未发现"}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground break-all">{source.path}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground break-all">
+                  {source.path}
+                </p>
                 {source.preview && (
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
                     {source.preview}
@@ -906,7 +931,9 @@ export function MemorySettings() {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">正在加载来源命中结果...</p>
+          <p className="text-xs text-muted-foreground">
+            正在加载来源命中结果...
+          </p>
         )}
       </div>
 

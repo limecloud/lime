@@ -6,11 +6,11 @@
 
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { ImagePlus, Loader2, Upload, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import styled, { keyframes } from "styled-components";
+import { uploadMaterial } from "@/lib/api/materials";
 
 export interface LocalImageTabProps {
   /** 目标项目 ID */
@@ -54,7 +54,7 @@ const DropZone = styled.div<{ $dragging?: boolean }>`
   min-height: 280px;
   border: 2px dashed
     ${({ $dragging }) =>
-    $dragging ? "hsl(var(--primary))" : "hsl(var(--border))"};
+      $dragging ? "hsl(var(--primary))" : "hsl(var(--border))"};
   border-radius: 20px;
   padding: 48px;
   text-align: center;
@@ -66,9 +66,7 @@ const DropZone = styled.div<{ $dragging?: boolean }>`
   justify-content: center;
   gap: 20px;
   background: ${({ $dragging }) =>
-    $dragging
-      ? "hsl(var(--primary) / 0.06)"
-      : "hsl(var(--card) / 0.3)"};
+    $dragging ? "hsl(var(--primary) / 0.06)" : "hsl(var(--card) / 0.3)"};
 
   &:hover {
     border-color: hsl(var(--primary) / 0.5);
@@ -168,9 +166,9 @@ const ActionButton = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   &:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: ${({ $primary }) =>
-    $primary
-      ? "0 6px 20px hsl(var(--primary) / 0.3)"
-      : "0 4px 12px hsl(var(--background) / 0.3)"};
+      $primary
+        ? "0 6px 20px hsl(var(--primary) / 0.3)"
+        : "0 4px 12px hsl(var(--background) / 0.3)"};
   }
 
   &:disabled {
@@ -243,14 +241,12 @@ export function LocalImageTab({ projectId }: LocalImageTabProps) {
 
     setSaving(true);
     try {
-      await invoke("upload_material", {
-        req: {
-          project_id: projectId,
-          name: selectedPath.split("/").pop() || "本地图片",
-          type: "image",
-          file_path: selectedPath,
-          tags: ["local"],
-        },
+      await uploadMaterial({
+        projectId,
+        name: selectedPath.split("/").pop() || "本地图片",
+        type: "image",
+        filePath: selectedPath,
+        tags: ["local"],
       });
       toast.success("已保存到图片库");
 
@@ -277,7 +273,13 @@ export function LocalImageTab({ projectId }: LocalImageTabProps) {
           <NoProjectIcon>
             <Upload size={28} />
           </NoProjectIcon>
-          <div style={{ fontSize: 15, fontWeight: 500, color: "hsl(var(--foreground) / 0.7)" }}>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 500,
+              color: "hsl(var(--foreground) / 0.7)",
+            }}
+          >
             请先选择项目
           </div>
           <div style={{ fontSize: 13 }}>

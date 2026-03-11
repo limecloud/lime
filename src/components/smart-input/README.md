@@ -130,7 +130,9 @@
 - 使用项目统一的 CSS 变量（terminal 主题）
 - 使用 `@tauri-apps/api/core` 进行 Tauri 通信
 - 使用 `react-markdown` 和 `remark-gfm` 进行 Markdown 渲染
-- 使用 `@/lib/api/agent` 进行 AI 通信
+- 使用 `@/lib/api/agentRuntime` 发起 Agent/Aster 请求
+- 使用 `@/lib/api/agentStream` 解析 AI 流式事件
+- 使用 `@/lib/api/project` 获取默认工作区
 
 ## 相关需求
 

@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import styled from "styled-components";
-import { safeInvoke } from "@/lib/dev-bridge";
+import { getWindowsStartupDiagnostics } from "@/lib/api/serverRuntime";
 import { withI18nPatch } from "./i18n/withI18nPatch";
 import { SplashScreen } from "./components/SplashScreen";
 import { AppSidebar } from "./components/AppSidebar";
@@ -30,6 +30,7 @@ import { WorkbenchPage } from "./components/workspace";
 import {
   ProjectType,
   createProject,
+  ensureDefaultWorkspaceReady,
   isUserProjectType,
   resolveProjectRootPath,
 } from "./lib/api/project";
@@ -112,22 +113,6 @@ const THEME_WORKSPACE_PAGES: ThemeWorkspacePage[] = [
   "workspace-novel",
 ];
 
-interface WindowsStartupDiagnostics {
-  platform: string;
-  app_data_dir?: string | null;
-  legacy_proxycast_dir?: string | null;
-  db_path?: string | null;
-  webview2_version?: string | null;
-  checks: Array<{
-    key: string;
-    status: string;
-    message: string;
-    detail?: string | null;
-  }>;
-  has_blocking_issues: boolean;
-  has_warnings: boolean;
-  summary_message?: string | null;
-}
 
 function isTauriDesktopEnvironment(): boolean {
   if (typeof window === "undefined") {
@@ -386,9 +371,7 @@ function AppContent() {
       return;
     }
 
-    void safeInvoke<WindowsStartupDiagnostics>(
-      "get_windows_startup_diagnostics",
-    )
+    void getWindowsStartupDiagnostics()
       .then((diagnostics) => {
         if (!diagnostics.summary_message) {
           return;
@@ -415,13 +398,7 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    void safeInvoke<{
-      workspaceId: string;
-      rootPath: string;
-      created: boolean;
-      repaired: boolean;
-      relocated?: boolean;
-    } | null>("workspace_ensure_default_ready")
+    void ensureDefaultWorkspaceReady()
       .then((result) => {
         if (result?.repaired) {
           recordWorkspaceRepair({
@@ -633,6 +610,7 @@ function AppContent() {
           style={{
             flex: 1,
             minHeight: 0,
+            overflowY: "auto",
             display: currentPage === "openclaw" ? "flex" : "none",
             flexDirection: "column",
           }}

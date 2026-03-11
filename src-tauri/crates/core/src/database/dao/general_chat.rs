@@ -218,13 +218,40 @@ impl GeneralChatDao {
         limit: Option<i32>,
         before_id: Option<&str>,
     ) -> Result<Vec<ChatMessage>, rusqlite::Error> {
+        let before_filter = r#"
+            AND (
+                NOT EXISTS (
+                    SELECT 1
+                    FROM general_chat_messages before_message
+                    WHERE before_message.session_id = ?1
+                      AND before_message.id = ?2
+                )
+                OR created_at < (
+                    SELECT before_message.created_at
+                    FROM general_chat_messages before_message
+                    WHERE before_message.session_id = ?1
+                      AND before_message.id = ?2
+                )
+                OR (
+                    created_at = (
+                        SELECT before_message.created_at
+                        FROM general_chat_messages before_message
+                        WHERE before_message.session_id = ?1
+                          AND before_message.id = ?2
+                    )
+                    AND id < ?2
+                )
+            )
+        "#;
+
         let query = match (limit, before_id) {
             (Some(lim), Some(_bid)) => {
                 format!(
                     "SELECT id, session_id, role, content, blocks, status, created_at, metadata
                      FROM general_chat_messages
-                     WHERE session_id = ?1 AND id < ?2
-                     ORDER BY created_at DESC
+                     WHERE session_id = ?1
+                     {before_filter}
+                     ORDER BY created_at DESC, id DESC
                      LIMIT {lim}"
                 )
             }
@@ -233,22 +260,24 @@ impl GeneralChatDao {
                     "SELECT id, session_id, role, content, blocks, status, created_at, metadata
                      FROM general_chat_messages
                      WHERE session_id = ?1
-                     ORDER BY created_at DESC
+                     ORDER BY created_at DESC, id DESC
                      LIMIT {lim}"
                 )
             }
             (None, Some(_)) => {
-                "SELECT id, session_id, role, content, blocks, status, created_at, metadata
-                 FROM general_chat_messages
-                 WHERE session_id = ?1 AND id < ?2
-                 ORDER BY created_at ASC"
-                    .to_string()
+                format!(
+                    "SELECT id, session_id, role, content, blocks, status, created_at, metadata
+                     FROM general_chat_messages
+                     WHERE session_id = ?1
+                     {before_filter}
+                     ORDER BY created_at ASC, id ASC"
+                )
             }
             (None, None) => {
                 "SELECT id, session_id, role, content, blocks, status, created_at, metadata
                  FROM general_chat_messages
                  WHERE session_id = ?1
-                 ORDER BY created_at ASC"
+                 ORDER BY created_at ASC, id ASC"
                     .to_string()
             }
         };
@@ -410,6 +439,25 @@ mod tests {
             blocks: None,
             status: "complete".to_string(),
             created_at: now,
+            metadata: None,
+        }
+    }
+
+    fn create_test_message_with_timestamp(
+        id: &str,
+        session_id: &str,
+        role: MessageRole,
+        content: &str,
+        created_at: i64,
+    ) -> ChatMessage {
+        ChatMessage {
+            id: id.to_string(),
+            session_id: session_id.to_string(),
+            role,
+            content: content.to_string(),
+            blocks: None,
+            status: "complete".to_string(),
+            created_at,
             metadata: None,
         }
     }
@@ -609,5 +657,44 @@ mod tests {
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].r#type, "code");
         assert_eq!(blocks[0].language, Some("rust".to_string()));
+    }
+
+    #[test]
+    fn test_get_messages_before_id_uses_created_at_pagination() {
+        let conn = setup_test_db();
+        let session = create_test_session("session-1", "测试会话");
+        GeneralChatDao::create_session(&conn, &session).unwrap();
+
+        let oldest = create_test_message_with_timestamp(
+            "z-message",
+            "session-1",
+            MessageRole::User,
+            "第一条",
+            1_700_000_000_001,
+        );
+        let middle = create_test_message_with_timestamp(
+            "a-message",
+            "session-1",
+            MessageRole::Assistant,
+            "第二条",
+            1_700_000_000_002,
+        );
+        let newest = create_test_message_with_timestamp(
+            "m-message",
+            "session-1",
+            MessageRole::User,
+            "第三条",
+            1_700_000_000_003,
+        );
+
+        GeneralChatDao::add_message(&conn, &oldest).unwrap();
+        GeneralChatDao::add_message(&conn, &middle).unwrap();
+        GeneralChatDao::add_message(&conn, &newest).unwrap();
+
+        let messages =
+            GeneralChatDao::get_messages(&conn, "session-1", Some(10), Some("a-message")).unwrap();
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].id, "z-message");
     }
 }

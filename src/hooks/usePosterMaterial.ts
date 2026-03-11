@@ -5,7 +5,15 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  createPosterMetadata as createPosterMetadataApi,
+  deletePosterMetadata as deletePosterMetadataApi,
+  getPosterMaterial,
+  listPosterMaterialsByImageCategory,
+  listPosterMaterialsByLayoutCategory,
+  listPosterMaterialsByMood,
+  updatePosterMetadata as updatePosterMetadataApi,
+} from "@/lib/api/posterMaterials";
 import type {
   PosterMaterial,
   PosterMaterialMetadata,
@@ -88,35 +96,23 @@ export function usePosterMaterial(
       let list: PosterMaterial[] = [];
 
       if (filter.type === "image") {
-        list = await invoke<PosterMaterial[]>("list_by_image_category", {
+        list = await listPosterMaterialsByImageCategory(
           projectId,
-          category: filter.imageCategory || null,
-        });
+          filter.imageCategory,
+        );
       } else if (filter.type === "layout") {
-        list = await invoke<PosterMaterial[]>("list_by_layout_category", {
+        list = await listPosterMaterialsByLayoutCategory(
           projectId,
-          category: filter.layoutCategory || null,
-        });
+          filter.layoutCategory,
+        );
       } else if (filter.type === "color") {
-        list = await invoke<PosterMaterial[]>("list_by_mood", {
-          projectId,
-          mood: filter.mood || null,
-        });
+        list = await listPosterMaterialsByMood(projectId, filter.mood);
       } else {
         // 获取所有海报素材类型
         const [images, layouts, colors] = await Promise.all([
-          invoke<PosterMaterial[]>("list_by_image_category", {
-            projectId,
-            category: null,
-          }),
-          invoke<PosterMaterial[]>("list_by_layout_category", {
-            projectId,
-            category: null,
-          }),
-          invoke<PosterMaterial[]>("list_by_mood", {
-            projectId,
-            mood: null,
-          }),
+          listPosterMaterialsByImageCategory(projectId),
+          listPosterMaterialsByLayoutCategory(projectId),
+          listPosterMaterialsByMood(projectId),
         ]);
         list = [...images, ...layouts, ...colors];
       }
@@ -164,9 +160,7 @@ export function usePosterMaterial(
   const get = useCallback(
     async (materialId: string): Promise<PosterMaterial | null> => {
       try {
-        return await invoke<PosterMaterial | null>("get_poster_material", {
-          materialId,
-        });
+        return await getPosterMaterial(materialId);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         return null;
@@ -180,10 +174,7 @@ export function usePosterMaterial(
     async (
       request: CreatePosterMetadataRequest,
     ): Promise<PosterMaterialMetadata> => {
-      const metadata = await invoke<PosterMaterialMetadata>(
-        "create_poster_metadata",
-        { req: request },
-      );
+      const metadata = await createPosterMetadataApi(request);
       await refresh();
       return metadata;
     },
@@ -196,10 +187,7 @@ export function usePosterMaterial(
       materialId: string,
       request: CreatePosterMetadataRequest,
     ): Promise<PosterMaterialMetadata> => {
-      const metadata = await invoke<PosterMaterialMetadata>(
-        "update_poster_metadata",
-        { materialId, req: request },
-      );
+      const metadata = await updatePosterMetadataApi(materialId, request);
       await refresh();
       return metadata;
     },
@@ -209,7 +197,7 @@ export function usePosterMaterial(
   /** 删除海报素材元数据 */
   const deleteMetadata = useCallback(
     async (materialId: string): Promise<void> => {
-      await invoke("delete_poster_metadata", { materialId });
+      await deletePosterMetadataApi(materialId);
       await refresh();
     },
     [refresh],
@@ -219,10 +207,7 @@ export function usePosterMaterial(
   const listByImageCategory = useCallback(
     async (category?: ImageCategory): Promise<PosterMaterial[]> => {
       if (!projectId) return [];
-      return invoke<PosterMaterial[]>("list_by_image_category", {
-        projectId,
-        category: category || null,
-      });
+      return listPosterMaterialsByImageCategory(projectId, category);
     },
     [projectId],
   );
@@ -231,10 +216,7 @@ export function usePosterMaterial(
   const listByLayoutCategory = useCallback(
     async (category?: LayoutCategory): Promise<PosterMaterial[]> => {
       if (!projectId) return [];
-      return invoke<PosterMaterial[]>("list_by_layout_category", {
-        projectId,
-        category: category || null,
-      });
+      return listPosterMaterialsByLayoutCategory(projectId, category);
     },
     [projectId],
   );
@@ -243,10 +225,7 @@ export function usePosterMaterial(
   const listByMood = useCallback(
     async (mood?: ColorMood): Promise<PosterMaterial[]> => {
       if (!projectId) return [];
-      return invoke<PosterMaterial[]>("list_by_mood", {
-        projectId,
-        mood: mood || null,
-      });
+      return listPosterMaterialsByMood(projectId, mood);
     },
     [projectId],
   );

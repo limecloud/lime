@@ -7,21 +7,20 @@ import {
   stopAgentProcess,
   getAgentProcessStatus,
   createAgentSession,
-  sendAgentMessageStream,
+  sendAsterMessageStream,
   listAgentSessions,
   deleteAgentSession,
   getAgentSessionMessages,
   renameAgentSession,
   generateAgentTitle,
-  parseStreamEvent,
   confirmAsterAction,
   submitAsterElicitationResponse,
   stopAsterSession,
   type AgentProcessStatus,
   type SessionInfo,
   type SkillInfo,
-  type StreamEvent,
-} from "@/lib/api/agent";
+} from "@/lib/api/agentRuntime";
+import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
 import { skillsApi } from "@/lib/api/skills";
 import { A2UIFormAPI } from "@/lib/api/a2uiForm";
 import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
@@ -788,14 +787,22 @@ export function useAgentChat(options: UseAgentChatOptions) {
     currentStreamingSessionIdRef.current = activeSessionId;
 
     try {
-      await sendAgentMessageStream(
+      await sendAsterMessageStream(
         message,
+        activeSessionId,
         eventName,
         resolvedWorkspaceId,
-        activeSessionId,
-        modelName,
         images,
-        providerType,
+        providerType
+          ? {
+              provider_id: providerType,
+              provider_name: providerType,
+              model_name: modelName || "claude-sonnet-4-20250514",
+            }
+          : undefined,
+        undefined,
+        undefined,
+        undefined,
         undefined,
         projectId,
       );
@@ -823,14 +830,22 @@ export function useAgentChat(options: UseAgentChatOptions) {
         freshSessionId,
         workspaceId: resolvedWorkspaceId,
       });
-      await sendAgentMessageStream(
+      await sendAsterMessageStream(
         message,
+        freshSessionId,
         eventName,
         resolvedWorkspaceId,
-        freshSessionId,
-        modelName,
         images,
-        providerType,
+        providerType
+          ? {
+              provider_id: providerType,
+              provider_name: providerType,
+              model_name: modelName || "claude-sonnet-4-20250514",
+            }
+          : undefined,
+        undefined,
+        undefined,
+        undefined,
         undefined,
         projectId,
       );

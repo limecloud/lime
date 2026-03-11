@@ -7,7 +7,12 @@
 通用对话功能模块，提供简洁高效的 AI 对话体验。
 采用三栏布局架构：左侧会话列表 + 中间聊天区域 + 右侧画布面板。
 
+> 治理说明：`GeneralChatPage` 仍是现役页面容器，但已不鼓励业务代码继续直接 import 页面入口；
+> 新逻辑优先走统一对话链路（如 `@/hooks/useUnifiedChat`）或现有工作台/路由接入。
+> 如必须跨模块复用 `general-chat` 的少量能力，请优先走 `bridge.ts`，不要直接深导入内部目录。
+
 **多模态支持**: 完整支持图片上传、显示和处理，包括：
+
 - 图片上传（拖拽、点击上传）
 - 图片预览和下载
 - 支持 JPEG、PNG、GIF、WebP 格式
@@ -26,7 +31,8 @@
 
 ## 文件索引
 
-- `index.tsx` - 主入口导出
+- `index.tsx` - 兼容根入口，仅导出 `GeneralChatPage`
+- `bridge.ts` - 对外桥接层，仅暴露少量跨模块允许复用的稳定能力
 - `GeneralChatPage.tsx` - 页面容器（三栏布局）
 - `types.ts` - 核心类型定义
   - Session、Message、ContentBlock 等数据类型
@@ -71,15 +77,18 @@
   - `CanvasToolbar.tsx` - 画布工具栏
 
 - `store/` - 状态管理
-  - `useGeneralChatStore.ts` - 主 Store
+  - `useGeneralChatStore.ts` - 主 Store（只消费 compat API 网关与现役 `agentRuntime`，不再直连 `general_chat_*` / `aster_*` 命令）
   - `sessionSlice.ts` - 会话状态切片
   - `messageSlice.ts` - 消息状态切片
   - `uiSlice.ts` - UI 状态切片
 
+- `src/lib/api/generalChatCompat.ts` - general-chat compat API 网关（前端唯一允许直连 `general_chat_*` 命令的地方）
+- `src/lib/api/agentRuntime.ts` - Aster 运行时 API（general-chat 发送/停止流式响应统一走这里）
+
 - `hooks/` - 自定义 Hooks
-  - `useChat.ts` - 对话逻辑 Hook
-  - `useStreaming.ts` - 流式响应 Hook
-  - `useSession.ts` - 会话管理 Hook
+  - `useChat.ts` - 旧对话逻辑 Hook（兼容层，不再从 barrel/root 导出）
+  - `useStreaming.ts` - 旧流式响应 Hook（兼容层，不再从 barrel/root 导出）
+  - `useSession.ts` - 旧会话管理 Hook（兼容层，不再从 barrel/root 导出）
   - `useCanvas.ts` - 画布控制 Hook
   - `useProvider.ts` - Provider 选择逻辑 Hook（复用 ProviderPool 系统）
     - 自动选择可用 Provider

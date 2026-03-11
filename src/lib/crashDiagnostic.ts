@@ -1,13 +1,14 @@
 import {
-  clearDiagnosticLogHistory,
   getConfig,
   type Config,
   type CrashReportingConfig,
-  type LogStorageDiagnostics,
-  type LogEntry,
-  type ServerDiagnostics,
-  type WindowsStartupDiagnostics,
-} from "@/hooks/useTauri";
+} from "@/lib/api/appConfig";
+import { clearDiagnosticLogHistory, type LogEntry } from "@/lib/api/logs";
+import type {
+  LogStorageDiagnostics,
+  ServerDiagnostics,
+  WindowsStartupDiagnostics,
+} from "@/lib/api/serverRuntime";
 import {
   apiKeyProviderApi,
   type ProviderWithKeysDisplay,
@@ -37,7 +38,8 @@ import {
   type InvokeErrorBufferEntry,
   type InvokeTraceBufferEntry,
 } from "@/lib/dev-bridge";
-import { listTerminalSessions, type SessionMetadata } from "@/lib/terminal-api";
+import { revealPathInFinder } from "@/lib/api/fileSystem";
+import { listTerminalSessions, type SessionMetadata } from "@/lib/api/terminal";
 import {
   clearWorkspaceRepairHistory,
   getWorkspaceRepairHistory,
@@ -1062,7 +1064,7 @@ export async function openCrashDiagnosticDownloadDirectory(): Promise<OpenDownlo
 
   for (const path of candidates) {
     try {
-      await safeInvoke("reveal_in_finder", { path });
+      await revealPathInFinder(path);
       return { openedPath: path };
     } catch {
       // continue

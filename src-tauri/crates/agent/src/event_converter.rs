@@ -8,6 +8,8 @@ use aster::conversation::message::{ActionRequiredData, Message, MessageContent};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use crate::tool_io_offload::{maybe_offload_tool_arguments, maybe_offload_tool_result_payload};
+
 const JSON_RECURSION_LIMIT: usize = 50;
 const JSON_TRAVERSAL_NODE_LIMIT: usize = 4_096;
 const TOOL_RESULT_MAX_TEXT_PARTS: usize = 256;
@@ -462,6 +464,59 @@ fn extract_tool_result_data<T: serde::Serialize>(result: &T) -> ExtractedToolRes
     }
 }
 
+fn extract_tool_result_metadata<T: serde::Serialize>(
+    result: &T,
+) -> Option<std::collections::HashMap<String, serde_json::Value>> {
+    fn find_metadata(
+        value: &serde_json::Value,
+        depth: usize,
+    ) -> Option<std::collections::HashMap<String, serde_json::Value>> {
+        if depth >= JSON_RECURSION_LIMIT {
+            return None;
+        }
+
+        let object = value.as_object()?;
+
+        for key in [
+            "metadata",
+            "meta",
+            "structured_content",
+            "structuredContent",
+        ] {
+            let Some(nested) = object.get(key) else {
+                continue;
+            };
+
+            if let Some(record) = nested.as_object() {
+                if !record.is_empty() {
+                    return Some(
+                        record
+                            .iter()
+                            .map(|(key, value)| (key.clone(), value.clone()))
+                            .collect(),
+                    );
+                }
+            }
+
+            if let Some(found) = find_metadata(nested, depth + 1) {
+                return Some(found);
+            }
+        }
+
+        for nested in object.values() {
+            if let Some(found) = find_metadata(nested, depth + 1) {
+                return Some(found);
+            }
+        }
+
+        None
+    }
+
+    serde_json::to_value(result)
+        .ok()
+        .and_then(|value| find_metadata(&value, 0))
+}
+
 /// Tauri Agent 事件
 ///
 /// 用于前端消费的事件格式，与现有的 StreamEvent 兼容
@@ -558,6 +613,8 @@ pub struct TauriToolResult {
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub images: Option<Vec<TauriToolImage>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 /// Token 使用量
@@ -610,6 +667,8 @@ pub enum TauriMessageContent {
         error: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         images: Option<Vec<TauriToolImage>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
     },
 
     #[serde(rename = "action_required")]
@@ -637,11 +696,12 @@ pub fn convert_agent_event(event: AgentEvent) -> Vec<TauriAgentEvent> {
         AgentEvent::ModelChange { model, mode } => {
             vec![TauriAgentEvent::ModelChange { model, mode }]
         }
-        AgentEvent::HistoryReplaced(_conversation) => {
-            // 历史替换事件，可能需要特殊处理
-            tracing::debug!("History replaced");
-            vec![]
-        }
+        AgentEvent::HistoryReplaced(_conversation) => vec![TauriAgentEvent::ContextTrace {
+            steps: vec![TauriContextTraceStep {
+                stage: "context_management".to_string(),
+                detail: "会话历史已自动压缩，以继续当前对话。".to_string(),
+            }],
+        }],
         AgentEvent::ContextTrace { steps } => vec![TauriAgentEvent::ContextTrace {
             steps: steps
                 .into_iter()
@@ -672,10 +732,15 @@ fn convert_message(message: Message) -> Vec<TauriAgentEvent> {
             }
             MessageContent::ToolRequest(tool_request) => match &tool_request.tool_call {
                 Ok(call) => {
+                    let arguments_value = serde_json::to_value(&call.arguments).unwrap_or_default();
                     events.push(TauriAgentEvent::ToolStart {
                         tool_name: call.name.to_string(),
                         tool_id: tool_request.id.clone(),
-                        arguments: serde_json::to_string(&call.arguments).ok(),
+                        arguments: serde_json::to_string(&maybe_offload_tool_arguments(
+                            &tool_request.id,
+                            &arguments_value,
+                        ))
+                        .ok(),
                     });
                 }
                 Err(e) => {
@@ -685,22 +750,33 @@ fn convert_message(message: Message) -> Vec<TauriAgentEvent> {
                 }
             },
             MessageContent::ToolResponse(tool_response) => {
-                let (success, output, error, images) = match &tool_response.tool_result {
+                let (success, output, error, images, metadata) = match &tool_response.tool_result {
                     Ok(result) => {
                         let extracted = extract_tool_result_data(result);
                         log_tool_result_diagnostics(&tool_response.id, &extracted.diagnostics);
+                        let offloaded = maybe_offload_tool_result_payload(
+                            &tool_response.id,
+                            &extracted.output,
+                            result,
+                            extract_tool_result_metadata(result),
+                        );
                         (
                             true,
-                            extracted.output,
+                            offloaded.output,
                             None,
                             if extracted.images.is_empty() {
                                 None
                             } else {
                                 Some(extracted.images)
                             },
+                            if offloaded.metadata.is_empty() {
+                                None
+                            } else {
+                                Some(offloaded.metadata)
+                            },
                         )
                     }
-                    Err(e) => (false, String::new(), Some(e.to_string()), None),
+                    Err(e) => (false, String::new(), Some(e.to_string()), None, None),
                 };
 
                 events.push(TauriAgentEvent::ToolEnd {
@@ -710,6 +786,7 @@ fn convert_message(message: Message) -> Vec<TauriAgentEvent> {
                         output,
                         error,
                         images,
+                        metadata,
                     },
                 });
             }
@@ -825,32 +902,41 @@ fn convert_message_content(content: &MessageContent) -> Option<TauriMessageConte
         MessageContent::Thinking(thinking) => Some(TauriMessageContent::Thinking {
             text: thinking.thinking.clone(),
         }),
-        MessageContent::ToolRequest(req) => {
-            req.tool_call
-                .as_ref()
-                .ok()
-                .map(|call| TauriMessageContent::ToolRequest {
-                    id: req.id.clone(),
-                    tool_name: call.name.to_string(),
-                    arguments: serde_json::to_value(&call.arguments).unwrap_or_default(),
-                })
-        }
+        MessageContent::ToolRequest(req) => req.tool_call.as_ref().ok().map(|call| {
+            let arguments_value = serde_json::to_value(&call.arguments).unwrap_or_default();
+            TauriMessageContent::ToolRequest {
+                id: req.id.clone(),
+                tool_name: call.name.to_string(),
+                arguments: maybe_offload_tool_arguments(&req.id, &arguments_value),
+            }
+        }),
         MessageContent::ToolResponse(resp) => {
-            let (success, output, error, images) = match &resp.tool_result {
+            let (success, output, error, images, metadata) = match &resp.tool_result {
                 Ok(result) => {
                     let extracted = extract_tool_result_data(result);
+                    let offloaded = maybe_offload_tool_result_payload(
+                        &resp.id,
+                        &extracted.output,
+                        result,
+                        extract_tool_result_metadata(result),
+                    );
                     (
                         true,
-                        extracted.output,
+                        offloaded.output,
                         None,
                         if extracted.images.is_empty() {
                             None
                         } else {
                             Some(extracted.images)
                         },
+                        if offloaded.metadata.is_empty() {
+                            None
+                        } else {
+                            Some(offloaded.metadata)
+                        },
                     )
                 }
-                Err(e) => (false, String::new(), Some(e.to_string()), None),
+                Err(e) => (false, String::new(), Some(e.to_string()), None, None),
             };
             Some(TauriMessageContent::ToolResponse {
                 id: resp.id.clone(),
@@ -858,6 +944,7 @@ fn convert_message_content(content: &MessageContent) -> Option<TauriMessageConte
                 output,
                 error,
                 images,
+                metadata,
             })
         }
         MessageContent::ActionRequired(action) => {
@@ -960,6 +1047,22 @@ mod tests {
                 assert_eq!(steps.len(), 1);
                 assert_eq!(steps[0].stage, "memory_injection");
                 assert_eq!(steps[0].detail, "query_len=10,injected=2");
+            }
+            _ => panic!("Expected ContextTrace event"),
+        }
+    }
+
+    #[test]
+    fn test_convert_history_replaced_to_context_management_trace() {
+        let event = AgentEvent::HistoryReplaced(aster::conversation::Conversation::empty());
+
+        let events = convert_agent_event(event);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            TauriAgentEvent::ContextTrace { steps } => {
+                assert_eq!(steps.len(), 1);
+                assert_eq!(steps[0].stage, "context_management");
+                assert!(steps[0].detail.contains("自动压缩"));
             }
             _ => panic!("Expected ContextTrace event"),
         }
@@ -1101,5 +1204,28 @@ mod tests {
         assert_eq!(extracted.diagnostics.image_count, 0);
         assert_eq!(extracted.diagnostics.text_truncated, false);
         assert!(extracted.diagnostics.raw_json_bytes.is_some());
+    }
+
+    #[test]
+    fn test_extract_tool_result_metadata_should_read_meta_object() {
+        let payload = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": "任务已完成"
+                }
+            ],
+            "meta": {
+                "exit_code": 1,
+                "output_file": "/tmp/aster_tasks/task-1.log"
+            }
+        });
+
+        let metadata = extract_tool_result_metadata(&payload).expect("metadata should exist");
+        assert_eq!(metadata.get("exit_code"), Some(&serde_json::json!(1)));
+        assert_eq!(
+            metadata.get("output_file"),
+            Some(&serde_json::json!("/tmp/aster_tasks/task-1.log"))
+        );
     }
 }

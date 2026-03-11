@@ -6,7 +6,15 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  createPersona,
+  deletePersona,
+  getDefaultPersona,
+  listPersonaTemplates,
+  listPersonas,
+  setDefaultPersona as setDefaultPersonaApi,
+  updatePersona,
+} from "@/lib/api/personas";
 import type {
   Persona,
   CreatePersonaRequest,
@@ -66,8 +74,8 @@ export function usePersonas(projectId: string | null): UsePersonasReturn {
       setError(null);
 
       const [list, defaultP] = await Promise.all([
-        invoke<Persona[]>("list_personas", { projectId }),
-        invoke<Persona | null>("get_default_persona", { projectId }),
+        listPersonas(projectId),
+        getDefaultPersona(projectId),
       ]);
 
       setPersonas(list);
@@ -82,7 +90,7 @@ export function usePersonas(projectId: string | null): UsePersonasReturn {
   /** 创建人设 */
   const create = useCallback(
     async (request: CreatePersonaRequest): Promise<Persona> => {
-      const persona = await invoke<Persona>("create_persona", { req: request });
+      const persona = await createPersona(request);
       await refresh();
       return persona;
     },
@@ -92,10 +100,7 @@ export function usePersonas(projectId: string | null): UsePersonasReturn {
   /** 更新人设 */
   const update = useCallback(
     async (id: string, updateData: PersonaUpdate): Promise<Persona> => {
-      const persona = await invoke<Persona>("update_persona", {
-        id,
-        update: updateData,
-      });
+      const persona = await updatePersona(id, updateData);
       await refresh();
       return persona;
     },
@@ -105,7 +110,7 @@ export function usePersonas(projectId: string | null): UsePersonasReturn {
   /** 删除人设 */
   const remove = useCallback(
     async (id: string): Promise<void> => {
-      await invoke("delete_persona", { id });
+      await deletePersona(id);
       await refresh();
     },
     [refresh],
@@ -115,7 +120,7 @@ export function usePersonas(projectId: string | null): UsePersonasReturn {
   const setDefault = useCallback(
     async (personaId: string): Promise<void> => {
       if (!projectId) return;
-      await invoke("set_default_persona", { projectId, personaId });
+      await setDefaultPersonaApi(projectId, personaId);
       await refresh();
     },
     [projectId, refresh],
@@ -124,7 +129,7 @@ export function usePersonas(projectId: string | null): UsePersonasReturn {
   /** 加载人设模板 */
   const loadTemplates = useCallback(async () => {
     try {
-      const list = await invoke<PersonaTemplate[]>("list_persona_templates");
+      const list = await listPersonaTemplates();
       setTemplates(list);
     } catch (err) {
       console.error("加载人设模板失败:", err);

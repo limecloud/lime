@@ -9,20 +9,8 @@
  */
 
 import { useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useGeneralChatStore } from "../store/useGeneralChatStore";
 import type { Message, ProviderConfig } from "../types";
-
-/**
- * 发送消息请求参数
- */
-interface SendMessageRequest {
-  session_id: string;
-  content: string;
-  event_name: string;
-  provider?: string;
-  model?: string;
-}
 
 /**
  * useChat Hook 配置
@@ -40,11 +28,16 @@ interface UseChatOptions {
 
 /**
  * 聊天逻辑 Hook
+ *
+ * @deprecated general-chat 的旧聊天 Hook。禁止新增依赖，请优先使用 @/hooks/useUnifiedChat 或现役聊天入口。
  */
 export const useChat = (options: UseChatOptions) => {
-  const { sessionId, providerConfig, onMessageSent, onError } = options;
+  const { sessionId, onMessageSent, onError } = options;
 
-  const { startStreaming } = useGeneralChatStore();
+  const sendMessageInStore = useGeneralChatStore((state) => state.sendMessage);
+  const stopGenerationInStore = useGeneralChatStore(
+    (state) => state.stopGeneration,
+  );
 
   /**
    * 发送消息
@@ -56,65 +49,45 @@ export const useChat = (options: UseChatOptions) => {
       }
 
       try {
-        // 构建事件名称
-        const eventName = `general-chat-stream-${sessionId}`;
-
-        // 调用 Tauri 命令发送消息
-        const request: SendMessageRequest = {
-          session_id: sessionId,
-          content: content.trim(),
-          event_name: eventName,
-          provider: providerConfig?.providerName,
-          model: providerConfig?.modelName,
-        };
-
-        const messageId = await invoke<string>("general_chat_send_message", {
-          request,
-        });
-
-        startStreaming(messageId);
+        await sendMessageInStore(content.trim());
 
         // 消息发送成功
         if (onMessageSent) {
-          const message: Message = {
-            id: messageId,
-            sessionId,
-            role: "assistant",
-            content: "",
-            blocks: [],
-            status: "streaming",
-            createdAt: Date.now(),
-          };
-          onMessageSent(message);
+          const { messages } = useGeneralChatStore.getState();
+          const latestAssistantMessage = [...(messages[sessionId] || [])]
+            .reverse()
+            .find((message) => message.role === "assistant");
+
+          if (latestAssistantMessage) {
+            onMessageSent(latestAssistantMessage);
+          }
         }
       } catch (error) {
-        // 停止流式状态
-        const { stopGeneration } = useGeneralChatStore.getState();
-        stopGeneration();
+        stopGenerationInStore();
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         onError?.(errorMessage);
       }
     },
-    [sessionId, providerConfig, startStreaming, onMessageSent, onError],
+    [
+      sessionId,
+      sendMessageInStore,
+      stopGenerationInStore,
+      onMessageSent,
+      onError,
+    ],
   );
 
   /**
    * 停止生成
    */
   const stopGeneration = useCallback(async () => {
-    if (!sessionId) return;
-
     try {
-      await invoke("general_chat_stop_generation", {
-        sessionId,
-      });
-      const { stopGeneration: stopGen } = useGeneralChatStore.getState();
-      stopGen();
+      stopGenerationInStore();
     } catch (error) {
       console.error("停止生成失败:", error);
     }
-  }, [sessionId]);
+  }, [stopGenerationInStore]);
 
   /**
    * 重新生成消息

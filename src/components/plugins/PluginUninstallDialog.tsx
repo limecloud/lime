@@ -6,10 +6,10 @@
  */
 
 import { useState } from "react";
-import { safeInvoke } from "@/lib/dev-bridge";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { Modal, ModalBody, ModalFooter } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
+import { uninstallPlugin } from "@/lib/api/plugins";
 
 /** 已安装插件信息 */
 interface InstalledPlugin {
@@ -54,7 +54,7 @@ export function PluginUninstallDialog({
     setError(null);
 
     try {
-      await safeInvoke<boolean>("uninstall_plugin", { pluginId: plugin.id });
+      await uninstallPlugin(plugin.id);
       onSuccess();
       // 触发侧边栏刷新事件
       window.dispatchEvent(new CustomEvent("plugin-changed"));

@@ -43,7 +43,7 @@ import {
   PageParams,
   ThemeWorkspacePage,
 } from "@/types/page";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 import {
   buildHomeAgentParams,
   buildWorkspaceResetParams,
@@ -306,6 +306,7 @@ const THEME_MENU_ITEMS: SidebarNavItem[] = [
     label: "短视频",
     icon: Video,
     page: getThemeWorkspacePage("video"),
+    params: { workspaceViewMode: "workspace" },
     isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
   },
   {

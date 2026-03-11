@@ -4,101 +4,31 @@
  * 提供 SubAgent 调度功能的 React 集成
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { safeListen } from "@/lib/dev-bridge";
+import {
+  cancelSubAgentTasks,
+  executeSubAgentTasks,
+  type SchedulerConfig,
+  type SchedulerEvent,
+  type SchedulerExecutionResult,
+  type SchedulerProgress,
+  type SubAgentTask,
+} from "@/lib/api/subAgentScheduler";
 
-/**
- * SubAgent 任务定义
- */
-export interface SubAgentTask {
-  id: string;
-  taskType: string;
-  prompt: string;
-  description?: string;
-  priority?: number;
-  dependencies?: string[];
-  timeout?: number;
-  model?: string;
-  returnSummary?: boolean;
-  allowedTools?: string[];
-  deniedTools?: string[];
-  maxTokens?: number;
-}
+export type {
+  SchedulerConfig,
+  SchedulerEvent,
+  SchedulerExecutionResult,
+  SchedulerProgress,
+  SubAgentResult,
+  SubAgentTask,
+} from "@/lib/api/subAgentScheduler";
 
-/**
- * SubAgent 执行结果
- */
-export interface SubAgentResult {
-  taskId: string;
-  success: boolean;
-  output?: string;
-  summary?: string;
-  error?: string;
-  durationMs: number;
-  retries: number;
-}
-
-/**
- * 调度进度
- */
-export interface SchedulerProgress {
-  total: number;
-  completed: number;
-  failed: number;
-  running: number;
-  pending: number;
-  skipped: number;
-  cancelled: boolean;
-  currentTasks: string[];
-  percentage: number;
-}
-
-/**
- * 调度事件
- */
-export type SchedulerEvent =
-  | { type: "started"; totalTasks: number }
-  | { type: "taskStarted"; taskId: string; taskType: string }
-  | { type: "taskCompleted"; taskId: string; durationMs: number }
-  | { type: "taskFailed"; taskId: string; error: string }
-  | { type: "taskRetry"; taskId: string; retryCount: number }
-  | { type: "taskSkipped"; taskId: string; reason: string }
-  | { type: "progress"; progress: SchedulerProgress }
-  | { type: "completed"; success: boolean; durationMs: number }
-  | { type: "cancelled" };
-
-/**
- * 调度执行结果
- */
-export interface SchedulerExecutionResult {
-  success: boolean;
-  results: SubAgentResult[];
-  totalDurationMs: number;
-  successfulCount: number;
-  failedCount: number;
-  skippedCount: number;
-  mergedSummary?: string;
-  totalTokenUsage: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-  };
-}
-
-/**
- * 调度器配置
- */
-export interface SchedulerConfig {
-  maxConcurrency?: number;
-  defaultTimeoutMs?: number;
-  retryOnFailure?: boolean;
-  stopOnFirstError?: boolean;
-  maxRetries?: number;
-  retryDelayMs?: number;
-  autoSummarize?: boolean;
-  summaryMaxTokens?: number;
-  defaultModel?: string;
+interface SchedulerEventEnvelope extends SchedulerEvent {
+  sessionId?: string;
+  session_id?: string;
 }
 
 /**
@@ -124,59 +54,98 @@ interface UseSubAgentSchedulerReturn extends UseSubAgentSchedulerState {
   clearEvents: () => void;
 }
 
+const INITIAL_STATE: UseSubAgentSchedulerState = {
+  isRunning: false,
+  progress: null,
+  events: [],
+  result: null,
+  error: null,
+};
+
+export function resolveSchedulerEventSessionId(
+  event: Partial<Pick<SchedulerEventEnvelope, "sessionId" | "session_id">>,
+): string | null {
+  const sessionId = event.sessionId || event.session_id;
+  if (typeof sessionId !== "string") {
+    return null;
+  }
+
+  const normalized = sessionId.trim();
+  return normalized || null;
+}
+
+export function shouldConsumeSchedulerEvent(
+  event: Partial<Pick<SchedulerEventEnvelope, "sessionId" | "session_id">>,
+  sessionId?: string | null,
+): boolean {
+  const targetSessionId = sessionId?.trim();
+  if (!targetSessionId) {
+    return true;
+  }
+
+  const eventSessionId = resolveSchedulerEventSessionId(event);
+  return !eventSessionId || eventSessionId === targetSessionId;
+}
+
 /**
  * SubAgent 调度器 Hook
  */
-export function useSubAgentScheduler(): UseSubAgentSchedulerReturn {
-  const [state, setState] = useState<UseSubAgentSchedulerState>({
-    isRunning: false,
-    progress: null,
-    events: [],
-    result: null,
-    error: null,
-  });
+export function useSubAgentScheduler(
+  sessionId?: string | null,
+): UseSubAgentSchedulerReturn {
+  const [state, setState] = useState<UseSubAgentSchedulerState>(INITIAL_STATE);
+  const sessionIdRef = useRef<string | null>(sessionId ?? null);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId ?? null;
+    setState({ ...INITIAL_STATE });
+  }, [sessionId]);
 
   // 监听调度事件
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
 
     const setupListener = async () => {
-      unlisten = await listen<SchedulerEvent>(
+      unlisten = await safeListen<SchedulerEventEnvelope>(
         "subagent-scheduler-event",
         (event) => {
           const schedulerEvent = event.payload;
-
-          setState((prev) => ({
-            ...prev,
-            events: [...prev.events, schedulerEvent],
-          }));
-
-          // 更新进度
-          if (schedulerEvent.type === "progress") {
-            setState((prev) => ({
-              ...prev,
-              progress: schedulerEvent.progress,
-            }));
-          }
-
-          // 更新运行状态
-          if (schedulerEvent.type === "started") {
-            setState((prev) => ({
-              ...prev,
-              isRunning: true,
-              error: null,
-            }));
-          }
-
           if (
-            schedulerEvent.type === "completed" ||
-            schedulerEvent.type === "cancelled"
+            !shouldConsumeSchedulerEvent(schedulerEvent, sessionIdRef.current)
           ) {
-            setState((prev) => ({
-              ...prev,
-              isRunning: false,
-            }));
+            return;
           }
+
+          setState((prev) => {
+            const nextEvent = schedulerEvent as SchedulerEvent;
+            const nextState: UseSubAgentSchedulerState =
+              nextEvent.type === "started"
+                ? {
+                    ...prev,
+                    isRunning: true,
+                    progress: null,
+                    events: [nextEvent],
+                    result: null,
+                    error: null,
+                  }
+                : {
+                    ...prev,
+                    events: [...prev.events, nextEvent],
+                  };
+
+            if (nextEvent.type === "progress") {
+              nextState.progress = nextEvent.progress;
+            }
+
+            if (
+              nextEvent.type === "completed" ||
+              nextEvent.type === "cancelled"
+            ) {
+              nextState.isRunning = false;
+            }
+
+            return nextState;
+          });
         },
       );
     };
@@ -206,13 +175,7 @@ export function useSubAgentScheduler(): UseSubAgentSchedulerReturn {
       }));
 
       try {
-        const result = await invoke<SchedulerExecutionResult>(
-          "execute_subagent_tasks",
-          {
-            tasks,
-            config,
-          },
-        );
+        const result = await executeSubAgentTasks(tasks, config, sessionId);
 
         setState((prev) => ({
           ...prev,
@@ -231,13 +194,13 @@ export function useSubAgentScheduler(): UseSubAgentSchedulerReturn {
         throw err;
       }
     },
-    [],
+    [sessionId],
   );
 
   // 取消执行
   const cancel = useCallback(async () => {
     try {
-      await invoke("cancel_subagent_tasks");
+      await cancelSubAgentTasks();
     } catch (err) {
       console.error("取消 SubAgent 任务失败:", err);
     }

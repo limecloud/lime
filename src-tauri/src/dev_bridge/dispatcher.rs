@@ -306,7 +306,16 @@ pub async fn handle_command(
             // 保存配置到文件
             let config: proxycast_core::config::Config = serde_json::from_value(args.unwrap_or_default())?;
             proxycast_core::config::save_config(&config)?;
+            crate::services::environment_service::apply_configured_environment(&config).await;
             Ok(serde_json::json!({ "success": true }))
+        }
+
+        "get_environment_preview" => {
+            let config_path = proxycast_core::config::ConfigManager::default_config_path();
+            let manager = proxycast_core::config::ConfigManager::load(&config_path)?;
+            let config = manager.config();
+            let preview = crate::services::environment_service::build_environment_preview(&config).await;
+            Ok(serde_json::to_value(preview)?)
         }
 
         "get_default_provider" => {
@@ -517,24 +526,48 @@ pub async fn handle_command(
                 .and_then(|value| value.as_str())
                 .unwrap_or("proxycast")
                 .to_string();
+            let refresh_remote = args
+                .get("refresh_remote")
+                .or_else(|| args.get("refreshRemote"))
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false);
             let app_type: crate::models::app_type::AppType = app.parse().map_err(|e: String| e)?;
 
             if let Some(db) = &state.db {
-                let (repos, installed_states) = {
-                    let conn = db.lock().map_err(|e| e.to_string())?;
-                    let repos = crate::database::dao::skills::SkillDao::get_skill_repos(&conn)
-                        .map_err(|e| e.to_string())?;
-                    let installed_states = crate::database::dao::skills::SkillDao::get_skills(&conn)
-                        .map_err(|e| e.to_string())?;
-                    (repos, installed_states)
-                };
-
-                let skills = state
-                    .skill_service
-                    .list_skills(&app_type, &repos, &installed_states)
+                let skills = crate::commands::skill_cmd::resolve_skills_for_app(
+                    db,
+                    &state.skill_service,
+                    &app_type,
+                    refresh_remote,
+                )
                     .await
                     .map_err(|e| e.to_string())?;
 
+                Ok(serde_json::to_value(skills)?)
+            } else {
+                Ok(serde_json::json!([]))
+            }
+        }
+
+        "get_local_skills_for_app" => {
+            let args = args.unwrap_or_default();
+            let app = args
+                .get("app")
+                .and_then(|value| value.as_str())
+                .unwrap_or("proxycast")
+                .to_string();
+
+            if let Some(db) = &state.db {
+                let app_type: crate::models::app_type::AppType = app.parse().map_err(|e: String| e)?;
+                let installed_states = {
+                    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+                    crate::database::dao::skills::SkillDao::get_skills(&conn)
+                        .map_err(|e| format!("{e}"))?
+                };
+                let skills = state
+                    .skill_service
+                    .list_local_skills(&app_type, &installed_states)
+                    .map_err(|e| format!("{e}"))?;
                 Ok(serde_json::to_value(skills)?)
             } else {
                 Ok(serde_json::json!([]))

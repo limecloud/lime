@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Plus, Trash2, Key, Globe, Ban, Eye, EyeOff } from "lucide-react";
-import type { GeminiApiKeyEntry } from "@/hooks/useTauri";
+import type { GeminiApiKeyEntry } from "@/lib/api/providerRuntime";
 
 interface GeminiApiKeySectionProps {
   entries: GeminiApiKeyEntry[] | undefined;

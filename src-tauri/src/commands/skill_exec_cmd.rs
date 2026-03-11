@@ -506,6 +506,7 @@ fn emit_social_write_file_events(
             output: format!("写入社媒文稿: {file_path}"),
             error: None,
             images: None,
+            metadata: None,
         },
     };
     if let Err(err) = app_handle.emit(&event_name, &tool_end) {

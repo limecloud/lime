@@ -1,5 +1,7 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 
+export type SkillSourceKind = "builtin" | "other";
+
 export interface Skill {
   key: string;
   name: string;
@@ -7,6 +9,7 @@ export interface Skill {
   directory: string;
   readmeUrl?: string;
   installed: boolean;
+  sourceKind: SkillSourceKind;
   repoOwner?: string;
   repoName?: string;
   repoBranch?: string;
@@ -22,8 +25,18 @@ export interface SkillRepo {
 export type AppType = "claude" | "codex" | "gemini" | "proxycast";
 
 export const skillsApi = {
-  async getAll(app: AppType = "proxycast"): Promise<Skill[]> {
-    return safeInvoke("get_skills_for_app", { app });
+  async getLocal(app: AppType = "proxycast"): Promise<Skill[]> {
+    return safeInvoke("get_local_skills_for_app", { app });
+  },
+
+  async getAll(
+    app: AppType = "proxycast",
+    options?: { refreshRemote?: boolean },
+  ): Promise<Skill[]> {
+    return safeInvoke("get_skills_for_app", {
+      app,
+      refresh_remote: options?.refreshRemote ?? false,
+    });
   },
 
   async install(
@@ -52,10 +65,14 @@ export const skillsApi = {
     return safeInvoke("remove_skill_repo", { owner, name });
   },
 
+  async refreshCache(): Promise<boolean> {
+    return safeInvoke("refresh_skill_cache");
+  },
+
   /**
    * 获取已安装的 ProxyCast Skills 目录列表
    *
-   * 扫描 ~/.proxycast/skills/ 目录，返回包含 SKILL.md 的子目录名列表。
+   * 扫描 ~/.proxycast/skills/ 目录,返回包含 SKILL.md 的子目录名列表。
    * 这些 Skills 将被传递给 aster 用于 AI Agent 功能。
    *
    * @returns 已安装的 Skill 目录名列表

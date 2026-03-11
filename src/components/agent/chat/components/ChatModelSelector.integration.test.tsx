@@ -48,7 +48,7 @@ const {
   mockEmitProviderDataChanged: vi.fn(),
 }));
 
-vi.mock("@/lib/api/agent", () => ({
+vi.mock("@/lib/api/agentRuntime", () => ({
   initAsterAgent: mockInitAsterAgent,
   sendAsterMessageStream: mockSendAsterMessageStream,
   createAsterSession: mockCreateAsterSession,
@@ -59,6 +59,9 @@ vi.mock("@/lib/api/agent", () => ({
   stopAsterSession: mockStopAsterSession,
   confirmAsterAction: mockConfirmAsterAction,
   submitAsterElicitationResponse: mockSubmitAsterElicitationResponse,
+}));
+
+vi.mock("@/lib/api/agentStream", () => ({
   parseStreamEvent: mockParseStreamEvent,
 }));
 
@@ -141,7 +144,10 @@ function createModel(id: string, providerId: string) {
   };
 }
 
-function mount(workspaceId: string, options: MountOptions = {}): HTMLDivElement {
+function mount(
+  workspaceId: string,
+  options: MountOptions = {},
+): HTMLDivElement {
   const { onManageProviders } = options;
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -218,12 +224,14 @@ function findButtonByText(
   options: { excludeCombobox?: boolean } = {},
 ): HTMLButtonElement {
   const { excludeCombobox = false } = options;
-  const target = Array.from(document.querySelectorAll("button")).find((node) => {
-    if (excludeCombobox && node.getAttribute("role") === "combobox") {
-      return false;
-    }
-    return node.textContent?.includes(text);
-  });
+  const target = Array.from(document.querySelectorAll("button")).find(
+    (node) => {
+      if (excludeCombobox && node.getAttribute("role") === "combobox") {
+        return false;
+      }
+      return node.textContent?.includes(text);
+    },
+  );
   if (!target) {
     throw new Error(`未找到按钮文本: ${text}`);
   }
@@ -294,22 +302,30 @@ beforeEach(() => {
     loading: false,
   });
 
-  mockUseProviderModels.mockImplementation((selectedProvider: { key: string } | null) => {
-    const key = selectedProvider?.key;
-    const models =
-      key === "gemini"
-        ? [createModel("gemini-2.5-pro", "gemini"), createModel("gemini-2.5-flash", "gemini")]
-        : key === "deepseek"
-          ? [createModel("deepseek-chat", "deepseek"), createModel("deepseek-reasoner", "deepseek")]
-          : [];
+  mockUseProviderModels.mockImplementation(
+    (selectedProvider: { key: string } | null) => {
+      const key = selectedProvider?.key;
+      const models =
+        key === "gemini"
+          ? [
+              createModel("gemini-2.5-pro", "gemini"),
+              createModel("gemini-2.5-flash", "gemini"),
+            ]
+          : key === "deepseek"
+            ? [
+                createModel("deepseek-chat", "deepseek"),
+                createModel("deepseek-reasoner", "deepseek"),
+              ]
+            : [];
 
-    return {
-      modelIds: models.map((item) => item.id),
-      models,
-      loading: false,
-      error: null,
-    };
-  });
+      return {
+        modelIds: models.map((item) => item.id),
+        models,
+        loading: false,
+        error: null,
+      };
+    },
+  );
 });
 
 afterEach(() => {
@@ -385,9 +401,8 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
 
     expect(
       JSON.parse(
-        localStorage.getItem(
-          `agent_topic_model_pref_${workspaceId}_topic-a`,
-        ) || "null",
+        localStorage.getItem(`agent_topic_model_pref_${workspaceId}_topic-a`) ||
+          "null",
       ),
     ).toEqual({
       providerType: "gemini",
@@ -395,9 +410,8 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
     });
     expect(
       JSON.parse(
-        localStorage.getItem(
-          `agent_topic_model_pref_${workspaceId}_topic-b`,
-        ) || "null",
+        localStorage.getItem(`agent_topic_model_pref_${workspaceId}_topic-b`) ||
+          "null",
       ),
     ).toEqual({
       providerType: "deepseek",

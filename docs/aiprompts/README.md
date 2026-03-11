@@ -11,6 +11,7 @@ AI Agent 专用文档目录，提供模块级别的详细说明。
 
 ### 核心系统
 - `overview.md` - 项目架构概览
+- `governance.md` - **治理第一原则**（新旧并存、迁移收口、禁止回流）
 - `providers.md` - Provider 系统（OAuth/API Key 认证）
 - `credential-pool.md` - 凭证池管理（负载均衡、健康检查）
 - `converter.md` - 协议转换（OpenAI ↔ CW/Claude）
@@ -46,6 +47,9 @@ AI Agent 在处理特定模块时，应先阅读对应的 aiprompts 文档：
 ```
 # 处理 Provider 相关任务
 → 先读 docs/aiprompts/providers.md
+
+# 处理新旧并存、迁移、重构、架构收口
+→ 先读 docs/aiprompts/governance.md
 
 # 处理凭证池相关任务
 → 先读 docs/aiprompts/credential-pool.md

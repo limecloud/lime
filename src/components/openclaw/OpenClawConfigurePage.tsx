@@ -87,7 +87,7 @@ export function OpenClawConfigurePage({
     : "尚未执行健康检查";
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-6 py-10">
+    <div className="flex min-h-0 flex-col items-center px-6 py-10">
       <div className="w-full max-w-[760px] space-y-6">
         <div className="flex flex-col items-center text-center">
           <OpenClawMark size="lg" />

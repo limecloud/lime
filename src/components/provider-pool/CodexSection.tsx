@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Trash2, FolderOpen, LogIn, RefreshCw } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { CredentialEntry } from "@/hooks/useTauri";
+import type { CredentialEntry } from "@/lib/api/providerRuntime";
 
 interface CodexSectionProps {
   entries: CredentialEntry[];

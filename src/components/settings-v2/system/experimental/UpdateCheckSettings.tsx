@@ -11,29 +11,15 @@
  */
 
 import { useState, useEffect } from "react";
-import { safeInvoke } from "@/lib/dev-bridge";
 import { Bug } from "lucide-react";
-
-interface UpdateCheckConfig {
-  enabled: boolean;
-  check_interval_hours: number;
-  show_notification: boolean;
-  last_check_timestamp: number;
-  skipped_version: string | null;
-  remind_later_until: number | null;
-}
-
-interface UpdateNotificationMetrics {
-  shown_count: number;
-  update_now_count: number;
-  remind_later_count: number;
-  skip_version_count: number;
-  dismiss_count: number;
-  update_now_rate: number;
-  remind_later_rate: number;
-  skip_version_rate: number;
-  dismiss_rate: number;
-}
+import {
+  getUpdateCheckSettings,
+  getUpdateNotificationMetrics,
+  setUpdateCheckSettings,
+  testUpdateWindow,
+  type UpdateCheckConfig,
+  type UpdateNotificationMetrics,
+} from "@/lib/api/appUpdate";
 
 /**
  * 更新检查设置组件
@@ -67,15 +53,11 @@ export function UpdateCheckSettings() {
 
   const loadSettings = async () => {
     try {
-      const configResult = await safeInvoke<UpdateCheckConfig>(
-        "get_update_check_settings",
-      );
+      const configResult = await getUpdateCheckSettings();
       setSettings(configResult);
 
       try {
-        const metricsResult = await safeInvoke<UpdateNotificationMetrics>(
-          "get_update_notification_metrics",
-        );
+        const metricsResult = await getUpdateNotificationMetrics();
         setMetrics(metricsResult);
       } catch (metricsError) {
         console.error("加载更新提醒指标失败:", metricsError);
@@ -89,7 +71,7 @@ export function UpdateCheckSettings() {
 
   const saveSettings = async (newSettings: UpdateCheckConfig) => {
     try {
-      await safeInvoke("set_update_check_settings", { settings: newSettings });
+      await setUpdateCheckSettings(newSettings);
       setSettings(newSettings);
     } catch (error) {
       console.error("保存更新检查设置失败:", error);
@@ -234,12 +216,14 @@ export function UpdateCheckSettings() {
         <div className="p-3 rounded-lg border bg-muted/20 space-y-1">
           <div className="text-sm font-medium">提醒转化指标</div>
           <div className="text-xs text-muted-foreground">
-            展示 {metrics.shown_count} 次，立即更新 {metrics.update_now_count} 次（
+            展示 {metrics.shown_count} 次，立即更新 {metrics.update_now_count}{" "}
+            次（
             {metrics.update_now_rate}%）
           </div>
           <div className="text-xs text-muted-foreground">
-            稍后 {metrics.remind_later_count} 次（{metrics.remind_later_rate}%），跳过{" "}
-            {metrics.skip_version_count} 次（{metrics.skip_version_rate}%）
+            稍后 {metrics.remind_later_count} 次（{metrics.remind_later_rate}
+            %），跳过 {metrics.skip_version_count} 次（
+            {metrics.skip_version_rate}%）
           </div>
           <div className="text-xs text-muted-foreground">
             关闭 {metrics.dismiss_count} 次（{metrics.dismiss_rate}%）
@@ -251,7 +235,7 @@ export function UpdateCheckSettings() {
           <button
             onClick={async () => {
               try {
-                await safeInvoke("test_update_window");
+                await testUpdateWindow();
               } catch (error) {
                 console.error("测试更新弹窗失败:", error);
               }

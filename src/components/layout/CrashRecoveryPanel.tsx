@@ -6,7 +6,8 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { getConfig, getLogs, getPersistedLogsTail } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
+import { getLogs, getPersistedLogsTail } from "@/lib/api/logs";
 import {
   buildCrashDiagnosticPayload,
   clearCrashDiagnosticHistory,
@@ -19,9 +20,9 @@ import {
   normalizeCrashReportingConfig,
   openCrashDiagnosticDownloadDirectory,
 } from "@/lib/crashDiagnostic";
+import { getProjectByRootPath, updateProject } from "@/lib/api/project";
 import { cn } from "@/lib/utils";
 import { ClipboardPermissionGuideCard } from "@/components/settings-v2/system/shared/ClipboardPermissionGuideCard";
-import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 interface CrashRecoveryPanelProps {
@@ -197,10 +198,7 @@ export function CrashRecoveryPanel({
       if (!newPath) {
         return;
       }
-      const workspace = await invoke<{ id: string } | null>(
-        "workspace_get_by_path",
-        { rootPath: oldWorkspacePath },
-      );
+      const workspace = await getProjectByRootPath(oldWorkspacePath);
       if (!workspace) {
         setMessage({
           type: "error",
@@ -208,10 +206,7 @@ export function CrashRecoveryPanel({
         });
         return;
       }
-      await invoke("workspace_update", {
-        id: workspace.id,
-        request: { rootPath: newPath },
-      });
+      await updateProject(workspace.id, { rootPath: newPath });
       setMessage({
         type: "success",
         text: `Workspace 路径已更新为：${newPath}`,

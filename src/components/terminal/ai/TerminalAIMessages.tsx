@@ -9,7 +9,7 @@
 import React, { useRef, useEffect, useState, useCallback, memo } from "react";
 import { cn } from "@/lib/utils";
 import type { AIMessage } from "./types";
-import type { ToolCallState } from "@/lib/api/agent";
+import type { ToolCallState } from "@/lib/api/agentStream";
 
 // ============================================================================
 // 子组件

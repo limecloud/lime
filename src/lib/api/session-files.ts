@@ -8,6 +8,10 @@
  */
 
 import { safeInvoke } from "@/lib/dev-bridge";
+import {
+  openPathWithDefaultApp,
+  revealPathInFinder,
+} from "@/lib/api/fileSystem";
 
 // ============================================================================
 // 类型定义
@@ -191,7 +195,7 @@ export async function revealFileInFinder(
   fileName: string,
 ): Promise<void> {
   const path = await resolveFilePath(sessionId, fileName);
-  await safeInvoke("reveal_in_finder", { path });
+  await revealPathInFinder(path);
 }
 
 /**
@@ -202,7 +206,7 @@ export async function openFileWithDefaultApp(
   fileName: string,
 ): Promise<void> {
   const path = await resolveFilePath(sessionId, fileName);
-  await safeInvoke("open_with_default_app", { path });
+  await openPathWithDefaultApp(path);
 }
 
 /**
@@ -307,4 +311,3 @@ export async function importDocumentToSession(
     filePath,
   });
 }
-

@@ -1,5 +1,7 @@
 /**
  * Stores 导出
+ *
+ * @deprecated `agentStore` 属于遗留导出，请不要在新代码中继续依赖。
  */
 
 // Aster Agent Store

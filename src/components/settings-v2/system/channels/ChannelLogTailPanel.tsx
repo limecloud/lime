@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Pause, Play, Trash2 } from "lucide-react";
-import { clearLogs, getPersistedLogsTail, type LogEntry } from "@/hooks/useTauri";
+import { clearLogs, getPersistedLogsTail, type LogEntry } from "@/lib/api/logs";
 import {
   type ChannelLogPreset,
   buildChannelLogRegex,
@@ -152,7 +152,11 @@ export function ChannelLogTailPanel() {
             onClick={() => setPaused((v) => !v)}
             className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs transition-colors hover:bg-muted"
           >
-            {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+            {paused ? (
+              <Play className="h-3.5 w-3.5" />
+            ) : (
+              <Pause className="h-3.5 w-3.5" />
+            )}
             {paused ? "继续" : "暂停"}
           </button>
           <button
@@ -179,7 +183,9 @@ export function ChannelLogTailPanel() {
           <span className="text-xs text-muted-foreground">过滤模式</span>
           <select
             value={preset}
-            onChange={(event) => setPreset(event.target.value as ChannelLogPreset)}
+            onChange={(event) =>
+              setPreset(event.target.value as ChannelLogPreset)
+            }
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           >
             <option value="all">全部</option>
@@ -208,7 +214,9 @@ export function ChannelLogTailPanel() {
               onChange={(event) => setAutoScroll(event.target.checked)}
               className="h-4 w-4 rounded border"
             />
-            <span className="text-xs text-muted-foreground">自动滚动到底部</span>
+            <span className="text-xs text-muted-foreground">
+              自动滚动到底部
+            </span>
           </label>
         )}
       </div>
@@ -227,9 +235,13 @@ export function ChannelLogTailPanel() {
 
       {(error || regexError || copyTip) && (
         <div className="space-y-1">
-          {error && <p className="text-xs text-destructive">拉取日志失败: {error}</p>}
+          {error && (
+            <p className="text-xs text-destructive">拉取日志失败: {error}</p>
+          )}
           {regexError && <p className="text-xs text-amber-600">{regexError}</p>}
-          {copyTip && <p className="text-xs text-muted-foreground">{copyTip}</p>}
+          {copyTip && (
+            <p className="text-xs text-muted-foreground">{copyTip}</p>
+          )}
         </div>
       )}
 
@@ -245,9 +257,17 @@ export function ChannelLogTailPanel() {
           </p>
         ) : (
           filteredLogs.map((entry, index) => (
-            <div key={`${entry.timestamp}-${index}`} className="py-0.5 break-all">
-              <span className="text-muted-foreground">[{formatTime(entry.timestamp)}]</span>{" "}
-              <span className="text-blue-500">[{entry.level.toUpperCase()}]</span> {entry.message}
+            <div
+              key={`${entry.timestamp}-${index}`}
+              className="py-0.5 break-all"
+            >
+              <span className="text-muted-foreground">
+                [{formatTime(entry.timestamp)}]
+              </span>{" "}
+              <span className="text-blue-500">
+                [{entry.level.toUpperCase()}]
+              </span>{" "}
+              {entry.message}
             </div>
           ))
         )}

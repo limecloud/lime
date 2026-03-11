@@ -1,14 +1,8 @@
-import { safeInvoke } from "@/lib/dev-bridge";
-
-interface AutoFixResult {
-  issues_found: string[];
-  fixes_applied: string[];
-  warnings: string[];
-}
+import { runAutoFixConfiguration, type AutoFixResult } from "@/lib/api/autoFix";
 
 export const useAutoFix = () => {
   const runAutoFix = async (): Promise<AutoFixResult> => {
-    return await safeInvoke("auto_fix_configuration");
+    return runAutoFixConfiguration();
   };
 
   return {

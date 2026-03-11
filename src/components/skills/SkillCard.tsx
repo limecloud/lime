@@ -4,9 +4,9 @@
  *
  * 功能：
  * - 显示 Skill 基本信息（名称、描述、来源）
- * - 安装/卸载操作按钮
+ * - 安装/卸载操作按钮（非内置）
  * - 执行按钮（仅已安装的 Skill 显示）
- * - 查看内容按钮（仅本地且已安装的 Skill 显示）
+ * - 查看内容按钮（内置或本地且已安装的 Skill 显示）
  * - GitHub 链接按钮
  *
  * @module components/skills
@@ -25,11 +25,12 @@ import type { Skill } from "@/lib/api/skills";
 
 /**
  * Skill 来源类型
+ * - builtin: ProxyCast 内置技能
  * - official: 来自 proxycast/skills 官方仓库
  * - community: 来自其他 GitHub 仓库
  * - local: 本地安装，无仓库信息
  */
-export type SkillSource = "official" | "community" | "local";
+export type SkillSource = "builtin" | "official" | "community" | "local";
 
 /**
  * 判断 Skill 的来源类型
@@ -38,12 +39,16 @@ export type SkillSource = "official" | "community" | "local";
  * @returns SkillSource - 来源类型
  *
  * 分类规则：
+ * - "builtin": sourceKind="builtin"
  * - "official": repoOwner="proxycast" AND repoName="skills"
  * - "community": repoOwner 和 repoName 存在但不是 proxycast/skills
  * - "local": repoOwner 或 repoName 缺失
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function getSkillSource(skill: Skill): SkillSource {
+  if (skill.sourceKind === "builtin") {
+    return "builtin";
+  }
   if (!skill.repoOwner || !skill.repoName) {
     return "local";
   }
@@ -56,14 +61,28 @@ export function getSkillSource(skill: Skill): SkillSource {
 /**
  * 是否可查看本地 Skill 内容
  *
- * 仅本地且已安装的 Skill 支持查看 SKILL.md。
+ * 仅内置或本地且已安装的 Skill 支持查看 SKILL.md。
  *
  * @param skill - Skill 对象
  * @returns 是否显示查看内容入口
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function canViewLocalSkillContent(skill: Skill): boolean {
-  return skill.installed && getSkillSource(skill) === "local";
+  const source = getSkillSource(skill);
+  return skill.installed && (source === "builtin" || source === "local");
+}
+
+/**
+ * 是否允许用户安装或卸载 Skill
+ *
+ * 内置 Skill 默认可用，不提供安装/卸载入口。
+ *
+ * @param skill - Skill 对象
+ * @returns 是否显示安装/卸载操作
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function canManageSkillInstallation(skill: Skill): boolean {
+  return skill.sourceKind !== "builtin";
 }
 
 /**
@@ -71,6 +90,11 @@ export function canViewLocalSkillContent(skill: Skill): boolean {
  */
 const sourceConfig: Record<SkillSource, { label: string; className: string }> =
   {
+    builtin: {
+      label: "内置",
+      className:
+        "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+    },
     official: {
       label: "官方",
       className:
@@ -119,9 +143,9 @@ interface SkillCardProps {
  * Skill 卡片组件
  *
  * 展示单个 Skill 的信息和操作按钮，包括：
- * - 安装/卸载按钮
+ * - 安装/卸载按钮（非内置）
  * - 执行按钮（仅已安装的 Skill 显示）
- * - 查看内容按钮（仅本地且已安装的 Skill 显示）
+ * - 查看内容按钮（仅内置或本地且已安装的 Skill 显示）
  * - GitHub 链接按钮
  *
  * @param props - 组件属性
@@ -137,8 +161,10 @@ export function SkillCard({
   onViewContent,
   installing,
 }: SkillCardProps) {
+  const canManageInstallation = canManageSkillInstallation(skill);
+
   const handleAction = () => {
-    if (installing) return;
+    if (installing || !canManageInstallation) return;
     if (skill.installed) {
       onUninstall(skill.directory);
     } else {
@@ -169,7 +195,9 @@ export function SkillCard({
   };
 
   const source = getSkillSource(skill);
-  const showViewContent = Boolean(onViewContent && canViewLocalSkillContent(skill));
+  const showViewContent = Boolean(
+    onViewContent && canViewLocalSkillContent(skill),
+  );
 
   return (
     <div className="rounded-lg border bg-card p-4 hover:shadow-md transition-shadow">
@@ -197,36 +225,38 @@ export function SkillCard({
       </p>
 
       <div className="flex items-center gap-2">
-        <button
-          onClick={handleAction}
-          disabled={installing}
-          className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-            skill.installed
-              ? "border border-red-500 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-              : "bg-primary text-primary-foreground hover:bg-primary/90"
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {installing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {skill.installed ? "卸载中..." : "安装中..."}
-            </>
-          ) : (
-            <>
-              {skill.installed ? (
-                <>
-                  <Trash2 className="h-4 w-4" />
-                  卸载
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  安装
-                </>
-              )}
-            </>
-          )}
-        </button>
+        {canManageInstallation && (
+          <button
+            onClick={handleAction}
+            disabled={installing}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              skill.installed
+                ? "border border-red-500 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {installing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {skill.installed ? "卸载中..." : "安装中..."}
+              </>
+            ) : (
+              <>
+                {skill.installed ? (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    卸载
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    安装
+                  </>
+                )}
+              </>
+            )}
+          </button>
+        )}
 
         {/* 执行按钮 - 仅已安装的 Skill 显示 */}
         {skill.installed && onExecute && (
@@ -241,7 +271,7 @@ export function SkillCard({
           </button>
         )}
 
-        {/* 查看内容按钮 - 仅本地且已安装的 Skill 显示 */}
+        {/* 查看内容按钮 - 仅内置或本地且已安装的 Skill 显示 */}
         {showViewContent && (
           <button
             onClick={handleViewContent}

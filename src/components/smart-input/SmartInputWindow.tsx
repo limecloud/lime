@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
-import { safeInvoke } from "@/lib/dev-bridge";
+import { closeScreenshotChatWindow } from "@/lib/api/screenshotChat";
 import { SmartInputPreview } from "./SmartInputPreview";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
@@ -59,7 +59,7 @@ export const SmartInputWindow: React.FC<SmartInputWindowProps> = ({
   // 处理关闭窗口
   const handleClose = useCallback(async () => {
     try {
-      await safeInvoke("close_screenshot_chat_window");
+      await closeScreenshotChatWindow();
     } catch (err) {
       console.error("关闭窗口失败:", err);
     }
@@ -79,12 +79,15 @@ export const SmartInputWindow: React.FC<SmartInputWindowProps> = ({
   }, [handleClose]);
 
   // 处理发送消息
-  const handleSend = useCallback(async (textOverride?: string) => {
-    const message = textOverride || inputValue;
-    if (!message.trim()) return;
-    setInputValue("");
-    await sendMessage(message);
-  }, [inputValue, sendMessage]);
+  const handleSend = useCallback(
+    async (textOverride?: string) => {
+      const message = textOverride || inputValue;
+      if (!message.trim()) return;
+      setInputValue("");
+      await sendMessage(message);
+    },
+    [inputValue, sendMessage],
+  );
 
   // 构建图片 src
   const imageSrc = imageBase64

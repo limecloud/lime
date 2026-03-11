@@ -14,6 +14,7 @@ import type {
 } from "@/types/page";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { getThemeModule } from "@/features/themes";
+import { videoThemeModule } from "@/features/themes/video";
 import type {
   NovelQuickCreateOptions,
   NovelQuickCreateResult,
@@ -191,12 +192,23 @@ export function useWorkbenchController({
 }: UseWorkbenchControllerParams) {
   const { leftSidebarCollapsed, toggleLeftSidebar, setLeftSidebarCollapsed } =
     useWorkbenchStore();
-  const themeModule = useMemo(() => getThemeModule(theme), [theme]);
+  const themeModule = useMemo(() => {
+    const resolvedThemeModule = getThemeModule(theme);
+    if (
+      theme === "video" &&
+      resolvedThemeModule.capabilities.workspaceKind !== "video-canvas"
+    ) {
+      return videoThemeModule;
+    }
+    return resolvedThemeModule;
+  }, [theme]);
   const PrimaryWorkspaceRenderer =
     themeModule.primaryWorkspaceRenderer ?? themeModule.workspaceRenderer;
   const panelRenderers = themeModule.panelRenderers;
   const isAgentChatWorkspace =
     themeModule.capabilities.workspaceKind === "agent-chat";
+  const isVideoCanvasWorkspace =
+    themeModule.capabilities.workspaceKind === "video-canvas";
   const shouldRenderWorkspaceRightRailInWorkspace =
     themeModule.capabilities.showWorkspaceRightRailInWorkspace ??
     (themeModule.capabilities.workspaceKind === "video-canvas" ||
@@ -275,7 +287,11 @@ export function useWorkbenchController({
       const normalizedContentId = contentId.trim();
       setSelectedContentId(normalizedContentId || null);
       setShowCreateContentEntryHome(
-        Boolean(options?.createEntryHome && !normalizedContentId),
+        Boolean(
+          !isVideoCanvasWorkspace &&
+            options?.createEntryHome &&
+            !normalizedContentId,
+        ),
       );
       setCurrentChatSessionId(null);
       setWorkspaceMode("workspace");
@@ -285,6 +301,7 @@ export function useWorkbenchController({
     [
       setActiveWorkspaceView,
       setCurrentChatSessionId,
+      isVideoCanvasWorkspace,
       setLeftSidebarCollapsed,
       setSelectedContentId,
       setWorkspaceMode,
@@ -433,6 +450,7 @@ export function useWorkbenchController({
 
   useEffect(() => {
     if (
+      isVideoCanvasWorkspace ||
       workspaceMode !== "workspace" ||
       activeWorkspaceView !== "create" ||
       !selectedProjectId ||
@@ -458,6 +476,7 @@ export function useWorkbenchController({
     selectedProjectId,
     setSelectedContentId,
     showCreateContentEntryHome,
+    isVideoCanvasWorkspace,
     workspaceMode,
   ]);
 
@@ -489,7 +508,7 @@ export function useWorkbenchController({
     setWorkspaceMode("workspace");
     setActiveWorkspaceView("create");
     setSelectedContentId(null);
-    setShowCreateContentEntryHome(true);
+    setShowCreateContentEntryHome(!isVideoCanvasWorkspace);
     setCurrentChatSessionId(null);
     setShowWorkflowRail(false);
   }, [
@@ -498,6 +517,7 @@ export function useWorkbenchController({
     setCurrentChatSessionId,
     setShowWorkflowRail,
     setWorkspaceMode,
+    isVideoCanvasWorkspace,
   ]);
 
   useSidebarToggleHotkey(toggleLeftSidebar);

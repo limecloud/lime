@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getConfig, saveConfig, Config } from "@/hooks/useTauri";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { Switch } from "@/components/ui/switch";
 
 const ALL_CONTENT_THEMES = [
@@ -41,11 +41,7 @@ const ALL_NAV_ITEMS = [
   { id: "tools", label: "工具箱" },
 ] as const;
 
-const DEFAULT_ENABLED_NAV_ITEMS = [
-  "home-general",
-  "video",
-  "image-gen",
-];
+const DEFAULT_ENABLED_NAV_ITEMS = ["home-general", "video", "image-gen"];
 
 const ALL_NAV_ITEM_ID_SET = new Set<string>(
   ALL_NAV_ITEMS.map((item) => item.id),
@@ -196,8 +192,10 @@ export function ChatAppearanceSettings() {
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
     DEFAULT_ENABLED_NAV_ITEMS,
   );
-  const [appendSelectedTextToRecommendation, setAppendSelectedTextToRecommendation] =
-    useState(true);
+  const [
+    appendSelectedTextToRecommendation,
+    setAppendSelectedTextToRecommendation,
+  ] = useState(true);
   const [config, setConfig] = useState<Config | null>(null);
 
   useEffect(() => {
@@ -300,7 +298,9 @@ export function ChatAppearanceSettings() {
             </SettingIcon>
             <SettingInfo>
               <SettingLabel>创作模式卡片</SettingLabel>
-              <SettingDescription>选择您希望在创建新项目时可以使用的快捷内容创作模板，它们会在新对话页面展现。</SettingDescription>
+              <SettingDescription>
+                选择您希望在创建新项目时可以使用的快捷内容创作模板，它们会在新对话页面展现。
+              </SettingDescription>
             </SettingInfo>
           </SettingHeader>
 
@@ -330,7 +330,9 @@ export function ChatAppearanceSettings() {
             </SettingIcon>
             <SettingInfo>
               <SettingLabel>左侧边栏导航</SettingLabel>
-              <SettingDescription>定制主视图左侧边栏启用的常驻导航图标入口，最少须保留一个。</SettingDescription>
+              <SettingDescription>
+                定制主视图左侧边栏启用的常驻导航图标入口，最少须保留一个。
+              </SettingDescription>
             </SettingInfo>
           </SettingHeader>
 
@@ -360,19 +362,22 @@ export function ChatAppearanceSettings() {
             </SettingIcon>
             <SettingInfo>
               <SettingLabel>推荐自动附带选中内容</SettingLabel>
-              <SettingDescription>开启后，点击推荐提示词会自动追加当前编辑器选中文本作为上下文。</SettingDescription>
+              <SettingDescription>
+                开启后，点击推荐提示词会自动追加当前编辑器选中文本作为上下文。
+              </SettingDescription>
             </SettingInfo>
           </SettingHeader>
 
           <ToggleRow>
-            <ToggleInfo>建议开启：更贴合当前段落；关闭可避免附加额外上下文。</ToggleInfo>
+            <ToggleInfo>
+              建议开启：更贴合当前段落；关闭可避免附加额外上下文。
+            </ToggleInfo>
             <Switch
               checked={appendSelectedTextToRecommendation}
               onCheckedChange={handleRecommendationSelectionToggle}
             />
           </ToggleRow>
         </SettingItem>
-
       </Section>
     </Container>
   );

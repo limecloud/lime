@@ -7,12 +7,14 @@
 内置终端组件，采用**后端预创建 PTY**架构（参考 WaveTerm）。
 
 **核心原则：**
+
 - 后端是会话的唯一真相来源
 - PTY 在后端预创建，使用默认大小 (24x80)
 - 前端只是"连接"到会话，不负责创建
 - resize 只是同步大小，不触发创建
 
 **数据流：**
+
 ```
 [用户点击新建终端]
        ↓
@@ -103,7 +105,7 @@
 - `lucide-react` - 图标
 - `styled-components` - 样式
 - `jotai` - 原子化状态管理
-- `@/lib/terminal-api` - Tauri 终端 API
+- `@/lib/api/terminal` - Tauri 终端 API
 - `@/lib/terminal/themes` - 终端主题配置
 - `@/lib/terminal/store` - 终端状态管理
 - `@/lib/terminal/vdom` - VDOM 状态管理
@@ -115,9 +117,7 @@
 import { TerminalWorkspace } from "@/components/terminal";
 
 function App() {
-  return (
-    <TerminalWorkspace onNavigate={(page) => setCurrentPage(page)} />
-  );
+  return <TerminalWorkspace onNavigate={(page) => setCurrentPage(page)} />;
 }
 ```
 

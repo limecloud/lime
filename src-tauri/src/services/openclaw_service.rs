@@ -1,6 +1,20 @@
 use crate::app::AppState;
 use crate::database::dao::api_key_provider::{ApiKeyProvider, ApiProviderType};
 use dirs::{data_dir, home_dir};
+use proxycast_core::openclaw_install::{
+    build_openclaw_cleanup_command as core_build_openclaw_cleanup_command,
+    build_openclaw_install_command as core_build_openclaw_install_command,
+    build_winget_install_command as core_build_winget_install_command,
+    command_bin_dir_for as core_command_bin_dir_for,
+    resolve_windows_dependency_install_plan as core_resolve_windows_dependency_install_plan,
+    select_best_semver_candidate as core_select_best_semver_candidate,
+    select_preferred_path_candidate as core_select_preferred_path_candidate,
+    shell_command_escape_for as core_shell_command_escape_for,
+    shell_npm_prefix_assignment_for as core_shell_npm_prefix_assignment_for,
+    shell_path_assignment_for as core_shell_path_assignment_for,
+    windows_manual_install_message as core_windows_manual_install_message,
+    OpenClawInstallDependencyKind, ShellPlatform, WindowsDependencyInstallPlan,
+};
 use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -11,7 +25,7 @@ use std::ffi::OsString;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::SystemTime;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader};
@@ -19,10 +33,20 @@ use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::time::{sleep, timeout, Duration};
+#[cfg(target_os = "windows")]
+use winapi::shared::minwindef::{DWORD, HKEY};
+#[cfg(target_os = "windows")]
+use winapi::shared::winerror::ERROR_SUCCESS;
+#[cfg(target_os = "windows")]
+use winapi::um::winreg::{RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 
 const DEFAULT_GATEWAY_PORT: u16 = 18790;
 const OPENCLAW_INSTALL_EVENT: &str = "openclaw:install-progress";
 const OPENCLAW_CONFIG_ENV: &str = "OPENCLAW_CONFIG_PATH";
+
+fn shell_escape(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
 const OPENCLAW_CN_PACKAGE: &str = "@qingchencloud/openclaw-zh@latest";
 const OPENCLAW_DEFAULT_PACKAGE: &str = "openclaw@latest";
 const NPM_MIRROR_CN: &str = "https://registry.npmmirror.com";
@@ -304,16 +328,26 @@ impl OpenClawService {
 
         let (_, npm_path, npm_prefix, cleanup_command, install_command) =
             self.resolve_install_commands(app).await?;
-        let command = format!("{cleanup_command}\n{install_command}");
 
         emit_install_progress(app, &format!("使用 npm: {npm_path}"), "info");
         if let Some(prefix) = npm_prefix {
             emit_install_progress(app, &format!("npm 全局前缀: {prefix}"), "info");
         }
         emit_install_progress(app, "安装前先清理已有 OpenClaw 全局包。", "info");
+        let cleanup_result = run_shell_command_with_progress(app, &cleanup_command).await?;
+        if !cleanup_result.success {
+            emit_install_progress(
+                app,
+                &format!(
+                    "清理旧版 OpenClaw 失败，继续尝试安装：{}",
+                    cleanup_result.message
+                ),
+                "warn",
+            );
+        }
 
         emit_install_progress(app, &format!("执行安装命令: {install_command}"), "info");
-        let result = run_shell_command_with_progress(app, &command).await?;
+        let result = run_shell_command_with_progress(app, &install_command).await?;
         if !result.success {
             return Ok(result);
         }
@@ -477,33 +511,44 @@ impl OpenClawService {
     async fn install_node_runtime(&mut self, app: &AppHandle) -> Result<ActionResult, String> {
         #[cfg(target_os = "windows")]
         {
-            if let Some(winget_path) = find_command_in_shell("winget").await? {
-                emit_install_progress(app, "检测到 winget，准备通过 winget 安装 Node.js。", "info");
-                let command = format!(
-                    "{}{} install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements",
-                    shell_path_assignment(&winget_path),
-                    shell_command_escape(&winget_path)
-                );
-                let result = run_shell_command_with_progress(app, &command).await?;
-                if !result.success {
-                    return Ok(result);
+            let winget_path = find_command_in_shell("winget").await?;
+            match resolve_windows_dependency_install_plan(
+                DependencyKind::Node,
+                winget_path.is_some(),
+            ) {
+                WindowsDependencyInstallPlan::Winget { package_id } => {
+                    let winget_path = winget_path.expect("winget path should exist");
+                    emit_install_progress(
+                        app,
+                        "检测到 winget，准备通过 winget 安装 Node.js。",
+                        "info",
+                    );
+                    let command = build_winget_install_command(&winget_path, package_id);
+                    let result = run_shell_command_with_progress(app, &command).await?;
+                    if !result.success {
+                        return Ok(result);
+                    }
+                    return self
+                        .verify_dependency_after_install(app, DependencyKind::Node)
+                        .await;
                 }
-                return self
-                    .verify_dependency_after_install(app, DependencyKind::Node)
-                    .await;
+                WindowsDependencyInstallPlan::OfficialInstaller => {
+                    emit_install_progress(
+                        app,
+                        "未检测到 winget，准备下载官方 Node.js 安装器。",
+                        "warn",
+                    );
+                    let asset = resolve_node_installer_asset().await?;
+                    let installer_path = download_installer_asset(app, &asset).await?;
+                    launch_installer(&installer_path)?;
+                    return self
+                        .wait_for_dependency_ready(app, DependencyKind::Node, 900)
+                        .await;
+                }
+                WindowsDependencyInstallPlan::ManualDownload => {
+                    unreachable!("Node.js 在 Windows 上不应返回手动下载计划")
+                }
             }
-
-            emit_install_progress(
-                app,
-                "未检测到 winget，准备下载官方 Node.js 安装器。",
-                "warn",
-            );
-            let asset = resolve_node_installer_asset().await?;
-            let installer_path = download_installer_asset(app, &asset).await?;
-            launch_installer(&installer_path)?;
-            return self
-                .wait_for_dependency_ready(app, DependencyKind::Node, 900)
-                .await;
         }
 
         #[cfg(target_os = "macos")]
@@ -556,30 +601,35 @@ impl OpenClawService {
     async fn install_git_runtime(&mut self, app: &AppHandle) -> Result<ActionResult, String> {
         #[cfg(target_os = "windows")]
         {
-            if let Some(winget_path) = find_command_in_shell("winget").await? {
-                emit_install_progress(app, "检测到 winget，准备通过 winget 安装 Git。", "info");
-                let command = format!(
-                    "{}{} install --id Git.Git -e --accept-source-agreements --accept-package-agreements",
-                    shell_path_assignment(&winget_path),
-                    shell_command_escape(&winget_path)
-                );
-                let result = run_shell_command_with_progress(app, &command).await?;
-                if !result.success {
-                    return Ok(result);
+            let winget_path = find_command_in_shell("winget").await?;
+            match resolve_windows_dependency_install_plan(
+                DependencyKind::Git,
+                winget_path.is_some(),
+            ) {
+                WindowsDependencyInstallPlan::Winget { package_id } => {
+                    let winget_path = winget_path.expect("winget path should exist");
+                    emit_install_progress(app, "检测到 winget，准备通过 winget 安装 Git。", "info");
+                    let command = build_winget_install_command(&winget_path, package_id);
+                    let result = run_shell_command_with_progress(app, &command).await?;
+                    if !result.success {
+                        return Ok(result);
+                    }
+                    return self
+                        .verify_dependency_after_install(app, DependencyKind::Git)
+                        .await;
                 }
-                return self
-                    .verify_dependency_after_install(app, DependencyKind::Git)
-                    .await;
+                WindowsDependencyInstallPlan::OfficialInstaller => {
+                    unreachable!("Git 在 Windows 上不应返回官方安装器计划")
+                }
+                WindowsDependencyInstallPlan::ManualDownload => {
+                    let message = windows_manual_install_message(DependencyKind::Git).to_string();
+                    emit_install_progress(app, &message, "warn");
+                    return Ok(ActionResult {
+                        success: false,
+                        message,
+                    });
+                }
             }
-
-            let message =
-                "当前系统缺少 winget，暂时无法一键安装 Git，请点击“手动下载 Git”完成安装后重试。"
-                    .to_string();
-            emit_install_progress(app, &message, "warn");
-            return Ok(ActionResult {
-                success: false,
-                message,
-            });
         }
 
         #[cfg(target_os = "macos")]
@@ -628,6 +678,16 @@ impl OpenClawService {
         app: &AppHandle,
         dependency: DependencyKind,
     ) -> Result<ActionResult, String> {
+        // 在 Windows 上刷新 PATH 环境变量
+        #[cfg(target_os = "windows")]
+        {
+            if let Err(e) = refresh_windows_path_from_registry() {
+                emit_install_progress(app, &format!("刷新环境变量失败: {}", e), "warn");
+            } else {
+                emit_install_progress(app, "已刷新系统环境变量。", "info");
+            }
+        }
+
         let status = self.inspect_dependency_status(dependency).await?;
         if status.status == "ok" {
             emit_install_progress(
@@ -677,8 +737,19 @@ impl OpenClawService {
 
         let start = tokio::time::Instant::now();
         let mut last_notice_at = 0_u64;
+        #[cfg(target_os = "windows")]
+        let mut last_refresh_at = 0_u64;
+
         while start.elapsed() < Duration::from_secs(timeout_secs) {
             let elapsed = start.elapsed().as_secs();
+
+            // 每 10 秒刷新一次 Windows PATH（因为用户可能在安装过程中）
+            #[cfg(target_os = "windows")]
+            if elapsed >= last_refresh_at + 10 {
+                last_refresh_at = elapsed;
+                let _ = refresh_windows_path_from_registry();
+            }
+
             if elapsed >= last_notice_at + 15 {
                 last_notice_at = elapsed;
                 emit_install_progress(
@@ -776,11 +847,10 @@ impl OpenClawService {
             );
         }
         let mut command = Command::new(&binary);
+        let start_args = gateway_start_args(self.gateway_port, &self.gateway_auth_token);
         apply_binary_runtime_path(&mut command, &binary);
         command
-            .arg("gateway")
-            .arg("--port")
-            .arg(self.gateway_port.to_string())
+            .args(&start_args)
             .env(OPENCLAW_CONFIG_ENV, &config_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -789,20 +859,34 @@ impl OpenClawService {
             .spawn()
             .map_err(|e| format!("启动 Gateway 失败: {e}"))?;
 
+        let latest_gateway_error = Arc::new(StdMutex::new(None::<String>));
+
         if let Some(stdout) = child.stdout.take() {
+            let app = app.cloned();
             tokio::spawn(async move {
                 let mut lines = BufReader::new(stdout).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     tracing::info!(target: "openclaw", "Gateway stdout: {}", line);
+                    if let Some(app) = app.as_ref() {
+                        emit_install_progress(app, &line, classify_progress_level(&line, "info"));
+                    }
                 }
             });
         }
 
         if let Some(stderr) = child.stderr.take() {
+            let app = app.cloned();
+            let latest_gateway_error = latest_gateway_error.clone();
             tokio::spawn(async move {
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     tracing::warn!(target: "openclaw", "Gateway stderr: {}", line);
+                    if let Ok(mut slot) = latest_gateway_error.lock() {
+                        *slot = Some(line.clone());
+                    }
+                    if let Some(app) = app.as_ref() {
+                        emit_install_progress(app, &line, classify_progress_level(&line, "warn"));
+                    }
                 }
             });
         }
@@ -818,6 +902,22 @@ impl OpenClawService {
         while start_at.elapsed() < Duration::from_secs(30) {
             sleep(Duration::from_millis(300)).await;
             self.refresh_process_state().await?;
+            let latest_gateway_error = latest_gateway_error
+                .lock()
+                .ok()
+                .and_then(|slot| slot.clone());
+
+            if self.gateway_process.is_none() && self.gateway_status == GatewayStatus::Error {
+                let message = format_gateway_start_failure_message(latest_gateway_error.as_deref());
+                if let Some(app) = app {
+                    emit_install_progress(app, &message, "error");
+                }
+                return Ok(ActionResult {
+                    success: false,
+                    message,
+                });
+            }
+
             if self.gateway_status == GatewayStatus::Running {
                 if let Some(app) = app {
                     emit_install_progress(
@@ -849,12 +949,17 @@ impl OpenClawService {
         }
 
         self.gateway_status = GatewayStatus::Error;
+        let latest_gateway_error = latest_gateway_error
+            .lock()
+            .ok()
+            .and_then(|slot| slot.clone());
+        let message = format_gateway_start_failure_message(latest_gateway_error.as_deref());
         if let Some(app) = app {
-            emit_install_progress(app, "Gateway 启动超时，请检查配置或端口占用。", "error");
+            emit_install_progress(app, &message, "error");
         }
         Ok(ActionResult {
             success: false,
-            message: "Gateway 启动超时，请检查配置或端口占用。".to_string(),
+            message,
         })
     }
 
@@ -1305,27 +1410,7 @@ impl OpenClawService {
             self.gateway_auth_token = generate_auth_token();
         }
 
-        ensure_path_object(&mut config, &["gateway"]);
-        set_json_path(
-            &mut config,
-            &["gateway", "mode"],
-            Value::String("local".to_string()),
-        );
-        set_json_path(
-            &mut config,
-            &["gateway", "port"],
-            Value::Number(self.gateway_port.into()),
-        );
-        set_json_path(
-            &mut config,
-            &["gateway", "auth", "token"],
-            Value::String(self.gateway_auth_token.clone()),
-        );
-        set_json_path(
-            &mut config,
-            &["gateway", "remote", "token"],
-            Value::String(self.gateway_auth_token.clone()),
-        );
+        apply_gateway_runtime_defaults(&mut config, self.gateway_port, &self.gateway_auth_token);
 
         if let Some((provider_key, provider_value)) = provider_entry {
             set_json_path(
@@ -1362,27 +1447,22 @@ impl OpenClawService {
             .await?
             .ok_or_else(|| "未检测到 npm，可先安装或修复 Node.js 环境。".to_string())?;
         let npm_prefix = detect_npm_global_prefix(&npm_path).await;
-        let package = if should_use_china_package(app).await {
+        let use_china_package = should_use_china_package(app).await;
+        let package = if use_china_package {
             OPENCLAW_CN_PACKAGE
         } else {
             OPENCLAW_DEFAULT_PACKAGE
         };
-        let path_env = shell_path_assignment(&npm_path);
-        let prefix_env = npm_prefix
-            .as_deref()
-            .map(shell_npm_prefix_assignment)
-            .unwrap_or_default();
-        let npm_cmd = shell_command_escape(&npm_path);
-        let cleanup_command = format!(
-            "{path_env}{prefix_env}{npm_cmd} uninstall -g openclaw @qingchencloud/openclaw-zh || true"
+        let shell_platform = current_shell_platform();
+        let cleanup_command =
+            build_openclaw_cleanup_command(shell_platform, &npm_path, npm_prefix.as_deref());
+        let install_command = build_openclaw_install_command(
+            shell_platform,
+            &npm_path,
+            npm_prefix.as_deref(),
+            package,
+            use_china_package.then_some(NPM_MIRROR_CN),
         );
-        let install_command = if should_use_china_package(app).await {
-            format!(
-                "{path_env}{prefix_env}{npm_cmd} install -g {package} --registry={NPM_MIRROR_CN}"
-            )
-        } else {
-            format!("{path_env}{prefix_env}{npm_cmd} install -g {package}")
-        };
         Ok((
             package.to_string(),
             npm_path,
@@ -1397,16 +1477,10 @@ impl OpenClawService {
             .await?
             .ok_or_else(|| "未检测到 npm，可先安装或修复 Node.js 环境。".to_string())?;
         let npm_prefix = detect_npm_global_prefix(&npm_path).await;
-        let path_env = shell_path_assignment(&npm_path);
-        let prefix_env = npm_prefix
-            .as_deref()
-            .map(shell_npm_prefix_assignment)
-            .unwrap_or_default();
-        let command = format!(
-            "{}{}{} uninstall -g openclaw @qingchencloud/openclaw-zh",
-            path_env,
-            prefix_env,
-            shell_command_escape(&npm_path)
+        let command = build_openclaw_cleanup_command(
+            current_shell_platform(),
+            &npm_path,
+            npm_prefix.as_deref(),
         );
         Ok((npm_path, npm_prefix, command))
     }
@@ -1445,14 +1519,22 @@ impl OpenClawService {
             self.gateway_port = next_port.max(1);
         }
         self.restore_auth_token_from_config();
+        if self.gateway_auth_token.is_empty() {
+            self.gateway_auth_token = generate_auth_token();
+        }
         let binary = find_command_in_shell("openclaw")
             .await?
             .ok_or_else(|| "未检测到 OpenClaw 可执行文件，请先安装。".to_string())?;
         let config_path = openclaw_proxycast_config_path();
+        let command = gateway_start_args(self.gateway_port, &self.gateway_auth_token)
+            .into_iter()
+            .map(|arg| shell_escape(&arg))
+            .collect::<Vec<_>>()
+            .join(" ");
         Ok(CommandPreview {
             title: "启动 Gateway".to_string(),
             command: format!(
-                "{}OPENCLAW_CONFIG_PATH={} {} gateway --port {}",
+                "{}OPENCLAW_CONFIG_PATH={} {} {}",
                 if cfg!(target_os = "windows") {
                     "set "
                 } else {
@@ -1460,7 +1542,7 @@ impl OpenClawService {
                 },
                 shell_escape(config_path.to_string_lossy().as_ref()),
                 shell_escape(&binary),
-                self.gateway_port
+                command
             ),
         })
     }
@@ -1986,6 +2068,85 @@ fn set_json_path(root: &mut Value, path: &[&str], value: Value) {
     parent.insert(path[path.len() - 1].to_string(), value);
 }
 
+fn apply_gateway_runtime_defaults(config: &mut Value, gateway_port: u16, gateway_auth_token: &str) {
+    ensure_path_object(config, &["gateway"]);
+    set_json_path(
+        config,
+        &["gateway", "mode"],
+        Value::String("local".to_string()),
+    );
+    set_json_path(
+        config,
+        &["gateway", "bind"],
+        Value::String("loopback".to_string()),
+    );
+    set_json_path(
+        config,
+        &["gateway", "port"],
+        Value::Number(gateway_port.into()),
+    );
+    set_json_path(
+        config,
+        &["gateway", "auth", "mode"],
+        Value::String("token".to_string()),
+    );
+    set_json_path(
+        config,
+        &["gateway", "auth", "token"],
+        Value::String(gateway_auth_token.to_string()),
+    );
+    set_json_path(
+        config,
+        &["gateway", "remote", "token"],
+        Value::String(gateway_auth_token.to_string()),
+    );
+}
+
+fn gateway_start_args(gateway_port: u16, gateway_auth_token: &str) -> Vec<String> {
+    vec![
+        "gateway".to_string(),
+        "--allow-unconfigured".to_string(),
+        "--bind".to_string(),
+        "loopback".to_string(),
+        "--auth".to_string(),
+        "token".to_string(),
+        "--token".to_string(),
+        gateway_auth_token.to_string(),
+        "--port".to_string(),
+        gateway_port.to_string(),
+    ]
+}
+
+fn format_gateway_start_failure_message(detail: Option<&str>) -> String {
+    let Some(detail) = detail.map(str::trim).filter(|value| !value.is_empty()) else {
+        return "Gateway 启动超时，请检查配置或端口占用。".to_string();
+    };
+
+    let normalized = detail.to_ascii_lowercase();
+    if normalized.contains("missing config") || normalized.contains("gateway.mode=local") {
+        return "Gateway 启动失败：OpenClaw 本地网关配置缺失，已自动补齐默认配置，请重试。"
+            .to_string();
+    }
+
+    if normalized.contains("gateway.auth.mode") {
+        return "Gateway 启动失败：缺少网关认证模式，已自动切换为 token 模式，请重试。".to_string();
+    }
+
+    if normalized.contains("address already in use") || normalized.contains("eaddrinuse") {
+        return "Gateway 启动失败：目标端口已被占用，请更换端口或停止占用进程。".to_string();
+    }
+
+    if normalized.contains("resolved to non-loopback host") {
+        return "Gateway 启动失败：当前环境无法绑定到本地回环地址 127.0.0.1，请检查本机网络或代理配置。".to_string();
+    }
+
+    if normalized.contains("allowedorigins") || normalized.contains("host-header origin fallback") {
+        return "Gateway 启动失败：当前绑定方式需要配置 Control UI 允许来源，请检查 gateway.controlUi.allowedOrigins。".to_string();
+    }
+
+    format!("Gateway 启动失败：{detail}")
+}
+
 fn ensure_value_object(value: &mut Value) -> &mut Map<String, Value> {
     if !value.is_object() {
         *value = Value::Object(Map::new());
@@ -2159,39 +2320,83 @@ async fn detect_npm_global_prefix(npm_path: &str) -> Option<String> {
     }
 }
 
-fn shell_escape(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\"'\"'"))
+fn current_shell_platform() -> ShellPlatform {
+    if cfg!(target_os = "windows") {
+        ShellPlatform::Windows
+    } else {
+        ShellPlatform::Unix
+    }
+}
+
+#[allow(dead_code)]
+fn command_bin_dir_for(platform: ShellPlatform, binary_path: &str) -> Option<String> {
+    core_command_bin_dir_for(platform, binary_path)
+}
+
+fn shell_command_escape_for(platform: ShellPlatform, value: &str) -> String {
+    core_shell_command_escape_for(platform, value)
 }
 
 fn shell_command_escape(value: &str) -> String {
-    if cfg!(target_os = "windows") {
-        format!("\"{}\"", value.replace('"', "\"\""))
-    } else {
-        shell_escape(value)
-    }
+    shell_command_escape_for(current_shell_platform(), value)
 }
 
-fn shell_npm_prefix_assignment(value: &str) -> String {
-    if cfg!(target_os = "windows") {
-        format!(
-            "set \"NPM_CONFIG_PREFIX={}\" && ",
-            value.replace('"', "\"\"")
-        )
-    } else {
-        format!("NPM_CONFIG_PREFIX={} ", shell_escape(value))
-    }
+#[allow(dead_code)]
+fn shell_npm_prefix_assignment_for(platform: ShellPlatform, value: &str) -> String {
+    core_shell_npm_prefix_assignment_for(platform, value)
+}
+
+fn shell_path_assignment_for(platform: ShellPlatform, binary_path: &str) -> String {
+    core_shell_path_assignment_for(platform, binary_path)
 }
 
 fn shell_path_assignment(binary_path: &str) -> String {
-    let Some(bin_dir) = Path::new(binary_path).parent() else {
-        return String::new();
-    };
-    let bin_dir = bin_dir.to_string_lossy();
-    if cfg!(target_os = "windows") {
-        format!("set \"PATH={};%PATH%\" && ", bin_dir.replace('"', "\"\""))
-    } else {
-        format!("PATH={}:$PATH ", shell_escape(bin_dir.as_ref()))
-    }
+    shell_path_assignment_for(current_shell_platform(), binary_path)
+}
+
+fn build_openclaw_cleanup_command(
+    platform: ShellPlatform,
+    npm_path: &str,
+    npm_prefix: Option<&str>,
+) -> String {
+    core_build_openclaw_cleanup_command(platform, npm_path, npm_prefix)
+}
+
+fn build_openclaw_install_command(
+    platform: ShellPlatform,
+    npm_path: &str,
+    npm_prefix: Option<&str>,
+    package: &str,
+    registry: Option<&str>,
+) -> String {
+    core_build_openclaw_install_command(platform, npm_path, npm_prefix, package, registry)
+}
+
+#[allow(dead_code)]
+fn resolve_windows_dependency_install_plan(
+    dependency: DependencyKind,
+    has_winget: bool,
+) -> WindowsDependencyInstallPlan {
+    core_resolve_windows_dependency_install_plan(
+        match dependency {
+            DependencyKind::Node => OpenClawInstallDependencyKind::Node,
+            DependencyKind::Git => OpenClawInstallDependencyKind::Git,
+        },
+        has_winget,
+    )
+}
+
+#[allow(dead_code)]
+fn build_winget_install_command(winget_path: &str, package_id: &str) -> String {
+    core_build_winget_install_command(winget_path, package_id)
+}
+
+#[allow(dead_code)]
+fn windows_manual_install_message(dependency: DependencyKind) -> &'static str {
+    core_windows_manual_install_message(match dependency {
+        DependencyKind::Node => OpenClawInstallDependencyKind::Node,
+        DependencyKind::Git => OpenClawInstallDependencyKind::Git,
+    })
 }
 
 fn prepend_path(dir: &Path) -> Option<OsString> {
@@ -2221,42 +2426,58 @@ fn apply_windows_no_window(_command: &mut Command) {
 }
 
 async fn find_command_in_shell(command_name: &str) -> Result<Option<String>, String> {
-    if cfg!(target_os = "windows") {
-        let mut command = Command::new("cmd");
-        apply_windows_no_window(&mut command);
-        let output = command
-            .arg("/C")
-            .arg("where")
-            .arg(command_name)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output()
-            .await
-            .map_err(|e| format!("查找命令失败: {e}"))?;
+    let mut candidates = Vec::new();
 
-        if output.status.success() {
-            let result = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .map(str::trim)
-                .find(|line| !line.is_empty())
-                .map(str::to_string);
-            if result.is_some() {
-                return Ok(result);
-            }
-        }
-
-        return Ok(find_command_in_known_locations(command_name)
-            .await?
-            .map(|path| path.to_string_lossy().to_string()));
+    #[cfg(target_os = "windows")]
+    {
+        candidates.extend(find_commands_via_where(command_name).await?);
     }
 
-    Ok(find_command_in_known_locations(command_name)
+    candidates.extend(find_all_commands_in_known_locations(command_name));
+
+    let mut deduped = Vec::with_capacity(candidates.len());
+    let mut seen = HashSet::new();
+    for candidate in candidates {
+        if seen.insert(candidate.clone()) {
+            deduped.push(candidate);
+        }
+    }
+
+    Ok(select_command_candidate(command_name, deduped)
         .await?
         .map(|path| path.to_string_lossy().to_string()))
 }
 
-async fn find_command_in_known_locations(command_name: &str) -> Result<Option<PathBuf>, String> {
-    let candidates = find_all_commands_in_known_locations(command_name);
+#[cfg(target_os = "windows")]
+async fn find_commands_via_where(command_name: &str) -> Result<Vec<PathBuf>, String> {
+    let mut command = Command::new("cmd");
+    apply_windows_no_window(&mut command);
+    let output = command
+        .arg("/C")
+        .arg("where")
+        .arg(command_name)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .await
+        .map_err(|e| format!("查找命令失败: {e}"))?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(PathBuf::from)
+        .collect())
+}
+
+async fn select_command_candidate(
+    command_name: &str,
+    candidates: Vec<PathBuf>,
+) -> Result<Option<PathBuf>, String> {
     if candidates.is_empty() {
         return Ok(None);
     }
@@ -2366,11 +2587,14 @@ async fn select_node_runtime_candidate(
     let preferred_node =
         select_best_node_candidate(find_all_commands_in_known_locations("node")).await?;
     if let Some(preferred_bin_dir) = preferred_node.as_deref().and_then(Path::parent) {
-        if let Some(candidate) = candidates
-            .iter()
-            .find(|candidate| candidate.parent() == Some(preferred_bin_dir))
-        {
-            return Ok(Some(candidate.clone()));
+        if let Some(candidate) = select_preferred_path_candidate(
+            candidates
+                .iter()
+                .filter(|candidate| candidate.parent() == Some(preferred_bin_dir))
+                .cloned()
+                .collect(),
+        ) {
+            return Ok(Some(candidate));
         }
     }
 
@@ -2419,23 +2643,11 @@ async fn read_binary_semver(path: &Path) -> Option<(u64, u64, u64)> {
 fn select_best_semver_candidate(
     candidates: Vec<(PathBuf, Option<(u64, u64, u64)>)>,
 ) -> Option<PathBuf> {
-    candidates
-        .iter()
-        .filter_map(|(path, version)| {
-            version
-                .filter(|version| *version >= NODE_MIN_VERSION)
-                .map(|version| (path.clone(), version))
-        })
-        .max_by_key(|(_, version)| *version)
-        .map(|(path, _)| path)
-        .or_else(|| {
-            candidates
-                .iter()
-                .filter_map(|(path, version)| version.map(|version| (path.clone(), version)))
-                .max_by_key(|(_, version)| *version)
-                .map(|(path, _)| path)
-        })
-        .or_else(|| candidates.into_iter().next().map(|(path, _)| path))
+    core_select_best_semver_candidate(candidates, NODE_MIN_VERSION)
+}
+
+fn select_preferred_path_candidate(candidates: Vec<PathBuf>) -> Option<PathBuf> {
+    core_select_preferred_path_candidate(candidates)
 }
 
 async fn run_shell_command_with_progress(
@@ -2647,13 +2859,20 @@ fn format_semver(version: (u64, u64, u64)) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_environment_status, determine_api_type, extract_gateway_auth_token,
-        format_provider_base_url, has_api_version, parse_semver_from_text, trim_trailing_slash,
-        DependencyStatus,
+        apply_gateway_runtime_defaults, build_environment_status, build_openclaw_cleanup_command,
+        build_openclaw_install_command, build_winget_install_command, command_bin_dir_for,
+        determine_api_type, extract_gateway_auth_token, format_gateway_start_failure_message,
+        format_provider_base_url, gateway_start_args, has_api_version, parse_semver_from_text,
+        resolve_windows_dependency_install_plan, select_best_semver_candidate,
+        select_preferred_path_candidate, shell_command_escape_for, shell_npm_prefix_assignment_for,
+        shell_path_assignment_for, trim_trailing_slash, windows_manual_install_message,
+        DependencyKind, DependencyStatus, ShellPlatform, WindowsDependencyInstallPlan,
+        NPM_MIRROR_CN, OPENCLAW_CN_PACKAGE, OPENCLAW_DEFAULT_PACKAGE,
     };
     use crate::database::dao::api_key_provider::{ApiKeyProvider, ApiProviderType, ProviderGroup};
     use chrono::Utc;
-    use serde_json::json;
+    use serde_json::{json, Value};
+    use std::path::PathBuf;
 
     fn build_provider(provider_type: ApiProviderType, api_host: &str) -> ApiKeyProvider {
         ApiKeyProvider {
@@ -2783,6 +3002,81 @@ mod tests {
     }
 
     #[test]
+    fn applies_gateway_runtime_defaults_for_current_openclaw() {
+        let mut config = json!({});
+
+        apply_gateway_runtime_defaults(&mut config, 18790, "proxycast-token");
+
+        assert_eq!(
+            config.pointer("/gateway/mode").and_then(Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            config.pointer("/gateway/bind").and_then(Value::as_str),
+            Some("loopback")
+        );
+        assert_eq!(
+            config.pointer("/gateway/auth/mode").and_then(Value::as_str),
+            Some("token")
+        );
+        assert_eq!(
+            config
+                .pointer("/gateway/auth/token")
+                .and_then(Value::as_str),
+            Some("proxycast-token")
+        );
+        assert_eq!(
+            config
+                .pointer("/gateway/remote/token")
+                .and_then(Value::as_str),
+            Some("proxycast-token")
+        );
+        assert_eq!(
+            config.pointer("/gateway/port").and_then(Value::as_u64),
+            Some(18_790)
+        );
+    }
+
+    #[test]
+    fn gateway_start_args_include_new_runtime_guards() {
+        assert_eq!(
+            gateway_start_args(18790, "proxycast-token"),
+            vec![
+                "gateway",
+                "--allow-unconfigured",
+                "--bind",
+                "loopback",
+                "--auth",
+                "token",
+                "--token",
+                "proxycast-token",
+                "--port",
+                "18790",
+            ]
+        );
+    }
+
+    #[test]
+    fn formats_gateway_start_failure_for_missing_config() {
+        assert_eq!(
+            format_gateway_start_failure_message(Some(
+                "Missing config. Run `openclaw setup` or set gateway.mode=local."
+            )),
+            "Gateway 启动失败：OpenClaw 本地网关配置缺失，已自动补齐默认配置，请重试。"
+        );
+    }
+
+    #[test]
+    fn formats_gateway_start_failure_for_loopback_bind_error() {
+        assert_eq!(
+            format_gateway_start_failure_message(Some(
+                "gateway bind=loopback resolved to non-loopback host 0.0.0.0"
+            )),
+            "Gateway 启动失败：当前环境无法绑定到本地回环地址 127.0.0.1，请检查本机网络或代理配置。"
+        );
+    }
+
+    #[test]
     fn parses_semver_from_git_version_text() {
         assert_eq!(
             parse_semver_from_text("git version 2.39.5 (Apple Git-154)"),
@@ -2819,4 +3113,294 @@ mod tests {
         assert_eq!(env.recommended_action, "install_node");
         assert_eq!(env.openclaw.auto_install_supported, false);
     }
+
+    #[test]
+    fn semver_selection_prefers_windows_launcher_over_bare_file_when_versions_equal() {
+        let preferred = select_best_semver_candidate(vec![
+            (PathBuf::from(r"C:\nvm4w\nodejs\openclaw"), Some((23, 1, 0))),
+            (
+                PathBuf::from(r"C:\nvm4w\nodejs\openclaw.cmd"),
+                Some((23, 1, 0)),
+            ),
+        ]);
+
+        assert_eq!(
+            preferred,
+            Some(PathBuf::from(r"C:\nvm4w\nodejs\openclaw.cmd"))
+        );
+    }
+
+    #[test]
+    fn windows_command_bin_dir_supports_backslash_paths() {
+        assert_eq!(
+            command_bin_dir_for(ShellPlatform::Windows, r"C:\Program Files\nodejs\npm.cmd"),
+            Some(r"C:\Program Files\nodejs".to_string())
+        );
+    }
+
+    #[test]
+    fn windows_shell_command_escape_keeps_cmd_compatible_quotes() {
+        assert_eq!(
+            shell_command_escape_for(ShellPlatform::Windows, r#"C:\Program Files\nodejs\npm.cmd"#),
+            r#""C:\Program Files\nodejs\npm.cmd""#
+        );
+        assert_eq!(
+            shell_command_escape_for(ShellPlatform::Windows, "C:\\demo\\na\"me\\npm.cmd"),
+            r#""C:\demo\na""me\npm.cmd""#
+        );
+    }
+
+    #[test]
+    fn windows_shell_npm_prefix_assignment_uses_set_syntax() {
+        assert_eq!(
+            shell_npm_prefix_assignment_for(
+                ShellPlatform::Windows,
+                r"C:\Users\demo\AppData\Roaming\npm"
+            ),
+            r#"set "NPM_CONFIG_PREFIX=C:\Users\demo\AppData\Roaming\npm" && "#
+        );
+    }
+
+    #[test]
+    fn windows_shell_path_assignment_prepends_binary_directory() {
+        assert_eq!(
+            shell_path_assignment_for(ShellPlatform::Windows, r"C:\Program Files\nodejs\npm.cmd"),
+            r#"set "PATH=C:\Program Files\nodejs;%PATH%" && "#
+        );
+    }
+
+    #[test]
+    fn windows_cleanup_command_uses_cmd_compatible_syntax_without_true_fallback() {
+        let command = build_openclaw_cleanup_command(
+            ShellPlatform::Windows,
+            r"C:\Program Files\nodejs\npm.cmd",
+            Some(r"C:\Users\demo\AppData\Roaming\npm"),
+        );
+
+        assert_eq!(
+            command,
+            concat!(
+                "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
+                "set \"NPM_CONFIG_PREFIX=C:\\Users\\demo\\AppData\\Roaming\\npm\" && ",
+                "\"C:\\Program Files\\nodejs\\npm.cmd\" uninstall -g openclaw @qingchencloud/openclaw-zh"
+            )
+        );
+        assert!(!command.contains("|| true"));
+    }
+
+    #[test]
+    fn windows_install_command_adds_registry_when_using_china_package() {
+        let command = build_openclaw_install_command(
+            ShellPlatform::Windows,
+            r"C:\Program Files\nodejs\npm.cmd",
+            Some(r"C:\Users\demo\AppData\Roaming\npm"),
+            OPENCLAW_CN_PACKAGE,
+            Some(NPM_MIRROR_CN),
+        );
+
+        assert_eq!(
+            command,
+            concat!(
+                "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
+                "set \"NPM_CONFIG_PREFIX=C:\\Users\\demo\\AppData\\Roaming\\npm\" && ",
+                "\"C:\\Program Files\\nodejs\\npm.cmd\" install -g @qingchencloud/openclaw-zh@latest ",
+                "--registry=https://registry.npmmirror.com"
+            )
+        );
+    }
+
+    #[test]
+    fn windows_install_command_omits_registry_for_default_package() {
+        let command = build_openclaw_install_command(
+            ShellPlatform::Windows,
+            r"C:\Program Files\nodejs\npm.cmd",
+            None,
+            OPENCLAW_DEFAULT_PACKAGE,
+            None,
+        );
+
+        assert_eq!(
+            command,
+            concat!(
+                "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
+                "\"C:\\Program Files\\nodejs\\npm.cmd\" install -g openclaw@latest"
+            )
+        );
+        assert!(!command.contains("--registry="));
+    }
+
+    #[test]
+    fn preferred_path_candidate_prioritizes_windows_executable_extensions() {
+        let preferred = select_preferred_path_candidate(vec![
+            PathBuf::from(r"C:\nvm4w\nodejs\openclaw"),
+            PathBuf::from(r"C:\nvm4w\nodejs\openclaw.bat"),
+            PathBuf::from(r"C:\nvm4w\nodejs\openclaw.cmd"),
+            PathBuf::from(r"C:\nvm4w\nodejs\openclaw.exe"),
+        ]);
+
+        assert_eq!(
+            preferred,
+            Some(PathBuf::from(r"C:\nvm4w\nodejs\openclaw.exe"))
+        );
+    }
+
+    #[test]
+    fn windows_node_prefers_winget_when_available() {
+        assert_eq!(
+            resolve_windows_dependency_install_plan(DependencyKind::Node, true),
+            WindowsDependencyInstallPlan::Winget {
+                package_id: "OpenJS.NodeJS.LTS"
+            }
+        );
+    }
+
+    #[test]
+    fn windows_node_falls_back_to_official_installer_without_winget() {
+        assert_eq!(
+            resolve_windows_dependency_install_plan(DependencyKind::Node, false),
+            WindowsDependencyInstallPlan::OfficialInstaller
+        );
+    }
+
+    #[test]
+    fn windows_git_prefers_winget_when_available() {
+        assert_eq!(
+            resolve_windows_dependency_install_plan(DependencyKind::Git, true),
+            WindowsDependencyInstallPlan::Winget {
+                package_id: "Git.Git"
+            }
+        );
+    }
+
+    #[test]
+    fn windows_git_requires_manual_download_without_winget() {
+        assert_eq!(
+            resolve_windows_dependency_install_plan(DependencyKind::Git, false),
+            WindowsDependencyInstallPlan::ManualDownload
+        );
+        assert_eq!(
+            windows_manual_install_message(DependencyKind::Git),
+            "当前系统缺少 winget，暂时无法一键安装 Git，请点击“手动下载 Git”完成安装后重试。"
+        );
+    }
+
+    #[test]
+    fn winget_install_command_uses_expected_windows_flags() {
+        assert_eq!(
+            build_winget_install_command(
+                r"C:\Users\demo\AppData\Local\Microsoft\WindowsApps\winget.exe",
+                "OpenJS.NodeJS.LTS"
+            ),
+            concat!(
+                "set \"PATH=C:\\Users\\demo\\AppData\\Local\\Microsoft\\WindowsApps;%PATH%\" && ",
+                "\"C:\\Users\\demo\\AppData\\Local\\Microsoft\\WindowsApps\\winget.exe\" install ",
+                "--id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements"
+            )
+        );
+    }
+}
+
+/// 从 Windows 注册表读取最新的 PATH 环境变量并刷新当前进程
+#[cfg(target_os = "windows")]
+fn refresh_windows_path_from_registry() -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr;
+
+    unsafe {
+        let mut combined_path = String::new();
+
+        // 读取系统 PATH (HKEY_LOCAL_MACHINE)
+        if let Ok(system_path) = read_registry_path(HKEY_LOCAL_MACHINE) {
+            combined_path.push_str(&system_path);
+        }
+
+        // 读取用户 PATH (HKEY_CURRENT_USER)
+        if let Ok(user_path) = read_registry_path(HKEY_CURRENT_USER) {
+            if !combined_path.is_empty() {
+                combined_path.push(';');
+            }
+            combined_path.push_str(&user_path);
+        }
+
+        if !combined_path.is_empty() {
+            std::env::set_var("PATH", combined_path);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn read_registry_path(root_key: HKEY) -> Result<String, String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr;
+
+    let subkey: Vec<u16> = OsStr::new("Environment")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    let value_name: Vec<u16> = OsStr::new("Path")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    let mut key: HKEY = ptr::null_mut();
+    let result = RegOpenKeyExW(
+        root_key,
+        subkey.as_ptr(),
+        0,
+        winapi::um::winnt::KEY_READ,
+        &mut key,
+    );
+
+    if result != ERROR_SUCCESS as i32 {
+        return Err(format!("无法打开注册表键: {}", result));
+    }
+
+    let mut buffer_size: DWORD = 0;
+    let result = RegQueryValueExW(
+        key,
+        value_name.as_ptr(),
+        ptr::null_mut(),
+        ptr::null_mut(),
+        ptr::null_mut(),
+        &mut buffer_size,
+    );
+
+    if result != ERROR_SUCCESS as i32 {
+        winapi::um::winreg::RegCloseKey(key);
+        return Err(format!("无法查询注册表值大小: {}", result));
+    }
+
+    let mut buffer: Vec<u16> = vec![0; (buffer_size / 2) as usize + 1];
+    let result = RegQueryValueExW(
+        key,
+        value_name.as_ptr(),
+        ptr::null_mut(),
+        ptr::null_mut(),
+        buffer.as_mut_ptr() as *mut u8,
+        &mut buffer_size,
+    );
+
+    winapi::um::winreg::RegCloseKey(key);
+
+    if result != ERROR_SUCCESS as i32 {
+        return Err(format!("无法读取注册表值: {}", result));
+    }
+
+    // 移除尾部的 null 字符
+    if let Some(null_pos) = buffer.iter().position(|&c| c == 0) {
+        buffer.truncate(null_pos);
+    }
+
+    Ok(String::from_utf16_lossy(&buffer))
+}
+
+#[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
+fn refresh_windows_path_from_registry() -> Result<(), String> {
+    Ok(())
 }

@@ -23,6 +23,7 @@ serde_yaml.workspace = true
 # 异步运行时
 tokio.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 
 # 错误处理
 thiserror.workspace = true

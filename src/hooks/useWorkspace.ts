@@ -5,8 +5,18 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import type { ProjectType } from "@/lib/api/project";
+import {
+  createProject,
+  deleteProject,
+  ensureWorkspaceReady,
+  getDefaultProject,
+  getProjectByRootPath,
+  listProjects,
+  setDefaultProject,
+  updateProject,
+  type Project as ApiProject,
+  type ProjectType,
+} from "@/lib/api/project";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import type { WorkspaceSettings } from "@/types/workspace";
 
@@ -62,16 +72,16 @@ export interface UseWorkspaceReturn {
   getByPath: (rootPath: string) => Promise<Workspace | null>;
 }
 
-interface WorkspaceEnsureResult {
-  workspaceId: string;
-  rootPath: string;
-  existed: boolean;
-  created: boolean;
-  repaired: boolean;
-  relocated?: boolean;
-  previousRootPath?: string | null;
-  warning?: string | null;
-}
+const toWorkspace = (project: ApiProject): Workspace => ({
+  id: project.id,
+  name: project.name,
+  workspaceType: project.workspaceType,
+  rootPath: project.rootPath,
+  isDefault: project.isDefault,
+  settings: project.settings,
+  createdAt: project.createdAt,
+  updatedAt: project.updatedAt,
+});
 
 /**
  * Workspace 管理 Hook
@@ -91,18 +101,15 @@ export function useWorkspace(): UseWorkspaceReturn {
       setError(null);
 
       const [list, defaultWs] = await Promise.all([
-        invoke<Workspace[]>("workspace_list"),
-        invoke<Workspace | null>("workspace_get_default"),
+        listProjects(),
+        getDefaultProject(),
       ]);
 
-      setWorkspaces(list);
-      setCurrentWorkspace(defaultWs);
+      setWorkspaces(list.map(toWorkspace));
+      setCurrentWorkspace(defaultWs ? toWorkspace(defaultWs) : null);
 
       if (defaultWs?.id) {
-        const ensureResult = await invoke<WorkspaceEnsureResult>(
-          "workspace_ensure_ready",
-          { id: defaultWs.id },
-        );
+        const ensureResult = await ensureWorkspaceReady(defaultWs.id);
         if (ensureResult.repaired) {
           recordWorkspaceRepair({
             workspaceId: ensureResult.workspaceId,
@@ -125,11 +132,13 @@ export function useWorkspace(): UseWorkspaceReturn {
   /** 创建 Workspace */
   const create = useCallback(
     async (request: CreateWorkspaceRequest): Promise<Workspace> => {
-      const workspace = await invoke<Workspace>("workspace_create", {
-        request,
+      const workspace = await createProject({
+        name: request.name,
+        rootPath: request.rootPath,
+        workspaceType: request.workspaceType,
       });
       await refresh();
-      return workspace;
+      return toWorkspace(workspace);
     },
     [refresh],
   );
@@ -137,12 +146,9 @@ export function useWorkspace(): UseWorkspaceReturn {
   /** 更新 Workspace */
   const update = useCallback(
     async (id: string, request: UpdateWorkspaceRequest): Promise<Workspace> => {
-      const workspace = await invoke<Workspace>("workspace_update", {
-        id,
-        request,
-      });
+      const workspace = await updateProject(id, request);
       await refresh();
-      return workspace;
+      return toWorkspace(workspace);
     },
     [refresh],
   );
@@ -150,7 +156,7 @@ export function useWorkspace(): UseWorkspaceReturn {
   /** 删除 Workspace */
   const remove = useCallback(
     async (id: string): Promise<boolean> => {
-      const result = await invoke<boolean>("workspace_delete", { id });
+      const result = await deleteProject(id);
       await refresh();
       return result;
     },
@@ -160,11 +166,8 @@ export function useWorkspace(): UseWorkspaceReturn {
   /** 设置默认 Workspace */
   const setDefault = useCallback(
     async (id: string): Promise<void> => {
-      await invoke("workspace_set_default", { id });
-      const ensureResult = await invoke<WorkspaceEnsureResult>(
-        "workspace_ensure_ready",
-        { id },
-      );
+      await setDefaultProject(id);
+      const ensureResult = await ensureWorkspaceReady(id);
       if (ensureResult.repaired) {
         recordWorkspaceRepair({
           workspaceId: ensureResult.workspaceId,
@@ -184,7 +187,8 @@ export function useWorkspace(): UseWorkspaceReturn {
   /** 通过路径获取 Workspace */
   const getByPath = useCallback(
     async (rootPath: string): Promise<Workspace | null> => {
-      return invoke<Workspace | null>("workspace_get_by_path", { rootPath });
+      const workspace = await getProjectByRootPath(rootPath);
+      return workspace ? toWorkspace(workspace) : null;
     },
     [],
   );

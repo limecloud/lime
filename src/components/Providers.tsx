@@ -18,8 +18,6 @@ import {
   getEnvVariables,
   getTokenFileHash,
   checkAndReloadCredentials,
-  KiroCredentialStatus,
-  EnvVariable,
   // Gemini
   getGeminiCredentials,
   reloadGeminiCredentials,
@@ -27,7 +25,6 @@ import {
   getGeminiEnvVariables,
   getGeminiTokenFileHash,
   checkAndReloadGeminiCredentials,
-  GeminiCredentialStatus,
   // Qwen
   getQwenCredentials,
   reloadQwenCredentials,
@@ -35,18 +32,19 @@ import {
   getQwenEnvVariables,
   getQwenTokenFileHash,
   checkAndReloadQwenCredentials,
-  QwenCredentialStatus,
   // OpenAI/Claude Custom
   getOpenAICustomStatus,
   setOpenAICustomConfig,
   getClaudeCustomStatus,
   setClaudeCustomConfig,
-  OpenAICustomStatus,
-  ClaudeCustomStatus,
-  // Default Provider
-  getDefaultProvider,
-  setDefaultProvider,
-} from "@/hooks/useTauri";
+  type ClaudeCustomStatus,
+  type EnvVariable,
+  type GeminiCredentialStatus,
+  type KiroCredentialStatus,
+  type OpenAICustomStatus,
+  type QwenCredentialStatus,
+} from "@/lib/api/providerRuntime";
+import { getDefaultProvider, setDefaultProvider } from "@/lib/api/appConfig";
 import { useProviderState } from "@/hooks/useProviderState";
 import { useFileMonitoring } from "@/hooks/useFileMonitoring";
 

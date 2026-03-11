@@ -8,10 +8,13 @@ import React, {
 } from "react";
 import styled from "styled-components";
 import { Video } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { VideoCanvasState } from "./types";
 import { PromptInput } from "./PromptInput";
+import {
+  importMaterialFromUrl,
+  type ImportMaterialFromUrlRequest,
+} from "@/lib/api/materials";
 import {
   videoGenerationApi,
   type VideoGenerationTask,
@@ -150,15 +153,6 @@ const TaskPrompt = styled.div`
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 `;
-
-interface ImportMaterialFromUrlRequest {
-  projectId: string;
-  name: string;
-  type: "video" | "image";
-  url: string;
-  tags?: string[];
-  description?: string;
-}
 
 interface WorkspaceTask extends VideoGenerationTask {
   resourceMaterialId?: string;
@@ -315,12 +309,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
             tags: [VIDEO_TASK_TAG],
             description: `视频生成自动入库（服务：${task.providerId}，模型：${task.model}）`,
           };
-          const savedMaterial = await invoke<{ id: string }>(
-            "import_material_from_url",
-            {
-              req: request,
-            },
-          );
+          const savedMaterial = await importMaterialFromUrl(request);
 
           setTasks((previous) =>
             previous.map((item) =>
@@ -485,9 +474,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
               ? "视频生成首帧参考图（自动上传）"
               : "视频生成尾帧参考图（自动上传）",
         };
-        const material = await invoke<{ id: string }>("import_material_from_url", {
-          req: request,
-        });
+        const material = await importMaterialFromUrl(request);
 
         const materialUrl = `material://${material.id}`;
         materialRefCache.current.set(normalizedUrl, materialUrl);
@@ -496,77 +483,82 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       [projectId],
     );
 
-    const handleGenerate = useCallback(async (textOverride?: string) => {
-      if (!projectId) {
-        toast.error("请先选择项目后再生成视频");
-        return;
-      }
-      if (!state.providerId) {
-        toast.error("请选择视频服务");
-        return;
-      }
-      if (!state.model) {
-        toast.error("请选择视频模型");
-        return;
-      }
-      const promptText = textOverride || state.prompt.trim();
-      if (!promptText) {
-        toast.error("请输入视频描述");
-        return;
-      }
-      const providerNormalized = state.providerId.trim().toLowerCase();
-      const supportedProvider =
-        providerNormalized.includes("doubao") ||
-        providerNormalized.includes("volc") ||
-        providerNormalized.includes("dashscope") ||
-        providerNormalized.includes("alibaba") ||
-        providerNormalized.includes("qwen");
-      if (!supportedProvider) {
-        toast.error("当前仅支持火山或阿里兼容视频服务");
-        return;
-      }
+    const handleGenerate = useCallback(
+      async (textOverride?: string) => {
+        if (!projectId) {
+          toast.error("请先选择项目后再生成视频");
+          return;
+        }
+        if (!state.providerId) {
+          toast.error("请选择视频服务");
+          return;
+        }
+        if (!state.model) {
+          toast.error("请选择视频模型");
+          return;
+        }
+        const promptText = textOverride || state.prompt.trim();
+        if (!promptText) {
+          toast.error("请输入视频描述");
+          return;
+        }
+        const providerNormalized = state.providerId.trim().toLowerCase();
+        const supportedProvider =
+          providerNormalized.includes("doubao") ||
+          providerNormalized.includes("volc") ||
+          providerNormalized.includes("dashscope") ||
+          providerNormalized.includes("alibaba") ||
+          providerNormalized.includes("qwen");
+        if (!supportedProvider) {
+          toast.error("当前仅支持火山或阿里兼容视频服务");
+          return;
+        }
 
-      onStateChange({
-        ...state,
-        status: "generating",
-        errorMessage: undefined,
-      });
-      try {
-        const [resolvedStartImageUrl, resolvedEndImageUrl] = await Promise.all([
-          ensureReferenceImageUrl(state.startImage, "start"),
-          ensureReferenceImageUrl(state.endImage, "end"),
-        ]);
-
-        const created = await videoGenerationApi.createTask({
-          projectId,
-          providerId: state.providerId,
-          model: state.model,
-          prompt: promptText,
-          aspectRatio: state.aspectRatio,
-          resolution: state.resolution,
-          duration: state.duration,
-          imageUrl: resolvedStartImageUrl,
-          endImageUrl: resolvedEndImageUrl,
-          seed: state.seed,
-          generateAudio: state.generateAudio,
-          cameraFixed: state.cameraFixed,
-        });
-
-        setTasks((previous) => {
-          const merged = mergeTaskList(previous, [created]);
-          return merged;
-        });
-        toast.success("视频任务已提交，正在生成");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
         onStateChange({
           ...state,
-          status: "error",
-          errorMessage: message,
+          status: "generating",
+          errorMessage: undefined,
         });
-        toast.error(message);
-      }
-    }, [ensureReferenceImageUrl, onStateChange, projectId, state]);
+        try {
+          const [resolvedStartImageUrl, resolvedEndImageUrl] =
+            await Promise.all([
+              ensureReferenceImageUrl(state.startImage, "start"),
+              ensureReferenceImageUrl(state.endImage, "end"),
+            ]);
+
+          const created = await videoGenerationApi.createTask({
+            projectId,
+            providerId: state.providerId,
+            model: state.model,
+            prompt: promptText,
+            aspectRatio: state.aspectRatio,
+            resolution: state.resolution,
+            duration: state.duration,
+            imageUrl: resolvedStartImageUrl,
+            endImageUrl: resolvedEndImageUrl,
+            seed: state.seed,
+            generateAudio: state.generateAudio,
+            cameraFixed: state.cameraFixed,
+          });
+
+          setTasks((previous) => {
+            const merged = mergeTaskList(previous, [created]);
+            return merged;
+          });
+          toast.success("视频任务已提交，正在生成");
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          onStateChange({
+            ...state,
+            status: "error",
+            errorMessage: message,
+          });
+          toast.error(message);
+        }
+      },
+      [ensureReferenceImageUrl, onStateChange, projectId, state],
+    );
 
     const isGenerated = tasks.length > 0 || state.status !== "idle";
 

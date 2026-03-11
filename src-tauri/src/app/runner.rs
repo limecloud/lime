@@ -41,6 +41,10 @@ pub fn run() {
         }
     };
 
+    tauri::async_runtime::block_on(
+        crate::services::environment_service::apply_configured_environment(&config),
+    );
+
     // 初始化崩溃上报（保持 guard 生命周期直到应用退出）
     let _crash_reporting_guard = crate::crash_reporting::init_from_config(&config);
 
@@ -903,6 +907,7 @@ pub fn run() {
             // Config commands (from app::commands)
             app_commands::get_config,
             app_commands::save_config,
+            app_commands::get_environment_preview,
             app_commands::get_default_provider,
             app_commands::set_default_provider,
             app_commands::get_endpoint_providers,
@@ -1054,6 +1059,7 @@ pub fn run() {
             // Skill commands
             commands::skill_cmd::get_skills,
             commands::skill_cmd::get_skills_for_app,
+            commands::skill_cmd::get_local_skills_for_app,
             commands::skill_cmd::install_skill,
             commands::skill_cmd::install_skill_for_app,
             commands::skill_cmd::uninstall_skill,
@@ -1061,6 +1067,7 @@ pub fn run() {
             commands::skill_cmd::get_skill_repos,
             commands::skill_cmd::add_skill_repo,
             commands::skill_cmd::remove_skill_repo,
+            commands::skill_cmd::refresh_skill_cache,
             commands::skill_cmd::get_installed_proxycast_skills,
             commands::skill_cmd::get_local_skill_content,
             // Skill Execution commands
@@ -1459,7 +1466,7 @@ pub fn run() {
             commands::document_import_cmd::import_document,
             commands::document_import_cmd::import_document_to_session,
             commands::document_import_cmd::save_exported_document,
-            // General Chat commands
+            // General Chat commands（兼容旧链路，禁止新增依赖）
             commands::general_chat_cmd::general_chat_create_session,
             commands::general_chat_cmd::general_chat_list_sessions,
             commands::general_chat_cmd::general_chat_get_session,
@@ -1470,7 +1477,7 @@ pub fn run() {
             commands::general_chat_cmd::general_chat_send_message,
             commands::general_chat_cmd::general_chat_stop_generation,
             commands::general_chat_cmd::general_chat_generate_title,
-            // Unified Chat commands (统一对话 API)
+            // Unified Chat commands（统一对话 API，后续治理收口入口）
             commands::unified_chat_cmd::chat_create_session,
             commands::unified_chat_cmd::chat_list_sessions,
             commands::unified_chat_cmd::chat_get_session,

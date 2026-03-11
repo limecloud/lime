@@ -9,6 +9,9 @@ use crate::config::{
     observer::{ConfigChangeEvent, RoutingChangeEvent},
     ConfigChangeSource, GlobalConfigManagerState,
 };
+use crate::services::environment_service::{
+    apply_configured_environment, build_environment_preview,
+};
 
 /// 获取配置
 #[tauri::command]
@@ -55,6 +58,7 @@ pub async fn save_config(
     let save_result = config_manager.0.save_config(&config).await;
     match save_result {
         Ok(()) => {
+            apply_configured_environment(&config).await;
             tracing::info!("[CONFIG] 配置保存成功: host={}", config.server.host);
             Ok(())
         }
@@ -63,6 +67,18 @@ pub async fn save_config(
             Err(e)
         }
     }
+}
+
+/// 获取统一环境变量预览
+#[tauri::command]
+pub async fn get_environment_preview(
+    state: tauri::State<'_, AppState>,
+) -> Result<crate::services::environment_service::EnvironmentPreview, String> {
+    let config = {
+        let s = state.read().await;
+        s.config.clone()
+    };
+    Ok(build_environment_preview(&config).await)
 }
 
 /// 获取默认 Provider
@@ -202,6 +218,8 @@ pub async fn set_endpoint_provider(
 /// 会更新 ~/.claude/settings.json 和 shell 配置文件中的环境变量
 #[tauri::command]
 pub async fn update_provider_env_vars(
+    state: tauri::State<'_, AppState>,
+    config_manager: tauri::State<'_, GlobalConfigManagerState>,
     logs: tauri::State<'_, LogState>,
     provider_type: String,
     api_host: String,
@@ -267,10 +285,18 @@ pub async fn update_provider_env_vars(
         // 不中断流程
     }
 
+    let next_config = {
+        let mut s = state.write().await;
+        upsert_environment_overrides(&mut s.config, &env_vars);
+        s.config.clone()
+    };
+    config_manager.0.save_config(&next_config).await?;
+    apply_configured_environment(&next_config).await;
+
     logs.write().await.add(
         "info",
         &format!(
-            "已更新 {} 环境变量: {}",
+            "已更新 {} 环境变量，并同步到统一环境配置: {}",
             provider_type,
             env_vars
                 .iter()
@@ -287,6 +313,37 @@ pub async fn update_provider_env_vars(
     );
 
     Ok(())
+}
+
+fn upsert_environment_overrides(config: &mut config::Config, env_vars: &[(String, String)]) {
+    for (key, value) in env_vars {
+        let trimmed_key = key.trim();
+        if trimmed_key.is_empty() {
+            continue;
+        }
+
+        if let Some(existing) = config
+            .environment
+            .variables
+            .iter_mut()
+            .rev()
+            .find(|entry| entry.key.trim().eq_ignore_ascii_case(trimmed_key))
+        {
+            existing.key = trimmed_key.to_string();
+            existing.value = value.clone();
+            existing.enabled = true;
+            continue;
+        }
+
+        config
+            .environment
+            .variables
+            .push(proxycast_core::config::EnvironmentVariableOverride {
+                key: trimmed_key.to_string(),
+                value: value.clone(),
+                enabled: true,
+            });
+    }
 }
 
 fn build_provider_env_vars(
@@ -391,7 +448,8 @@ fn build_provider_env_vars(
 
 #[cfg(test)]
 mod tests {
-    use super::build_provider_env_vars;
+    use super::{build_provider_env_vars, upsert_environment_overrides};
+    use proxycast_core::config::Config;
 
     #[test]
     fn test_build_provider_env_vars_explicit_anthropic_compatible() {
@@ -442,5 +500,27 @@ mod tests {
                 "https://proxy.example.com".to_string()
             )]
         );
+    }
+
+    #[test]
+    fn test_upsert_environment_overrides_updates_existing_key() {
+        let mut config = Config::default();
+        config
+            .environment
+            .variables
+            .push(proxycast_core::config::EnvironmentVariableOverride {
+                key: "OPENAI_BASE_URL".to_string(),
+                value: "http://old".to_string(),
+                enabled: false,
+            });
+
+        upsert_environment_overrides(
+            &mut config,
+            &[("OPENAI_BASE_URL".to_string(), "http://new".to_string())],
+        );
+
+        assert_eq!(config.environment.variables.len(), 1);
+        assert_eq!(config.environment.variables[0].value, "http://new");
+        assert!(config.environment.variables[0].enabled);
     }
 }

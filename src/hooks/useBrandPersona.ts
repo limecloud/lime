@@ -5,7 +5,14 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  deleteBrandExtension,
+  getBrandExtension,
+  getBrandPersona,
+  listBrandPersonaTemplates,
+  saveBrandExtension,
+  updateBrandExtension,
+} from "@/lib/api/brandPersona";
 import type {
   BrandPersona,
   BrandPersonaExtension,
@@ -74,10 +81,8 @@ export function useBrandPersona(
       setError(null);
 
       const [brandPersonaData, extensionData] = await Promise.all([
-        invoke<BrandPersona | null>("get_brand_persona", { personaId }),
-        invoke<BrandPersonaExtension | null>("get_brand_extension", {
-          personaId,
-        }),
+        getBrandPersona(personaId),
+        getBrandExtension(personaId),
       ]);
 
       setBrandPersona(brandPersonaData);
@@ -94,10 +99,7 @@ export function useBrandPersona(
     async (
       req: CreateBrandExtensionRequest,
     ): Promise<BrandPersonaExtension> => {
-      const result = await invoke<BrandPersonaExtension>(
-        "save_brand_extension",
-        { req },
-      );
+      const result = await saveBrandExtension(req);
       await refresh();
       return result;
     },
@@ -112,13 +114,7 @@ export function useBrandPersona(
       if (!personaId) {
         throw new Error("人设 ID 不能为空");
       }
-      const result = await invoke<BrandPersonaExtension>(
-        "update_brand_extension",
-        {
-          personaId,
-          update: updateData,
-        },
-      );
+      const result = await updateBrandExtension(personaId, updateData);
       await refresh();
       return result;
     },
@@ -130,16 +126,14 @@ export function useBrandPersona(
     if (!personaId) {
       throw new Error("人设 ID 不能为空");
     }
-    await invoke("delete_brand_extension", { personaId });
+    await deleteBrandExtension(personaId);
     await refresh();
   }, [personaId, refresh]);
 
   /** 加载模板列表 */
   const loadTemplates = useCallback(async () => {
     try {
-      const list = await invoke<BrandPersonaTemplate[]>(
-        "list_brand_persona_templates",
-      );
+      const list = await listBrandPersonaTemplates();
       setTemplates(list);
     } catch (err) {
       console.error("加载品牌人设模板失败:", err);

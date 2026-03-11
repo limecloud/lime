@@ -1,6 +1,6 @@
 /**
  * @file useSession.ts
- * @description 会话管理 Hook
+ * @description 会话管理 Hook（旧 general-chat 兼容实现）
  * @module components/general-chat/hooks/useSession
  *
  * 封装会话加载、切换、自动标题生成等逻辑
@@ -9,40 +9,7 @@
  */
 
 import { useCallback, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useGeneralChatStore } from "../store/useGeneralChatStore";
-import type { Session } from "../types";
-
-/**
- * 后端会话数据结构
- */
-interface BackendSession {
-  id: string;
-  name: string;
-  created_at: number;
-  updated_at: number;
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * 后端会话详情数据结构
- */
-interface BackendSessionDetail {
-  session: BackendSession;
-  messages: unknown[];
-  message_count: number;
-}
-
-/**
- * 转换后端会话为前端格式
- */
-const convertSession = (backend: BackendSession): Session => ({
-  id: backend.id,
-  name: backend.name,
-  createdAt: backend.created_at,
-  updatedAt: backend.updated_at,
-  messageCount: 0,
-});
 
 /**
  * useSession Hook 配置
@@ -56,6 +23,8 @@ interface UseSessionOptions {
 
 /**
  * 会话管理 Hook
+ *
+ * @deprecated 该 Hook 仍停留在 general-chat compat 会话链路，仅用于兼容旧版 general-chat 页面。
  */
 export const useSession = (options: UseSessionOptions = {}) => {
   const { autoLoad = true, onSessionChange } = options;
@@ -63,11 +32,11 @@ export const useSession = (options: UseSessionOptions = {}) => {
   const {
     sessions,
     currentSessionId,
-    setSessions,
+    hydrateSessions,
     selectSession,
     createSession: createNewSession,
-    deleteSession: _removeSession,
-    updateSession,
+    deleteSession: removeSession,
+    renameSession: renameSessionInStore,
   } = useGeneralChatStore();
 
   /**
@@ -75,15 +44,11 @@ export const useSession = (options: UseSessionOptions = {}) => {
    */
   const loadSessions = useCallback(async () => {
     try {
-      const backendSessions = await invoke<BackendSession[]>(
-        "general_chat_list_sessions",
-      );
-      const frontendSessions = backendSessions.map(convertSession);
-      setSessions(frontendSessions);
+      await hydrateSessions();
     } catch (error) {
       console.error("加载会话列表失败:", error);
     }
-  }, [setSessions]);
+  }, [hydrateSessions]);
 
   /**
    * 创建新会话
@@ -91,15 +56,10 @@ export const useSession = (options: UseSessionOptions = {}) => {
   const createSession = useCallback(
     async (name?: string): Promise<string | null> => {
       try {
-        const _session = await invoke<BackendSession>(
-          "general_chat_create_session",
-          {
-            name: name || undefined,
-            metadata: undefined,
-          },
-        );
-        // 使用 store 的 createSession 方法，它会自动添加会话并设置为当前会话
         const sessionId = await createNewSession();
+        if (name?.trim()) {
+          await renameSessionInStore(sessionId, name.trim());
+        }
         onSessionChange?.(sessionId);
         return sessionId;
       } catch (error) {
@@ -107,7 +67,7 @@ export const useSession = (options: UseSessionOptions = {}) => {
         return null;
       }
     },
-    [createNewSession, onSessionChange],
+    [createNewSession, renameSessionInStore, onSessionChange],
   );
 
   /**
@@ -116,26 +76,13 @@ export const useSession = (options: UseSessionOptions = {}) => {
   const switchSession = useCallback(
     async (sessionId: string) => {
       try {
-        // 加载会话详情
-        const detail = await invoke<BackendSessionDetail>(
-          "general_chat_get_session",
-          {
-            sessionId,
-            messageLimit: 50,
-          },
-        );
-
-        // 更新会话消息数量
-        updateSession(sessionId, { messageCount: detail.message_count });
-
-        // 切换当前会话
         selectSession(sessionId);
         onSessionChange?.(sessionId);
       } catch (error) {
         console.error("切换会话失败:", error);
       }
     },
-    [selectSession, updateSession, onSessionChange],
+    [selectSession, onSessionChange],
   );
 
   /**
@@ -144,9 +91,7 @@ export const useSession = (options: UseSessionOptions = {}) => {
   const deleteSession = useCallback(
     async (sessionId: string) => {
       try {
-        await invoke("general_chat_delete_session", { sessionId });
-        // 使用 store 的 deleteSession 方法，它会自动处理会话切换逻辑
-        await useGeneralChatStore.getState().deleteSession(sessionId);
+        await removeSession(sessionId);
 
         // 获取新的当前会话 ID 并触发回调
         const newCurrentId = useGeneralChatStore.getState().currentSessionId;
@@ -155,7 +100,7 @@ export const useSession = (options: UseSessionOptions = {}) => {
         console.error("删除会话失败:", error);
       }
     },
-    [onSessionChange],
+    [removeSession, onSessionChange],
   );
 
   /**
@@ -164,13 +109,12 @@ export const useSession = (options: UseSessionOptions = {}) => {
   const renameSession = useCallback(
     async (sessionId: string, name: string) => {
       try {
-        await invoke("general_chat_rename_session", { sessionId, name });
-        updateSession(sessionId, { name });
+        await renameSessionInStore(sessionId, name);
       } catch (error) {
         console.error("重命名会话失败:", error);
       }
     },
-    [updateSession],
+    [renameSessionInStore],
   );
 
   /**
@@ -180,15 +124,10 @@ export const useSession = (options: UseSessionOptions = {}) => {
   const generateTitle = useCallback(
     async (sessionId: string, firstMessage: string) => {
       try {
-        // 调用后端命令生成标题
-        const title = await invoke<string>("general_chat_generate_title", {
-          request: {
-            session_id: sessionId,
-            first_message: firstMessage,
-          },
-        });
-        // 更新本地状态
-        updateSession(sessionId, { name: title });
+        await renameSession(
+          sessionId,
+          firstMessage.slice(0, 20).trim() || "新话题",
+        );
       } catch (error) {
         console.error("生成标题失败:", error);
         // 失败时使用简单截取作为 fallback
@@ -197,7 +136,7 @@ export const useSession = (options: UseSessionOptions = {}) => {
         await renameSession(sessionId, fallbackTitle);
       }
     },
-    [renameSession, updateSession],
+    [renameSession],
   );
 
   // 自动加载会话列表

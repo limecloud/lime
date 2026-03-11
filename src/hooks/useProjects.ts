@@ -12,19 +12,18 @@ import type {
   ProjectUpdate,
   ProjectFilter,
 } from "@/types/project";
-import { safeInvoke } from "@/lib/dev-bridge";
+import {
+  createProject,
+  deleteProject,
+  ensureWorkspaceReady,
+  getDefaultProject as getDefaultApiProject,
+  getOrCreateDefaultProject,
+  listProjects,
+  resolveProjectRootPath,
+  updateProject,
+} from "@/lib/api/project";
+import { toProjectView } from "@/lib/projectView";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
-
-interface WorkspaceEnsureResult {
-  workspaceId: string;
-  rootPath: string;
-  existed: boolean;
-  created: boolean;
-  repaired: boolean;
-  relocated?: boolean;
-  previousRootPath?: string | null;
-  warning?: string | null;
-}
 // WorkspaceType 用于类型定义，暂未使用
 // import type { WorkspaceType } from '@/types/workspace';
 
@@ -73,15 +72,12 @@ export function useProjects(): UseProjectsReturn {
       setError(null);
 
       const [list, defaultProj] = await Promise.all([
-        safeInvoke<Project[]>("workspace_list"),
-        safeInvoke<Project | null>("workspace_get_default"),
+        listProjects(),
+        getDefaultApiProject(),
       ]);
 
       if (defaultProj?.id) {
-        const ensureResult = await safeInvoke<WorkspaceEnsureResult>(
-          "workspace_ensure_ready",
-          { id: defaultProj.id },
-        );
+        const ensureResult = await ensureWorkspaceReady(defaultProj.id);
         if (ensureResult.repaired) {
           recordWorkspaceRepair({
             workspaceId: ensureResult.workspaceId,
@@ -95,8 +91,8 @@ export function useProjects(): UseProjectsReturn {
         }
       }
 
-      setProjects(list);
-      setDefaultProject(defaultProj);
+      setProjects(list.map(toProjectView));
+      setDefaultProject(defaultProj ? toProjectView(defaultProj) : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -139,19 +135,15 @@ export function useProjects(): UseProjectsReturn {
   /** 创建项目 */
   const create = useCallback(
     async (request: CreateProjectRequest): Promise<Project> => {
-      const rootPath = await safeInvoke<string>("workspace_resolve_project_path", {
-        name: request.name,
-      });
+      const rootPath = await resolveProjectRootPath(request.name);
 
-      const project = await safeInvoke<Project>("workspace_create", {
-        request: {
-          name: request.name,
-          rootPath,
-          workspaceType: request.workspaceType,
-        },
+      const project = await createProject({
+        name: request.name,
+        rootPath,
+        workspaceType: request.workspaceType,
       });
       await refresh();
-      return project;
+      return toProjectView(project);
     },
     [refresh],
   );
@@ -159,12 +151,9 @@ export function useProjects(): UseProjectsReturn {
   /** 更新项目 */
   const update = useCallback(
     async (id: string, updateData: ProjectUpdate): Promise<Project> => {
-      const project = await safeInvoke<Project>("workspace_update", {
-        id,
-        request: updateData,
-      });
+      const project = await updateProject(id, updateData);
       await refresh();
-      return project;
+      return toProjectView(project);
     },
     [refresh],
   );
@@ -172,7 +161,7 @@ export function useProjects(): UseProjectsReturn {
   /** 删除项目 */
   const remove = useCallback(
     async (id: string): Promise<boolean> => {
-      const result = await safeInvoke<boolean>("workspace_delete", { id });
+      const result = await deleteProject(id);
       await refresh();
       return result;
     },
@@ -181,9 +170,9 @@ export function useProjects(): UseProjectsReturn {
 
   /** 获取或创建默认项目 */
   const getOrCreateDefault = useCallback(async (): Promise<Project> => {
-    const project = await safeInvoke<Project>("get_or_create_default_project");
+    const project = await getOrCreateDefaultProject();
     await refresh();
-    return project;
+    return toProjectView(project);
   }, [refresh]);
 
   // 初始加载

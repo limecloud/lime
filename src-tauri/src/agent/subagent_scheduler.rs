@@ -23,6 +23,8 @@ pub struct ProxyCastScheduler {
     inner: proxycast_agent::subagent_scheduler::ProxyCastScheduler,
     /// Tauri AppHandle
     app_handle: Option<AppHandle>,
+    /// 调度事件归属的会话 ID
+    event_session_id: Option<String>,
 }
 
 impl ProxyCastScheduler {
@@ -31,12 +33,20 @@ impl ProxyCastScheduler {
         Self {
             inner: proxycast_agent::subagent_scheduler::ProxyCastScheduler::new(db),
             app_handle: None,
+            event_session_id: None,
         }
     }
 
     /// 设置 Tauri AppHandle
     pub fn with_app_handle(mut self, handle: AppHandle) -> Self {
         self.app_handle = Some(handle);
+        self
+    }
+
+    /// 绑定调度事件的会话 ID
+    pub fn with_event_session_id(mut self, session_id: impl Into<String>) -> Self {
+        let normalized = session_id.into();
+        self.event_session_id = (!normalized.trim().is_empty()).then_some(normalized);
         self
     }
 
@@ -48,9 +58,11 @@ impl ProxyCastScheduler {
 
     /// 初始化调度器
     pub async fn init(&self, config: Option<SchedulerConfig>) {
+        let event_session_id = self.event_session_id.clone();
         let event_emitter = self.app_handle.clone().map(|handle| {
             Arc::new(move |event: &serde_json::Value| {
-                if let Err(err) = handle.emit("subagent-scheduler-event", event) {
+                let payload = enrich_scheduler_event_payload(event, event_session_id.as_deref());
+                if let Err(err) = handle.emit("subagent-scheduler-event", payload) {
                     tracing::warn!("发送 Tauri 事件失败: {}", err);
                 }
             }) as SchedulerEventEmitter
@@ -85,5 +97,60 @@ impl ProxyCastScheduler {
     /// 取消执行
     pub async fn cancel(&self) {
         self.inner.cancel().await;
+    }
+}
+
+fn enrich_scheduler_event_payload(
+    event: &serde_json::Value,
+    session_id: Option<&str>,
+) -> serde_json::Value {
+    let Some(session_id) = session_id.map(str::trim).filter(|value| !value.is_empty()) else {
+        return event.clone();
+    };
+
+    match event {
+        serde_json::Value::Object(map) => {
+            let mut next = map.clone();
+            next.insert(
+                "sessionId".to_string(),
+                serde_json::Value::String(session_id.to_string()),
+            );
+            serde_json::Value::Object(next)
+        }
+        other => serde_json::json!({
+            "type": "unknown",
+            "payload": other,
+            "sessionId": session_id,
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::enrich_scheduler_event_payload;
+
+    #[test]
+    fn should_append_session_id_for_object_event() {
+        let payload = serde_json::json!({
+            "type": "started",
+            "totalTasks": 1,
+        });
+
+        let enriched = enrich_scheduler_event_payload(&payload, Some("session-a"));
+
+        assert_eq!(enriched["type"], serde_json::json!("started"));
+        assert_eq!(enriched["sessionId"], serde_json::json!("session-a"));
+    }
+
+    #[test]
+    fn should_keep_original_event_when_session_id_missing() {
+        let payload = serde_json::json!({
+            "type": "completed",
+            "success": true,
+        });
+
+        let enriched = enrich_scheduler_event_payload(&payload, None);
+
+        assert_eq!(enriched, payload);
     }
 }

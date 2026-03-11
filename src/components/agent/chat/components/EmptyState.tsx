@@ -16,7 +16,7 @@ import {
   Music,
   Code2,
 } from "lucide-react";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 import type { CreationMode, EntryTaskSlotValues, EntryTaskType } from "./types";
 import { CREATION_MODE_CONFIG } from "./constants";
 import { Button } from "@/components/ui/button";
@@ -543,8 +543,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const [enabledThemes, setEnabledThemes] = useState<string[]>(
     DEFAULT_ENABLED_THEMES,
   );
-  const [appendSelectedTextToRecommendation, setAppendSelectedTextToRecommendation] =
-    useState(true);
+  const [
+    appendSelectedTextToRecommendation,
+    setAppendSelectedTextToRecommendation,
+  ] = useState(true);
 
   // 加载配置
   useEffect(() => {
@@ -555,8 +557,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           setEnabledThemes(loadedConfig.content_creator.enabled_themes);
         }
         setAppendSelectedTextToRecommendation(
-          loadedConfig.chat_appearance?.append_selected_text_to_recommendation ??
-            true,
+          loadedConfig.chat_appearance
+            ?.append_selected_text_to_recommendation ?? true,
         );
       } catch (e) {
         console.error("加载主题配置失败:", e);
@@ -618,10 +620,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     if (wrappedByActiveSkill !== text) {
       return wrappedByActiveSkill;
     }
-    if (
-      activeTheme === "social-media" &&
-      !text.trimStart().startsWith("/")
-    ) {
+    if (activeTheme === "social-media" && !text.trimStart().startsWith("/")) {
       return `/${SOCIAL_ARTICLE_SKILL_KEY} ${text}`.trim();
     }
     return text;
@@ -854,7 +853,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <ContentWrapper>
         <Header>
           <MainTitle>
-            {themeHeadline.lead}<span>{themeHeadline.focus}</span>
+            {themeHeadline.lead}
+            <span>{themeHeadline.focus}</span>
           </MainTitle>
         </Header>
 
@@ -1260,9 +1260,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                         ? "border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30"
                         : ""
                     }`}
-                    onClick={() =>
-                      onThinkingEnabledChange?.(!thinkingEnabled)
-                    }
+                    onClick={() => onThinkingEnabledChange?.(!thinkingEnabled)}
                     aria-pressed={thinkingEnabled}
                     title={thinkingEnabled ? "关闭深度思考" : "开启深度思考"}
                   >
@@ -1279,9 +1277,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                     ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30"
                     : ""
                 }`}
-                onClick={() =>
-                  onWebSearchEnabledChange?.(!webSearchEnabled)
-                }
+                onClick={() => onWebSearchEnabledChange?.(!webSearchEnabled)}
                 aria-pressed={webSearchEnabled}
                 title={webSearchEnabled ? "关闭联网搜索" : "开启联网搜索"}
               >
@@ -1347,7 +1343,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         {selectedTextPreview && (
           <div className="w-full max-w-[800px] text-xs text-muted-foreground bg-muted/30 border border-border/70 rounded-lg px-3 py-2">
             已检测到选中内容，点击推荐会自动附带上下文：
-            <span className="ml-1 text-foreground">“{selectedTextPreview}”</span>
+            <span className="ml-1 text-foreground">
+              “{selectedTextPreview}”
+            </span>
           </div>
         )}
         <div className="w-full max-w-[800px] flex flex-wrap gap-3 justify-center">

@@ -20,7 +20,7 @@ import type {
   ParsedMessageContent,
 } from "@/components/content-creator/a2ui/types";
 import { CHAT_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
-import type { ToolCallState } from "@/lib/api/agent";
+import type { ToolCallState } from "@/lib/api/agentStream";
 import type { ContentPart, ActionRequired, ConfirmResponse } from "../types";
 
 const STRUCTURED_CONTENT_HINT_RE = /<a2ui|```\s*a2ui|<write_file|<document/i;

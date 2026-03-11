@@ -6,7 +6,14 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  deleteMaterial,
+  getMaterialContent,
+  getMaterialCount,
+  listMaterials,
+  updateMaterial,
+  uploadMaterial,
+} from "@/lib/api/materials";
 import type {
   Material,
   UploadMaterialRequest,
@@ -68,15 +75,8 @@ export function useMaterials(projectId: string | null): UseMaterialsReturn {
       setError(null);
 
       const [list, total] = await Promise.all([
-        invoke<Material[]>("list_materials", {
-          projectId,
-          project_id: projectId,
-          filter: null,
-        }),
-        invoke<number>("get_material_count", {
-          projectId,
-          project_id: projectId,
-        }),
+        listMaterials(projectId),
+        getMaterialCount(projectId),
       ]);
 
       setMaterials(list);
@@ -121,9 +121,7 @@ export function useMaterials(projectId: string | null): UseMaterialsReturn {
   /** 上传素材 */
   const upload = useCallback(
     async (request: UploadMaterialRequest): Promise<Material> => {
-      const material = await invoke<Material>("upload_material", {
-        req: request,
-      });
+      const material = await uploadMaterial(request);
       await refresh();
       return material;
     },
@@ -133,10 +131,7 @@ export function useMaterials(projectId: string | null): UseMaterialsReturn {
   /** 更新素材 */
   const update = useCallback(
     async (id: string, updateData: MaterialUpdate): Promise<Material> => {
-      const material = await invoke<Material>("update_material", {
-        id,
-        update: updateData,
-      });
+      const material = await updateMaterial(id, updateData);
       await refresh();
       return material;
     },
@@ -146,7 +141,7 @@ export function useMaterials(projectId: string | null): UseMaterialsReturn {
   /** 删除素材 */
   const remove = useCallback(
     async (id: string): Promise<void> => {
-      await invoke("delete_material", { id });
+      await deleteMaterial(id);
       await refresh();
     },
     [refresh],
@@ -154,7 +149,7 @@ export function useMaterials(projectId: string | null): UseMaterialsReturn {
 
   /** 获取素材内容 */
   const getContent = useCallback(async (id: string): Promise<string> => {
-    return invoke<string>("get_material_content", { id });
+    return getMaterialContent(id);
   }, []);
 
   // 初始加载

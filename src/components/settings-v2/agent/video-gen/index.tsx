@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Film, CheckCircle2, AlertCircle } from "lucide-react";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
-import { getConfig, saveConfig, type Config } from "@/hooks/useTauri";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { cn } from "@/lib/utils";
 import {
   buildPersistedMediaGenerationPreference,

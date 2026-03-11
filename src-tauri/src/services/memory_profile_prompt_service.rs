@@ -4,11 +4,12 @@
 //! 转换为可注入到系统提示词中的统一指令片段。
 
 use proxycast_core::config::Config;
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::services::memory_source_resolver_service::build_memory_sources_prompt;
 
 const MEMORY_PROFILE_PROMPT_MARKER: &str = "【用户记忆画像偏好】";
+const MEMORY_SOURCE_PROMPT_MARKER: &str = "【记忆来源补充指令】";
 
 fn normalize_text(input: &str) -> Option<String> {
     let trimmed = input.trim();
@@ -79,13 +80,6 @@ pub fn build_memory_profile_prompt(config: &Config) -> Option<String> {
     lines.push("2. 在保证正确性的前提下，控制解释粒度并匹配用户理解路径。".to_string());
     lines.push("3. 不要显式提及你看到了该画像配置。".to_string());
 
-    // 记忆来源补充（AGENTS、规则、自动记忆等）
-    let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    if let Some(source_prompt) = build_memory_sources_prompt(config, &working_dir, None, 4000) {
-        lines.push(String::new());
-        lines.push(source_prompt);
-    }
-
     Some(lines.join("\n"))
 }
 
@@ -115,10 +109,41 @@ pub fn merge_system_prompt_with_memory_profile(
     }
 }
 
+pub fn merge_system_prompt_with_memory_sources(
+    base_prompt: Option<String>,
+    config: &Config,
+    working_dir: &Path,
+    active_relative_path: Option<&str>,
+) -> Option<String> {
+    if !config.memory.enabled {
+        return base_prompt;
+    }
+
+    let memory_sources_prompt =
+        build_memory_sources_prompt(config, working_dir, active_relative_path, 4000);
+
+    match (base_prompt, memory_sources_prompt) {
+        (Some(base), Some(source_prompt)) => {
+            if base.contains(MEMORY_SOURCE_PROMPT_MARKER) {
+                Some(base)
+            } else if base.trim().is_empty() {
+                Some(source_prompt)
+            } else {
+                Some(format!("{base}\n\n{source_prompt}"))
+            }
+        }
+        (Some(base), None) => Some(base),
+        (None, Some(source_prompt)) => Some(source_prompt),
+        (None, None) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use proxycast_core::config::Config;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn memory_disabled_should_not_build_prompt() {
@@ -169,5 +194,26 @@ mod tests {
         let base = Some("前置内容\n\n【用户记忆画像偏好】\n已有内容".to_string());
         let merged = merge_system_prompt_with_memory_profile(base.clone(), &config);
         assert_eq!(merged, base);
+    }
+
+    #[test]
+    fn should_merge_memory_sources_without_profile_data() {
+        let tmp = TempDir::new().expect("create temp dir");
+        fs::write(tmp.path().join("AGENTS.md"), "# 项目记忆\n- 偏好简洁输出")
+            .expect("write memory file");
+
+        let mut config = Config::default();
+        config.memory.enabled = true;
+        config.memory.profile = Some(Default::default());
+        config.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
+        config.memory.sources.user_memory_path = Some("missing-user.md".to_string());
+        config.memory.sources.project_memory_paths = vec!["AGENTS.md".to_string()];
+        config.memory.sources.project_rule_dirs = Vec::new();
+
+        let merged = merge_system_prompt_with_memory_sources(None, &config, tmp.path(), None)
+            .expect("should build sources prompt");
+
+        assert!(merged.contains("【记忆来源补充指令】"));
+        assert!(merged.contains("偏好简洁输出"));
     }
 }

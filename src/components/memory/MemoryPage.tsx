@@ -33,13 +33,11 @@ import {
 import { cn } from "@/lib/utils";
 import type { MemoryPageParams, Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import {
-  getConfig,
   getMemoryOverview as getContextMemoryOverview,
-  saveConfig,
-  type Config,
   type MemoryConfig as TauriMemoryConfig,
-} from "@/hooks/useTauri";
+} from "@/lib/api/memoryRuntime";
 import {
   createCharacter,
   createOutlineNode,

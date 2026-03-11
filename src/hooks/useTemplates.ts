@@ -6,7 +6,14 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  createTemplate,
+  deleteTemplate,
+  getDefaultTemplate,
+  listTemplates,
+  setDefaultTemplate as setDefaultTemplateApi,
+  updateTemplate,
+} from "@/lib/api/templates";
 import type {
   Template,
   CreateTemplateRequest,
@@ -60,8 +67,8 @@ export function useTemplates(projectId: string | null): UseTemplatesReturn {
       setError(null);
 
       const [list, defaultT] = await Promise.all([
-        invoke<Template[]>("list_templates", { projectId }),
-        invoke<Template | null>("get_default_template", { projectId }),
+        listTemplates(projectId),
+        getDefaultTemplate(projectId),
       ]);
 
       setTemplates(list);
@@ -76,9 +83,7 @@ export function useTemplates(projectId: string | null): UseTemplatesReturn {
   /** 创建模板 */
   const create = useCallback(
     async (request: CreateTemplateRequest): Promise<Template> => {
-      const template = await invoke<Template>("create_template", {
-        req: request,
-      });
+      const template = await createTemplate(request);
       await refresh();
       return template;
     },
@@ -88,10 +93,7 @@ export function useTemplates(projectId: string | null): UseTemplatesReturn {
   /** 更新模板 */
   const update = useCallback(
     async (id: string, updateData: TemplateUpdate): Promise<Template> => {
-      const template = await invoke<Template>("update_template", {
-        id,
-        update: updateData,
-      });
+      const template = await updateTemplate(id, updateData);
       await refresh();
       return template;
     },
@@ -101,7 +103,7 @@ export function useTemplates(projectId: string | null): UseTemplatesReturn {
   /** 删除模板 */
   const remove = useCallback(
     async (id: string): Promise<void> => {
-      await invoke("delete_template", { id });
+      await deleteTemplate(id);
       await refresh();
     },
     [refresh],
@@ -111,7 +113,7 @@ export function useTemplates(projectId: string | null): UseTemplatesReturn {
   const setDefault = useCallback(
     async (templateId: string): Promise<void> => {
       if (!projectId) return;
-      await invoke("set_default_template", { projectId, templateId });
+      await setDefaultTemplateApi(projectId, templateId);
       await refresh();
     },
     [projectId, refresh],

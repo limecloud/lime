@@ -6,22 +6,13 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { safeInvoke } from "@/lib/dev-bridge";
+import {
+  checkForUpdates,
+  downloadUpdate,
+  type DownloadUpdateResult,
+  type VersionInfo,
+} from "@/lib/api/appUpdate";
 import { ProviderIcon } from "@/icons/providers";
-
-interface VersionInfo {
-  current: string;
-  latest?: string;
-  hasUpdate: boolean;
-  downloadUrl?: string;
-  error?: string;
-}
-
-interface DownloadResult {
-  success: boolean;
-  message: string;
-  filePath?: string;
-}
 
 const FALLBACK_TAGS_URL = "https://github.com/aiclientproxy/proxycast/tags";
 
@@ -62,9 +53,8 @@ export function AboutSection() {
   });
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [downloadResult, setDownloadResult] = useState<DownloadResult | null>(
-    null,
-  );
+  const [downloadResult, setDownloadResult] =
+    useState<DownloadUpdateResult | null>(null);
   const manualDownloadUrl = versionInfo.downloadUrl || FALLBACK_TAGS_URL;
 
   // 加载当前版本号（从后端获取，确保与 Cargo.toml 同步）
@@ -72,7 +62,7 @@ export function AboutSection() {
     const loadCurrentVersion = async () => {
       try {
         // check_for_updates 会返回当前版本号
-        const result = await safeInvoke<VersionInfo>("check_for_updates");
+        const result = await checkForUpdates();
         setVersionInfo((prev) => ({
           ...prev,
           current: result.current,
@@ -93,7 +83,7 @@ export function AboutSection() {
     setChecking(true);
     setDownloadResult(null);
     try {
-      const result = await safeInvoke<VersionInfo>("check_for_updates");
+      const result = await checkForUpdates();
       setVersionInfo({
         ...result,
         downloadUrl: result.downloadUrl || FALLBACK_TAGS_URL,
@@ -114,7 +104,7 @@ export function AboutSection() {
     setDownloading(true);
     setDownloadResult(null);
     try {
-      const result = await safeInvoke<DownloadResult>("download_update");
+      const result = await downloadUpdate();
       setDownloadResult(result);
 
       if (result.success) {

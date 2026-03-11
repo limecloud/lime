@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Globe, RefreshCw } from "lucide-react";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 import {
   browserExecuteAction,
   chromeBridgeExecuteCommand,
@@ -41,21 +41,24 @@ const BACKEND_LABELS: Record<BrowserBackendType, string> = {
 export function ChromeRelaySettings() {
   const [testEngine, setTestEngine] = useState<SearchEngine>("google");
   const [openingEngine, setOpeningEngine] = useState<SearchEngine | null>(null);
-  const [closingProfileKey, setClosingProfileKey] = useState<string | null>(null);
+  const [closingProfileKey, setClosingProfileKey] = useState<string | null>(
+    null,
+  );
   const [refreshingSessions, setRefreshingSessions] = useState(false);
   const [refreshingBridge, setRefreshingBridge] = useState(false);
   const [refreshingBackends, setRefreshingBackends] = useState(false);
   const [savingBackendPolicy, setSavingBackendPolicy] = useState(false);
-  const [testingBackend, setTestingBackend] = useState<BrowserBackendType | null>(null);
+  const [testingBackend, setTestingBackend] =
+    useState<BrowserBackendType | null>(null);
   const [testingBridgeEngine, setTestingBridgeEngine] =
     useState<SearchEngine | null>(null);
   const [sessions, setSessions] = useState<ChromeProfileSessionInfo[]>([]);
   const [bridgeEndpoint, setBridgeEndpoint] =
     useState<ChromeBridgeEndpointInfo | null>(null);
-  const [bridgeStatus, setBridgeStatus] = useState<ChromeBridgeStatusSnapshot | null>(
-    null,
-  );
-  const [backendPolicy, setBackendPolicy] = useState<BrowserBackendPolicy | null>(null);
+  const [bridgeStatus, setBridgeStatus] =
+    useState<ChromeBridgeStatusSnapshot | null>(null);
+  const [backendPolicy, setBackendPolicy] =
+    useState<BrowserBackendPolicy | null>(null);
   const [draftBackendPolicy, setDraftBackendPolicy] =
     useState<BrowserBackendPolicy | null>(null);
   const [backendsStatus, setBackendsStatus] =
@@ -106,8 +109,11 @@ export function ChromeRelaySettings() {
 
   const hasBackendPolicyChanges = useMemo(() => {
     if (!backendPolicy || !draftBackendPolicy) return false;
-    if (backendPolicy.auto_fallback !== draftBackendPolicy.auto_fallback) return true;
-    return backendPolicy.priority.join(",") !== draftBackendPolicy.priority.join(",");
+    if (backendPolicy.auto_fallback !== draftBackendPolicy.auto_fallback)
+      return true;
+    return (
+      backendPolicy.priority.join(",") !== draftBackendPolicy.priority.join(",")
+    );
   }, [backendPolicy, draftBackendPolicy]);
 
   const hasObserverConnected = (bridgeStatus?.observer_count ?? 0) > 0;
@@ -188,7 +194,9 @@ export function ChromeRelaySettings() {
     const key = getProfileKey(engine);
     const observers = bridgeStatus?.observers || [];
     return (
-      observers.find((observer) => observer.profile_key === key) || observers.at(0) || null
+      observers.find((observer) => observer.profile_key === key) ||
+      observers.at(0) ||
+      null
     );
   };
 
@@ -303,7 +311,10 @@ export function ChromeRelaySettings() {
     }
   };
 
-  const updateBackendPriority = (index: number, backend: BrowserBackendType) => {
+  const updateBackendPriority = (
+    index: number,
+    backend: BrowserBackendType,
+  ) => {
     setDraftBackendPolicy((prev) => {
       if (!prev) return prev;
       const next = [...prev.priority];
@@ -382,7 +393,10 @@ export function ChromeRelaySettings() {
         text: `${BACKEND_LABELS[backend]} 测试成功`,
       });
       setTimeout(() => setMessage(null), 2500);
-      await Promise.all([refreshBridgeStatus(true), refreshBackendStatus(true)]);
+      await Promise.all([
+        refreshBridgeStatus(true),
+        refreshBackendStatus(true),
+      ]);
     } catch (error) {
       setMessage({
         type: "error",
@@ -417,7 +431,8 @@ export function ChromeRelaySettings() {
         <p className="text-xs text-muted-foreground">
           Profile 会话 {backendsStatus?.running_profile_count ?? 0} | CDP 可用{" "}
           {backendsStatus?.cdp_alive_profile_count ?? 0} | 扩展 observer{" "}
-          {bridgeStatus?.observer_count ?? 0} | control {bridgeStatus?.control_count ?? 0}
+          {bridgeStatus?.observer_count ?? 0} | control{" "}
+          {bridgeStatus?.control_count ?? 0}
         </p>
         <button
           type="button"
@@ -426,7 +441,9 @@ export function ChromeRelaySettings() {
             void refreshBridgeStatus(false);
             void refreshBackendStatus(false);
           }}
-          disabled={refreshingSessions || refreshingBridge || refreshingBackends}
+          disabled={
+            refreshingSessions || refreshingBridge || refreshingBackends
+          }
           className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
         >
           <RefreshCw
@@ -449,8 +466,8 @@ export function ChromeRelaySettings() {
           const session = getSessionByEngine("google");
           return session ? (
             <p className="text-xs text-muted-foreground">
-              会话运行中 | PID {session.pid} | 来源 {session.browser_source} | 调试端口{" "}
-              {session.remote_debugging_port}
+              会话运行中 | PID {session.pid} | 来源 {session.browser_source} |
+              调试端口 {session.remote_debugging_port}
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">当前无运行中的会话</p>
@@ -469,10 +486,15 @@ export function ChromeRelaySettings() {
           <button
             type="button"
             onClick={() => closeSession("google")}
-            disabled={!getSessionByEngine("google") || closingProfileKey === GOOGLE_PROFILE_KEY}
+            disabled={
+              !getSessionByEngine("google") ||
+              closingProfileKey === GOOGLE_PROFILE_KEY
+            }
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            {closingProfileKey === GOOGLE_PROFILE_KEY ? "关闭中..." : "关闭会话"}
+            {closingProfileKey === GOOGLE_PROFILE_KEY
+              ? "关闭中..."
+              : "关闭会话"}
           </button>
         </div>
       </div>
@@ -486,8 +508,8 @@ export function ChromeRelaySettings() {
           const session = getSessionByEngine("xiaohongshu");
           return session ? (
             <p className="text-xs text-muted-foreground">
-              会话运行中 | PID {session.pid} | 来源 {session.browser_source} | 调试端口{" "}
-              {session.remote_debugging_port}
+              会话运行中 | PID {session.pid} | 来源 {session.browser_source} |
+              调试端口 {session.remote_debugging_port}
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">当前无运行中的会话</p>
@@ -512,7 +534,9 @@ export function ChromeRelaySettings() {
             }
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            {closingProfileKey === XIAOHONGSHU_PROFILE_KEY ? "关闭中..." : "关闭会话"}
+            {closingProfileKey === XIAOHONGSHU_PROFILE_KEY
+              ? "关闭中..."
+              : "关闭会话"}
           </button>
         </div>
       </div>
@@ -520,11 +544,15 @@ export function ChromeRelaySettings() {
       <div className="rounded-lg border p-5 space-y-3">
         <h3 className="text-sm font-medium">浏览器后端编排策略</h3>
         <p className="text-xs text-muted-foreground">
-          统一调度 Aster 协议适配、扩展桥接和 CDP 直连。支持按优先级执行并在失败时自动回退。
+          统一调度 Aster 协议适配、扩展桥接和 CDP
+          直连。支持按优先级执行并在失败时自动回退。
         </p>
 
         <div className="space-y-2">
-          <label htmlFor="relay-test-engine" className="text-xs text-muted-foreground">
+          <label
+            htmlFor="relay-test-engine"
+            className="text-xs text-muted-foreground"
+          >
             后端测试默认引擎
           </label>
           <select
@@ -540,12 +568,20 @@ export function ChromeRelaySettings() {
 
         <div className="space-y-2">
           {[0, 1, 2].map((idx) => (
-            <div className="flex items-center gap-2" key={`backend-priority-${idx}`}>
+            <div
+              className="flex items-center gap-2"
+              key={`backend-priority-${idx}`}
+            >
               <label className="text-xs text-muted-foreground w-16">{`优先级 ${idx + 1}`}</label>
               <select
-                value={draftBackendPolicy?.priority[idx] || BACKEND_OPTIONS[idx]}
+                value={
+                  draftBackendPolicy?.priority[idx] || BACKEND_OPTIONS[idx]
+                }
                 onChange={(e) =>
-                  updateBackendPriority(idx, e.target.value as BrowserBackendType)
+                  updateBackendPriority(
+                    idx,
+                    e.target.value as BrowserBackendType,
+                  )
                 }
                 className="h-9 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
               >
@@ -599,14 +635,17 @@ export function ChromeRelaySettings() {
         <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-xs">
           {(backendsStatus?.backends || []).map((item) => (
             <p key={`backend-status-${item.backend}`}>
-              {BACKEND_LABELS[item.backend]}: {item.available ? "可用" : "不可用"}
+              {BACKEND_LABELS[item.backend]}:{" "}
+              {item.available ? "可用" : "不可用"}
               {item.reason ? ` | ${item.reason}` : ""}
             </p>
           ))}
           <p>
-            Aster native-host: {backendsStatus?.aster_native_host_configured ? "已配置" : "未配置"}
+            Aster native-host:{" "}
+            {backendsStatus?.aster_native_host_configured ? "已配置" : "未配置"}
             {" | "}
-            平台支持: {backendsStatus?.aster_native_host_supported ? "是" : "否"}
+            平台支持:{" "}
+            {backendsStatus?.aster_native_host_supported ? "是" : "否"}
           </p>
         </div>
 
@@ -625,7 +664,9 @@ export function ChromeRelaySettings() {
             disabled={refreshingBackends}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshingBackends ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${refreshingBackends ? "animate-spin" : ""}`}
+            />
             刷新后端状态
           </button>
         </div>
@@ -634,17 +675,23 @@ export function ChromeRelaySettings() {
       <div className="rounded-lg border p-5 space-y-3">
         <h3 className="text-sm font-medium">Chrome 扩展桥接</h3>
         <p className="text-xs text-muted-foreground">
-          该能力用于让浏览器扩展回传页面信息并接收控制命令。请在对应 Chrome Profile 安装扩展并连接 observer 地址。
+          该能力用于让浏览器扩展回传页面信息并接收控制命令。请在对应 Chrome
+          Profile 安装扩展并连接 observer 地址。
         </p>
         <p className="text-xs text-muted-foreground">
-          服务状态: {bridgeEndpoint?.server_running ? "运行中" : "未运行"} | observer 连接:{" "}
-          {bridgeStatus?.observer_count ?? 0} | control 连接: {bridgeStatus?.control_count ?? 0} |
-          待处理命令: {bridgeStatus?.pending_command_count ?? 0}
+          服务状态: {bridgeEndpoint?.server_running ? "运行中" : "未运行"} |
+          observer 连接: {bridgeStatus?.observer_count ?? 0} | control 连接:{" "}
+          {bridgeStatus?.control_count ?? 0} | 待处理命令:{" "}
+          {bridgeStatus?.pending_command_count ?? 0}
         </p>
         {bridgeEndpoint && (
           <div className="rounded-md border bg-muted/30 p-3 space-y-1 text-xs">
-            <p className="break-all">Observer WS: {bridgeEndpoint.observer_ws_url}</p>
-            <p className="break-all">Control WS: {bridgeEndpoint.control_ws_url}</p>
+            <p className="break-all">
+              Observer WS: {bridgeEndpoint.observer_ws_url}
+            </p>
+            <p className="break-all">
+              Control WS: {bridgeEndpoint.control_ws_url}
+            </p>
             <p className="break-all">Bridge Key: {bridgeEndpoint.bridge_key}</p>
             <div className="pt-2 flex items-center gap-2">
               <button
@@ -655,8 +702,13 @@ export function ChromeRelaySettings() {
                     bridgeKey: bridgeEndpoint.bridge_key,
                     profileKey: "search_google",
                   };
-                  navigator.clipboard.writeText(JSON.stringify(config, null, 2));
-                  setMessage({ type: "success", text: "Google 配置已复制到剪贴板" });
+                  navigator.clipboard.writeText(
+                    JSON.stringify(config, null, 2),
+                  );
+                  setMessage({
+                    type: "success",
+                    text: "Google 配置已复制到剪贴板",
+                  });
                   setTimeout(() => setMessage(null), 2000);
                 }}
                 className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs hover:bg-muted"
@@ -671,8 +723,13 @@ export function ChromeRelaySettings() {
                     bridgeKey: bridgeEndpoint.bridge_key,
                     profileKey: "search_xiaohongshu",
                   };
-                  navigator.clipboard.writeText(JSON.stringify(config, null, 2));
-                  setMessage({ type: "success", text: "小红书配置已复制到剪贴板" });
+                  navigator.clipboard.writeText(
+                    JSON.stringify(config, null, 2),
+                  );
+                  setMessage({
+                    type: "success",
+                    text: "小红书配置已复制到剪贴板",
+                  });
                   setTimeout(() => setMessage(null), 2000);
                 }}
                 className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs hover:bg-muted"
@@ -684,7 +741,8 @@ export function ChromeRelaySettings() {
         )}
         <div className="text-xs text-muted-foreground space-y-1">
           <p>
-            Google observer: {(() => {
+            Google observer:{" "}
+            {(() => {
               const observer = getObserverByEngine("google");
               return observer
                 ? `${observer.client_id} | 最近页面: ${observer.last_page_info?.title || "无"}`
@@ -692,7 +750,8 @@ export function ChromeRelaySettings() {
             })()}
           </p>
           <p>
-            小红书 observer: {(() => {
+            小红书 observer:{" "}
+            {(() => {
               const observer = getObserverByEngine("xiaohongshu");
               return observer
                 ? `${observer.client_id} | 最近页面: ${observer.last_page_info?.title || "无"}`
@@ -703,29 +762,30 @@ export function ChromeRelaySettings() {
         {!hasObserverConnected && (
           <div className="rounded-md border border-amber-400/40 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             未检测到扩展 observer 连接。请在对应 Chrome Profile 安装并打开
-            Proxycast Browser Bridge 扩展，在扩展弹窗填写 Observer WS 与 Bridge Key 后再测试。
+            Proxycast Browser Bridge 扩展，在扩展弹窗填写 Observer WS 与 Bridge
+            Key 后再测试。
           </div>
         )}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => testBridgeCommand("google")}
-            disabled={
-              testingBridgeEngine === "google"
-            }
+            disabled={testingBridgeEngine === "google"}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            {testingBridgeEngine === "google" ? "测试中..." : "测试 Google 扩展"}
+            {testingBridgeEngine === "google"
+              ? "测试中..."
+              : "测试 Google 扩展"}
           </button>
           <button
             type="button"
             onClick={() => testBridgeCommand("xiaohongshu")}
-            disabled={
-              testingBridgeEngine === "xiaohongshu"
-            }
+            disabled={testingBridgeEngine === "xiaohongshu"}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            {testingBridgeEngine === "xiaohongshu" ? "测试中..." : "测试小红书扩展"}
+            {testingBridgeEngine === "xiaohongshu"
+              ? "测试中..."
+              : "测试小红书扩展"}
           </button>
           <button
             type="button"
@@ -733,7 +793,9 @@ export function ChromeRelaySettings() {
             disabled={refreshingBridge}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshingBridge ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${refreshingBridge ? "animate-spin" : ""}`}
+            />
             刷新扩展状态
           </button>
         </div>

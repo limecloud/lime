@@ -1,5 +1,5 @@
-import type { ToolCallState, TokenUsage } from "@/lib/api/agent";
-import type { ContextTraceStep } from "@/lib/api/agent";
+import type { ToolCallState, TokenUsage } from "@/lib/api/agentStream";
+import type { ContextTraceStep } from "@/lib/api/agentStream";
 import { safeInvoke } from "@/lib/dev-bridge";
 
 export interface MessageImage {

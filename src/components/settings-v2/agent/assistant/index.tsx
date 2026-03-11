@@ -18,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getConfig, saveConfig, Config } from "@/hooks/useTauri";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 
 interface AssistantProfile {
   id: string;

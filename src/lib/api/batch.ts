@@ -4,7 +4,7 @@
  * 通过 fetch 调用本地代理服务器的 REST API
  */
 
-import { getServerStatus } from "@/hooks/useTauri";
+import { getServerStatus } from "@/lib/api/serverRuntime";
 
 async function getBaseUrl(): Promise<string> {
   const status = await getServerStatus();

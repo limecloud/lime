@@ -3,8 +3,8 @@ import {
   getConfig,
   type Config,
   type CrashReportingConfig as TauriCrashReportingConfig,
-} from "@/hooks/useTauri";
-import { safeInvoke } from "@/lib/dev-bridge";
+} from "@/lib/api/appConfig";
+import { reportFrontendCrash as reportFrontendCrashToBackend } from "@/lib/api/frontendCrash";
 import configEventManager from "@/lib/configEventManager";
 import { getRuntimeAppVersion } from "@/lib/appVersion";
 
@@ -42,8 +42,14 @@ export interface FrontendCrashBufferEntry {
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/\bBearer\s+[A-Za-z0-9._-]+\b/gi, "Bearer ***"],
   [/\bapi[_-]?key\s*[:=]\s*["']?[A-Za-z0-9._-]+["']?/gi, "api_key=***"],
-  [/\baccess[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]+["']?/gi, "access_token=***"],
-  [/\brefresh[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]+["']?/gi, "refresh_token=***"],
+  [
+    /\baccess[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]+["']?/gi,
+    "access_token=***",
+  ],
+  [
+    /\brefresh[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]+["']?/gi,
+    "refresh_token=***",
+  ],
   [/\btoken\s*[:=]\s*["']?[A-Za-z0-9._-]{10,}["']?/gi, "token=***"],
   [/\bsk-[A-Za-z0-9]{12,}\b/g, "sk-***"],
 ];
@@ -119,9 +125,10 @@ function resolveCrashReportingConfig(
     (import.meta.env.VITE_SENTRY_DSN as string | undefined) ??
     null;
 
-  const dsn = typeof dsnCandidate === "string" && dsnCandidate.trim()
-    ? dsnCandidate.trim()
-    : null;
+  const dsn =
+    typeof dsnCandidate === "string" && dsnCandidate.trim()
+      ? dsnCandidate.trim()
+      : null;
 
   const sampleRateRaw = Number(
     crashConfig?.sample_rate ?? DEFAULT_CRASH_REPORTING_CONFIG.sampleRate,
@@ -285,7 +292,9 @@ function writeFrontendCrashBufferToStorage(
   }
 }
 
-function persistFrontendCrashToLocalBuffer(report: FrontendCrashReportPayload): void {
+function persistFrontendCrashToLocalBuffer(
+  report: FrontendCrashReportPayload,
+): void {
   const stackPreview = report.stack
     ? sanitizeText(report.stack).split("\n").slice(0, 3).join(" | ")
     : undefined;
@@ -305,7 +314,9 @@ function persistFrontendCrashToLocalBuffer(report: FrontendCrashReportPayload): 
         ? sanitizeText(String(report.context.source))
         : undefined,
     page_url:
-      typeof window !== "undefined" ? sanitizeText(window.location.href) : undefined,
+      typeof window !== "undefined"
+        ? sanitizeText(window.location.href)
+        : undefined,
   };
 
   const current = readFrontendCrashBufferFromStorage();
@@ -315,7 +326,7 @@ function persistFrontendCrashToLocalBuffer(report: FrontendCrashReportPayload): 
 
 function persistFrontendCrash(report: FrontendCrashReportPayload): void {
   persistFrontendCrashToLocalBuffer(report);
-  void safeInvoke("report_frontend_crash", { report }).catch((error) => {
+  void reportFrontendCrashToBackend(report).catch((error) => {
     console.warn("[CrashReporting] 写入后端崩溃日志失败:", error);
   });
 }

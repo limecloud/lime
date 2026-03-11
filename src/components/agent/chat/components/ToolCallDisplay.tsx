@@ -29,7 +29,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolCallState, ToolResultImage } from "@/lib/api/agent";
+import type { ToolCallState, ToolResultImage } from "@/lib/api/agentStream";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 // ============ 类型定义 ============
@@ -283,9 +283,7 @@ const snakeToTitleCase = (str: string): string => {
     .join(" ");
 };
 
-const normalizeToolResultImages = (
-  rawImages: unknown,
-): ToolResultImage[] => {
+const normalizeToolResultImages = (rawImages: unknown): ToolResultImage[] => {
   if (!Array.isArray(rawImages)) return [];
   const normalized: ToolResultImage[] = [];
   for (const item of rawImages) {
@@ -306,6 +304,19 @@ const normalizeToolResultImages = (
     normalized.push({ src, mimeType, origin });
   }
   return normalized;
+};
+
+const normalizeToolResultMetadata = (
+  rawMetadata: unknown,
+): Record<string, unknown> | undefined => {
+  if (
+    !rawMetadata ||
+    typeof rawMetadata !== "object" ||
+    Array.isArray(rawMetadata)
+  ) {
+    return undefined;
+  }
+  return Object.fromEntries(Object.entries(rawMetadata));
 };
 
 // ============ 可展开面板组件 ============
@@ -610,6 +621,82 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     () => normalizeToolResultImages(toolCall.result?.images),
     [toolCall.result?.images],
   );
+  const resultMetadata = useMemo(
+    () => normalizeToolResultMetadata(toolCall.result?.metadata),
+    [toolCall.result?.metadata],
+  );
+  const resultMetaItems = useMemo(() => {
+    if (!resultMetadata) return [];
+
+    const items: string[] = [];
+    if (resultMetadata.proxycast_offloaded === true) {
+      items.push("完整输出已转存");
+    }
+    if (typeof resultMetadata.exit_code === "number") {
+      items.push(`退出码 ${resultMetadata.exit_code}`);
+    }
+    if (typeof resultMetadata.stdout_length === "number") {
+      items.push(`stdout ${resultMetadata.stdout_length}`);
+    }
+    if (typeof resultMetadata.stderr_length === "number") {
+      items.push(`stderr ${resultMetadata.stderr_length}`);
+    }
+    if (typeof resultMetadata.sandboxed === "boolean") {
+      items.push(resultMetadata.sandboxed ? "已隔离执行" : "普通执行");
+    }
+    if (resultMetadata.output_truncated === true) {
+      items.push("输出已截断");
+    }
+    if (typeof resultMetadata.offload_original_chars === "number") {
+      items.push(`原始 ${resultMetadata.offload_original_chars} 字符`);
+    }
+    if (typeof resultMetadata.offload_original_tokens === "number") {
+      items.push(`约 ${resultMetadata.offload_original_tokens} tokens`);
+    }
+    if (typeof resultMetadata.offload_trigger === "string") {
+      const triggerLabel =
+        resultMetadata.offload_trigger === "history_context_pressure"
+          ? "上下文压力触发"
+          : resultMetadata.offload_trigger === "token_limit_before_evict"
+            ? "token 阈值触发"
+            : resultMetadata.offload_trigger === "payload_bytes"
+              ? "字节阈值触发"
+              : resultMetadata.offload_trigger === "payload_chars"
+                ? "字符阈值触发"
+                : resultMetadata.offload_trigger;
+      items.push(triggerLabel);
+    }
+
+    return items;
+  }, [resultMetadata]);
+  const resultPath = useMemo(() => {
+    if (!resultMetadata) return undefined;
+    if (
+      typeof resultMetadata.offload_file === "string" &&
+      resultMetadata.offload_file.trim()
+    ) {
+      return {
+        label: "转存文件",
+        value: resultMetadata.offload_file.trim(),
+      };
+    }
+    if (
+      typeof resultMetadata.output_file === "string" &&
+      resultMetadata.output_file.trim()
+    ) {
+      return {
+        label: "输出文件",
+        value: resultMetadata.output_file.trim(),
+      };
+    }
+    if (typeof resultMetadata.path === "string" && resultMetadata.path.trim()) {
+      return {
+        label: "产物路径",
+        value: resultMetadata.path.trim(),
+      };
+    }
+    return undefined;
+  }, [resultMetadata]);
   const hasResultImages = resultImages.length > 0;
 
   useEffect(() => {
@@ -735,6 +822,23 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           >
             Output
           </div>
+          {resultMetaItems.length > 0 ? (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {resultMetaItems.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full bg-[var(--surface-secondary)] px-2 py-1 text-[11px] text-[var(--ink-600)]"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {resultPath ? (
+            <div className="mb-2 break-all text-[11px] text-[var(--ink-600)]">
+              {resultPath.label}: {resultPath.value}
+            </div>
+          ) : null}
           <pre
             className={cn(
               "whitespace-pre-wrap font-mono text-xs break-all max-h-40 overflow-y-auto",

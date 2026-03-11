@@ -23,7 +23,7 @@ import {
   type DailyUsage,
   type ModelUsage,
   type UsageStatsResponse,
-} from "@/hooks/useTauri";
+} from "@/lib/api/usageStats";
 
 export function StatsSettings() {
   const [loading, setLoading] = useState(true);

@@ -4,49 +4,49 @@
 
 ## 架构说明
 
-通用对话模块 - ProxyCast 的核心功能。提供即时对话能力，支持 Markdown 渲染、代码高亮、流式响应。
+该目录现阶段仅保留 **兼容入口**，用于承接历史 `components/chat` 依赖。
+现役通用对话实现已经迁移到 `src/components/general-chat/`，不要再在这里新增业务逻辑。
 
-## 功能特性
+## 当前定位
 
-- **即时对话**：打开即用，无需选择主题
-- **Markdown 渲染**：支持标题、列表、粗体、斜体、链接等
-- **代码高亮**：支持 12+ 种编程语言语法高亮
-- **一键复制**：代码块支持一键复制
-- **流式响应**：打字机效果，实时显示 AI 回复
-- **主题选择**：底部提供创作主题入口
+- **兼容包装**：保留旧导入路径，避免一次性打爆历史调用方
+- **单一事实源**：真实会话、消息、流式状态统一以 `general-chat` Store 和后端 compat 命令为准
+- **禁止扩散**：该目录下文件只能做委托、适配、废弃标记，不再维护独立状态机
 
 ## 文件索引
 
 - `index.ts` - 模块导出入口
-- `ChatPage.tsx` - 通用对话主页面
+- `ChatPage.tsx` - `GeneralChatPage` 的兼容包装层
 - `types.ts` - 类型定义
 
 ### components/
 
-- `CodeBlock.tsx` - 代码块组件（语法高亮 + 复制）
-- `MessageItem.tsx` - 单条消息组件
-- `MessageList.tsx` - 消息列表组件
-- `InputBar.tsx` - 输入栏组件
-- `ThemeSelector.tsx` - 主题选择器
-- `ModeSelector.tsx` - 创作模式选择器
-- `EmptyState.tsx` - 空状态欢迎界面
-- `index.ts` - 组件导出入口
+- `*.tsx` - 历史 UI 资产源码，仅保留参考和兼容排障价值
+- `index.ts` - 空壳兼容入口，不再导出旧组件
 
-### hooks/
+### hooks/（兼容层）
 
-- `useChat.ts` - 对话状态管理 Hook
-- `useStreaming.ts` - 流式响应处理 Hook
+- `useChat.ts` - 委托到 `general-chat` Store 的兼容 Hook
+- `useStreaming.ts` - 历史遗留流式 Hook，已停止维护，不再从模块根入口导出
 - `index.ts` - Hooks 导出入口
 
-## 使用示例
+## 推荐用法
 
 ```tsx
-import { ChatPage } from '@/components/chat'
+import { useUnifiedChat } from "@/hooks/useUnifiedChat";
 
-function App() {
-  return <ChatPage />
+function Example() {
+  const chat = useUnifiedChat({ mode: "general" });
+
+  return <button onClick={() => void chat.sendMessage("你好")}>发送</button>;
 }
 ```
+
+- 页面层不要新增 `ChatPage` / `GeneralChatPage` 依赖，请走现有工作台或路由入口。
+- 新的对话逻辑请优先基于 `@/hooks/useUnifiedChat`。
+- `@/components/chat` 模块根入口现仅保留 `ChatPage`、基础消息类型和 `useChat` 兼容导出。
+- `@/components/chat/components` 已不再导出任何组件，避免旧 UI 资产继续扩散。
+- 如必须兼容旧代码，`@/components/chat` 仍可继续导入，但应尽快迁移到统一对话链路。
 
 ## 更新提醒
 

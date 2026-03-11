@@ -6,14 +6,13 @@ import { useCallback, useState } from "react";
 import { Bug, Code2, Eye, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useComponentDebug } from "@/contexts/ComponentDebugContext";
+import { getConfig } from "@/lib/api/appConfig";
+import { getLogs, getPersistedLogsTail } from "@/lib/api/logs";
 import {
-  getConfig,
-  getLogs,
   getLogStorageDiagnostics,
-  getPersistedLogsTail,
   getServerDiagnostics,
   getWindowsStartupDiagnostics,
-} from "@/hooks/useTauri";
+} from "@/lib/api/serverRuntime";
 import {
   buildCrashDiagnosticPayload,
   clearCrashDiagnosticHistory,

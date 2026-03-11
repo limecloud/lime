@@ -6,6 +6,7 @@
 // 保留在主 crate 的 Tauri 相关服务
 pub mod auto_memory_service;
 pub mod conversation_statistics_service;
+pub mod environment_service;
 pub mod execution_tracker_service;
 pub mod file_browser_service;
 pub mod heartbeat_service;

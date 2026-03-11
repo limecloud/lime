@@ -17,6 +17,7 @@ import {
   Square,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { sendScreenshotChat } from "@/lib/api/screenshotChat";
 import { useVoiceSound } from "@/hooks/useVoiceSound";
 import "./smart-input.css";
 
@@ -566,9 +567,8 @@ export function SmartInputPage() {
     setIsLoading(true);
 
     try {
-      const { safeInvoke } = await import("@/lib/dev-bridge");
       console.log("[SmartInput] 发送消息:", inputValue);
-      await safeInvoke("send_screenshot_chat", {
+      await sendScreenshotChat({
         message: inputValue,
         imagePath: imagePath,
       });

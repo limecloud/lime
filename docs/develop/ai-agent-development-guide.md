@@ -91,13 +91,13 @@ pub struct AgentConstraints {
 pub trait ToolExecutor: Send + Sync {
     /// 执行工具
     async fn execute(&self, input: ToolInput) -> Result<ToolOutput, ToolError>;
-    
+
     /// 工具名称
     fn name(&self) -> &str;
-    
+
     /// 工具描述
     fn description(&self) -> &str;
-    
+
     /// 参数 Schema
     fn parameters_schema(&self) -> serde_json::Value;
 }
@@ -135,19 +135,19 @@ impl AgentRuntime {
     /// 执行 Agent 循环
     pub async fn run(&mut self, user_input: &str) -> Result<AgentResponse, AgentError> {
         self.messages.push(Message::user(user_input));
-        
+
         loop {
             // 1. 调用 LLM
             let response = self.provider.chat(&self.messages).await?;
-            
+
             // 2. 检查是否有工具调用
             if let Some(tool_calls) = response.tool_calls {
                 // 3. 执行工具
                 let results = self.execute_tools(tool_calls).await?;
-                
+
                 // 4. 将结果加入对话
                 self.messages.extend(results);
-                
+
                 // 5. 检查约束
                 if self.check_constraints().is_err() {
                     break;
@@ -160,7 +160,6 @@ impl AgentRuntime {
     }
 }
 ```
-
 
 ---
 
@@ -204,10 +203,10 @@ pub struct ToolCall {
 pub trait ProtocolConverter {
     /// 转换为 Provider 格式
     fn to_provider(&self, messages: &[Message]) -> ProviderRequest;
-    
+
     /// 从 Provider 格式转换
     fn from_provider(&self, response: ProviderResponse) -> Message;
-    
+
     /// 转换工具定义
     fn convert_tools(&self, tools: &[ToolDefinition]) -> Vec<ProviderTool>;
 }
@@ -215,7 +214,7 @@ pub trait ProtocolConverter {
 /// OpenAI 格式转换器
 pub struct OpenAIConverter;
 
-/// Claude 格式转换器  
+/// Claude 格式转换器
 pub struct ClaudeConverter;
 
 /// Gemini 格式转换器
@@ -241,11 +240,11 @@ impl StreamProcessor {
     /// 处理流式数据块
     pub fn process_chunk(&mut self, chunk: &str) -> Vec<StreamEvent> {
         let mut events = Vec::new();
-        
+
         // 解析数据块
         // 处理文本、工具调用等
         // 生成事件
-        
+
         events
     }
 }
@@ -266,14 +265,14 @@ pub enum StreamEvent {
 
 ### 4.1 内置工具
 
-| 工具 | 描述 | 参数 |
-|------|------|------|
-| `read_file` | 读取文件内容 | `path: string` |
-| `write_file` | 写入文件 | `path: string, content: string` |
-| `list_directory` | 列出目录内容 | `path: string, pattern?: string` |
-| `search_files` | 搜索文件内容 | `pattern: string, path?: string` |
-| `shell_command` | 执行 Shell 命令 | `command: string, cwd?: string` |
-| `http_request` | 发送 HTTP 请求 | `url: string, method: string, ...` |
+| 工具             | 描述            | 参数                               |
+| ---------------- | --------------- | ---------------------------------- |
+| `read_file`      | 读取文件内容    | `path: string`                     |
+| `write_file`     | 写入文件        | `path: string, content: string`    |
+| `list_directory` | 列出目录内容    | `path: string, pattern?: string`   |
+| `search_files`   | 搜索文件内容    | `pattern: string, path?: string`   |
+| `shell_command`  | 执行 Shell 命令 | `command: string, cwd?: string`    |
+| `http_request`   | 发送 HTTP 请求  | `url: string, method: string, ...` |
 
 ### 4.2 工具注册机制
 
@@ -293,12 +292,12 @@ impl ToolRegistry {
         self.register(Box::new(ShellCommandTool::new()));
         // ...
     }
-    
+
     /// 注册自定义工具
     pub fn register(&mut self, tool: Box<dyn ToolExecutor>) {
         self.tools.insert(tool.name().to_string(), tool);
     }
-    
+
     /// 获取工具
     pub fn get(&self, name: &str) -> Option<&dyn ToolExecutor> {
         self.tools.get(name).map(|t| t.as_ref())
@@ -329,7 +328,7 @@ impl SecurityPolicy {
         // 检查路径是否在允许范围内
         // 防止路径遍历攻击
     }
-    
+
     /// 检查命令是否允许
     pub fn check_command(&self, command: &str) -> Result<(), SecurityError> {
         // 检查命令是否在黑名单中
@@ -383,18 +382,20 @@ pub struct TokenUsage {
 ### 5.2 前端状态同步
 
 ```typescript
-// src/stores/agentStore.ts
+// 历史示例：现代实现请优先使用
+// `src/lib/api/agentRuntime.ts` + `src/lib/api/agentStream.ts`
+// 不要在业务层直接 invoke Agent/Aster 命令。
 
 interface AgentState {
   // Agent 定义
   agents: AgentDefinition[];
   currentAgent: string | null;
-  
+
   // 运行状态
   isRunning: boolean;
   phase: AgentPhase;
   messages: Message[];
-  
+
   // 统计
   tokenUsage: TokenUsage;
   toolCallCount: number;
@@ -406,25 +407,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   agents: [],
   currentAgent: null,
   isRunning: false,
-  phase: 'idle',
+  phase: "idle",
   messages: [],
   tokenUsage: { input: 0, output: 0 },
   toolCallCount: 0,
-  
+
   // Actions
   startAgent: async (agentId: string, input: string) => {
-    set({ isRunning: true, phase: 'thinking' });
+    set({ isRunning: true, phase: "thinking" });
     // 调用 Tauri 命令
-    await invoke('run_agent', { agentId, input });
+    await invoke("run_agent", { agentId, input });
   },
-  
+
   stopAgent: async () => {
-    await invoke('stop_agent');
-    set({ isRunning: false, phase: 'idle' });
+    await invoke("stop_agent");
+    set({ isRunning: false, phase: "idle" });
   },
 }));
 ```
-
 
 ---
 
@@ -512,4 +512,4 @@ agent/
 
 ---
 
-*本文档定义了 ProxyCast AI Agent 功能的架构设计，随着开发进展会持续更新。*
+_本文档定义了 ProxyCast AI Agent 功能的架构设计，随着开发进展会持续更新。_

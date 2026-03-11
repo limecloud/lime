@@ -11,8 +11,15 @@
 
 import { useEffect, useState, useCallback, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { safeInvoke } from "@/lib/dev-bridge";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
+import {
+  closeUpdateWindow,
+  dismissUpdateNotification,
+  downloadUpdate,
+  recordUpdateNotificationAction,
+  remindUpdateLater,
+  skipUpdateVersion,
+} from "@/lib/api/appUpdate";
 import { Bell, Download, ExternalLink, SkipForward, X } from "lucide-react";
 import "./update-notification.css";
 
@@ -50,7 +57,7 @@ export function UpdateNotificationPage() {
   // 直接关闭窗口（无动画）
   const closeWindow = useCallback(async () => {
     try {
-      await safeInvoke("close_update_window");
+      await closeUpdateWindow();
     } catch (err) {
       console.error("关闭窗口失败:", err);
       // 备用方案：直接关闭
@@ -69,9 +76,7 @@ export function UpdateNotificationPage() {
   // 关闭并应用退避策略
   const handleDismiss = useCallback(async () => {
     try {
-      await safeInvoke("dismiss_update_notification", {
-        version: params.latestVersion || null,
-      });
+      await dismissUpdateNotification(params.latestVersion || null);
     } catch (error) {
       console.error("记录关闭提醒失败:", error);
     }
@@ -103,15 +108,13 @@ export function UpdateNotificationPage() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await safeInvoke("record_update_notification_action", {
-        action: "update_now",
-      });
+      await recordUpdateNotificationAction("update_now");
     } catch (error) {
       console.error("记录立即更新行为失败:", error);
     }
 
     try {
-      await safeInvoke("download_update");
+      await downloadUpdate();
       // download_update 成功后会自动关闭窗口并启动安装程序
     } catch (error) {
       console.error("下载更新失败:", error);
@@ -132,7 +135,7 @@ export function UpdateNotificationPage() {
   // 稍后提醒
   const handleLater = async (hours: number) => {
     try {
-      await safeInvoke("remind_update_later", { hours });
+      await remindUpdateLater(hours);
     } catch (error) {
       console.error("设置稍后提醒失败:", error);
     }
@@ -143,9 +146,7 @@ export function UpdateNotificationPage() {
   const handleSkipVersion = async () => {
     if (params.latestVersion) {
       try {
-        await safeInvoke("skip_update_version", {
-          version: params.latestVersion,
-        });
+        await skipUpdateVersion(params.latestVersion);
         await closeWithAnimation();
       } catch (error) {
         console.error("跳过版本失败:", error);
@@ -229,7 +230,10 @@ export function UpdateNotificationPage() {
               disabled={downloading}
               className="update-btn update-btn-primary"
             >
-              <Download size={14} className={downloading ? "animate-spin" : ""} />
+              <Download
+                size={14}
+                className={downloading ? "animate-spin" : ""}
+              />
               {downloading ? "下载中" : "立即更新"}
             </button>
             {params.downloadUrl ? (

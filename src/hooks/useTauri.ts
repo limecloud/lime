@@ -1,173 +1,168 @@
 // 使用共享的 safeInvoke
+import {
+  ensureDefaultWorkspaceReady as ensureDefaultProjectWorkspaceReady,
+  ensureWorkspaceReady as ensureProjectWorkspaceReady,
+} from "@/lib/api/project";
+import { revealPathInFinder } from "@/lib/api/fileSystem";
+export {
+  checkAndReloadCredentials,
+  checkAndReloadGeminiCredentials,
+  checkAndReloadQwenCredentials,
+  getClaudeCustomStatus,
+  getEnvVariables,
+  getGeminiCredentials,
+  getGeminiEnvVariables,
+  getGeminiTokenFileHash,
+  getKiroCredentials,
+  getOpenAICustomStatus,
+  getQwenCredentials,
+  getQwenEnvVariables,
+  getQwenTokenFileHash,
+  getTokenFileHash,
+  refreshGeminiToken,
+  refreshKiroToken,
+  refreshQwenToken,
+  reloadCredentials,
+  reloadGeminiCredentials,
+  reloadQwenCredentials,
+  setClaudeCustomConfig,
+  setOpenAICustomConfig,
+} from "@/lib/api/providerRuntime";
+export { getNetworkInfo, testApi } from "@/lib/api/serverTools";
+export {
+  discordChannelProbe,
+  feishuChannelProbe,
+  gatewayChannelStart,
+  gatewayChannelStatus,
+  gatewayChannelStop,
+  gatewayTunnelCreate,
+  gatewayTunnelDetectCloudflared,
+  gatewayTunnelInstallCloudflared,
+  gatewayTunnelProbe,
+  gatewayTunnelRestart,
+  gatewayTunnelStart,
+  gatewayTunnelStatus,
+  gatewayTunnelStop,
+  gatewayTunnelSyncWebhookUrl,
+  telegramChannelProbe,
+} from "@/lib/api/channelsRuntime";
+export { getAvailableModels } from "@/lib/api/modelCatalog";
+export {
+  getExperimentalConfig,
+  saveExperimentalConfig,
+  updateScreenshotShortcut,
+  validateShortcut,
+} from "@/lib/api/experimentalFeatures";
+export {
+  getDailyUsageTrends,
+  getModelUsageRanking,
+  getUsageStats,
+} from "@/lib/api/usageStats";
+export {
+  exportSupportBundle,
+  getLogStorageDiagnostics,
+  getServerDiagnostics,
+  getServerStatus,
+  getWindowsStartupDiagnostics,
+  startServer,
+  stopServer,
+} from "@/lib/api/serverRuntime";
+export {
+  getConfig,
+  getDefaultProvider,
+  getEnvironmentPreview,
+  saveConfig,
+  setDefaultProvider,
+  updateProviderEnvVars,
+} from "@/lib/api/appConfig";
+export {
+  clearDiagnosticLogHistory,
+  clearLogs,
+  getLogs,
+  getPersistedLogsTail,
+} from "@/lib/api/logs";
+export {
+  getMemoryAutoIndex,
+  getMemoryEffectiveSources,
+  getMemoryOverview,
+  toggleMemoryAuto,
+  updateMemoryAutoNote,
+} from "@/lib/api/memoryRuntime";
+export type { NetworkInfo, TestResult } from "@/lib/api/serverTools";
+export type {
+  AmpConfig,
+  AmpModelMapping,
+  CheckResult,
+  ClaudeCustomStatus,
+  CredentialEntry,
+  EnvVariable,
+  GeminiApiKeyEntry,
+  GeminiCredentialStatus,
+  KiroCredentialStatus,
+  OpenAICustomStatus,
+  QwenCredentialStatus,
+  VertexApiKeyEntry,
+  VertexModelAlias,
+} from "@/lib/api/providerRuntime";
+export type {
+  ExperimentalFeatures,
+  SmartInputConfig,
+} from "@/lib/api/experimentalFeatures";
+export type { ModelInfo } from "@/lib/api/modelCatalog";
+export type {
+  DailyUsage,
+  ModelUsage,
+  UsageStatsResponse,
+} from "@/lib/api/usageStats";
+export type {
+  AutoMemoryIndexResponse,
+  EffectiveMemorySourcesResponse,
+  MemoryAutoConfig,
+  MemoryAutoToggleResponse,
+  MemoryConfig,
+  MemoryOverviewResponse,
+  MemoryProfileConfig,
+  MemoryResolveConfig,
+  MemorySourcesConfig,
+} from "@/lib/api/memoryRuntime";
+export type {
+  ChannelsConfig,
+  CloudflaredInstallResult,
+  CloudflaredInstallStatus,
+  DiscordBotConfig,
+  DiscordProbeResult,
+  FeishuBotConfig,
+  FeishuProbeResult,
+  GatewayChannelStatusResponse,
+  GatewayConfig,
+  GatewayTunnelCreateResponse,
+  GatewayTunnelProbeResult,
+  GatewayTunnelStatus,
+  GatewayTunnelSyncWebhookResponse,
+  TelegramBotConfig,
+  TelegramProbeResult,
+} from "@/lib/api/channelsRuntime";
+export type {
+  CapabilityRoutingMetricsSnapshot,
+  IdempotencyConfig,
+  IdempotencyDiagnostics,
+  IdempotencyStats,
+  LogArtifactEntry,
+  LogStorageDiagnostics,
+  RequestDedupConfig,
+  RequestDedupDiagnostics,
+  RequestDedupStats,
+  ResponseCacheDiagnostics,
+  ResponseCacheStats,
+  ServerDiagnostics,
+  ServerStatus,
+  SupportBundleExportResult,
+  TelemetrySummary,
+  WindowsStartupCheck,
+  WindowsStartupDiagnostics,
+} from "@/lib/api/serverRuntime";
+export type { LogEntry } from "@/lib/api/logs";
 import { safeInvoke } from "@/lib/dev-bridge";
-
-export interface ServerStatus {
-  running: boolean;
-  host: string;
-  port: number;
-  requests: number;
-  uptime_secs: number;
-  error_rate_1m: number;
-  p95_latency_ms_1m: number | null;
-  open_circuit_count: number;
-  active_requests: number;
-  capability_routing: CapabilityRoutingMetricsSnapshot;
-  response_cache: ResponseCacheStats;
-  request_dedup: RequestDedupStats;
-  idempotency: IdempotencyStats;
-}
-
-export interface CapabilityRoutingMetricsSnapshot {
-  filter_eval_total: number;
-  filter_excluded_total: number;
-  filter_excluded_tools_total: number;
-  filter_excluded_vision_total: number;
-  filter_excluded_context_total: number;
-  provider_fallback_total: number;
-  model_fallback_total: number;
-  all_candidates_excluded_total: number;
-}
-
-export interface ResponseCacheStats {
-  size: number;
-  hits: number;
-  misses: number;
-  evictions: number;
-}
-
-export interface RequestDedupStats {
-  inflight_size: number;
-  completed_size: number;
-  check_new_total: number;
-  check_in_progress_total: number;
-  check_completed_total: number;
-  wait_success_total: number;
-  wait_timeout_total: number;
-  wait_no_result_total: number;
-  complete_total: number;
-  remove_total: number;
-}
-
-export interface IdempotencyStats {
-  entries_size: number;
-  in_progress_size: number;
-  completed_size: number;
-  check_new_total: number;
-  check_in_progress_total: number;
-  check_completed_total: number;
-  complete_total: number;
-  remove_total: number;
-}
-
-export interface TelemetrySummary {
-  total_requests: number;
-  successful_requests: number;
-  failed_requests: number;
-  timeout_requests: number;
-  success_rate: number;
-  avg_latency_ms: number;
-  min_latency_ms: number | null;
-  max_latency_ms: number | null;
-  total_input_tokens: number;
-  total_output_tokens: number;
-  total_tokens: number;
-}
-
-export interface ResponseCacheDiagnostics {
-  config: ResponseCacheConfig;
-  stats: ResponseCacheStats;
-  hit_rate_percent: number;
-}
-
-export interface RequestDedupConfig {
-  enabled: boolean;
-  ttl_secs: number;
-  wait_timeout_ms: number;
-}
-
-export interface RequestDedupDiagnostics {
-  config: RequestDedupConfig;
-  stats: RequestDedupStats;
-  replay_rate_percent: number;
-}
-
-export interface IdempotencyConfig {
-  enabled: boolean;
-  ttl_secs: number;
-  header_name: string;
-}
-
-export interface IdempotencyDiagnostics {
-  config: IdempotencyConfig;
-  stats: IdempotencyStats;
-  replay_rate_percent: number;
-}
-
-export interface ServerDiagnostics {
-  generated_at: string;
-  running: boolean;
-  host: string;
-  port: number;
-  telemetry_summary: TelemetrySummary;
-  capability_routing: CapabilityRoutingMetricsSnapshot;
-  response_cache: ResponseCacheDiagnostics;
-  request_dedup: RequestDedupDiagnostics;
-  idempotency: IdempotencyDiagnostics;
-}
-
-export interface LogArtifactEntry {
-  file_name: string;
-  path: string;
-  size_bytes: number;
-  modified_at?: string;
-  compressed: boolean;
-}
-
-export interface LogStorageDiagnostics {
-  log_directory?: string;
-  current_log_path?: string;
-  current_log_exists: boolean;
-  current_log_size_bytes?: number;
-  in_memory_log_count: number;
-  related_log_files: LogArtifactEntry[];
-  raw_response_files: LogArtifactEntry[];
-}
-
-export interface SupportBundleExportResult {
-  bundle_path: string;
-  output_directory: string;
-  generated_at: string;
-  platform: string;
-  included_sections: string[];
-  omitted_sections: string[];
-}
-
-export interface WindowsStartupCheck {
-  key: string;
-  status: "ok" | "warning" | "error";
-  message: string;
-  detail?: string | null;
-}
-
-export interface WindowsStartupDiagnostics {
-  platform: string;
-  app_data_dir?: string | null;
-  legacy_proxycast_dir?: string | null;
-  db_path?: string | null;
-  webview2_version?: string | null;
-  current_exe?: string | null;
-  current_dir?: string | null;
-  resource_dir?: string | null;
-  home_dir?: string | null;
-  shell_env?: string | null;
-  comspec_env?: string | null;
-  resolved_terminal_shell?: string | null;
-  installation_kind_guess?: string | null;
-  checks: WindowsStartupCheck[];
-  has_blocking_issues: boolean;
-  has_warnings: boolean;
-  summary_message?: string | null;
-}
 
 // TLS Configuration
 export interface TlsConfig {
@@ -774,6 +769,45 @@ export interface CrashReportingConfig {
   send_pii?: boolean;
 }
 
+export interface ShellEnvironmentImportConfig {
+  enabled: boolean;
+  timeout_ms: number;
+}
+
+export interface EnvironmentVariableOverride {
+  key: string;
+  value: string;
+  enabled: boolean;
+}
+
+export interface EnvironmentConfig {
+  shell_import: ShellEnvironmentImportConfig;
+  variables: EnvironmentVariableOverride[];
+}
+
+export interface EnvironmentPreviewEntry {
+  key: string;
+  value: string;
+  maskedValue: string;
+  source: string;
+  sourceLabel: string;
+  sensitive: boolean;
+  overriddenSources: string[];
+}
+
+export interface ShellImportPreview {
+  enabled: boolean;
+  status: string;
+  message: string;
+  importedCount: number;
+  durationMs?: number | null;
+}
+
+export interface EnvironmentPreview {
+  shellImport: ShellImportPreview;
+  entries: EnvironmentPreviewEntry[];
+}
+
 export interface Config {
   server: {
     host: string;
@@ -827,6 +861,8 @@ export interface Config {
   navigation?: NavigationConfig;
   /** 聊天外观配置 */
   chat_appearance?: ChatAppearanceConfig;
+  /** 统一环境变量配置 */
+  environment?: EnvironmentConfig;
   /** 网络搜索配置 */
   web_search?: {
     engine: "google" | "xiaohongshu";
@@ -865,12 +901,6 @@ export interface Config {
   channels?: ChannelsConfig;
   /** 崩溃上报配置（Sentry 协议兼容） */
   crash_reporting?: CrashReportingConfig;
-}
-
-export interface LogEntry {
-  timestamp: string;
-  level: string;
-  message: string;
 }
 
 export interface TelegramGatewayAccountStatus {
@@ -1029,182 +1059,8 @@ export interface GatewayTunnelSyncWebhookResponse {
   persisted: boolean;
 }
 
-export async function startServer(): Promise<string> {
-  return safeInvoke("start_server");
-}
-
-export async function stopServer(): Promise<string> {
-  return safeInvoke("stop_server");
-}
-
-export async function getServerStatus(): Promise<ServerStatus> {
-  return safeInvoke("get_server_status");
-}
-
-export async function getServerDiagnostics(): Promise<ServerDiagnostics> {
-  return safeInvoke("get_server_diagnostics");
-}
-
-export async function getLogStorageDiagnostics(): Promise<LogStorageDiagnostics> {
-  return safeInvoke("get_log_storage_diagnostics");
-}
-
-export async function exportSupportBundle(): Promise<SupportBundleExportResult> {
-  return safeInvoke("export_support_bundle");
-}
-
 export async function revealInFinder(path: string): Promise<void> {
-  return safeInvoke("reveal_in_finder", { path });
-}
-
-export async function getWindowsStartupDiagnostics(): Promise<WindowsStartupDiagnostics> {
-  return safeInvoke("get_windows_startup_diagnostics");
-}
-
-export async function gatewayChannelStart(params?: {
-  channel?: "telegram" | "feishu" | "discord";
-  accountId?: string;
-  pollTimeoutSecs?: number;
-}): Promise<GatewayChannelStatusResponse> {
-  return safeInvoke("gateway_channel_start", {
-    request: {
-      channel: params?.channel ?? "telegram",
-      account_id: params?.accountId?.trim() || undefined,
-      poll_timeout_secs: params?.pollTimeoutSecs,
-    },
-  });
-}
-
-export async function gatewayChannelStop(params?: {
-  channel?: "telegram" | "feishu" | "discord";
-  accountId?: string;
-}): Promise<GatewayChannelStatusResponse> {
-  return safeInvoke("gateway_channel_stop", {
-    request: {
-      channel: params?.channel ?? "telegram",
-      account_id: params?.accountId?.trim() || undefined,
-    },
-  });
-}
-
-export async function gatewayChannelStatus(params?: {
-  channel?: "telegram" | "feishu" | "discord";
-}): Promise<GatewayChannelStatusResponse> {
-  return safeInvoke("gateway_channel_status", {
-    request: {
-      channel: params?.channel ?? "telegram",
-    },
-  });
-}
-
-export async function telegramChannelProbe(params?: {
-  accountId?: string;
-}): Promise<TelegramProbeResult> {
-  return safeInvoke("telegram_channel_probe", {
-    request: {
-      account_id: params?.accountId?.trim() || undefined,
-    },
-  });
-}
-
-export async function feishuChannelProbe(params?: {
-  accountId?: string;
-}): Promise<FeishuProbeResult> {
-  return safeInvoke("feishu_channel_probe", {
-    request: {
-      account_id: params?.accountId?.trim() || undefined,
-    },
-  });
-}
-
-export async function discordChannelProbe(params?: {
-  accountId?: string;
-}): Promise<DiscordProbeResult> {
-  return safeInvoke("discord_channel_probe", {
-    request: {
-      account_id: params?.accountId?.trim() || undefined,
-    },
-  });
-}
-
-export async function gatewayTunnelProbe(): Promise<GatewayTunnelProbeResult> {
-  return safeInvoke("gateway_tunnel_probe");
-}
-
-export async function gatewayTunnelDetectCloudflared(): Promise<CloudflaredInstallStatus> {
-  return safeInvoke("gateway_tunnel_detect_cloudflared");
-}
-
-export async function gatewayTunnelInstallCloudflared(params?: {
-  confirm?: boolean;
-}): Promise<CloudflaredInstallResult> {
-  return safeInvoke("gateway_tunnel_install_cloudflared", {
-    request: {
-      confirm: params?.confirm ?? false,
-    },
-  });
-}
-
-export async function gatewayTunnelCreate(params?: {
-  tunnelName?: string;
-  dnsName?: string;
-  persist?: boolean;
-}): Promise<GatewayTunnelCreateResponse> {
-  return safeInvoke("gateway_tunnel_create", {
-    request: {
-      tunnel_name: params?.tunnelName?.trim() || undefined,
-      dns_name: params?.dnsName?.trim() || undefined,
-      persist: params?.persist ?? true,
-    },
-  });
-}
-
-export async function gatewayTunnelStart(): Promise<GatewayTunnelStatus> {
-  return safeInvoke("gateway_tunnel_start");
-}
-
-export async function gatewayTunnelStop(): Promise<GatewayTunnelStatus> {
-  return safeInvoke("gateway_tunnel_stop");
-}
-
-export async function gatewayTunnelRestart(): Promise<GatewayTunnelStatus> {
-  return safeInvoke("gateway_tunnel_restart");
-}
-
-export async function gatewayTunnelStatus(): Promise<GatewayTunnelStatus> {
-  return safeInvoke("gateway_tunnel_status");
-}
-
-export async function gatewayTunnelSyncWebhookUrl(params: {
-  channel: "feishu";
-  accountId?: string;
-  webhookPath?: string;
-  persist?: boolean;
-}): Promise<GatewayTunnelSyncWebhookResponse> {
-  return safeInvoke("gateway_tunnel_sync_webhook_url", {
-    request: {
-      channel: params.channel,
-      account_id: params.accountId?.trim() || undefined,
-      webhook_path: params.webhookPath?.trim() || undefined,
-      persist: params.persist ?? true,
-    },
-  });
-}
-
-export async function getConfig(): Promise<Config> {
-  return safeInvoke("get_config");
-}
-
-export async function saveConfig(config: Config): Promise<void> {
-  return safeInvoke("save_config", { config });
-}
-
-export async function getDefaultProvider(): Promise<string> {
-  return safeInvoke("get_default_provider");
-}
-
-export async function setDefaultProvider(provider: string): Promise<string> {
-  return safeInvoke("set_default_provider", { provider });
+  return revealPathInFinder(path);
 }
 
 export interface WorkspaceEnsureResult {
@@ -1221,11 +1077,11 @@ export interface WorkspaceEnsureResult {
 export async function workspaceEnsureReady(
   id: string,
 ): Promise<WorkspaceEnsureResult> {
-  return safeInvoke("workspace_ensure_ready", { id });
+  return ensureProjectWorkspaceReady(id);
 }
 
 export async function workspaceEnsureDefaultReady(): Promise<WorkspaceEnsureResult | null> {
-  return safeInvoke("workspace_ensure_default_ready");
+  return ensureDefaultProjectWorkspaceReady();
 }
 
 /**
@@ -1238,252 +1094,6 @@ export async function workspaceEnsureDefaultReady(): Promise<WorkspaceEnsureResu
  * @param apiHost Provider 的 API Host
  * @param apiKey 可选的 API Key
  */
-export async function updateProviderEnvVars(
-  providerType: string,
-  apiHost: string,
-  apiKey?: string,
-): Promise<void> {
-  return safeInvoke("update_provider_env_vars", {
-    providerType,
-    apiHost,
-    apiKey: apiKey || null,
-  });
-}
-
-export async function refreshKiroToken(): Promise<string> {
-  return safeInvoke("refresh_kiro_token");
-}
-
-export async function reloadCredentials(): Promise<string> {
-  return safeInvoke("reload_credentials");
-}
-
-export async function getLogs(): Promise<LogEntry[]> {
-  try {
-    return await safeInvoke("get_logs");
-  } catch {
-    return [];
-  }
-}
-
-export async function getPersistedLogsTail(lines = 200): Promise<LogEntry[]> {
-  const safeLines = Number.isFinite(lines)
-    ? Math.min(1000, Math.max(20, Math.floor(lines)))
-    : 200;
-  try {
-    return await safeInvoke("get_persisted_logs_tail", { lines: safeLines });
-  } catch {
-    return [];
-  }
-}
-
-export async function clearLogs(): Promise<void> {
-  try {
-    await safeInvoke("clear_logs");
-  } catch {
-    // ignore
-  }
-}
-
-export async function clearDiagnosticLogHistory(): Promise<void> {
-  await safeInvoke("clear_diagnostic_log_history");
-}
-
-export interface TestResult {
-  success: boolean;
-  status: number;
-  body: string;
-  time_ms: number;
-  response_headers?: Record<string, string>;
-}
-
-export async function testApi(
-  method: string,
-  path: string,
-  body: string | null,
-  auth: boolean,
-): Promise<TestResult> {
-  return safeInvoke("test_api", { method, path, body, auth });
-}
-
-export interface KiroCredentialStatus {
-  loaded: boolean;
-  has_access_token: boolean;
-  has_refresh_token: boolean;
-  region: string | null;
-  auth_method: string | null;
-  expires_at: string | null;
-  creds_path: string;
-}
-
-export async function getKiroCredentials(): Promise<KiroCredentialStatus> {
-  return safeInvoke("get_kiro_credentials");
-}
-
-export interface EnvVariable {
-  key: string;
-  value: string;
-  masked: string;
-}
-
-export async function getEnvVariables(): Promise<EnvVariable[]> {
-  return safeInvoke("get_env_variables");
-}
-
-export async function getTokenFileHash(): Promise<string> {
-  return safeInvoke("get_token_file_hash");
-}
-
-export interface CheckResult {
-  changed: boolean;
-  new_hash: string;
-  reloaded: boolean;
-}
-
-export async function checkAndReloadCredentials(
-  lastHash: string,
-): Promise<CheckResult> {
-  return safeInvoke("check_and_reload_credentials", { last_hash: lastHash });
-}
-
-// ============ Gemini Provider ============
-
-export interface GeminiCredentialStatus {
-  loaded: boolean;
-  has_access_token: boolean;
-  has_refresh_token: boolean;
-  expiry_date: number | null;
-  is_valid: boolean;
-  creds_path: string;
-}
-
-export async function getGeminiCredentials(): Promise<GeminiCredentialStatus> {
-  return safeInvoke("get_gemini_credentials");
-}
-
-export async function reloadGeminiCredentials(): Promise<string> {
-  return safeInvoke("reload_gemini_credentials");
-}
-
-export async function refreshGeminiToken(): Promise<string> {
-  return safeInvoke("refresh_gemini_token");
-}
-
-export async function getGeminiEnvVariables(): Promise<EnvVariable[]> {
-  return safeInvoke("get_gemini_env_variables");
-}
-
-export async function getGeminiTokenFileHash(): Promise<string> {
-  return safeInvoke("get_gemini_token_file_hash");
-}
-
-export async function checkAndReloadGeminiCredentials(
-  lastHash: string,
-): Promise<CheckResult> {
-  return safeInvoke("check_and_reload_gemini_credentials", {
-    last_hash: lastHash,
-  });
-}
-
-// ============ Qwen Provider ============
-
-export interface QwenCredentialStatus {
-  loaded: boolean;
-  has_access_token: boolean;
-  has_refresh_token: boolean;
-  expiry_date: number | null;
-  is_valid: boolean;
-  creds_path: string;
-}
-
-export async function getQwenCredentials(): Promise<QwenCredentialStatus> {
-  return safeInvoke("get_qwen_credentials");
-}
-
-export async function reloadQwenCredentials(): Promise<string> {
-  return safeInvoke("reload_qwen_credentials");
-}
-
-export async function refreshQwenToken(): Promise<string> {
-  return safeInvoke("refresh_qwen_token");
-}
-
-export async function getQwenEnvVariables(): Promise<EnvVariable[]> {
-  return safeInvoke("get_qwen_env_variables");
-}
-
-export async function getQwenTokenFileHash(): Promise<string> {
-  return safeInvoke("get_qwen_token_file_hash");
-}
-
-export async function checkAndReloadQwenCredentials(
-  lastHash: string,
-): Promise<CheckResult> {
-  return safeInvoke("check_and_reload_qwen_credentials", {
-    last_hash: lastHash,
-  });
-}
-
-// ============ OpenAI Custom Provider ============
-
-export interface OpenAICustomStatus {
-  enabled: boolean;
-  has_api_key: boolean;
-  base_url: string;
-}
-
-export async function getOpenAICustomStatus(): Promise<OpenAICustomStatus> {
-  return safeInvoke("get_openai_custom_status");
-}
-
-export async function setOpenAICustomConfig(
-  apiKey: string | null,
-  baseUrl: string | null,
-  enabled: boolean,
-): Promise<string> {
-  return safeInvoke("set_openai_custom_config", {
-    api_key: apiKey,
-    base_url: baseUrl,
-    enabled,
-  });
-}
-
-// ============ Claude Custom Provider ============
-
-export interface ClaudeCustomStatus {
-  enabled: boolean;
-  has_api_key: boolean;
-  base_url: string;
-}
-
-export async function getClaudeCustomStatus(): Promise<ClaudeCustomStatus> {
-  return safeInvoke("get_claude_custom_status");
-}
-
-export async function setClaudeCustomConfig(
-  apiKey: string | null,
-  baseUrl: string | null,
-  enabled: boolean,
-): Promise<string> {
-  return safeInvoke("set_claude_custom_config", {
-    api_key: apiKey,
-    base_url: baseUrl,
-    enabled,
-  });
-}
-
-// ============ Models ============
-
-export interface ModelInfo {
-  id: string;
-  object: string;
-  owned_by: string;
-}
-
-export async function getAvailableModels(): Promise<ModelInfo[]> {
-  return safeInvoke("get_available_models");
-}
-
 // ============ API Compatibility Check ============
 
 export interface ApiCheckResult {
@@ -1555,119 +1165,12 @@ export async function setEndpointProvider(
 }
 
 // Network Info
-export interface NetworkInfo {
-  localhost: string;
-  lan_ip: string | null;
-  all_ips: string[];
-}
-
-/**
- * 获取本地网络信息
- * @returns 本地和内网 IP 地址
- */
-export async function getNetworkInfo(): Promise<NetworkInfo> {
-  return safeInvoke("get_network_info");
-}
-
 // ============ 实验室功能 API ============
 
 /**
  * 获取实验室功能配置
  * @returns 实验室功能配置对象
  */
-export async function getExperimentalConfig(): Promise<ExperimentalFeatures> {
-  return safeInvoke("get_experimental_config");
-}
-
-/**
- * 保存实验室功能配置
- * @param config 实验室功能配置对象
- */
-export async function saveExperimentalConfig(
-  config: ExperimentalFeatures,
-): Promise<void> {
-  return safeInvoke("save_experimental_config", {
-    experimentalConfig: config,
-  });
-}
-
-/**
- * 验证快捷键格式
- * @param shortcut 快捷键字符串
- * @returns 是否有效
- */
-export async function validateShortcut(shortcut: string): Promise<boolean> {
-  return safeInvoke("validate_shortcut", { shortcutStr: shortcut });
-}
-
-/**
- * 更新截图快捷键
- * @param shortcut 新的快捷键字符串
- */
-export async function updateScreenshotShortcut(
-  shortcut: string,
-): Promise<void> {
-  return safeInvoke("update_screenshot_shortcut", { newShortcut: shortcut });
-}
-
-// ============ 使用统计 API ============
-
-export interface UsageStatsResponse {
-  total_conversations: number;
-  total_messages: number;
-  total_tokens: number;
-  total_time_minutes: number;
-  monthly_conversations: number;
-  monthly_messages: number;
-  monthly_tokens: number;
-  today_conversations: number;
-  today_messages: number;
-  today_tokens: number;
-}
-
-export interface ModelUsage {
-  model: string;
-  conversations: number;
-  tokens: number;
-  percentage: number;
-}
-
-export interface DailyUsage {
-  date: string;
-  conversations: number;
-  tokens: number;
-}
-
-/**
- * 获取使用统计数据
- * @param timeRange 时间范围 (week/month/all)
- */
-export async function getUsageStats(
-  timeRange: string,
-): Promise<UsageStatsResponse> {
-  return safeInvoke("get_usage_stats", { timeRange });
-}
-
-/**
- * 获取模型使用排行
- * @param timeRange 时间范围 (week/month/all)
- */
-export async function getModelUsageRanking(
-  timeRange: string,
-): Promise<ModelUsage[]> {
-  return safeInvoke("get_model_usage_ranking", { timeRange });
-}
-
-/**
- * 获取每日使用趋势
- * @param timeRange 时间范围 (week/month/all)
- */
-export async function getDailyUsageTrends(
-  timeRange: string,
-): Promise<DailyUsage[]> {
-  return safeInvoke("get_daily_usage_trends", { timeRange });
-}
-
 // ============ 记忆管理 API ============
 
 export interface MemoryStatsResponse {
@@ -1762,15 +1265,6 @@ export async function getMemoryStats(): Promise<MemoryStatsResponse> {
 /**
  * 获取记忆总览（含分类与条目）
  */
-export async function getMemoryOverview(
-  limit?: number,
-): Promise<MemoryOverviewResponse> {
-  return safeInvoke("get_conversation_memory_overview", { limit });
-}
-
-/**
- * 请求记忆分析（从历史会话提取记忆）
- */
 export async function requestMemoryAnalysis(
   fromTimestamp?: number,
   toTimestamp?: number,
@@ -1791,45 +1285,6 @@ export async function cleanupMemory(): Promise<CleanupMemoryResult> {
 /**
  * 获取记忆来源解析结果
  */
-export async function getMemoryEffectiveSources(
-  workingDir?: string,
-  activeRelativePath?: string,
-): Promise<EffectiveMemorySourcesResponse> {
-  return safeInvoke("memory_get_effective_sources", {
-    workingDir,
-    activeRelativePath,
-  });
-}
-
-/**
- * 获取自动记忆入口索引
- */
-export async function getMemoryAutoIndex(
-  workingDir?: string,
-): Promise<AutoMemoryIndexResponse> {
-  return safeInvoke("memory_get_auto_index", { workingDir });
-}
-
-/**
- * 切换自动记忆开关
- */
-export async function toggleMemoryAuto(
-  enabled: boolean,
-): Promise<MemoryAutoToggleResponse> {
-  return safeInvoke("memory_toggle_auto", { enabled });
-}
-
-/**
- * 写入自动记忆笔记
- */
-export async function updateMemoryAutoNote(
-  note: string,
-  topic?: string,
-  workingDir?: string,
-): Promise<AutoMemoryIndexResponse> {
-  return safeInvoke("memory_update_auto_note", { note, topic, workingDir });
-}
-
 // ============ 语音测试 API ============
 
 export interface TtsTestResult {

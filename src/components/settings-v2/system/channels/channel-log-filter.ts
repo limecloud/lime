@@ -1,8 +1,11 @@
-import type { LogEntry } from "@/hooks/useTauri";
+import type { LogEntry } from "@/lib/api/logs";
 
 export type ChannelLogPreset = "all" | "telegram" | "rpc" | "feishu" | "custom";
 
-const PRESET_PATTERNS: Record<Exclude<ChannelLogPreset, "all" | "custom">, string> = {
+const PRESET_PATTERNS: Record<
+  Exclude<ChannelLogPreset, "all" | "custom">,
+  string
+> = {
   telegram: "TelegramGateway",
   rpc: "\\bRPC\\b|agent\\.run|cron\\.run",
   feishu: "FeishuGateway",
@@ -21,7 +24,8 @@ export function buildChannelLogRegex(
     return { regex: null, error: null };
   }
 
-  const pattern = preset === "custom" ? customPattern.trim() : PRESET_PATTERNS[preset];
+  const pattern =
+    preset === "custom" ? customPattern.trim() : PRESET_PATTERNS[preset];
   if (!pattern) {
     return { regex: null, error: null };
   }
@@ -33,10 +37,12 @@ export function buildChannelLogRegex(
   }
 }
 
-export function filterChannelLogs(entries: LogEntry[], regex: RegExp | null): LogEntry[] {
+export function filterChannelLogs(
+  entries: LogEntry[],
+  regex: RegExp | null,
+): LogEntry[] {
   if (!regex) {
     return entries;
   }
   return entries.filter((entry) => regex.test(entry.message));
 }
-

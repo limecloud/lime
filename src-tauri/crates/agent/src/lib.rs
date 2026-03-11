@@ -7,6 +7,7 @@ pub mod ask_bridge;
 pub mod aster_state;
 pub mod aster_state_support;
 pub mod credential_bridge;
+pub mod durable_memory_fs;
 pub mod event_converter;
 pub mod hooks;
 pub mod lsp_bridge;
@@ -16,6 +17,7 @@ pub mod request_tool_policy;
 pub mod session_store;
 pub mod shell_security;
 pub mod subagent_scheduler;
+pub mod tool_io_offload;
 pub mod tool_permissions;
 pub mod tools;
 
@@ -28,6 +30,11 @@ pub use aster_state_support::{
 };
 pub use credential_bridge::{
     create_aster_provider, AsterProviderConfig, CredentialBridge, CredentialBridgeError,
+};
+pub use durable_memory_fs::{
+    durable_memory_permission_pattern, is_virtual_memory_path, resolve_durable_memory_root,
+    resolve_virtual_memory_path, to_virtual_memory_path, virtual_memory_relative_path,
+    DURABLE_MEMORY_ROOT_ENV, DURABLE_MEMORY_VIRTUAL_ROOT,
 };
 pub use event_converter::{convert_agent_event, convert_to_tauri_message, TauriAgentEvent};
 pub use lsp_bridge::create_lsp_callback;

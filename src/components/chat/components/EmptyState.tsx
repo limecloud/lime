@@ -15,7 +15,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 import type { ThemeType } from "../types";
 import {
   buildRecommendationPrompt,
@@ -180,8 +180,10 @@ export const EmptyState: React.FC<EmptyStateProps> = memo(
     const [localProjectId, setLocalProjectId] = useState<string | null>(
       selectedProjectId || null,
     );
-    const [appendSelectedTextToRecommendation, setAppendSelectedTextToRecommendation] =
-      useState(true);
+    const [
+      appendSelectedTextToRecommendation,
+      setAppendSelectedTextToRecommendation,
+    ] = useState(true);
 
     useEffect(() => {
       const loadConfigPreferences = async () => {
@@ -227,18 +229,16 @@ export const EmptyState: React.FC<EmptyStateProps> = memo(
         selectedText: recommendationSelectedText,
       });
 
-      return recommendationTuples
-        .slice(0, 4)
-        .map(([title, prompt], index) => ({
-          icon: SUGGESTION_ICONS[index % SUGGESTION_ICONS.length],
-          title,
-          desc: prompt,
-          prompt: buildRecommendationPrompt(
-            prompt,
-            selectedText,
-            appendSelectedTextToRecommendation,
-          ),
-        }));
+      return recommendationTuples.slice(0, 4).map(([title, prompt], index) => ({
+        icon: SUGGESTION_ICONS[index % SUGGESTION_ICONS.length],
+        title,
+        desc: prompt,
+        prompt: buildRecommendationPrompt(
+          prompt,
+          selectedText,
+          appendSelectedTextToRecommendation,
+        ),
+      }));
     }, [
       recommendationTheme,
       recommendationSelectedText,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Trash2, Download } from "lucide-react";
-import { getLogs, clearLogs, LogEntry } from "@/hooks/useTauri";
+import { clearLogs, getLogs, type LogEntry } from "@/lib/api/logs";
 
 export function LogsTab() {
   const [logs, setLogs] = useState<LogEntry[]>([]);

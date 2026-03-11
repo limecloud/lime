@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as tauriHooks from "@/hooks/useTauri";
+import * as logsApi from "@/lib/api/logs";
 import {
   buildCrashDiagnosticPayload,
   buildCrashDiagnosticFileName,
@@ -692,7 +692,7 @@ describe("clearCrashDiagnosticHistory", () => {
   });
 
   it("应清空本地诊断缓存并触发日志历史清理", async () => {
-    vi.spyOn(tauriHooks, "clearDiagnosticLogHistory").mockResolvedValue();
+    vi.spyOn(logsApi, "clearDiagnosticLogHistory").mockResolvedValue();
 
     window.localStorage.setItem(
       "proxycast_frontend_crash_buffer_v1",
@@ -726,6 +726,6 @@ describe("clearCrashDiagnosticHistory", () => {
     expect(
       window.localStorage.getItem("proxycast.workspace_repair_history.v1"),
     ).toBeNull();
-    expect(tauriHooks.clearDiagnosticLogHistory).toHaveBeenCalledTimes(1);
+    expect(logsApi.clearDiagnosticLogHistory).toHaveBeenCalledTimes(1);
   });
 });

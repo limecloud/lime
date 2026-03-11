@@ -3,7 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.83.2"
+version = "0.84.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/proxycast"
@@ -124,11 +124,11 @@ enigo = "0.3"
 # Aster Agent Framework
 # 开发时使用本地 aster-rust，CI/CD 使用远程 GitHub 仓库
 # 本地开发: path = "../../../astercloud/aster-rust/crates/aster" (相对 src-tauri/)
-# CI/CD: git = "https://github.com/astercloud/aster-rust", tag = "v0.16.0"
+# CI/CD: git = "https://github.com/astercloud/aster-rust", tag = "v0.17.0"
 # aster = { package = "aster-core", path = "../../../astercloud/aster-rust/crates/aster" }
-aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.16.0" }
+aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.17.0" }
 # 本地开发: aster-models = { path = "../../../astercloud/aster-rust/crates/aster-models" }
-aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.16.0" }
+aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.17.0" }
 
 # MCP (Model Context Protocol)
 rmcp = { version = "0.12.0", features = ["client", "transport-io", "transport-child-process"] }
@@ -191,7 +191,7 @@ version = "2.4"
 
 [package]
 name = "proxycast"
-version = "0.83.2"
+version = "0.84.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"

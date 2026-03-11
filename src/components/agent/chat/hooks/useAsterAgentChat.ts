@@ -7,7 +7,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { invoke } from "@tauri-apps/api/core";
 import { safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -22,14 +21,17 @@ import {
   stopAsterSession,
   confirmAsterAction,
   submitAsterElicitationResponse,
-  parseStreamEvent,
-  type StreamEvent,
-  type ContextTraceStep,
   type AsterSessionInfo,
   type AsterExecutionStrategy,
   type AutoContinueRequestPayload,
+} from "@/lib/api/agentRuntime";
+import { updateProject } from "@/lib/api/project";
+import {
+  parseStreamEvent,
+  type StreamEvent,
+  type ContextTraceStep,
   type ToolResultImage,
-} from "@/lib/api/agent";
+} from "@/lib/api/agentStream";
 import {
   isAsterSessionNotFoundError,
   resolveRestorableSessionId,
@@ -98,6 +100,8 @@ const normalizeActionType = (
 };
 
 const WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE = "workspace_path_auto_created";
+const PROXYCAST_TOOL_METADATA_BEGIN = "[ProxyCast 工具元数据开始]";
+const PROXYCAST_TOOL_METADATA_END = "[ProxyCast 工具元数据结束]";
 
 const isWorkspacePathErrorMessage = (message: string): boolean => {
   return (
@@ -486,6 +490,126 @@ const normalizeToolResultImages = (
   }
 
   return normalized.length > 0 ? normalized : undefined;
+};
+
+const parseToolResultMetadataRecord = (
+  value: unknown,
+): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return Object.fromEntries(Object.entries(value));
+};
+
+const extractProxycastToolMetadataBlock = (
+  text?: string,
+): { text: string; metadata?: Record<string, unknown> } => {
+  if (!text) {
+    return { text: "" };
+  }
+
+  const beginIndex = text.lastIndexOf(PROXYCAST_TOOL_METADATA_BEGIN);
+  const endIndex = text.lastIndexOf(PROXYCAST_TOOL_METADATA_END);
+  if (beginIndex < 0 || endIndex < beginIndex) {
+    return { text };
+  }
+
+  const metadataRaw = text
+    .slice(beginIndex + PROXYCAST_TOOL_METADATA_BEGIN.length, endIndex)
+    .trim();
+  const parsedMetadata = (() => {
+    if (!metadataRaw) return undefined;
+    try {
+      const parsed = JSON.parse(metadataRaw);
+      return parseToolResultMetadataRecord(parsed) || undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const cleaned = text.slice(0, beginIndex).replace(/\s+$/, "");
+  return {
+    text: cleaned,
+    metadata: parsedMetadata,
+  };
+};
+
+const parseProxycastExecutionSummary = (
+  text?: string,
+): Record<string, unknown> | undefined => {
+  if (!text) return undefined;
+  const marker = "[ProxyCast 执行摘要]";
+  const markerIndex = text.lastIndexOf(marker);
+  if (markerIndex < 0) return undefined;
+
+  const raw = text.slice(markerIndex + marker.length).trim();
+  if (!raw) return undefined;
+
+  const metadata: Record<string, unknown> = {};
+  for (const line of raw.split("\n")) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) continue;
+    const key = line.slice(0, separatorIndex).trim();
+    const rawValue = line.slice(separatorIndex + 1).trim();
+    if (!key || !rawValue) continue;
+
+    if (rawValue === "true" || rawValue === "false") {
+      metadata[key] = rawValue === "true";
+      continue;
+    }
+
+    const numericValue = Number(rawValue);
+    if (!Number.isNaN(numericValue) && rawValue === String(numericValue)) {
+      metadata[key] = numericValue;
+      continue;
+    }
+
+    metadata[key] = rawValue;
+  }
+
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+};
+
+const normalizeToolResultMetadata = (
+  value: unknown,
+  fallbackText?: string,
+): Record<string, unknown> | undefined => {
+  const direct = parseToolResultMetadataRecord(value);
+  const fromBlock = extractProxycastToolMetadataBlock(fallbackText).metadata;
+  const fromSummary = parseProxycastExecutionSummary(fallbackText);
+
+  if (!direct && !fromBlock && !fromSummary) return undefined;
+  return {
+    ...(direct || {}),
+    ...(fromBlock || {}),
+    ...(fromSummary || {}),
+  };
+};
+
+const isToolResultSuccessful = (
+  result:
+    | {
+        success?: boolean;
+        metadata?: Record<string, unknown>;
+      }
+    | null
+    | undefined,
+): boolean => {
+  if (!result) return false;
+
+  const metadata = result.metadata;
+  if (metadata?.reported_success === false) {
+    return false;
+  }
+  if (
+    typeof metadata?.exit_code === "number" &&
+    Number.isFinite(metadata.exit_code) &&
+    metadata.exit_code !== 0
+  ) {
+    return false;
+  }
+
+  return result.success !== false;
 };
 
 const normalizeHistoryPartType = (value: unknown): string => {
@@ -1496,8 +1620,6 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
         );
 
         const now = new Date();
-        setMessages([]);
-        setPendingActions([]);
         setSessionId(newSessionId);
         setTopics((prev) => [
           {
@@ -1889,7 +2011,22 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
             }
 
             case "tool_end": {
-              const isSuccess = data.result.success;
+              const normalizedOutput = extractProxycastToolMetadataBlock(
+                data.result?.output,
+              );
+              const normalizedResult = {
+                ...data.result,
+                output: normalizedOutput.text,
+                images: normalizeToolResultImages(
+                  data.result?.images,
+                  normalizedOutput.text,
+                ),
+                metadata: normalizeToolResultMetadata(
+                  data.result?.metadata,
+                  data.result?.output,
+                ),
+              };
+              const isSuccess = isToolResultSuccessful(normalizedResult);
               const eventType = isSuccess ? "tool_complete" : "tool_error";
               const startedAt = toolStartedAtByToolId.get(data.tool_id);
               const toolName = toolNameByToolId.get(data.tool_id) || "未知工具";
@@ -1898,10 +2035,9 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
                   ? Date.now() - startedAt
                   : undefined;
               const toolLogId = toolLogIdByToolId.get(data.tool_id);
-              const outputText =
-                typeof data.result?.output === "string"
-                  ? truncateForLog(data.result.output, 120)
-                  : "";
+              const outputText = normalizedResult.output
+                ? truncateForLog(normalizedResult.output, 120)
+                : "";
 
               if (toolLogId) {
                 activityLogger.updateLog(toolLogId, {
@@ -1932,18 +2068,11 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
               setMessages((prev) =>
                 prev.map((msg) => {
                   if (msg.id !== assistantMsgId) return msg;
-                  const normalizedResult = {
-                    ...data.result,
-                    images: normalizeToolResultImages(
-                      data.result?.images,
-                      data.result?.output,
-                    ),
-                  };
                   const updatedToolCalls = (msg.toolCalls || []).map((tc) =>
                     tc.id === data.tool_id
                       ? {
                           ...tc,
-                          status: data.result.success
+                          status: isSuccess
                             ? ("completed" as const)
                             : ("failed" as const),
                           result: normalizedResult,
@@ -1961,7 +2090,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
                           ...part,
                           toolCall: {
                             ...part.toolCall,
-                            status: data.result.success
+                            status: isSuccess
                               ? ("completed" as const)
                               : ("failed" as const),
                             result: normalizedResult,
@@ -2280,10 +2409,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
         workspacePathMissing;
       setWorkspacePathMissing(null);
       try {
-        await invoke("workspace_update", {
-          id: workspaceId,
-          request: { rootPath: newPath },
-        });
+        await updateProject(workspaceId, { rootPath: newPath });
         await sendMessage(retryContent, retryImages, false, false, true);
       } catch (err) {
         toast.error(
@@ -2624,13 +2750,29 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
 
               if (partType === "tool_response") {
                 if (!part.id || typeof part.id !== "string") continue;
-                const success = part.success !== false;
                 const toolName = resolveHistoryToolName(
                   part.id,
                   historyToolNameById,
                 );
-                const outputText =
+                const rawOutputText =
                   typeof part.output === "string" ? part.output : "";
+                const normalizedOutput =
+                  extractProxycastToolMetadataBlock(rawOutputText);
+                const normalizedResult = {
+                  success: part.success !== false,
+                  output: normalizedOutput.text,
+                  error:
+                    typeof part.error === "string" ? part.error : undefined,
+                  images: normalizeToolResultImages(
+                    part.images,
+                    normalizedOutput.text,
+                  ),
+                  metadata: normalizeToolResultMetadata(
+                    part.metadata,
+                    rawOutputText,
+                  ),
+                };
+                const success = isToolResultSuccessful(normalizedResult);
                 const toolCall = {
                   id: part.id,
                   name: toolName,
@@ -2640,11 +2782,8 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
                   startTime: messageTimestamp,
                   endTime: messageTimestamp,
                   result: {
+                    ...normalizedResult,
                     success,
-                    output: outputText,
-                    error:
-                      typeof part.error === "string" ? part.error : undefined,
-                    images: normalizeToolResultImages(part.images, outputText),
                   },
                 };
                 toolCalls.push(toolCall);

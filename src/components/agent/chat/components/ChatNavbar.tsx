@@ -1,16 +1,19 @@
 import React from "react";
 import {
   Box,
+  ChevronDown,
   FolderOpen,
   Home,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Settings2,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
+import { cn } from "@/lib/utils";
 import { Navbar } from "../styles";
 
 interface ChatNavbarProps {
@@ -25,6 +28,11 @@ interface ChatNavbarProps {
   projectId?: string | null;
   onProjectChange?: (projectId: string) => void;
   workspaceType?: string;
+  showHarnessToggle?: boolean;
+  harnessPanelVisible?: boolean;
+  onToggleHarnessPanel?: () => void;
+  harnessPendingCount?: number;
+  harnessAttentionLevel?: "idle" | "active" | "warning";
   novelCanvasControls?: {
     chapterListCollapsed: boolean;
     onToggleChapterList: () => void;
@@ -45,6 +53,11 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   projectId = null,
   onProjectChange,
   workspaceType,
+  showHarnessToggle = false,
+  harnessPanelVisible = false,
+  onToggleHarnessPanel,
+  harnessPendingCount = 0,
+  harnessAttentionLevel = "idle",
   novelCanvasControls = null,
 }) => {
   return (
@@ -146,6 +159,42 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
           dropdownAlign="end"
           className="h-8 text-xs min-w-[160px] max-w-[220px]"
         />
+
+        {showHarnessToggle ? (
+          <Button
+            type="button"
+            variant={harnessPanelVisible ? "secondary" : "outline"}
+            size="sm"
+            className={cn(
+              "h-8 gap-1.5 px-3 text-xs",
+              harnessAttentionLevel === "warning" &&
+                !harnessPanelVisible &&
+                "border-amber-300 text-amber-700 hover:text-amber-800",
+            )}
+            onClick={onToggleHarnessPanel}
+            aria-label={
+              harnessPanelVisible ? "收起 Harness 面板" : "展开 Harness 面板"
+            }
+            aria-expanded={harnessPanelVisible}
+            title={
+              harnessPanelVisible ? "收起 Harness 面板" : "展开 Harness 面板"
+            }
+          >
+            <Sparkles size={14} />
+            <span>Harness</span>
+            {harnessPendingCount > 0 ? (
+              <span className="rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-medium leading-none text-destructive-foreground">
+                {harnessPendingCount > 99 ? "99+" : harnessPendingCount}
+              </span>
+            ) : null}
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                harnessPanelVisible && "rotate-180",
+              )}
+            />
+          </Button>
+        ) : null}
 
         <Button
           variant="ghost"

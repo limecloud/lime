@@ -5,7 +5,6 @@
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import {
   Search,
@@ -38,6 +37,7 @@ import {
   getCanvasImageInsertHistory,
   type CanvasImageInsertHistoryEntry,
 } from "@/lib/canvasImageInsertHistory";
+import { importMaterialFromUrl } from "@/lib/api/materials";
 import type { Page, PageParams } from "@/types/page";
 
 export interface ImageSearchTabProps {
@@ -716,7 +716,9 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
 
   useEffect(() => {
     const unsubscribe = onCanvasImageInsertAck((ack: CanvasImageInsertAck) => {
-      const pendingMeta = pendingInsertRequestMetaRef.current.get(ack.requestId);
+      const pendingMeta = pendingInsertRequestMetaRef.current.get(
+        ack.requestId,
+      );
       if (!pendingMeta) {
         return;
       }
@@ -724,7 +726,9 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
 
       if (ack.success) {
         const canvasLabel = CANVAS_DISPLAY_NAME[ack.canvasType] || "目标画布";
-        const locationLabel = ack.locationLabel ? ` · ${ack.locationLabel}` : "";
+        const locationLabel = ack.locationLabel
+          ? ` · ${ack.locationLabel}`
+          : "";
         toast.success(`已插入到${canvasLabel}${locationLabel}`);
 
         const nextHistory = addCanvasImageInsertHistory({
@@ -777,14 +781,12 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
 
     setSavingId(imageUrl);
     try {
-      await invoke("import_material_from_url", {
-        req: {
-          projectId,
-          name: imageName,
-          type: "image",
-          url: imageUrl,
-          tags: [provider],
-        },
+      await importMaterialFromUrl({
+        projectId,
+        name: imageName,
+        type: "image",
+        url: imageUrl,
+        tags: [provider],
       });
       toast.success("已保存到图片库");
     } catch (error) {
@@ -960,7 +962,8 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
             <RecentInsertHeader>最近插入记录（可一键定位）</RecentInsertHeader>
             <RecentInsertList>
               {recentInsertHistory.map((entry) => {
-                const canvasLabel = CANVAS_DISPLAY_NAME[entry.canvasType] || "画布";
+                const canvasLabel =
+                  CANVAS_DISPLAY_NAME[entry.canvasType] || "画布";
                 const locationLabel = entry.locationLabel || "已插入";
                 return (
                   <RecentInsertItem key={entry.requestId}>

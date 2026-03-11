@@ -11,6 +11,14 @@ import { shouldPreferMockInBrowser } from "../dev-bridge/mockPriorityCommands";
 
 // 模拟的命令处理器
 const mockCommands = new Map<string, (...args: any[]) => any>();
+
+const createDeprecatedCommandMock =
+  (command: string, replacement: string) => () => {
+    throw new Error(
+      `命令 ${command} 已废弃，请迁移到 ${replacement}。Mock 不再为旧链路伪造成功结果。`,
+    );
+  };
+
 // 默认 mock 数据
 const defaultMocks: Record<string, any> = {
   // 配置相关
@@ -496,6 +504,13 @@ const defaultMocks: Record<string, any> = {
       ],
     }));
   },
+  read_file_preview_cmd: (args: any) => ({
+    path: args?.path ?? "/mock/file.txt",
+    content: "mock file preview",
+    isBinary: false,
+    size: 17,
+    error: null,
+  }),
 
   // Agent 相关
   list_agent_sessions: () => [],
@@ -505,11 +520,17 @@ const defaultMocks: Record<string, any> = {
   agent_start_process: () => ({ success: true }),
   agent_stop_process: () => ({ success: true }),
   agent_create_session: () => ({ session_id: "mock-session-id" }),
-  agent_send_message: () => ({ message_id: "mock-message-id" }),
+  agent_send_message: createDeprecatedCommandMock(
+    "agent_send_message",
+    "aster_agent_chat_stream",
+  ),
   agent_get_session: () => ({ session: null }),
   agent_delete_session: () => ({ success: true }),
   agent_get_session_messages: () => [],
-  agent_chat_stream: () => ({}),
+  agent_chat_stream: createDeprecatedCommandMock(
+    "agent_chat_stream",
+    "aster_agent_chat_stream",
+  ),
   agent_terminal_command_response: () => ({}),
   agent_term_scrollback_response: () => ({}),
 

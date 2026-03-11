@@ -1,6 +1,6 @@
 /**
  * @file useStreaming.ts
- * @description 流式响应处理 Hook
+ * @description 流式响应处理 Hook（旧 general-chat 兼容实现）
  * @module components/general-chat/hooks/useStreaming
  *
  * 处理 Tauri 事件监听和流式内容累积
@@ -9,13 +9,15 @@
  */
 
 import { useEffect, useCallback, useRef } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { parseStreamEvent } from "@/lib/api/agentStream";
+import { safeListen } from "@/lib/dev-bridge";
 import { useGeneralChatStore } from "../store/useGeneralChatStore";
 
 /**
- * 流式事件类型
+ * 旧版流式事件类型
  */
-interface StreamEvent {
+interface LegacyStreamEvent {
   type: "start" | "delta" | "done" | "error";
   message_id?: string;
   content?: string;
@@ -44,6 +46,8 @@ interface UseStreamingOptions {
  * 流式响应处理 Hook
  *
  * 监听 Tauri 事件，处理流式响应
+ *
+ * @deprecated 该 Hook 依赖 `start/delta/done` 旧事件协议，仅用于兼容旧版 general-chat 页面。
  */
 export const useStreaming = (options: UseStreamingOptions) => {
   const {
@@ -62,39 +66,103 @@ export const useStreaming = (options: UseStreamingOptions) => {
 
   // 处理流式事件
   const handleStreamEvent = useCallback(
-    (event: { payload: StreamEvent }) => {
-      const { type, message_id, content, message } = event.payload;
+    (event: { payload: unknown }) => {
+      const payload = event.payload;
+      const legacyEvent =
+        payload && typeof payload === "object"
+          ? (payload as LegacyStreamEvent)
+          : null;
 
-      switch (type) {
-        case "start":
-          contentRef.current = "";
-          startStreaming(message_id || "");
-          onStart?.(message_id || "");
+      if (legacyEvent?.type === "start") {
+        contentRef.current = "";
+        startStreaming(legacyEvent.message_id || "");
+        onStart?.(legacyEvent.message_id || "");
+        return;
+      }
+
+      if (legacyEvent?.type === "delta") {
+        if (legacyEvent.content) {
+          contentRef.current += legacyEvent.content;
+          appendStreamingContent(legacyEvent.content);
+          onDelta?.(legacyEvent.content);
+        }
+        return;
+      }
+
+      if (legacyEvent?.type === "done" && !("usage" in legacyEvent)) {
+        const { finalizeMessage } = useGeneralChatStore.getState();
+        void finalizeMessage();
+        onDone?.(legacyEvent.message_id || "", contentRef.current);
+        contentRef.current = "";
+        return;
+      }
+
+      if (legacyEvent?.type === "error") {
+        const {
+          streaming,
+          setMessageError,
+          stopGeneration: stopGen,
+        } = useGeneralChatStore.getState();
+        if (streaming.currentMessageId) {
+          setMessageError(
+            streaming.currentMessageId,
+            legacyEvent.message || "未知错误",
+          );
+        } else {
+          stopGen();
+        }
+        onError?.(legacyEvent.message || "未知错误");
+        contentRef.current = "";
+        return;
+      }
+
+      const streamEvent = parseStreamEvent(payload);
+      if (!streamEvent) {
+        return;
+      }
+
+      switch (streamEvent.type) {
+        case "text_delta":
+          contentRef.current += streamEvent.text;
+          appendStreamingContent(streamEvent.text);
+          onDelta?.(streamEvent.text);
           break;
 
-        case "delta":
-          if (content) {
-            contentRef.current += content;
-            appendStreamingContent(content);
-            onDelta?.(content);
-          }
+        case "done":
+          // Aster 的 done 只代表一轮响应结束，工具循环可能继续。
           break;
 
-        case "done": {
-          const { finalizeMessage } = useGeneralChatStore.getState();
-          finalizeMessage();
-          onDone?.(message_id || "", contentRef.current);
+        case "final_done": {
+          const { finalizeMessage, streaming } = useGeneralChatStore.getState();
+          const messageId = streaming.currentMessageId || "";
+          void finalizeMessage();
+          onDone?.(messageId, contentRef.current);
           contentRef.current = "";
           break;
         }
 
         case "error": {
-          const { stopGeneration: stopGen } = useGeneralChatStore.getState();
-          stopGen();
-          onError?.(message || "未知错误");
+          const {
+            streaming,
+            setMessageError,
+            stopGeneration: stopGen,
+          } = useGeneralChatStore.getState();
+          if (streaming.currentMessageId) {
+            setMessageError(streaming.currentMessageId, streamEvent.message);
+          } else {
+            stopGen();
+          }
+          onError?.(streamEvent.message);
           contentRef.current = "";
           break;
         }
+
+        case "warning":
+          console.warn("[GeneralChat] 流式告警:", streamEvent.message);
+          break;
+
+        default:
+          break;
       }
     },
     [startStreaming, appendStreamingContent, onStart, onDelta, onDone, onError],
@@ -112,10 +180,7 @@ export const useStreaming = (options: UseStreamingOptions) => {
 
       // 设置新的监听器
       const eventKey = `${eventName}-${sessionId}`;
-      unlistenRef.current = await listen<StreamEvent>(
-        eventKey,
-        handleStreamEvent,
-      );
+      unlistenRef.current = await safeListen(eventKey, handleStreamEvent);
     };
 
     setupListener();

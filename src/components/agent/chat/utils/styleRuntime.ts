@@ -1,7 +1,7 @@
 import type { ThemeType } from "@/components/content-creator/types";
 import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
 import { scriptStateToText } from "@/components/content-creator/canvas/script";
-import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/types";
+import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
 import type { TaskFile } from "../components/TaskFiles";
 import { getSupportedFilenames } from "./workflowMapping";
 
@@ -67,7 +67,9 @@ export function extractStyleActionContent(context: StyleActionContext): string {
   }
 }
 
-export function resolveStyleActionFileName(context: StyleActionContext): string {
+export function resolveStyleActionFileName(
+  context: StyleActionContext,
+): string {
   const selectedFile = context.taskFiles.find(
     (file) => file.id === context.selectedFileId,
   );

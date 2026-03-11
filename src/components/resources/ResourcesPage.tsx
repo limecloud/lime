@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   ArrowUp,
@@ -53,6 +52,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useProjects } from "@/hooks/useProjects";
+import { openPathWithDefaultApp } from "@/lib/api/fileSystem";
+import { listMaterials } from "@/lib/api/materials";
 import {
   getStoredResourceProjectId,
   onResourceProjectChange,
@@ -194,7 +195,9 @@ const matchResourceCategory = (
   if (category === "document") {
     if (item.kind === "document") return true;
     if (item.kind !== "file") return false;
-    return !isImageResource(item) && !isAudioResource(item) && !isVideoResource(item);
+    return (
+      !isImageResource(item) && !isAudioResource(item) && !isVideoResource(item)
+    );
   }
   if (category === "image") return isImageResource(item);
   if (category === "audio") return isAudioResource(item);
@@ -244,7 +247,9 @@ const sortResources = (
   field: "updatedAt" | "createdAt" | "name",
   direction: "asc" | "desc",
 ): ResourceItem[] => {
-  return [...resources].sort((a, b) => compareBySortField(a, b, field, direction));
+  return [...resources].sort((a, b) =>
+    compareBySortField(a, b, field, direction),
+  );
 };
 
 export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
@@ -310,10 +315,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   const categoryCounts = useMemo(
     () => ({
       all: items.length,
-      document: items.filter((item) => matchResourceCategory(item, "document")).length,
-      image: items.filter((item) => matchResourceCategory(item, "image")).length,
-      audio: items.filter((item) => matchResourceCategory(item, "audio")).length,
-      video: items.filter((item) => matchResourceCategory(item, "video")).length,
+      document: items.filter((item) => matchResourceCategory(item, "document"))
+        .length,
+      image: items.filter((item) => matchResourceCategory(item, "image"))
+        .length,
+      audio: items.filter((item) => matchResourceCategory(item, "audio"))
+        .length,
+      video: items.filter((item) => matchResourceCategory(item, "video"))
+        .length,
     }),
     [items],
   );
@@ -389,7 +398,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
         return;
       }
 
-      if (!availableProjects.some((project) => project.id === detail.projectId)) {
+      if (
+        !availableProjects.some((project) => project.id === detail.projectId)
+      ) {
         return;
       }
 
@@ -432,10 +443,8 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       const results = await Promise.all(
         candidateProjects.map(async (project) => {
           try {
-            const materials = await invoke<unknown[]>("list_materials", {
-              projectId: project.id,
-              project_id: project.id,
-              filter: { type: viewCategory },
+            const materials = await listMaterials(project.id, {
+              type: viewCategory,
             });
             return {
               projectId: project.id,
@@ -525,48 +534,53 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     }
 
     try {
-      await invoke("open_with_default_app", { path: item.filePath });
+      await openPathWithDefaultApp(item.filePath);
     } catch (invokeError) {
       toast.error(
-        invokeError instanceof Error ? invokeError.message : String(invokeError),
+        invokeError instanceof Error
+          ? invokeError.message
+          : String(invokeError),
       );
     }
   }, []);
 
-  const handleOpenDocument = useCallback(async (item: ResourceItem) => {
-    if (onNavigate) {
-      onNavigate("agent", {
-        projectId: item.projectId,
-        contentId: item.id,
-        lockTheme: true,
-        fromResources: true,
-      });
-      return;
-    }
-
-    setPreviewOpen(true);
-    setPreviewLoading(true);
-    setPreviewTitle(item.name);
-    setPreviewContent("");
-
-    try {
-      const detail = await fetchDocumentDetail(item.id);
-      if (!detail) {
-        setPreviewContent("文档不存在或已被删除。");
+  const handleOpenDocument = useCallback(
+    async (item: ResourceItem) => {
+      if (onNavigate) {
+        onNavigate("agent", {
+          projectId: item.projectId,
+          contentId: item.id,
+          lockTheme: true,
+          fromResources: true,
+        });
         return;
       }
-      setPreviewTitle(detail.title);
-      setPreviewContent(detail.body || "");
-    } catch (detailError) {
-      setPreviewContent(
-        detailError instanceof Error
-          ? `读取失败：${detailError.message}`
-          : `读取失败：${String(detailError)}`,
-      );
-    } finally {
-      setPreviewLoading(false);
-    }
-  }, [onNavigate]);
+
+      setPreviewOpen(true);
+      setPreviewLoading(true);
+      setPreviewTitle(item.name);
+      setPreviewContent("");
+
+      try {
+        const detail = await fetchDocumentDetail(item.id);
+        if (!detail) {
+          setPreviewContent("文档不存在或已被删除。");
+          return;
+        }
+        setPreviewTitle(detail.title);
+        setPreviewContent(detail.body || "");
+      } catch (detailError) {
+        setPreviewContent(
+          detailError instanceof Error
+            ? `读取失败：${detailError.message}`
+            : `读取失败：${String(detailError)}`,
+        );
+      } finally {
+        setPreviewLoading(false);
+      }
+    },
+    [onNavigate],
+  );
 
   const handleOpenResource = useCallback(
     async (item: ResourceItem) => {
@@ -618,7 +632,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
         key: "upload-folder",
         label: "上传文件夹",
         action: () => {
-          toast.info("当前版本暂不支持文件夹上传，可先创建文件夹后逐个上传文件");
+          toast.info(
+            "当前版本暂不支持文件夹上传，可先创建文件夹后逐个上传文件",
+          );
         },
       },
     ],
@@ -642,7 +658,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
           <aside className="border-b bg-muted/20 p-3 lg:border-b-0 lg:border-r">
             <div className="space-y-4">
               <div>
-                <p className="px-2 text-xs font-medium text-muted-foreground">资源</p>
+                <p className="px-2 text-xs font-medium text-muted-foreground">
+                  资源
+                </p>
                 <div className="mt-1 space-y-1">
                   {resourceCategoryItems.map(({ key, label, icon: Icon }) => (
                     <button
@@ -650,7 +668,8 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       type="button"
                       className={cn(
                         "flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted",
-                        viewCategory === key && "bg-background text-foreground shadow-sm",
+                        viewCategory === key &&
+                          "bg-background text-foreground shadow-sm",
                       )}
                       onClick={() => setViewCategory(key)}
                     >
@@ -658,7 +677,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         {label}
                       </span>
-                      <span className="text-xs text-muted-foreground">{categoryCounts[key]}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {categoryCounts[key]}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -668,13 +689,17 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
               <div>
                 <div className="flex items-center justify-between px-2">
-                  <p className="text-xs font-medium text-muted-foreground">库</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    库
+                  </p>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={() => toast.info("资源库来源于项目，请在项目模块中创建")}
+                    onClick={() =>
+                      toast.info("资源库来源于项目，请在项目模块中创建")
+                    }
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
@@ -683,7 +708,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 <button
                   type="button"
                   className="mt-2 w-full rounded-lg border border-dashed bg-background px-3 py-2 text-left text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                  onClick={() => toast.info("资源库来源于项目，请在项目模块中创建")}
+                  onClick={() =>
+                    toast.info("资源库来源于项目，请在项目模块中创建")
+                  }
                 >
                   + 新建资源库
                 </button>
@@ -706,7 +733,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                           )}
                           onClick={() => setProjectId(project.id)}
                         >
-                          <div className="truncate font-medium">{project.name}</div>
+                          <div className="truncate font-medium">
+                            {project.name}
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {project.id.slice(0, 8)}
                           </div>
@@ -724,9 +753,12 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h1 className="text-xl font-semibold tracking-tight">
-                    {currentFolder?.name ?? resourceCategoryLabelMap[viewCategory]}
+                    {currentFolder?.name ??
+                      resourceCategoryLabelMap[viewCategory]}
                   </h1>
-                  <p className="mt-1 text-sm text-muted-foreground">{headingDescription}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {headingDescription}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -778,7 +810,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder={
-                      isFolderMode ? "按名称、描述或标签搜索" : "搜索当前分类资源"
+                      isFolderMode
+                        ? "按名称、描述或标签搜索"
+                        : "搜索当前分类资源"
                     }
                     className="pl-8"
                   />
@@ -809,8 +843,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   {sortDirection === "asc" ? "升序" : "降序"}
                 </Button>
 
-                <Button variant="outline" onClick={refresh} disabled={!projectId || loading}>
-                  <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+                <Button
+                  variant="outline"
+                  onClick={refresh}
+                  disabled={!projectId || loading}
+                >
+                  <RefreshCw
+                    className={cn("mr-2 h-4 w-4", loading && "animate-spin")}
+                  />
                   刷新
                 </Button>
 
@@ -841,7 +881,8 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       key={folder.id}
                       className={cn(
                         "rounded px-2 py-1 hover:bg-muted",
-                        currentFolderId === folder.id && "bg-muted text-foreground",
+                        currentFolderId === folder.id &&
+                          "bg-muted text-foreground",
                       )}
                       onClick={() => setCurrentFolderId(folder.id)}
                       type="button"
@@ -852,21 +893,27 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 </div>
               ) : (
                 <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                  当前为「{resourceCategoryLabelMap[viewCategory]}」分类视图，展示整个资源库内该分类内容
+                  当前为「{resourceCategoryLabelMap[viewCategory]}
+                  」分类视图，展示整个资源库内该分类内容
                 </div>
               )}
               {crossProjectMediaHint && (
                 <div className="mt-2 flex items-center justify-between gap-3 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   <span className="truncate">
-                    当前资源库暂无{mediaCategoryLabelMap[crossProjectMediaHint.category]}，检测到「
-                    {crossProjectMediaHint.projectName}」包含 {crossProjectMediaHint.count} 个
+                    当前资源库暂无
+                    {mediaCategoryLabelMap[crossProjectMediaHint.category]}
+                    ，检测到「
+                    {crossProjectMediaHint.projectName}」包含{" "}
+                    {crossProjectMediaHint.count} 个
                     {mediaCategoryLabelMap[crossProjectMediaHint.category]}
                   </span>
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setProjectId(crossProjectMediaHint.projectId)}
+                    onClick={() =>
+                      setProjectId(crossProjectMediaHint.projectId)
+                    }
                   >
                     切换查看
                   </Button>
@@ -891,7 +938,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 </div>
               ) : showEmptyState ? (
                 <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border bg-muted/10 px-6 py-12 text-center">
-                  <h3 className="text-3xl font-semibold tracking-tight">把文件或文件夹拖到这里</h3>
+                  <h3 className="text-3xl font-semibold tracking-tight">
+                    把文件或文件夹拖到这里
+                  </h3>
                   <p className="mt-2 text-lg text-muted-foreground">或者</p>
                   <div className="mt-8 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
                     {emptyActions.map((item) => (
@@ -915,7 +964,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         <TableHead className="w-[120px]">类型</TableHead>
                         <TableHead className="w-[120px]">来源</TableHead>
                         <TableHead className="w-[220px]">更新时间</TableHead>
-                        <TableHead className="w-[80px] text-right">操作</TableHead>
+                        <TableHead className="w-[80px] text-right">
+                          操作
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -940,12 +991,18 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                               </button>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={item.kind === "folder" ? "default" : "outline"}>
+                              <Badge
+                                variant={
+                                  item.kind === "folder" ? "default" : "outline"
+                                }
+                              >
                                 {kindLabelMap[item.kind]}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="secondary">{sourceLabelMap[item.sourceType]}</Badge>
+                              <Badge variant="secondary">
+                                {sourceLabelMap[item.sourceType]}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {formatTime(item.updatedAt)}
@@ -963,7 +1020,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                                       void handleOpenResource(item);
                                     }}
                                   >
-                                    {item.kind === "folder" ? "进入文件夹" : "打开"}
+                                    {item.kind === "folder"
+                                      ? "进入文件夹"
+                                      : "打开"}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => {
@@ -973,16 +1032,17 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                                     <Pencil className="mr-2 h-4 w-4" />
                                     重命名
                                   </DropdownMenuItem>
-                                  {item.sourceType === "content" && item.parentId && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        void moveToRoot(item.id);
-                                      }}
-                                    >
-                                      <ArrowUp className="mr-2 h-4 w-4" />
-                                      移动到根目录
-                                    </DropdownMenuItem>
-                                  )}
+                                  {item.sourceType === "content" &&
+                                    item.parentId && (
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          void moveToRoot(item.id);
+                                        }}
+                                      >
+                                        <ArrowUp className="mr-2 h-4 w-4" />
+                                        移动到根目录
+                                      </DropdownMenuItem>
+                                    )}
                                   <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => {
@@ -1014,7 +1074,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] rounded border p-3">
             {previewLoading ? (
-              <div className="text-sm text-muted-foreground">加载文档内容中...</div>
+              <div className="text-sm text-muted-foreground">
+                加载文档内容中...
+              </div>
             ) : (
               <pre className="whitespace-pre-wrap break-words text-sm">
                 {previewContent || "暂无内容"}

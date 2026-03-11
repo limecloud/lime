@@ -5,9 +5,12 @@
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
 import { apiKeyProviderApi } from "@/lib/api/apiKeyProvider";
+import {
+  importMaterialFromUrl,
+  type ImportMaterialFromUrlRequest,
+} from "@/lib/api/materials";
 import { getImageModelsForProvider } from "@/lib/imageGeneration";
 import { isDebugFlagEnabled } from "@/lib/perfDebug";
 import { setStoredResourceProjectId } from "@/lib/resourceProjectSelection";
@@ -36,15 +39,6 @@ interface EndpointAttemptResult {
 
 interface EndpointRequestOptions {
   timeoutMs?: number;
-}
-
-interface ImportMaterialFromUrlRequest {
-  projectId: string;
-  name: string;
-  type: "image";
-  url: string;
-  tags?: string[];
-  description?: string;
 }
 
 interface BackfillImagesResult {
@@ -1284,7 +1278,10 @@ async function requestImageFromFalQueue(
   });
 
   const submitRaw = await submitResponse.text();
-  const submitPayload = tryParseJson(submitRaw) as Record<string, unknown> | null;
+  const submitPayload = tryParseJson(submitRaw) as Record<
+    string,
+    unknown
+  > | null;
 
   if (!submitResponse.ok) {
     throw new Error(
@@ -1330,7 +1327,10 @@ async function requestImageFromFalQueue(
         },
       });
       const statusRaw = await statusResponse.text();
-      const statusPayload = tryParseJson(statusRaw) as Record<string, unknown> | null;
+      const statusPayload = tryParseJson(statusRaw) as Record<
+        string,
+        unknown
+      > | null;
 
       if (!statusResponse.ok) {
         throw new Error(
@@ -1369,9 +1369,10 @@ async function requestImageFromFalQueue(
         },
       });
       const pollingRaw = await pollingResponse.text();
-      const pollingPayload = tryParseJson(pollingRaw) as
-        | Record<string, unknown>
-        | null;
+      const pollingPayload = tryParseJson(pollingRaw) as Record<
+        string,
+        unknown
+      > | null;
 
       if (pollingResponse.ok) {
         const imageUrl = pollingPayload
@@ -1601,7 +1602,9 @@ export function useImageGen(options: UseImageGenOptions = {}) {
     }
 
     const preferredProvider = preferredProviderId
-      ? availableProviders.find((provider) => provider.id === preferredProviderId)
+      ? availableProviders.find(
+          (provider) => provider.id === preferredProviderId,
+        )
       : null;
     const nextProvider = preferredProvider ?? availableProviders[0];
 
@@ -1650,10 +1653,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
 
       setResourceSavingCount((count) => count + 1);
       try {
-        const savedMaterial = await invoke<{ id: string }>(
-          "import_material_from_url",
-          { req: request },
-        );
+        const savedMaterial = await importMaterialFromUrl(request);
 
         const savedAt = Date.now();
         setImages((prev) => {

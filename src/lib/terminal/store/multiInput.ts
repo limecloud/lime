@@ -10,7 +10,7 @@
 
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
-import { writeToTerminalRaw, encodeBase64 } from "@/lib/terminal-api";
+import { writeToTerminalRaw, encodeBase64 } from "@/lib/api/terminal";
 
 // ============================================================================
 // 类型定义

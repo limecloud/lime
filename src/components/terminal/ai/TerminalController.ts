@@ -13,7 +13,7 @@
  * 我们实现类似的机制，通过 `writeToTerminal` API 发送数据。
  */
 
-import { writeToTerminal } from "@/lib/terminal-api";
+import { writeToTerminal } from "@/lib/api/terminal";
 import type { TermWrap } from "../termwrap";
 
 /** 终端控制器配置 */

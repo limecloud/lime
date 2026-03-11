@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
-import { getConfig, saveConfig, Config } from "@/hooks/useTauri";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import {
   buildPersistedMediaGenerationPreference,
   getTtsModelsForProvider,

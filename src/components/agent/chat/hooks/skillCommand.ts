@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { safeListen } from "@/lib/dev-bridge";
-import { parseStreamEvent, type StreamEvent } from "@/lib/api/agent";
+import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
 import {
   skillExecutionApi,
   type ExecutableSkillInfo,
@@ -62,12 +62,16 @@ function buildSocialPostSlug(seed: string): string {
   return normalized || "post";
 }
 
-function buildSocialPostFallbackPath(seed: string, assistantMsgId: string): string {
+function buildSocialPostFallbackPath(
+  seed: string,
+  assistantMsgId: string,
+): string {
   const now = new Date();
   const format2 = (value: number) => String(value).padStart(2, "0");
   const timestamp = `${now.getFullYear()}${format2(now.getMonth() + 1)}${format2(now.getDate())}-${format2(now.getHours())}${format2(now.getMinutes())}${format2(now.getSeconds())}`;
   const slug = buildSocialPostSlug(seed);
-  const suffix = assistantMsgId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6) || "run";
+  const suffix =
+    assistantMsgId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6) || "run";
   return `social-posts/${timestamp}-${slug}-${suffix.toLowerCase()}.md`;
 }
 
@@ -610,8 +614,8 @@ ${failureText}`
       : shouldForceResultOutput
         ? result.output || "Skill 执行完成"
         : hasStreamedContent
-        ? accumulatedContent
-        : result.output || "Skill 执行完成";
+          ? accumulatedContent
+          : result.output || "Skill 执行完成";
 
     if (failure) {
       console.warn(

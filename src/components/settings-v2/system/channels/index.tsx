@@ -20,15 +20,13 @@ import {
   Network,
   ScrollText,
 } from "lucide-react";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import {
-  getConfig,
-  saveConfig,
-  Config,
-  ChannelsConfig,
-  GatewayConfig,
-  TelegramBotConfig,
-  DiscordBotConfig,
-  FeishuBotConfig,
+  discordChannelProbe,
+  feishuChannelProbe,
+  gatewayChannelStart,
+  gatewayChannelStatus,
+  gatewayChannelStop,
   gatewayTunnelCreate,
   gatewayTunnelDetectCloudflared,
   gatewayTunnelInstallCloudflared,
@@ -38,15 +36,18 @@ import {
   gatewayTunnelStatus,
   gatewayTunnelStop,
   gatewayTunnelSyncWebhookUrl,
-  gatewayChannelStart,
-  gatewayChannelStatus,
-  gatewayChannelStop,
-  discordChannelProbe,
-  feishuChannelProbe,
   telegramChannelProbe,
-} from "@/hooks/useTauri";
+  type ChannelsConfig,
+  type DiscordBotConfig,
+  type FeishuBotConfig,
+  type GatewayConfig,
+  type TelegramBotConfig,
+} from "@/lib/api/channelsRuntime";
 import { useConfiguredProviders } from "@/hooks/useConfiguredProviders";
-import { filterProviderModelsByCompatibility, getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
+import {
+  filterProviderModelsByCompatibility,
+  getProviderModelCompatibilityIssue,
+} from "@/components/agent/chat/utils/providerModelCompatibility";
 import { ChannelLogTailPanel } from "./ChannelLogTailPanel";
 
 // ============================================================================
@@ -54,7 +55,12 @@ import { ChannelLogTailPanel } from "./ChannelLogTailPanel";
 // ============================================================================
 
 const DEFAULT_CHANNELS: ChannelsConfig = {
-  telegram: { enabled: false, bot_token: "", allowed_user_ids: [], default_model: undefined },
+  telegram: {
+    enabled: false,
+    bot_token: "",
+    allowed_user_ids: [],
+    default_model: undefined,
+  },
   discord: {
     enabled: false,
     bot_token: "",
@@ -240,7 +246,9 @@ function StringListInput({
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addItem())}
+          onKeyDown={(e) =>
+            e.key === "Enter" && (e.preventDefault(), addItem())
+          }
           placeholder={placeholder}
           className="flex-1 px-3 py-2 rounded-lg border bg-background text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />
@@ -315,11 +323,15 @@ function GatewayTunnelPanel({
   const cloudflare = tunnel.cloudflare ?? {};
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [output, setOutput] = useState("");
-  const [feishuAccountId, setFeishuAccountId] = useState(defaultFeishuAccountId ?? "default");
+  const [feishuAccountId, setFeishuAccountId] = useState(
+    defaultFeishuAccountId ?? "default",
+  );
 
   const busy = busyAction !== null;
 
-  const patchTunnel = (patch: Partial<NonNullable<GatewayConfig["tunnel"]>>) => {
+  const patchTunnel = (
+    patch: Partial<NonNullable<GatewayConfig["tunnel"]>>,
+  ) => {
     onChange({
       ...config,
       tunnel: {
@@ -330,7 +342,9 @@ function GatewayTunnelPanel({
   };
 
   const patchCloudflare = (
-    patch: Partial<NonNullable<NonNullable<GatewayConfig["tunnel"]>["cloudflare"]>>,
+    patch: Partial<
+      NonNullable<NonNullable<GatewayConfig["tunnel"]>["cloudflare"]>
+    >,
   ) => {
     patchTunnel({
       cloudflare: {
@@ -340,7 +354,10 @@ function GatewayTunnelPanel({
     });
   };
 
-  const runAction = async (action: string, executor: () => Promise<unknown>) => {
+  const runAction = async (
+    action: string,
+    executor: () => Promise<unknown>,
+  ) => {
     setBusyAction(action);
     try {
       const result = await executor();
@@ -407,10 +424,14 @@ function GatewayTunnelPanel({
           </select>
         </label>
         <label className="space-y-1">
-          <span className="text-xs text-muted-foreground">cloudflared 二进制（可选）</span>
+          <span className="text-xs text-muted-foreground">
+            cloudflared 二进制（可选）
+          </span>
           <input
             value={tunnel.binary_path || ""}
-            onChange={(event) => patchTunnel({ binary_path: event.target.value || undefined })}
+            onChange={(event) =>
+              patchTunnel({ binary_path: event.target.value || undefined })
+            }
             placeholder="默认使用 PATH 中 cloudflared"
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
@@ -422,7 +443,9 @@ function GatewayTunnelPanel({
           <span className="text-xs text-muted-foreground">本地 Host</span>
           <input
             value={tunnel.local_host || "127.0.0.1"}
-            onChange={(event) => patchTunnel({ local_host: event.target.value })}
+            onChange={(event) =>
+              patchTunnel({ local_host: event.target.value })
+            }
             placeholder="127.0.0.1"
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
@@ -444,11 +467,15 @@ function GatewayTunnelPanel({
           />
         </label>
         <label className="space-y-1">
-          <span className="text-xs text-muted-foreground">公网基础 URL（可选）</span>
+          <span className="text-xs text-muted-foreground">
+            公网基础 URL（可选）
+          </span>
           <input
             value={tunnel.public_base_url || ""}
             onChange={(event) =>
-              patchTunnel({ public_base_url: event.target.value.trim() || undefined })
+              patchTunnel({
+                public_base_url: event.target.value.trim() || undefined,
+              })
             }
             placeholder="https://bot.example.com"
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
@@ -461,7 +488,9 @@ function GatewayTunnelPanel({
           <span className="text-xs text-muted-foreground">Tunnel Name</span>
           <input
             value={cloudflare.tunnel_name || ""}
-            onChange={(event) => patchCloudflare({ tunnel_name: event.target.value || undefined })}
+            onChange={(event) =>
+              patchCloudflare({ tunnel_name: event.target.value || undefined })
+            }
             placeholder="proxycast-gateway"
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
@@ -470,7 +499,9 @@ function GatewayTunnelPanel({
           <span className="text-xs text-muted-foreground">Tunnel ID</span>
           <input
             value={cloudflare.tunnel_id || ""}
-            onChange={(event) => patchCloudflare({ tunnel_id: event.target.value || undefined })}
+            onChange={(event) =>
+              patchCloudflare({ tunnel_id: event.target.value || undefined })
+            }
             placeholder="uuid"
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
@@ -479,7 +510,9 @@ function GatewayTunnelPanel({
           <span className="text-xs text-muted-foreground">DNS Name</span>
           <input
             value={cloudflare.dns_name || ""}
-            onChange={(event) => patchCloudflare({ dns_name: event.target.value || undefined })}
+            onChange={(event) =>
+              patchCloudflare({ dns_name: event.target.value || undefined })
+            }
             placeholder="bot.example.com"
             className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           />
@@ -494,11 +527,15 @@ function GatewayTunnelPanel({
       />
 
       <div>
-        <label className="block text-sm font-medium mb-1.5">Credentials File（可选）</label>
+        <label className="block text-sm font-medium mb-1.5">
+          Credentials File（可选）
+        </label>
         <input
           value={cloudflare.credentials_file || ""}
           onChange={(event) =>
-            patchCloudflare({ credentials_file: event.target.value || undefined })
+            patchCloudflare({
+              credentials_file: event.target.value || undefined,
+            })
           }
           placeholder="~/.cloudflared/<tunnel-id>.json"
           className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
@@ -507,7 +544,9 @@ function GatewayTunnelPanel({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="space-y-1">
-          <span className="text-xs text-muted-foreground">同步回调账号 ID（Feishu）</span>
+          <span className="text-xs text-muted-foreground">
+            同步回调账号 ID（Feishu）
+          </span>
           <input
             value={feishuAccountId}
             onChange={(event) => setFeishuAccountId(event.target.value)}
@@ -521,7 +560,11 @@ function GatewayTunnelPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void runAction("detect_cloudflared", async () => gatewayTunnelDetectCloudflared())}
+          onClick={() =>
+            void runAction("detect_cloudflared", async () =>
+              gatewayTunnelDetectCloudflared(),
+            )
+          }
           className="rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
         >
           检测 cloudflared
@@ -544,7 +587,9 @@ function GatewayTunnelPanel({
               return;
             }
             void runAction("install_cloudflared", async () => {
-              const install = await gatewayTunnelInstallCloudflared({ confirm: true });
+              const install = await gatewayTunnelInstallCloudflared({
+                confirm: true,
+              });
               const detect = await gatewayTunnelDetectCloudflared();
               return { install, detect };
             });
@@ -556,7 +601,9 @@ function GatewayTunnelPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void runAction("probe", async () => gatewayTunnelProbe())}
+          onClick={() =>
+            void runAction("probe", async () => gatewayTunnelProbe())
+          }
           className="rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
         >
           探测
@@ -580,7 +627,9 @@ function GatewayTunnelPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void runAction("start", async () => gatewayTunnelStart())}
+          onClick={() =>
+            void runAction("start", async () => gatewayTunnelStart())
+          }
           className="rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
         >
           启动
@@ -588,7 +637,9 @@ function GatewayTunnelPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void runAction("stop", async () => gatewayTunnelStop())}
+          onClick={() =>
+            void runAction("stop", async () => gatewayTunnelStop())
+          }
           className="rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
         >
           停止
@@ -596,7 +647,9 @@ function GatewayTunnelPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void runAction("restart", async () => gatewayTunnelRestart())}
+          onClick={() =>
+            void runAction("restart", async () => gatewayTunnelRestart())
+          }
           className="rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
         >
           重启
@@ -604,7 +657,9 @@ function GatewayTunnelPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void runAction("status", async () => gatewayTunnelStatus())}
+          onClick={() =>
+            void runAction("status", async () => gatewayTunnelStatus())
+          }
           className="rounded-md border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
         >
           查询状态
@@ -628,7 +683,9 @@ function GatewayTunnelPanel({
       </div>
 
       {busyAction && (
-        <div className="text-xs text-muted-foreground">正在执行：{busyAction}</div>
+        <div className="text-xs text-muted-foreground">
+          正在执行：{busyAction}
+        </div>
       )}
 
       <div className="space-y-1">
@@ -657,7 +714,9 @@ function TelegramForm({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium">启用 Telegram Bot</h3>
-          <p className="text-xs text-muted-foreground">开启后可通过 Telegram Bot 与 AI 对话</p>
+          <p className="text-xs text-muted-foreground">
+            开启后可通过 Telegram Bot 与 AI 对话
+          </p>
         </div>
         <button
           type="button"
@@ -821,7 +880,8 @@ function TelegramGatewayDebugPanel() {
           onClick={() =>
             void runAction(
               "probe",
-              async () => telegramChannelProbe({ accountId: resolveAccountId() }),
+              async () =>
+                telegramChannelProbe({ accountId: resolveAccountId() }),
               "Telegram 探测完成",
             )
           }
@@ -855,7 +915,10 @@ function TelegramGatewayDebugPanel() {
             void runAction(
               "stop",
               async () =>
-                gatewayChannelStop({ channel: "telegram", accountId: resolveAccountId() }),
+                gatewayChannelStop({
+                  channel: "telegram",
+                  accountId: resolveAccountId(),
+                }),
               "Gateway 已停止",
             )
           }
@@ -889,7 +952,9 @@ function TelegramGatewayDebugPanel() {
                   accountId: resolveAccountId(),
                   pollTimeoutSecs: resolvePollTimeoutSecs(),
                 });
-                const statusResult = await gatewayChannelStatus({ channel: "telegram" });
+                const statusResult = await gatewayChannelStatus({
+                  channel: "telegram",
+                });
                 return {
                   stop: stopResult,
                   start: startResult,
@@ -907,7 +972,9 @@ function TelegramGatewayDebugPanel() {
       </div>
 
       {busyAction && (
-        <div className="text-xs text-muted-foreground">正在执行：{busyAction}</div>
+        <div className="text-xs text-muted-foreground">
+          正在执行：{busyAction}
+        </div>
       )}
 
       <div className="space-y-1">
@@ -1079,7 +1146,9 @@ function FeishuGatewayDebugPanel() {
                   channel: "feishu",
                   accountId: resolveAccountId(),
                 });
-                const statusResult = await gatewayChannelStatus({ channel: "feishu" });
+                const statusResult = await gatewayChannelStatus({
+                  channel: "feishu",
+                });
                 return {
                   stop: stopResult,
                   start: startResult,
@@ -1097,7 +1166,9 @@ function FeishuGatewayDebugPanel() {
       </div>
 
       {busyAction && (
-        <div className="text-xs text-muted-foreground">正在执行：{busyAction}</div>
+        <div className="text-xs text-muted-foreground">
+          正在执行：{busyAction}
+        </div>
       )}
 
       <div className="space-y-1">
@@ -1200,7 +1271,8 @@ function DiscordGatewayDebugPanel() {
           onClick={() =>
             void runAction(
               "probe",
-              async () => discordChannelProbe({ accountId: resolveAccountId() }),
+              async () =>
+                discordChannelProbe({ accountId: resolveAccountId() }),
               "Discord 探测完成",
             )
           }
@@ -1269,7 +1341,9 @@ function DiscordGatewayDebugPanel() {
                   channel: "discord",
                   accountId: resolveAccountId(),
                 });
-                const statusResult = await gatewayChannelStatus({ channel: "discord" });
+                const statusResult = await gatewayChannelStatus({
+                  channel: "discord",
+                });
                 return {
                   stop: stopResult,
                   start: startResult,
@@ -1287,7 +1361,9 @@ function DiscordGatewayDebugPanel() {
       </div>
 
       {busyAction && (
-        <div className="text-xs text-muted-foreground">正在执行：{busyAction}</div>
+        <div className="text-xs text-muted-foreground">
+          正在执行：{busyAction}
+        </div>
       )}
 
       <div className="space-y-1">
@@ -1311,7 +1387,10 @@ function DiscordForm({
   config: DiscordBotConfig;
   onChange: (c: DiscordBotConfig) => void;
 }) {
-  const accountIds = useMemo(() => Object.keys(config.accounts ?? {}), [config.accounts]);
+  const accountIds = useMemo(
+    () => Object.keys(config.accounts ?? {}),
+    [config.accounts],
+  );
   const [activeAccountId, setActiveAccountId] = useState(
     config.default_account || accountIds[0] || "default",
   );
@@ -1332,9 +1411,9 @@ function DiscordForm({
 
   const patchAccount = (
     accountId: string,
-    updater: (current: NonNullable<DiscordBotConfig["accounts"]>[string]) => NonNullable<
-      DiscordBotConfig["accounts"]
-    >[string],
+    updater: (
+      current: NonNullable<DiscordBotConfig["accounts"]>[string],
+    ) => NonNullable<DiscordBotConfig["accounts"]>[string],
   ) => {
     const baseAccounts = config.accounts ?? {};
     const current = baseAccounts[accountId] ?? { enabled: true };
@@ -1375,7 +1454,9 @@ function DiscordForm({
     patch({
       accounts: baseAccounts,
       default_account:
-        config.default_account === accountId ? (nextIds[0] || "default") : config.default_account,
+        config.default_account === accountId
+          ? nextIds[0] || "default"
+          : config.default_account,
     });
     setActiveAccountId(nextIds[0] || "default");
   };
@@ -1395,7 +1476,9 @@ function DiscordForm({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium">启用 Discord Bot</h3>
-          <p className="text-xs text-muted-foreground">开启后可通过 Discord Bot 与 AI 对话</p>
+          <p className="text-xs text-muted-foreground">
+            开启后可通过 Discord Bot 与 AI 对话
+          </p>
         </div>
         <button
           type="button"
@@ -1448,7 +1531,9 @@ function DiscordForm({
         <input
           type="text"
           value={config.default_account || ""}
-          onChange={(e) => patch({ default_account: e.target.value || undefined })}
+          onChange={(e) =>
+            patch({ default_account: e.target.value || undefined })
+          }
           placeholder="default"
           className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />
@@ -1517,7 +1602,9 @@ function DiscordForm({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs mb-1 text-muted-foreground">账号名称</label>
+                    <label className="block text-xs mb-1 text-muted-foreground">
+                      账号名称
+                    </label>
                     <input
                       type="text"
                       value={currentAccount.name || ""}
@@ -1532,7 +1619,9 @@ function DiscordForm({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs mb-1 text-muted-foreground">账号默认模型</label>
+                    <label className="block text-xs mb-1 text-muted-foreground">
+                      账号默认模型
+                    </label>
                     <DefaultModelSelect
                       value={currentAccount.default_model}
                       onChange={(v) =>
@@ -1572,7 +1661,9 @@ function DiscordForm({
             )}
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">未配置账号，将使用全局 Bot Token 运行。</p>
+          <p className="text-xs text-muted-foreground">
+            未配置账号，将使用全局 Bot Token 运行。
+          </p>
         )}
       </div>
 
@@ -1632,7 +1723,9 @@ function DiscordForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1.5">Reply To Mode</label>
+          <label className="block text-sm font-medium mb-1.5">
+            Reply To Mode
+          </label>
           <select
             value={replyToMode}
             onChange={(e) => patch({ reply_to_mode: e.target.value })}
@@ -1784,7 +1877,9 @@ function FeishuForm({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium">启用飞书 Bot</h3>
-          <p className="text-xs text-muted-foreground">开启后可通过飞书 Bot 与 AI 对话</p>
+          <p className="text-xs text-muted-foreground">
+            开启后可通过飞书 Bot 与 AI 对话
+          </p>
         </div>
         <button
           type="button"
@@ -1823,13 +1918,17 @@ function FeishuForm({
 
       <div>
         <label className="block text-sm font-medium mb-1.5">
-          Verification Token <span className="text-muted-foreground font-normal">（可选）</span>
+          Verification Token{" "}
+          <span className="text-muted-foreground font-normal">（可选）</span>
         </label>
         <input
           type="text"
           value={config.verification_token || ""}
           onChange={(e) =>
-            onChange({ ...config, verification_token: e.target.value || undefined })
+            onChange({
+              ...config,
+              verification_token: e.target.value || undefined,
+            })
           }
           placeholder="事件订阅验证 Token"
           className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
@@ -1860,7 +1959,8 @@ function FeishuForm({
         </select>
         {connectionMode === "websocket" && (
           <p className="text-xs text-amber-600 mt-1">
-            当前版本 WebSocket 模式尚未实装，请使用 Webhook 模式接入飞书事件回调。
+            当前版本 WebSocket 模式尚未实装，请使用 Webhook
+            模式接入飞书事件回调。
           </p>
         )}
       </div>
@@ -1868,7 +1968,9 @@ function FeishuForm({
       {connectionMode === "webhook" && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-sm font-medium mb-1.5">Webhook Host</label>
+            <label className="block text-sm font-medium mb-1.5">
+              Webhook Host
+            </label>
             <input
               type="text"
               value={config.webhook_host || "127.0.0.1"}
@@ -1883,7 +1985,9 @@ function FeishuForm({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5">Webhook Port</label>
+            <label className="block text-sm font-medium mb-1.5">
+              Webhook Port
+            </label>
             <input
               type="number"
               min={1}
@@ -1893,7 +1997,8 @@ function FeishuForm({
                 const value = Number.parseInt(e.target.value, 10);
                 onChange({
                   ...config,
-                  webhook_port: Number.isFinite(value) && value > 0 ? value : undefined,
+                  webhook_port:
+                    Number.isFinite(value) && value > 0 ? value : undefined,
                 });
               }}
               placeholder="3000"
@@ -1901,7 +2006,9 @@ function FeishuForm({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5">Webhook Path</label>
+            <label className="block text-sm font-medium mb-1.5">
+              Webhook Path
+            </label>
             <input
               type="text"
               value={config.webhook_path || "/feishu/default"}
@@ -1978,9 +2085,15 @@ function FeishuForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1.5">回复引用模式</label>
+          <label className="block text-sm font-medium mb-1.5">
+            回复引用模式
+          </label>
           <select
-            value={replyToMode === "first" || replyToMode === "all" ? replyToMode : "off"}
+            value={
+              replyToMode === "first" || replyToMode === "all"
+                ? replyToMode
+                : "off"
+            }
             onChange={(e) =>
               onChange({
                 ...config,
@@ -2014,14 +2127,18 @@ export interface ChannelsSettingsProps {
 
 export function ChannelsSettings({ className }: ChannelsSettingsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("telegram");
-  const [activeSubPage, setActiveSubPage] = useState<ChannelSubPage>("overview");
+  const [activeSubPage, setActiveSubPage] =
+    useState<ChannelSubPage>("overview");
   const [activeDebugTab, setActiveDebugTab] = useState<DebugTabKey>("telegram");
   const [config, setConfig] = useState<Config | null>(null);
   const [channels, setChannels] = useState<ChannelsConfig>(DEFAULT_CHANNELS);
   const [gateway, setGateway] = useState<GatewayConfig>(DEFAULT_GATEWAY);
   const [initialJson, setInitialJson] = useState("");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const isDirty = useMemo(
     () => JSON.stringify({ channels, gateway }) !== initialJson,
@@ -2074,7 +2191,10 @@ export function ChannelsSettings({ className }: ChannelsSettingsProps) {
 
   const handleCancel = () => {
     if (initialJson) {
-      const snapshot = JSON.parse(initialJson) as { channels: ChannelsConfig; gateway: GatewayConfig };
+      const snapshot = JSON.parse(initialJson) as {
+        channels: ChannelsConfig;
+        gateway: GatewayConfig;
+      };
       setChannels(snapshot.channels);
       setGateway(snapshot.gateway);
     }
@@ -2193,7 +2313,9 @@ export function ChannelsSettings({ className }: ChannelsSettingsProps) {
                   <Icon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">{page.label}</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{page.description}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {page.description}
+                </p>
               </button>
             );
           })}
@@ -2216,7 +2338,10 @@ export function ChannelsSettings({ className }: ChannelsSettingsProps) {
             </div>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
               {channelOverview.map((item) => (
-                <div key={item.key} className="rounded-lg border bg-muted/20 p-4">
+                <div
+                  key={item.key}
+                  className="rounded-lg border bg-muted/20 p-4"
+                >
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium">{item.label}</h3>
                     <span
@@ -2343,7 +2468,9 @@ export function ChannelsSettings({ className }: ChannelsSettingsProps) {
           <GatewayTunnelPanel
             config={gateway}
             onChange={setGateway}
-            defaultFeishuAccountId={channels.feishu.default_account || "default"}
+            defaultFeishuAccountId={
+              channels.feishu.default_account || "default"
+            }
             onReloadConfig={loadConfig}
           />
         </div>
@@ -2428,7 +2555,11 @@ export function ChannelsSettings({ className }: ChannelsSettingsProps) {
               disabled={saving}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
               保存
             </button>
           </div>

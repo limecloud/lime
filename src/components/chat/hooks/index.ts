@@ -1,8 +1,7 @@
 /**
  * @file Hooks 导出入口
- * @description 导出通用对话相关的 Hooks
+ * @description 遗留通用对话 Hooks 兼容导出
  * @module components/chat/hooks
  */
 
 export { useChat } from "./useChat";
-export { useStreaming } from "./useStreaming";

@@ -20,8 +20,8 @@ import { toast } from "sonner";
 import styled from "styled-components";
 import { Info, PanelLeftOpen } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { safeListen } from "@/lib/dev-bridge";
+import { readFilePreview } from "@/lib/api/fileBrowser";
 import { uploadImageToSession, importDocument } from "@/lib/api/session-files";
 import {
   useAgentChatUnified,
@@ -39,6 +39,7 @@ import {
   ThemeWorkbenchSidebar,
   type ThemeWorkbenchCreationTaskEvent,
 } from "./components/ThemeWorkbenchSidebar";
+import { HarnessStatusPanel } from "./components/HarnessStatusPanel";
 import { MessageList } from "./components/MessageList";
 import { Inputbar } from "./components/Inputbar";
 import { RuntimeStyleControlBar } from "./components/RuntimeStyleControlBar";
@@ -65,11 +66,11 @@ import type {
   TextStylizeRunPayload,
 } from "@/components/content-creator/canvas/document/types";
 import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
-import { CanvasPanel as GeneralCanvasPanel } from "@/components/general-chat/canvas";
+import { CanvasPanel as GeneralCanvasPanel } from "@/components/general-chat/bridge";
 import {
   type CanvasState as GeneralCanvasState,
   DEFAULT_CANVAS_STATE,
-} from "@/components/general-chat/types";
+} from "@/components/general-chat/bridge";
 import {
   artifactsAtom,
   selectedArtifactAtom,
@@ -94,6 +95,8 @@ import {
   getOrCreateDefaultProject,
   getContent,
   getThemeWorkbenchDocumentState,
+  ensureWorkspaceReady,
+  updateProject as updateProjectById,
   updateContent,
   type Project,
   type ProjectType,
@@ -109,6 +112,7 @@ import { SettingsTabs } from "@/types/settings";
 import { skillsApi, type Skill } from "@/lib/api/skills";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { useConfiguredProviders } from "@/hooks/useConfiguredProviders";
+import { useSubAgentScheduler } from "@/hooks/useSubAgentScheduler";
 import { LatestRunStatusBadge } from "@/components/execution/LatestRunStatusBadge";
 import {
   executionRunGet,
@@ -131,10 +135,8 @@ import {
   loadRememberedBaseModel,
   saveRememberedBaseModel,
 } from "@/lib/model/thinkingBaseModelMemory";
-import type {
-  AutoContinueRequestPayload,
-  ToolCallState,
-} from "@/lib/api/agent";
+import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import type { ToolCallState } from "@/lib/api/agentStream";
 import {
   skillExecutionApi,
   type SkillDetailInfo,
@@ -159,6 +161,7 @@ import {
   saveChatToolPreferences,
   type ChatToolPreferences,
 } from "./utils/chatToolPreferences";
+import { deriveHarnessSessionState } from "./utils/harnessState";
 import {
   resolveCanvasTaskFileTarget,
   shouldDeferCanvasSyncWhileEditing,
@@ -186,6 +189,20 @@ const SUPPORTED_ENTRY_THEMES: ThemeType[] = [
   "video",
   "novel",
 ];
+
+interface HarnessFilePreviewResult {
+  path: string;
+  content: string | null;
+  isBinary: boolean;
+  size: number;
+  error: string | null;
+}
+
+function extractFileNameFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  return segments[segments.length - 1] || path;
+}
 
 function normalizeInitialTheme(value?: string): ThemeType {
   if (!value) return "general";
@@ -1455,6 +1472,32 @@ function savePersistedProjectId(key: string, projectId: string) {
   }
 }
 
+function loadPersistedBoolean(key: string, fallback = false): boolean {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored == null) {
+      return fallback;
+    }
+
+    try {
+      const parsed = JSON.parse(stored);
+      return typeof parsed === "boolean" ? parsed : fallback;
+    } catch {
+      return stored === "true";
+    }
+  } catch {
+    return fallback;
+  }
+}
+
+function savePersistedBoolean(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore write errors
+  }
+}
+
 export interface WorkflowProgressSnapshot {
   steps: Array<{
     id: string;
@@ -1468,6 +1511,8 @@ export interface WorkflowProgressSnapshot {
  * 判断画布状态是否为空
  * 用于决定是否自动触发 AI 引导
  */
+const HARNESS_PANEL_VISIBILITY_KEY = "proxycast.chat.harness-panel.visible.v1";
+
 function isCanvasStateEmpty(state: CanvasStateUnion | null): boolean {
   if (!state) return true;
 
@@ -1859,14 +1904,6 @@ export function AgentChatPage({
     setLayoutMode("chat-canvas");
   }, [artifacts.length, activeTheme]);
 
-  // 加载技能列表
-  useEffect(() => {
-    skillsApi
-      .getAll("proxycast")
-      .then(setSkills)
-      .catch((err) => console.error("加载技能列表失败:", err));
-  }, []);
-
   // 跳转到设置页安装技能
   const handleNavigateToSkillSettings = useCallback(() => {
     _onNavigate?.("settings", { tab: SettingsTabs.Skills });
@@ -2062,12 +2099,7 @@ export function AgentChatPage({
     const normalizedId = normalizeProjectId(projectId);
     if (!normalizedId) return;
 
-    invoke<{ created: boolean; repaired: boolean; rootPath: string }>(
-      "workspace_ensure_ready",
-      {
-        id: normalizedId,
-      },
-    )
+    ensureWorkspaceReady(normalizedId)
       .then(({ repaired, rootPath }) => {
         if (repaired) {
           recordWorkspaceRepair({
@@ -2169,6 +2201,7 @@ export function AgentChatPage({
     deleteMessage,
     editMessage,
     handlePermissionResponse,
+    pendingActions,
     triggerAIGuide,
     topics,
     sessionId,
@@ -2188,6 +2221,14 @@ export function AgentChatPage({
     workspaceId: projectId ?? "",
   });
   const { providers: configuredProviders } = useConfiguredProviders();
+  const subAgentRuntime = useSubAgentScheduler(sessionId);
+  const harnessState = useMemo(
+    () => deriveHarnessSessionState(messages, pendingActions),
+    [messages, pendingActions],
+  );
+  const [harnessPanelVisible, setHarnessPanelVisible] = useState(() =>
+    loadPersistedBoolean(HARNESS_PANEL_VISIBILITY_KEY, false),
+  );
   const selectedProvider = useMemo(
     () => configuredProviders.find((provider) => provider.key === providerType),
     [configuredProviders, providerType],
@@ -2201,6 +2242,10 @@ export function AgentChatPage({
     onSessionChange?.(sessionId ?? null);
   }, [onSessionChange, sessionId]);
 
+  useEffect(() => {
+    savePersistedBoolean(HARNESS_PANEL_VISIBILITY_KEY, harnessPanelVisible);
+  }, [harnessPanelVisible]);
+
   const contextWorkspace = useThemeContextWorkspace({
     projectId,
     activeTheme,
@@ -2208,7 +2253,63 @@ export function AgentChatPage({
     providerType,
     model,
   });
+  const installedSkills = useMemo(
+    () => skills.filter((skill) => skill.installed),
+    [skills],
+  );
+  const harnessPendingCount = harnessState.pendingApprovals.length;
+  const showHarnessToggle =
+    harnessPanelVisible || harnessState.hasSignals || subAgentRuntime.isRunning;
+  const harnessAttentionLevel =
+    harnessPendingCount > 0 ? "warning" : showHarnessToggle ? "active" : "idle";
+  const visibleContextItems = useMemo(() => {
+    const activeItems = contextWorkspace.sidebarContextItems.filter(
+      (item) => item.active,
+    );
+    return activeItems.length > 0
+      ? activeItems
+      : contextWorkspace.sidebarContextItems;
+  }, [contextWorkspace.sidebarContextItems]);
+  const harnessEnvironment = useMemo(
+    () => ({
+      skillsCount: installedSkills.length,
+      skillNames: installedSkills
+        .map((skill) => skill.name || skill.key)
+        .filter((name) => !!name.trim())
+        .slice(0, 4),
+      memorySignals: [
+        projectMemory?.characters.length ? "角色" : null,
+        projectMemory?.world_building ? "世界观" : null,
+        projectMemory?.style_guide ? "风格" : null,
+        projectMemory?.outline.length ? "大纲" : null,
+      ].filter((item): item is string => item !== null),
+      contextItemsCount: contextWorkspace.sidebarContextItems.length,
+      activeContextCount: contextWorkspace.sidebarContextItems.filter(
+        (item) => item.active,
+      ).length,
+      contextItemNames: visibleContextItems
+        .map((item) => item.name)
+        .filter((name) => !!name.trim())
+        .slice(0, 4),
+      contextEnabled: contextWorkspace.enabled,
+    }),
+    [
+      contextWorkspace.enabled,
+      contextWorkspace.sidebarContextItems,
+      installedSkills,
+      projectMemory?.characters.length,
+      projectMemory?.outline.length,
+      projectMemory?.style_guide,
+      projectMemory?.world_building,
+      visibleContextItems,
+    ],
+  );
   const isThemeWorkbench = contextWorkspace.enabled;
+  const shouldUseCompactThemeWorkbench =
+    isThemeWorkbench && (mappedTheme === "video" || mappedTheme === "poster");
+  const shouldSkipThemeWorkbenchAutoGuideWithoutPrompt =
+    isThemeWorkbench &&
+    (shouldUseCompactThemeWorkbench || mappedTheme === "novel");
   const enableThemeWorkbenchPanelCollapse =
     isThemeWorkbench && mappedTheme === "social-media";
 
@@ -4796,6 +4897,72 @@ export function AgentChatPage({
     [activeTheme, isThemeWorkbench, mappedTheme, upsertNovelCanvasState],
   );
 
+  const handleHarnessLoadFilePreview = useCallback(
+    async (path: string): Promise<HarnessFilePreviewResult> => {
+      const normalizedPath = path.trim();
+      const createFallbackResult = (
+        overrides: Partial<HarnessFilePreviewResult> = {},
+      ): HarnessFilePreviewResult => ({
+        path: normalizedPath,
+        content: null,
+        isBinary: false,
+        size: 0,
+        error: null,
+        ...overrides,
+      });
+
+      if (!normalizedPath) {
+        return createFallbackResult({ error: "文件路径为空" });
+      }
+
+      const fileName = extractFileNameFromPath(normalizedPath);
+      const candidateNames = [...new Set([normalizedPath, fileName])];
+
+      const matchedTaskFile = taskFiles.find((file) =>
+        candidateNames.includes(file.name),
+      );
+      if (matchedTaskFile) {
+        const content = matchedTaskFile.content ?? "";
+        return createFallbackResult({
+          path: matchedTaskFile.name,
+          content,
+          size: content.length,
+        });
+      }
+
+      const matchedSessionFile = sessionFiles.find((file) =>
+        candidateNames.includes(file.name),
+      );
+      if (matchedSessionFile) {
+        const content = await readSessionFile(matchedSessionFile.name);
+        if (content !== null) {
+          return createFallbackResult({
+            path: matchedSessionFile.name,
+            content,
+            size: content.length,
+          });
+        }
+      }
+
+      try {
+        const result = await readFilePreview(normalizedPath, 64 * 1024);
+
+        return createFallbackResult({
+          path: result.path || normalizedPath,
+          content: result.content ?? null,
+          isBinary: result.isBinary ?? false,
+          size: result.size ?? 0,
+          error: result.error ?? null,
+        });
+      } catch (error) {
+        return createFallbackResult({
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [readSessionFile, sessionFiles, taskFiles],
+  );
+
   // 处理代码块点击 - 在画布中显示代码（General 主题专用）
   const handleCodeBlockClick = useCallback(
     (language: string, code: string) => {
@@ -4924,7 +5091,7 @@ export function AgentChatPage({
 
   // 当从项目进入且有 contentId 时，自动启动创作引导
   useEffect(() => {
-    if (mappedTheme === "video") {
+    if (shouldUseCompactThemeWorkbench) {
       return;
     }
 
@@ -4981,6 +5148,9 @@ export function AgentChatPage({
       }
 
       if (isThemeWorkbench) {
+        if (shouldSkipThemeWorkbenchAutoGuideWithoutPrompt) {
+          return;
+        }
         hasTriggeredGuide.current = true;
         console.log("[AgentChatPage] 主题工作台：触发 AI 引导，创建后端工作流");
         // 同步创建后端工作流（不阻塞触发）
@@ -5031,13 +5201,15 @@ export function AgentChatPage({
     handleSend,
     chatToolPreferences,
     onInitialUserPromptConsumed,
+    shouldUseCompactThemeWorkbench,
+    shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
   ]);
 
   // 通用聊天场景：若带有 initialUserPrompt，则自动新建并发送首条消息
   useEffect(() => {
     const pendingInitialPrompt = (initialUserPrompt || "").trim();
     if (
-      mappedTheme === "video" ||
+      shouldUseCompactThemeWorkbench ||
       !pendingInitialPrompt ||
       contentId ||
       !sessionId ||
@@ -5067,10 +5239,10 @@ export function AgentChatPage({
     handleSend,
     initialUserPrompt,
     isSending,
-    mappedTheme,
     messages.length,
     onInitialUserPromptConsumed,
     sessionId,
+    shouldUseCompactThemeWorkbench,
   ]);
 
   // 当 contentId 变化时重置引导状态
@@ -5125,9 +5297,9 @@ export function AgentChatPage({
 
   // 主题工作台始终使用聊天布局与浮层输入，不走旧 EmptyState 输入流程
   const showChatLayout = hasMessages || isThemeWorkbench;
-  const shouldHideThemeWorkbenchInputForTheme =
-    isThemeWorkbench && mappedTheme === "video";
-  const shouldShowThemeWorkbenchSidebarForTheme = mappedTheme !== "video";
+  const shouldHideThemeWorkbenchInputForTheme = shouldUseCompactThemeWorkbench;
+  const shouldShowThemeWorkbenchSidebarForTheme =
+    !shouldUseCompactThemeWorkbench;
   const showThemeWorkbenchSidebar =
     showChatPanel &&
     showSidebar &&
@@ -5307,10 +5479,7 @@ export function AgentChatPage({
     } else if (projectId) {
       // 主动健康检查发现问题：只更新路径，不需要重试
       try {
-        await invoke("workspace_update", {
-          id: projectId,
-          request: { rootPath: newPath },
-        });
+        await updateProjectById(projectId, { rootPath: newPath });
         setWorkspaceHealthError(false);
         toast.success("工作区目录已更新");
       } catch (err) {
@@ -5579,6 +5748,16 @@ export function AgentChatPage({
             />
           ) : null}
 
+          {harnessPanelVisible ? (
+            <HarnessStatusPanel
+              harnessState={harnessState}
+              subAgentRuntime={subAgentRuntime}
+              environment={harnessEnvironment}
+              onLoadFilePreview={handleHarnessLoadFilePreview}
+              onOpenFile={handleFileClick}
+            />
+          ) : null}
+
           {showChatLayout ? (
             <ChatContent>
               {contextWorkspace.enabled ? (
@@ -5728,13 +5907,17 @@ export function AgentChatPage({
       handleA2UISubmit,
       handleCodeBlockClick,
       handleFileClick,
+      handleHarnessLoadFilePreview,
       handleManageProviders,
       handleNavigateToSkillSettings,
       handlePermissionResponse,
       handleSelectWorkspaceDirectory,
       handleSend,
       handleWriteFile,
+      harnessEnvironment,
+      harnessPanelVisible,
       hasMessages,
+      harnessState,
       hideInlineStepProgress,
       input,
       inputbarNode,
@@ -5762,6 +5945,7 @@ export function AgentChatPage({
       mappedTheme,
       runtimeStyleSelection,
       styleActionsDisabled,
+      subAgentRuntime,
       skills,
       steps,
       workspaceHealthError,
@@ -5942,6 +6126,13 @@ export function AgentChatPage({
               onProjectChange={handleProjectChange}
               workspaceType={activeTheme}
               onBackHome={handleBackHome}
+              showHarnessToggle={showHarnessToggle}
+              harnessPanelVisible={harnessPanelVisible}
+              onToggleHarnessPanel={() =>
+                setHarnessPanelVisible((current) => !current)
+              }
+              harnessPendingCount={harnessPendingCount}
+              harnessAttentionLevel={harnessAttentionLevel}
               onToggleSettings={() => {
                 _onNavigate?.("settings", {
                   tab: SettingsTabs.ChatAppearance,
@@ -6054,6 +6245,9 @@ export function AgentChatPage({
       inputbarNode,
       isSending,
       isThemeWorkbench,
+      harnessAttentionLevel,
+      harnessPanelVisible,
+      harnessPendingCount,
       layoutMode,
       novelChapterListCollapsed,
       onBackToProjectManagement,
@@ -6062,6 +6256,7 @@ export function AgentChatPage({
       shouldHideThemeWorkbenchInputForTheme,
       showChatLayout,
       showChatPanel,
+      showHarnessToggle,
       showNovelNavbarControls,
       syncStatus,
       themeWorkbenchRunState,

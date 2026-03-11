@@ -1,5 +1,18 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { safeInvoke, safeListen } from "@/lib/dev-bridge";
+import { safeListen } from "@/lib/dev-bridge";
+import {
+  cancelPluginTask,
+  disablePlugin,
+  enablePlugin,
+  getPluginQueueStats,
+  getPluginStatus,
+  getPlugins,
+  getPluginTask,
+  listInstalledPlugins,
+  listPluginTasks,
+  reloadPlugins,
+  unloadPlugin,
+} from "@/lib/api/plugins";
 import {
   Puzzle,
   RefreshCw,
@@ -577,13 +590,11 @@ export function PluginManager() {
   const fetchRuntimeData = useCallback(async () => {
     try {
       const [taskList, queueStatsList] = await Promise.all([
-        safeInvoke<PluginTaskRecord[]>("list_plugin_tasks", {
+        listPluginTasks<PluginTaskRecord>({
           taskState: taskFilter === "all" ? null : taskFilter,
           limit: 300,
         }).catch(() => []),
-        safeInvoke<PluginQueueStats[]>("get_plugin_queue_stats").catch(
-          () => [],
-        ),
+        getPluginQueueStats<PluginQueueStats>().catch(() => []),
       ]);
 
       const groupedTasks = taskList.reduce<Record<string, PluginTaskRecord[]>>(
@@ -615,9 +626,9 @@ export function PluginManager() {
     try {
       setLoading(true);
       const [serviceStatus, pluginList, installedList] = await Promise.all([
-        safeInvoke<PluginServiceStatus>("get_plugin_status"),
-        safeInvoke<PluginInfo[]>("get_plugins"),
-        safeInvoke<InstalledPlugin[]>("list_installed_plugins").catch(() => []),
+        getPluginStatus<PluginServiceStatus>(),
+        getPlugins<PluginInfo>(),
+        listInstalledPlugins<InstalledPlugin>().catch(() => []),
       ]);
       setStatus(serviceStatus);
       setPlugins(pluginList);
@@ -742,9 +753,9 @@ export function PluginManager() {
   const handleTogglePlugin = async (name: string, currentEnabled: boolean) => {
     try {
       if (currentEnabled) {
-        await safeInvoke("disable_plugin", { name });
+        await disablePlugin(name);
       } else {
-        await safeInvoke("enable_plugin", { name });
+        await enablePlugin(name);
       }
       await fetchData();
     } catch (err) {
@@ -754,7 +765,7 @@ export function PluginManager() {
 
   const handleReloadPlugins = async () => {
     try {
-      await safeInvoke("reload_plugins");
+      await reloadPlugins();
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -764,9 +775,7 @@ export function PluginManager() {
   const handleCancelTask = async (taskId: string) => {
     try {
       setCancellingTaskId(taskId);
-      const cancelled = await safeInvoke<boolean>("cancel_plugin_task", {
-        taskId,
-      });
+      const cancelled = await cancelPluginTask(taskId);
       if (cancelled) {
         toast.success("任务取消请求已发送");
       } else {
@@ -784,12 +793,7 @@ export function PluginManager() {
   const handleLoadTaskDetail = async (taskId: string) => {
     try {
       setDetailLoadingTaskId(taskId);
-      const detail = await safeInvoke<PluginTaskRecord | null>(
-        "get_plugin_task",
-        {
-          taskId,
-        },
-      );
+      const detail = await getPluginTask<PluginTaskRecord>(taskId);
       if (!detail) {
         toast.warning("任务详情不存在，可能已被清理");
         return;
@@ -855,7 +859,7 @@ export function PluginManager() {
 
   const handleUnloadPlugin = async (name: string) => {
     try {
-      await safeInvoke("unload_plugin", { name });
+      await unloadPlugin(name);
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1487,10 +1491,10 @@ export function PluginManager() {
                 onToggleEnabled={async () => {
                   try {
                     if (plugin.enabled) {
-                      await safeInvoke("disable_plugin", { name: plugin.id });
+                      await disablePlugin(plugin.id);
                       toast.success("插件已禁用");
                     } else {
-                      await safeInvoke("enable_plugin", { name: plugin.id });
+                      await enablePlugin(plugin.id);
                       toast.success("插件已启用");
                     }
                     fetchData();

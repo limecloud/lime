@@ -215,7 +215,7 @@ function renderBlockedPage(
   onAction: () => void,
 ) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-6 py-10">
+    <div className="flex min-h-0 flex-col items-center px-6 py-10">
       <section className="w-full max-w-2xl rounded-2xl border bg-card p-8 text-center shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">
@@ -1199,7 +1199,7 @@ export function OpenClawPage({
 
   if (!statusResolved && !operationState.running) {
     return (
-      <div className="flex min-h-full flex-col items-center justify-center px-6 py-10">
+      <div className="flex min-h-0 flex-col items-center px-6 py-10">
         <div className="flex w-full max-w-xl flex-col items-center rounded-2xl border bg-card px-8 py-10 text-center shadow-sm">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">

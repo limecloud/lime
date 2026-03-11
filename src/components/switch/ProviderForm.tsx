@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { X, ExternalLink, Wand2, Eye, EyeOff } from "lucide-react";
 import { Provider, AppType } from "@/lib/api/switch";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 import { cn } from "@/lib/utils";
 import { ProviderIcon } from "@/icons/providers";
 

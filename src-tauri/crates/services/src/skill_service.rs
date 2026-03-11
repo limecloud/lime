@@ -8,7 +8,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 
-use proxycast_core::models::{AppType, Skill, SkillMetadata, SkillRepo, SkillState};
+use proxycast_core::models::{
+    resolve_skill_source_kind, AppType, Skill, SkillMetadata, SkillRepo, SkillState,
+};
 
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(60);
 const REMOTE_SKILLS_CACHE_TTL: Duration = Duration::from_secs(300);
@@ -102,6 +104,61 @@ impl SkillService {
         Ok(skills_dir)
     }
 
+    /// 仅列出内置 + 本地技能（不访问远程仓库，速度快）
+    pub fn list_local_skills(
+        &self,
+        app_type: &AppType,
+        _installed_states: &HashMap<String, SkillState>,
+    ) -> Result<Vec<Skill>> {
+        let mut all_skills: HashMap<String, Skill> = HashMap::new();
+
+        // 扫描本地目录
+        let skills_dir = Self::get_skills_dir(app_type)?;
+        if skills_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&skills_dir) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        let directory = entry.file_name().to_string_lossy().to_string();
+                        let key = format!("local:{directory}");
+                        let skill_md = entry.path().join("SKILL.md");
+                        let (name, description) = if skill_md.exists() {
+                            self.parse_skill_metadata(&skill_md)
+                                .map(|m| {
+                                    (
+                                        m.name.unwrap_or_else(|| directory.clone()),
+                                        m.description.unwrap_or_default(),
+                                    )
+                                })
+                                .unwrap_or_else(|_| (directory.clone(), String::new()))
+                        } else {
+                            (directory.clone(), String::new())
+                        };
+
+                        all_skills.insert(
+                            key.clone(),
+                            Skill {
+                                key,
+                                name,
+                                description,
+                                directory: directory.clone(),
+                                readme_url: None,
+                                installed: true,
+                                source_kind: resolve_skill_source_kind(app_type, &directory),
+                                repo_owner: None,
+                                repo_name: None,
+                                repo_branch: None,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+
+        let mut skills: Vec<Skill> = all_skills.into_values().collect();
+        skills.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(skills)
+    }
+
     /// 列出所有技能
     pub async fn list_skills(
         &self,
@@ -180,6 +237,7 @@ impl SkillService {
                                     directory: directory.clone(),
                                     readme_url: None,
                                     installed: true,
+                                    source_kind: resolve_skill_source_kind(app_type, &directory),
                                     repo_owner: None,
                                     repo_name: None,
                                     repo_branch: None,
@@ -358,6 +416,7 @@ impl SkillService {
                     directory,
                     readme_url,
                     installed: false,
+                    source_kind: proxycast_core::models::SkillSourceKind::Other,
                     repo_owner: Some(repo.owner.clone()),
                     repo_name: Some(repo.name.clone()),
                     repo_branch: Some(branch.to_string()),
@@ -521,6 +580,11 @@ impl SkillService {
             serde_yaml::from_str(front_matter).context("Failed to parse YAML front matter")?;
 
         Ok(meta)
+    }
+
+    /// 清空技能仓库缓存
+    pub fn refresh_cache(&self) {
+        self.repo_cache.write().clear();
     }
 }
 

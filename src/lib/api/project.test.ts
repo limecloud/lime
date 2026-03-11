@@ -7,9 +7,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  ensureWorkspaceReady,
+  ensureDefaultWorkspaceReady,
   getWorkspaceProjectsRoot,
   resolveProjectRootPath,
   getProjectByRootPath,
+  getDefaultProject,
+  requireDefaultProject,
+  requireDefaultProjectId,
+  setDefaultProject,
   isUserProjectType,
   getProjectTypeLabel,
   getProjectTypeIcon,
@@ -107,6 +113,83 @@ describe("项目管理 API", () => {
       );
 
       expect(project).toBeNull();
+    });
+
+    it("应该获取并标准化默认项目", async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        id: "default-1",
+        name: "默认项目",
+        workspace_type: "general",
+        root_path: "/Users/test/.proxycast/projects/default",
+        is_default: true,
+      });
+
+      const project = await getDefaultProject();
+
+      expect(project).toEqual(
+        expect.objectContaining({
+          id: "default-1",
+          name: "默认项目",
+          workspaceType: "general",
+          rootPath: "/Users/test/.proxycast/projects/default",
+          isDefault: true,
+        }),
+      );
+      expect(invoke).toHaveBeenCalledWith("workspace_get_default");
+    });
+
+    it("requireDefaultProject 缺失默认项目时应抛指定错误", async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(null);
+
+      await expect(requireDefaultProject("请先创建默认项目")).rejects.toThrow(
+        "请先创建默认项目",
+      );
+    });
+
+    it("requireDefaultProjectId 应返回默认项目 ID", async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        id: "default-2",
+        name: "默认项目 2",
+      });
+
+      await expect(requireDefaultProjectId()).resolves.toBe("default-2");
+    });
+
+    it("应该调用命令确保默认项目目录就绪", async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        workspaceId: "default-3",
+        rootPath: "/tmp/default-3",
+        existed: true,
+        created: false,
+        repaired: true,
+      });
+
+      await expect(ensureWorkspaceReady("default-3")).resolves.toEqual({
+        workspaceId: "default-3",
+        rootPath: "/tmp/default-3",
+        existed: true,
+        created: false,
+        repaired: true,
+      });
+      expect(invoke).toHaveBeenCalledWith("workspace_ensure_ready", {
+        id: "default-3",
+      });
+    });
+
+    it("应该调用命令确保默认项目目录就绪并支持空返回", async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(null);
+
+      await expect(ensureDefaultWorkspaceReady()).resolves.toBeNull();
+      expect(invoke).toHaveBeenCalledWith("workspace_ensure_default_ready");
+    });
+
+    it("应该调用命令设置默认项目", async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+      await expect(setDefaultProject("default-4")).resolves.toBeUndefined();
+      expect(invoke).toHaveBeenCalledWith("workspace_set_default", {
+        id: "default-4",
+      });
     });
   });
 

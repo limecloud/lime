@@ -1,11 +1,8 @@
 /**
  * @file index.ts
- * @description Hooks 导出
+ * @description Hooks 导出（仅保留现役稳定入口）
  * @module components/general-chat/hooks
  */
 
-export { useStreaming } from "./useStreaming";
-export { useChat } from "./useChat";
-export { useSession } from "./useSession";
 export { useProvider } from "./useProvider";
 export type { UseProviderResult } from "./useProvider";

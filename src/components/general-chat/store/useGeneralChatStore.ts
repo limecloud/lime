@@ -11,9 +11,25 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import {
+  createGeneralChatCompatSession,
+  deleteGeneralChatCompatSession,
+  getGeneralChatCompatMessages,
+  getGeneralChatCompatSession,
+  listGeneralChatCompatSessions,
+  renameGeneralChatCompatSession,
+  type GeneralChatCompatMessageRecord,
+  type GeneralChatCompatSessionRecord,
+} from "@/lib/api/generalChatCompat";
+import {
+  sendAsterMessageStream,
+  stopAsterSession,
+} from "@/lib/api/agentRuntime";
+import { requireDefaultProjectId } from "@/lib/api/project";
 import type {
   Session,
   Message,
+  ContentBlock,
   UIState,
   StreamingState,
   CanvasState,
@@ -143,6 +159,10 @@ export interface GeneralChatState {
   deleteSession: (id: string) => Promise<void>;
   /** 重命名会话 */
   renameSession: (id: string, name: string) => Promise<void>;
+  /** 从后端同步会话列表 */
+  hydrateSessions: (
+    preferredSessionId?: string | null,
+  ) => Promise<string | null>;
   /** 设置会话列表 */
   setSessions: (sessions: Session[]) => void;
   /** 更新单个会话 */
@@ -322,6 +342,197 @@ const generateId = (): string => {
  */
 const now = (): number => Date.now();
 
+interface SessionSnapshot {
+  session: Session;
+  messages: Message[];
+  pagination: PaginationState;
+}
+
+interface AsterImagePayload {
+  data: string;
+  media_type: string;
+}
+
+const sortSessions = (sessions: Session[]): Session[] =>
+  [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+
+const upsertSession = (sessions: Session[], session: Session): Session[] =>
+  sortSessions([session, ...sessions.filter((item) => item.id !== session.id)]);
+
+const toTextBlocks = (content: string): ContentBlock[] => [
+  {
+    type: "text",
+    content,
+  },
+];
+
+const normalizeMetadata = (
+  metadata: Record<string, unknown> | null | undefined,
+): MessageMetadata | undefined => {
+  if (!metadata) {
+    return undefined;
+  }
+
+  return {
+    model: typeof metadata.model === "string" ? metadata.model : undefined,
+    tokens: typeof metadata.tokens === "number" ? metadata.tokens : undefined,
+    duration:
+      typeof metadata.duration === "number" ? metadata.duration : undefined,
+  };
+};
+
+const convertCompatSession = (
+  backend: GeneralChatCompatSessionRecord,
+  messageCount = 0,
+): Session => ({
+  id: backend.id,
+  name: backend.name,
+  createdAt: backend.created_at,
+  updatedAt: backend.updated_at,
+  messageCount,
+});
+
+const convertCompatMessage = (
+  message: GeneralChatCompatMessageRecord,
+): Message => {
+  const blocks =
+    message.blocks?.map((block) => ({
+      type: block.type as ContentBlock["type"],
+      content: block.content,
+      language: block.language,
+      filename: block.filename,
+      mimeType: block.mime_type,
+    })) || toTextBlocks(message.content);
+
+  return {
+    id: message.id,
+    sessionId: message.session_id,
+    role: message.role as Message["role"],
+    content: message.content,
+    blocks,
+    status: message.status as Message["status"],
+    createdAt: message.created_at,
+    metadata: normalizeMetadata(message.metadata),
+  };
+};
+
+const buildPaginationState = (
+  messages: Message[],
+  messageCount: number,
+  overrides?: Partial<PaginationState>,
+): PaginationState => ({
+  ...DEFAULT_PAGINATION_STATE,
+  hasMoreMessages: messageCount > messages.length,
+  oldestMessageId: messages[0]?.id || null,
+  ...overrides,
+});
+
+const generateFallbackSessionTitle = (content: string): string => {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return "新对话";
+  }
+
+  const chars = Array.from(trimmed);
+  return chars.length > 20 ? `${chars.slice(0, 17).join("")}...` : trimmed;
+};
+
+const loadGeneralChatSessionSnapshot = async (
+  sessionId: string,
+): Promise<SessionSnapshot> => {
+  const detail = await getGeneralChatCompatSession(
+    sessionId,
+    DEFAULT_PAGINATION_STATE.pageSize,
+  );
+  const messages = detail.messages.map(convertCompatMessage);
+
+  return {
+    session: convertCompatSession(detail.session, detail.message_count),
+    messages,
+    pagination: buildPaginationState(messages, detail.message_count),
+  };
+};
+
+const buildAsterMessageToSend = (
+  content: string,
+  theme: GeneralChatState["contentTheme"],
+  mode: GeneralChatState["contentCreationMode"],
+): string => {
+  const normalizedContent = content.trim() || "请分析这张图片";
+
+  if (theme === "general") {
+    return normalizedContent;
+  }
+
+  const systemInstruction = getContentCreationInstruction(theme, mode);
+  return `${systemInstruction}\n\n---\n\n用户请求：${normalizedContent}`;
+};
+
+const resolveDefaultWorkspaceId = async (): Promise<string> => {
+  return requireDefaultProjectId("未找到默认工作区，请先创建并设为默认工作区");
+};
+
+const invokeGeneralChatAsterStream = async ({
+  sessionId,
+  message,
+  images,
+  webSearch,
+}: {
+  sessionId: string;
+  message: string;
+  images?: AsterImagePayload[];
+  webSearch?: boolean;
+}) => {
+  const workspaceId = await resolveDefaultWorkspaceId();
+
+  await sendAsterMessageStream(
+    message,
+    sessionId,
+    `general-chat-stream-${sessionId}`,
+    workspaceId,
+    images,
+    undefined,
+    undefined,
+    webSearch,
+  );
+};
+
+const extractImagePayloadFromDataUrl = (
+  value: string,
+): AsterImagePayload | null => {
+  const matched = value.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matched) {
+    return null;
+  }
+
+  const [, mediaType, data] = matched;
+  return {
+    data,
+    media_type: mediaType,
+  };
+};
+
+const extractRetryPayloadFromMessage = (
+  message: Message,
+): { content: string; images?: AsterImagePayload[] } => {
+  const textContent = message.blocks
+    .filter((block) => block.type === "text")
+    .map((block) => block.content)
+    .join("\n")
+    .trim();
+
+  const imagePayload = message.blocks
+    .filter((block) => block.type === "image")
+    .map((block) => extractImagePayloadFromDataUrl(block.content))
+    .filter((block): block is AsterImagePayload => block !== null);
+
+  return {
+    content:
+      textContent || (message.content === "[图片]" ? "" : message.content),
+    images: imagePayload.length > 0 ? imagePayload : undefined,
+  };
+};
+
 // ============================================================================
 // Store 实现
 // ============================================================================
@@ -337,46 +548,90 @@ export const useGeneralChatStore = create<GeneralChatState>()(
     (set, get) => ({
       ...initialState,
 
+      hydrateSessions: async (preferredSessionId?: string | null) => {
+        const backendSessions = await listGeneralChatCompatSessions();
+        const sessions = sortSessions(
+          backendSessions.map((session) => convertCompatSession(session)),
+        );
+        const currentSessionId = get().currentSessionId;
+        const nextSessionId =
+          [preferredSessionId, currentSessionId]
+            .filter((value): value is string => Boolean(value))
+            .find((value) =>
+              sessions.some((session) => session.id === value),
+            ) ||
+          sessions[0]?.id ||
+          null;
+
+        set((state) => ({
+          sessions,
+          currentSessionId: nextSessionId,
+          messages: Object.fromEntries(
+            Object.entries(state.messages).filter(([sessionId]) =>
+              sessions.some((session) => session.id === sessionId),
+            ),
+          ),
+        }));
+
+        if (nextSessionId) {
+          get().selectSession(nextSessionId);
+        }
+
+        return nextSessionId;
+      },
+
       // ========== 会话操作实现 ==========
 
       createSession: async () => {
-        const id = generateId();
-        const timestamp = now();
-        const newSession: Session = {
-          id,
-          name: "新对话",
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          messageCount: 0,
-        };
+        const backendSession = await createGeneralChatCompatSession();
+        const newSession = convertCompatSession(backendSession);
+        const paginationState = buildPaginationState([], 0, {
+          hasMoreMessages: false,
+        });
 
         set((state) => ({
-          sessions: [newSession, ...state.sessions],
-          currentSessionId: id,
+          sessions: upsertSession(state.sessions, newSession),
+          currentSessionId: newSession.id,
           messages: {
             ...state.messages,
-            [id]: [],
+            [newSession.id]: [],
+          },
+          pagination: {
+            ...state.pagination,
+            [newSession.id]: paginationState,
           },
         }));
 
-        // TODO: 调用 Tauri 命令持久化到数据库
-        // await invoke('general_chat_create_session', { name: newSession.name });
-
-        return id;
+        return newSession.id;
       },
 
       selectSession: (id: string) => {
-        const { sessions } = get();
-        const sessionExists = sessions.some((s) => s.id === id);
+        set({ currentSessionId: id });
 
-        if (sessionExists) {
-          set({ currentSessionId: id });
-          // TODO: 如果消息未加载，调用 Tauri 命令加载消息
-        }
+        void (async () => {
+          try {
+            const snapshot = await loadGeneralChatSessionSnapshot(id);
+
+            set((state) => ({
+              sessions: upsertSession(state.sessions, snapshot.session),
+              messages: {
+                ...state.messages,
+                [id]: snapshot.messages,
+              },
+              pagination: {
+                ...state.pagination,
+                [id]: snapshot.pagination,
+              },
+            }));
+          } catch (error) {
+            console.error("加载会话详情失败:", error);
+          }
+        })();
       },
 
       deleteSession: async (id: string) => {
         const { sessions, currentSessionId, messages } = get();
+        await deleteGeneralChatCompatSession(id);
 
         // 从列表中移除会话
         const newSessions = sessions.filter((s) => s.id !== id);
@@ -399,29 +654,37 @@ export const useGeneralChatStore = create<GeneralChatState>()(
           messages: newMessages,
         });
 
-        // TODO: 调用 Tauri 命令从数据库删除
-        // await invoke('general_chat_delete_session', { sessionId: id });
+        if (newCurrentId && !(newCurrentId in newMessages)) {
+          get().selectSession(newCurrentId);
+        }
       },
 
       renameSession: async (id: string, name: string) => {
+        await renameGeneralChatCompatSession(id, name);
+
         set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === id ? { ...s, name, updatedAt: now() } : s,
+          sessions: sortSessions(
+            state.sessions.map((session) =>
+              session.id === id
+                ? { ...session, name, updatedAt: now() }
+                : session,
+            ),
           ),
         }));
-
-        // TODO: 调用 Tauri 命令持久化到数据库
-        // await invoke('general_chat_rename_session', { sessionId: id, name });
       },
 
       setSessions: (sessions: Session[]) => {
-        set({ sessions });
+        set({ sessions: sortSessions(sessions) });
       },
 
       updateSession: (id: string, updates: Partial<Session>) => {
         set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === id ? { ...s, ...updates, updatedAt: now() } : s,
+          sessions: sortSessions(
+            state.sessions.map((session) =>
+              session.id === id
+                ? { ...session, ...updates, updatedAt: now() }
+                : session,
+            ),
           ),
         }));
       },
@@ -433,17 +696,16 @@ export const useGeneralChatStore = create<GeneralChatState>()(
         images?: File[],
         webSearch?: boolean,
       ) => {
-        const { currentSessionId, messages } = get();
+        const { messages } = get();
 
         // 验证：空白消息且无图片不发送
         if (!content.trim() && (!images || images.length === 0)) {
           return;
         }
 
-        // 验证：必须有当前会话
+        let currentSessionId = get().currentSessionId;
         if (!currentSessionId) {
-          console.warn("No current session selected");
-          return;
+          currentSessionId = await get().createSession();
         }
 
         const messageId = generateId();
@@ -515,7 +777,7 @@ export const useGeneralChatStore = create<GeneralChatState>()(
 
         // 更新会话的消息数量和更新时间
         get().updateSession(currentSessionId, {
-          messageCount: currentMessages.length + 1,
+          messageCount: currentMessages.length + 2,
         });
 
         // 创建 AI 响应消息占位符
@@ -591,30 +853,19 @@ export const useGeneralChatStore = create<GeneralChatState>()(
         }
 
         try {
-          // 调用 Tauri 命令发送消息并开始流式响应
-          const { invoke } = await import("@tauri-apps/api/core");
-
           // 获取内容创作状态
           const { contentTheme, contentCreationMode } = get();
+          const messageToSend = buildAsterMessageToSend(
+            content,
+            contentTheme,
+            contentCreationMode,
+          );
 
-          // 根据主题生成系统指令前缀
-          let messageToSend = content.trim() || "请分析这张图片";
-
-          // 如果不是通用主题，注入系统指令
-          if (contentTheme !== "general") {
-            const systemInstruction = getContentCreationInstruction(
-              contentTheme,
-              contentCreationMode,
-            );
-            messageToSend = `${systemInstruction}\n\n---\n\n用户请求：${messageToSend}`;
-          }
-
-          await invoke("aster_agent_chat_stream", {
+          await invokeGeneralChatAsterStream({
             sessionId: currentSessionId,
             message: messageToSend,
-            eventName: `general-chat-stream-${currentSessionId}`,
             images: imageData,
-            web_search: webSearch,
+            webSearch,
           });
 
           // 如果启用了工作流，执行 Action 阶段
@@ -699,8 +950,11 @@ export const useGeneralChatStore = create<GeneralChatState>()(
           set({ streaming: { ...DEFAULT_STREAMING_STATE } });
         }
 
-        // TODO: 调用 Tauri 命令停止生成
-        // await invoke('general_chat_stop_generation', { sessionId: currentSessionId });
+        if (currentSessionId) {
+          void stopAsterSession(currentSessionId).catch((error) => {
+            console.error("停止生成失败:", error);
+          });
+        }
       },
 
       appendStreamingContent: (content: string) => {
@@ -763,6 +1017,9 @@ export const useGeneralChatStore = create<GeneralChatState>()(
           },
           streaming: { ...DEFAULT_STREAMING_STATE },
         }));
+        get().updateSession(currentSessionId, {
+          messageCount: updatedMessages.length,
+        });
 
         // 自动生成会话标题：当这是第一轮对话完成时（2条消息：用户+助手）
         const currentSession = sessions.find((s) => s.id === currentSessionId);
@@ -772,26 +1029,15 @@ export const useGeneralChatStore = create<GeneralChatState>()(
             (m) => m.role === "user",
           );
           if (firstUserMessage) {
+            const nextTitle = generateFallbackSessionTitle(
+              firstUserMessage.content,
+            );
+
             try {
-              const { invoke } = await import("@tauri-apps/api/core");
-              const title = await invoke<string>(
-                "general_chat_generate_title",
-                {
-                  request: {
-                    session_id: currentSessionId,
-                    first_message: firstUserMessage.content,
-                  },
-                },
-              );
-              // 更新本地会话标题
-              get().updateSession(currentSessionId, { name: title });
+              await get().renameSession(currentSessionId, nextTitle);
             } catch (error) {
-              console.warn("自动生成标题失败:", error);
-              // 失败时使用简单截取
-              const fallbackTitle =
-                firstUserMessage.content.slice(0, 20) +
-                (firstUserMessage.content.length > 20 ? "..." : "");
-              get().updateSession(currentSessionId, { name: fallbackTitle });
+              console.warn("自动更新标题失败:", error);
+              get().updateSession(currentSessionId, { name: nextTitle });
             }
           }
         }
@@ -855,13 +1101,29 @@ export const useGeneralChatStore = create<GeneralChatState>()(
       },
 
       startStreaming: (messageId: string) => {
-        set({
+        const { currentSessionId, messages } = get();
+        const updatedMessages = currentSessionId
+          ? (messages[currentSessionId] || []).map((message) =>
+              message.id === messageId
+                ? { ...message, status: "streaming" as const }
+                : message,
+            )
+          : null;
+
+        set((state) => ({
+          messages:
+            currentSessionId && updatedMessages
+              ? {
+                  ...state.messages,
+                  [currentSessionId]: updatedMessages,
+                }
+              : state.messages,
           streaming: {
             isStreaming: true,
             currentMessageId: messageId,
             partialContent: "",
           },
-        });
+        }));
       },
 
       setMessageError: (messageId: string, error: ErrorInfo | string) => {
@@ -916,6 +1178,8 @@ export const useGeneralChatStore = create<GeneralChatState>()(
 
         if (!userMessage) return;
 
+        const retryPayload = extractRetryPayloadFromMessage(userMessage);
+
         // 清除错误状态，将消息状态改为 pending
         const updatedMessages = currentMessages.map((m) =>
           m.id === messageId
@@ -924,6 +1188,7 @@ export const useGeneralChatStore = create<GeneralChatState>()(
                 status: "pending" as const,
                 error: undefined,
                 content: "",
+                blocks: [],
               }
             : m,
         );
@@ -935,12 +1200,24 @@ export const useGeneralChatStore = create<GeneralChatState>()(
           },
         }));
 
-        // TODO: 调用 Tauri 命令重新发送消息
-        // await invoke('general_chat_send_message', {
-        //   sessionId: currentSessionId,
-        //   content: userMessage.content,
-        //   eventName: `chat-stream-${currentSessionId}`,
-        // });
+        get().startStreaming(messageId);
+
+        try {
+          const { contentTheme, contentCreationMode } = get();
+          const messageToSend = buildAsterMessageToSend(
+            retryPayload.content,
+            contentTheme,
+            contentCreationMode,
+          );
+
+          await invokeGeneralChatAsterStream({
+            sessionId: currentSessionId,
+            message: messageToSend,
+            images: retryPayload.images,
+          });
+        } catch (error) {
+          get().setMessageError(messageId, error as string);
+        }
       },
 
       clearMessageError: (messageId: string) => {
@@ -996,54 +1273,14 @@ export const useGeneralChatStore = create<GeneralChatState>()(
             currentMessages.length > 0 ? currentMessages[0] : null;
           const beforeId = oldestMessage?.id || null;
 
-          // 调用 Tauri 命令获取更多消息
-          const { invoke } = await import("@tauri-apps/api/core");
-          const olderMessages = await invoke<
-            Array<{
-              id: string;
-              session_id: string;
-              role: string;
-              content: string;
-              blocks: Array<{
-                type: string;
-                content: string;
-                language?: string;
-                filename?: string;
-                mime_type?: string;
-              }> | null;
-              status: string;
-              created_at: number;
-              metadata: Record<string, unknown> | null;
-            }>
-          >("general_chat_get_messages", {
+          const olderMessages = await getGeneralChatCompatMessages(
             sessionId,
-            limit: currentPagination.pageSize,
+            currentPagination.pageSize,
             beforeId,
-          });
+          );
 
           // 转换后端消息格式为前端格式
-          const convertedMessages: Message[] = olderMessages.map((msg) => ({
-            id: msg.id,
-            sessionId: msg.session_id,
-            role: msg.role as Message["role"],
-            content: msg.content,
-            blocks: msg.blocks?.map((b) => ({
-              type: b.type as Message["blocks"][0]["type"],
-              content: b.content,
-              language: b.language,
-              filename: b.filename,
-              mimeType: b.mime_type,
-            })) || [{ type: "text" as const, content: msg.content }],
-            status: msg.status as Message["status"],
-            createdAt: msg.created_at,
-            metadata: msg.metadata
-              ? {
-                  model: msg.metadata.model as string | undefined,
-                  tokens: msg.metadata.tokens as number | undefined,
-                  duration: msg.metadata.duration as number | undefined,
-                }
-              : undefined,
-          }));
+          const convertedMessages = olderMessages.map(convertCompatMessage);
 
           // 判断是否还有更多消息
           const hasMore =

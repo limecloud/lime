@@ -17,7 +17,7 @@ import {
   createTerminalSession,
   closeTerminal,
   type SessionStatus,
-} from "@/lib/terminal-api";
+} from "@/lib/api/terminal";
 import { TermWrap } from "./termwrap";
 import { TerminalSearch } from "./TerminalSearch";
 import {

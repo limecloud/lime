@@ -4,19 +4,23 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { Message } from "../types";
 import { tryExecuteSlashSkillCommand } from "./skillCommand";
 
-const { mockSafeListen, mockParseStreamEvent, mockListExecutableSkills, mockExecuteSkill } =
-  vi.hoisted(() => ({
-    mockSafeListen: vi.fn(),
-    mockParseStreamEvent: vi.fn((payload: unknown) => payload),
-    mockListExecutableSkills: vi.fn(),
-    mockExecuteSkill: vi.fn(),
-  }));
+const {
+  mockSafeListen,
+  mockParseStreamEvent,
+  mockListExecutableSkills,
+  mockExecuteSkill,
+} = vi.hoisted(() => ({
+  mockSafeListen: vi.fn(),
+  mockParseStreamEvent: vi.fn((payload: unknown) => payload),
+  mockListExecutableSkills: vi.fn(),
+  mockExecuteSkill: vi.fn(),
+}));
 
 vi.mock("@/lib/dev-bridge", () => ({
   safeListen: mockSafeListen,
 }));
 
-vi.mock("@/lib/api/agent", () => ({
+vi.mock("@/lib/api/agentStream", () => ({
   parseStreamEvent: mockParseStreamEvent,
 }));
 
@@ -84,7 +88,11 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
     });
 
     mockExecuteSkill.mockImplementation(async () => {
-      const emitWriteToolStart = (toolId: string, path: string, content: string) => {
+      const emitWriteToolStart = (
+        toolId: string,
+        path: string,
+        content: string,
+      ) => {
         streamHandler?.({
           payload: {
             type: "tool_start",
@@ -106,12 +114,12 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       emitWriteToolStart(
         "tool-cover",
         "social-posts/demo.cover.json",
-        "{\"cover_url\":\"https://example.com/cover.png\",\"status\":\"成功\"}",
+        '{"cover_url":"https://example.com/cover.png","status":"成功"}',
       );
       emitWriteToolStart(
         "tool-pack",
         "social-posts/demo.publish-pack.json",
-        "{\"article_path\":\"social-posts/demo.md\",\"cover_meta_path\":\"social-posts/demo.cover.json\"}",
+        '{"article_path":"social-posts/demo.md","cover_meta_path":"social-posts/demo.cover.json"}',
       );
       streamHandler?.({ payload: { type: "final_done" } });
 
@@ -241,7 +249,9 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
     expect(onWriteFile).toHaveBeenCalledTimes(1);
     const [contentArg, filePathArg] = onWriteFile.mock.calls[0];
     expect(contentArg).toBe("# 标题\n\n正文内容");
-    expect(filePathArg).toMatch(/^social-posts\/\d{8}-\d{6}-[a-z0-9-]+-[a-z0-9]{3,6}\.md$/);
+    expect(filePathArg).toMatch(
+      /^social-posts\/\d{8}-\d{6}-[a-z0-9-]+-[a-z0-9]{3,6}\.md$/,
+    );
   });
 
   it("非社媒技能在无 write_file 时不应触发兜底写入", async () => {

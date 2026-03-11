@@ -40,8 +40,12 @@ pub async fn init_subagent_scheduler(
     db: State<'_, DbConnection>,
     state: State<'_, SubAgentSchedulerState>,
     config: Option<SchedulerConfig>,
+    session_id: Option<String>,
 ) -> Result<(), String> {
-    let scheduler = ProxyCastScheduler::new(db.inner().clone()).with_app_handle(app);
+    let mut scheduler = ProxyCastScheduler::new(db.inner().clone()).with_app_handle(app);
+    if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {
+        scheduler = scheduler.with_event_session_id(session_id);
+    }
 
     scheduler.init(config).await;
 
@@ -60,17 +64,14 @@ pub async fn execute_subagent_tasks(
     tasks: Vec<SubAgentTask>,
     config: Option<SchedulerConfig>,
     role: Option<SubAgentRole>,
+    session_id: Option<String>,
 ) -> Result<SchedulerExecutionResult, String> {
-    // 确保调度器已初始化
-    let scheduler_guard = state.scheduler.read().await;
-
-    if scheduler_guard.is_none() {
-        drop(scheduler_guard);
-        // 自动初始化
-        let scheduler = ProxyCastScheduler::new(db.inner().clone()).with_app_handle(app);
-        scheduler.init(config.clone()).await;
-        *state.scheduler.write().await = Some(scheduler);
+    let mut scheduler = ProxyCastScheduler::new(db.inner().clone()).with_app_handle(app);
+    if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {
+        scheduler = scheduler.with_event_session_id(session_id);
     }
+    scheduler.init(config.clone()).await;
+    *state.scheduler.write().await = Some(scheduler);
 
     let scheduler_guard = state.scheduler.read().await;
     let scheduler = scheduler_guard

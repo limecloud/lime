@@ -11,28 +11,32 @@ import * as Select from "@radix-ui/react-select";
 import { invoke } from "@tauri-apps/api/core";
 import { LogsTab } from "./LogsTab";
 import { ProviderIcon } from "@/icons/providers";
+import { reloadCredentials } from "@/lib/api/providerRuntime";
+import { revealPathInFinder } from "@/lib/api/fileSystem";
 import {
-  startServer,
-  stopServer,
-  getServerStatus,
-  getServerDiagnostics,
-  getConfig,
-  saveConfig,
-  reloadCredentials,
+  getNetworkInfo,
   testApi,
-  exportSupportBundle,
-  revealInFinder,
-  ServerStatus,
-  ServerDiagnostics,
-  SupportBundleExportResult,
-  Config,
-  TestResult,
+  type NetworkInfo,
+  type TestResult,
+} from "@/lib/api/serverTools";
+import {
+  getConfig,
   getDefaultProvider,
+  saveConfig,
   setDefaultProvider,
   updateProviderEnvVars,
-  getNetworkInfo,
-  NetworkInfo,
-} from "@/hooks/useTauri";
+  type Config,
+} from "@/lib/api/appConfig";
+import {
+  exportSupportBundle,
+  getServerDiagnostics,
+  getServerStatus,
+  startServer,
+  stopServer,
+  type ServerDiagnostics,
+  type ServerStatus,
+  type SupportBundleExportResult,
+} from "@/lib/api/serverRuntime";
 import { providerPoolApi, ProviderPoolOverview } from "@/lib/api/providerPool";
 import {
   apiKeyProviderApi,
@@ -275,7 +279,7 @@ export function ApiServerPage({ hideHeader = false }: ApiServerPageProps) {
   const handleRevealSupportBundle = async () => {
     if (!supportBundleResult?.bundle_path) return;
     try {
-      await revealInFinder(supportBundleResult.bundle_path);
+      await revealPathInFinder(supportBundleResult.bundle_path);
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       setMessage({ type: "error", text: `打开支持包目录失败: ${errMsg}` });

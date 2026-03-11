@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { getProject as getApiProject } from "@/lib/api/project";
+import { toProjectView } from "@/lib/projectView";
 import type { Project } from "@/types/project";
 
 export interface ImageProviderOption {
@@ -176,7 +177,6 @@ export async function loadWorkbenchProject(
     return null;
   }
 
-  return invoke<Project | null>("workspace_get", {
-    id: projectId,
-  });
+  const project = await getApiProject(projectId);
+  return project ? toProjectView(project) : null;
 }

@@ -5,6 +5,10 @@ import { SkillCard } from "./SkillCard";
 import { RepoManagerPanel } from "./RepoManagerPanel";
 import { SkillExecutionDialog } from "./SkillExecutionDialog";
 import { SkillContentDialog } from "./SkillContentDialog";
+import {
+  filterSkillsByQueryAndStatus,
+  groupSkillsBySourceKind,
+} from "./skillsUtils";
 import { HelpTip } from "@/components/HelpTip";
 import { skillsApi, type AppType, type Skill } from "@/lib/api/skills";
 
@@ -46,6 +50,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       skills,
       repos,
       loading,
+      remoteLoading,
       error,
       refresh,
       install,
@@ -125,7 +130,10 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       setContentLoading(true);
 
       try {
-        const content = await skillsApi.getLocalSkillContent(skill.directory, app);
+        const content = await skillsApi.getLocalSkillContent(
+          skill.directory,
+          app,
+        );
         if (requestId !== contentRequestIdRef.current) {
           return;
         }
@@ -158,18 +166,23 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       }
     };
 
-    const filteredSkills = skills.filter((skill) => {
-      const matchesSearch =
-        skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        skill.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesFilter =
-        filterStatus === "all" ||
-        (filterStatus === "installed" && skill.installed) ||
-        (filterStatus === "uninstalled" && !skill.installed);
-
-      return matchesSearch && matchesFilter;
-    });
+    const filteredSkills = filterSkillsByQueryAndStatus(
+      skills,
+      searchQuery,
+      filterStatus,
+    );
+    const groupedSkillSections = groupSkillsBySourceKind(filteredSkills);
+    const isFiltering = searchQuery.trim().length > 0 || filterStatus !== "all";
+    const hasVisibleSkills = groupedSkillSections.some(
+      (section) => section.skills.length > 0,
+    );
+    const skillSections = groupedSkillSections.filter(
+      (section) =>
+        section.skills.length > 0 ||
+        loading ||
+        remoteLoading ||
+        (!isFiltering && section.key === "remote"),
+    );
 
     const installedCount = skills.filter((s) => s.installed).length;
     const uninstalledCount = skills.length - installedCount;
@@ -179,9 +192,9 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
         {!hideHeader && (
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Skills</h2>
+              <h2 className="text-2xl font-bold">技能</h2>
               <p className="text-muted-foreground">
-                浏览和安装 Claude Code Skills
+                管理技能可用性和 API 能力注入。
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -230,9 +243,9 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
 
         <HelpTip title="什么是 Skills？" variant="green">
           <ul className="list-disc list-inside space-y-1 text-sm text-green-700 dark:text-green-400">
-            <li>Skills 是 ProxyCast 的扩展功能包，提供特定领域的专业能力</li>
-            <li>安装后 AI 助手可以自动发现并调用这些 Skills</li>
-            <li>可通过"仓库管理"添加自定义 Skills 仓库</li>
+            <li>Built-in Skills 为应用内置技能，默认可用且不可卸载</li>
+            <li>Local Skills 直接从本地目录加载，不依赖远程仓库</li>
+            <li>Remote Skills 使用缓存展示，点击"刷新"才同步远程仓库</li>
           </ul>
         </HelpTip>
 
@@ -248,7 +261,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="搜索 skills..."
+              placeholder="搜索技能..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border bg-background pl-10 pr-4 py-2 text-sm"
@@ -291,27 +304,68 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
         </div>
 
         {/* Skills 列表 */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : filteredSkills.length === 0 ? (
+        {!hasVisibleSkills && !loading && isFiltering ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <p>没有找到 skills</p>
+            <p>没有找到匹配的技能</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredSkills.map((skill) => (
-              <SkillCard
-                key={skill.key}
-                skill={skill}
-                onInstall={handleInstall}
-                onUninstall={handleUninstall}
-                onExecute={handleExecute}
-                onViewContent={handleViewContent}
-                installing={installingSkills.has(skill.directory)}
-              />
-            ))}
+          <div className="space-y-4">
+            {skillSections.map((section) => {
+              const isSectionLoading =
+                section.key === "remote" ? remoteLoading || loading : loading;
+              return (
+                <details
+                  key={section.key}
+                  open={section.key !== "builtin"}
+                  className="group rounded-lg border"
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold tracking-[0.24em] text-muted-foreground">
+                        {section.title}
+                      </span>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        {section.skills.length}
+                      </span>
+                      {isSectionLoading && (
+                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground transition-transform group-open:rotate-90">
+                      ▶
+                    </span>
+                  </summary>
+                  <div className="px-4 pb-4">
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      {section.description}
+                    </p>
+                    {section.skills.length === 0 ? (
+                      <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+                        {isSectionLoading
+                          ? "正在加载..."
+                          : section.key === "remote"
+                            ? '暂无远程缓存，点击"刷新"同步已启用仓库。'
+                            : "暂无技能。"}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {section.skills.map((skill) => (
+                          <SkillCard
+                            key={skill.key}
+                            skill={skill}
+                            onInstall={handleInstall}
+                            onUninstall={handleUninstall}
+                            onExecute={handleExecute}
+                            onViewContent={handleViewContent}
+                            installing={installingSkills.has(skill.directory)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              );
+            })}
           </div>
         )}
 

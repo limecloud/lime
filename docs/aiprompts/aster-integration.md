@@ -5,12 +5,14 @@
 ProxyCast 已完整集成 aster-rust 框架，包括凭证池桥接。
 
 **后端模块** (`src-tauri/src/agent/`):
+
 - `aster_state.rs` - Agent 状态管理
 - `aster_agent.rs` - Agent 包装器
 - `event_converter.rs` - 事件转换器
 - `credential_bridge.rs` - 凭证池桥接
 
 **Tauri 命令** (`src-tauri/src/commands/aster_agent_cmd.rs`):
+
 - `aster_agent_init` - 初始化 Agent
 - `aster_agent_configure_provider` - 手动配置 Provider
 - `aster_agent_configure_from_pool` - 从凭证池配置 Provider（推荐）
@@ -67,37 +69,43 @@ ProxyCast 已完整集成 aster-rust 框架，包括凭证池桥接。
 
 ### 支持的凭证类型映射
 
-| ProxyCast 凭证类型 | Aster Provider |
-|-------------------|----------------|
-| OpenAIKey | openai |
-| ClaudeKey / AnthropicKey | anthropic |
-| KiroOAuth | bedrock |
-| GeminiOAuth / GeminiApiKey | google |
-| VertexKey | gcpvertexai |
-| CodexOAuth | codex |
-| ClaudeOAuth | anthropic |
-| AntigravityOAuth | google |
+| ProxyCast 凭证类型         | Aster Provider |
+| -------------------------- | -------------- |
+| OpenAIKey                  | openai         |
+| ClaudeKey / AnthropicKey   | anthropic      |
+| KiroOAuth                  | bedrock        |
+| GeminiOAuth / GeminiApiKey | google         |
+| VertexKey                  | gcpvertexai    |
+| CodexOAuth                 | codex          |
+| ClaudeOAuth                | anthropic      |
+| AntigravityOAuth           | google         |
 
 ### 使用方式
 
+> 治理约定：前端业务层不要直接 `invoke('aster_*')`，统一通过 `src/lib/api/agentRuntime.ts` 调用现役 Aster API。
+
 ```typescript
-// 从凭证池配置（推荐）
-const status = await invoke('aster_agent_configure_from_pool', {
-    request: {
-        provider_type: 'openai',
-        model_name: 'gpt-4',
-    },
-    session_id: 'my-session',
-});
+import {
+  configureAsterProvider,
+  sendAsterMessageStream,
+} from "@/lib/api/agentRuntime";
+
+// 配置 Provider
+const status = await configureAsterProvider(
+  {
+    provider_name: "openai",
+    model_name: "gpt-4",
+  },
+  "my-session",
+);
 
 // 流式对话
-await invoke('aster_agent_chat_stream', {
-    request: {
-        message: 'Hello',
-        session_id: 'my-session',
-        event_name: 'agent_stream',
-    },
-});
+await sendAsterMessageStream(
+  "Hello",
+  "my-session",
+  "agent_stream",
+  "workspace-id",
+);
 ```
 
 ## 相关文档

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Copy, Check, RefreshCw } from "lucide-react";
-import { getConfig, saveConfig, Config } from "@/hooks/useTauri";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 
 const DEFAULT_RESPONSE_CACHE_SETTINGS = {
   enabled: true,

@@ -60,6 +60,8 @@ export interface ChatActions {
 
 /**
  * 主题类型
+ *
+ * @deprecated 仅供遗留 `components/chat` UI 资产使用，请改用现役内容创作或统一对话主题类型。
  */
 export type ThemeType =
   | "general" // 通用对话（默认）
@@ -76,6 +78,8 @@ export type ThemeType =
 
 /**
  * 主题配置
+ *
+ * @deprecated 仅供遗留 `components/chat` UI 资产使用。
  */
 export interface ThemeConfig {
   id: ThemeType;
@@ -86,6 +90,8 @@ export interface ThemeConfig {
 
 /**
  * 主题配置列表
+ *
+ * @deprecated 仅供遗留 `components/chat` UI 资产使用。
  */
 export const THEME_CONFIGS: ThemeConfig[] = [
   {

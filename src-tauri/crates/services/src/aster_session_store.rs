@@ -268,7 +268,10 @@ impl SessionStore for ProxyCastSessionStore {
             conversation,
             message_count,
             provider_name: None,
-            model_config: None,
+            model_config: match model.trim() {
+                "" | "agent:default" => None,
+                normalized => ModelConfig::new(normalized).ok(),
+            },
         })
     }
 
@@ -593,13 +596,18 @@ impl SessionStore for ProxyCastSessionStore {
         &self,
         session_id: &str,
         provider_name: Option<String>,
-        _model_config: Option<ModelConfig>,
+        model_config: Option<ModelConfig>,
     ) -> Result<()> {
-        if let Some(provider) = provider_name {
+        if let Some(model_name) = model_config
+            .as_ref()
+            .map(|config| config.model_name.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .or(provider_name.filter(|value| !value.trim().is_empty()))
+        {
             let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
             conn.execute(
                 "UPDATE agent_sessions SET model = ? WHERE id = ?",
-                rusqlite::params![provider, session_id],
+                rusqlite::params![model_name, session_id],
             )?;
         }
         Ok(())
@@ -768,5 +776,53 @@ impl ProxyCastSessionStore {
             |row| row.get(0),
         )?;
         Ok(count as usize)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aster::session::{SessionStore, SessionType};
+    use proxycast_core::database::schema::create_tables;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    fn setup_test_store() -> ProxyCastSessionStore {
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        create_tables(&conn).expect("初始化表结构失败");
+        ProxyCastSessionStore::new(Arc::new(Mutex::new(conn)))
+    }
+
+    #[tokio::test]
+    async fn update_provider_config_should_persist_model_name_first() {
+        let store = setup_test_store();
+        let session = store
+            .create_session(
+                PathBuf::from("."),
+                "测试会话".to_string(),
+                SessionType::User,
+            )
+            .await
+            .expect("创建会话失败");
+
+        store
+            .update_provider_config(
+                &session.id,
+                Some("openai".to_string()),
+                Some(ModelConfig::new("gpt-4.1").expect("model config")),
+            )
+            .await
+            .expect("更新 provider 配置失败");
+
+        let conn = store.db.lock().expect("锁数据库");
+        let persisted_model: String = conn
+            .query_row(
+                "SELECT model FROM agent_sessions WHERE id = ?",
+                [session.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("查询 model 失败");
+
+        assert_eq!(persisted_model, "gpt-4.1");
     }
 }

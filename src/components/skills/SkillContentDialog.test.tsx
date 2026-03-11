@@ -1,6 +1,15 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/components/preview/MarkdownPreview", () => ({
+  MarkdownPreview: ({
+    content,
+  }: {
+    content: string;
+  }) => <div data-testid="markdown-preview">{content}</div>,
+}));
+
 import { SkillContentDialog } from "./SkillContentDialog";
 
 interface RenderResult {

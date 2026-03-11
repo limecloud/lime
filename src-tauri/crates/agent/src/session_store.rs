@@ -11,6 +11,11 @@ use proxycast_core::workspace::WorkspaceManager;
 use uuid::Uuid;
 
 use crate::event_converter::{TauriMessage, TauriMessageContent};
+use crate::tool_io_offload::{
+    build_history_tool_io_eviction_plan_for_model, force_offload_plain_tool_output_for_history,
+    force_offload_tool_arguments_for_history, maybe_offload_plain_tool_output,
+    maybe_offload_tool_arguments,
+};
 
 /// 会话信息（简化版）
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -141,10 +146,7 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
     let messages =
         AgentDao::get_messages(&conn, session_id).map_err(|e| format!("获取消息失败: {e}"))?;
 
-    let tauri_messages: Vec<TauriMessage> = messages
-        .into_iter()
-        .map(|message| convert_agent_message(&message))
-        .collect();
+    let tauri_messages = convert_agent_messages(&messages, Some(session.model.as_str()));
 
     tracing::debug!(
         "[SessionStore] 会话消息转换完成: session_id={}, messages_count={}",
@@ -248,7 +250,21 @@ fn convert_image_part(image_url: &str) -> Option<TauriMessageContent> {
 }
 
 /// 将 AgentMessage 转换为 TauriMessage
-fn convert_agent_message(message: &AgentMessage) -> TauriMessage {
+fn convert_agent_messages(
+    messages: &[AgentMessage],
+    model_name: Option<&str>,
+) -> Vec<TauriMessage> {
+    let eviction_plan = build_history_tool_io_eviction_plan_for_model(messages, model_name);
+    messages
+        .iter()
+        .map(|message| convert_agent_message(message, &eviction_plan))
+        .collect()
+}
+
+fn convert_agent_message(
+    message: &AgentMessage,
+    eviction_plan: &crate::tool_io_offload::HistoryToolIoEvictionPlan,
+) -> TauriMessage {
     let mut content = match &message.content {
         MessageContent::Text(text) => {
             if text.trim().is_empty() {
@@ -284,16 +300,27 @@ fn convert_agent_message(message: &AgentMessage) -> TauriMessage {
 
     if let Some(tool_calls) = &message.tool_calls {
         for call in tool_calls {
+            let parsed_arguments = parse_tool_call_arguments(&call.function.arguments);
+            let arguments = if eviction_plan.request_ids.contains(&call.id) {
+                force_offload_tool_arguments_for_history(&call.id, &parsed_arguments)
+            } else {
+                maybe_offload_tool_arguments(&call.id, &parsed_arguments)
+            };
             content.push(TauriMessageContent::ToolRequest {
                 id: call.id.clone(),
                 tool_name: call.function.name.clone(),
-                arguments: parse_tool_call_arguments(&call.function.arguments),
+                arguments,
             });
         }
     }
 
     if let Some(tool_call_id) = &message.tool_call_id {
         let tool_output = message.content.as_text();
+        let offloaded = if eviction_plan.response_ids.contains(tool_call_id) {
+            force_offload_plain_tool_output_for_history(tool_call_id, &tool_output, None)
+        } else {
+            maybe_offload_plain_tool_output(tool_call_id, &tool_output, None)
+        };
 
         // tool/user 的工具结果协议消息都不应作为普通文本重复渲染。
         if message.role.eq_ignore_ascii_case("tool") || message.role.eq_ignore_ascii_case("user") {
@@ -303,9 +330,14 @@ fn convert_agent_message(message: &AgentMessage) -> TauriMessage {
         content.push(TauriMessageContent::ToolResponse {
             id: tool_call_id.clone(),
             success: true,
-            output: tool_output,
+            output: offloaded.output,
             error: None,
             images: None,
+            metadata: if offloaded.metadata.is_empty() {
+                None
+            } else {
+                Some(offloaded.metadata)
+            },
         });
     }
 
@@ -334,6 +366,40 @@ fn convert_agent_message(message: &AgentMessage) -> TauriMessage {
 mod tests {
     use super::*;
     use proxycast_core::agent::types::{FunctionCall, ImageUrl, ToolCall};
+    use std::ffi::OsString;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvGuard {
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvGuard {
+        fn set(entries: &[(&'static str, OsString)]) -> Self {
+            let mut values = Vec::new();
+            for (key, value) in entries {
+                values.push((*key, std::env::var_os(key)));
+                std::env::set_var(key, value);
+            }
+            Self { values }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (key, previous) in self.values.drain(..) {
+                if let Some(value) = previous {
+                    std::env::set_var(key, value);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
 
     #[test]
     fn parse_tool_call_arguments_should_parse_json_or_keep_raw() {
@@ -362,7 +428,10 @@ mod tests {
             reasoning_content: None,
         };
 
-        let assistant_converted = convert_agent_message(&assistant);
+        let assistant_converted = convert_agent_message(
+            &assistant,
+            &crate::tool_io_offload::HistoryToolIoEvictionPlan::default(),
+        );
         assert!(assistant_converted.content.iter().any(|part| {
             matches!(
                 part,
@@ -380,7 +449,10 @@ mod tests {
             reasoning_content: None,
         };
 
-        let tool_converted = convert_agent_message(&tool);
+        let tool_converted = convert_agent_message(
+            &tool,
+            &crate::tool_io_offload::HistoryToolIoEvictionPlan::default(),
+        );
         assert!(!tool_converted
             .content
             .iter()
@@ -415,7 +487,10 @@ mod tests {
             reasoning_content: None,
         };
 
-        let converted = convert_agent_message(&user_with_image);
+        let converted = convert_agent_message(
+            &user_with_image,
+            &crate::tool_io_offload::HistoryToolIoEvictionPlan::default(),
+        );
         assert!(converted.content.iter().any(|part| {
             matches!(
                 part,
@@ -440,7 +515,10 @@ mod tests {
             reasoning_content: None,
         };
 
-        let converted = convert_agent_message(&user_tool_response);
+        let converted = convert_agent_message(
+            &user_tool_response,
+            &crate::tool_io_offload::HistoryToolIoEvictionPlan::default(),
+        );
         assert!(!converted
             .content
             .iter()
@@ -452,5 +530,82 @@ mod tests {
                     if id == "call-2" && output == "任务已完成"
             )
         }));
+    }
+
+    #[test]
+    fn convert_agent_messages_should_force_offload_old_large_tool_calls_under_context_pressure() {
+        let _lock = env_lock().lock().expect("lock env");
+        let _env = EnvGuard::set(&[
+            (
+                crate::tool_io_offload::PROXYCAST_TOOL_TOKEN_LIMIT_BEFORE_EVICT_ENV,
+                OsString::from("50"),
+            ),
+            (
+                crate::tool_io_offload::PROXYCAST_CONTEXT_MAX_INPUT_TOKENS_ENV,
+                OsString::from("600"),
+            ),
+            (
+                crate::tool_io_offload::PROXYCAST_CONTEXT_WINDOW_TRIGGER_RATIO_ENV,
+                OsString::from("0.5"),
+            ),
+            (
+                crate::tool_io_offload::PROXYCAST_CONTEXT_KEEP_RECENT_MESSAGES_ENV,
+                OsString::from("1"),
+            ),
+        ]);
+
+        let messages = vec![
+            AgentMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text(String::new()),
+                timestamp: "2026-03-11T00:00:00Z".to_string(),
+                tool_calls: Some(vec![ToolCall {
+                    id: "call-history-1".to_string(),
+                    call_type: "function".to_string(),
+                    function: FunctionCall {
+                        name: "Write".to_string(),
+                        arguments: serde_json::json!({
+                            "path": "docs/huge.md",
+                            "content": "token ".repeat(220),
+                        })
+                        .to_string(),
+                    },
+                }]),
+                tool_call_id: None,
+                reasoning_content: None,
+            },
+            AgentMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("token ".repeat(320)),
+                timestamp: "2026-03-11T00:00:01Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+            },
+            AgentMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text("最近一条消息".to_string()),
+                timestamp: "2026-03-11T00:00:02Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+            },
+        ];
+
+        let converted = convert_agent_messages(&messages, Some("gpt-4"));
+        let first = converted.first().expect("first message");
+        let request = first
+            .content
+            .iter()
+            .find_map(|part| match part {
+                TauriMessageContent::ToolRequest { arguments, .. } => Some(arguments),
+                _ => None,
+            })
+            .expect("tool request");
+
+        let record = request
+            .as_object()
+            .expect("offloaded request should be object");
+        assert!(record.contains_key(crate::tool_io_offload::PROXYCAST_TOOL_ARGUMENTS_OFFLOAD_KEY));
     }
 }

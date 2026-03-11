@@ -48,6 +48,7 @@ import { ProviderPoolPage } from "@/components/provider-pool";
 import { ApiServerPage } from "@/components/api-server/ApiServerPage";
 import { McpPanel } from "@/components/mcp";
 import { ChannelsSettings } from "../system/channels";
+import { EnvironmentSettings } from "../system/environment";
 import { WebSearchSettings } from "../system/web-search";
 import { ChromeRelaySettings } from "../system/chrome-relay";
 
@@ -244,6 +245,14 @@ function renderSettingsContent(tab: SettingsTabs): ReactNode {
         </>
       );
 
+    case SettingsTabs.Environment:
+      return (
+        <>
+          <SettingHeader title="环境变量" />
+          <EnvironmentSettings />
+        </>
+      );
+
     case SettingsTabs.ChromeRelay:
       return (
         <>
@@ -321,6 +330,7 @@ const WIDE_CONTENT_TABS = new Set<SettingsTabs>([
   SettingsTabs.ApiServer,
   SettingsTabs.McpServer,
   SettingsTabs.Channels,
+  SettingsTabs.Environment,
   SettingsTabs.ExecutionTracker,
 ]);
 

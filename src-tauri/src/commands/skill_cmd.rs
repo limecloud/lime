@@ -150,6 +150,28 @@ fn get_skill_key(app_type: &AppType, directory: &str) -> String {
     format!("{}:{}", app_type.to_string().to_lowercase(), directory)
 }
 
+/// 解析指定应用的技能列表（供 dispatcher 等非 Tauri command 场景调用）
+pub async fn resolve_skills_for_app(
+    db: &DbConnection,
+    skill_service: &Arc<SkillService>,
+    app_type: &AppType,
+    _refresh_remote: bool,
+) -> Result<Vec<Skill>, String> {
+    let (repos, installed_states) = {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        let repos = SkillDao::get_skill_repos(&conn).map_err(|e| e.to_string())?;
+        let installed_states = SkillDao::get_skills(&conn).map_err(|e| e.to_string())?;
+        (repos, installed_states)
+    };
+
+    let skills = skill_service
+        .list_skills(app_type, &repos, &installed_states)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(skills)
+}
+
 #[tauri::command]
 pub async fn get_skills(
     db: State<'_, DbConnection>,
@@ -201,6 +223,25 @@ pub async fn get_skills_for_app(
     }
 
     Ok(skills)
+}
+
+#[tauri::command]
+pub fn get_local_skills_for_app(
+    db: State<'_, DbConnection>,
+    skill_service: State<'_, SkillServiceState>,
+    app: String,
+) -> Result<Vec<Skill>, String> {
+    let app_type: AppType = app.parse().map_err(|e: String| e)?;
+
+    let installed_states = {
+        let conn = db.lock().map_err(|e| e.to_string())?;
+        SkillDao::get_skills(&conn).map_err(|e| e.to_string())?
+    };
+
+    skill_service
+        .0
+        .list_local_skills(&app_type, &installed_states)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -334,6 +375,12 @@ pub fn remove_skill_repo(
 ) -> Result<bool, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     SkillDao::delete_skill_repo(&conn, &owner, &name).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn refresh_skill_cache(skill_service: State<'_, SkillServiceState>) -> Result<bool, String> {
+    skill_service.0.refresh_cache();
     Ok(true)
 }
 

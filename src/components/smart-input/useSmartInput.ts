@@ -8,8 +8,16 @@ import { useState, useCallback, useRef } from "react";
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "sonner";
+import { requireDefaultProjectId } from "@/lib/api/project";
+import {
+  createAgentSession,
+  sendAsterMessageStream,
+} from "@/lib/api/agentRuntime";
 import type { ChatMessage, MessageImage, UseSmartInputReturn } from "./types";
-import { parseStreamEvent, type StreamEvent } from "@/lib/api/agent";
+import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
+
+const DEFAULT_SMART_INPUT_PROVIDER = "claude";
+const DEFAULT_SMART_INPUT_MODEL = "claude-sonnet-4-5";
 
 /**
  * 读取图片文件并转换为 Base64
@@ -54,6 +62,7 @@ export function useSmartInput(): UseSmartInputReturn {
 
   // 会话 ID
   const sessionIdRef = useRef<string | null>(null);
+  const workspaceIdRef = useRef<string | null>(null);
 
   /**
    * 设置截图路径并加载图片
@@ -81,12 +90,17 @@ export function useSmartInput(): UseSmartInputReturn {
     }
 
     try {
-      const response = await safeInvoke<{ session_id: string }>(
-        "agent_create_session",
-        {
-          providerType: "claude",
-          model: "claude-sonnet-4-5",
-        },
+      let workspaceId = workspaceIdRef.current;
+      if (!workspaceId) {
+        workspaceId =
+          await requireDefaultProjectId("未找到默认工作区，请先创建或选择项目");
+        workspaceIdRef.current = workspaceId;
+      }
+
+      const response = await createAgentSession(
+        DEFAULT_SMART_INPUT_PROVIDER,
+        workspaceId,
+        DEFAULT_SMART_INPUT_MODEL,
       );
       sessionIdRef.current = response.session_id;
       return response.session_id;
@@ -221,25 +235,29 @@ export function useSmartInput(): UseSmartInputReturn {
             ? [{ data: imageBase64, mediaType: "image/png" }]
             : [];
 
+        const workspaceId = workspaceIdRef.current;
+        if (!workspaceId) {
+          throw new Error("缺少默认工作区，无法发送截图对话请求");
+        }
+
         // 发送流式请求（使用 Aster Agent）
-        await safeInvoke("aster_agent_chat_stream", {
-          request: {
-            message,
-            session_id: sessionId,
-            event_name: eventName,
-            images:
-              images.length > 0
-                ? images.map((img) => ({
-                    data: img.data,
-                    media_type: img.mediaType,
-                  }))
-                : undefined,
-            provider_config: {
-              provider_name: "anthropic",
-              model_name: "claude-sonnet-4-5",
-            },
+        await sendAsterMessageStream(
+          message,
+          sessionId,
+          eventName,
+          workspaceId,
+          images.length > 0
+            ? images.map((img) => ({
+                data: img.data,
+                media_type: img.mediaType,
+              }))
+            : undefined,
+          {
+            provider_id: DEFAULT_SMART_INPUT_PROVIDER,
+            provider_name: DEFAULT_SMART_INPUT_PROVIDER,
+            model_name: DEFAULT_SMART_INPUT_MODEL,
           },
-        });
+        );
       } catch (err) {
         console.error("发送消息失败:", err);
         const errorMsg = err instanceof Error ? err.message : "发送失败";

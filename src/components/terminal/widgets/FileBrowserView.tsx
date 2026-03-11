@@ -10,7 +10,6 @@
 
 import React, { memo, useEffect, useState, useCallback } from "react";
 import styled from "styled-components";
-import { safeInvoke } from "@/lib/dev-bridge";
 import {
   Folder,
   File,
@@ -30,6 +29,15 @@ import {
 } from "lucide-react";
 import { FileEntry } from "./types";
 import {
+  createDirectoryAtPath,
+  createFileAtPath,
+  listDirectory,
+  readFilePreview,
+  renamePath,
+  type DirectoryListing,
+  type FilePreview,
+} from "@/lib/api/fileBrowser";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -45,21 +53,6 @@ import { EntryManagerOverlay, EntryManagerType } from "./EntryManagerOverlay";
 export interface FileBrowserViewProps {
   /** 在新终端中打开目录的回调 */
   onOpenTerminal?: (path: string) => void;
-}
-
-interface DirectoryListing {
-  path: string;
-  parentPath: string | null;
-  entries: FileEntry[];
-  error: string | null;
-}
-
-interface FilePreview {
-  path: string;
-  content: string | null;
-  isBinary: boolean;
-  size: number;
-  error: string | null;
 }
 
 const Container = styled.div`
@@ -440,7 +433,7 @@ export const FileBrowserView = memo(function FileBrowserView({
     setPreview(null);
 
     try {
-      const result = await safeInvoke<DirectoryListing>("list_dir", { path });
+      const result = await listDirectory(path);
       setListing(result);
       setCurrentPath(result.path);
       if (result.error) {
@@ -463,10 +456,7 @@ export const FileBrowserView = memo(function FileBrowserView({
     if (file.isDir) return;
 
     try {
-      const result = await safeInvoke<FilePreview>("read_file_preview_cmd", {
-        path: file.path,
-        maxSize: 50000, // 50KB
-      });
+      const result = await readFilePreview(file.path, 50000);
       setPreview(result);
     } catch (e) {
       setPreview({
@@ -553,10 +543,10 @@ export const FileBrowserView = memo(function FileBrowserView({
       try {
         if (entryManager.type === EntryManagerType.NewFile) {
           const newPath = `${currentPath}/${value}`;
-          await safeInvoke("create_file", { path: newPath });
+          await createFileAtPath(newPath);
         } else if (entryManager.type === EntryManagerType.NewFolder) {
           const newPath = `${currentPath}/${value}`;
-          await safeInvoke("create_directory", { path: newPath });
+          await createDirectoryAtPath(newPath);
         } else if (
           entryManager.type === EntryManagerType.Rename &&
           entryManager.targetFile
@@ -564,7 +554,7 @@ export const FileBrowserView = memo(function FileBrowserView({
           const oldPath = entryManager.targetFile.path;
           const parentPath = oldPath.substring(0, oldPath.lastIndexOf("/"));
           const newPath = `${parentPath}/${value}`;
-          await safeInvoke("rename_file", { oldPath, newPath });
+          await renamePath(oldPath, newPath);
         }
         refresh();
       } catch (e) {

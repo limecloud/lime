@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@/lib/api/agent";
+import type { StreamEvent } from "@/lib/api/agentStream";
 import { updateCrashContext } from "@/lib/crashReporting";
 
 const EVENT_PUBLISH_INTERVAL = 20;

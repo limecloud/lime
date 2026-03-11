@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Cpu, RefreshCw, Copy, Check, Search } from "lucide-react";
-import { getAvailableModels, ModelInfo } from "@/hooks/useTauri";
+import { getAvailableModels, type ModelInfo } from "@/lib/api/modelCatalog";
 
 // 根据 provider_id 获取分组配置
 const PROVIDER_GROUPS: Record<string, { name: string; color: string }> = {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Globe, Image as ImageIcon, RefreshCw } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
-import { getConfig, saveConfig, type Config } from "@/hooks/useTauri";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 
 type SearchEngine = "google" | "xiaohongshu";
 type WebSearchProvider =

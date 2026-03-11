@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import {
   createContent,
   deleteContent,
@@ -7,27 +6,14 @@ import {
   updateContent,
   type ContentListItem,
 } from "@/lib/api/project";
-import type { MaterialType } from "@/types/material";
+import {
+  deleteMaterial,
+  listMaterials,
+  updateMaterial,
+  uploadMaterial,
+} from "@/lib/api/materials";
+import type { Material, MaterialType } from "@/types/material";
 import type { ResourceItem, ResourceMetadata } from "./types";
-
-type RawMaterial = {
-  id: string;
-  name?: string;
-  type?: string;
-  material_type?: string;
-  projectId?: string;
-  project_id?: string;
-  filePath?: string;
-  file_path?: string;
-  fileSize?: number;
-  file_size?: number;
-  mimeType?: string;
-  mime_type?: string;
-  description?: string;
-  tags?: string[];
-  createdAt?: number;
-  created_at?: number;
-};
 
 const IMAGE_EXTENSIONS = new Set([
   "jpg",
@@ -133,7 +119,10 @@ const normalizeMaterialType = (
   fileName: string,
 ): MaterialType => {
   const normalizedRaw = rawMaterialType?.toLowerCase().trim();
-  if (normalizedRaw && KNOWN_MATERIAL_TYPES.has(normalizedRaw as MaterialType)) {
+  if (
+    normalizedRaw &&
+    KNOWN_MATERIAL_TYPES.has(normalizedRaw as MaterialType)
+  ) {
     return normalizedRaw as MaterialType;
   }
 
@@ -175,19 +164,19 @@ const mapContentToResource = (item: ContentListItem): ResourceItem | null => {
 };
 
 const mapMaterialToResource = (
-  item: RawMaterial,
+  item: Material,
   fallbackProjectId: string,
 ): ResourceItem => {
   const name = item.name ?? "未命名文件";
-  const filePath = item.filePath ?? item.file_path;
-  const mimeType = item.mimeType ?? item.mime_type;
+  const filePath = item.filePath;
+  const mimeType = item.mimeType;
   const materialType = normalizeMaterialType(
-    (item.type ?? item.material_type)?.toString(),
+    item.type?.toString(),
     mimeType,
     filePath,
     name,
   );
-  const projectId = (item.projectId ?? item.project_id ?? fallbackProjectId).toString();
+  const projectId = (item.projectId || fallbackProjectId).toString();
 
   return {
     id: item.id,
@@ -196,9 +185,9 @@ const mapMaterialToResource = (
     kind: "file",
     sourceType: "material",
     parentId: null,
-    createdAt: toTimestampMs(item.createdAt ?? item.created_at),
-    updatedAt: toTimestampMs(item.createdAt ?? item.created_at),
-    size: item.fileSize ?? item.file_size,
+    createdAt: toTimestampMs(item.createdAt),
+    updatedAt: toTimestampMs(item.createdAt),
+    size: item.fileSize,
     fileType: materialType,
     mimeType,
     filePath,
@@ -244,11 +233,7 @@ export const fetchProjectResources = async (
       sort_by: "updated_at",
       sort_order: "desc",
     }),
-    invoke<RawMaterial[]>("list_materials", {
-      projectId,
-      project_id: projectId,
-      filter: null,
-    }),
+    listMaterials(projectId),
   ]);
 
   const contentResources = contents
@@ -299,19 +284,18 @@ export const renameResource = async (
   name: string,
 ): Promise<void> => {
   if (item.sourceType === "material") {
-    await invoke("update_material", {
-      id: item.id,
-      update: { name },
-    });
+    await updateMaterial(item.id, { name });
     return;
   }
 
   await updateContent(item.id, { title: name });
 };
 
-export const deleteSingleResource = async (item: ResourceItem): Promise<void> => {
+export const deleteSingleResource = async (
+  item: ResourceItem,
+): Promise<void> => {
   if (item.sourceType === "material") {
-    await invoke("delete_material", { id: item.id });
+    await deleteMaterial(item.id);
     return;
   }
 
@@ -341,14 +325,12 @@ export const uploadFileResource = async (
   projectId: string,
   filePath: string,
 ): Promise<void> => {
-  await invoke("upload_material", {
-    req: {
-      projectId,
-      name: extractFileName(filePath),
-      type: inferMaterialType(filePath),
-      filePath,
-      tags: [],
-    },
+  await uploadMaterial({
+    projectId,
+    name: extractFileName(filePath),
+    type: inferMaterialType(filePath),
+    filePath,
+    tags: [],
   });
 };
 

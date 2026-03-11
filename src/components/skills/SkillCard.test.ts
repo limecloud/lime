@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { test } from "@fast-check/vitest";
 import * as fc from "fast-check";
 import {
+  canManageSkillInstallation,
   canViewLocalSkillContent,
   getSkillSource,
   type SkillSource,
@@ -27,6 +28,7 @@ function createSkill(overrides: Partial<Skill> = {}): Skill {
     description: "A test skill",
     directory: "test-skill",
     installed: false,
+    sourceKind: "other",
     ...overrides,
   };
 }
@@ -36,6 +38,7 @@ describe("getSkillSource", () => {
    * Property 4: Source Classification Logic
    *
    * *For any* Skill object, the source classification SHALL return:
+   * - "builtin" if sourceKind="builtin"
    * - "official" if repoOwner="proxycast" AND repoName="skills"
    * - "community" if repoOwner and repoName are present but not proxycast/skills
    * - "local" if repoOwner or repoName is missing
@@ -129,16 +132,27 @@ describe("getSkillSource", () => {
           repoName: repoName ?? undefined,
         });
         const source = getSkillSource(skill);
-        expect(["official", "community", "local"]).toContain(source);
+        expect(["builtin", "official", "community", "local"]).toContain(source);
       },
     );
   });
 });
 
 describe("canViewLocalSkillContent", () => {
+  it("内置且已安装 skill 应可查看内容", () => {
+    const skill = createSkill({
+      installed: true,
+      sourceKind: "builtin",
+      repoOwner: undefined,
+      repoName: undefined,
+    });
+    expect(canViewLocalSkillContent(skill)).toBe(true);
+  });
+
   it("本地且已安装 skill 应可查看内容", () => {
     const skill = createSkill({
       installed: true,
+      sourceKind: "other",
       repoOwner: undefined,
       repoName: undefined,
     });
@@ -148,6 +162,7 @@ describe("canViewLocalSkillContent", () => {
   it("本地但未安装 skill 不可查看内容", () => {
     const skill = createSkill({
       installed: false,
+      sourceKind: "other",
       repoOwner: undefined,
       repoName: undefined,
     });
@@ -157,9 +172,30 @@ describe("canViewLocalSkillContent", () => {
   it("非本地已安装 skill 不可查看内容", () => {
     const skill = createSkill({
       installed: true,
+      sourceKind: "other",
       repoOwner: "proxycast",
       repoName: "skills",
     });
     expect(canViewLocalSkillContent(skill)).toBe(false);
   });
+});
+
+describe("canManageSkillInstallation", () => {
+  it("内置 skill 不应显示安装或卸载入口", () => {
+    const skill = createSkill({ sourceKind: "builtin" });
+    expect(canManageSkillInstallation(skill)).toBe(false);
+  });
+
+  it("其他 skill 应保留安装或卸载入口", () => {
+    const skill = createSkill({ sourceKind: "other" });
+    expect(canManageSkillInstallation(skill)).toBe(true);
+  });
+});
+it("内置技能应优先返回 'builtin'", () => {
+  const skill = createSkill({
+    sourceKind: "builtin",
+    repoOwner: "proxycast",
+    repoName: "skills",
+  });
+  expect(getSkillSource(skill)).toBe("builtin" as SkillSource);
 });

@@ -1,145 +1,139 @@
 /**
  * @file useChat Hook
- * @description 通用对话状态管理 Hook
+ * @description 遗留通用对话兼容 Hook
  * @module components/chat/hooks/useChat
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useMemo } from "react";
+import {
+  useGeneralChatStore,
+  type GeneralChatState,
+} from "@/components/general-chat/store/useGeneralChatStore";
+import type { Message as GeneralChatMessage } from "@/components/general-chat/bridge";
 import { Message, ChatState, ChatActions } from "../types";
-import { useStreaming } from "./useStreaming";
+
+const EMPTY_MESSAGES: GeneralChatMessage[] = [];
+
+const getMessageContent = (message: GeneralChatMessage): string => {
+  if (message.content.trim()) {
+    return message.content;
+  }
+
+  const textContent = message.blocks
+    .filter((block) => block.type === "text")
+    .map((block) => block.content)
+    .join("\n")
+    .trim();
+
+  return textContent;
+};
+
+const toLegacyMessage = (message: GeneralChatMessage): Message => ({
+  id: message.id,
+  role: message.role,
+  content: getMessageContent(message),
+  timestamp: message.createdAt,
+  metadata: message.metadata
+    ? {
+        model: message.metadata.model,
+        tokens: message.metadata.tokens,
+        duration: message.metadata.duration,
+      }
+    : undefined,
+});
+
+const selectCurrentMessages = (
+  state: GeneralChatState,
+): GeneralChatMessage[] => {
+  if (!state.currentSessionId) {
+    return EMPTY_MESSAGES;
+  }
+
+  return state.messages[state.currentSessionId] || EMPTY_MESSAGES;
+};
 
 /**
- * 生成唯一 ID
- */
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-/**
- * 通用对话状态管理 Hook
+ * 遗留通用对话兼容 Hook
  *
- * 提供消息管理、发送、重试、停止等功能
+ * 兼容旧 `components/chat` 调用方，但内部已完全委托给
+ * `general-chat` Store，避免继续维护第二套聊天状态机。
  *
  * @returns 对话状态和操作方法
+ * @deprecated 遗留聊天 Hook。禁止新增依赖，请优先使用 @/hooks/useUnifiedChat 或现役聊天入口。
  */
 export function useChat(): ChatState & ChatActions {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const currentAiMessageIdRef = useRef<string | null>(null);
+  const currentMessages = useGeneralChatStore(selectCurrentMessages);
+  const isGenerating = useGeneralChatStore(
+    (state) => state.streaming.isStreaming,
+  );
+  const sendMessageInStore = useGeneralChatStore((state) => state.sendMessage);
+  const stopGenerationInStore = useGeneralChatStore(
+    (state) => state.stopGeneration,
+  );
+  const retryMessageInStore = useGeneralChatStore(
+    (state) => state.retryMessage,
+  );
+  const createSessionInStore = useGeneralChatStore(
+    (state) => state.createSession,
+  );
 
-  const { streamChat } = useStreaming();
+  const messages = useMemo(
+    () => currentMessages.map(toLegacyMessage),
+    [currentMessages],
+  );
+
+  const error = useMemo(() => {
+    const latestMessage = currentMessages[currentMessages.length - 1];
+    if (latestMessage?.status !== "error") {
+      return null;
+    }
+
+    return latestMessage.error?.message || null;
+  }, [currentMessages]);
 
   /**
    * 发送消息
    */
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || isGenerating) return;
-
-      setError(null);
-
-      // 添加用户消息
-      const userMessage: Message = {
-        id: generateId(),
-        role: "user",
-        content: content.trim(),
-        timestamp: Date.now(),
-      };
-
-      // 创建 AI 消息占位
-      const aiMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: "",
-        timestamp: Date.now(),
-      };
-
-      currentAiMessageIdRef.current = aiMessage.id;
-      setMessages((prev) => [...prev, userMessage, aiMessage]);
-      setIsGenerating(true);
-
-      // 创建 AbortController
-      abortControllerRef.current = new AbortController();
-
-      const startTime = Date.now();
-
-      try {
-        await streamChat(
-          [...messages, userMessage],
-          (chunk) => {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === aiMessage.id
-                  ? { ...msg, content: msg.content + chunk }
-                  : msg,
-              ),
-            );
-          },
-          abortControllerRef.current.signal,
-        );
-
-        // 更新元数据
-        const duration = Date.now() - startTime;
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === aiMessage.id
-              ? { ...msg, metadata: { ...msg.metadata, duration } }
-              : msg,
-          ),
-        );
-      } catch (err) {
-        if (err instanceof Error && err.name !== "AbortError") {
-          setError(err.message);
-          // 移除空的 AI 消息
-          setMessages((prev) => prev.filter((msg) => msg.id !== aiMessage.id));
-        }
-      } finally {
-        setIsGenerating(false);
-        abortControllerRef.current = null;
-        currentAiMessageIdRef.current = null;
-      }
+      await sendMessageInStore(content);
     },
-    [messages, isGenerating, streamChat],
+    [sendMessageInStore],
   );
 
   /**
-   * 清空消息
+   * 清空消息（兼容语义：新建空白会话，而非删除已有历史）
    */
   const clearMessages = useCallback(() => {
-    setMessages([]);
-    setError(null);
-  }, []);
+    stopGenerationInStore();
+    void createSessionInStore().catch((createSessionError) => {
+      console.error("兼容 clearMessages 创建新会话失败:", createSessionError);
+    });
+  }, [createSessionInStore, stopGenerationInStore]);
 
   /**
-   * 重试最后一条消息
+   * 重试最后一条错误消息
    */
   const retryLastMessage = useCallback(async () => {
-    const lastUserMessage = [...messages]
+    const lastErrorAssistantMessage = [...currentMessages]
       .reverse()
-      .find((m) => m.role === "user");
-    if (lastUserMessage) {
-      // 移除最后一条 AI 消息
-      setMessages((prev) => {
-        const lastAiIndex = [...prev]
-          .reverse()
-          .findIndex((m: Message) => m.role === "assistant");
-        if (lastAiIndex > -1) {
-          return prev.slice(0, prev.length - 1 - lastAiIndex);
-        }
-        return prev;
-      });
-      await sendMessage(lastUserMessage.content);
+      .find(
+        (message) => message.role === "assistant" && message.status === "error",
+      );
+
+    if (!lastErrorAssistantMessage) {
+      return;
     }
-  }, [messages, sendMessage]);
+
+    await retryMessageInStore(lastErrorAssistantMessage.id);
+  }, [currentMessages, retryMessageInStore]);
 
   /**
    * 停止生成
    */
   const stopGeneration = useCallback(() => {
-    abortControllerRef.current?.abort();
-  }, []);
+    stopGenerationInStore();
+  }, [stopGenerationInStore]);
 
   return {
     messages,

@@ -401,6 +401,9 @@ pub struct Config {
     /// 聊天外观配置
     #[serde(default)]
     pub chat_appearance: ChatAppearanceConfig,
+    /// 统一环境变量配置
+    #[serde(default, skip_serializing_if = "EnvironmentConfig::is_default")]
+    pub environment: EnvironmentConfig,
     /// 网络搜索偏好配置
     #[serde(default)]
     pub web_search: WebSearchConfig,
@@ -1990,6 +1993,7 @@ impl Default for Config {
             content_creator: ContentCreatorConfig::default(),
             navigation: NavigationConfig::default(),
             chat_appearance: ChatAppearanceConfig::default(),
+            environment: EnvironmentConfig::default(),
             web_search: WebSearchConfig::default(),
             memory: MemoryConfig::default(),
             voice: VoiceConfig::default(),
@@ -2009,6 +2013,72 @@ impl Default for Config {
 }
 
 // ============ 设置页面配置类型 ============
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ShellEnvironmentImportConfig {
+    /// 是否启用登录 Shell 环境导入
+    #[serde(default)]
+    pub enabled: bool,
+    /// Shell 环境解析超时时间（毫秒）
+    #[serde(default = "default_shell_import_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+fn default_shell_import_timeout_ms() -> u64 {
+    1500
+}
+
+impl Default for ShellEnvironmentImportConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            timeout_ms: default_shell_import_timeout_ms(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EnvironmentVariableOverride {
+    /// 环境变量名
+    #[serde(default)]
+    pub key: String,
+    /// 环境变量值
+    #[serde(default)]
+    pub value: String,
+    /// 是否启用
+    #[serde(default = "default_environment_variable_enabled")]
+    pub enabled: bool,
+}
+
+fn default_environment_variable_enabled() -> bool {
+    true
+}
+
+impl Default for EnvironmentVariableOverride {
+    fn default() -> Self {
+        Self {
+            key: String::new(),
+            value: String::new(),
+            enabled: default_environment_variable_enabled(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct EnvironmentConfig {
+    /// Shell 环境导入配置
+    #[serde(default)]
+    pub shell_import: ShellEnvironmentImportConfig,
+    /// 显式环境变量覆盖
+    #[serde(default)]
+    pub variables: Vec<EnvironmentVariableOverride>,
+}
+
+impl EnvironmentConfig {
+    pub fn is_default(value: &Self) -> bool {
+        value == &Self::default()
+    }
+}
 
 /// 网络搜索引擎类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]

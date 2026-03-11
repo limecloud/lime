@@ -121,8 +121,7 @@ export function LiveConfigModal({ appType, onClose }: LiveConfigModalProps) {
                   <div className="p-4 rounded-lg bg-muted/30 text-sm text-muted-foreground border border-dashed">
                     <p className="mb-2">暂无环境变量配置</p>
                     <p className="text-xs">
-                      💡 提示：切换 Claude 供应商后，ProxyCast 会自动将配置写入
-                      shell 配置文件
+                      💡 提示：这里展示的是兼容外部客户端的 Shell 写入结果；运行时统一环境请以系统设置中的“环境变量”页为准。
                     </p>
                   </div>
                 )}
@@ -140,7 +139,7 @@ export function LiveConfigModal({ appType, onClose }: LiveConfigModalProps) {
         <div className="p-4 border-t bg-muted/30">
           <p className="text-xs text-muted-foreground">
             {appType === "claude" && claudeConfig ? (
-              <>配置方式：配置文件 + Shell 环境变量（需重启终端生效）</>
+              <>兼容输出：配置文件 + Shell 环境变量；运行时主入口已统一到系统设置的“环境变量”页</>
             ) : (
               <>
                 配置文件路径:{" "}

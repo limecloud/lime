@@ -37,5 +37,12 @@ pub use provider_model::Provider;
 #[allow(unused_imports)]
 pub use provider_pool_model::*;
 pub use provider_type::ProviderType;
-pub use skill_model::{Skill, SkillMetadata, SkillRepo, SkillState, SkillStates};
+pub use skill_model::{
+    resolve_skill_source_kind, Skill, SkillMetadata, SkillRepo, SkillSourceKind, SkillState,
+    SkillStates, BROADCAST_GENERATE_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
+    DEFAULT_PROXYCAST_SKILL_DIRECTORIES, IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY,
+    MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY, RESEARCH_SKILL_DIRECTORY,
+    SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY,
+    VIDEO_GENERATE_SKILL_DIRECTORY,
+};
 pub use vertex_model::{VertexApiKeyEntry, VertexModelAlias};

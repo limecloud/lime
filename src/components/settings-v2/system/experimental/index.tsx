@@ -7,25 +7,35 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { FlaskConical, Camera, AlertTriangle, RefreshCw, Bug, Wrench } from "lucide-react";
+import {
+  FlaskConical,
+  Camera,
+  AlertTriangle,
+  RefreshCw,
+  Bug,
+  Wrench,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getExperimentalConfig,
-  saveExperimentalConfig,
-  validateShortcut,
-  updateScreenshotShortcut,
-  ExperimentalFeatures,
   getConfig,
   saveConfig,
   type Config,
-  getLogs,
-  getLogStorageDiagnostics,
-  getPersistedLogsTail,
-  getServerDiagnostics,
-  getWindowsStartupDiagnostics,
   type CrashReportingConfig,
   type ToolCallingConfig,
-} from "@/hooks/useTauri";
+} from "@/lib/api/appConfig";
+import {
+  getExperimentalConfig,
+  saveExperimentalConfig,
+  updateScreenshotShortcut,
+  validateShortcut,
+  type ExperimentalFeatures,
+} from "@/lib/api/experimentalFeatures";
+import { getLogs, getPersistedLogsTail } from "@/lib/api/logs";
+import {
+  getLogStorageDiagnostics,
+  getServerDiagnostics,
+  getWindowsStartupDiagnostics,
+} from "@/lib/api/serverRuntime";
 import { ShortcutSettings } from "@/components/smart-input/ShortcutSettings";
 import { UpdateCheckSettings } from "./UpdateCheckSettings";
 import { VoiceSettings } from "@/components/voice";
@@ -86,17 +96,16 @@ export function ExperimentalSettings() {
     setLoading(true);
     setError(null);
     try {
-      const [experimentalConfig, voiceInputConfig, fullConfig] = await Promise.all([
-        getExperimentalConfig(),
-        getVoiceInputConfig(),
-        getConfig(),
-      ]);
+      const [experimentalConfig, voiceInputConfig, fullConfig] =
+        await Promise.all([
+          getExperimentalConfig(),
+          getVoiceInputConfig(),
+          getConfig(),
+        ]);
       setConfig(experimentalConfig);
       setToolCallingConfig(normalizeToolCallingConfig(fullConfig.tool_calling));
       setVoiceConfig(voiceInputConfig);
-      setCrashConfig(
-        normalizeCrashReportingConfig(fullConfig.crash_reporting),
-      );
+      setCrashConfig(normalizeCrashReportingConfig(fullConfig.crash_reporting));
     } catch (err) {
       console.error("加载实验室配置失败:", err);
       setError(err instanceof Error ? err.message : "加载配置失败");
@@ -241,7 +250,8 @@ export function ExperimentalSettings() {
         console.error("保存 Tool Calling 配置失败:", err);
         setMessage({
           type: "error",
-          text: err instanceof Error ? err.message : "保存 Tool Calling 配置失败",
+          text:
+            err instanceof Error ? err.message : "保存 Tool Calling 配置失败",
         });
       } finally {
         setSaving(false);
@@ -768,7 +778,9 @@ export function ExperimentalSettings() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">采样率 (0-1)</label>
+            <label className="text-xs text-muted-foreground">
+              采样率 (0-1)
+            </label>
             <input
               type="number"
               min={0}

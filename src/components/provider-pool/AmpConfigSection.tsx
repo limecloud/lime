@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
-import type { AmpConfig, AmpModelMapping } from "@/hooks/useTauri";
+import type { AmpConfig, AmpModelMapping } from "@/lib/api/providerRuntime";
 
 interface AmpConfigSectionProps {
   config: AmpConfig;

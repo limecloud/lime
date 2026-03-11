@@ -11,7 +11,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Package, Loader2, ArrowLeft, type LucideIcon } from "lucide-react";
 import * as LucideIcons from "lucide-react";
-import { safeInvoke } from "@/lib/dev-bridge";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -22,6 +21,11 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getPluginsForSurface, type PluginUIInfo } from "@/lib/api/pluginUI";
+import {
+  disablePlugin,
+  enablePlugin,
+  uninstallPlugin,
+} from "@/lib/api/plugins";
 import { PluginInstallDialog } from "@/components/plugins/PluginInstallDialog";
 import { ToolCardContextMenu } from "./ToolCardContextMenu";
 import { toast } from "sonner";
@@ -228,10 +232,10 @@ export function ToolsPage({ onNavigate }: ToolsPageProps) {
     async (pluginId: string, enabled: boolean) => {
       try {
         if (enabled) {
-          await safeInvoke("enable_plugin", { name: pluginId });
+          await enablePlugin(pluginId);
           toast.success("插件已启用");
         } else {
-          await safeInvoke("disable_plugin", { name: pluginId });
+          await disablePlugin(pluginId);
           toast.success("插件已禁用");
         }
         loadPluginTools();
@@ -247,7 +251,7 @@ export function ToolsPage({ onNavigate }: ToolsPageProps) {
   const handleUninstallPlugin = useCallback(
     async (pluginId: string) => {
       try {
-        await safeInvoke("uninstall_plugin", { pluginId });
+        await uninstallPlugin(pluginId);
         toast.success("插件已卸载");
         loadPluginTools();
       } catch (error) {

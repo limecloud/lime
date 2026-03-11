@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 import type { MediaGenerationDefaults } from "@/lib/mediaGeneration";
 
 interface UseGlobalMediaGenerationDefaultsResult {

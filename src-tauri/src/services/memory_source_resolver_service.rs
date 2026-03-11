@@ -5,10 +5,17 @@
 use crate::services::auto_memory_service::{get_auto_memory_index, resolve_auto_memory_root};
 use crate::services::memory_import_parser_service::{parse_memory_file, MemoryImportParseOptions};
 use crate::services::memory_rules_loader_service::load_rules;
+use proxycast_agent::{
+    resolve_durable_memory_root, to_virtual_memory_path, DURABLE_MEMORY_VIRTUAL_ROOT,
+};
 use proxycast_core::config::{Config, MemoryConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::fs;
 use std::path::{Path, PathBuf};
+
+const DURABLE_MEMORY_MAX_DEPTH: usize = 4;
+const DURABLE_MEMORY_MAX_FILES: usize = 64;
 
 /// 单个来源解析结果
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -99,7 +106,16 @@ pub fn resolve_effective_sources(
         &mut prompt_segments,
     );
 
-    // 3. project hierarchy memory + rules
+    // 3. cross-thread durable memory (`/memories/...`)
+    resolve_durable_memory_sources(
+        memory,
+        &options,
+        &mut seen,
+        &mut sources,
+        &mut prompt_segments,
+    );
+
+    // 4. project hierarchy memory + rules
     let ancestors = collect_ancestor_dirs(working_dir);
     for ancestor in &ancestors {
         for rel in &memory.sources.project_memory_paths {
@@ -153,7 +169,7 @@ pub fn resolve_effective_sources(
         }
     }
 
-    // 4. additional directories
+    // 5. additional directories
     if memory.resolve.load_additional_dirs_memory {
         for additional in &memory.resolve.additional_dirs {
             let additional_dir = expand_path(additional, Some(working_dir));
@@ -189,7 +205,7 @@ pub fn resolve_effective_sources(
         }
     }
 
-    // 5. auto memory
+    // 6. auto memory
     resolve_auto_memory_source(
         memory,
         working_dir,
@@ -264,10 +280,35 @@ fn resolve_file_source(
     output: &mut Vec<EffectiveMemorySource>,
     prompt_segments: &mut Vec<String>,
 ) {
+    resolve_file_source_with_display_path(
+        kind,
+        file_path,
+        None,
+        include_missing,
+        options,
+        seen,
+        output,
+        prompt_segments,
+    );
+}
+
+fn resolve_file_source_with_display_path(
+    kind: &str,
+    file_path: &Path,
+    display_path: Option<&str>,
+    include_missing: bool,
+    options: &MemoryImportParseOptions,
+    seen: &mut HashSet<PathBuf>,
+    output: &mut Vec<EffectiveMemorySource>,
+    prompt_segments: &mut Vec<String>,
+) {
     let normalized = normalize_path(file_path);
     if !seen.insert(normalized.clone()) {
         return;
     }
+    let display_path = display_path
+        .map(str::to_string)
+        .unwrap_or_else(|| normalized.to_string_lossy().to_string());
 
     if !normalized.exists() || !normalized.is_file() {
         if !include_missing {
@@ -275,7 +316,7 @@ fn resolve_file_source(
         }
         output.push(EffectiveMemorySource {
             kind: kind.to_string(),
-            path: normalized.to_string_lossy().to_string(),
+            path: display_path,
             exists: false,
             loaded: false,
             line_count: 0,
@@ -304,7 +345,7 @@ fn resolve_file_source(
 
             output.push(EffectiveMemorySource {
                 kind: kind.to_string(),
-                path: normalized.to_string_lossy().to_string(),
+                path: display_path.clone(),
                 exists: true,
                 loaded,
                 line_count,
@@ -314,18 +355,13 @@ fn resolve_file_source(
             });
 
             if loaded {
-                prompt_segments.push(format!(
-                    "### {} ({})\n{}",
-                    kind,
-                    normalized.display(),
-                    content
-                ));
+                prompt_segments.push(format!("### {} ({})\n{}", kind, display_path, content));
             }
         }
         Err(err) => {
             output.push(EffectiveMemorySource {
                 kind: kind.to_string(),
-                path: normalized.to_string_lossy().to_string(),
+                path: display_path,
                 exists: true,
                 loaded: false,
                 line_count: 0,
@@ -334,6 +370,88 @@ fn resolve_file_source(
                 preview: None,
             });
         }
+    }
+}
+
+fn resolve_durable_memory_sources(
+    memory_config: &MemoryConfig,
+    options: &MemoryImportParseOptions,
+    seen: &mut HashSet<PathBuf>,
+    output: &mut Vec<EffectiveMemorySource>,
+    prompt_segments: &mut Vec<String>,
+) {
+    let root = match resolve_durable_memory_root() {
+        Ok(path) => path,
+        Err(err) => {
+            output.push(EffectiveMemorySource {
+                kind: "durable_memory".to_string(),
+                path: DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
+                exists: false,
+                loaded: false,
+                line_count: 0,
+                import_count: 0,
+                warnings: vec![format!("解析 durable memory 根目录失败: {err}")],
+                preview: None,
+            });
+            return;
+        }
+    };
+
+    let files = match collect_durable_memory_files(
+        &root,
+        DURABLE_MEMORY_MAX_DEPTH,
+        DURABLE_MEMORY_MAX_FILES,
+    ) {
+        Ok(files) => files,
+        Err(err) => {
+            output.push(EffectiveMemorySource {
+                kind: "durable_memory".to_string(),
+                path: DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
+                exists: root.exists(),
+                loaded: false,
+                line_count: 0,
+                import_count: 0,
+                warnings: vec![format!("扫描 durable memory 文件失败: {err}")],
+                preview: None,
+            });
+            return;
+        }
+    };
+
+    if files.is_empty() {
+        let warnings = if memory_config.enabled {
+            vec!["尚未创建 durable memory 文件，可通过 `/memories/...` 路径写入".to_string()]
+        } else {
+            vec!["记忆功能已关闭".to_string()]
+        };
+        output.push(EffectiveMemorySource {
+            kind: "durable_memory".to_string(),
+            path: DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
+            exists: root.exists(),
+            loaded: false,
+            line_count: 0,
+            import_count: 0,
+            warnings,
+            preview: None,
+        });
+        return;
+    }
+
+    for file_path in files {
+        let display_path = to_virtual_memory_path(&file_path)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| file_path.to_string_lossy().to_string());
+        resolve_file_source_with_display_path(
+            "durable_memory",
+            &file_path,
+            Some(&display_path),
+            false,
+            options,
+            seen,
+            output,
+            prompt_segments,
+        );
     }
 }
 
@@ -495,6 +613,92 @@ fn resolve_auto_memory_source(
     }
 }
 
+fn collect_durable_memory_files(
+    root: &Path,
+    max_depth: usize,
+    max_files: usize,
+) -> Result<Vec<PathBuf>, String> {
+    let mut files = Vec::new();
+    collect_durable_memory_files_recursive(root, 0, max_depth, max_files, &mut files)?;
+    files.sort_by(|left, right| durable_memory_sort_key(left).cmp(&durable_memory_sort_key(right)));
+    Ok(files)
+}
+
+fn collect_durable_memory_files_recursive(
+    dir: &Path,
+    depth: usize,
+    max_depth: usize,
+    max_files: usize,
+    output: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    if depth > max_depth || output.len() >= max_files || !dir.exists() {
+        return Ok(());
+    }
+
+    let mut entries = fs::read_dir(dir)
+        .map_err(|e| format!("读取目录失败 {}: {e}", dir.display()))?
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| left.path().cmp(&right.path()));
+
+    for entry in entries {
+        if output.len() >= max_files {
+            break;
+        }
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        if file_type.is_dir() {
+            collect_durable_memory_files_recursive(&path, depth + 1, max_depth, max_files, output)?;
+            continue;
+        }
+
+        if file_type.is_file() && is_durable_memory_candidate_file(&path) {
+            output.push(path);
+        }
+    }
+
+    Ok(())
+}
+
+fn is_durable_memory_candidate_file(path: &Path) -> bool {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.trim().to_ascii_lowercase());
+
+    matches!(
+        extension.as_deref(),
+        Some("md")
+            | Some("markdown")
+            | Some("mdx")
+            | Some("txt")
+            | Some("json")
+            | Some("yaml")
+            | Some("yml")
+            | Some("toml")
+    )
+}
+
+fn durable_memory_sort_key(path: &Path) -> (u8, String) {
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    let priority = match file_name.as_str() {
+        "memory.md" | "memory.mdx" | "memory.txt" => 0,
+        "preferences.md" | "preferences.json" | "preferences.toml" => 1,
+        "project.md" | "project.json" | "project.toml" => 2,
+        _ => 10,
+    };
+
+    (priority, path.to_string_lossy().to_string())
+}
+
 fn collect_ancestor_dirs(start: &Path) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let mut current = if start.is_file() {
@@ -614,8 +818,37 @@ fn clip_text(text: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
     use std::fs;
+    use std::sync::{Mutex, OnceLock};
     use tempfile::TempDir;
+
+    fn durable_memory_env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct DurableMemoryEnvGuard {
+        previous: Option<OsString>,
+    }
+
+    impl DurableMemoryEnvGuard {
+        fn set(path: &Path) -> Self {
+            let previous = std::env::var_os("PROXYCAST_DURABLE_MEMORY_DIR");
+            std::env::set_var("PROXYCAST_DURABLE_MEMORY_DIR", path.as_os_str());
+            Self { previous }
+        }
+    }
+
+    impl Drop for DurableMemoryEnvGuard {
+        fn drop(&mut self) {
+            if let Some(value) = &self.previous {
+                std::env::set_var("PROXYCAST_DURABLE_MEMORY_DIR", value);
+            } else {
+                std::env::remove_var("PROXYCAST_DURABLE_MEMORY_DIR");
+            }
+        }
+    }
 
     #[test]
     fn should_resolve_project_memory_and_rules() {
@@ -660,5 +893,47 @@ mod tests {
             .iter()
             .any(|s| s.kind == "additional_memory" && s.loaded);
         assert!(has_additional_loaded);
+    }
+
+    #[test]
+    fn should_resolve_durable_memory_sources_with_virtual_paths() {
+        let _env_lock = durable_memory_env_lock().lock().expect("lock env");
+        let tmp = TempDir::new().expect("create temp dir");
+        fs::create_dir_all(tmp.path().join("team")).expect("create subdir");
+        fs::write(tmp.path().join("MEMORY.md"), "# 长期记忆\n- 始终先给结论")
+            .expect("write durable memory");
+        fs::write(
+            tmp.path().join("team/preferences.md"),
+            "# 团队偏好\n- 保持 KISS",
+        )
+        .expect("write nested durable memory");
+        let _env = DurableMemoryEnvGuard::set(tmp.path());
+
+        let mut cfg = Config::default();
+        cfg.memory.enabled = true;
+        cfg.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
+        cfg.memory.sources.user_memory_path = Some("missing-user.md".to_string());
+        cfg.memory.sources.project_memory_paths = Vec::new();
+        cfg.memory.sources.project_rule_dirs = Vec::new();
+
+        let resolved = resolve_effective_sources(&cfg, Path::new("."), None);
+        assert!(resolved
+            .response
+            .sources
+            .iter()
+            .any(|source| source.kind == "durable_memory"
+                && source.path == "/memories/MEMORY.md"
+                && source.loaded));
+        assert!(resolved
+            .response
+            .sources
+            .iter()
+            .any(|source| source.kind == "durable_memory"
+                && source.path == "/memories/team/preferences.md"
+                && source.loaded));
+        assert!(resolved
+            .prompt_segments
+            .iter()
+            .any(|segment| segment.contains("/memories/MEMORY.md")));
     }
 }

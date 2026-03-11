@@ -1154,7 +1154,7 @@ describe("WorkbenchPage 左侧栏模式行为", () => {
     expect(chat?.getAttribute("data-hide-topbar")).toBe("true");
   });
 
-  it.skip("视频主题在作业模式渲染主题工作区与独立右栏，而非对话工作区", async () => {
+  it("视频主题在作业模式渲染视频工作区，而非通用对话创作页", async () => {
     mockListProjects.mockResolvedValueOnce([
       createWorkspaceProjectFixture({
         id: "video-project-1",
@@ -1180,11 +1180,75 @@ describe("WorkbenchPage 左侧栏模式行为", () => {
     expect(
       container.querySelector("[data-testid='agent-chat-page']"),
     ).toBeNull();
-    expect(
-      container.querySelector("[data-testid='workbench-right-rail-expanded']"),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("视频制作 · 引导模式");
     expect(findInputByPlaceholder(container, "搜索文稿...")).toBeNull();
+  });
+
+  it("视频主题点击创作首页时应继续停留在视频工作区", async () => {
+    mockListProjects.mockResolvedValueOnce([
+      createWorkspaceProjectFixture({
+        id: "video-project-3",
+        name: "视频项目C",
+        workspaceType: "video",
+        rootPath: "/tmp/workspace/video-project-3",
+      }),
+    ]);
+
+    const { container } = renderPage({
+      theme: "video",
+      viewMode: "workspace",
+      projectId: "video-project-3",
+    });
+    await flushEffects();
+
+    clickButtonByText(container, "创作首页", { exact: true });
+    await flushEffects();
+
+    expect(
+      container.querySelector("[data-testid='video-theme-workspace']"),
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='workspace-create-entry-home']"),
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='agent-chat-page']"),
+    ).toBeNull();
+  });
+
+  it("视频主题从项目管理发起新建时应进入视频工作区，而非页面式创作首页", async () => {
+    mockListProjects.mockResolvedValueOnce([
+      createWorkspaceProjectFixture({
+        id: "video-project-4",
+        name: "视频项目D",
+        workspaceType: "video",
+        rootPath: "/tmp/workspace/video-project-4",
+      }),
+    ]);
+
+    const { container } = renderPage({
+      theme: "video",
+      viewMode: "project-management",
+    });
+    await flushEffects();
+
+    clickButtonByText(container, "视频项目D");
+    await flushEffects();
+    clickButtonByText(container, "新建文稿");
+    await flushEffects(6);
+
+    expect(
+      container.querySelector("[data-testid='video-theme-workspace']"),
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='workspace-create-entry-home']"),
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        "[data-testid='workspace-create-confirmation-card']",
+      ),
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='agent-chat-page']"),
+    ).toBeNull();
   });
 
   it("视频主题在作业模式不应渲染右侧视频助手栏", async () => {
@@ -1201,6 +1265,28 @@ describe("WorkbenchPage 左侧栏模式行为", () => {
       theme: "video",
       viewMode: "workspace",
       projectId: "video-project-2",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector("[data-testid='workbench-right-rail-expanded']"),
+    ).toBeNull();
+  });
+
+  it("海报主题在作业模式不应渲染工作台右侧能力栏", async () => {
+    mockListProjects.mockResolvedValueOnce([
+      createWorkspaceProjectFixture({
+        id: "poster-project-1",
+        name: "海报项目A",
+        workspaceType: "poster",
+        rootPath: "/tmp/workspace/poster-project-1",
+      }),
+    ]);
+
+    const { container } = renderPage({
+      theme: "poster",
+      viewMode: "workspace",
+      projectId: "poster-project-1",
     });
     await flushEffects();
 

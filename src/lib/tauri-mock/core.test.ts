@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- 测试底层 invoke 机制，需要直接使用命令名 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({

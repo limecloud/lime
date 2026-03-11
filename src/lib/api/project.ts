@@ -5,6 +5,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import type { WorkspaceSettings } from "@/types/workspace";
 
 // ==================== 类型定义 ====================
 
@@ -145,6 +146,7 @@ export interface Project {
   workspaceType: ProjectType;
   rootPath: string;
   isDefault: boolean;
+  settings?: WorkspaceSettings;
   createdAt: number;
   updatedAt: number;
   icon?: string;
@@ -152,6 +154,8 @@ export interface Project {
   isFavorite: boolean;
   isArchived: boolean;
   tags: string[];
+  defaultPersonaId?: string;
+  defaultTemplateId?: string;
   stats?: ProjectStats;
 }
 
@@ -165,6 +169,8 @@ export type RawProject = Partial<Project> & {
   updated_at?: number;
   is_favorite?: boolean;
   is_archived?: boolean;
+  default_persona_id?: string;
+  default_template_id?: string;
 };
 
 /** 内容列表项 */
@@ -213,11 +219,25 @@ export interface CreateProjectRequest {
 /** 更新项目请求 */
 export interface UpdateProjectRequest {
   name?: string;
+  settings?: WorkspaceSettings;
   icon?: string;
   color?: string;
   isFavorite?: boolean;
   isArchived?: boolean;
   tags?: string[];
+  defaultPersonaId?: string;
+  defaultTemplateId?: string;
+}
+
+export interface WorkspaceEnsureResult {
+  workspaceId: string;
+  rootPath: string;
+  existed: boolean;
+  created: boolean;
+  repaired: boolean;
+  relocated?: boolean;
+  previousRootPath?: string | null;
+  warning?: string | null;
 }
 
 /** 创建内容请求 */
@@ -288,6 +308,42 @@ export async function getDefaultProject(): Promise<Project | null> {
   return project ? normalizeProject(project) : null;
 }
 
+/** 获取默认项目，缺失时抛出错误 */
+export async function requireDefaultProject(
+  errorMessage: string = "未找到默认工作区，请先创建或选择项目",
+): Promise<Project> {
+  const project = await getDefaultProject();
+  if (!project?.id) {
+    throw new Error(errorMessage);
+  }
+  return project;
+}
+
+/** 获取默认项目 ID，缺失时抛出错误 */
+export async function requireDefaultProjectId(
+  errorMessage?: string,
+): Promise<string> {
+  const project = await requireDefaultProject(errorMessage);
+  return project.id;
+}
+
+/** 确保工作区目录就绪 */
+export async function ensureWorkspaceReady(
+  id: string,
+): Promise<WorkspaceEnsureResult> {
+  return invoke<WorkspaceEnsureResult>("workspace_ensure_ready", { id });
+}
+
+/** 确保默认工作区目录就绪 */
+export async function ensureDefaultWorkspaceReady(): Promise<WorkspaceEnsureResult | null> {
+  return invoke<WorkspaceEnsureResult | null>("workspace_ensure_default_ready");
+}
+
+/** 设置默认项目 */
+export async function setDefaultProject(id: string): Promise<void> {
+  await invoke("workspace_set_default", { id });
+}
+
 /** 获取或创建默认项目 */
 export async function getOrCreateDefaultProject(): Promise<Project> {
   const project = await invoke<RawProject>("get_or_create_default_project");
@@ -353,7 +409,10 @@ export async function listContents(
   projectId: string,
   query?: ListContentQuery,
 ): Promise<ContentListItem[]> {
-  const contents = await invoke<ContentListItem[]>("content_list", { projectId, query });
+  const contents = await invoke<ContentListItem[]>("content_list", {
+    projectId,
+    query,
+  });
   // 防御性编程：确保返回数组
   if (!Array.isArray(contents)) {
     console.warn("listContents 返回非数组值:", contents);
@@ -401,6 +460,7 @@ export function normalizeProject(project: RawProject): Project {
       project.workspaceType ?? project.workspace_type ?? "persistent",
     rootPath: project.rootPath ?? project.root_path ?? "",
     isDefault: project.isDefault ?? project.is_default ?? false,
+    settings: project.settings,
     createdAt: project.createdAt ?? project.created_at ?? 0,
     updatedAt: project.updatedAt ?? project.updated_at ?? 0,
     icon: project.icon,
@@ -408,6 +468,10 @@ export function normalizeProject(project: RawProject): Project {
     isFavorite: project.isFavorite ?? project.is_favorite ?? false,
     isArchived: project.isArchived ?? project.is_archived ?? false,
     tags: project.tags ?? [],
+    defaultPersonaId:
+      project.defaultPersonaId ?? project.default_persona_id ?? undefined,
+    defaultTemplateId:
+      project.defaultTemplateId ?? project.default_template_id ?? undefined,
     stats: project.stats,
   };
 }

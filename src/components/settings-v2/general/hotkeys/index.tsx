@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 import { Loader2 } from "lucide-react";
-import { getExperimentalConfig } from "@/hooks/useTauri";
+import { getExperimentalConfig } from "@/lib/api/experimentalFeatures";
 import {
   getVoiceInputConfig,
   type VoiceInputConfig,

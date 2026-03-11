@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { TYPE_CONFIGS, type UserType } from "@/lib/api/project";
-import { getConfig } from "@/hooks/useTauri";
+import { getConfig } from "@/lib/api/appConfig";
 
 export type ProjectFilter = "all" | UserType | "favorites" | "archived";
 

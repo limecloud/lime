@@ -513,6 +513,7 @@ pub async fn execute_web_search_preflight_if_needed(
                     output: tool_result.output.unwrap_or_default(),
                     error: tool_result.error,
                     images: None,
+                    metadata: None,
                 },
             };
             events.push(event);
@@ -546,6 +547,7 @@ pub async fn execute_web_search_preflight_if_needed(
                     output: String::new(),
                     error: Some(error.clone()),
                     images: None,
+                    metadata: None,
                 },
             });
             Err(error)

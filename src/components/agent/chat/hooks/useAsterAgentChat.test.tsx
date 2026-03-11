@@ -37,11 +37,13 @@ const {
     info: vi.fn(),
     warning: vi.fn(),
   },
-  mockParseSkillSlashCommand: vi.fn((): { skillName: string; userInput: string } | null => null),
+  mockParseSkillSlashCommand: vi.fn(
+    (): { skillName: string; userInput: string } | null => null,
+  ),
   mockTryExecuteSlashSkillCommand: vi.fn(async () => false),
 }));
 
-vi.mock("@/lib/api/agent", () => ({
+vi.mock("@/lib/api/agentRuntime", () => ({
   initAsterAgent: mockInitAsterAgent,
   sendAsterMessageStream: mockSendAsterMessageStream,
   createAsterSession: mockCreateAsterSession,
@@ -52,6 +54,9 @@ vi.mock("@/lib/api/agent", () => ({
   stopAsterSession: mockStopAsterSession,
   confirmAsterAction: mockConfirmAsterAction,
   submitAsterElicitationResponse: mockSubmitAsterElicitationResponse,
+}));
+
+vi.mock("@/lib/api/agentStream", () => ({
   parseStreamEvent: mockParseStreamEvent,
 }));
 
@@ -182,9 +187,15 @@ describe("useAsterAgentChat 首页新会话", () => {
 
       expect(harness.getValue().sessionId).toBeNull();
       expect(harness.getValue().messages).toEqual([]);
-      expect(sessionStorage.getItem(`aster_curr_sessionId_${workspaceId}`)).toBe("null");
-      expect(sessionStorage.getItem(`aster_messages_${workspaceId}`)).toBe("[]");
-      expect(localStorage.getItem(`aster_last_sessionId_${workspaceId}`)).toBe("null");
+      expect(
+        sessionStorage.getItem(`aster_curr_sessionId_${workspaceId}`),
+      ).toBe("null");
+      expect(sessionStorage.getItem(`aster_messages_${workspaceId}`)).toBe(
+        "[]",
+      );
+      expect(localStorage.getItem(`aster_last_sessionId_${workspaceId}`)).toBe(
+        "null",
+      );
     } finally {
       harness.unmount();
     }
@@ -300,14 +311,16 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     try {
       await flushEffects();
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "/social_post_with_cover 写一篇春季新品文案",
-          [],
-          false,
-          false,
-          false,
-          "react",
-        );
+        await harness
+          .getValue()
+          .sendMessage(
+            "/social_post_with_cover 写一篇春季新品文案",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockParseSkillSlashCommand).toHaveBeenCalledWith(
@@ -333,14 +346,16 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     try {
       await flushEffects();
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "/social_post_with_cover 写一篇春季新品文案",
-          [],
-          false,
-          false,
-          false,
-          "react",
-        );
+        await harness
+          .getValue()
+          .sendMessage(
+            "/social_post_with_cover 写一篇春季新品文案",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockTryExecuteSlashSkillCommand).toHaveBeenCalledTimes(1);
@@ -797,6 +812,84 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
       expect(assistantMessage?.contextTrace?.[0]?.stage).toBe(
         "memory_injection",
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("收到带 ProxyCast 元数据块的 tool_end 后应清洗输出并恢复失败态 metadata", async () => {
+    const workspaceId = "ws-tool-metadata-block";
+    seedSession(workspaceId, "session-tool-metadata-block");
+    const harness = mountHook(workspaceId);
+
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+    mockSafeListen.mockImplementationOnce(async (_eventName, handler) => {
+      streamHandler = handler as (event: { payload: unknown }) => void;
+      return () => {
+        streamHandler = null;
+      };
+    });
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("执行任务", [], false, false, false, "react");
+      });
+
+      act(() => {
+        streamHandler?.({
+          payload: {
+            type: "tool_start",
+            tool_id: "tool-meta-1",
+            tool_name: "SubAgentTask",
+            arguments: JSON.stringify({
+              prompt: "检查 harness 缺口",
+            }),
+          },
+        });
+      });
+
+      act(() => {
+        streamHandler?.({
+          payload: {
+            type: "tool_end",
+            tool_id: "tool-meta-1",
+            result: {
+              success: true,
+              output: [
+                "子任务执行失败，需要人工接管",
+                "",
+                "[ProxyCast 工具元数据开始]",
+                JSON.stringify({
+                  reported_success: false,
+                  role: "planner",
+                  failed_count: 1,
+                }),
+                "[ProxyCast 工具元数据结束]",
+              ].join("\n"),
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+      const toolCall = assistantMessage?.toolCalls?.find(
+        (item) => item.id === "tool-meta-1",
+      );
+
+      expect(toolCall?.status).toBe("failed");
+      expect(toolCall?.result?.output).toBe("子任务执行失败，需要人工接管");
+      expect(toolCall?.result?.output).not.toContain("ProxyCast 工具元数据");
+      expect(toolCall?.result?.metadata).toMatchObject({
+        reported_success: false,
+        role: "planner",
+        failed_count: 1,
+      });
     } finally {
       harness.unmount();
     }
