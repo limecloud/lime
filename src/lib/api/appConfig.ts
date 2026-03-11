@@ -1,19 +1,29 @@
 import { safeInvoke } from "@/lib/dev-bridge";
-import type {
-  Config,
-  EnvironmentPreview,
-} from "@/hooks/useTauri";
+import type { Config, EnvironmentPreview } from "./appConfigTypes";
 
 export type {
   Config,
   CrashReportingConfig,
+  ChatAppearanceConfig,
+  ContentCreatorConfig,
   EnvironmentConfig,
   EnvironmentPreview,
   EnvironmentPreviewEntry,
   EnvironmentVariableOverride,
+  ImageGenConfig,
+  MultiSearchConfig,
+  MultiSearchEngineEntryConfig,
+  NavigationConfig,
+  QuotaExceededConfig,
+  RemoteManagementConfig,
+  ResponseCacheConfig,
   ShellImportPreview,
+  TlsConfig,
   ToolCallingConfig,
-} from "@/hooks/useTauri";
+  UserProfile,
+  VoiceConfig,
+  AssistantConfig,
+} from "./appConfigTypes";
 
 export async function getConfig(): Promise<Config> {
   return safeInvoke("get_config");

@@ -859,12 +859,6 @@ export default [
     },
   },
   {
-    files: ["src/lib/api/appConfig.ts"],
-    rules: {
-      "no-restricted-imports": "off",
-    },
-  },
-  {
     files: [
       "src/lib/api/agentRuntime.ts",
       "src/lib/api/agentCompat.ts",
@@ -898,16 +892,6 @@ export default [
     ],
     rules: {
       "no-restricted-syntax": "off",
-    },
-  },
-  {
-    files: [
-      "src/lib/api/channelsRuntime.ts",
-      "src/lib/api/experimentalFeatures.ts",
-      "src/lib/api/memoryRuntime.ts",
-    ],
-    rules: {
-      "no-restricted-imports": "off",
     },
   },
 ];

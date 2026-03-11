@@ -1,7 +1,11 @@
 import { safeInvoke } from "@/lib/dev-bridge";
-import type { ExperimentalFeatures } from "@/hooks/useTauri";
+import type { ExperimentalFeatures } from "./experimentalFeatureTypes";
 
-export type { ExperimentalFeatures, SmartInputConfig } from "@/hooks/useTauri";
+export type {
+  ExperimentalFeatures,
+  SmartInputConfig,
+  ToolCallingConfig,
+} from "./experimentalFeatureTypes";
 
 export async function getExperimentalConfig(): Promise<ExperimentalFeatures> {
   return safeInvoke("get_experimental_config");

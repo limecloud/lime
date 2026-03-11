@@ -4,19 +4,26 @@ import type {
   EffectiveMemorySourcesResponse,
   MemoryAutoToggleResponse,
   MemoryOverviewResponse,
-} from "@/hooks/useTauri";
+} from "./memoryRuntimeTypes";
 
 export type {
   AutoMemoryIndexResponse,
+  AutoMemoryIndexItem,
+  CleanupMemoryResult,
   EffectiveMemorySourcesResponse,
+  EffectiveMemorySource,
+  MemoryAnalysisResult,
   MemoryAutoConfig,
   MemoryAutoToggleResponse,
+  MemoryCategoryStat,
   MemoryConfig,
+  MemoryEntryPreview,
   MemoryOverviewResponse,
   MemoryProfileConfig,
   MemoryResolveConfig,
   MemorySourcesConfig,
-} from "@/hooks/useTauri";
+  MemoryStatsResponse,
+} from "./memoryRuntimeTypes";
 
 export async function getMemoryOverview(
   limit?: number,

@@ -10,25 +10,48 @@ import type {
   GatewayTunnelStatus,
   GatewayTunnelSyncWebhookResponse,
   TelegramProbeResult,
-} from "@/hooks/useTauri";
+} from "./channelsRuntimeTypes";
 
 export type {
   ChannelsConfig,
   CloudflaredInstallResult,
   CloudflaredInstallStatus,
+  DiscordAccountConfig,
+  DiscordActionsConfig,
+  DiscordAgentComponentsConfig,
   DiscordBotConfig,
+  DiscordChannelConfig,
+  DiscordExecApprovalsConfig,
+  DiscordGatewayAccountStatus,
+  DiscordGatewayStatus,
+  DiscordGuildConfig,
+  DiscordIntentsConfig,
   DiscordProbeResult,
+  DiscordThreadBindingsConfig,
+  DiscordUiComponentsConfig,
+  DiscordUiConfig,
+  DiscordVoiceAutoJoinConfig,
+  DiscordVoiceConfig,
+  DiscordAutoPresenceConfig,
   FeishuBotConfig,
+  FeishuAccountConfig,
+  FeishuGatewayAccountStatus,
+  FeishuGatewayStatus,
+  FeishuGroupConfig,
   FeishuProbeResult,
+  CloudflareTunnelConfig,
   GatewayChannelStatusResponse,
   GatewayConfig,
   GatewayTunnelCreateResponse,
+  GatewayTunnelConfig,
   GatewayTunnelProbeResult,
   GatewayTunnelStatus,
   GatewayTunnelSyncWebhookResponse,
   TelegramBotConfig,
+  TelegramGatewayAccountStatus,
+  TelegramGatewayStatus,
   TelegramProbeResult,
-} from "@/hooks/useTauri";
+} from "./channelsRuntimeTypes";
 
 export async function gatewayChannelStart(params?: {
   channel?: "telegram" | "feishu" | "discord";
