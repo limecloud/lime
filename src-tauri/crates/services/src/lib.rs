@@ -31,9 +31,9 @@
 //! - `mcp_service` - MCP 服务
 //! - `switch` - Provider 切换
 //! - `aster_session_store` - Aster 会话存储
-//! - `general_chat` - 通用聊天
 //! - `content_creator` - 内容创作
 //! - `session_context_service` - 会话上下文服务
+//! - `ai_summary_service` - AI 摘要服务
 //! - `project_context_builder` - 项目上下文构建器
 //! - `tool_hooks_service` - 工具钩子服务
 //! - `kiro_event_service` - Kiro 事件服务
@@ -77,9 +77,9 @@ pub mod template_service;
 
 // 子模块
 pub mod content_creator;
-pub mod general_chat;
 
 // 依赖其他 services 的服务
+pub mod ai_summary_service;
 pub mod project_context_builder;
 pub mod session_context_service;
 pub mod tool_hooks_service;
