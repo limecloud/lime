@@ -11,6 +11,10 @@ import {
   formatSkillFailureMessage,
   resolveSkillFailure,
 } from "../utils/skillFailure";
+import {
+  isToolResultSuccessful,
+  normalizeIncomingToolResult,
+} from "./agentChatToolResult";
 
 /** 解析 /skill-name args 命令 */
 export interface ParsedSkillCommand {
@@ -479,6 +483,9 @@ export async function tryExecuteSlashSkillCommand(
         }
         case "tool_end": {
           streamCounters.tool_end += 1;
+          const normalizedResult =
+            normalizeIncomingToolResult(streamEvent.result) || streamEvent.result;
+          const success = isToolResultSuccessful(normalizedResult);
           setMessages((prev) =>
             prev.map((msg) => {
               if (msg.id !== assistantMsgId) return msg;
@@ -487,10 +494,8 @@ export async function tryExecuteSlashSkillCommand(
                 tc.id === streamEvent.tool_id
                   ? {
                       ...tc,
-                      status: streamEvent.result.success
-                        ? ("completed" as const)
-                        : ("failed" as const),
-                      result: streamEvent.result,
+                      status: success ? ("completed" as const) : ("failed" as const),
+                      result: normalizedResult,
                       endTime: new Date(),
                     }
                   : tc,
@@ -505,10 +510,10 @@ export async function tryExecuteSlashSkillCommand(
                     ...part,
                     toolCall: {
                       ...part.toolCall,
-                      status: streamEvent.result.success
+                      status: success
                         ? ("completed" as const)
                         : ("failed" as const),
-                      result: streamEvent.result,
+                      result: normalizedResult,
                       endTime: new Date(),
                     },
                   };

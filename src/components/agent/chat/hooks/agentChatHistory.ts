@@ -396,14 +396,21 @@ export const hydrateSessionDetailMessages = (
           if (!part.id || typeof part.id !== "string") continue;
           const toolName = resolveHistoryToolName(part.id, historyToolNameById);
           const rawOutputText = typeof part.output === "string" ? part.output : "";
+          const rawErrorText = typeof part.error === "string" ? part.error : "";
           const normalizedOutput =
             extractProxycastToolMetadataBlock(rawOutputText);
+          const normalizedError =
+            extractProxycastToolMetadataBlock(rawErrorText);
           const normalizedResult = {
             success: part.success !== false,
             output: normalizedOutput.text,
-            error: typeof part.error === "string" ? part.error : undefined,
+            error: normalizedError.text || undefined,
             images: normalizeToolResultImages(part.images, normalizedOutput.text),
-            metadata: normalizeToolResultMetadata(part.metadata, rawOutputText),
+            metadata: normalizeToolResultMetadata(
+              part.metadata,
+              rawOutputText,
+              rawErrorText,
+            ),
           };
           const success = isToolResultSuccessful(normalizedResult);
           const toolCall = {

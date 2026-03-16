@@ -16,6 +16,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrowserRuntimeDebugPanel } from "@/features/browser-runtime";
 import { getConfig } from "@/lib/api/appConfig";
 import { Switch } from "@/components/ui/switch";
@@ -29,7 +30,7 @@ import {
   getChromeBridgeEndpointInfo,
   getChromeBridgeStatus,
   getChromeProfileSessions,
-  launchBrowserRuntimeAssist,
+  launchBrowserSession,
   openBrowserRuntimeDebuggerWindow,
   openChromeProfileWindow,
   setBrowserBackendPolicy,
@@ -43,6 +44,7 @@ import {
 } from "@/lib/webview-api";
 
 type SearchEngine = "google" | "xiaohongshu";
+type RelaySectionTab = "overview" | "profile" | "bridge" | "backend" | "debug";
 
 interface SurfacePanelProps {
   icon: LucideIcon;
@@ -71,11 +73,17 @@ interface EngineDefinition {
 }
 
 const SECONDARY_BUTTON_CLASS_NAME =
-  "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
 const PRIMARY_BUTTON_CLASS_NAME =
-  "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
 const SELECT_CLASS_NAME =
-  "h-11 rounded-[16px] border border-slate-200 bg-white px-3.5 text-sm text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200";
+  "h-11 w-full rounded-[16px] border border-slate-200 bg-white px-3.5 text-sm text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 sm:w-auto";
+const SECTION_TABS_CLASS_NAME =
+  "flex h-auto w-full flex-wrap justify-start gap-2 rounded-[20px] border border-slate-200/80 bg-slate-100/90 p-2 shadow-sm shadow-slate-950/5";
+const SECTION_TAB_TRIGGER_CLASS_NAME =
+  "rounded-full border px-4 py-2 text-sm font-medium";
+const SECTION_TAB_BADGE_CLASS_NAME =
+  "inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold";
 
 const ENGINE_ORDER: SearchEngine[] = ["google", "xiaohongshu"];
 const ENGINE_DEFINITIONS: Record<SearchEngine, EngineDefinition> = {
@@ -86,8 +94,7 @@ const ENGINE_DEFINITIONS: Record<SearchEngine, EngineDefinition> = {
     settingsUrl: "https://www.google.com/preferences?hl=zh-CN",
     assistUrl: "https://www.google.com/search?q=proxycast+browser+assist",
     bridgeTestUrl: "https://www.google.com/search?q=proxycast",
-    backendTestUrl:
-      "https://www.google.com/search?q=proxycast+browser+backend",
+    backendTestUrl: "https://www.google.com/search?q=proxycast+browser+backend",
     profileKey: "search_google",
     settingsButtonLabel: "打开 Google 设置",
   },
@@ -155,9 +162,9 @@ function SurfacePanel({
   children,
 }: SurfacePanelProps) {
   return (
-    <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+    <article className="min-w-0 rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5 sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
@@ -169,14 +176,14 @@ function SurfacePanel({
         ) : null}
       </div>
 
-      <div className="mt-5">{children}</div>
+      <div className="mt-5 min-w-0">{children}</div>
     </article>
   );
 }
 
 function SummaryStat({ label, value, description }: SummaryStatProps) {
   return (
-    <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
+    <div className="min-w-0 rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
       <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
         {label}
       </p>
@@ -201,10 +208,8 @@ function StatusPill({
         "rounded-full border px-3 py-1 text-xs font-medium",
         tone === "success" &&
           "border-emerald-200 bg-emerald-50 text-emerald-700",
-        tone === "warning" &&
-          "border-amber-200 bg-amber-50 text-amber-700",
-        tone === "neutral" &&
-          "border-slate-200 bg-white text-slate-500",
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+        tone === "neutral" && "border-slate-200 bg-white text-slate-500",
       )}
     >
       {children}
@@ -221,6 +226,8 @@ function resolveBackendTone(item?: BrowserBackendStatusItem | null) {
 
 export function ChromeRelaySettings() {
   const [activeEngine, setActiveEngine] = useState<SearchEngine>("google");
+  const [activeSectionTab, setActiveSectionTab] =
+    useState<RelaySectionTab>("overview");
   const [openingEngine, setOpeningEngine] = useState<SearchEngine | null>(null);
   const [closingProfileKey, setClosingProfileKey] = useState<string | null>(
     null,
@@ -263,7 +270,10 @@ export function ChromeRelaySettings() {
   }, [draftBackendPolicy]);
 
   const pushMessage = useCallback(
-    (nextMessage: { type: "success" | "error"; text: string }, timeout = 2500) => {
+    (
+      nextMessage: { type: "success" | "error"; text: string },
+      timeout = 2500,
+    ) => {
       setMessage(nextMessage);
       if (timeout > 0) {
         window.setTimeout(() => setMessage(null), timeout);
@@ -422,7 +432,8 @@ export function ChromeRelaySettings() {
       ),
     [bridgeStatus?.observers],
   );
-  const selectedSession = sessionsByProfile.get(selectedEngine.profileKey) ?? null;
+  const selectedSession =
+    sessionsByProfile.get(selectedEngine.profileKey) ?? null;
   const hasObserverConnected = (bridgeStatus?.observer_count ?? 0) > 0;
   const hasBackendPolicyChanges =
     createPolicyKey(backendPolicy) !== createPolicyKey(draftBackendPolicy);
@@ -496,7 +507,7 @@ export function ChromeRelaySettings() {
   const handleLaunchBrowserAssist = useCallback(async () => {
     try {
       setLaunchingAssist(true);
-      const result = await launchBrowserRuntimeAssist({
+      const result = await launchBrowserSession({
         profile_key: selectedEngine.profileKey,
         url: selectedEngine.assistUrl,
         open_window: true,
@@ -635,7 +646,12 @@ export function ChromeRelaySettings() {
         setTestingBridgeEngine(null);
       }
     },
-    [bridgeEndpoint?.server_running, hasObserverConnected, pushMessage, refreshBridgeStatus],
+    [
+      bridgeEndpoint?.server_running,
+      hasObserverConnected,
+      pushMessage,
+      refreshBridgeStatus,
+    ],
   );
 
   const updateBackendPriority = useCallback(
@@ -740,7 +756,13 @@ export function ChromeRelaySettings() {
         setTestingBackend(null);
       }
     },
-    [backendsStatus?.backends, pushMessage, refreshBackendStatus, refreshBridgeStatus, selectedEngine],
+    [
+      backendsStatus?.backends,
+      pushMessage,
+      refreshBackendStatus,
+      refreshBridgeStatus,
+      selectedEngine,
+    ],
   );
 
   const runtimeSummary = useMemo(
@@ -754,8 +776,680 @@ export function ChromeRelaySettings() {
     [backendsStatus, bridgeStatus],
   );
 
+  const renderProfilePanel = (keyPrefix = "") => (
+    <SurfacePanel
+      icon={Globe}
+      title="Profile 会话"
+      description="为搜索和桥接准备独立浏览器 Profile。每个会话都可以单独打开、关闭，并观察当前调试端口。"
+      aside={
+        <StatusPill tone={selectedSession ? "success" : "neutral"}>
+          当前查看 {selectedEngine.label}
+        </StatusPill>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
+        {ENGINE_ORDER.map((engine) => {
+          const target = ENGINE_DEFINITIONS[engine];
+          const session = sessionsByProfile.get(target.profileKey) ?? null;
+
+          return (
+            <div
+              key={`${keyPrefix}${engine}`}
+              className="flex h-full flex-col justify-between gap-5 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(248,250,252,0.92)_100%)] p-5"
+            >
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-base font-semibold text-slate-900">
+                      {target.label}
+                    </p>
+                    <p className="text-sm leading-6 text-slate-500">
+                      {target.description}
+                    </p>
+                  </div>
+                  <StatusPill tone={session ? "success" : "warning"}>
+                    {session ? "会话运行中" : "尚未启动"}
+                  </StatusPill>
+                </div>
+
+                {session ? (
+                  <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                    <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        进程 / 来源
+                      </p>
+                      <p className="mt-2 font-medium text-slate-900">
+                        PID {session.pid}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {session.browser_source}
+                      </p>
+                    </div>
+                    <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        调试端口
+                      </p>
+                      <p className="mt-2 font-medium text-slate-900">
+                        {session.remote_debugging_port}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Profile {session.profile_key}
+                      </p>
+                    </div>
+                    <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3 sm:col-span-2">
+                      <p className="text-xs font-medium text-slate-500">
+                        最近页面
+                      </p>
+                      <p className="mt-2 break-all text-sm text-slate-700">
+                        {session.last_url}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
+                    当前还没有运行中的独立会话。先打开设置窗口，或直接使用上方的一键浏览器协助。
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void openSearchSettingsWindow(engine)}
+                  disabled={openingEngine === engine}
+                  className={SECONDARY_BUTTON_CLASS_NAME}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {openingEngine === engine
+                    ? "打开中..."
+                    : target.settingsButtonLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void closeSession(engine)}
+                  disabled={!session || closingProfileKey === target.profileKey}
+                  className={SECONDARY_BUTTON_CLASS_NAME}
+                >
+                  {closingProfileKey === target.profileKey
+                    ? "关闭中..."
+                    : "关闭会话"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </SurfacePanel>
+  );
+
+  const renderBackendPanel = () => (
+    <SurfacePanel
+      icon={Layers3}
+      title="浏览器后端策略"
+      description="统一编排 Aster 协议适配、扩展桥接与 CDP 直连，并决定失败时是否自动回退。"
+    >
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
+          <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-900">
+                  默认测试目标
+                </p>
+                <p className="text-sm leading-6 text-slate-500">
+                  该目标会用于后端测试和一键浏览器协助，减少多处切换。
+                </p>
+              </div>
+              <select
+                value={activeEngine}
+                onChange={(event) =>
+                  setActiveEngine(event.target.value as SearchEngine)
+                }
+                className={cn(SELECT_CLASS_NAME, "sm:min-w-[180px]")}
+              >
+                {ENGINE_ORDER.map((engine) => (
+                  <option key={`relay-engine-${engine}`} value={engine}>
+                    {ENGINE_DEFINITIONS[engine].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 rounded-[20px] border border-slate-200/80 bg-white/85 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-900">自动回退</p>
+                <p className="text-sm leading-6 text-slate-500">
+                  当前后端失败时，自动切换到下一个优先级继续执行。
+                </p>
+              </div>
+              <Switch
+                aria-label="自动回退到下一后端"
+                checked={draftBackendPolicy?.auto_fallback ?? true}
+                onCheckedChange={(checked) =>
+                  setDraftBackendPolicy((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          auto_fallback: checked,
+                        }
+                      : prev,
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {[0, 1, 2].map((index) => {
+              const selectedBackend =
+                draftBackendPolicy?.priority[index] || BACKEND_OPTIONS[index];
+              return (
+                <div
+                  key={`backend-priority-${index}`}
+                  className="rounded-[22px] border border-slate-200/80 bg-white p-4"
+                >
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {`优先级 ${index + 1}`}
+                      </p>
+                      <p className="text-sm leading-6 text-slate-500">
+                        {BACKEND_DESCRIPTIONS[selectedBackend]}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <select
+                        value={selectedBackend}
+                        onChange={(event) =>
+                          updateBackendPriority(
+                            index,
+                            event.target.value as BrowserBackendType,
+                          )
+                        }
+                        className={cn(SELECT_CLASS_NAME, "sm:min-w-[220px]")}
+                      >
+                        {BACKEND_OPTIONS.map((option) => (
+                          <option
+                            key={`backend-option-${index}-${option}`}
+                            value={option}
+                          >
+                            {BACKEND_LABELS[option]}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void testBackendAction(selectedBackend)}
+                        disabled={testingBackend === selectedBackend}
+                        className={SECONDARY_BUTTON_CLASS_NAME}
+                      >
+                        {testingBackend === selectedBackend
+                          ? "测试中..."
+                          : "测试"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-900">当前可用性</p>
+            <p className="text-sm leading-6 text-slate-500">
+              后端状态来自运行时即时快照，用于判断当前是否具备可执行链路。
+            </p>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {backendStatusList.map((item) => (
+              <div
+                key={`backend-status-${item.backend}`}
+                className="rounded-[20px] border border-slate-200/80 bg-white/90 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {BACKEND_LABELS[item.backend]}
+                  </p>
+                  <StatusPill tone={resolveBackendTone(item)}>
+                    {item.available ? "可用" : item.reason || "待检查"}
+                  </StatusPill>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {item.reason || BACKEND_DESCRIPTIONS[item.backend]}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  能力:{" "}
+                  {item.capabilities.length > 0
+                    ? item.capabilities.join(" / ")
+                    : "等待运行时返回"}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-[20px] border border-slate-200/80 bg-white/90 p-4 text-sm leading-6 text-slate-600">
+            <p>
+              Aster native-host:{" "}
+              {backendsStatus?.aster_native_host_configured
+                ? "已配置"
+                : "未配置"}
+            </p>
+            <p>
+              平台支持:{" "}
+              {backendsStatus?.aster_native_host_supported ? "是" : "否"}
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void saveBackendPolicy()}
+              disabled={!hasBackendPolicyChanges || savingBackendPolicy}
+              className={PRIMARY_BUTTON_CLASS_NAME}
+            >
+              {savingBackendPolicy ? "保存中..." : "保存后端策略"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void refreshBackendStatus(false)}
+              disabled={refreshingBackends}
+              className={SECONDARY_BUTTON_CLASS_NAME}
+            >
+              <RefreshCw
+                className={cn(
+                  "h-4 w-4",
+                  refreshingBackends ? "animate-spin" : "",
+                )}
+              />
+              刷新后端状态
+            </button>
+          </div>
+        </div>
+      </div>
+    </SurfacePanel>
+  );
+
+  const renderBridgePanel = () => (
+    <SurfacePanel
+      icon={Sparkles}
+      title="Chrome 扩展桥接"
+      description="该桥接负责让浏览器扩展回传页面信息并接收控制命令，适合在独立 Profile 中补充观察与辅助执行。"
+      aside={
+        <StatusPill
+          tone={bridgeEndpoint?.server_running ? "success" : "warning"}
+        >
+          {bridgeEndpoint?.server_running ? "桥接服务运行中" : "桥接服务未运行"}
+        </StatusPill>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+            <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
+              OBSERVER
+            </p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+              {runtimeSummary.observerCount}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              扩展侧页面观察连接数，用于回传页面信息和心跳。
+            </p>
+          </div>
+          <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+            <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
+              CONTROL
+            </p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+              {runtimeSummary.controlCount}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              控制通道连接数，用于命令转发与桥接调试。
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-900">扩展接入信息</p>
+            <p className="text-sm leading-6 text-slate-500">
+              在目标 Chrome Profile 的扩展弹窗里填写以下 WebSocket 端点与 Bridge
+              Key。
+            </p>
+          </div>
+
+          {bridgeEndpoint ? (
+            <div className="mt-4 rounded-[20px] border border-slate-200/80 bg-white/90 p-4">
+              <div className="space-y-2 text-sm text-slate-600">
+                <p className="break-all">
+                  Observer WS: {bridgeEndpoint.observer_ws_url}
+                </p>
+                <p className="break-all">
+                  Control WS: {bridgeEndpoint.control_ws_url}
+                </p>
+                <p className="break-all">
+                  Bridge Key: {bridgeEndpoint.bridge_key}
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {ENGINE_ORDER.map((engine) => (
+                  <button
+                    key={`copy-config-${engine}`}
+                    type="button"
+                    onClick={() => void copyBridgeConfig(engine)}
+                    className={SECONDARY_BUTTON_CLASS_NAME}
+                  >
+                    <Copy className="h-4 w-4" />
+                    {`复制 ${ENGINE_DEFINITIONS[engine].label} 配置`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-white/70 p-4 text-sm leading-6 text-slate-500">
+              尚未获取到桥接端点信息，请先刷新状态或确认后端服务已经启动。
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          {ENGINE_ORDER.map((engine) => {
+            const observer =
+              observersByProfile.get(ENGINE_DEFINITIONS[engine].profileKey) ??
+              null;
+            return (
+              <div
+                key={`observer-status-${engine}`}
+                className="rounded-[20px] border border-slate-200/80 bg-white p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {ENGINE_DEFINITIONS[engine].label} observer
+                  </p>
+                  <StatusPill tone={observer ? "success" : "warning"}>
+                    {observer ? observer.client_id : "未连接"}
+                  </StatusPill>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {observer?.last_page_info?.title
+                    ? `最近页面：${observer.last_page_info.title}`
+                    : "尚未收到最近页面信息"}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {!hasObserverConnected ? (
+          <div className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm leading-6 text-amber-800">
+            未检测到扩展 observer 连接。请在对应 Chrome Profile 安装并打开
+            Proxycast Browser Bridge 扩展，然后填入上面的 Observer WS 与 Bridge
+            Key。
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {ENGINE_ORDER.map((engine) => (
+            <button
+              key={`bridge-test-${engine}`}
+              type="button"
+              onClick={() => void testBridgeCommand(engine)}
+              disabled={testingBridgeEngine === engine}
+              className={SECONDARY_BUTTON_CLASS_NAME}
+            >
+              {testingBridgeEngine === engine
+                ? "测试中..."
+                : `测试 ${ENGINE_DEFINITIONS[engine].label} 扩展`}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => void refreshBridgeStatus(false)}
+            disabled={refreshingBridge}
+            className={SECONDARY_BUTTON_CLASS_NAME}
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", refreshingBridge ? "animate-spin" : "")}
+            />
+            刷新扩展状态
+          </button>
+        </div>
+      </div>
+    </SurfacePanel>
+  );
+
+  const renderOverviewPanel = () => (
+    <SurfacePanel
+      icon={Sparkles}
+      title="当前概览"
+      description="把最常用的观察点和入口压缩在一屏内，详情再进入对应页签查看。"
+    >
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">
+                Profile 会话
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                当前目标 {selectedEngine.label}
+                ，可快速检查独立浏览器是否已启动。
+              </p>
+            </div>
+            <StatusPill tone={selectedSession ? "success" : "warning"}>
+              {selectedSession ? "已启动" : "未启动"}
+            </StatusPill>
+          </div>
+          <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+            {runtimeSummary.runningProfiles}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            运行中的独立 Profile 数量
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveSectionTab("profile")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+          >
+            查看 Profile 详情
+          </button>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">扩展桥接</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                observer / control 连接情况决定扩展侧链路是否可用。
+              </p>
+            </div>
+            <StatusPill tone={hasObserverConnected ? "success" : "warning"}>
+              {hasObserverConnected ? "已连通" : "待接入"}
+            </StatusPill>
+          </div>
+          <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+            {runtimeSummary.observerCount}/{runtimeSummary.controlCount}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            observer / control 当前连接数
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveSectionTab("bridge")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+          >
+            查看桥接详情
+          </button>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">后端策略</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                默认优先级与自动回退开关决定动作链路如何降级。
+              </p>
+            </div>
+            <StatusPill
+              tone={
+                (draftBackendPolicy?.auto_fallback ?? true)
+                  ? "success"
+                  : "neutral"
+              }
+            >
+              {(draftBackendPolicy?.auto_fallback ?? true)
+                ? "自动回退开"
+                : "自动回退关"}
+            </StatusPill>
+          </div>
+          <p className="mt-4 text-sm font-medium text-slate-900">
+            {(draftBackendPolicy?.priority ?? BACKEND_OPTIONS)
+              .map((backend) => BACKEND_LABELS[backend])
+              .join(" / ")}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            当前优先级顺序
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveSectionTab("backend")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+          >
+            查看后端详情
+          </button>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">实时调试</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                需要观察页面、接管输入或排查事件流时再进入调试页签。
+              </p>
+            </div>
+            <StatusPill tone={runtimeSessionId ? "success" : "neutral"}>
+              {runtimeSessionId ? "已有会话" : "按需进入"}
+            </StatusPill>
+          </div>
+          <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+            {runtimeSummary.cdpAliveProfiles}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            当前可复用的 CDP 会话
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveSectionTab("debug")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+          >
+            打开实时调试
+          </button>
+        </div>
+      </div>
+    </SurfacePanel>
+  );
+
+  const renderUsagePanel = () => (
+    <SurfacePanel
+      icon={Sparkles}
+      title="使用建议"
+      description="按这个顺序处理，页面状态会更稳定，也更容易复用到浏览器协助和实时调试。"
+    >
+      <div className="space-y-3">
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+          <p className="text-sm font-semibold text-slate-900">
+            1. 先准备独立 Profile
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            先为 Google
+            或小红书打开独立设置窗口，确认账号、语言与内容偏好已经稳定。
+          </p>
+        </div>
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+          <p className="text-sm font-semibold text-slate-900">
+            2. 再接通扩展桥接
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            observer
+            连上以后，扩展才会持续回传页面信息。这样排查桥接链路会更直观。
+          </p>
+        </div>
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+          <p className="text-sm font-semibold text-slate-900">
+            3. 需要人工介入时再开调试窗口
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            顶部的独立调试窗口和底部实时调试面板都能复用当前目标 Profile，
+            适合需要观察页面变化或临时接管输入的时刻。
+          </p>
+        </div>
+      </div>
+    </SurfacePanel>
+  );
+
+  const renderDebugPanel = () => (
+    <SurfacePanel
+      icon={Bug}
+      title="浏览器实时调试"
+      description="底部直接复用浏览器实时会话面板。适合观察事件流、查看画面并在必要时接管当前页面。"
+    >
+      <div className="min-w-0 overflow-x-auto">
+        <BrowserRuntimeDebugPanel
+          sessions={sessions}
+          onMessage={(nextMessage) => setMessage(nextMessage)}
+          showStandaloneWindowButton={false}
+          initialProfileKey={selectedEngine.profileKey}
+          initialSessionId={runtimeSessionId ?? undefined}
+        />
+      </div>
+    </SurfacePanel>
+  );
+
+  const availableBackendCount = backendStatusList.filter(
+    (item) => item.available,
+  ).length;
+
+  const getSectionTabClassName = (tab: RelaySectionTab) =>
+    cn(
+      SECTION_TAB_TRIGGER_CLASS_NAME,
+      activeSectionTab === tab
+        ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-950/15"
+        : "border-transparent bg-white/70 text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-900",
+    );
+
+  const renderSectionTabLabel = (
+    tab: RelaySectionTab,
+    label: string,
+    icon: LucideIcon,
+    badge: string | number,
+  ) => {
+    const Icon = icon;
+    const active = activeSectionTab === tab;
+
+    return (
+      <span className="inline-flex items-center gap-2">
+        <Icon
+          className={cn("h-4 w-4", active ? "text-white" : "text-slate-500")}
+        />
+        <span>{label}</span>
+        <span
+          className={cn(
+            SECTION_TAB_BADGE_CLASS_NAME,
+            active ? "bg-white/15 text-white" : "bg-slate-200 text-slate-600",
+          )}
+        >
+          {badge}
+        </span>
+      </span>
+    );
+  };
+
   return (
-    <div className="space-y-6 pb-8">
+    <div className="min-w-0 space-y-6 pb-8">
       {message ? (
         <div
           className={cn(
@@ -780,16 +1474,17 @@ export function ChromeRelaySettings() {
         <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
         <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
 
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)] xl:items-stretch">
+        <div className="relative flex min-w-0 flex-col gap-6 p-4 sm:p-6 lg:p-8">
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)] 2xl:items-stretch">
             <div className="max-w-3xl space-y-5">
               <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
                 CHROME RELAY
               </span>
 
               <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  在一个宽视图里统一管理浏览器 Profile、扩展桥接、后端回退和实时调试
+                <p className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
+                  在一个宽视图里统一管理浏览器
+                  Profile、扩展桥接、后端回退和实时调试
                 </p>
                 <p className="max-w-2xl text-sm leading-7 text-slate-600">
                   这里不再拆成几块旧式表单。你可以直接检查当前会话、调整后端优先级，
@@ -806,17 +1501,20 @@ export function ChromeRelaySettings() {
                 </StatusPill>
                 <StatusPill
                   tone={
-                    draftBackendPolicy?.auto_fallback ?? true
+                    (draftBackendPolicy?.auto_fallback ?? true)
                       ? "success"
                       : "neutral"
                   }
                 >
-                  自动回退 {(draftBackendPolicy?.auto_fallback ?? true) ? "开启" : "关闭"}
+                  自动回退{" "}
+                  {(draftBackendPolicy?.auto_fallback ?? true)
+                    ? "开启"
+                    : "关闭"}
                 </StatusPill>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:content-start">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-1 2xl:content-start">
               <SummaryStat
                 label="运行 Profile"
                 value={runtimeSummary.runningProfiles.toString()}
@@ -835,7 +1533,7 @@ export function ChromeRelaySettings() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-[24px] border border-white/90 bg-white/80 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 rounded-[24px] border border-white/90 bg-white/80 p-4 shadow-sm sm:p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <label
@@ -850,7 +1548,7 @@ export function ChromeRelaySettings() {
                   onChange={(event) =>
                     setActiveEngine(event.target.value as SearchEngine)
                   }
-                  className={cn(SELECT_CLASS_NAME, "h-10 min-w-[160px]")}
+                  className={cn(SELECT_CLASS_NAME, "h-10 sm:min-w-[160px]")}
                 >
                   {ENGINE_ORDER.map((engine) => (
                     <option key={engine} value={engine}>
@@ -862,7 +1560,9 @@ export function ChromeRelaySettings() {
                   待处理命令 {runtimeSummary.pendingCommands}
                 </StatusPill>
                 <StatusPill tone={selectedSession ? "success" : "warning"}>
-                  {selectedSession ? "当前 Profile 已启动" : "当前 Profile 未启动"}
+                  {selectedSession
+                    ? "当前 Profile 已启动"
+                    : "当前 Profile 未启动"}
                 </StatusPill>
               </div>
               <p className="text-sm leading-6 text-slate-600">
@@ -871,12 +1571,12 @@ export function ChromeRelaySettings() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
               <button
                 type="button"
                 onClick={() => void handleLaunchBrowserAssist()}
                 disabled={launchingAssist}
-                className={PRIMARY_BUTTON_CLASS_NAME}
+                className={cn(PRIMARY_BUTTON_CLASS_NAME, "w-full sm:w-auto")}
               >
                 <ExternalLink className="h-4 w-4" />
                 {launchingAssist ? "启动中..." : "一键启动浏览器协助"}
@@ -885,7 +1585,7 @@ export function ChromeRelaySettings() {
                 type="button"
                 onClick={() => void handleOpenDebuggerWindow()}
                 disabled={openingDebugger}
-                className={SECONDARY_BUTTON_CLASS_NAME}
+                className={cn(SECONDARY_BUTTON_CLASS_NAME, "w-full sm:w-auto")}
               >
                 <Bug className="h-4 w-4" />
                 {openingDebugger ? "打开中..." : "打开独立调试窗口"}
@@ -896,7 +1596,7 @@ export function ChromeRelaySettings() {
                 disabled={
                   refreshingSessions || refreshingBridge || refreshingBackends
                 }
-                className={SECONDARY_BUTTON_CLASS_NAME}
+                className={cn(SECONDARY_BUTTON_CLASS_NAME, "w-full sm:w-auto")}
               >
                 <RefreshCw
                   className={cn(
@@ -913,510 +1613,90 @@ export function ChromeRelaySettings() {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.16fr)_minmax(320px,0.84fr)]">
-        <div className="space-y-6">
-          <SurfacePanel
-            icon={Globe}
-            title="Profile 会话"
-            description="为搜索和桥接准备独立浏览器 Profile。每个会话都可以单独打开、关闭，并观察当前调试端口。"
-            aside={
-              <StatusPill tone={selectedSession ? "success" : "neutral"}>
-                当前查看 {selectedEngine.label}
-              </StatusPill>
-            }
-          >
-            <div className="grid gap-4 lg:grid-cols-2">
-              {ENGINE_ORDER.map((engine) => {
-                const target = ENGINE_DEFINITIONS[engine];
-                const session = sessionsByProfile.get(target.profileKey) ?? null;
-
-                return (
-                  <div
-                    key={engine}
-                    className="flex h-full flex-col justify-between gap-5 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(248,250,252,0.92)_100%)] p-5"
-                  >
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="text-base font-semibold text-slate-900">
-                            {target.label}
-                          </p>
-                          <p className="text-sm leading-6 text-slate-500">
-                            {target.description}
-                          </p>
-                        </div>
-                        <StatusPill tone={session ? "success" : "warning"}>
-                          {session ? "会话运行中" : "尚未启动"}
-                        </StatusPill>
-                      </div>
-
-                      {session ? (
-                        <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                          <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                            <p className="text-xs font-medium text-slate-500">
-                              进程 / 来源
-                            </p>
-                            <p className="mt-2 font-medium text-slate-900">
-                              PID {session.pid}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {session.browser_source}
-                            </p>
-                          </div>
-                          <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                            <p className="text-xs font-medium text-slate-500">
-                              调试端口
-                            </p>
-                            <p className="mt-2 font-medium text-slate-900">
-                              {session.remote_debugging_port}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Profile {session.profile_key}
-                            </p>
-                          </div>
-                          <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3 sm:col-span-2">
-                            <p className="text-xs font-medium text-slate-500">
-                              最近页面
-                            </p>
-                            <p className="mt-2 break-all text-sm text-slate-700">
-                              {session.last_url}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
-                          当前还没有运行中的独立会话。先打开设置窗口，或直接使用上方的一键浏览器协助。
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void openSearchSettingsWindow(engine)}
-                        disabled={openingEngine === engine}
-                        className={SECONDARY_BUTTON_CLASS_NAME}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        {openingEngine === engine
-                          ? "打开中..."
-                          : target.settingsButtonLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void closeSession(engine)}
-                        disabled={
-                          !session || closingProfileKey === target.profileKey
-                        }
-                        className={SECONDARY_BUTTON_CLASS_NAME}
-                      >
-                        {closingProfileKey === target.profileKey
-                          ? "关闭中..."
-                          : "关闭会话"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </SurfacePanel>
-
-          <SurfacePanel
-            icon={Layers3}
-            title="浏览器后端策略"
-            description="统一编排 Aster 协议适配、扩展桥接与 CDP 直连，并决定失败时是否自动回退。"
-          >
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="space-y-4">
-                <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
-                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-slate-900">
-                        默认测试目标
-                      </p>
-                      <p className="text-sm leading-6 text-slate-500">
-                        该目标会用于后端测试和一键浏览器协助，减少多处切换。
-                      </p>
-                    </div>
-                    <select
-                      value={activeEngine}
-                      onChange={(event) =>
-                        setActiveEngine(event.target.value as SearchEngine)
-                      }
-                      className={cn(SELECT_CLASS_NAME, "min-w-[180px]")}
-                    >
-                      {ENGINE_ORDER.map((engine) => (
-                        <option key={`relay-engine-${engine}`} value={engine}>
-                          {ENGINE_DEFINITIONS[engine].label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="mt-4 flex flex-col gap-3 rounded-[20px] border border-slate-200/80 bg-white/85 p-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-slate-900">
-                        自动回退
-                      </p>
-                      <p className="text-sm leading-6 text-slate-500">
-                        当前后端失败时，自动切换到下一个优先级继续执行。
-                      </p>
-                    </div>
-                    <Switch
-                      aria-label="自动回退到下一后端"
-                      checked={draftBackendPolicy?.auto_fallback ?? true}
-                      onCheckedChange={(checked) =>
-                        setDraftBackendPolicy((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                auto_fallback: checked,
-                              }
-                            : prev,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {[0, 1, 2].map((index) => {
-                    const selectedBackend =
-                      draftBackendPolicy?.priority[index] ||
-                      BACKEND_OPTIONS[index];
-                    return (
-                      <div
-                        key={`backend-priority-${index}`}
-                        className="rounded-[22px] border border-slate-200/80 bg-white p-4"
-                      >
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                          <div className="space-y-2">
-                            <p className="text-sm font-semibold text-slate-900">
-                              {`优先级 ${index + 1}`}
-                            </p>
-                            <p className="text-sm leading-6 text-slate-500">
-                              {BACKEND_DESCRIPTIONS[selectedBackend]}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <select
-                              value={selectedBackend}
-                              onChange={(event) =>
-                                updateBackendPriority(
-                                  index,
-                                  event.target.value as BrowserBackendType,
-                                )
-                              }
-                              className={cn(SELECT_CLASS_NAME, "min-w-[220px]")}
-                            >
-                              {BACKEND_OPTIONS.map((option) => (
-                                <option
-                                  key={`backend-option-${index}-${option}`}
-                                  value={option}
-                                >
-                                  {BACKEND_LABELS[option]}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => void testBackendAction(selectedBackend)}
-                              disabled={testingBackend === selectedBackend}
-                              className={SECONDARY_BUTTON_CLASS_NAME}
-                            >
-                              {testingBackend === selectedBackend
-                                ? "测试中..."
-                                : "测试"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    当前可用性
-                  </p>
-                  <p className="text-sm leading-6 text-slate-500">
-                    后端状态来自运行时即时快照，用于判断当前是否具备可执行链路。
-                  </p>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {backendStatusList.map((item) => (
-                    <div
-                      key={`backend-status-${item.backend}`}
-                      className="rounded-[20px] border border-slate-200/80 bg-white/90 p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {BACKEND_LABELS[item.backend]}
-                        </p>
-                        <StatusPill tone={resolveBackendTone(item)}>
-                          {item.available ? "可用" : item.reason || "待检查"}
-                        </StatusPill>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {item.reason || BACKEND_DESCRIPTIONS[item.backend]}
-                      </p>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        能力:{" "}
-                        {item.capabilities.length > 0
-                          ? item.capabilities.join(" / ")
-                          : "等待运行时返回"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 rounded-[20px] border border-slate-200/80 bg-white/90 p-4 text-sm leading-6 text-slate-600">
-                  <p>
-                    Aster native-host:{" "}
-                    {backendsStatus?.aster_native_host_configured
-                      ? "已配置"
-                      : "未配置"}
-                  </p>
-                  <p>
-                    平台支持:{" "}
-                    {backendsStatus?.aster_native_host_supported ? "是" : "否"}
-                  </p>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void saveBackendPolicy()}
-                    disabled={!hasBackendPolicyChanges || savingBackendPolicy}
-                    className={PRIMARY_BUTTON_CLASS_NAME}
-                  >
-                    {savingBackendPolicy ? "保存中..." : "保存后端策略"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void refreshBackendStatus(false)}
-                    disabled={refreshingBackends}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <RefreshCw
-                      className={cn(
-                        "h-4 w-4",
-                        refreshingBackends ? "animate-spin" : "",
-                      )}
-                    />
-                    刷新后端状态
-                  </button>
-                </div>
-              </div>
-            </div>
-          </SurfacePanel>
-        </div>
-
-        <div className="space-y-6">
-          <SurfacePanel
-            icon={Sparkles}
-            title="Chrome 扩展桥接"
-            description="该桥接负责让浏览器扩展回传页面信息并接收控制命令，适合在独立 Profile 中补充观察与辅助执行。"
-            aside={
-              <StatusPill
-                tone={bridgeEndpoint?.server_running ? "success" : "warning"}
-              >
-                {bridgeEndpoint?.server_running ? "桥接服务运行中" : "桥接服务未运行"}
-              </StatusPill>
-            }
-          >
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    OBSERVER
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-                    {runtimeSummary.observerCount}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    扩展侧页面观察连接数，用于回传页面信息和心跳。
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    CONTROL
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-                    {runtimeSummary.controlCount}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    控制通道连接数，用于命令转发与桥接调试。
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    扩展接入信息
-                  </p>
-                  <p className="text-sm leading-6 text-slate-500">
-                    在目标 Chrome Profile 的扩展弹窗里填写以下 WebSocket 端点与 Bridge Key。
-                  </p>
-                </div>
-
-                {bridgeEndpoint ? (
-                  <div className="mt-4 rounded-[20px] border border-slate-200/80 bg-white/90 p-4">
-                    <div className="space-y-2 text-sm text-slate-600">
-                      <p className="break-all">
-                        Observer WS: {bridgeEndpoint.observer_ws_url}
-                      </p>
-                      <p className="break-all">
-                        Control WS: {bridgeEndpoint.control_ws_url}
-                      </p>
-                      <p className="break-all">
-                        Bridge Key: {bridgeEndpoint.bridge_key}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {ENGINE_ORDER.map((engine) => (
-                        <button
-                          key={`copy-config-${engine}`}
-                          type="button"
-                          onClick={() => void copyBridgeConfig(engine)}
-                          className={SECONDARY_BUTTON_CLASS_NAME}
-                        >
-                          <Copy className="h-4 w-4" />
-                          {`复制 ${ENGINE_DEFINITIONS[engine].label} 配置`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-white/70 p-4 text-sm leading-6 text-slate-500">
-                    尚未获取到桥接端点信息，请先刷新状态或确认后端服务已经启动。
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                {ENGINE_ORDER.map((engine) => {
-                  const observer =
-                    observersByProfile.get(ENGINE_DEFINITIONS[engine].profileKey) ??
-                    null;
-                  return (
-                    <div
-                      key={`observer-status-${engine}`}
-                      className="rounded-[20px] border border-slate-200/80 bg-white p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {ENGINE_DEFINITIONS[engine].label} observer
-                        </p>
-                        <StatusPill tone={observer ? "success" : "warning"}>
-                          {observer ? observer.client_id : "未连接"}
-                        </StatusPill>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {observer?.last_page_info?.title
-                          ? `最近页面：${observer.last_page_info.title}`
-                          : "尚未收到最近页面信息"}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {!hasObserverConnected ? (
-                <div className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm leading-6 text-amber-800">
-                  未检测到扩展 observer 连接。请在对应 Chrome Profile 安装并打开
-                  Proxycast Browser Bridge 扩展，然后填入上面的 Observer WS 与
-                  Bridge Key。
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap items-center gap-2">
-                {ENGINE_ORDER.map((engine) => (
-                  <button
-                    key={`bridge-test-${engine}`}
-                    type="button"
-                    onClick={() => void testBridgeCommand(engine)}
-                    disabled={testingBridgeEngine === engine}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    {testingBridgeEngine === engine
-                      ? "测试中..."
-                      : `测试 ${ENGINE_DEFINITIONS[engine].label} 扩展`}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => void refreshBridgeStatus(false)}
-                  disabled={refreshingBridge}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "h-4 w-4",
-                      refreshingBridge ? "animate-spin" : "",
-                    )}
-                  />
-                  刷新扩展状态
-                </button>
-              </div>
-            </div>
-          </SurfacePanel>
-
-          <SurfacePanel
-            icon={Sparkles}
-            title="使用建议"
-            description="按这个顺序处理，页面状态会更稳定，也更容易复用到浏览器协助和实时调试。"
-          >
-            <div className="space-y-3">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  1. 先准备独立 Profile
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  先为 Google 或小红书打开独立设置窗口，确认账号、语言与内容偏好已经稳定。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  2. 再接通扩展桥接
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  observer 连上以后，扩展才会持续回传页面信息。这样排查桥接链路会更直观。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  3. 需要人工介入时再开调试窗口
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  顶部的独立调试窗口和底部实时调试面板都能复用当前目标 Profile，
-                  适合需要观察页面变化或临时接管输入的时刻。
-                </p>
-              </div>
-            </div>
-          </SurfacePanel>
-        </div>
-      </div>
-
-      <SurfacePanel
-        icon={Bug}
-        title="浏览器实时调试"
-        description="底部直接复用浏览器实时会话面板。适合观察事件流、查看画面并在必要时接管当前页面。"
+      <Tabs
+        value={activeSectionTab}
+        onValueChange={(value) => setActiveSectionTab(value as RelaySectionTab)}
+        className="w-full"
       >
-        <BrowserRuntimeDebugPanel
-          sessions={sessions}
-          onMessage={(nextMessage) => setMessage(nextMessage)}
-          showStandaloneWindowButton={false}
-          initialProfileKey={selectedEngine.profileKey}
-          initialSessionId={runtimeSessionId ?? undefined}
-        />
-      </SurfacePanel>
+        <TabsList className={SECTION_TABS_CLASS_NAME}>
+          <TabsTrigger
+            value="overview"
+            className={getSectionTabClassName("overview")}
+          >
+            {renderSectionTabLabel(
+              "overview",
+              "总览",
+              Sparkles,
+              runtimeSummary.pendingCommands,
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="profile"
+            className={getSectionTabClassName("profile")}
+          >
+            {renderSectionTabLabel(
+              "profile",
+              "Profile",
+              Globe,
+              runtimeSummary.runningProfiles,
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="bridge"
+            className={getSectionTabClassName("bridge")}
+          >
+            {renderSectionTabLabel(
+              "bridge",
+              "桥接",
+              Copy,
+              runtimeSummary.observerCount,
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="backend"
+            className={getSectionTabClassName("backend")}
+          >
+            {renderSectionTabLabel(
+              "backend",
+              "后端",
+              Layers3,
+              availableBackendCount,
+            )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="debug"
+            className={getSectionTabClassName("debug")}
+          >
+            {renderSectionTabLabel(
+              "debug",
+              "调试",
+              Bug,
+              runtimeSummary.cdpAliveProfiles,
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-5 space-y-6">
+          {renderOverviewPanel()}
+          {renderUsagePanel()}
+        </TabsContent>
+
+        <TabsContent value="profile" className="mt-5">
+          {renderProfilePanel("profile-")}
+        </TabsContent>
+
+        <TabsContent value="bridge" className="mt-5">
+          {renderBridgePanel()}
+        </TabsContent>
+
+        <TabsContent value="backend" className="mt-5">
+          {renderBackendPanel()}
+        </TabsContent>
+
+        <TabsContent value="debug" className="mt-5">
+          {renderDebugPanel()}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

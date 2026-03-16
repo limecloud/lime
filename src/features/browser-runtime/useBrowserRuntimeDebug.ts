@@ -293,7 +293,7 @@ export function useBrowserRuntimeDebug(
         );
 
         try {
-          const result = await browserRuntimeApi.launchBrowserRuntimeAssist({
+          const result = await browserRuntimeApi.launchBrowserSession({
             profile_key: profileKey,
             url,
             open_window: false,

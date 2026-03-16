@@ -43,6 +43,11 @@ import {
   resolveRestorableSessionId,
 } from "../utils/sessionRecovery";
 import { createStreamDiagnosticsReporter } from "../utils/streamDiagnostics";
+import {
+  isToolResultSuccessful,
+  normalizeIncomingToolResult,
+} from "./agentChatToolResult";
+import { buildActionRequestSubmissionContext } from "../utils/actionRequestA2UI";
 
 /** 话题（会话）信息 */
 export interface Topic {
@@ -1272,6 +1277,9 @@ export function useAgentChat(options: UseAgentChatOptions) {
           case "tool_end": {
             // 工具执行完成 - 更新工具调用状态和 contentParts
             console.log(`[Tool End] ${data.tool_id}`);
+            const normalizedResult =
+              normalizeIncomingToolResult(data.result) || data.result;
+            const success = isToolResultSuccessful(normalizedResult);
             setMessages((prev) =>
               prev.map((msg) => {
                 if (msg.id !== assistantMsgId) return msg;
@@ -1281,10 +1289,10 @@ export function useAgentChat(options: UseAgentChatOptions) {
                   tc.id === data.tool_id
                     ? {
                         ...tc,
-                        status: data.result.success
+                        status: success
                           ? ("completed" as const)
                           : ("failed" as const),
-                        result: data.result,
+                        result: normalizedResult,
                         endTime: new Date(),
                       }
                     : tc,
@@ -1301,10 +1309,10 @@ export function useAgentChat(options: UseAgentChatOptions) {
                         ...part,
                         toolCall: {
                           ...part.toolCall,
-                          status: data.result.success
+                          status: success
                             ? ("completed" as const)
                             : ("failed" as const),
-                          result: data.result,
+                          result: normalizedResult,
                           endTime: new Date(),
                         },
                       };
@@ -1999,6 +2007,9 @@ export function useAgentChat(options: UseAgentChatOptions) {
 
           case "tool_end": {
             console.log(`[Tool End] ${data.tool_id}`);
+            const normalizedResult =
+              normalizeIncomingToolResult(data.result) || data.result;
+            const success = isToolResultSuccessful(normalizedResult);
             setMessages((prev) =>
               prev.map((msg) => {
                 if (msg.id !== assistantMsgId) return msg;
@@ -2007,10 +2018,10 @@ export function useAgentChat(options: UseAgentChatOptions) {
                   tc.id === data.tool_id
                     ? {
                         ...tc,
-                        status: data.result.success
+                        status: success
                           ? ("completed" as const)
                           : ("failed" as const),
-                        result: data.result,
+                        result: normalizedResult,
                         endTime: new Date(),
                       }
                     : tc,
@@ -2026,10 +2037,10 @@ export function useAgentChat(options: UseAgentChatOptions) {
                         ...part,
                         toolCall: {
                           ...part.toolCall,
-                          status: data.result.success
+                          status: success
                             ? ("completed" as const)
                             : ("failed" as const),
-                          result: data.result,
+                          result: normalizedResult,
                           endTime: new Date(),
                         },
                       };
@@ -2082,22 +2093,22 @@ export function useAgentChat(options: UseAgentChatOptions) {
   // 处理权限确认响应
   const handlePermissionResponse = async (response: ConfirmResponse) => {
     try {
-      const findActionTypeByRequestId = (
+      const findActionByRequestId = (
         requestId: string,
-      ): ConfirmResponse["actionType"] => {
+      ): ActionRequired | undefined => {
         for (const message of messages) {
           const action = message.actionRequests?.find(
             (item) => item.requestId === requestId,
           );
           if (action) {
-            return action.actionType;
+            return action;
           }
         }
         return undefined;
       };
 
-      const actionType =
-        response.actionType || findActionTypeByRequestId(response.requestId);
+      const pendingAction = findActionByRequestId(response.requestId);
+      const actionType = response.actionType || pendingAction?.actionType;
       const normalizedResponse =
         typeof response.response === "string" ? response.response.trim() : "";
       let submittedUserData: unknown = response.userData;
@@ -2131,11 +2142,15 @@ export function useAgentChat(options: UseAgentChatOptions) {
         }
 
         submittedUserData = userData;
+        const submissionContext = pendingAction
+          ? buildActionRequestSubmissionContext(pendingAction, userData)
+          : null;
 
         await submitAsterElicitationResponse(
           activeSessionId,
           response.requestId,
           userData,
+          submissionContext?.requestMetadata,
         );
       } else {
         await confirmAsterAction(

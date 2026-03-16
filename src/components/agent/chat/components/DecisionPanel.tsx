@@ -23,6 +23,7 @@ import {
   Terminal,
   FileEdit,
   Globe,
+  Loader2,
 } from "lucide-react";
 import type {
   ActionRequired,
@@ -33,6 +34,10 @@ import type {
 interface DecisionPanelProps {
   request: ActionRequired;
   onSubmit: (response: ConfirmResponse) => void;
+}
+
+function isBrowserPreflightRequest(request: ActionRequired): boolean {
+  return request.uiKind === "browser_preflight";
 }
 
 /** 获取工具图标 */
@@ -496,6 +501,133 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
               ? "答案已记录，等待系统请求 ID 就绪后会自动提交。"
               : "已提交，等待助手继续执行..."}
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isBrowserPreflightRequest(request)) {
+    const phase = request.browserPrepState || "idle";
+    const isLaunching = phase === "launching";
+    const isAwaitingUser =
+      phase === "awaiting_user" || phase === "ready_to_resume";
+    const isFailed = phase === "failed";
+    const allowsFallback = request.allowCapabilityFallback === true;
+    const requirementLabel =
+      request.browserRequirement === "required_with_user_step"
+        ? "必须浏览器执行 · 需要你完成登录/授权"
+        : request.browserRequirement === "required"
+          ? "必须浏览器执行"
+          : "优先浏览器执行";
+    const detailText =
+      request.detail ||
+      (request.browserRequirement === "required_with_user_step"
+        ? "请在右侧浏览器中完成登录、扫码、验证码或授权后，再继续当前任务。"
+        : "请先让右侧浏览器处于可操作状态，再继续当前任务。");
+    const title = isLaunching
+      ? "正在准备浏览器执行环境"
+      : isAwaitingUser
+        ? "等待你完成浏览器准备"
+        : isFailed
+          ? "浏览器未就绪"
+          : "此任务需要先准备浏览器";
+    const handleBrowserAction = (
+      browserAction: "launch" | "continue" | "fallback",
+      response: string,
+    ) => {
+      onSubmit({
+        requestId: request.requestId,
+        confirmed: true,
+        response,
+        actionType: request.actionType,
+        userData: {
+          answer: response,
+          browserAction,
+        },
+      });
+    };
+
+    return (
+      <Card className="border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+            {isLaunching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isFailed ? (
+              <AlertTriangle className="h-4 w-4" />
+            ) : (
+              <Globe className="h-4 w-4" />
+            )}
+            {title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Badge variant="secondary" className="bg-amber-100 text-amber-900">
+            {requirementLabel}
+          </Badge>
+          {request.prompt ? (
+            <p className="text-sm text-foreground whitespace-pre-wrap">
+              {request.prompt}
+            </p>
+          ) : null}
+          <div className="rounded-lg border border-amber-200/80 bg-background/80 px-3 py-2 text-sm text-muted-foreground dark:border-amber-900/60">
+            {detailText}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {isLaunching ? (
+              <Button size="sm" disabled className="bg-amber-600 hover:bg-amber-600">
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                启动中...
+              </Button>
+            ) : isAwaitingUser ? (
+              <Button
+                size="sm"
+                onClick={() =>
+                  handleBrowserAction("continue", "我已完成登录，继续执行")
+                }
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <CheckCircle className="mr-1 h-4 w-4" />
+                我已完成登录，继续执行
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() =>
+                  handleBrowserAction(
+                    "launch",
+                    isFailed ? "重新启动浏览器" : "启动浏览器并继续",
+                  )
+                }
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <Globe className="mr-1 h-4 w-4" />
+                {isFailed ? "重试启动浏览器" : "启动浏览器并继续"}
+              </Button>
+            )}
+
+            {isAwaitingUser ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBrowserAction("launch", "重新打开浏览器")}
+              >
+                <Globe className="mr-1 h-4 w-4" />
+                重新打开浏览器
+              </Button>
+            ) : null}
+
+            {allowsFallback ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBrowserAction("fallback", "改为仅做网页检索")}
+              >
+                改为仅做网页检索
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
     );

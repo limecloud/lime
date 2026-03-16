@@ -22,7 +22,7 @@ import { StylePage } from "./components/style";
 import { AgentChatPage } from "./components/agent";
 import { PluginsPage } from "./components/plugins/PluginsPage";
 import { ImageGenPage } from "./components/image-gen";
-import { BatchPage } from "./components/batch";
+import { AutomationPage } from "./components/automation";
 import { OpenClawPage } from "./components/openclaw";
 import { RecentImageInsertFloating } from "./components/image-gen/RecentImageInsertFloating";
 import { CreateProjectDialog } from "./components/projects/CreateProjectDialog";
@@ -113,7 +113,6 @@ const THEME_WORKSPACE_PAGES: ThemeWorkspacePage[] = [
   "workspace-video",
   "workspace-novel",
 ];
-
 
 function isTauriDesktopEnvironment(): boolean {
   if (typeof window === "undefined") {
@@ -466,11 +465,11 @@ function AppContent() {
           style={{
             flex: 1,
             minHeight: 0,
-            display: currentPage === "batch" ? "flex" : "none",
+            display: currentPage === "automation" ? "flex" : "none",
             flexDirection: "column",
           }}
         >
-          <BatchPage onNavigate={handleNavigate} />
+          <AutomationPage onNavigate={handleNavigate} />
         </div>
 
         <div

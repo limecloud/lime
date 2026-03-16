@@ -158,6 +158,18 @@ pub struct HealthInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    pub has_update: bool,
+    pub current_version: Option<String>,
+    pub latest_version: Option<String>,
+    pub channel: Option<String>,
+    pub install_kind: Option<String>,
+    pub package_manager: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelInfo {
     pub id: String,
     pub name: String,
@@ -914,7 +926,7 @@ impl OpenClawService {
             .spawn()
             .map_err(|e| format!("启动 Gateway 失败: {e}"))?;
 
-        let latest_gateway_error = Arc::new(StdMutex::new(None::<String>));
+        let gateway_error_lines = Arc::new(StdMutex::new(Vec::<String>::new()));
 
         if let Some(stdout) = child.stdout.take() {
             let app = app.cloned();
@@ -931,13 +943,13 @@ impl OpenClawService {
 
         if let Some(stderr) = child.stderr.take() {
             let app = app.cloned();
-            let latest_gateway_error = latest_gateway_error.clone();
+            let gateway_error_lines = gateway_error_lines.clone();
             tokio::spawn(async move {
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     tracing::warn!(target: "openclaw", "Gateway stderr: {}", line);
-                    if let Ok(mut slot) = latest_gateway_error.lock() {
-                        *slot = Some(line.clone());
+                    if let Ok(mut slot) = gateway_error_lines.lock() {
+                        push_gateway_error_line(&mut slot, &line);
                     }
                     if let Some(app) = app.as_ref() {
                         emit_install_progress(app, &line, classify_progress_level(&line, "warn"));
@@ -957,13 +969,16 @@ impl OpenClawService {
         while start_at.elapsed() < Duration::from_secs(30) {
             sleep(Duration::from_millis(300)).await;
             self.refresh_process_state().await?;
-            let latest_gateway_error = latest_gateway_error
+            let gateway_error_lines = gateway_error_lines
                 .lock()
                 .ok()
-                .and_then(|slot| slot.clone());
+                .map(|slot| slot.clone())
+                .unwrap_or_default();
 
             if self.gateway_process.is_none() && self.gateway_status == GatewayStatus::Error {
-                let message = format_gateway_start_failure_message(latest_gateway_error.as_deref());
+                let message = format_gateway_start_failure_message(
+                    select_gateway_start_failure_detail(&gateway_error_lines),
+                );
                 if let Some(app) = app {
                     emit_install_progress(app, &message, "error");
                 }
@@ -1004,11 +1019,14 @@ impl OpenClawService {
         }
 
         self.gateway_status = GatewayStatus::Error;
-        let latest_gateway_error = latest_gateway_error
+        let gateway_error_lines = gateway_error_lines
             .lock()
             .ok()
-            .and_then(|slot| slot.clone());
-        let message = format_gateway_start_failure_message(latest_gateway_error.as_deref());
+            .map(|slot| slot.clone())
+            .unwrap_or_default();
+        let message = format_gateway_start_failure_message(select_gateway_start_failure_detail(
+            &gateway_error_lines,
+        ));
         if let Some(app) = app {
             emit_install_progress(app, &message, "error");
         }
@@ -1136,6 +1154,176 @@ impl OpenClawService {
         })
     }
 
+    pub async fn check_update(&self) -> Result<UpdateInfo, String> {
+        let Some(binary) = find_command_in_shell("openclaw").await? else {
+            return Ok(UpdateInfo {
+                has_update: false,
+                current_version: None,
+                latest_version: None,
+                channel: None,
+                install_kind: None,
+                package_manager: None,
+                message: Some("未检测到 OpenClaw 可执行文件，请先安装。".to_string()),
+            });
+        };
+
+        let current_version = self
+            .read_openclaw_version()
+            .await?
+            .and_then(|value| parse_openclaw_release_version(&value).or(Some(value)));
+
+        let mut command = Command::new(&binary);
+        apply_binary_runtime_path(&mut command, &binary);
+        let output = command
+            .arg("update")
+            .arg("status")
+            .arg("--json")
+            .env(OPENCLAW_CONFIG_ENV, openclaw_proxycast_config_path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| format!("检查 OpenClaw 更新失败: {e}"))?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+        if !output.status.success() {
+            let message = first_non_empty_str(&[stderr.as_str(), stdout.as_str()])
+                .map(str::to_string)
+                .or_else(|| Some(format!("检查更新失败，退出码: {:?}", output.status.code())));
+            return Ok(UpdateInfo {
+                has_update: false,
+                current_version,
+                latest_version: None,
+                channel: None,
+                install_kind: None,
+                package_manager: None,
+                message,
+            });
+        }
+
+        let payload: Value =
+            serde_json::from_slice(&output.stdout).map_err(|e| format!("解析更新状态失败: {e}"))?;
+        Ok(UpdateInfo {
+            has_update: payload
+                .pointer("/availability/available")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            current_version,
+            latest_version: payload
+                .pointer("/availability/latestVersion")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            channel: payload
+                .pointer("/channel/label")
+                .or_else(|| payload.pointer("/channel/value"))
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            install_kind: payload
+                .pointer("/update/installKind")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            package_manager: payload
+                .pointer("/update/packageManager")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            message: payload
+                .pointer("/update/registry/error")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+        })
+    }
+
+    pub async fn perform_update(&mut self, app: &AppHandle) -> Result<ActionResult, String> {
+        emit_install_progress(app, "开始执行 OpenClaw 升级。", "info");
+
+        let Some(binary) = find_command_in_shell("openclaw").await? else {
+            return Ok(ActionResult {
+                success: false,
+                message: "未检测到 OpenClaw 可执行文件，请先安装。".to_string(),
+            });
+        };
+
+        self.refresh_process_state().await?;
+        if self.gateway_status == GatewayStatus::Running {
+            emit_install_progress(
+                app,
+                "升级前先停止 Gateway，避免占用正在运行的 OpenClaw。",
+                "info",
+            );
+            let stop_result = self.stop_gateway(Some(app)).await?;
+            if !stop_result.success {
+                return Ok(stop_result);
+            }
+        }
+
+        if let Some(current_version) = self
+            .read_openclaw_version()
+            .await
+            .ok()
+            .flatten()
+            .and_then(|value| parse_openclaw_release_version(&value).or(Some(value)))
+        {
+            emit_install_progress(
+                app,
+                &format!("当前版本 {current_version}，开始执行升级命令。"),
+                "info",
+            );
+        }
+
+        let mut command = Command::new(&binary);
+        apply_binary_runtime_path(&mut command, &binary);
+        let output = command
+            .arg("update")
+            .arg("--yes")
+            .env(OPENCLAW_CONFIG_ENV, openclaw_proxycast_config_path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| format!("执行 OpenClaw 升级失败: {e}"))?;
+
+        let stdout_lines = command_output_lines(&output.stdout);
+        for line in &stdout_lines {
+            emit_install_progress(app, &line, classify_progress_level(&line, "info"));
+        }
+        let stderr_lines = command_output_lines(&output.stderr);
+        for line in &stderr_lines {
+            emit_install_progress(app, line, classify_progress_level(line, "warn"));
+        }
+
+        if !output.status.success() {
+            let message = format_openclaw_update_failure_message(
+                stderr_lines
+                    .last()
+                    .map(String::as_str)
+                    .or_else(|| stdout_lines.last().map(String::as_str)),
+            );
+            emit_install_progress(app, &message, "error");
+            return Ok(ActionResult {
+                success: false,
+                message,
+            });
+        }
+
+        self.refresh_process_state().await?;
+        let updated_version = self
+            .read_openclaw_version()
+            .await
+            .ok()
+            .flatten()
+            .and_then(|value| parse_openclaw_release_version(&value).or(Some(value)));
+        let message = updated_version
+            .map(|version| format!("OpenClaw 已升级完成，当前版本 {version}。"))
+            .unwrap_or_else(|| "OpenClaw 已升级完成。".to_string());
+        emit_install_progress(app, &message, "info");
+        Ok(ActionResult {
+            success: true,
+            message,
+        })
+    }
+
     pub fn get_dashboard_url(&mut self) -> String {
         self.restore_auth_token_from_config();
         let mut url = format!("http://127.0.0.1:{}", self.gateway_port);
@@ -1245,13 +1433,10 @@ impl OpenClawService {
                     "baseUrl": base_url,
                     "apiKey": api_key,
                     "api": api_type,
-                    "models": normalized_models.iter().map(|model| {
-                        json!({
-                            "id": model.id,
-                            "name": model.name,
-                            "contextWindow": model.context_window,
-                        })
-                    }).collect::<Vec<_>>()
+                    "models": normalized_models
+                        .iter()
+                        .map(sync_model_entry_to_config_value)
+                        .collect::<Vec<_>>()
                 }),
             )),
             Some(format!("{provider_key}/{primary_model_id}")),
@@ -1460,6 +1645,7 @@ impl OpenClawService {
 
         let proxycast_config_path = openclaw_proxycast_config_path();
         let mut config = read_base_openclaw_config()?;
+        sanitize_runtime_config(&mut config);
 
         if self.gateway_auth_token.is_empty() {
             self.gateway_auth_token = generate_auth_token();
@@ -2243,6 +2429,45 @@ fn set_json_path(root: &mut Value, path: &[&str], value: Value) {
     parent.insert(path[path.len() - 1].to_string(), value);
 }
 
+fn sync_model_entry_to_config_value(model: &SyncModelEntry) -> Value {
+    let mut entry = Map::new();
+    entry.insert("id".to_string(), Value::String(model.id.clone()));
+    entry.insert("name".to_string(), Value::String(model.name.clone()));
+    if let Some(context_window) = model.context_window {
+        entry.insert(
+            "contextWindow".to_string(),
+            Value::Number(context_window.into()),
+        );
+    }
+    Value::Object(entry)
+}
+
+fn sanitize_runtime_config(config: &mut Value) {
+    let Some(providers) = config
+        .get_mut("models")
+        .and_then(|models| models.get_mut("providers"))
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+
+    for provider in providers.values_mut() {
+        let Some(models) = provider.get_mut("models").and_then(Value::as_array_mut) else {
+            continue;
+        };
+
+        for model in models {
+            let Some(entry) = model.as_object_mut() else {
+                continue;
+            };
+
+            if matches!(entry.get("contextWindow"), Some(Value::Null)) {
+                entry.remove("contextWindow");
+            }
+        }
+    }
+}
+
 fn apply_gateway_runtime_defaults(config: &mut Value, gateway_port: u16, gateway_auth_token: &str) {
     ensure_path_object(config, &["gateway"]);
     set_json_path(
@@ -2292,12 +2517,128 @@ fn gateway_start_args(gateway_port: u16, gateway_auth_token: &str) -> Vec<String
     ]
 }
 
+fn push_gateway_error_line(lines: &mut Vec<String>, line: &str) {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    if lines.len() >= 32 {
+        lines.remove(0);
+    }
+    lines.push(trimmed.to_string());
+}
+
+fn select_gateway_start_failure_detail<'a>(lines: &'a [String]) -> Option<&'a str> {
+    lines
+        .iter()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            let score = gateway_failure_line_score(trimmed);
+            (score > 0).then_some((score, trimmed))
+        })
+        .max_by_key(|(score, _)| *score)
+        .map(|(_, line)| line)
+}
+
+fn gateway_failure_line_score(line: &str) -> u8 {
+    if line.is_empty() {
+        return 0;
+    }
+
+    let normalized = line.to_ascii_lowercase();
+    if normalized.starts_with("run: openclaw doctor")
+        || normalized == "config invalid"
+        || normalized.starts_with("file:")
+        || normalized == "problem:"
+    {
+        return 0;
+    }
+
+    if normalized.contains("invalid config") {
+        return 100;
+    }
+
+    if normalized.contains("contextwindow") && normalized.contains("received null") {
+        return 95;
+    }
+
+    if normalized.contains("address already in use")
+        || normalized.contains("eaddrinuse")
+        || normalized.contains("resolved to non-loopback host")
+    {
+        return 90;
+    }
+
+    if normalized.contains("missing config")
+        || normalized.contains("gateway.mode=local")
+        || normalized.contains("gateway.auth.mode")
+    {
+        return 85;
+    }
+
+    if normalized.starts_with("- ") {
+        return 60;
+    }
+
+    20
+}
+
+fn first_non_empty_str<'a>(candidates: &[&'a str]) -> Option<&'a str> {
+    candidates
+        .iter()
+        .copied()
+        .map(str::trim)
+        .find(|value| !value.is_empty())
+}
+
+fn command_output_lines(output: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(output)
+        .lines()
+        .map(sanitize_progress_line)
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+fn parse_openclaw_release_version(value: &str) -> Option<String> {
+    static VERSION_RE: OnceLock<Regex> = OnceLock::new();
+    VERSION_RE
+        .get_or_init(|| Regex::new(r"(?i)openclaw\s+([0-9]+(?:\.[0-9]+)+)").expect("valid regex"))
+        .captures(value)
+        .and_then(|captures| captures.get(1).map(|value| value.as_str().to_string()))
+}
+
+fn format_openclaw_update_failure_message(detail: Option<&str>) -> String {
+    let Some(detail) = detail.map(str::trim).filter(|value| !value.is_empty()) else {
+        return "OpenClaw 升级失败，请查看日志输出。".to_string();
+    };
+
+    let normalized = detail.to_ascii_lowercase();
+    if normalized.contains("fetch failed") || normalized.contains("network") {
+        return "OpenClaw 升级失败：当前无法访问更新源，请检查网络或代理设置后重试。".to_string();
+    }
+
+    if normalized.contains("not modified") || normalized.contains("already up to date") {
+        return "OpenClaw 当前已经是最新版本，无需升级。".to_string();
+    }
+
+    format!("OpenClaw 升级失败：{detail}")
+}
+
 fn format_gateway_start_failure_message(detail: Option<&str>) -> String {
     let Some(detail) = detail.map(str::trim).filter(|value| !value.is_empty()) else {
         return "Gateway 启动超时，请检查配置或端口占用。".to_string();
     };
 
     let normalized = detail.to_ascii_lowercase();
+    if normalized.contains("invalid config") || normalized.contains("config invalid") {
+        if normalized.contains("contextwindow") && normalized.contains("received null") {
+            return "Gateway 启动失败：当前 OpenClaw 配置包含空的 contextWindow 字段。ProxyCast 已修正后续配置写入，请重新启动；如仍失败，请重新同步模型配置。"
+                .to_string();
+        }
+        return "Gateway 启动失败：OpenClaw 配置文件无效，请重新同步模型配置后再试。".to_string();
+    }
+
     if normalized.contains("missing config") || normalized.contains("gateway.mode=local") {
         return "Gateway 启动失败：OpenClaw 本地网关配置缺失，已自动补齐默认配置，请重试。"
             .to_string();
@@ -2317,6 +2658,11 @@ fn format_gateway_start_failure_message(detail: Option<&str>) -> String {
 
     if normalized.contains("allowedorigins") || normalized.contains("host-header origin fallback") {
         return "Gateway 启动失败：当前绑定方式需要配置 Control UI 允许来源，请检查 gateway.controlUi.allowedOrigins。".to_string();
+    }
+
+    if normalized.contains("doctor --fix") {
+        return "Gateway 启动失败：OpenClaw 检测到本地环境或配置异常，请先在安装页执行“重新检测”或“修复环境”后再试。"
+            .to_string();
     }
 
     format!("Gateway 启动失败：{detail}")
@@ -3281,13 +3627,14 @@ mod tests {
         determine_api_type, extract_gateway_auth_token, find_installed_openclaw_package,
         format_gateway_start_failure_message, format_provider_base_url, gateway_start_args,
         has_api_version, npm_global_command_dirs_for, npm_global_node_modules_dirs_for,
-        parse_semver_from_text, resolve_windows_dependency_install_plan,
-        select_best_semver_candidate, select_preferred_path_candidate, shell_command_escape_for,
-        shell_npm_prefix_assignment_for, shell_path_assignment_for, trim_trailing_slash,
-        windows_dependency_action_result, windows_dependency_setup_message,
-        windows_install_block_result, windows_manual_install_message, DependencyKind,
-        DependencyStatus, EnvironmentDiagnostics, ShellPlatform, WindowsDependencyInstallPlan,
-        NPM_MIRROR_CN, OPENCLAW_CN_PACKAGE, OPENCLAW_DEFAULT_PACKAGE,
+        parse_semver_from_text, resolve_windows_dependency_install_plan, sanitize_runtime_config,
+        select_best_semver_candidate, select_gateway_start_failure_detail,
+        select_preferred_path_candidate, shell_command_escape_for, shell_npm_prefix_assignment_for,
+        shell_path_assignment_for, trim_trailing_slash, windows_dependency_action_result,
+        windows_dependency_setup_message, windows_install_block_result,
+        windows_manual_install_message, DependencyKind, DependencyStatus, EnvironmentDiagnostics,
+        ShellPlatform, WindowsDependencyInstallPlan, NPM_MIRROR_CN, OPENCLAW_CN_PACKAGE,
+        OPENCLAW_DEFAULT_PACKAGE,
     };
     use crate::database::dao::api_key_provider::{ApiKeyProvider, ApiProviderType, ProviderGroup};
     use chrono::Utc;
@@ -3494,6 +3841,68 @@ mod tests {
                 "gateway bind=loopback resolved to non-loopback host 0.0.0.0"
             )),
             "Gateway 启动失败：当前环境无法绑定到本地回环地址 127.0.0.1，请检查本机网络或代理配置。"
+        );
+    }
+
+    #[test]
+    fn sanitizes_null_context_window_from_runtime_config() {
+        let mut config = json!({
+            "models": {
+                "providers": {
+                    "proxycast-openai": {
+                        "models": [
+                            {
+                                "id": "gpt-5",
+                                "name": "GPT-5",
+                                "contextWindow": null
+                            },
+                            {
+                                "id": "gpt-5-mini",
+                                "name": "GPT-5 mini",
+                                "contextWindow": 400000
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+
+        sanitize_runtime_config(&mut config);
+
+        assert!(config
+            .pointer("/models/providers/proxycast-openai/models/0/contextWindow")
+            .is_none());
+        assert_eq!(
+            config
+                .pointer("/models/providers/proxycast-openai/models/1/contextWindow")
+                .and_then(Value::as_u64),
+            Some(400_000)
+        );
+    }
+
+    #[test]
+    fn selects_specific_gateway_failure_detail_over_doctor_hint() {
+        let lines = vec![
+            "Config invalid".to_string(),
+            "Run: openclaw doctor --fix".to_string(),
+            "Invalid config at /Users/demo/.openclaw/openclaw.proxycast.json:\\n- models.providers.proxycast-openai.models.0.contextWindow: Invalid input: expected number, received null".to_string(),
+        ];
+
+        assert_eq!(
+            select_gateway_start_failure_detail(&lines),
+            Some(
+                "Invalid config at /Users/demo/.openclaw/openclaw.proxycast.json:\\n- models.providers.proxycast-openai.models.0.contextWindow: Invalid input: expected number, received null"
+            )
+        );
+    }
+
+    #[test]
+    fn formats_gateway_start_failure_for_invalid_context_window_config() {
+        assert_eq!(
+            format_gateway_start_failure_message(Some(
+                "Invalid config at /Users/demo/.openclaw/openclaw.proxycast.json:\\n- models.providers.proxycast-openai.models.0.contextWindow: Invalid input: expected number, received null"
+            )),
+            "Gateway 启动失败：当前 OpenClaw 配置包含空的 contextWindow 字段。ProxyCast 已修正后续配置写入，请重新启动；如仍失败，请重新同步模型配置。"
         );
     }
 

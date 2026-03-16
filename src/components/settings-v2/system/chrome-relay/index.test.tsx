@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockGetConfig,
-  mockLaunchBrowserRuntimeAssist,
+  mockLaunchBrowserSession,
   mockOpenBrowserRuntimeDebuggerWindow,
   mockGetChromeProfileSessions,
   mockGetChromeBridgeEndpointInfo,
@@ -13,7 +13,7 @@ const {
   mockGetBrowserBackendsStatus,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
-  mockLaunchBrowserRuntimeAssist: vi.fn(),
+  mockLaunchBrowserSession: vi.fn(),
   mockOpenBrowserRuntimeDebuggerWindow: vi.fn(),
   mockGetChromeProfileSessions: vi.fn(),
   mockGetChromeBridgeEndpointInfo: vi.fn(),
@@ -34,7 +34,7 @@ vi.mock("@/lib/webview-api", async () => {
   const actual = await vi.importActual<object>("@/lib/webview-api");
   return {
     ...actual,
-    launchBrowserRuntimeAssist: mockLaunchBrowserRuntimeAssist,
+    launchBrowserSession: mockLaunchBrowserSession,
     openBrowserRuntimeDebuggerWindow: mockOpenBrowserRuntimeDebuggerWindow,
     getChromeProfileSessions: mockGetChromeProfileSessions,
     getChromeBridgeEndpointInfo: mockGetChromeBridgeEndpointInfo,
@@ -85,6 +85,19 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   return target as HTMLButtonElement;
 }
 
+function findTabButton(
+  container: HTMLElement,
+  text: string,
+): HTMLButtonElement {
+  const target = Array.from(container.querySelectorAll("button")).find(
+    (button) => button.textContent?.trim().startsWith(text),
+  );
+  if (!target) {
+    throw new Error(`未找到页签按钮: ${text}`);
+  }
+  return target as HTMLButtonElement;
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -97,7 +110,7 @@ beforeEach(() => {
       engine: "google",
     },
   });
-  mockLaunchBrowserRuntimeAssist.mockResolvedValue({
+  mockLaunchBrowserSession.mockResolvedValue({
     profile: {
       success: true,
       reused: false,
@@ -164,6 +177,25 @@ afterEach(() => {
 });
 
 describe("ChromeRelaySettings", () => {
+  it("应通过页签切换到浏览器实时调试面板", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="browser-runtime-panel"]'),
+    ).toBeNull();
+
+    const tabButton = findTabButton(container, "调试");
+    await act(async () => {
+      tabButton.click();
+      await flushEffects();
+    });
+
+    expect(
+      container.querySelector('[data-testid="browser-runtime-panel"]'),
+    ).not.toBeNull();
+  });
+
   it("点击一键按钮时应启动浏览器协助", async () => {
     const container = renderComponent();
     await flushEffects();
@@ -174,8 +206,8 @@ describe("ChromeRelaySettings", () => {
       await flushEffects();
     });
 
-    expect(mockLaunchBrowserRuntimeAssist).toHaveBeenCalledTimes(1);
-    expect(mockLaunchBrowserRuntimeAssist).toHaveBeenCalledWith({
+    expect(mockLaunchBrowserSession).toHaveBeenCalledTimes(1);
+    expect(mockLaunchBrowserSession).toHaveBeenCalledWith({
       profile_key: "search_google",
       url: "https://www.google.com/search?q=proxycast+browser+assist",
       open_window: true,

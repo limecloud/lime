@@ -21,6 +21,15 @@ import { useProviderModels } from "@/hooks/useProviderModels";
 import { filterModelsByTheme } from "@/components/agent/chat/utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
 
+const compactTriggerClassName =
+  "h-8 w-8 rounded-full border-slate-200/80 bg-white/92 p-0 text-slate-500 shadow-none transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-700";
+
+const defaultTriggerClassName =
+  "h-9 w-full min-w-0 justify-start gap-2 rounded-full border-slate-200/80 bg-white/92 px-3 font-normal text-slate-700 shadow-none transition-colors hover:border-slate-300 hover:bg-white";
+
+const itemClassName =
+  "flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-sm transition-colors";
+
 const THEME_LABEL_MAP: Record<string, string> = {
   general: "通用对话",
   "social-media": "社媒内容",
@@ -231,15 +240,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         <PopoverTrigger asChild>
           {compactTrigger ? (
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
               role="combobox"
               aria-expanded={open}
               disabled={disabled}
               className={cn(
-                "h-[30px] w-[30px] rounded-full p-0 text-muted-foreground",
-                "hover:bg-secondary hover:text-foreground",
-                open && "bg-secondary text-foreground",
+                compactTriggerClassName,
+                open && "border-slate-300 bg-white text-slate-700",
               )}
               title={`${selectedProviderLabel} / ${model || "选择模型"}`}
             >
@@ -255,39 +263,57 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               role="combobox"
               aria-expanded={open}
               disabled={disabled}
-              className="h-9 w-full min-w-0 px-3 gap-2 font-normal bg-background hover:bg-muted/60 justify-start"
+              className={defaultTriggerClassName}
             >
-              <Bot size={16} className="text-primary" />
+              <Bot size={16} className="text-slate-500" />
               <span className="min-w-0 flex-1 flex items-center gap-1.5">
                 <span className="font-medium truncate">{selectedProviderLabel}</span>
-                <span className="text-muted-foreground shrink-0">/</span>
-                <span className="text-sm text-muted-foreground truncate">
+                <span className="text-slate-300 shrink-0">/</span>
+                <span className="text-sm text-slate-500 truncate">
                   {model || "选择模型"}
                 </span>
               </span>
-              <ChevronDown className="ml-1 h-3 w-3 text-muted-foreground opacity-50" />
+              <ChevronDown className="ml-1 h-3 w-3 text-slate-400 opacity-70" />
             </Button>
           )}
         </PopoverTrigger>
 
         <PopoverContent
           data-model-selector-popover="true"
-          className="z-[80] w-[420px] max-w-[calc(100vw-24px)] p-0 bg-background border-border shadow-lg opacity-100"
+          className="z-[80] w-[440px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/96 p-0 shadow-xl shadow-slate-950/8 backdrop-blur-md opacity-100"
           align="start"
           side={popoverSide}
           sideOffset={8}
           avoidCollisions
           collisionPadding={8}
         >
-          <div className="flex h-[320px]">
-            <div className="w-[140px] border-r bg-muted/30 p-2 flex flex-col gap-1 overflow-y-auto">
-              <div className="text-xs font-semibold text-muted-foreground px-2 py-1.5 mb-1">
-                Providers
+          <div className="border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-4 py-3">
+            <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
+              模型选择
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+              <span className="font-medium">{selectedProviderLabel}</span>
+              <span className="text-slate-300">/</span>
+              <span className="truncate text-slate-500">
+                {model || "选择模型"}
+              </span>
+            </div>
+            {activeTheme ? (
+              <div className="mt-1 text-xs text-slate-500">
+                当前按 {activeThemeLabel} 组织候选模型
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex h-[336px]">
+            <div className="flex w-[156px] flex-col gap-1 overflow-y-auto border-r border-slate-200/80 bg-slate-50/70 p-2">
+              <div className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-500">
+                供应商
               </div>
 
               {configuredProviders.length === 0 ? (
-                <div className="text-xs text-muted-foreground p-2">
-                  暂无已配置的 Provider
+                <div className="px-2 py-3 text-xs leading-5 text-slate-500">
+                  暂无已配置供应商
                 </div>
               ) : (
                 configuredProviders.map((provider) => {
@@ -298,10 +324,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       key={provider.key}
                       onClick={() => setProviderType(provider.key)}
                       className={cn(
-                        "flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-md transition-colors text-left",
+                        itemClassName,
                         isSelected
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                          ? "border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
+                          : "text-slate-500 hover:border-slate-200 hover:bg-white/90 hover:text-slate-900",
                       )}
                     >
                       <span className="flex items-center gap-2 min-w-0">
@@ -313,7 +339,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         <span className="truncate">{provider.label}</span>
                       </span>
                       {isSelected && (
-                        <div className="w-1 h-1 rounded-full bg-primary" />
+                        <div className="h-1.5 w-1.5 rounded-full bg-slate-900" />
                       )}
                     </button>
                   );
@@ -321,30 +347,37 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               )}
             </div>
 
-            <div className="flex-1 p-2 flex flex-col overflow-hidden">
-              <div className="text-xs font-semibold text-muted-foreground px-2 py-1.5 mb-1">
-                Models
+            <div className="flex flex-1 flex-col overflow-hidden p-2.5">
+              <div className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-500">
+                模型列表
               </div>
-              {showThemeFilterHint && (
-                <div className="text-[11px] text-muted-foreground px-2 pb-1">
-                  已按 {activeThemeLabel} 主题筛选模型
+              {showThemeFilterHint || (
+                normalizedTheme !== "general" && filteredResult.usedFallback
+              ) || incompatibleModelCount > 0 ? (
+                <div className="mb-2 space-y-1 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2">
+                  {showThemeFilterHint ? (
+                    <div className="text-[11px] leading-5 text-slate-500">
+                      已按 {activeThemeLabel} 主题筛选模型
+                    </div>
+                  ) : null}
+                  {normalizedTheme !== "general" &&
+                  filteredResult.usedFallback ? (
+                    <div className="text-[11px] leading-5 text-amber-700">
+                      {activeThemeLabel} 未命中特定主题模型，已回退到完整列表
+                    </div>
+                  ) : null}
+                  {incompatibleModelCount > 0 ? (
+                    <div className="text-[11px] leading-5 text-amber-700">
+                      已隐藏 {incompatibleModelCount} 个当前登录态不兼容的模型
+                    </div>
+                  ) : null}
                 </div>
-              )}
-              {normalizedTheme !== "general" && filteredResult.usedFallback && (
-                <div className="text-[11px] text-amber-600 px-2 pb-1">
-                  {activeThemeLabel} 未匹配到主题模型，已展示全部模型
-                </div>
-              )}
-              {incompatibleModelCount > 0 && (
-                <div className="text-[11px] text-amber-600 px-2 pb-1">
-                  已隐藏 {incompatibleModelCount} 个当前登录态不兼容的模型
-                </div>
-              )}
+              ) : null}
 
               <ScrollArea className="flex-1">
                 <div className="space-y-1 p-1">
                   {modelOptions.length === 0 ? (
-                    <div className="text-xs text-muted-foreground p-2">
+                    <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
                       暂无可用模型
                     </div>
                   ) : (
@@ -360,12 +393,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           setOpen(false);
                         }}
                         className={cn(
-                          "flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-md transition-colors text-left group",
+                          `${itemClassName} group`,
                           currentModelItem.compatibilityIssue
-                            ? "cursor-not-allowed opacity-60 text-muted-foreground"
+                            ? "cursor-not-allowed border-transparent bg-transparent text-slate-400 opacity-70"
                             : model === currentModelItem.id
-                            ? "bg-accent text-accent-foreground"
-                            : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                            ? "border-slate-200 bg-slate-50 text-slate-900"
+                            : "text-slate-500 hover:border-slate-200 hover:bg-slate-50/90 hover:text-slate-900",
                         )}
                         title={currentModelItem.compatibilityIssue?.message}
                       >
@@ -380,7 +413,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           <span className="min-w-0 flex flex-col">
                             <span className="truncate">{currentModelItem.id}</span>
                             {currentModelItem.compatibilityIssue ? (
-                              <span className="truncate text-[11px] text-amber-600">
+                              <span className="truncate text-[11px] text-amber-700">
                                 {currentModelItem.compatibilityIssue.message}
                               </span>
                             ) : null}
@@ -389,7 +422,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         {currentModelItem.compatibilityIssue ? (
                           <AlertCircle size={14} className="text-amber-500" />
                         ) : model === currentModelItem.id ? (
-                          <Check size={14} className="text-primary" />
+                          <Check size={14} className="text-slate-900" />
                         ) : null}
                       </button>
                     ))
@@ -402,17 +435,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           {onManageProviders && (
             <button
               type="button"
-              className="w-full h-11 px-3 border-t flex items-center justify-between text-sm hover:bg-muted/60 transition-colors"
+              className="flex h-11 w-full items-center justify-between border-t border-slate-200/80 px-4 text-sm text-slate-600 transition-colors hover:bg-slate-50/90 hover:text-slate-900"
               onClick={() => {
                 setOpen(false);
                 onManageProviders();
               }}
             >
-              <span className="inline-flex items-center gap-2 text-foreground">
-                <Settings2 size={14} className="text-muted-foreground" />
+              <span className="inline-flex items-center gap-2">
+                <Settings2 size={14} className="text-slate-400" />
                 管理供应商
               </span>
-              <ArrowRight size={14} className="text-muted-foreground" />
+              <ArrowRight size={14} className="text-slate-400" />
             </button>
           )}
         </PopoverContent>

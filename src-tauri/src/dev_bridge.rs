@@ -167,22 +167,24 @@ impl DevBridgeServer {
 }
 
 #[cfg(debug_assertions)]
-async fn invoke_command(
+fn invoke_command(
     State(state): State<DevBridgeState>,
     Json(req): Json<InvokeRequest>,
-) -> Response {
-    // 调用命令分发器
-    match dispatcher::handle_command(&state, &req.cmd, req.args).await {
-        Ok(result) => Json(InvokeResponse {
-            result: Some(result),
-            error: None,
-        })
-        .into_response(),
-        Err(e) => Json(InvokeResponse {
-            result: None,
-            error: Some(e.to_string()),
-        })
-        .into_response(),
+) -> impl std::future::Future<Output = Response> + Send {
+    async move {
+        // 调用命令分发器
+        match dispatcher::handle_command(&state, &req.cmd, req.args).await {
+            Ok(result) => Json(InvokeResponse {
+                result: Some(result),
+                error: None,
+            })
+            .into_response(),
+            Err(e) => Json(InvokeResponse {
+                result: None,
+                error: Some(e.to_string()),
+            })
+            .into_response(),
+        }
     }
 }
 

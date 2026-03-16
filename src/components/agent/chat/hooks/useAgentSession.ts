@@ -763,7 +763,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       snapshot: Partial<
         Pick<
           Topic,
-          "updatedAt" | "messagesCount" | "status" | "lastPreview" | "hasUnread"
+          | "updatedAt"
+          | "messagesCount"
+          | "status"
+          | "statusReason"
+          | "lastPreview"
+          | "hasUnread"
         >
       >,
     ) => {
@@ -782,6 +787,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           const unchanged =
             nextTopic.messagesCount === topic.messagesCount &&
             nextTopic.status === topic.status &&
+            nextTopic.statusReason === topic.statusReason &&
             nextTopic.lastPreview === topic.lastPreview &&
             nextTopic.hasUnread === topic.hasUnread &&
             nextTopic.updatedAt?.getTime() === topic.updatedAt?.getTime();

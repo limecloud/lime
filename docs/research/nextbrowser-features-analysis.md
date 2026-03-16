@@ -1608,3 +1608,474 @@ Proxycast 已经具备了 CDP 基础设施,采用**渐进式增强**策略:
 - ✅ Screencast 优先,Screenshot fallback
 - ✅ 单 page target 先行,多 tab 后续
 - ✅ 高层 action API,原始 CDP 仅调试用
+
+---
+
+## 九、基于当前代码库的差距复盘（截至 2026-03-15）
+
+> 本节用于校正文档前文的“规划态”描述，按当前仓库真实实现判断 Proxycast 已做到什么、还缺什么，以及后续应如何按基础设施优先推进。
+
+### 9.1 当前已经具备的能力底座
+
+#### A. 实时画面与 CDP 会话底座：已具备，可继续加固
+- 已有 `BrowserRuntimeManager`、`CdpSessionState`、事件缓冲区、人工接管状态机：
+  - `src-tauri/crates/browser-runtime/src/manager.rs`
+  - `src-tauri/crates/browser-runtime/src/types.rs`
+- 已支持 `Page.startScreencast`，失败时自动回退到 `Page.captureScreenshot` 轮询：
+  - `src-tauri/crates/browser-runtime/src/manager.rs`
+- 已暴露 Tauri 命令与前端调试页：
+  - `src-tauri/src/commands/browser_runtime_cmd.rs`
+  - `src-tauri/src/commands/webview_cmd.rs`
+  - `src/features/browser-runtime/BrowserRuntimeWorkspace.tsx`
+  - `src/features/browser-runtime/BrowserRuntimeDebugPanel.tsx`
+
+#### B. 浏览器 Profile 隔离：已具备基础，但还不是产品级“个人资料”
+- 已支持按 `profile_key` 启动独立 Chrome 用户目录，天然保留 cookies / localStorage / 登录态：
+  - `src-tauri/src/commands/webview_cmd.rs`
+- 已支持列出和关闭运行中的 Profile 会话：
+  - `get_chrome_profile_sessions`
+  - `close_chrome_profile_session`
+- 现状问题：
+  - 只有“运行中的 Chrome profile 目录”概念，没有“可管理的 Profile 实体”概念
+  - 没有名称、标签、站点、最后使用时间、描述、导入/导出、锁定策略、加密策略
+  - 没有“保存当前登录为资料”的明确工作流
+
+#### C. 调度引擎：已具备通用能力，但不是浏览器任务编排
+- 已有调度器、轮询执行器、Cron/At/Every 调度计算与健康治理：
+  - `src-tauri/crates/scheduler/src/*`
+  - `src-tauri/src/app/scheduler_service.rs`
+  - `src-tauri/src/services/heartbeat_service/*`
+  - `src-tauri/src/commands/heartbeat_cmd.rs`
+- 现状问题：
+  - 当前主要服务于 Heartbeat/通用任务，不是浏览器自动化任务模板
+  - 缺少“任务绑定哪个 browser profile / 环境预设 / 输出 schema / 人工检查点”的模型
+
+#### D. 浏览器动作与输出：已具备最小可用能力
+- 已支持 `navigate / click / type / scroll / read_page / read_console_messages / read_network_requests`
+- 已有统一的 `browser_execute_action` 多后端编排：
+  - `src-tauri/src/commands/webview_cmd.rs`
+  - `src-tauri/crates/browser-runtime/src/action.rs`
+- 现状问题：
+  - 输出仍偏底层：`markdown / page_info / console / network event`
+  - 没有任务级结构化输出合同，例如 `json schema / table / csv / fields mapping`
+
+### 9.2 与截图功能的差距矩阵
+
+| 功能 | 当前状态 | 结论 |
+|------|----------|------|
+| 实时画面 | 已有 CDP 帧流、回退截图、调试页、人工接管 | 已做基础版，需稳定化和产品化 |
+| 个人资料（已保存的登录信息） | 已有独立 Chrome profile 目录和会话复用 | 部分完成，缺产品级资料管理 |
+| 计划任务 | 已有通用调度器、Heartbeat、Cron 校验 | 部分完成，缺浏览器任务模型与 UI |
+| 输入和输出 | 已有页面信息、控制台、网络事件、动作执行结果 | 部分完成，缺结构化 I/O 层 |
+| 位置定制 | 未见浏览器级代理、地理位置、时区、语言、UA、指纹预设 | 未实现 |
+| 证书 | 未见浏览器级客户端证书/站点证书选择与存储模型 | 未实现 |
+| 自动验证码求解器 | 仅支持人工接管，没有 solver 抽象与供应商接入 | 未实现 |
+| 连接 | 现有 `connection_cmd` 是终端/SSH/WSL 连接，不是外部业务连接器 | 未实现截图语义下的连接器 |
+
+### 9.3 架构判断：先不要直接堆功能页
+
+如果现在直接开始补“位置定制 / 计划任务 / 连接 / 输入和输出”这些页面，仓库会出现新的平行概念：
+- 一套运行中 session 概念
+- 一套 Chrome profile 目录概念
+- 一套 Heartbeat 任务概念
+- 一套未来的浏览器任务概念
+
+这会导致三类问题：
+- 状态源分裂：Profile、Session、Task、Connector 各自一套 id 和生命周期
+- 配置不可复用：位置定制、登录资料、任务调度之间无法组合
+- 上层功能失去稳定锚点：定时任务、验证码、人机接管都需要先有稳定的会话装配模型
+
+因此正确顺序不是“按截图逐个做页面”，而是先补一层浏览器控制面（control plane）。
+
+### 9.4 建议新增的统一域模型
+
+#### 1. Browser Profile
+表示一个“可复用的登录资料容器”，而不是当前仅存在的目录。
+
+建议字段：
+- `id`
+- `key`
+- `name`
+- `description`
+- `site_scope`
+- `storage_mode`：`persistent | ephemeral`
+- `profile_dir`
+- `last_used_at`
+- `created_at`
+- `updated_at`
+- `archived_at`
+
+#### 2. Browser Environment Preset
+承载“位置定制”能力，后续任务和 Profile 都引用它。
+
+建议字段：
+- `id`
+- `name`
+- `proxy_type`
+- `proxy_server`
+- `proxy_auth_ref`
+- `country`
+- `region`
+- `city`
+- `timezone_id`
+- `locale`
+- `accept_language`
+- `geolocation_lat`
+- `geolocation_lng`
+- `geolocation_accuracy_m`
+- `user_agent`
+- `viewport_width`
+- `viewport_height`
+- `device_scale_factor`
+- `platform`
+
+#### 3. Browser Task Template
+承载“计划任务”的可执行定义，复用现有 scheduler，而不是另起炉灶。
+
+建议字段：
+- `id`
+- `name`
+- `entry_url`
+- `profile_id`
+- `environment_preset_id`
+- `schedule_kind`
+- `schedule_payload`
+- `steps`
+- `requires_human_checkpoint`
+- `output_schema`
+- `output_destination`
+- `enabled`
+
+#### 4. Browser Connector
+承载“连接”能力，目标是把结果投递到外部系统，而不是终端连接。
+
+建议字段：
+- `id`
+- `type`：`google_sheets | gmail | webhook | drive | notion | ...`
+- `name`
+- `auth_kind`
+- `secret_ref`
+- `config_json`
+- `status`
+- `last_checked_at`
+
+#### 5. Browser Certificate Asset
+承载浏览器证书与站点绑定。
+
+建议字段：
+- `id`
+- `name`
+- `cert_kind`：`client_tls | custom_ca`
+- `file_ref`
+- `passphrase_ref`
+- `host_patterns`
+- `created_at`
+
+### 9.5 推荐实施优先级
+
+#### P0. 收口现有浏览器控制面（最高优先级）
+目标：把“运行时会话”变成后续一切能力的稳定底座。
+
+本阶段做什么：
+- 把当前 `profile_key` 升级为数据库中的 `Browser Profile` 实体
+- 给运行时 session 增加 `profile_id / environment_preset_id / task_id` 关联位
+- 把 `open_chrome_profile_window` 的启动参数抽象成 `LaunchBrowserSessionRequest`
+- 保持现有 `cdp_direct / extension_bridge / aster_compat` 编排不变，只收口输入模型
+- 给浏览器会话增加稳定审计日志：谁启动、带什么环境、来自哪个任务
+
+本阶段不做什么：
+- 不先做 CAPTCHA
+- 不先做连接器 UI
+- 不先做证书上传页
+
+原因：
+- 没有统一控制面，上层功能都会变成一次性参数拼装，后续很难维护
+
+#### P1. 个人资料产品化（高优先级）
+目标：让“保存的登录”从目录能力升级为可管理资产。
+
+本阶段做什么：
+- 新增 Profile 列表、创建、重命名、归档、删除、最近使用
+- 支持“从当前运行会话保存为资料”
+- 支持“打开资料并进入人工登录”
+- 支持资料与站点作用域绑定
+- 支持资料锁定策略和敏感信息隔离说明
+
+验收标准：
+- 用户可以明确看到哪些登录资料存在
+- 用户可以复用而不是记 `profile_key`
+- Agent 可以按 `profile_id` 复用资料
+
+#### P2. 位置定制（高优先级）
+目标：让 Profile 可以在不同地区/设备语境中稳定复用。
+
+本阶段做什么：
+- 浏览器启动参数支持 `--proxy-server`
+- CDP 注入 `Emulation.setGeolocationOverride`
+- CDP 注入 `Emulation.setTimezoneOverride`
+- CDP 注入 `Emulation.setUserAgentOverride`
+- 前端提供 Environment Preset 编辑页
+- Profile 与 Preset 解耦，可自由组合
+
+关键原则：
+- 位置定制必须是独立 Preset，不能直接塞进 Profile
+- 否则同一个登录资料无法复用到多个国家/城市场景
+
+### 9.6 当前已落地的基础层（截至 2026-03-15）
+
+#### 已完成
+- `P1 Browser Profile` 已完成第一版资产化：
+  - 已有 `browser_profiles` 表、DAO、Service、Tauri 命令、前端资料管理 UI
+  - 运行时会话仍以 `profile_key` 驱动，但新需求已经收口到 `Browser Profile` 实体
+- `P2 Browser Environment Preset` 已完成第一版基础落地：
+  - 已有 `browser_environment_presets` 表、DAO、Service、Tauri 命令、前端预设管理 UI
+  - 浏览器工作台支持“资料 + 环境预设”组合启动
+  - 启动链已支持：
+    - Chrome 启动参数 `--proxy-server`
+    - CDP 注入 `Emulation.setGeolocationOverride`
+    - CDP 注入 `Emulation.setTimezoneOverride`
+    - CDP 注入 `Emulation.setUserAgentOverride`
+    - CDP 注入 `Emulation.setLocaleOverride`
+    - CDP 注入 `Emulation.setDeviceMetricsOverride`
+  - 运行时 `session` 已增加 `environment_preset_id / environment_preset_name` 关联位
+- 浏览器运行时统一审计已接入基础层：
+  - 启动链与动作链统一写入同一浏览器运行时审计缓冲区
+  - `launch` 审计已覆盖 `profile/profile_id`、环境预设、`session_id/target_id`、URL、复用状态、窗口打开方式、流模式、浏览器来源、CDP 端口
+  - 调试面板高级区可以直接查看最近启动与动作审计
+- 浏览器启动请求已完成第一轮收口：
+  - 新增统一 `LaunchBrowserSessionRequest`
+  - `profile_id` 与 `profile_key` 启动都收口到同一 session 启动边界
+  - `BrowserProfileManager`、浏览器工作台恢复链、Chrome Relay、Agent Chat 浏览器协助都已切到统一启动请求
+
+#### 当前限制
+- 代理属于浏览器启动参数；若资料对应的 Chrome 进程已在运行，切换代理前必须先关闭该资料会话
+- Locale override 依赖目标 Chrome 版本；若方法不存在，当前实现按 best-effort 处理并保留日志告警
+- 当前 Environment Preset 只覆盖运行时真正可落地的字段：
+  - `proxy_server`
+  - `timezone_id`
+  - `locale`
+  - `accept_language`
+  - `geolocation_*`
+  - `user_agent`
+  - `platform`
+  - `viewport_*`
+  - `device_scale_factor`
+- 尚未实现：
+  - 地区标签字段的产品化筛选与统计
+  - 证书资产
+  - CAPTCHA solver
+  - 任务模板与 connector 组合编排
+
+#### 当前事实源分类
+- `current`
+  - `browser_profiles`
+  - `browser_environment_presets`
+  - `launch_browser_session + LaunchBrowserSessionRequest`
+  - `automation_job.payload.browser_session + Automation executor`
+  - `browser_profile_cmd`
+  - `browser_environment_cmd`
+  - `BrowserRuntimeAuditRecord` 统一浏览器运行时审计模型
+  - `BrowserProfileManager`
+  - `BrowserEnvironmentPresetManager`
+  - `BrowserRuntimeDebugPanel` 中的最近启动/动作审计面板
+- `compat`
+  - 旧的裸 `profile_key` / Chrome 目录启动链仍保留，但只允许委托到新控制面，不再承载新功能
+  - `launch_browser_runtime_assist`
+  - `launch_browser_profile_runtime_assist_cmd`
+  - `get_browser_action_audit_logs` 命名暂保留，但返回值已升级为统一运行时审计记录
+
+#### P3. 浏览器计划任务（中高优先级）
+目标：复用现有 scheduler/heartbeat 底座，做真正的浏览器自动化任务。
+
+当前进展（第一刀已落地）：
+- 不新增平行调度系统，先把浏览器任务收口为 `automation_jobs.payload.browser_session`
+- 调度执行时直接复用 `launch_browser_session`
+- profile / environment preset 在保存任务时就做存在性校验
+- 执行历史继续写现有 `ExecutionTracker`
+- 自动化详情页已直接嵌入现有 `BrowserRuntimeDebugPanel`，复用 `waiting_for_human / human_controlling / live` 状态机处理人工接管
+- 浏览器任务不再在启动成功后立即记为 `success`；现在会保持 `agent_runs=running`，并通过 `session_id -> automation_jobs / agent_runs` 回写 `waiting_for_human / human_controlling / agent_resuming`
+- 人工点击“恢复给 Agent”后，会在原链路内把自动化任务收口为成功并恢复下一次调度，不新增 `browser_task_runs` 一类旁路表
+- 自动化详情页、运行历史和风险任务面板开始直接消费 `agent_runs.metadata.human_reason`，等待人工/人工接管/恢复中的原因不再只藏在实时面板里
+- 自动化主列表开始直显 `当前阻塞 / 最近异常` 摘要，值守时无需进入详情页也能判断浏览器任务卡在什么环节
+- `delivery_json` 已扩成最小输出投递配置，支持 `output_format=text|json`
+- `delivery_json` 已继续扩展为最小输出契约，新增 `output_schema`
+- 当前 `output_schema` 第一版支持：
+  - `text`
+  - `json`
+  - `table`
+  - `csv`
+  - `links`
+- 第一批输出目标先落 `webhook / local_file`；`webhook` 会携带结构化 `output_data`，`local_file` 用于最小闭环落盘，`telegram` 继续只作为兼容通知通道
+- `telegram` 现在明确固定为文本提醒，不承诺结构化 output schema；结构化下游集成只允许继续收敛到 `webhook / local_file`
+- `automation_jobs` 已补最小 `last_delivery_json`，最近一次投递结果继续收敛在任务主记录里，不新增投递历史旁路表
+- 自动化详情页开始直接展示：
+  - 输出契约
+  - 最近一次投递结果
+- `best_effort=false` 的语义已收口为真实失败：
+  - 输出投递失败会把本次 job 最终状态记为 `error`
+  - 最近一次运行 metadata 会携带 `delivery` 摘要，运行历史与详情页不再各写一套投递状态
+
+本阶段做什么：
+- 第一阶段：继续基于 `automation_jobs` 承载浏览器任务模板
+- 调度执行时自动装配：`automation job -> profile -> environment preset -> browser session`
+- 支持一次性、周期性、cron
+- 支持“需要人工介入”的挂起态，与当前 `waiting_for_human / human_controlling` 状态机打通
+- 执行历史统一写入现有执行追踪体系
+
+原因：
+- 没有 P1/P2，任务就不可复现
+- 定时任务是对稳定会话装配能力的消费方，不应先于底座实现
+
+#### P4. 输入和输出 + 连接器（中优先级）
+目标：让浏览器任务结果可被下游系统稳定消费。
+
+本阶段做什么：
+- 定义 `output_schema`
+- 支持输出类型：`text / json / table / csv / links`
+- 支持输出目标：`download / local_file / webhook / connector`
+- 引入 Browser Connector 抽象
+- 第一批只做 `webhook` 和 `google_sheets`
+
+建议顺序：
+1. 先做结构化输出 schema
+2. 再做 connector 适配器
+
+当前进展（第三刀已落地）：
+- `delivery_json` 已同时承载：
+  - `output_schema`
+  - `output_format`
+- `output_schema` 负责表达语义契约，`output_format` 只负责投递编码
+- `webhook` 当前会稳定输出：
+  - `output_schema`
+  - `output_format`
+  - `output_data`
+- `local_file` 当前支持：
+  - text 模式按 schema 渲染
+  - json 模式落结构化 payload
+- `automation_jobs.last_delivery_json` 已承载最近一次投递结果，历史开关关闭时仍可直接在任务详情中观察
+- `agent_runs.metadata.delivery` 已补投递摘要，运行历史和详情页共用同一份运行态事实
+
+当前进展（第四刀已落地）：
+- 不新增 `browser_connectors` 表，也不引入独立 connector runtime
+- 第一个真正 connector 已继续收敛到现有 `delivery` 边界：
+  - `channel=google_sheets`
+  - 继续使用 `automation_jobs.delivery_json`
+  - 继续把最近一次投递结果写回 `automation_jobs.last_delivery_json`
+- `google_sheets` 当前采用最小 service account 直连模式：
+  - 目标串使用 `spreadsheet_id=...;sheet=...;credentials_file=...`
+  - 可选 `include_header=true`
+  - 可选 `value_input_option=RAW|USER_ENTERED`
+- 输出语义继续复用现有 `output_schema`：
+  - `table/csv` 直接按行追加
+  - `links` 追加为链接记录
+  - `text/json` 追加为单行摘要/JSON 记录
+- `telegram` 仍维持 `compat` 文本通知；结构化下游集成只允许继续收敛到 `webhook / local_file / google_sheets`
+
+当前进展（第五刀已落地）：
+- delivery 幂等与重试语义继续收敛在同一条事实源：
+  - `automation_service::delivery`
+  - `automation_jobs.last_delivery_json`
+  - `agent_runs.metadata.delivery`
+- 新增稳定 `delivery_attempt_id`：
+  - 有 `run_id` 时直接复用 `dlv-{run_id}`
+  - 无 history/run_id 时按 `job_id + started_at + execution_retry_count` 生成稳定哈希键
+- `webhook` 当前会输出并透传：
+  - payload 字段 `delivery_attempt_id`
+  - 请求头 `Idempotency-Key`
+  - 请求头 `X-Proxycast-Delivery-Attempt-Id`
+- `google_sheets` 当前会在每一行前置：
+  - `delivery_attempt_id`
+  - `run_id`
+  - `job_id`
+  - `execution_retry_count`
+- 网络型输出目标当前采用最小内建重试：
+  - `webhook`
+  - `google_sheets`
+  - 默认最多 3 次，保留同一个 `delivery_attempt_id`
+- `last_delivery_json` 与运行历史 metadata 当前会继续记录：
+  - `delivery_attempt_id`
+  - `run_id`
+  - `execution_retry_count`
+  - `delivery_attempts`
+
+下一刀不应继续堆通知通道，应该优先补：
+- 输出目标的能力边界说明
+- 连接器失败重试与幂等策略
+
+原因：
+- 没有统一输出 schema，连接器会各自解析页面结果，后续无法维护
+
+#### P5. 证书（中低优先级）
+目标：支持企业站点、银行类或需要 mTLS 的场景。
+
+本阶段做什么：
+- 先只支持 `client_tls` 证书资产管理
+- 支持证书与 host pattern 绑定
+- 启动浏览器时注入证书选择策略或使用平台能力完成匹配
+
+为什么不是更早：
+- 这是企业纵深能力，不是大多数浏览器任务的基础阻塞项
+
+#### P6. 自动验证码求解器（低优先级）
+目标：减少人工介入，但不破坏当前可用的人机协同链路。
+
+本阶段做什么：
+- 先定义 `CaptchaSolver` 抽象
+- 再接第三方供应商
+- 最后支持策略：自动求解失败后回退人工接管
+
+为什么最后做：
+- 当前已有人工接管 + 实时画面，可满足可用性底线
+- CAPTCHA 成本高、供应商不稳定、风控强，不应先于 Profile/Preset/Task/I-O
+
+### 9.6 建议的数据库与模块落点
+
+建议新增表：
+- `browser_profiles`
+- `browser_environment_presets`
+- `browser_profile_bindings`
+- `browser_task_templates`
+- `browser_task_runs`
+- `browser_connectors`
+- `browser_certificate_assets`
+
+建议新增模块：
+- `src-tauri/src/browser_control/`
+  - `profile_service.rs`
+  - `environment_preset_service.rs`
+  - `task_template_service.rs`
+  - `connector_service.rs`
+  - `certificate_service.rs`
+
+建议保持不动的模块：
+- `src-tauri/crates/browser-runtime/`
+  - 继续只做运行时与 CDP 交互
+- `src-tauri/src/commands/webview_cmd.rs`
+  - 继续做命令入口，但逐步改为调用新 service
+- `src-tauri/src/app/scheduler_service.rs`
+  - 继续复用，不重新发明调度器
+
+### 9.7 结论
+
+从代码现状看，Proxycast 并不是“还没有浏览器底座”，而是已经跨过了最难的第一步：
+- 已有实时画面
+- 已有 CDP 会话
+- 已有人工接管
+- 已有独立 Chrome profile
+- 已有通用调度器
+
+真正缺的是中间那层“浏览器控制面产品模型”：
+- Profile 还是目录，不是资产
+- 调度器还是通用任务，不是浏览器任务
+- 输出还是原始事件，不是结构化结果
+- 连接还是终端连接，不是业务连接器
+
+所以后续路线必须是：
+1. 先收口控制面
+2. 再做个人资料
+3. 再做位置定制
+4. 再做浏览器定时任务
+5. 再做输入和输出与连接器
+6. 最后补证书与自动验证码
+
+这条路线最符合当前仓库状态，也最符合 KISS / YAGNI / DRY：先把已有底座变成稳定平台，再让上层功能自然长出来。

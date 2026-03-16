@@ -25,7 +25,7 @@ const {
     resumeBrowserSession: vi.fn(),
     getBrowserEventBuffer: vi.fn(),
     openBrowserRuntimeDebuggerWindow: vi.fn(),
-    launchBrowserRuntimeAssist: vi.fn(),
+    launchBrowserSession: vi.fn(),
     browserExecuteAction: vi.fn(),
     reopenProfileWindow: vi.fn(),
     listenBrowserEvent: vi.fn(),
@@ -106,7 +106,7 @@ describe("useBrowserRuntimeDebug", () => {
       next_cursor: 0,
     });
     mockBrowserRuntimeApi.listCdpTargets.mockResolvedValue([]);
-    mockBrowserRuntimeApi.launchBrowserRuntimeAssist.mockResolvedValue({
+    mockBrowserRuntimeApi.launchBrowserSession.mockResolvedValue({
       profile: {
         success: true,
         reused: false,
@@ -169,7 +169,7 @@ describe("useBrowserRuntimeDebug", () => {
       await Promise.resolve();
     });
 
-    expect(mockBrowserRuntimeApi.launchBrowserRuntimeAssist).toHaveBeenCalledWith(
+    expect(mockBrowserRuntimeApi.launchBrowserSession).toHaveBeenCalledWith(
       expect.objectContaining({
         profile_key: "general_browser_assist",
         url: "https://news.baidu.com/",

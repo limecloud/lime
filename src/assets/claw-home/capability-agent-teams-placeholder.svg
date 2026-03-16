@@ -1,0 +1,39 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="teams-bg" x1="74" y1="36" x2="558" y2="388" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB95E"/>
+      <stop offset="0.42" stop-color="#FF7D8E"/>
+      <stop offset="1" stop-color="#A57CFF"/>
+    </linearGradient>
+    <radialGradient id="teams-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(324 136) rotate(90) scale(230 260)">
+      <stop stop-color="#FFF3B8" stop-opacity="0.44"/>
+      <stop offset="1" stop-color="#FFF3B8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="420" rx="32" fill="url(#teams-bg)"/>
+  <rect width="640" height="420" rx="32" fill="url(#teams-glow)"/>
+  <path d="M48 338C108 284 194 254 298 260C408 266 520 238 592 192V420H48V338Z" fill="#FFD37C"/>
+  <path d="M16 372C102 332 190 320 294 326C398 332 516 310 624 246V420H16V372Z" fill="#C796FF"/>
+  <ellipse cx="320" cy="214" rx="88" ry="96" fill="#B88C63"/>
+  <ellipse cx="320" cy="169" rx="58" ry="48" fill="#C89B70"/>
+  <ellipse cx="279" cy="156" rx="18" ry="24" fill="#C89B70"/>
+  <ellipse cx="361" cy="156" rx="18" ry="24" fill="#C89B70"/>
+  <circle cx="302" cy="171" r="4.5" fill="#2E2623"/>
+  <circle cx="336" cy="171" r="4.5" fill="#2E2623"/>
+  <path d="M305 190C314 198 327 198 336 190" stroke="#573B30" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M245 260C272 246 292 240 320 240C348 240 368 246 395 260" stroke="#8B5E45" stroke-width="16" stroke-linecap="round"/>
+  <ellipse cx="192" cy="228" rx="58" ry="66" fill="#BA8C64"/>
+  <ellipse cx="192" cy="195" rx="38" ry="30" fill="#CA9B71"/>
+  <ellipse cx="456" cy="228" rx="58" ry="66" fill="#BA8C64"/>
+  <ellipse cx="456" cy="195" rx="38" ry="30" fill="#CA9B71"/>
+  <circle cx="176" cy="195" r="3.5" fill="#2E2623"/>
+  <circle cx="207" cy="195" r="3.5" fill="#2E2623"/>
+  <circle cx="440" cy="195" r="3.5" fill="#2E2623"/>
+  <circle cx="471" cy="195" r="3.5" fill="#2E2623"/>
+  <path d="M180 208C187 214 197 214 204 208" stroke="#573B30" stroke-width="4" stroke-linecap="round"/>
+  <path d="M444 208C451 214 461 214 468 208" stroke="#573B30" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="134" cy="112" r="40" fill="#FFCC5C" fill-opacity="0.95"/>
+  <circle cx="494" cy="102" r="54" fill="#B989FF" fill-opacity="0.72"/>
+  <circle cx="548" cy="126" r="32" fill="#C9A2FF" fill-opacity="0.82"/>
+  <path d="M76 150C112 120 150 122 182 154" stroke="#FFEFC2" stroke-width="9" stroke-linecap="round" stroke-opacity="0.58"/>
+</svg>

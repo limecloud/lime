@@ -59,7 +59,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
   onNavigateToSettings,
   onImportSkill,
   onRefreshSkills,
-  triggerLabel = "Skills",
+  triggerLabel = "技能",
   className,
 }) => {
   const [open, setOpen] = useState(false);
@@ -183,10 +183,10 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
           type="button"
           data-testid="skill-selector-trigger"
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+            "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium shadow-none transition-colors",
             activeSkill
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border/70 bg-background/95 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+              : "border-slate-200/80 bg-white/92 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900",
             className,
           )}
         >
@@ -195,16 +195,27 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 p-0"
+        className="w-80 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/96 p-0 shadow-xl shadow-slate-950/8 backdrop-blur-md"
         side="top"
         align="start"
         sideOffset={8}
       >
-        <Command shouldFilter={false} className="bg-background">
+        <Command shouldFilter={false} className="bg-transparent">
+          <div className="border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-4 py-3">
+            <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
+              技能能力
+            </div>
+            <div className="mt-1 text-sm text-slate-700">
+              {activeSkill ? `当前已启用 ${activeSkill.name}` : "为当前任务挂载额外能力"}
+            </div>
+          </div>
           <div className="relative">
             <CommandInput
-              className={canRefresh ? "pr-12" : undefined}
-              placeholder="搜索技能"
+              className={cn(
+                "border-b-0 px-4 text-sm placeholder:text-slate-400",
+                canRefresh ? "pr-12" : undefined,
+              )}
+              placeholder="搜索技能或命令"
               value={query}
               onValueChange={setQuery}
             />
@@ -214,7 +225,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
                 data-testid="skill-selector-refresh"
                 onClick={() => void handleRefresh()}
                 disabled={refreshBusy}
-                className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label={refreshBusy ? "技能加载中" : "刷新技能"}
                 title={refreshBusy ? "技能加载中" : "刷新技能"}
               >
@@ -228,16 +239,16 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
           </div>
           <CommandList>
             {activeSkill && onClearSkill ? (
-              <CommandGroup heading="当前技能">
+              <CommandGroup heading="当前已选">
                 <CommandItem
                   value="__clear_skill__"
                   onSelect={handleClearSkill}
-                  className="cursor-pointer"
+                  className="cursor-pointer rounded-xl border border-transparent px-3 py-2.5 data-[selected=true]:border-slate-200 data-[selected=true]:bg-slate-50"
                 >
-                  <X className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <X className="mr-2 h-4 w-4 text-slate-400" />
                   <div className="flex-1">
-                    <div className="font-medium">不使用技能</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="font-medium text-slate-900">不使用技能</div>
+                    <div className="text-xs text-slate-500">
                       当前已选：{activeSkill.name}
                     </div>
                   </div>
@@ -254,31 +265,31 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
                       key={skill.directory}
                       value={`${skill.name} ${skill.key} ${skill.description || ""}`}
                       onSelect={() => handleSelectInstalledSkill(skill)}
-                      className="cursor-pointer"
+                      className="cursor-pointer rounded-xl border border-transparent px-3 py-2.5 data-[selected=true]:border-slate-200 data-[selected=true]:bg-slate-50"
                     >
                       <Zap
                         className={cn(
                           "mr-2 h-4 w-4",
-                          selected ? "text-primary" : "text-muted-foreground",
+                          selected ? "text-emerald-600" : "text-slate-400",
                         )}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="truncate font-medium">
+                          <span className="truncate font-medium text-slate-900">
                             {skill.name}
                           </span>
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-[11px] text-slate-400">
                             /{skill.key}
                           </span>
                         </div>
                         {skill.description ? (
-                          <div className="line-clamp-1 text-xs text-muted-foreground">
+                          <div className="line-clamp-1 text-xs text-slate-500">
                             {skill.description}
                           </div>
                         ) : null}
                       </div>
                       {selected ? (
-                        <Check className="ml-2 h-4 w-4 text-primary" />
+                        <Check className="ml-2 h-4 w-4 text-emerald-600" />
                       ) : null}
                     </CommandItem>
                   );
@@ -293,20 +304,20 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
                     key={skill.directory}
                     value={`${skill.name} ${skill.key} ${skill.description || ""}`}
                     onSelect={() => handleSelectAvailableSkill(skill)}
-                    className="cursor-pointer opacity-70"
+                    className="cursor-pointer rounded-xl border border-transparent px-3 py-2.5 opacity-80 data-[selected=true]:border-slate-200 data-[selected=true]:bg-slate-50"
                   >
-                    <Settings2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <Settings2 className="mr-2 h-4 w-4 text-slate-400" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate font-medium">
+                        <span className="truncate font-medium text-slate-900">
                           {skill.name}
                         </span>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-[11px] text-slate-400">
                           /{skill.key}
                         </span>
                       </div>
                       {skill.description ? (
-                        <div className="line-clamp-1 text-xs text-muted-foreground">
+                        <div className="line-clamp-1 text-xs text-slate-500">
                           {skill.description}
                         </div>
                       ) : null}
@@ -317,10 +328,10 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
             ) : null}
 
             {!hasResults ? (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+              <div className="px-4 py-7 text-center text-sm text-slate-500">
                 {refreshBusy ? (
                   <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                     <div>技能加载中...</div>
                   </div>
                 ) : (
@@ -329,7 +340,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
                     {onNavigateToSettings ? (
                       <button
                         type="button"
-                        className="mt-2 text-primary hover:underline"
+                        className="mt-2 text-slate-900 hover:underline"
                         onClick={() => {
                           setOpen(false);
                           onNavigateToSettings();
@@ -344,20 +355,20 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
             ) : null}
           </CommandList>
           {canImport ? (
-            <div className="border-t border-border/70 p-1.5">
+            <div className="border-t border-slate-200/80 p-1.5">
               <button
                 type="button"
                 data-testid="skill-selector-import"
                 onClick={() => void handleImport()}
                 disabled={importing}
-                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {importing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <FolderOpen className="h-4 w-4" />
                 )}
-                <span>{importing ? "导入中..." : "导入技能"}</span>
+                <span>{importing ? "导入中..." : "导入本地技能"}</span>
               </button>
             </div>
           ) : null}

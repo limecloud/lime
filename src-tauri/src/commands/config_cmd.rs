@@ -597,7 +597,7 @@ pub struct VersionCheckResult {
     pub error: Option<String>,
 }
 
-const FALLBACK_TAGS_URL: &str = "https://github.com/aiclientproxy/proxycast/tags";
+const FALLBACK_RELEASES_URL: &str = "https://github.com/aiclientproxy/proxycast/releases";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct UpdateCheckCache {
@@ -765,7 +765,7 @@ fn build_version_check_result(
     download_url: Option<String>,
     error: Option<String>,
 ) -> VersionCheckResult {
-    let resolved_download_url = download_url.or_else(|| Some(FALLBACK_TAGS_URL.to_string()));
+    let resolved_download_url = download_url.or_else(|| Some(FALLBACK_RELEASES_URL.to_string()));
     let has_update = latest
         .as_deref()
         .map(|latest_version| version_compare(current, latest_version))
@@ -1064,12 +1064,22 @@ async fn get_platform_download_from_github(version: &str) -> Result<(String, Str
 fn get_platform_patterns() -> Vec<&'static str> {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
-        vec!["x64-setup.exe", "x64_en-US.msi"]
+        vec![
+            "x64-online-setup.exe",
+            "x64-setup.exe",
+            "x64-offline-setup.exe",
+            "x64_en-US.msi",
+        ]
     }
 
     #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
     {
-        vec!["arm64-setup.exe", "arm64_en-US.msi"]
+        vec![
+            "arm64-online-setup.exe",
+            "arm64-setup.exe",
+            "arm64-offline-setup.exe",
+            "arm64_en-US.msi",
+        ]
     }
 
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]

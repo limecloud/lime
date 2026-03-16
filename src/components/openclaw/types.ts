@@ -6,7 +6,8 @@ export type OpenClawOperationKind =
   | "install"
   | "uninstall"
   | "restart"
-  | "repair";
+  | "repair"
+  | "update";
 export type OpenClawScene = "setup" | "sync" | "dashboard";
 
 export interface OpenClawLastSynced {

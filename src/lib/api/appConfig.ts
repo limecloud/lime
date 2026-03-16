@@ -22,7 +22,6 @@ export type {
   ToolCallingConfig,
   UserProfile,
   VoiceConfig,
-  AssistantConfig,
 } from "./appConfigTypes";
 
 export async function getConfig(): Promise<Config> {

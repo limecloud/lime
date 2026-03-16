@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -15,8 +17,13 @@ import {
   RefreshCw,
   Send,
 } from "lucide-react";
-import type { ChromeProfileSessionInfo } from "@/lib/webview-api";
+import type {
+  BrowserRuntimeAuditRecord,
+  ChromeProfileSessionInfo,
+} from "@/lib/webview-api";
 import { browserRuntimeApi } from "./api";
+import { getExistingSessionTabLabel } from "./existingSessionBridge";
+import { useExistingSessionAttachPanel } from "./useExistingSessionAttachPanel";
 import { useBrowserRuntimeDebug } from "./useBrowserRuntimeDebug";
 
 interface BrowserRuntimeDebugPanelProps {
@@ -196,6 +203,62 @@ function resolveLiveViewPlaceholder(params: {
   return "正在连接浏览器会话...";
 }
 
+function summarizePageMarkdown(markdown: string, maxLines = 6) {
+  const lines = markdown
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length <= maxLines) {
+    return lines.join("\n");
+  }
+
+  return `${lines.slice(0, maxLines).join("\n")}\n...`;
+}
+
+function formatAuditTime(value: string) {
+  const time = value.split("T")[1];
+  if (!time) {
+    return value;
+  }
+  return time.replace("Z", "").slice(0, 8);
+}
+
+function describeAuditRecord(record: BrowserRuntimeAuditRecord) {
+  if (record.kind === "launch") {
+    return {
+      title: record.success ? "启动成功" : "启动失败",
+      subject:
+        record.url || record.session_id || record.target_id || "未记录目标",
+      meta: [
+        record.environment_preset_name,
+        record.reused === undefined
+          ? undefined
+          : record.reused
+            ? "复用会话"
+            : "新建会话",
+        record.browser_source,
+        record.remote_debugging_port
+          ? `CDP ${record.remote_debugging_port}`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  }
+
+  return {
+    title: record.action ? `动作 · ${record.action}` : "动作审计",
+    subject: record.profile_key || record.session_id || "未记录资料",
+    meta: [
+      record.selected_backend || record.requested_backend,
+      record.attempts?.length ? `${record.attempts.length} 次尝试` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  };
+}
+
 export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
   const {
     sessions,
@@ -213,20 +276,54 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [manualInput, setManualInput] = useState("");
+  const [auditLogs, setAuditLogs] = useState<BrowserRuntimeAuditRecord[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const liveViewRef = useRef<HTMLDivElement | null>(null);
+  const {
+    activeAttachProfileKey,
+    attachProfile,
+    attachObserver,
+    attachContextLoading,
+    attachPageLoading,
+    attachTabsLoading,
+    attachTabs,
+    switchingAttachTabId,
+    attachPageInfo,
+    shouldUseAttachPresentation,
+    attachPresentation,
+    loadAttachContext,
+    loadAttachPage,
+    loadAttachTabs,
+    handleSwitchAttachTab,
+  } = useExistingSessionAttachPanel({
+    selectedProfileKey: runtime.selectedProfileKey,
+    initialProfileKey,
+    sessionState: runtime.sessionState,
+    onMessage,
+  });
 
   const currentTitle =
     runtime.sessionState?.last_page_info?.title ||
     runtime.sessionState?.target_title ||
-    "未打开会话";
+    attachPageInfo?.title ||
+    attachProfile?.name ||
+    (shouldUseAttachPresentation ? "附着当前 Chrome" : "未打开会话");
   const currentUrl =
     runtime.sessionState?.last_page_info?.url ||
     runtime.sessionState?.target_url ||
+    attachPageInfo?.url ||
     runtime.selectedSession?.last_url ||
     "";
   const statusInfo = useMemo(
-    () => resolveSessionStatus(runtime.sessionState),
-    [runtime.sessionState],
+    () =>
+      shouldUseAttachPresentation
+        ? attachPresentation.statusInfo
+        : resolveSessionStatus(runtime.sessionState),
+    [
+      attachPresentation.statusInfo,
+      runtime.sessionState,
+      shouldUseAttachPresentation,
+    ],
   );
   const hasAttachIntent = Boolean(
     runtime.sessionState ||
@@ -245,6 +342,12 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     runtime.isWaitingForHuman ||
     runtime.isHumanControlling ||
     showAdvanced;
+  const auditProfileKey =
+    runtime.sessionState?.profile_key ||
+    runtime.selectedProfileKey ||
+    initialProfileKey ||
+    "";
+  const auditSessionId = runtime.sessionState?.session_id || "";
   const liveViewPlaceholder = resolveLiveViewPlaceholder({
     sessionCount: sessions.length,
     hasAttachIntent,
@@ -252,13 +355,310 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     refreshingState: runtime.refreshingState,
     sessionState: runtime.sessionState,
   });
+  const effectiveLiveViewPlaceholder = shouldUseAttachPresentation
+    ? attachPresentation.placeholder
+    : liveViewPlaceholder;
+  const visibleAuditLogs = useMemo(() => {
+    const filtered = auditLogs.filter((record) => {
+      if (auditSessionId && record.session_id === auditSessionId) {
+        return true;
+      }
+      if (auditProfileKey && record.profile_key === auditProfileKey) {
+        return true;
+      }
+      return false;
+    });
+    return (filtered.length > 0 ? filtered : auditLogs).slice(0, 6);
+  }, [auditLogs, auditProfileKey, auditSessionId]);
+
+  const loadAuditLogs = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const logs = await browserRuntimeApi.getBrowserRuntimeAuditLogs(16);
+      setAuditLogs(logs);
+    } catch (error) {
+      onMessage?.({
+        type: "error",
+        text: `读取浏览器审计失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [onMessage]);
+
+  useEffect(() => {
+    if (!showAdvanced) {
+      return;
+    }
+    void loadAuditLogs();
+  }, [showAdvanced, loadAuditLogs, auditProfileKey, auditSessionId]);
+
+  const renderAuditPanel = (maxHeightClass: string) => (
+    <div className="rounded-md border p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">最近启动与动作审计</div>
+          <div className="text-[11px] text-muted-foreground">
+            当前收口到统一浏览器运行时审计，便于排查启动链与动作链。
+          </div>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-60"
+          onClick={() => void loadAuditLogs()}
+          disabled={auditLoading}
+        >
+          <RefreshCw
+            className={`h-3 w-3 ${auditLoading ? "animate-spin" : ""}`}
+          />
+          刷新
+        </button>
+      </div>
+      <div className={`space-y-2 overflow-auto text-xs ${maxHeightClass}`}>
+        {auditLoading && visibleAuditLogs.length === 0 ? (
+          <div className="text-muted-foreground">正在读取最近审计...</div>
+        ) : visibleAuditLogs.length === 0 ? (
+          <div className="text-muted-foreground">暂无最近启动或动作审计</div>
+        ) : (
+          visibleAuditLogs.map((record) => {
+            const description = describeAuditRecord(record);
+            return (
+              <div
+                key={record.id}
+                className={`rounded border p-2 ${
+                  record.success
+                    ? "border-border/80"
+                    : "border-destructive/40 bg-destructive/5"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-foreground/90">
+                    {description.title}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {formatAuditTime(record.created_at)}
+                  </div>
+                </div>
+                <div className="mt-1 break-all text-muted-foreground">
+                  {description.subject}
+                </div>
+                {description.meta ? (
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {description.meta}
+                  </div>
+                ) : null}
+                {record.error ? (
+                  <div className="mt-1 text-[11px] text-destructive">
+                    {record.error}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  const renderAttachTabsPanel = (maxHeightClass: string) => (
+    <div className="rounded-md border p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">当前窗口标签页</div>
+          <div className="text-[11px] text-muted-foreground">
+            直接读取你当前 Chrome 窗口里的标签页，并切换到目标页面。
+          </div>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-60"
+          onClick={() => void loadAttachTabs()}
+          disabled={attachTabsLoading || !attachObserver}
+        >
+          <RefreshCw
+            className={`h-3 w-3 ${attachTabsLoading ? "animate-spin" : ""}`}
+          />
+          {attachTabsLoading ? "读取中..." : "读取标签页"}
+        </button>
+      </div>
+
+      <div className={`space-y-2 overflow-auto text-xs ${maxHeightClass}`}>
+        {!attachObserver ? (
+          <div className="text-muted-foreground">
+            未检测到当前 Chrome 的桥接 observer，请先连接 Proxycast Browser
+            Bridge。
+          </div>
+        ) : attachTabs.length === 0 ? (
+          <div className="text-muted-foreground">
+            点击“读取标签页”同步当前窗口的标签页列表。
+          </div>
+        ) : (
+          attachTabs.map((tab) => {
+            const tabKey = `${activeAttachProfileKey}:${tab.id}`;
+            return (
+              <div
+                key={tabKey}
+                className={`rounded border p-2 ${
+                  tab.active
+                    ? "border-emerald-300/70 bg-emerald-50/60 dark:border-emerald-800/60 dark:bg-emerald-950/20"
+                    : "border-border/80"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-foreground/90">
+                      {getExistingSessionTabLabel(tab)}
+                    </div>
+                    <div className="truncate text-[11px] text-muted-foreground">
+                      {tab.url || "未记录 URL"}
+                    </div>
+                  </div>
+                  {tab.active ? (
+                    <span className="rounded-full border border-emerald-300/70 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+                      当前标签页
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-60"
+                      onClick={() => void handleSwitchAttachTab(tab)}
+                      disabled={switchingAttachTabId === tab.id}
+                    >
+                      {switchingAttachTabId === tab.id
+                        ? "切换中..."
+                        : "切换到此页"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  const renderAttachFallbackPanel = (maxHeightClass: string) => (
+    <div className="space-y-3">
+      <div className="rounded-md border p-3">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">附着当前 Chrome</div>
+            <div className="text-[11px] text-muted-foreground">
+              当前资料不创建独立 CDP 会话，直接复用你正在使用的浏览器与登录态。
+            </div>
+          </div>
+          <div
+            className={`rounded-full border px-2 py-1 text-[11px] font-medium ${statusInfo.toneClass}`}
+          >
+            {statusInfo.label}
+          </div>
+        </div>
+
+        <div className="grid gap-2 text-xs md:grid-cols-2">
+          <div>
+            <span className="text-muted-foreground">资料：</span>
+            <span>{attachProfile?.name || activeAttachProfileKey || "-"}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Profile Key：</span>
+            <span className="break-all">{activeAttachProfileKey || "-"}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Observer：</span>
+            <span>{attachObserver?.client_id || "未连接"}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">最后心跳：</span>
+            <span>{attachObserver?.last_heartbeat_at || "-"}</span>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+            onClick={() => void loadAttachContext()}
+            disabled={attachContextLoading}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${
+                attachContextLoading ? "animate-spin" : ""
+              }`}
+            />
+            {attachContextLoading ? "刷新中..." : "刷新桥接状态"}
+          </button>
+          <button
+            type="button"
+            className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+            onClick={() => void loadAttachPage()}
+            disabled={attachPageLoading || !attachObserver}
+          >
+            {attachPageLoading ? "读取中..." : "读取当前页面"}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-md border p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">当前页面摘要</div>
+            <div className="text-[11px] text-muted-foreground">
+              标题、URL 与 Markdown 摘要来自当前 Chrome 扩展桥接。
+            </div>
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {attachPageInfo?.updated_at
+              ? formatAuditTime(attachPageInfo.updated_at)
+              : "未同步"}
+          </div>
+        </div>
+
+        {!attachObserver ? (
+          <div className="text-xs text-muted-foreground">
+            连接扩展桥接后，这里会显示当前标签页的页面摘要。
+          </div>
+        ) : attachPageInfo ? (
+          <div className="space-y-2 text-xs">
+            <div>
+              <div className="text-[11px] text-muted-foreground">标题</div>
+              <div className="break-all text-foreground/90">
+                {attachPageInfo.title || "未记录标题"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-muted-foreground">URL</div>
+              <div className="break-all text-muted-foreground">
+                {attachPageInfo.url || "未记录 URL"}
+              </div>
+            </div>
+            {attachPageInfo.markdown ? (
+              <div className="rounded-md bg-muted/35 p-2 font-mono text-[11px] whitespace-pre-wrap text-muted-foreground">
+                {summarizePageMarkdown(attachPageInfo.markdown)}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground">
+            点击“读取当前页面”同步当前标签页的标题、URL 和页面摘要。
+          </div>
+        )}
+      </div>
+
+      {renderAttachTabsPanel(maxHeightClass)}
+    </div>
+  );
 
   const handleOpenStandaloneWindow = async () => {
     try {
       await browserRuntimeApi.openBrowserRuntimeDebuggerWindow({
         session_id: runtime.sessionState?.session_id,
         profile_key:
-          runtime.sessionState?.profile_key || runtime.selectedProfileKey,
+          runtime.sessionState?.profile_key ||
+          runtime.selectedProfileKey ||
+          initialProfileKey,
       });
       onMessage?.({
         type: "success",
@@ -276,7 +676,9 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
 
   const handleOpenSystemBrowser = async () => {
     const profileKey =
-      runtime.sessionState?.profile_key || runtime.selectedProfileKey;
+      runtime.sessionState?.profile_key ||
+      runtime.selectedProfileKey ||
+      initialProfileKey;
     if (!profileKey || !currentUrl) {
       onMessage?.({
         type: "error",
@@ -343,7 +745,20 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
   };
 
   if (embedded) {
-    const embeddedAction = !runtime.sessionState ? (
+    const embeddedAction = shouldUseAttachPresentation ? (
+      <button
+        type="button"
+        className={embeddedPrimaryButtonClass}
+        onClick={() =>
+          void (attachPresentation.observerConnected
+            ? loadAttachPage()
+            : loadAttachContext())
+        }
+        disabled={attachPageLoading || attachContextLoading}
+      >
+        {attachPresentation.embeddedActionLabel}
+      </button>
+    ) : !runtime.sessionState ? (
       <button
         type="button"
         className={embeddedPrimaryButtonClass}
@@ -418,14 +833,28 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
           <button
             type="button"
             className={embeddedIconButtonClass}
-            onClick={() => void runtime.refreshSessionState()}
-            disabled={runtime.refreshingState || !runtime.sessionState}
-            aria-label="刷新会话"
-            title="刷新会话"
+            onClick={() =>
+              void (shouldUseAttachPresentation
+                ? loadAttachContext()
+                : runtime.refreshSessionState())
+            }
+            disabled={
+              shouldUseAttachPresentation
+                ? attachContextLoading
+                : runtime.refreshingState || !runtime.sessionState
+            }
+            aria-label={shouldUseAttachPresentation ? "刷新桥接" : "刷新会话"}
+            title={shouldUseAttachPresentation ? "刷新桥接" : "刷新会话"}
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${
-                runtime.refreshingState ? "animate-spin" : ""
+                shouldUseAttachPresentation
+                  ? attachContextLoading
+                    ? "animate-spin"
+                    : ""
+                  : runtime.refreshingState
+                    ? "animate-spin"
+                    : ""
               }`}
             />
           </button>
@@ -468,7 +897,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/75">
-              {liveViewPlaceholder}
+              {effectiveLiveViewPlaceholder}
             </div>
           )}
 
@@ -482,13 +911,15 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
             </div>
           ) : showEmbeddedControlTray ? (
             <div className="absolute bottom-3 left-3 right-3 rounded-full bg-black/55 px-3 py-1.5 text-[11px] text-white/90 backdrop-blur">
-              {runtime.canDirectControl
-                ? "已接管：可以直接点击画面、滚轮滚动，并向当前焦点输入文本。"
-                : runtime.isWaitingForHuman
-                  ? "Agent 正在等待你接管当前页面。"
-                  : runtime.isHumanControlling
-                    ? "人工处理中，可随时继续交回给 Agent。"
-                    : "实时会话已附着。"}
+              {shouldUseAttachPresentation
+                ? attachPresentation.embeddedControlHint
+                : runtime.canDirectControl
+                  ? "已接管：可以直接点击画面、滚轮滚动，并向当前焦点输入文本。"
+                  : runtime.isWaitingForHuman
+                    ? "Agent 正在等待你接管当前页面。"
+                    : runtime.isHumanControlling
+                      ? "人工处理中，可随时继续交回给 Agent。"
+                      : "实时会话已附着。"}
             </div>
           ) : null}
         </div>
@@ -533,15 +964,43 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
                   {runtime.streaming ? "停止画面" : "恢复画面"}
                 </button>
               ) : null}
+              {shouldUseAttachPresentation ? (
+                <button
+                  type="button"
+                  className={compactActionButtonClass}
+                  onClick={() => void loadAttachTabs()}
+                  disabled={
+                    attachTabsLoading || !attachPresentation.observerConnected
+                  }
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${
+                      attachTabsLoading ? "animate-spin" : ""
+                    }`}
+                  />
+                  {attachPresentation.tabsActionLabel}
+                </button>
+              ) : null}
               {showAdvanced ? (
                 <button
                   type="button"
                   className={compactActionButtonClass}
-                  onClick={() => void handleOpenSystemBrowser()}
-                  disabled={!currentUrl}
+                  onClick={() =>
+                    void (shouldUseAttachPresentation
+                      ? loadAttachPage()
+                      : handleOpenSystemBrowser())
+                  }
+                  disabled={
+                    shouldUseAttachPresentation
+                      ? attachPageLoading ||
+                        !attachPresentation.observerConnected
+                      : !currentUrl
+                  }
                 >
                   <Globe className="h-3.5 w-3.5" />
-                  在 Chrome 中继续
+                  {shouldUseAttachPresentation
+                    ? attachPresentation.pageActionLabel
+                    : "在 Chrome 中继续"}
                 </button>
               ) : null}
             </div>
@@ -549,7 +1008,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
             {runtime.canDirectControl ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
-                  className="h-8 min-w-[220px] flex-1 rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-8 w-full min-w-0 flex-1 rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[220px]"
                   placeholder="向当前焦点输入文本"
                   value={manualInput}
                   disabled={runtime.controlBusy}
@@ -589,188 +1048,218 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
               </div>
             ) : null}
 
-          {showAdvanced ? (
-            <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-xs">
-                  <span className="text-muted-foreground">Profile 会话</span>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={runtime.selectedProfileKey}
-                    onChange={(event) =>
-                      runtime.setSelectedProfileKey(event.target.value)
-                    }
-                  >
-                    {sessions.map((session) => (
-                      <option
-                        key={session.profile_key}
-                        value={session.profile_key}
+            {showAdvanced ? (
+              <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
+                {shouldUseAttachPresentation ? (
+                  <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+                    <div>{renderAttachFallbackPanel("max-h-[180px]")}</div>
+                    <div>{renderAuditPanel("max-h-[180px]")}</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="space-y-1 text-xs">
+                        <span className="text-muted-foreground">
+                          Profile 会话
+                        </span>
+                        <select
+                          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          value={runtime.selectedProfileKey}
+                          onChange={(event) =>
+                            runtime.setSelectedProfileKey(event.target.value)
+                          }
+                        >
+                          {sessions.map((session) => (
+                            <option
+                              key={session.profile_key}
+                              value={session.profile_key}
+                            >
+                              {session.profile_key} · PID {session.pid || "-"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-xs">
+                        <span className="text-muted-foreground">
+                          CDP 标签页
+                        </span>
+                        <select
+                          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          value={runtime.selectedTargetId}
+                          onChange={(event) =>
+                            runtime.setSelectedTargetId(event.target.value)
+                          }
+                        >
+                          {runtime.targets.length === 0 ? (
+                            <option value="">未发现标签页</option>
+                          ) : (
+                            runtime.targets.map((target) => (
+                              <option key={target.id} value={target.id}>
+                                {target.title || target.url || target.id}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className={compactActionButtonClass}
+                        onClick={() => void runtime.refreshTargets()}
+                        disabled={
+                          runtime.loadingTargets || !runtime.selectedProfileKey
+                        }
                       >
-                        {session.profile_key} · PID {session.pid || "-"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1 text-xs">
-                  <span className="text-muted-foreground">CDP 标签页</span>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={runtime.selectedTargetId}
-                    onChange={(event) =>
-                      runtime.setSelectedTargetId(event.target.value)
-                    }
-                  >
-                    {runtime.targets.length === 0 ? (
-                      <option value="">未发现标签页</option>
-                    ) : (
-                      runtime.targets.map((target) => (
-                        <option key={target.id} value={target.id}>
-                          {target.title || target.url || target.id}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
-              </div>
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        刷新标签页
+                      </button>
+                      <button
+                        type="button"
+                        className={compactActionButtonClass}
+                        onClick={() => void runtime.openSession()}
+                        disabled={
+                          runtime.openingSession || !runtime.selectedProfileKey
+                        }
+                      >
+                        {runtime.openingSession ? "打开中..." : "重新附着"}
+                      </button>
+                      <button
+                        type="button"
+                        className={compactActionButtonClass}
+                        onClick={() => void handleOpenSystemBrowser()}
+                        disabled={!currentUrl}
+                      >
+                        <Globe className="h-3.5 w-3.5" />在 Chrome 中继续
+                      </button>
+                    </div>
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={compactActionButtonClass}
-                  onClick={() => void runtime.refreshTargets()}
-                  disabled={
-                    runtime.loadingTargets || !runtime.selectedProfileKey
-                  }
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  刷新标签页
-                </button>
-                <button
-                  type="button"
-                  className={compactActionButtonClass}
-                  onClick={() => void runtime.openSession()}
-                  disabled={
-                    runtime.openingSession || !runtime.selectedProfileKey
-                  }
-                >
-                  {runtime.openingSession ? "打开中..." : "重新附着"}
-                </button>
-                <button
-                  type="button"
-                  className={compactActionButtonClass}
-                  onClick={() => void handleOpenSystemBrowser()}
-                  disabled={!currentUrl}
-                >
-                  <Globe className="h-3.5 w-3.5" />
-                  在 Chrome 中继续
-                </button>
-              </div>
-
-              <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="rounded-md border p-3 text-xs">
-                  <div className="mb-2 text-sm font-medium">会话信息</div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div>
-                      <span className="text-muted-foreground">Session：</span>
-                      <span className="break-all">
-                        {runtime.sessionState?.session_id || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Target：</span>
-                      <span className="break-all">
-                        {runtime.sessionState?.target_id || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">状态：</span>
-                      <span>{runtime.sessionState?.lifecycle_state || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">控制模式：</span>
-                      <span>{runtime.sessionState?.control_mode || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">WS：</span>
-                      <span className="break-all">
-                        {runtime.sessionState?.ws_debugger_url || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">最后帧：</span>
-                      <span>{runtime.sessionState?.last_frame_at || "-"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
-                  <div className="rounded-md border p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-sm font-medium">Console</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {runtime.consoleEvents.length} 条
-                      </div>
-                    </div>
-                    <div className="max-h-[180px] space-y-2 overflow-auto text-xs">
-                      {runtime.consoleEvents.length === 0 ? (
-                        <div className="text-muted-foreground">
-                          暂无 Console 事件
+                    <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+                      <div className="rounded-md border p-3 text-xs">
+                        <div className="mb-2 text-sm font-medium">会话信息</div>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <div>
+                            <span className="text-muted-foreground">
+                              Session：
+                            </span>
+                            <span className="break-all">
+                              {runtime.sessionState?.session_id || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              Target：
+                            </span>
+                            <span className="break-all">
+                              {runtime.sessionState?.target_id || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              状态：
+                            </span>
+                            <span>
+                              {runtime.sessionState?.lifecycle_state || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              控制模式：
+                            </span>
+                            <span>
+                              {runtime.sessionState?.control_mode || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">WS：</span>
+                            <span className="break-all">
+                              {runtime.sessionState?.ws_debugger_url || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              最后帧：
+                            </span>
+                            <span>
+                              {runtime.sessionState?.last_frame_at || "-"}
+                            </span>
+                          </div>
                         </div>
-                      ) : (
-                        runtime.consoleEvents.map((event) => (
-                          <div
-                            key={event.sequence}
-                            className="rounded border p-2"
-                          >
-                            <div className="font-medium text-foreground/90">
-                              [
-                              {event.type === "console_message"
-                                ? event.level
-                                : event.type}
-                              ]
-                            </div>
-                            <div className="text-muted-foreground">
-                              {formatEventSubtitle(event)}
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+                        {renderAuditPanel("max-h-[180px]")}
+
+                        <div className="rounded-md border p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <div className="text-sm font-medium">Console</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {runtime.consoleEvents.length} 条
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-sm font-medium">Network</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {runtime.networkEvents.length} 条
-                      </div>
-                    </div>
-                    <div className="max-h-[180px] space-y-2 overflow-auto text-xs">
-                      {runtime.networkEvents.length === 0 ? (
-                        <div className="text-muted-foreground">
-                          暂无 Network 事件
+                          <div className="max-h-[180px] space-y-2 overflow-auto text-xs">
+                            {runtime.consoleEvents.length === 0 ? (
+                              <div className="text-muted-foreground">
+                                暂无 Console 事件
+                              </div>
+                            ) : (
+                              runtime.consoleEvents.map((event) => (
+                                <div
+                                  key={event.sequence}
+                                  className="rounded border p-2"
+                                >
+                                  <div className="font-medium text-foreground/90">
+                                    [
+                                    {event.type === "console_message"
+                                      ? event.level
+                                      : event.type}
+                                    ]
+                                  </div>
+                                  <div className="text-muted-foreground">
+                                    {formatEventSubtitle(event)}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        runtime.networkEvents.map((event) => (
-                          <div
-                            key={event.sequence}
-                            className="rounded border p-2"
-                          >
-                            <div className="font-medium text-foreground/90">
-                              {event.type}
-                            </div>
-                            <div className="break-all text-muted-foreground">
-                              {formatEventSubtitle(event)}
+
+                        <div className="rounded-md border p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <div className="text-sm font-medium">Network</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {runtime.networkEvents.length} 条
                             </div>
                           </div>
-                        ))
-                      )}
+                          <div className="max-h-[180px] space-y-2 overflow-auto text-xs">
+                            {runtime.networkEvents.length === 0 ? (
+                              <div className="text-muted-foreground">
+                                暂无 Network 事件
+                              </div>
+                            ) : (
+                              runtime.networkEvents.map((event) => (
+                                <div
+                                  key={event.sequence}
+                                  className="rounded border p-2"
+                                >
+                                  <div className="font-medium text-foreground/90">
+                                    {event.type}
+                                  </div>
+                                  <div className="break-all text-muted-foreground">
+                                    {formatEventSubtitle(event)}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
-            </div>
-          ) : null}
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -861,24 +1350,65 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-muted-foreground">
-                  {liveViewPlaceholder}
+                  {effectiveLiveViewPlaceholder}
                 </div>
               )}
 
               <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">
-                {runtime.sessionState?.transport_kind || "cdp_frames"}
+                {runtime.sessionState?.transport_kind ||
+                  (shouldUseAttachPresentation
+                    ? "existing_session"
+                    : "cdp_frames")}
               </div>
 
               <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/60 px-3 py-2 text-[11px] text-white/90">
-                {runtime.canDirectControl
-                  ? "当前支持点击画面、滚轮滚动，并把文本发送到当前焦点元素。"
-                  : "点击“接管浏览器”后，可直接在这里进行最小人工操作。"}
+                {shouldUseAttachPresentation
+                  ? attachPresentation.liveViewHint
+                  : runtime.canDirectControl
+                    ? "当前支持点击画面、滚轮滚动，并把文本发送到当前焦点元素。"
+                    : "点击“接管浏览器”后，可直接在这里进行最小人工操作。"}
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {!runtime.sessionState ? (
+            {shouldUseAttachPresentation ? (
+              <>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+                  onClick={() => void loadAttachContext()}
+                  disabled={attachContextLoading}
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${
+                      attachContextLoading ? "animate-spin" : ""
+                    }`}
+                  />
+                  {attachPresentation.contextActionLabel}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+                  onClick={() => void loadAttachPage()}
+                  disabled={
+                    attachPageLoading || !attachPresentation.observerConnected
+                  }
+                >
+                  {attachPresentation.pageActionLabel}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+                  onClick={() => void loadAttachTabs()}
+                  disabled={
+                    attachTabsLoading || !attachPresentation.observerConnected
+                  }
+                >
+                  {attachPresentation.tabsActionLabel}
+                </button>
+              </>
+            ) : !runtime.sessionState ? (
               <button
                 type="button"
                 className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
@@ -1000,7 +1530,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
 
             <div className="flex flex-wrap gap-2">
               <input
-                className="min-w-[220px] flex-1 rounded-md border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[220px]"
                 placeholder="把文本发送到当前焦点元素"
                 value={manualInput}
                 disabled={!runtime.canDirectControl || runtime.controlBusy}
@@ -1041,193 +1571,210 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
           </div>
 
           {showAdvanced ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-xs">
-                  <span className="text-muted-foreground">Profile 会话</span>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={runtime.selectedProfileKey}
-                    onChange={(event) =>
-                      runtime.setSelectedProfileKey(event.target.value)
-                    }
-                  >
-                    {sessions.map((session) => (
-                      <option
-                        key={session.profile_key}
-                        value={session.profile_key}
-                      >
-                        {session.profile_key} · PID {session.pid}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1 text-xs">
-                  <span className="text-muted-foreground">CDP 标签页</span>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={runtime.selectedTargetId}
-                    onChange={(event) =>
-                      runtime.setSelectedTargetId(event.target.value)
-                    }
-                  >
-                    {runtime.targets.length === 0 ? (
-                      <option value="">未发现标签页</option>
-                    ) : (
-                      runtime.targets.map((target) => (
-                        <option key={target.id} value={target.id}>
-                          {target.title || target.url || target.id}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
-                  onClick={() => void runtime.refreshTargets()}
-                  disabled={
-                    runtime.loadingTargets || !runtime.selectedProfileKey
-                  }
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  刷新标签页
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
-                  onClick={() => void runtime.openSession()}
-                  disabled={
-                    runtime.openingSession || !runtime.selectedProfileKey
-                  }
-                >
-                  {runtime.openingSession ? "打开中..." : "重新附着会话"}
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
-                  onClick={() => void handleOpenSystemBrowser()}
-                  disabled={!currentUrl}
-                >
-                  <Globe className="h-3.5 w-3.5" />在 Chrome 中继续
-                </button>
-              </div>
-
+            shouldUseAttachPresentation ? (
               <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="space-y-3">
-                  <div className="rounded-md border p-3 text-xs">
-                    <div className="mb-2 text-sm font-medium">会话信息</div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <div>
-                        <span className="text-muted-foreground">Session：</span>
-                        <span className="break-all">
-                          {runtime.sessionState?.session_id || "-"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Target：</span>
-                        <span className="break-all">
-                          {runtime.sessionState?.target_id || "-"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">状态：</span>
-                        <span>
-                          {runtime.sessionState?.lifecycle_state || "-"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">
-                          控制模式：
-                        </span>
-                        <span>{runtime.sessionState?.control_mode || "-"}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">WS：</span>
-                        <span className="break-all">
-                          {runtime.sessionState?.ws_debugger_url || "-"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">最后帧：</span>
-                        <span>
-                          {runtime.sessionState?.last_frame_at || "-"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="rounded-md border p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-sm font-medium">Console</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {runtime.consoleEvents.length} 条
-                      </div>
-                    </div>
-                    <div className="max-h-[220px] space-y-2 overflow-auto text-xs">
-                      {runtime.consoleEvents.length === 0 ? (
-                        <div className="text-muted-foreground">
-                          暂无 Console 事件
-                        </div>
-                      ) : (
-                        runtime.consoleEvents.map((event) => (
-                          <div
-                            key={event.sequence}
-                            className="rounded border p-2"
-                          >
-                            <div className="font-medium text-foreground/90">
-                              [
-                              {event.type === "console_message"
-                                ? event.level
-                                : event.type}
-                              ]
-                            </div>
-                            <div className="text-muted-foreground">
-                              {formatEventSubtitle(event)}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-sm font-medium">Network</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {runtime.networkEvents.length} 条
-                      </div>
-                    </div>
-                    <div className="max-h-[220px] space-y-2 overflow-auto text-xs">
-                      {runtime.networkEvents.length === 0 ? (
-                        <div className="text-muted-foreground">
-                          暂无 Network 事件
-                        </div>
-                      ) : (
-                        runtime.networkEvents.map((event) => (
-                          <div
-                            key={event.sequence}
-                            className="rounded border p-2"
-                          >
-                            <div className="font-medium text-foreground/90">
-                              {event.type}
-                            </div>
-                            <div className="break-all text-muted-foreground">
-                              {formatEventSubtitle(event)}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <div>{renderAttachFallbackPanel("max-h-[220px]")}</div>
+                <div>{renderAuditPanel("max-h-[220px]")}</div>
               </div>
-            </>
+            ) : (
+              <>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1 text-xs">
+                    <span className="text-muted-foreground">Profile 会话</span>
+                    <select
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={runtime.selectedProfileKey}
+                      onChange={(event) =>
+                        runtime.setSelectedProfileKey(event.target.value)
+                      }
+                    >
+                      {sessions.map((session) => (
+                        <option
+                          key={session.profile_key}
+                          value={session.profile_key}
+                        >
+                          {session.profile_key} · PID {session.pid}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-xs">
+                    <span className="text-muted-foreground">CDP 标签页</span>
+                    <select
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={runtime.selectedTargetId}
+                      onChange={(event) =>
+                        runtime.setSelectedTargetId(event.target.value)
+                      }
+                    >
+                      {runtime.targets.length === 0 ? (
+                        <option value="">未发现标签页</option>
+                      ) : (
+                        runtime.targets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.title || target.url || target.id}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+                    onClick={() => void runtime.refreshTargets()}
+                    disabled={
+                      runtime.loadingTargets || !runtime.selectedProfileKey
+                    }
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    刷新标签页
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+                    onClick={() => void runtime.openSession()}
+                    disabled={
+                      runtime.openingSession || !runtime.selectedProfileKey
+                    }
+                  >
+                    {runtime.openingSession ? "打开中..." : "重新附着会话"}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"
+                    onClick={() => void handleOpenSystemBrowser()}
+                    disabled={!currentUrl}
+                  >
+                    <Globe className="h-3.5 w-3.5" />在 Chrome 中继续
+                  </button>
+                </div>
+
+                <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div className="space-y-3">
+                    <div className="rounded-md border p-3 text-xs">
+                      <div className="mb-2 text-sm font-medium">会话信息</div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <div>
+                          <span className="text-muted-foreground">
+                            Session：
+                          </span>
+                          <span className="break-all">
+                            {runtime.sessionState?.session_id || "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Target：
+                          </span>
+                          <span className="break-all">
+                            {runtime.sessionState?.target_id || "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">状态：</span>
+                          <span>
+                            {runtime.sessionState?.lifecycle_state || "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            控制模式：
+                          </span>
+                          <span>
+                            {runtime.sessionState?.control_mode || "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">WS：</span>
+                          <span className="break-all">
+                            {runtime.sessionState?.ws_debugger_url || "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            最后帧：
+                          </span>
+                          <span>
+                            {runtime.sessionState?.last_frame_at || "-"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {renderAuditPanel("max-h-[220px]")}
+
+                    <div className="rounded-md border p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-sm font-medium">Console</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {runtime.consoleEvents.length} 条
+                        </div>
+                      </div>
+                      <div className="max-h-[220px] space-y-2 overflow-auto text-xs">
+                        {runtime.consoleEvents.length === 0 ? (
+                          <div className="text-muted-foreground">
+                            暂无 Console 事件
+                          </div>
+                        ) : (
+                          runtime.consoleEvents.map((event) => (
+                            <div
+                              key={event.sequence}
+                              className="rounded border p-2"
+                            >
+                              <div className="font-medium text-foreground/90">
+                                [
+                                {event.type === "console_message"
+                                  ? event.level
+                                  : event.type}
+                                ]
+                              </div>
+                              <div className="text-muted-foreground">
+                                {formatEventSubtitle(event)}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-sm font-medium">Network</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {runtime.networkEvents.length} 条
+                        </div>
+                      </div>
+                      <div className="max-h-[220px] space-y-2 overflow-auto text-xs">
+                        {runtime.networkEvents.length === 0 ? (
+                          <div className="text-muted-foreground">
+                            暂无 Network 事件
+                          </div>
+                        ) : (
+                          runtime.networkEvents.map((event) => (
+                            <div
+                              key={event.sequence}
+                              className="rounded border p-2"
+                            >
+                              <div className="font-medium text-foreground/90">
+                                {event.type}
+                              </div>
+                              <div className="break-all text-muted-foreground">
+                                {formatEventSubtitle(event)}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )
           ) : null}
         </>
       )}

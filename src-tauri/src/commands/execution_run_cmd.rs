@@ -1,6 +1,6 @@
 //! 统一执行轨迹查询命令
 //!
-//! 提供对 `agent_runs` 的只读查询能力，供前端查看 chat / skill / heartbeat 执行摘要。
+//! 提供对 `agent_runs` 的只读查询能力，供前端查看 chat / skill / automation 执行摘要。
 
 use crate::database::dao::agent_run::{AgentRun, AgentRunDao, AgentRunStatus};
 use crate::database::DbConnection;
@@ -239,7 +239,7 @@ fn derive_run_title(run: &AgentRun) -> String {
 
     match run.source.as_str() {
         "skill" => "执行主题工作台技能".to_string(),
-        "heartbeat" => "执行定时任务".to_string(),
+        "automation" => "执行自动化任务".to_string(),
         _ => "执行主题工作台编排".to_string(),
     }
 }

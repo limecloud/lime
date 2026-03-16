@@ -130,18 +130,29 @@ afterEach(() => {
 });
 
 describe("AppearanceSettings", () => {
-  it("应在同一页面中渲染基础外观和聊天外观设置", async () => {
+  it("应在同一页面中渲染基础外观、侧栏入口与推荐行为设置", async () => {
     const { container } = await renderPage();
     const text = container.textContent ?? "";
+    const buttonTexts = Array.from(container.querySelectorAll("button")).map(
+      (button) => button.textContent?.trim() ?? "",
+    );
 
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
     expect(text).toContain("界面语言");
-    expect(text).toContain("工作区与聊天外观");
+    expect(text).toContain("工作区入口与推荐行为");
     expect(text).toContain("创作模式卡片");
     expect(text).toContain("左侧边栏导航");
+    expect(text).toContain("工作区入口");
+    expect(text).toContain("底部入口");
+    expect(text).toContain("OpenClaw");
+    expect(text).toContain("资源");
+    expect(text).toContain("我的风格");
+    expect(text).toContain("记忆");
     expect(text).toContain("推荐自动附带选中内容");
     expect(text).toContain("重新运行引导");
+    expect(text).not.toContain("已合并旧入口");
+    expect(buttonTexts).not.toContain("设置");
   });
 
   it("切换创作模式时应保留 content_creator 的其他配置", async () => {
@@ -164,5 +175,88 @@ describe("AppearanceSettings", () => {
     expect(
       savedConfig.content_creator.media_defaults.voice.preferredProviderId,
     ).toBe("openai");
+  });
+
+  it("缺少主题配置时应回退到新的默认创作主题", async () => {
+    mockGetConfig.mockResolvedValue({
+      language: "zh",
+      chat_appearance: {
+        append_selected_text_to_recommendation: true,
+      },
+    });
+
+    const { container } = await renderPage();
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("短视频"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
+
+    expect(savedConfig.content_creator.enabled_themes).toEqual([
+      "social-media",
+      "poster",
+      "video",
+    ]);
+  });
+
+  it("切换底部入口时应保存完整的侧栏导航配置", async () => {
+    const { container } = await renderPage();
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("资源"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
+
+    expect(savedConfig.navigation.enabled_items).toEqual([
+      "home-general",
+      "resources",
+    ]);
+  });
+
+  it("缺少导航配置时应回退到底部默认入口", async () => {
+    mockGetConfig.mockResolvedValue({
+      language: "zh",
+      content_creator: {
+        enabled_themes: ["social-media", "poster"],
+      },
+      chat_appearance: {
+        append_selected_text_to_recommendation: true,
+      },
+    });
+
+    const { container } = await renderPage();
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("工具箱"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
+
+    expect(savedConfig.navigation.enabled_items).toEqual([
+      "home-general",
+      "claw",
+      "video",
+      "image-gen",
+      "automation",
+      "openclaw",
+      "resources",
+      "style-library",
+      "memory",
+      "tools",
+    ]);
   });
 });

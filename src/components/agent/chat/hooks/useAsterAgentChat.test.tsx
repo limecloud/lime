@@ -309,7 +309,14 @@ describe("useAsterAgentChat 任务快照", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("帮我输出一版任务拆解", [], false, false, false, "react");
+          .sendMessage(
+            "帮我输出一版任务拆解",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
       await flushEffects();
 
@@ -351,6 +358,7 @@ describe("useAsterAgentChat.confirmAction", () => {
         confirmed: true,
         response: "允许",
         user_data: undefined,
+        metadata: undefined,
       });
     } finally {
       harness.unmount();
@@ -381,6 +389,7 @@ describe("useAsterAgentChat.confirmAction", () => {
         confirmed: true,
         response: undefined,
         user_data: { answer: "A" },
+        metadata: undefined,
       });
     } finally {
       harness.unmount();
@@ -411,6 +420,7 @@ describe("useAsterAgentChat.confirmAction", () => {
         confirmed: true,
         response: '{"answer":"选项A"}',
         user_data: { answer: "选项A" },
+        metadata: undefined,
       });
     } finally {
       harness.unmount();
@@ -643,7 +653,14 @@ describe("useAsterAgentChat runtime routing", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("帮我看看今天的黄金价格", [], true, false, false, "react");
+          .sendMessage(
+            "帮我看看今天的黄金价格",
+            [],
+            true,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -681,7 +698,14 @@ describe("useAsterAgentChat runtime routing", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("请先分析，再决定要不要搜索", [], true, true, false, "react");
+          .sendMessage(
+            "请先分析，再决定要不要搜索",
+            [],
+            true,
+            true,
+            false,
+            "react",
+          );
       });
 
       act(() => {
@@ -765,7 +789,14 @@ describe("useAsterAgentChat runtime routing", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("帮我汇总今天的国际新闻", [], true, false, false, "react");
+          .sendMessage(
+            "帮我汇总今天的国际新闻",
+            [],
+            true,
+            false,
+            false,
+            "react",
+          );
       });
 
       act(() => {
@@ -1152,6 +1183,25 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
         confirmed: true,
         response: '{"answer":"自动执行（Auto）"}',
         user_data: { answer: "自动执行（Auto）" },
+        metadata: {
+          elicitation_context: {
+            source: "action_required",
+            mode: "runtime_protocol",
+            form_id: "req-ask-submit-1",
+            action_type: "ask_user",
+            field_count: 1,
+            prompt: "请选择执行模式",
+            entries: [
+              {
+                fieldId: "req-ask-submit-1_answer",
+                fieldKey: "answer",
+                label: "你希望如何执行？",
+                value: "自动执行（Auto）",
+                summary: "自动执行（Auto）",
+              },
+            ],
+          },
+        },
       });
       expect(assistantMessage?.actionRequests?.[0]).toMatchObject({
         requestId: "req-ask-submit-1",
@@ -1263,6 +1313,25 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
         confirmed: true,
         response: '{"answer":"网络矩阵"}',
         user_data: { answer: "网络矩阵" },
+        metadata: {
+          elicitation_context: {
+            source: "action_required",
+            mode: "runtime_protocol",
+            form_id: "req-ask-real-1",
+            action_type: "ask_user",
+            field_count: 1,
+            prompt: "请选择您喜欢的科技风格类型",
+            entries: [
+              {
+                fieldId: "req-ask-real-1_answer",
+                fieldKey: "answer",
+                label: "请选择您喜欢的科技风格类型",
+                value: "网络矩阵",
+                summary: "网络矩阵",
+              },
+            ],
+          },
+        },
       });
       expect(
         assistantMessage?.actionRequests?.some(
@@ -1319,6 +1388,7 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
         confirmed: true,
         response: "Auto 模式自动确认",
         user_data: undefined,
+        metadata: undefined,
       });
 
       const assistantMessage = [...harness.getValue().messages]
@@ -1456,6 +1526,84 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
         reported_success: false,
         role: "planner",
         failed_count: 1,
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("收到带 ProxyCast 元数据块的 tool_end error 后应清洗错误文本并恢复失败态 metadata", async () => {
+    const workspaceId = "ws-tool-metadata-error-block";
+    seedSession(workspaceId, "session-tool-metadata-error-block");
+    const harness = mountHook(workspaceId);
+
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+    mockSafeListen.mockImplementationOnce(async (_eventName, handler) => {
+      streamHandler = handler as (event: { payload: unknown }) => void;
+      return () => {
+        streamHandler = null;
+      };
+    });
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("执行失败任务", [], false, false, false, "react");
+      });
+
+      act(() => {
+        streamHandler?.({
+          payload: {
+            type: "tool_start",
+            tool_id: "tool-meta-error-1",
+            tool_name: "browser_navigate",
+            arguments: JSON.stringify({
+              url: "https://example.com",
+            }),
+          },
+        });
+      });
+
+      act(() => {
+        streamHandler?.({
+          payload: {
+            type: "tool_end",
+            tool_id: "tool-meta-error-1",
+            result: {
+              success: true,
+              error: [
+                "CDP 会话已断开，请重试",
+                "",
+                "[ProxyCast 工具元数据开始]",
+                JSON.stringify({
+                  reported_success: false,
+                  exit_code: 1,
+                  stderr_length: 128,
+                }),
+                "[ProxyCast 工具元数据结束]",
+              ].join("\n"),
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+      const toolCall = assistantMessage?.toolCalls?.find(
+        (item) => item.id === "tool-meta-error-1",
+      );
+
+      expect(toolCall?.status).toBe("failed");
+      expect(toolCall?.result?.error).toBe("CDP 会话已断开，请重试");
+      expect(toolCall?.result?.error).not.toContain("ProxyCast 工具元数据");
+      expect(toolCall?.result?.metadata).toMatchObject({
+        reported_success: false,
+        exit_code: 1,
+        stderr_length: 128,
       });
     } finally {
       harness.unmount();
@@ -2546,6 +2694,70 @@ describe("useAsterAgentChat 偏好持久化", () => {
           "data:image/png;base64,aGVsbG8=",
         );
       }
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换话题时应清洗 tool_response error 中的 ProxyCast 元数据块", async () => {
+    const workspaceId = "ws-history-tool-error-metadata";
+    const now = Math.floor(Date.now() / 1000);
+    mockGetAsterSession.mockResolvedValue({
+      id: "topic-tool-error-metadata",
+      execution_strategy: "react",
+      messages: [
+        {
+          role: "assistant",
+          timestamp: now,
+          content: [{ type: "text", text: "正在连接浏览器" }],
+        },
+        {
+          role: "tool",
+          timestamp: now + 1,
+          content: [
+            {
+              type: "tool_response",
+              id: "tool-error-1",
+              success: true,
+              error: [
+                "CDP 连接失败，请检查目标页面",
+                "",
+                "[ProxyCast 工具元数据开始]",
+                JSON.stringify({
+                  reported_success: false,
+                  exit_code: 1,
+                  sandboxed: true,
+                }),
+                "[ProxyCast 工具元数据结束]",
+              ].join("\n"),
+            },
+          ],
+        },
+      ],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic("topic-tool-error-metadata");
+      });
+
+      const value = harness.getValue();
+      expect(value.messages).toHaveLength(1);
+
+      const toolCall = value.messages[0]?.toolCalls?.find(
+        (item) => item.id === "tool-error-1",
+      );
+      expect(toolCall?.status).toBe("failed");
+      expect(toolCall?.result?.error).toBe("CDP 连接失败，请检查目标页面");
+      expect(toolCall?.result?.error).not.toContain("ProxyCast 工具元数据");
+      expect(toolCall?.result?.metadata).toMatchObject({
+        reported_success: false,
+        exit_code: 1,
+        sandboxed: true,
+      });
     } finally {
       harness.unmount();
     }

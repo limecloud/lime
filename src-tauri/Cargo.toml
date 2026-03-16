@@ -3,7 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.87.0"
+version = "0.88.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/proxycast"
@@ -78,6 +78,7 @@ cron = "0.15"
 dirs = "5"
 regex = "1"
 md5 = "0.7"
+jsonwebtoken = "9.3.1"
 urlencoding = "2"
 subtle = "2.5"
 flate2 = "1"
@@ -113,8 +114,7 @@ rustls-pemfile = "2"
 portable-pty = "0.8"
 
 # SSH
-ssh2 = "0.9"
-openssl = { version = "0.10", features = ["vendored"] }
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }
 
 # 系统交互
 mouse_position = "0.1.4"
@@ -191,7 +191,7 @@ version = "2.4"
 
 [package]
 name = "proxycast"
-version = "0.87.0"
+version = "0.88.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -283,6 +283,7 @@ cron.workspace = true
 dirs.workspace = true
 regex.workspace = true
 md5.workspace = true
+jsonwebtoken.workspace = true
 urlencoding.workspace = true
 subtle.workspace = true
 flate2.workspace = true
@@ -314,7 +315,6 @@ portable-pty.workspace = true
 
 # SSH
 ssh2.workspace = true
-openssl.workspace = true
 
 # 系统交互
 mouse_position.workspace = true

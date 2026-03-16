@@ -1,10 +1,7 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { toast } from "sonner";
-import {
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { VideoCanvasProps } from "./types";
 import { VideoSidebar, type VideoProviderOption } from "./VideoSidebar";
 import { VideoWorkspace } from "./VideoWorkspace";
@@ -68,14 +65,57 @@ function resolveProviderModels(provider: VideoProviderOption): string[] {
 }
 
 const Root = styled.div`
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   width: 100%;
-  padding: 6px 8px 8px;
-  gap: 6px;
-  background: hsl(var(--muted) / 0.28);
+  padding: 12px;
+  gap: 12px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    hsl(206 55% 97%) 0%,
+    hsl(0 0% 100%) 42%,
+    hsl(200 43% 96%) 100%
+  );
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+    filter: blur(72px);
+    opacity: 0.85;
+  }
+
+  &::before {
+    width: 340px;
+    height: 340px;
+    top: -110px;
+    left: 6%;
+    background: hsl(154 62% 84% / 0.4);
+  }
+
+  &::after {
+    width: 320px;
+    height: 320px;
+    right: -80px;
+    bottom: -140px;
+    background: hsl(203 88% 84% / 0.32);
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 1100px) {
+    padding: 10px;
+    gap: 10px;
+  }
 `;
 
 const Body = styled.div`
@@ -83,49 +123,84 @@ const Body = styled.div`
   flex: 1;
   min-height: 0;
   width: 100%;
-  gap: 6px;
+  gap: 12px;
+
+  @media (max-width: 1100px) {
+    flex-direction: column;
+  }
 `;
 
 const SidebarContainer = styled.div<{ $collapsed: boolean }>`
-  width: ${({ $collapsed }) => ($collapsed ? "0px" : "304px")};
+  width: ${({ $collapsed }) => ($collapsed ? "0px" : "332px")};
   flex-shrink: 0;
   height: 100%;
   min-height: 0;
-  background: hsl(var(--muted) / 0.34);
-  border-radius: 12px;
-  border: none;
+  background: hsl(var(--background) / 0.72);
+  border-radius: 28px;
+  border: 1px solid hsl(var(--border) / 0.7);
+  box-shadow:
+    0 16px 40px hsl(215 40% 10% / 0.06),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
   overflow-y: auto;
   overflow-x: hidden;
   opacity: ${({ $collapsed }) => ($collapsed ? 0 : 1)};
   pointer-events: ${({ $collapsed }) => ($collapsed ? "none" : "auto")};
   transition:
-    width 0.2s ease,
-    opacity 0.2s ease;
+    width 0.24s ease,
+    opacity 0.24s ease,
+    max-height 0.24s ease;
+
+  @media (max-width: 1100px) {
+    width: 100%;
+    height: auto;
+    max-height: ${({ $collapsed }) => ($collapsed ? "0px" : "780px")};
+  }
 `;
 
 const Splitter = styled.div`
-  width: 12px;
+  width: 18px;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  flex-shrink: 0;
+
+  @media (max-width: 1100px) {
+    width: 100%;
+    justify-content: flex-start;
+  }
 `;
 
 const SplitterButton = styled.button`
-  margin-top: 8px;
-  width: 16px;
-  height: 24px;
-  border-radius: 6px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  margin-top: 12px;
+  width: 32px;
+  height: 48px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border) / 0.85);
+  background: hsl(var(--background) / 0.88);
   color: hsl(var(--muted-foreground));
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 24px hsl(215 32% 12% / 0.08);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 
   &:hover {
     color: hsl(var(--foreground));
-    border-color: hsl(var(--primary) / 0.4);
+    border-color: hsl(214 68% 38% / 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px hsl(215 32% 12% / 0.12);
+  }
+
+  @media (max-width: 1100px) {
+    margin-top: 0;
+    width: 48px;
+    height: 32px;
   }
 `;
 
@@ -133,7 +208,11 @@ const MainContainer = styled.div`
   flex: 1;
   height: 100%;
   min-height: 0;
-  background: hsl(var(--background));
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.94),
+    hsl(200 48% 98% / 0.94)
+  );
   overflow: hidden;
   position: relative;
 `;
@@ -142,20 +221,17 @@ const WorkspaceFrame = styled.div`
   flex: 1;
   min-height: 0;
   display: flex;
-  border-radius: 12px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  border-radius: 32px;
+  border: 1px solid hsl(var(--border) / 0.75);
+  background: hsl(var(--background) / 0.84);
+  box-shadow:
+    0 20px 48px hsl(215 32% 12% / 0.07),
+    inset 0 1px 0 hsl(0 0% 100% / 0.7);
   overflow: hidden;
 `;
 
 export const VideoCanvas: React.FC<VideoCanvasProps> = memo(
-  ({
-    state,
-    onStateChange,
-    projectId,
-    contentId,
-    onClose: _onClose,
-  }) => {
+  ({ state, onStateChange, projectId, contentId, onClose: _onClose }) => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [providers, setProviders] = useState<VideoProviderOption[]>([]);
 

@@ -75,11 +75,13 @@ export function MediaPreferenceSection({
   resetDisabled = false,
 }: MediaPreferenceSectionProps) {
   return (
-    <div className="space-y-4 rounded-lg border p-4">
+    <div className="space-y-5 rounded-[24px] border border-slate-200/80 bg-white/95 p-5 shadow-sm shadow-slate-950/5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium">{title}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          <h3 className="text-base font-semibold tracking-tight text-slate-900">
+            {title}
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
         </div>
         {onReset ? (
           <Button
@@ -88,6 +90,7 @@ export function MediaPreferenceSection({
             size="sm"
             onClick={onReset}
             disabled={disabled || resetDisabled}
+            className="rounded-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           >
             {resetLabel ?? "恢复默认"}
           </Button>
@@ -95,16 +98,18 @@ export function MediaPreferenceSection({
       </div>
 
       <div className="space-y-2">
-        <Label>{providerLabel}</Label>
+        <Label className="text-sm font-medium text-slate-700">
+          {providerLabel}
+        </Label>
         <Select
           value={providerValue}
           onValueChange={onProviderChange}
           disabled={disabled}
         >
-          <SelectTrigger>
+          <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5 focus:ring-slate-300">
             <SelectValue placeholder={providerLabel} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="rounded-2xl border-slate-200 bg-white p-1 shadow-xl shadow-slate-950/8">
             <SelectItem value="__auto__">{providerAutoLabel}</SelectItem>
             {providerUnavailableLabel ? (
               <SelectItem value={providerValue}>
@@ -119,21 +124,23 @@ export function MediaPreferenceSection({
           </SelectContent>
         </Select>
         {emptyHint ? (
-          <p className="text-xs text-muted-foreground">{emptyHint}</p>
+          <p className="text-xs leading-5 text-slate-500">{emptyHint}</p>
         ) : null}
       </div>
 
       <div className="space-y-2">
-        <Label>{modelLabel}</Label>
+        <Label className="text-sm font-medium text-slate-700">
+          {modelLabel}
+        </Label>
         <Select
           value={modelValue}
           onValueChange={onModelChange}
           disabled={disabled || modelDisabled}
         >
-          <SelectTrigger>
+          <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5 focus:ring-slate-300">
             <SelectValue placeholder={modelLabel} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="rounded-2xl border-slate-200 bg-white p-1 shadow-xl shadow-slate-950/8">
             <SelectItem value="__auto__">{modelAutoLabel}</SelectItem>
             {modelUnavailableLabel ? (
               <SelectItem value={modelValue}>
@@ -147,13 +154,17 @@ export function MediaPreferenceSection({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">{modelHint}</p>
+        <p className="text-xs leading-5 text-slate-500">{modelHint}</p>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border px-3 py-3">
+      <div className="flex items-center justify-between rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4">
         <div className="space-y-1">
-          <Label className="text-sm">{fallbackTitle}</Label>
-          <p className="text-xs text-muted-foreground">{fallbackDescription}</p>
+          <Label className="text-sm font-medium text-slate-800">
+            {fallbackTitle}
+          </Label>
+          <p className="text-xs leading-5 text-slate-500">
+            {fallbackDescription}
+          </p>
         </div>
         <Switch
           checked={allowFallback}

@@ -6,7 +6,11 @@ import type {
 import type { Artifact, ArtifactStatus } from "@/lib/artifact/types";
 import { safeInvoke } from "@/lib/dev-bridge";
 
-export type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentStream";
+export type {
+  AgentThreadItem,
+  AgentThreadItemStatus,
+  AgentThreadTurn,
+} from "@/lib/api/agentStream";
 
 export interface MessageImage {
   data: string;
@@ -27,6 +31,19 @@ export type ContentPart =
   | { type: "thinking"; text: string }
   | { type: "tool_use"; toolCall: ToolCallState }
   | { type: "action_required"; actionRequired: ActionRequired };
+
+export type BrowserTaskRequirement =
+  | "optional"
+  | "required"
+  | "required_with_user_step";
+
+export type BrowserPreflightState =
+  | "idle"
+  | "launching"
+  | "awaiting_user"
+  | "ready_to_resume"
+  | "failed"
+  | "degraded";
 
 // ============ 权限确认相关类型 ============
 
@@ -54,6 +71,16 @@ export interface ActionRequired {
   submittedResponse?: string;
   /** 已提交的原始用户数据 */
   submittedUserData?: unknown;
+  /** 前端专用渲染类型 */
+  uiKind?: "browser_preflight";
+  /** 浏览器任务要求等级（前端本地引导使用） */
+  browserRequirement?: BrowserTaskRequirement;
+  /** 浏览器前置阶段（前端本地引导使用） */
+  browserPrepState?: BrowserPreflightState;
+  /** 是否允许改为能力降级路径 */
+  allowCapabilityFallback?: boolean;
+  /** 浏览器引导失败或附加说明 */
+  detail?: string;
 }
 
 /** 问题定义（用于 ask_user 类型） */

@@ -136,6 +136,16 @@ const AUTO_VALUE = "__auto__";
 const DEFAULT_MEDIA_PREFERENCE: MediaGenerationPreference = {
   allowFallback: true,
 };
+const PANEL_CARD_CLASS =
+  "rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5";
+const CHOICE_BUTTON_CLASS =
+  "rounded-[18px] border px-3 py-3 text-left text-sm transition";
+const ACTIVE_CHOICE_BUTTON_CLASS =
+  "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-950/10";
+const INACTIVE_CHOICE_BUTTON_CLASS =
+  "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
+const INFO_CARD_CLASS =
+  "flex items-start gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/85 p-4 text-xs leading-6 text-slate-600";
 
 export function VoiceSettings() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -333,7 +343,7 @@ export function VoiceSettings() {
   const availableVoices = TTS_VOICES[voiceConfig.tts_service || "openai"] || [];
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-5 max-w-[980px]">
       <MediaPreferenceSection
         title="全局默认语音服务"
         description="新项目默认继承这里的设置；项目里留空时会继续跟随这里。"
@@ -381,7 +391,7 @@ export function VoiceSettings() {
       />
 
       {/* 语音总开关 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-muted-foreground" />
@@ -424,7 +434,7 @@ export function VoiceSettings() {
       </div>
 
       {/* TTS 服务商 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center gap-2 mb-3">
           <Volume2 className="h-4 w-4 text-muted-foreground" />
           <div>
@@ -447,10 +457,10 @@ export function VoiceSettings() {
                   key={service.value}
                   onClick={() => saveVoiceConfig("tts_service", service.value)}
                   className={cn(
-                    "px-3 py-2 rounded-lg text-sm font-medium transition-colors border text-left",
+                    CHOICE_BUTTON_CLASS,
                     voiceConfig.tts_service === service.value
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "hover:bg-muted",
+                      ? ACTIVE_CHOICE_BUTTON_CLASS
+                      : INACTIVE_CHOICE_BUTTON_CLASS,
                   )}
                 >
                   <div className="font-medium">{service.label}</div>
@@ -469,7 +479,7 @@ export function VoiceSettings() {
               value={voiceConfig.tts_voice || "alloy"}
               onChange={(e) => saveVoiceConfig("tts_voice", e.target.value)}
               disabled={loading}
-              className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:ring-1 focus:ring-primary/20 focus:border-primary outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
             >
               {availableVoices.map((voice) => (
                 <option key={voice.value} value={voice.value}>
@@ -503,7 +513,7 @@ export function VoiceSettings() {
                   parseFloat((e.target as HTMLInputElement).value),
                 );
               }}
-              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-900"
             />
             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
               <span>0.5x</span>
@@ -536,7 +546,7 @@ export function VoiceSettings() {
                   parseFloat((e.target as HTMLInputElement).value),
                 );
               }}
-              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-900"
             />
             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
               <span>低</span>
@@ -569,7 +579,7 @@ export function VoiceSettings() {
                   parseFloat((e.target as HTMLInputElement).value),
                 );
               }}
-              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-900"
             />
           </div>
 
@@ -581,7 +591,7 @@ export function VoiceSettings() {
               testingTTS ||
               !(voiceConfig.voice_output_enabled ?? false)
             }
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-muted transition-colors disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
           >
             {testingTTS ? (
               <>
@@ -599,7 +609,7 @@ export function VoiceSettings() {
       </div>
 
       {/* STT 服务商 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center gap-2 mb-3">
           <Mic className="h-4 w-4 text-muted-foreground" />
           <div>
@@ -622,10 +632,10 @@ export function VoiceSettings() {
                   key={service.value}
                   onClick={() => saveVoiceConfig("stt_service", service.value)}
                   className={cn(
-                    "px-3 py-2 rounded-lg text-sm font-medium transition-colors border text-left",
+                    CHOICE_BUTTON_CLASS,
                     voiceConfig.stt_service === service.value
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "hover:bg-muted",
+                      ? ACTIVE_CHOICE_BUTTON_CLASS
+                      : INACTIVE_CHOICE_BUTTON_CLASS,
                   )}
                 >
                   <div className="font-medium">{service.label}</div>
@@ -644,7 +654,7 @@ export function VoiceSettings() {
               value={voiceConfig.stt_language || "zh-CN"}
               onChange={(e) => saveVoiceConfig("stt_language", e.target.value)}
               disabled={loading}
-              className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:ring-1 focus:ring-primary/20 focus:border-primary outline-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
             >
               {STT_LANGUAGES.map((lang) => (
                 <option key={lang.value} value={lang.value}>
@@ -669,15 +679,15 @@ export function VoiceSettings() {
                 saveVoiceConfig("stt_auto_stop", e.target.checked)
               }
               disabled={loading}
-              className="w-4 h-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
             />
           </label>
         </div>
       </div>
 
       {/* 提示信息 */}
-      <div className="flex items-start gap-2 text-xs text-muted-foreground p-3 bg-muted/30 rounded-lg">
-        <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+      <div className={INFO_CARD_CLASS}>
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
         <p>
           语音功能需要先启用相应的开关。TTS 用于将 AI 的回复转换为语音播放，STT
           用于将您的语音转换为文字输入。不同的服务商可能有不同的费用和效果。
@@ -688,10 +698,10 @@ export function VoiceSettings() {
       {message && (
         <div
           className={cn(
-            "flex items-center gap-2 p-3 rounded-lg",
+            "flex items-center gap-2 rounded-[20px] border p-3",
             message.type === "success"
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700",
           )}
         >
           {message.type === "success" ? (

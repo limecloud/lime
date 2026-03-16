@@ -1,6 +1,6 @@
 /**
  * @file index.tsx
- * @description 通用设置 - 外观、工作区与聊天外观
+ * @description 通用设置 - 外观、工作区入口与推荐行为
  */
 
 import {
@@ -30,6 +30,17 @@ import { useI18nPatch } from "@/i18n/I18nPatchProvider";
 import { useSoundContext } from "@/contexts/useSoundContext";
 import type { Language } from "../../shared/language/LanguageSelector";
 import { Switch } from "@/components/ui/switch";
+import {
+  CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
+  DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
+  FIXED_FOOTER_SIDEBAR_NAV_ITEMS,
+  MAIN_SIDEBAR_NAV_ITEMS,
+  resolveEnabledSidebarNavItems,
+} from "@/lib/navigation/sidebarNav";
+import {
+  DEFAULT_ENABLED_CONTENT_THEME_IDS,
+  resolveEnabledContentThemes,
+} from "@/lib/contentCreator/themeDefaults";
 
 type Theme = "light" | "dark" | "system";
 
@@ -105,82 +116,6 @@ const ALL_CONTENT_THEMES = [
   { id: "planning", label: "计划规划" },
   { id: "document", label: "办公文档" },
 ] as const;
-
-const DEFAULT_ENABLED_THEMES = [
-  "general",
-  "social-media",
-  "poster",
-  "music",
-  "video",
-  "novel",
-];
-
-const ALL_NAV_ITEMS = [
-  { id: "home-general", label: "新建任务" },
-  { id: "claw", label: "Claw" },
-  { id: "video", label: "视频" },
-  { id: "image-gen", label: "插图" },
-  { id: "batch", label: "批量任务" },
-  { id: "terminal", label: "终端" },
-  { id: "plugins", label: "插件中心" },
-  { id: "tools", label: "工具箱" },
-] as const;
-
-const DEFAULT_ENABLED_NAV_ITEMS = [
-  "home-general",
-  "claw",
-  "video",
-  "image-gen",
-];
-
-const ALL_NAV_ITEM_ID_SET = new Set<string>(
-  ALL_NAV_ITEMS.map((item) => item.id),
-);
-
-const LEGACY_DEFAULT_NAV_ITEM_SETS: string[][] = [
-  ["home-general", "video", "image-gen", "plugins"],
-  ["home-general", "video", "image-gen", "terminal", "plugins"],
-];
-
-function normalizeEnabledNavItems(items: string[]): string[] {
-  const unique = Array.from(new Set(items));
-  return unique.filter((item) => ALL_NAV_ITEM_ID_SET.has(item));
-}
-
-function hasSameMembers(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  const rightSet = new Set(right);
-  return left.every((item) => rightSet.has(item));
-}
-
-function isLegacyDefaultEnabledItems(items: string[]): boolean {
-  return LEGACY_DEFAULT_NAV_ITEM_SETS.some((legacyItems) =>
-    hasSameMembers(items, legacyItems),
-  );
-}
-
-function resolveEnabledNavItems(savedItems?: string[]): string[] {
-  if (!savedItems || savedItems.length === 0) {
-    return [...DEFAULT_ENABLED_NAV_ITEMS];
-  }
-
-  const normalized = normalizeEnabledNavItems(savedItems);
-  if (isLegacyDefaultEnabledItems(normalized)) {
-    return [...DEFAULT_ENABLED_NAV_ITEMS];
-  }
-
-  const merged = [...normalized];
-  for (const item of DEFAULT_ENABLED_NAV_ITEMS) {
-    if (!merged.includes(item)) {
-      merged.push(item);
-    }
-  }
-
-  return merged;
-}
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
@@ -263,10 +198,10 @@ export function AppearanceSettings() {
   const [theme, setTheme] = useState<Theme>("system");
   const [language, setLanguageState] = useState<Language>("zh");
   const [enabledThemes, setEnabledThemes] = useState<string[]>(
-    DEFAULT_ENABLED_THEMES,
+    DEFAULT_ENABLED_CONTENT_THEME_IDS,
   );
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
-    DEFAULT_ENABLED_NAV_ITEMS,
+    DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
   );
   const [
     appendSelectedTextToRecommendation,
@@ -289,10 +224,12 @@ export function AppearanceSettings() {
       setConfig(loadedConfig);
       setLanguageState((loadedConfig.language || "zh") as Language);
       setEnabledThemes(
-        loadedConfig.content_creator?.enabled_themes || DEFAULT_ENABLED_THEMES,
+        resolveEnabledContentThemes(
+          loadedConfig.content_creator?.enabled_themes,
+        ),
       );
       setEnabledNavItems(
-        resolveEnabledNavItems(loadedConfig.navigation?.enabled_items),
+        resolveEnabledSidebarNavItems(loadedConfig.navigation?.enabled_items),
       );
       setAppendSelectedTextToRecommendation(
         loadedConfig.chat_appearance?.append_selected_text_to_recommendation ??
@@ -323,6 +260,24 @@ export function AppearanceSettings() {
     }),
     [language, soundEnabled, theme],
   );
+
+  const enabledWorkspaceNavCount = useMemo(
+    () =>
+      MAIN_SIDEBAR_NAV_ITEMS.filter((item) => enabledNavItems.includes(item.id))
+        .length,
+    [enabledNavItems],
+  );
+
+  const enabledFooterNavCount = useMemo(
+    () =>
+      CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.filter((item) =>
+        enabledNavItems.includes(item.id),
+      ).length,
+    [enabledNavItems],
+  );
+
+  const visibleNavItemCount =
+    enabledNavItems.length + FIXED_FOOTER_SIDEBAR_NAV_ITEMS.length;
 
   const handleThemeChange = useCallback((nextTheme: Theme) => {
     setTheme(nextTheme);
@@ -523,11 +478,11 @@ export function AppearanceSettings() {
 
               <div className="space-y-2">
                 <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把界面观感和工作区入口放在同一个视图里调整
+                  把界面观感、工作区入口和推荐行为放在同一个视图里调整
                 </p>
                 <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  主题、语言、提示音效，以及聊天工作区里可见的卡片和导航入口，
-                  都在这里统一维护，不再拆成两张窄页来回切换。
+                  主题、语言、提示音效，以及工作区里的创作模式卡片、侧栏入口和推荐行为，
+                  都在这里统一维护。
                 </p>
               </div>
 
@@ -552,7 +507,7 @@ export function AppearanceSettings() {
               />
               <StatCard
                 label="侧边入口"
-                value={enabledNavItems.length.toString()}
+                value={visibleNavItemCount.toString()}
                 description="工作区左侧边栏默认展示的导航项目数量。"
               />
               <StatCard
@@ -747,13 +702,8 @@ export function AppearanceSettings() {
 
       <SurfacePanel
         icon={Sparkles}
-        title="工作区与聊天外观"
-        description="合并原来的聊天外观设置，在一个宽版面板里统一控制内容模式、侧边入口和推荐行为。"
-        aside={
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-            已合并旧入口
-          </span>
-        }
+        title="工作区入口与推荐行为"
+        description="统一控制内容模式、左侧边栏入口和推荐问题的上下文带入方式。"
       >
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
@@ -816,31 +766,88 @@ export function AppearanceSettings() {
                 </div>
               </div>
               <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                {enabledNavItems.length} 个已显示
+                {visibleNavItemCount} 个已显示
               </span>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {ALL_NAV_ITEMS.map((item) => {
-                const active = enabledNavItems.includes(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled={!config}
-                    onClick={() => void handleNavItemToggle(item.id)}
-                    className={cn(
-                      "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
-                      active
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
-                      !config && "cursor-not-allowed opacity-60",
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
+            <div className="mt-4 space-y-4">
+              <section className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      工作区入口
+                    </h4>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      控制主导航区展示的新建任务、创作与工作台入口。
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                    {enabledWorkspaceNavCount} 个已启用
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2.5">
+                  {MAIN_SIDEBAR_NAV_ITEMS.map((item) => {
+                    const active = enabledNavItems.includes(item.id);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={!config}
+                        onClick={() => void handleNavItemToggle(item.id)}
+                        className={cn(
+                          "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
+                          active
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                          !config && "cursor-not-allowed opacity-60",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      底部入口
+                    </h4>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      设置入口固定显示，这里只管理其余底部功能入口。
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                    {enabledFooterNavCount} 个已启用
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2.5">
+                  {CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.map((item) => {
+                    const active = enabledNavItems.includes(item.id);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={!config}
+                        onClick={() => void handleNavItemToggle(item.id)}
+                        className={cn(
+                          "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
+                          active
+                            ? "border-slate-900 bg-slate-900 text-white"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                          !config && "cursor-not-allowed opacity-60",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
           </article>
         </div>

@@ -18,6 +18,7 @@ import {
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
+import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
 import { ToolCallList, ToolCallItem } from "./ToolCallDisplay";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentPlanBlock } from "./AgentPlanBlock";
@@ -37,6 +38,7 @@ import type {
   WriteArtifactContext,
 } from "../types";
 import { splitProposedPlanSegments } from "../utils/proposedPlan";
+import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
 
 const STRUCTURED_CONTENT_HINT_RE = /<a2ui|```\s*a2ui|<write_file|<document/i;
 const STRUCTURED_PARSE_CACHE_LIMIT = 64;
@@ -512,6 +514,7 @@ interface StreamingRendererProps {
   onCodeBlockClick?: (language: string, code: string) => void;
   runtimeStatus?: AgentRuntimeStatus;
   showRuntimeStatusInline?: boolean;
+  promoteActionRequestsToA2UI?: boolean;
 }
 
 const RUNTIME_PHASE_LABELS: Record<AgentRuntimeStatus["phase"], string> = {
@@ -581,7 +584,18 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     onCodeBlockClick,
     runtimeStatus,
     showRuntimeStatusInline = false,
+    promoteActionRequestsToA2UI = false,
   }) => {
+    const shouldRenderInlineActionRequest = React.useCallback(
+      (request: ActionRequired) =>
+        !(
+          promoteActionRequestsToA2UI &&
+          request.status === "pending" &&
+          isActionRequestA2UICompatible(request)
+        ),
+      [promoteActionRequestsToA2UI],
+    );
+
     // 判断是否使用交错显示模式
     const useInterleavedMode = contentParts && contentParts.length > 0;
     const parseCacheRef = useRef<Map<string, ParseResult>>(new Map());
@@ -887,6 +901,23 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
                 />
               );
             } else if (part.type === "action_required") {
+              if (
+                isActionRequestA2UICompatible(part.actionRequired) &&
+                (part.actionRequired.status === "submitted" ||
+                  part.actionRequired.status === "queued")
+              ) {
+                return (
+                  <ActionRequestA2UIPreviewCard
+                    key={part.actionRequired.requestId}
+                    request={part.actionRequired}
+                    compact={true}
+                    context="chat"
+                  />
+                );
+              }
+              if (!shouldRenderInlineActionRequest(part.actionRequired)) {
+                return null;
+              }
               // 渲染权限确认请求
               return (
                 <DecisionPanel
@@ -914,7 +945,10 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
 
     // 回退模式：传统的 content + toolCalls 分开渲染
     const hasToolCalls = toolCalls && toolCalls.length > 0;
-    const hasActionRequests = actionRequests && actionRequests.length > 0;
+    const visibleActionRequests = (actionRequests || []).filter(
+      shouldRenderInlineActionRequest,
+    );
+    const hasActionRequests = visibleActionRequests.length > 0;
     const shouldShowRuntimeStatus =
       showRuntimeStatusInline &&
       Boolean(runtimeStatus) &&
@@ -1048,13 +1082,23 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         {/* 权限确认区域 */}
         {hasActionRequests && onPermissionResponse && (
           <div className="space-y-3">
-            {actionRequests.map((request) => (
-              <DecisionPanel
-                key={request.requestId}
-                request={request}
-                onSubmit={onPermissionResponse}
-              />
-            ))}
+            {visibleActionRequests.map((request) =>
+              isActionRequestA2UICompatible(request) &&
+              (request.status === "submitted" || request.status === "queued") ? (
+                <ActionRequestA2UIPreviewCard
+                  key={request.requestId}
+                  request={request}
+                  compact={true}
+                  context="chat"
+                />
+              ) : (
+                <DecisionPanel
+                  key={request.requestId}
+                  request={request}
+                  onSubmit={onPermissionResponse}
+                />
+              ),
+            )}
           </div>
         )}
 

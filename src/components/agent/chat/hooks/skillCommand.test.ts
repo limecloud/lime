@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Dispatch, SetStateAction } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { Message } from "../types";
-import { tryExecuteSlashSkillCommand } from "./skillCommand";
 
 const {
   mockSafeListen,
@@ -31,6 +30,8 @@ vi.mock("@/lib/api/skill-execution", () => ({
   },
 }));
 
+import { tryExecuteSlashSkillCommand } from "./skillCommand";
+
 interface MessageStore {
   getMessages: () => Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
@@ -46,9 +47,9 @@ function createMessageStore(initial: Message[]): MessageStore {
   };
 }
 
-function buildBaseMessage(): Message {
+function buildBaseMessage(id = "assistant-1"): Message {
   return {
-    id: "assistant-1",
+    id,
     role: "assistant",
     content: "",
     timestamp: new Date(),
@@ -58,6 +59,7 @@ function buildBaseMessage(): Message {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockParseStreamEvent.mockImplementation((payload: unknown) => payload);
   mockListExecutableSkills.mockResolvedValue([
     {
       name: "social_post_with_cover",
@@ -367,5 +369,118 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
 
     expect(handled).toBe(true);
     expect(onWriteFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("tryExecuteSlashSkillCommand 浏览器工具链路", () => {
+  it("收到 tool_end error 时应清洗 ProxyCast 元数据块", async () => {
+    let messages: Message[] = [buildBaseMessage("assistant-skill-1")];
+
+    const setMessages = (next: Message[] | ((prev: Message[]) => Message[])) => {
+      messages = typeof next === "function" ? next(messages) : next;
+    };
+
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+    mockListExecutableSkills.mockResolvedValue([
+      {
+        name: "browser_task",
+        display_name: "浏览器任务",
+        description: "执行浏览器相关操作",
+        execution_mode: "agent",
+        has_workflow: false,
+      },
+    ]);
+    mockSafeListen.mockImplementation(async (eventName, handler) => {
+      if (String(eventName).startsWith("skill-exec-")) {
+        streamHandler = handler as (event: { payload: unknown }) => void;
+      }
+      return () => {
+        if (streamHandler === handler) {
+          streamHandler = null;
+        }
+      };
+    });
+
+    mockExecuteSkill.mockImplementationOnce(async () => {
+      streamHandler?.({
+        payload: {
+          type: "tool_start",
+          tool_id: "skill-tool-1",
+          tool_name: "browser_navigate",
+          arguments: JSON.stringify({
+            url: "https://example.com",
+          }),
+        },
+      });
+      streamHandler?.({
+        payload: {
+          type: "tool_end",
+          tool_id: "skill-tool-1",
+          result: {
+            success: true,
+            error: [
+              "CDP 会话已断开，请重试",
+              "",
+              "[ProxyCast 工具元数据开始]",
+              JSON.stringify({
+                reported_success: false,
+                exit_code: 1,
+              }),
+              "[ProxyCast 工具元数据结束]",
+            ].join("\n"),
+          },
+        },
+      });
+      streamHandler?.({
+        payload: {
+          type: "final_done",
+        },
+      });
+
+      return {
+        success: true,
+        output: "",
+        error: undefined,
+        steps_completed: [],
+      };
+    });
+
+    const handled = await tryExecuteSlashSkillCommand({
+      command: {
+        skillName: "browser_task",
+        userInput: "打开目标页面",
+      },
+      rawContent: "/browser_task 打开目标页面",
+      assistantMsgId: "assistant-skill-1",
+      providerType: "claude",
+      model: "claude-sonnet-4-5",
+      ensureSession: async () => "session-skill-1",
+      setMessages,
+      setIsSending: vi.fn(),
+      setCurrentAssistantMsgId: vi.fn(),
+      setStreamUnlisten: vi.fn(),
+      setActiveSessionIdForStop: vi.fn(),
+      isExecutionCancelled: () => false,
+      playTypewriterSound: vi.fn(),
+      playToolcallSound: vi.fn(),
+      onWriteFile: vi.fn(),
+    });
+
+    expect(handled).toBe(true);
+
+    const assistantMessage = messages.find(
+      (message) => message.id === "assistant-skill-1",
+    );
+    const toolCall = assistantMessage?.toolCalls?.find(
+      (item) => item.id === "skill-tool-1",
+    );
+
+    expect(toolCall?.status).toBe("failed");
+    expect(toolCall?.result?.error).toBe("CDP 会话已断开，请重试");
+    expect(toolCall?.result?.error).not.toContain("ProxyCast 工具元数据");
+    expect(toolCall?.result?.metadata).toMatchObject({
+      reported_success: false,
+      exit_code: 1,
+    });
   });
 });

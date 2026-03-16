@@ -36,6 +36,8 @@ pub struct OpenSessionRequest {
     pub profile_key: String,
     pub remote_debugging_port: u16,
     pub target_id: Option<String>,
+    pub environment_preset_id: Option<String>,
+    pub environment_preset_name: Option<String>,
 }
 
 pub struct BrowserRuntimeManager {
@@ -82,7 +84,13 @@ impl BrowserRuntimeManager {
         request: OpenSessionRequest,
     ) -> Result<CdpSessionState, String> {
         if let Some(existing) = self.find_session_by_profile_key(&request.profile_key).await {
-            return Ok(existing);
+            if existing.environment_preset_id == request.environment_preset_id {
+                return Ok(existing);
+            }
+            return Err(format!(
+                "浏览器资料 {} 已存在运行会话，当前环境预设与现有会话不同，请先关闭会话后再切换环境",
+                request.profile_key
+            ));
         }
 
         let target =
@@ -100,6 +108,8 @@ impl BrowserRuntimeManager {
         let state = CdpSessionState {
             session_id: session_id.clone(),
             profile_key: request.profile_key.clone(),
+            environment_preset_id: request.environment_preset_id.clone(),
+            environment_preset_name: request.environment_preset_name.clone(),
             target_id: target.id.clone(),
             target_title: target.title.clone(),
             target_url: target.url.clone(),
@@ -219,6 +229,26 @@ impl BrowserRuntimeManager {
             .await?
             .event_buffer(cursor)
             .await)
+    }
+
+    pub async fn send_command(
+        &self,
+        session_id: &str,
+        method: &str,
+        params: Value,
+        timeout_ms: u64,
+    ) -> Result<Value, String> {
+        self.get_session(session_id)
+            .await?
+            .send_command(method, params, timeout_ms)
+            .await
+    }
+
+    pub async fn refresh_page_info(&self, session_id: &str) -> Result<CdpSessionState, String> {
+        let session = self.get_session(session_id).await?;
+        let page_info = session.capture_page_info().await?;
+        session.update_page_info(page_info).await;
+        Ok(session.state().await)
     }
 
     pub async fn subscribe(

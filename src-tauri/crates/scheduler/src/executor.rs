@@ -1,6 +1,6 @@
 //! Agent Task Executor
 //!
-//! 负责执行调度的任务
+//! 负责执行调度任务。
 
 use super::types::ScheduledTask;
 use async_trait::async_trait;
@@ -96,10 +96,6 @@ impl TaskExecutor for AgentExecutor {
             "agent_chat" => {
                 // 执行 Agent 对话任务
                 self.execute_agent_chat(task, db, &aster_config).await?
-            }
-            "batch_process" => {
-                // 执行批量处理任务
-                self.execute_batch_process(task, db, &aster_config).await?
             }
             "scheduled_report" => {
                 // 执行定时报告任务
@@ -270,30 +266,6 @@ impl AgentExecutor {
             "type": "agent_chat",
             "prompt": prompt,
             "response": response,
-            "status": "success"
-        }))
-    }
-
-    /// 执行批量处理任务
-    async fn execute_batch_process(
-        &self,
-        task: &ScheduledTask,
-        _db: &DbConnection,
-        _aster_config: &proxycast_agent::credential_bridge::AsterProviderConfig,
-    ) -> Result<serde_json::Value, String> {
-        let items = task
-            .params
-            .get("items")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| "缺少 items 参数".to_string())?;
-
-        tracing::info!("[AgentExecutor] 执行批量处理: {} 项", items.len());
-
-        // TODO: 实际执行批量处理逻辑
-        Ok(serde_json::json!({
-            "type": "batch_process",
-            "total": items.len(),
-            "processed": items.len(),
             "status": "success"
         }))
     }

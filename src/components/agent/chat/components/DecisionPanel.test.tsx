@@ -120,6 +120,22 @@ function createSubmittedAskUserRequest(requestId: string): ActionRequired {
   };
 }
 
+function createBrowserPreflightRequest(
+  requestId: string,
+  phase: ActionRequired["browserPrepState"] = "failed",
+): ActionRequired {
+  return {
+    requestId,
+    actionType: "ask_user",
+    uiKind: "browser_preflight",
+    browserRequirement: "required_with_user_step",
+    browserPrepState: phase,
+    prompt:
+      "该任务需要真实浏览器执行，不能仅靠网页检索完成。请先准备右侧浏览器会话。",
+    detail: "请在右侧浏览器中完成登录、扫码或验证码，然后继续当前任务。",
+  };
+}
+
 afterEach(() => {
   while (mountedRoots.length > 0) {
     const mounted = mountedRoots.pop();
@@ -295,5 +311,51 @@ describe("DecisionPanel copywriting", () => {
 
     expect(container.textContent).toContain("助手想要使用");
     expect(container.textContent).not.toContain("Claude");
+  });
+});
+
+describe("DecisionPanel browser preflight", () => {
+  it("浏览器未就绪时应支持重试启动浏览器", () => {
+    const request = createBrowserPreflightRequest("req-browser-preflight");
+    const { container, onSubmit } = renderDecisionPanel(request);
+
+    expect(container.textContent).toContain("浏览器未就绪");
+    expect(container.textContent).toContain("必须浏览器执行");
+
+    clickButton(findButtonByText(container, "重试启动浏览器"));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      requestId: "req-browser-preflight",
+      confirmed: true,
+      response: "重新启动浏览器",
+      actionType: "ask_user",
+      userData: {
+        answer: "重新启动浏览器",
+        browserAction: "launch",
+      },
+    });
+  });
+
+  it("等待用户完成登录时应支持继续执行", () => {
+    const request = createBrowserPreflightRequest(
+      "req-browser-awaiting",
+      "awaiting_user",
+    );
+    const { container, onSubmit } = renderDecisionPanel(request);
+
+    expect(container.textContent).toContain("等待你完成浏览器准备");
+
+    clickButton(findButtonByText(container, "我已完成登录，继续执行"));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      requestId: "req-browser-awaiting",
+      confirmed: true,
+      response: "我已完成登录，继续执行",
+      actionType: "ask_user",
+      userData: {
+        answer: "我已完成登录，继续执行",
+        browserAction: "continue",
+      },
+    });
   });
 });

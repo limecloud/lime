@@ -60,6 +60,17 @@ const mockPriorityCommands = new Set<string>([
   "get_webview_panels",
   "focus_webview_panel",
   "navigate_webview_panel",
+  "list_browser_environment_presets_cmd",
+  "save_browser_environment_preset_cmd",
+  "archive_browser_environment_preset_cmd",
+  "restore_browser_environment_preset_cmd",
+  "list_browser_profiles_cmd",
+  "save_browser_profile_cmd",
+  "archive_browser_profile_cmd",
+  "restore_browser_profile_cmd",
+  "launch_browser_session",
+  "launch_browser_profile_runtime_assist_cmd",
+  "get_browser_action_audit_logs",
 ]);
 
 export function shouldPreferMockInBrowser(cmd: string): boolean {

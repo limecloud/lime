@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import {
+  Loader2,
+  MonitorSmartphone,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
@@ -28,22 +37,34 @@ import {
   type OpenClawInstallProgressEvent,
   type OpenClawNodeCheckResult,
   type OpenClawSyncModelEntry,
+  type OpenClawUpdateInfo,
 } from "@/lib/api/openclaw";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
+import { cn } from "@/lib/utils";
 
 import { OpenClawConfigurePage } from "./OpenClawConfigurePage";
 import { OpenClawDashboardPage } from "./OpenClawDashboardPage";
 import { OpenClawInstallPage } from "./OpenClawInstallPage";
+import { OpenClawMark } from "./OpenClawMark";
 import { OpenClawProgressPage } from "./OpenClawProgressPage";
 import { OpenClawRuntimePage } from "./OpenClawRuntimePage";
+import { OpenClawSceneNav } from "./OpenClawSceneNav";
 import {
   type OpenClawOperationKind,
   type OpenClawOperationState,
+  type OpenClawScene,
+  type OpenClawSceneDefinition,
+  type OpenClawSceneStatus,
   type OpenClawSubpage as LocalOpenClawSubpage,
 } from "./types";
 import { useOpenClawStore } from "./useOpenClawStore";
 import { openUrl } from "./openUrl";
 import { useOpenClawDashboardWindow } from "./useOpenClawDashboardWindow";
+import {
+  openClawPanelClassName,
+  openClawSecondaryButtonClassName,
+  openClawSubPanelClassName,
+} from "./openclawStyles";
 
 const OPENCLAW_DOCS_URL = "https://docs.openclaw.ai/";
 const SUPPORTED_PROVIDER_TYPES = new Set([
@@ -65,15 +86,35 @@ const progressSubpageByAction: Record<OpenClawOperationKind, OpenClawSubpage> =
     repair: "installing",
     uninstall: "uninstalling",
     restart: "restarting",
+    update: "updating",
   };
 
 const progressActionBySubpage: Partial<
   Record<OpenClawSubpage, OpenClawOperationKind>
 > = {
   installing: "install",
+  updating: "update",
   uninstalling: "uninstall",
   restarting: "restart",
 };
+
+const openClawScenes: OpenClawSceneDefinition[] = [
+  {
+    id: "setup",
+    title: "安装环境",
+    description: "检查 Node.js、Git 与 OpenClaw 安装状态。",
+  },
+  {
+    id: "sync",
+    title: "配置模型",
+    description: "选择 Provider、模型并同步独立副本配置。",
+  },
+  {
+    id: "dashboard",
+    title: "运行与访问",
+    description: "启动 Gateway，打开桌面面板或进入 Dashboard。",
+  },
+];
 
 function isOpenClawSubpage(value: unknown): value is OpenClawSubpage {
   return [
@@ -81,6 +122,7 @@ function isOpenClawSubpage(value: unknown): value is OpenClawSubpage {
     "installing",
     "configure",
     "runtime",
+    "updating",
     "restarting",
     "uninstalling",
     "dashboard",
@@ -147,6 +189,8 @@ function openClawOperationLabel(kind: OpenClawOperationKind | null): string {
       return "安装";
     case "repair":
       return "修复环境";
+    case "update":
+      return "升级";
     case "uninstall":
       return "卸载";
     case "restart":
@@ -220,21 +264,19 @@ function renderBlockedPage(
   onAction: () => void,
 ) {
   return (
-    <div className="flex min-h-0 flex-col items-center px-6 py-10">
-      <section className="w-full max-w-2xl rounded-2xl border bg-card p-8 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          {description}
-        </p>
-        <button
-          type="button"
-          onClick={onAction}
-          className="mt-6 inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm hover:bg-muted"
-        >
-          {actionLabel}
-        </button>
-      </section>
-    </div>
+    <section className={cn(openClawPanelClassName, "px-8 py-10 text-center")}>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+        {title}
+      </h1>
+      <p className="mt-3 text-sm leading-7 text-slate-500">{description}</p>
+      <button
+        type="button"
+        onClick={onAction}
+        className={cn(openClawSecondaryButtonClassName, "mt-6 px-4 py-2.5")}
+      >
+        {actionLabel}
+      </button>
+    </section>
   );
 }
 
@@ -253,7 +295,11 @@ function resolveOpenClawSubpage(
     return "install";
   }
 
-  if (candidate === "install" || candidate === "installing") {
+  if (
+    candidate === "install" ||
+    candidate === "installing" ||
+    candidate === "updating"
+  ) {
     return "runtime";
   }
 
@@ -328,6 +374,7 @@ export function OpenClawPage({
   const [gatewayStatus, setGatewayStatus] =
     useState<OpenClawGatewayStatus>("stopped");
   const [healthInfo, setHealthInfo] = useState<OpenClawHealthInfo | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<OpenClawUpdateInfo | null>(null);
   const [channels, setChannels] = useState<OpenClawChannelInfo[]>([]);
   const [installLogs, setInstallLogs] = useState<
     OpenClawInstallProgressEvent[]
@@ -336,6 +383,7 @@ export function OpenClawPage({
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [checkingHealth, setCheckingHealth] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [cleaningTemp, setCleaningTemp] = useState(false);
   const [handingOffToAgent, setHandingOffToAgent] = useState(false);
   const [operationState, setOperationState] = useState<OpenClawOperationState>({
@@ -372,6 +420,7 @@ export function OpenClawPage({
   const canStartGateway = installed && !gatewayRunning && !gatewayStarting;
   const canStopGateway = installed && gatewayStatus !== "stopped";
   const canRestartGateway = installed && gatewayRunning;
+  const updating = operationState.running && operationState.kind === "update";
   const hasSelectedConfig =
     Boolean(selectedProvider) && selectedModelId.trim().length > 0;
   const canSync = installed && hasSelectedConfig;
@@ -441,6 +490,45 @@ export function OpenClawPage({
       requestedOrFallbackSubpage,
     ],
   );
+
+  const currentScene = useMemo<OpenClawScene>(() => {
+    if (
+      currentSubpage === "install" ||
+      currentSubpage === "installing" ||
+      currentSubpage === "uninstalling"
+    ) {
+      return "setup";
+    }
+
+    if (currentSubpage === "configure") {
+      return "sync";
+    }
+
+    return "dashboard";
+  }, [currentSubpage]);
+
+  const currentSubpageLabel = useMemo(() => {
+    switch (currentSubpage) {
+      case "install":
+        return "安装环境";
+      case "installing":
+        return "正在安装";
+      case "configure":
+        return "配置模型";
+      case "runtime":
+        return "运行状态";
+      case "updating":
+        return "正在升级";
+      case "restarting":
+        return "正在重启";
+      case "uninstalling":
+        return "正在卸载";
+      case "dashboard":
+        return "Dashboard 访问";
+      default:
+        return "OpenClaw";
+    }
+  }, [currentSubpage]);
 
   const navigateSubpage = useCallback(
     (subpage: OpenClawSubpage) => {
@@ -566,6 +654,37 @@ export function OpenClawPage({
     }
   }, [gatewayPort, refreshDashboardUrl, setGatewayPort]);
 
+  const refreshUpdateStatus = useCallback(
+    async ({ showToast = false } = {}) => {
+      if (!installed) {
+        setUpdateInfo(null);
+        return null;
+      }
+
+      const result = await openclawApi.checkUpdate();
+      setUpdateInfo(result);
+
+      if (showToast) {
+        if (result.hasUpdate) {
+          toast.info(`检测到 OpenClaw 新版本 ${result.latestVersion || ""}`.trim(), {
+            description: result.currentVersion
+              ? `当前版本 ${result.currentVersion}`
+              : "可以在当前工作台直接执行升级。",
+          });
+        } else if (result.message) {
+          toast.warning("暂时无法确认更新状态。", {
+            description: result.message,
+          });
+        } else {
+          toast.success("当前 OpenClaw 已是最新状态。");
+        }
+      }
+
+      return result;
+    },
+    [installed],
+  );
+
   const refreshAll = useCallback(async () => {
     try {
       const environment = await openclawApi.getEnvironmentStatus();
@@ -586,6 +705,12 @@ export function OpenClawPage({
         available: environment.git.status === "ok",
         path: environment.git.path,
       });
+      if (environment.openclaw.status === "ok") {
+        const updateResult = await openclawApi.checkUpdate().catch(() => null);
+        setUpdateInfo(updateResult);
+      } else {
+        setUpdateInfo(null);
+      }
       await Promise.all([
         refreshGatewayRuntime(),
         refreshDashboardWindowState(),
@@ -1061,6 +1186,44 @@ export function OpenClawPage({
     }
   }, []);
 
+  const handleCheckUpdate = useCallback(async () => {
+    setCheckingUpdate(true);
+    try {
+      await refreshUpdateStatus({ showToast: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, [refreshUpdateStatus]);
+
+  const handlePerformUpdate = useCallback(async () => {
+    await closeDashboardWindowSilently();
+    await runProgressOperation({
+      kind: "update",
+      target: "openclaw",
+      title: "正在升级 OpenClaw",
+      description:
+        "将调用 openclaw update 执行本体升级，完成后会自动刷新版本与运行状态。",
+      action: () => openclawApi.performUpdate(),
+      successSubpage: "runtime",
+      returnSubpage: "runtime",
+      initialLogs: [
+        {
+          level: "info",
+          message: updateInfo?.hasUpdate
+            ? `已检测到新版本 ${updateInfo.latestVersion || "待确认"}，开始升级...`
+            : "开始执行 OpenClaw 升级命令...",
+        },
+      ],
+    });
+  }, [
+    closeDashboardWindowSilently,
+    runProgressOperation,
+    updateInfo?.hasUpdate,
+    updateInfo?.latestVersion,
+  ]);
+
   const handleCleanupTempArtifacts = useCallback(async () => {
     setCleaningTemp(true);
     try {
@@ -1267,25 +1430,224 @@ export function OpenClawPage({
     });
     setHandingOffToAgent(false);
   }, [onNavigate, openClawRepairPrompt]);
+  const resolveSceneStatus = useCallback(
+    (scene: OpenClawScene): OpenClawSceneStatus => {
+      switch (scene) {
+        case "setup":
+          if (
+            operationState.running &&
+            (operationState.kind === "install" ||
+              operationState.kind === "repair" ||
+              operationState.kind === "uninstall")
+          ) {
+            return { label: "处理中", tone: "starting" };
+          }
+          if (installed) {
+            return { label: "已安装", tone: "done" };
+          }
+          if (environmentStatus?.openclaw.status === "needs_reload") {
+            return { label: "待刷新", tone: "active" };
+          }
+          return { label: "待安装", tone: "idle" };
+        case "sync":
+          if (!installed) {
+            return { label: "等待安装", tone: "idle" };
+          }
+          if (syncing) {
+            return { label: "同步中", tone: "starting" };
+          }
+          if (lastSynced) {
+            return { label: "已同步", tone: "done" };
+          }
+          if (hasSelectedConfig) {
+            return { label: "待同步", tone: "active" };
+          }
+          return compatibleProviders.length > 0
+            ? { label: "待选择", tone: "active" }
+            : { label: "缺少 Provider", tone: "error" };
+        case "dashboard":
+          if (!installed) {
+            return { label: "等待安装", tone: "idle" };
+          }
+          if (operationState.running && operationState.kind === "update") {
+            return { label: "升级中", tone: "starting" };
+          }
+          if (operationState.running && operationState.kind === "restart") {
+            return { label: "重启中", tone: "starting" };
+          }
+          if (gatewayStatus === "error") {
+            return { label: "异常", tone: "error" };
+          }
+          if (gatewayRunning) {
+            return {
+              label: dashboardWindowOpen ? "面板已开" : "运行中",
+              tone: dashboardWindowOpen ? "connected" : "healthy",
+            };
+          }
+          if (gatewayStarting || starting) {
+            return { label: "启动中", tone: "starting" };
+          }
+          if (canStartFromConfigure || !!lastSynced) {
+            return { label: "待启动", tone: "active" };
+          }
+          return { label: "待配置", tone: "idle" };
+        default:
+          return { label: "待处理", tone: "idle" };
+      }
+    },
+    [
+      canStartFromConfigure,
+      compatibleProviders.length,
+      dashboardWindowOpen,
+      environmentStatus?.openclaw.status,
+      gatewayRunning,
+      gatewayStarting,
+      gatewayStatus,
+      hasSelectedConfig,
+      installed,
+      lastSynced,
+      operationState.kind,
+      operationState.running,
+      starting,
+      syncing,
+    ],
+  );
 
+  const pageDescription = useMemo(() => {
+    if (!statusResolved && !operationState.running) {
+      return "正在检测本地安装、Gateway 与配置状态，稍后会自动进入正确页面。";
+    }
+
+    switch (currentSubpage) {
+      case "install":
+        return (
+          environmentStatus?.summary ||
+          "先确认 Node.js、Git 与 OpenClaw 本体状态，再决定是否执行一键修复。"
+        );
+      case "installing":
+      case "uninstalling":
+      case "updating":
+      case "restarting":
+        return (
+          operationState.description ||
+          "当前正在执行 OpenClaw 操作，日志会持续更新。"
+        );
+      case "configure":
+        return "在一个工作台里完成 Provider 选择、模型同步与启动前准备，避免在设置与运行页之间来回跳转。";
+      case "runtime":
+        return gatewayRunning
+          ? "Gateway 已准备就绪，可以直接打开桌面面板，或进入 Dashboard 访问页进一步检查地址与 token。"
+          : "这里集中处理启动、停止、重启与健康检查。启动前如未同步模型，请先回到配置页。";
+      case "dashboard":
+        return "通过桌面面板或系统浏览器访问 OpenClaw Dashboard，并在这里确认地址、token 与面板状态。";
+      default:
+        return "统一管理 OpenClaw 的安装、模型同步、Gateway 运行与 Dashboard 访问。";
+    }
+  }, [
+    currentSubpage,
+    environmentStatus?.summary,
+    gatewayRunning,
+    operationState.description,
+    operationState.running,
+    statusResolved,
+  ]);
+
+  const summaryCards = useMemo<
+    Array<{
+      key: string;
+      title: string;
+      value: string;
+      description: string;
+      icon: LucideIcon;
+      iconClassName: string;
+      valueClassName?: string;
+    }>
+  >(
+    () => [
+      {
+        key: "setup",
+        title: "安装环境",
+        value: installed ? "已安装" : operationState.running ? "处理中" : "待安装",
+        description: environmentStatus?.openclaw.path || "等待检测安装路径",
+        icon: Wrench,
+        iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
+      },
+      {
+        key: "sync",
+        title: "模型同步",
+        value: lastSynced?.modelId || selectedModelId.trim() || "未选择",
+        description: lastSynced
+          ? `最近同步：${lastSynced.providerId}`
+          : selectedProvider?.label || "先选择 Provider 与模型",
+        icon: Settings2,
+        iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
+        valueClassName: "text-xl leading-8",
+      },
+      {
+        key: "runtime",
+        title: "Gateway",
+        value: gatewayRunning ? "运行中" : gatewayStatus,
+        description: `端口 ${gatewayPort} · ${
+          channels.length > 0 ? `${channels.length} 个通道` : "等待通道发现"
+        }`,
+        icon: ShieldCheck,
+        iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
+      },
+      {
+        key: "dashboard",
+        title: "桌面面板",
+        value: dashboardWindowOpen ? "已打开" : "未打开",
+        description: dashboardUrl ? "Dashboard 地址已生成" : "等待生成 Dashboard 地址",
+        icon: MonitorSmartphone,
+        iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
+      },
+    ],
+    [
+      channels.length,
+      dashboardUrl,
+      dashboardWindowOpen,
+      environmentStatus?.openclaw.path,
+      gatewayPort,
+      gatewayRunning,
+      gatewayStatus,
+      installed,
+      lastSynced,
+      operationState.running,
+      selectedModelId,
+      selectedProvider?.label,
+    ],
+  );
+
+  const handleSelectScene = useCallback(
+    (scene: OpenClawScene) => {
+      if (scene === "setup") {
+        navigateSubpage("install");
+        return;
+      }
+      if (scene === "sync") {
+        navigateSubpage("configure");
+        return;
+      }
+      navigateSubpage(gatewayRunning ? "dashboard" : "runtime");
+    },
+    [gatewayRunning, navigateSubpage],
+  );
+
+  let pageContent;
   if (!statusResolved && !operationState.running) {
-    return (
-      <div className="flex min-h-0 flex-col items-center px-6 py-10">
-        <div className="flex w-full max-w-xl flex-col items-center rounded-2xl border bg-card px-8 py-10 text-center shadow-sm">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <h1 className="mt-5 text-2xl font-semibold tracking-tight">
-            正在检查 OpenClaw 状态
-          </h1>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            正在检测本地安装、Gateway 与配置状态，稍后会自动进入正确页面。
-          </p>
-        </div>
-      </div>
+    pageContent = (
+      <section className={cn(openClawPanelClassName, "px-8 py-10 text-center")}>
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-900" />
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-900">
+          正在检查 OpenClaw 状态
+        </h1>
+        <p className="mt-3 text-sm leading-7 text-slate-500">
+          正在检测本地安装、Gateway 与配置状态，稍后会自动进入正确页面。
+        </p>
+      </section>
     );
-  }
-
-  if (currentSubpage === "install") {
-    return (
+  } else if (currentSubpage === "install") {
+    pageContent = (
       <OpenClawInstallPage
         environmentStatus={environmentStatus}
         desktopPlatform={desktopPlatform}
@@ -1316,14 +1678,13 @@ export function OpenClawPage({
         onDownloadGit={() => void handleDownloadGit()}
       />
     );
-  }
-
-  if (
+  } else if (
     currentSubpage === "installing" ||
     currentSubpage === "uninstalling" ||
+    currentSubpage === "updating" ||
     currentSubpage === "restarting"
   ) {
-    return (
+    pageContent = (
       <OpenClawProgressPage
         kind={
           operationState.kind ??
@@ -1348,10 +1709,8 @@ export function OpenClawPage({
         onAskAgentFix={handleAskAgentFixOpenClaw}
       />
     );
-  }
-
-  if (!installed) {
-    return (
+  } else if (!installed) {
+    pageContent = (
       <OpenClawInstallPage
         environmentStatus={environmentStatus}
         desktopPlatform={desktopPlatform}
@@ -1382,10 +1741,8 @@ export function OpenClawPage({
         onDownloadGit={() => void handleDownloadGit()}
       />
     );
-  }
-
-  if (currentSubpage === "configure") {
-    return (
+  } else if (currentSubpage === "configure") {
+    pageContent = (
       <OpenClawConfigurePage
         installPath={installedStatus?.path}
         uninstalling={
@@ -1425,10 +1782,8 @@ export function OpenClawPage({
         }
       />
     );
-  }
-
-  if (currentSubpage === "runtime") {
-    return (
+  } else if (currentSubpage === "runtime") {
+    pageContent = (
       <OpenClawRuntimePage
         gatewayStatus={gatewayStatus}
         gatewayPort={gatewayPort}
@@ -1440,8 +1795,11 @@ export function OpenClawPage({
         canRestart={canRestartGateway}
         starting={starting}
         stopping={stopping}
+        updateInfo={updateInfo}
         restarting={operationState.running && operationState.kind === "restart"}
         checkingHealth={checkingHealth}
+        checkingUpdate={checkingUpdate}
+        updating={updating}
         dashboardWindowOpen={dashboardWindowOpen}
         dashboardWindowBusy={dashboardWindowBusy}
         onStart={() => void handleStart()}
@@ -1451,45 +1809,263 @@ export function OpenClawPage({
         onOpenDashboardPage={() => navigateSubpage("dashboard")}
         onBackToConfigure={() => navigateSubpage("configure")}
         onCheckHealth={() => void handleCheckHealth()}
+        onCheckUpdate={() => void handleCheckUpdate()}
+        onUpdate={() => void handlePerformUpdate()}
       />
     );
-  }
-
-  if (currentSubpage === "dashboard") {
+  } else if (currentSubpage === "dashboard") {
     if (!gatewayRunning && !gatewayStarting) {
-      return renderBlockedPage(
+      pageContent = renderBlockedPage(
         "Dashboard 暂不可用",
         "Gateway 当前未运行，请先进入运行页启动后再打开 Dashboard。",
         "返回运行页",
         () => navigateSubpage("runtime"),
       );
+    } else {
+      pageContent = (
+        <OpenClawDashboardPage
+          dashboardUrl={dashboardUrl}
+          loading={dashboardLoading}
+          running={gatewayRunning}
+          windowBusy={dashboardWindowBusy}
+          windowOpen={dashboardWindowOpen}
+          onBack={() => navigateSubpage("runtime")}
+          onOpenExternal={() => void handleOpenDashboardExternal()}
+          onOpenWindow={() => void handleOpenDashboardWindow()}
+          onRefresh={() =>
+            void Promise.all([
+              refreshDashboardUrl({ silent: false, showLoading: true }),
+              refreshDashboardWindowState(),
+            ])
+          }
+        />
+      );
     }
-
-    return (
-      <OpenClawDashboardPage
-        dashboardUrl={dashboardUrl}
-        loading={dashboardLoading}
-        running={gatewayRunning}
-        windowBusy={dashboardWindowBusy}
-        windowOpen={dashboardWindowOpen}
-        onBack={() => navigateSubpage("runtime")}
-        onOpenExternal={() => void handleOpenDashboardExternal()}
-        onOpenWindow={() => void handleOpenDashboardWindow()}
-        onRefresh={() =>
-          void Promise.all([
-            refreshDashboardUrl({ silent: false, showLoading: true }),
-            refreshDashboardWindowState(),
-          ])
-        }
-      />
+  } else {
+    pageContent = renderBlockedPage(
+      "页面状态异常",
+      "当前 OpenClaw 页面状态无法识别，请返回配置页重试。",
+      "返回配置页",
+      () => navigateSubpage("configure"),
     );
   }
 
-  return renderBlockedPage(
-    "页面状态异常",
-    "当前 OpenClaw 页面状态无法识别，请返回配置页重试。",
-    "返回配置页",
-    () => navigateSubpage("configure"),
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,1)_0%,rgba(247,250,248,0.97)_52%,rgba(248,250,252,1)_100%)]">
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 lg:px-6 lg:py-6">
+          <section className="relative overflow-hidden rounded-[30px] border border-amber-200/70 bg-[linear-gradient(135deg,rgba(249,248,244,0.98)_0%,rgba(248,250,252,0.98)_46%,rgba(243,248,247,0.96)_100%)] shadow-sm shadow-slate-950/5">
+            <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-amber-200/30 blur-3xl" />
+            <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/24 blur-3xl" />
+
+            <div className="relative flex flex-col gap-6 p-6 lg:p-8">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-3xl space-y-4">
+                  <div className="flex items-center gap-4">
+                    <OpenClawMark size="md" className="shadow-red-500/10" />
+                    <div>
+                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-amber-700 shadow-sm">
+                        OPENCLAW WORKSPACE
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                      OpenClaw 工作台
+                    </h1>
+                    <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                      {pageDescription}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="rounded-full border border-white/90 bg-white/90 px-3 py-1 text-slate-700 shadow-sm hover:bg-white">
+                      {currentSubpageLabel}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-600"
+                    >
+                      {installed ? "环境已安装" : "环境待安装"}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-600"
+                    >
+                      OpenClaw {updateInfo?.currentVersion || environmentStatus?.openclaw.version || "未检测到版本"}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-600"
+                    >
+                      Gateway {gatewayRunning ? "运行中" : gatewayStatus}
+                    </Badge>
+                    {updateInfo?.hasUpdate ? (
+                      <Badge
+                        variant="outline"
+                        className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700"
+                      >
+                        可升级至 {updateInfo.latestVersion || "新版本"}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="w-full max-w-[360px] rounded-[24px] border border-white/90 bg-white/88 p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        当前摘要
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        安装、模型同步、Gateway 和 Dashboard 状态会在这里持续汇总。
+                      </p>
+                    </div>
+                    {operationState.running ? (
+                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        处理中
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
+                        已就绪
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      {compatibleProviders.length} 个 Provider
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      {channels.length} 个通道
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      端口 {gatewayPort}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryCards.map((card) => {
+                  const CardIcon = card.icon;
+                  return (
+                    <div
+                      key={card.key}
+                      className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {card.title}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            {card.description}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                            card.iconClassName,
+                          )}
+                        >
+                          <CardIcon className="h-[18px] w-[18px]" />
+                        </div>
+                      </div>
+                      <p
+                        className={cn(
+                          "mt-4 break-words text-2xl font-semibold tracking-tight text-slate-900",
+                          card.valueClassName,
+                        )}
+                      >
+                        {card.value}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+            <aside className="space-y-4">
+              <OpenClawSceneNav
+                scenes={openClawScenes}
+                currentScene={currentScene}
+                onSelect={handleSelectScene}
+                resolveStatus={resolveSceneStatus}
+              />
+
+              <section className={openClawPanelClassName}>
+                <div className="text-sm font-semibold text-slate-900">
+                  系统摘要
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className={openClawSubPanelClassName}>
+                    <div className="text-xs font-medium text-slate-500">
+                      安装路径
+                    </div>
+                    <div className="mt-2 break-all text-sm leading-6 text-slate-700">
+                      {installedStatus?.path || "尚未检测到安装路径"}
+                    </div>
+                  </div>
+                  <div className={openClawSubPanelClassName}>
+                    <div className="text-xs font-medium text-slate-500">
+                      当前 Provider / 模型
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-slate-700">
+                      {selectedProvider?.label || "未选择 Provider"}
+                      <br />
+                      {selectedModelId.trim() || "未选择模型"}
+                    </div>
+                  </div>
+                  <div className={openClawSubPanelClassName}>
+                    <div className="text-xs font-medium text-slate-500">
+                      Dashboard
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-slate-700">
+                      {dashboardWindowOpen
+                        ? "桌面面板已打开"
+                        : dashboardUrl
+                          ? "访问地址已生成"
+                          : "尚未生成访问地址"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void refreshAll()}
+                    className={cn(
+                      openClawSecondaryButtonClassName,
+                      "px-3 py-2 text-xs",
+                    )}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    刷新状态
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openUrl(OPENCLAW_DOCS_URL)}
+                    className={cn(
+                      openClawSecondaryButtonClassName,
+                      "px-3 py-2 text-xs",
+                    )}
+                  >
+                    查看文档
+                  </button>
+                </div>
+              </section>
+            </aside>
+
+            <section className="min-w-0">{pageContent}</section>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

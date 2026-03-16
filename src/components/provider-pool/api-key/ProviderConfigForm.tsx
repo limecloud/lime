@@ -26,7 +26,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import type {
   ProviderWithKeysDisplay,
@@ -39,6 +38,7 @@ import { useProviderModels } from "@/hooks/useProviderModels";
 import { resolveRegistryProviderId } from "./providerTypeMapping";
 import {
   dedupeModelIds,
+  getProviderTypeLabel,
   getLatestSelectableModel,
   parseCustomModelsValue,
   PROVIDER_TYPE_FIELDS,
@@ -267,8 +267,7 @@ export const ProviderConfigForm = forwardRef<
             .filter((m) => m.length > 0);
 
           const request: UpdateProviderRequest = {
-            // 只有自定义 Provider 才发送 type 字段
-            type: !provider.is_system ? state.providerType : undefined,
+            type: state.providerType,
             api_host: state.apiHost || undefined,
             api_version: state.apiVersion || undefined,
             project: state.project || undefined,
@@ -285,7 +284,7 @@ export const ProviderConfigForm = forwardRef<
           setIsSaving(false);
         }
       },
-      [provider.id, provider.is_system, onUpdate],
+      [provider.id, onUpdate],
     );
 
     // 防抖保存
@@ -421,35 +420,32 @@ export const ProviderConfigForm = forwardRef<
         className={cn("space-y-5", className)}
         data-testid="provider-config-form"
       >
-        {/* Provider 类型选择器（仅自定义 Provider 显示） */}
-        {!provider.is_system && (
-          <div className="space-y-1.5">
-            <Label htmlFor="provider-type" className="text-sm font-medium">
-              Provider 类型
-            </Label>
-            <Select
-              value={formState.providerType}
-              onValueChange={(value) =>
-                handleFieldChange("providerType", value as ProviderType)
-              }
-              disabled={loading || isSaving}
-            >
-              <SelectTrigger data-testid="provider-type-select">
-                <SelectValue placeholder="选择 Provider 类型" />
-              </SelectTrigger>
-              <SelectContent>
-                {PROVIDER_TYPE_OPTIONS.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              选择 API 协议类型，不同类型使用不同的请求格式
-            </p>
-          </div>
-        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="provider-type" className="text-sm font-medium">
+            Provider 类型
+          </Label>
+          <Select
+            value={formState.providerType}
+            onValueChange={(value) =>
+              handleFieldChange("providerType", value as ProviderType)
+            }
+            disabled={loading || isSaving}
+          >
+            <SelectTrigger id="provider-type" data-testid="provider-type-select">
+              <span>{getProviderTypeLabel(formState.providerType)}</span>
+            </SelectTrigger>
+            <SelectContent>
+              {PROVIDER_TYPE_OPTIONS.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            选择 API 协议类型，不同类型使用不同的请求格式
+          </p>
+        </div>
 
         {/* API Host 字段（所有 Provider 都有） */}
         <div className="space-y-1.5">

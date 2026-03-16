@@ -184,7 +184,7 @@ jobs:
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }}
 
-      - name: Build Tauri app (Windows)
+      - name: Build Tauri app (Windows online)
         if: matrix.platform == 'windows-2022'
         uses: tauri-apps/tauri-action@v0
         env:
@@ -204,6 +204,33 @@ jobs:
           releaseBody: ${{ env.RELEASE_BODY }}
           releaseDraft: false
           prerelease: false
+          # 默认推荐在线小包，安装时按需拉取 WebView2
+          releaseAssetNamePattern: "[name]_[version]_[arch]-online[setup][ext]"
+          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
+          args: --target ${{ matrix.target }} --config tauri.windows.online.conf.json
+
+      - name: Build Tauri app (Windows offline)
+        if: matrix.platform == 'windows-2022'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 禁用 LTO 加速编译（正式发布可改为 thin）
+          CARGO_PROFILE_RELEASE_LTO: "off"
+          # 增加并行编译单元
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
+          CARGO_INCREMENTAL: 0
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+        with:
+          tauriScript: npx tauri
+          projectPath: src-tauri
+          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          releaseName: "ProxyCast ${{ github.event.inputs.version || github.ref_name }}"
+          releaseBody: ${{ env.RELEASE_BODY }}
+          releaseDraft: false
+          prerelease: false
+          # 离线大包内置 WebView2 离线安装器，适用于无网环境
+          releaseAssetNamePattern: "[name]_[version]_[arch]-offline[setup][ext]"
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.conf.json
 

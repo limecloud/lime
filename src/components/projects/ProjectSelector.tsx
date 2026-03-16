@@ -13,7 +13,6 @@ import {
   Pencil,
   Plus,
   Search,
-  StarIcon,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +36,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjects } from "@/hooks/useProjects";
 import type { ProjectType } from "@/lib/api/project";
 import { USER_PROJECT_TYPES } from "@/lib/api/project";
+import type { Project } from "@/types/project";
 import { WorkspaceTypeLabels } from "@/types/workspace";
 import { cn } from "@/lib/utils";
 import { CreateProjectDialog } from "./CreateProjectDialog";
@@ -67,6 +67,10 @@ export interface ProjectSelectorProps {
   dropdownAlign?: "start" | "end";
   /** 是否启用项目管理 */
   enableManagement?: boolean;
+  /** 显示密度 */
+  density?: "default" | "compact";
+  /** 外观表面 */
+  chrome?: "default" | "embedded";
 }
 
 function resolveDefaultProjectType(workspaceType?: string): ProjectType {
@@ -80,6 +84,44 @@ function resolveDefaultProjectType(workspaceType?: string): ProjectType {
   }
 
   return "general";
+}
+
+function formatProjectPathPreview(rootPath?: string): string {
+  if (!rootPath) {
+    return "未设置目录";
+  }
+
+  const segments = rootPath.split(/[\\/]+/).filter(Boolean);
+  if (segments.length <= 1) {
+    return rootPath;
+  }
+
+  if (segments.length === 2) {
+    return segments.join("/");
+  }
+
+  return `…/${segments.slice(-2).join("/")}`;
+}
+
+function getProjectMetaText(project: Project | null | undefined): string {
+  if (!project) {
+    return "待选择项目";
+  }
+
+  const meta = [WorkspaceTypeLabels[project.workspaceType]];
+  if (project.isDefault) {
+    meta.unshift("默认项目");
+  }
+
+  return meta.join(" · ");
+}
+
+function getProjectSummaryText(project: Project | null | undefined): string | null {
+  if (!project) {
+    return null;
+  }
+
+  return `${project.name} · ${getProjectMetaText(project)} · ${formatProjectPathPreview(project.rootPath)}`;
 }
 
 /**
@@ -97,6 +139,8 @@ export function ProjectSelector({
   dropdownSide = "top",
   dropdownAlign = "start",
   enableManagement = false,
+  density = "default",
+  chrome = "default",
 }: ProjectSelectorProps) {
   const {
     projects,
@@ -327,12 +371,13 @@ export function ProjectSelector({
     selectedProject && !canRenameProject(selectedProject)
       ? "默认项目不可重命名或删除"
       : null;
-  const projectSummaryBadges = [
-    selectedProject?.isDefault ? "默认项目" : "普通项目",
-    selectedProject
-      ? WorkspaceTypeLabels[selectedProject.workspaceType]
-      : "待选择",
-  ];
+  const compact = density === "compact";
+  const embedded = chrome === "embedded";
+  const projectSummaryText = getProjectSummaryText(selectedProject);
+  const popoverWidthClass = compact ? "w-[380px]" : "w-[420px]";
+  const headerPaddingClass = compact ? "px-4 py-3" : "px-4 py-4";
+  const bodyPaddingClass = compact ? "px-4 py-3" : "px-4 py-4";
+  const managementPaddingClass = compact ? "px-4 py-3" : "px-4 py-4";
 
   return (
     <>
@@ -342,53 +387,86 @@ export function ProjectSelector({
             variant="outline"
             size="sm"
             className={cn(
-              "h-auto min-w-[220px] max-w-[300px] justify-between gap-3 rounded-full border-slate-200/80 bg-white/88 px-3 py-2 text-left shadow-sm shadow-slate-950/5 hover:bg-white",
+              embedded
+                ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-transparent bg-transparent px-1.5 py-0 text-left shadow-none hover:bg-slate-50/80 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
+                : compact
+                  ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-slate-200/80 bg-white/94 px-2.5 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white"
+                  : "h-11 min-w-[220px] max-w-[320px] justify-between gap-3 rounded-2xl border-slate-200/80 bg-white/92 px-3 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white hover:shadow-md hover:shadow-slate-950/8",
               className,
             )}
             disabled={disabled || loading}
+            title={
+              selectedProject
+                ? `${selectedProject.name}\n${selectedProject.rootPath}`
+                : placeholder
+            }
           >
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-50 text-slate-600">
+            <span
+              className={cn(
+                "flex min-w-0 flex-1 items-center",
+                compact || embedded ? "gap-2.5" : "gap-3",
+              )}
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-slate-200/80 bg-slate-50 text-slate-600">
                 {selectedProject?.icon ? (
-                  <span className="text-base">{selectedProject.icon}</span>
+                  <span className={compact || embedded ? "text-sm" : "text-base"}>
+                    {selectedProject.icon}
+                  </span>
                 ) : (
                   <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
               </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-slate-900">
-                  {selectedProject?.name || placeholder}
+              {compact || embedded ? (
+                <span className="min-w-0 flex flex-1 items-center gap-2">
+                  <span className="truncate text-sm font-semibold text-slate-900">
+                    {selectedProject?.name || placeholder}
+                  </span>
+                  {selectedProject?.isDefault ? (
+                    <span className="shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-none text-amber-700">
+                      默认
+                    </span>
+                  ) : null}
                 </span>
-                <span className="block truncate text-[11px] text-slate-500">
-                  {selectedProject?.rootPath || "选择项目后在这里查看目录"}
-                </span>
-              </span>
-              {selectedProject?.isDefault ? (
-                <StarIcon className="h-3.5 w-3.5 shrink-0 fill-yellow-500 text-yellow-500" />
               ) : (
-                <span className="sr-only">普通项目</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-slate-900">
+                      {selectedProject?.name || placeholder}
+                    </span>
+                    {selectedProject?.isDefault ? (
+                      <span className="shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-none text-amber-700">
+                        默认
+                      </span>
+                    ) : null}
+                  </span>
+                </span>
               )}
             </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100/90 text-slate-500">
+              <ChevronDown className="h-3.5 w-3.5" />
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent
           side={dropdownSide}
           align={dropdownAlign}
-          className="w-[420px] overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(255,255,255,0.98)_36%,rgba(240,249,255,0.94)_100%)] p-0 shadow-lg shadow-slate-950/10"
+          className={cn(
+            popoverWidthClass,
+            "overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(255,255,255,0.98)_36%,rgba(240,249,255,0.94)_100%)] p-0 shadow-lg shadow-slate-950/10",
+          )}
         >
           <div className="flex flex-col">
-            <div className="relative border-b border-white/80 px-4 py-4">
+            <div className={cn("relative border-b border-white/80", headerPaddingClass)}>
               <div className="pointer-events-none absolute -left-10 top-[-24px] h-24 w-24 rounded-full bg-sky-200/20 blur-3xl" />
               <div className="pointer-events-none absolute right-[-20px] top-0 h-20 w-20 rounded-full bg-emerald-200/20 blur-3xl" />
-              <div className="relative space-y-3">
+              <div className={cn("relative", compact ? "space-y-2.5" : "space-y-3")}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
                       选择项目
                     </div>
                     <div className="mt-1 text-xs leading-5 text-slate-500">
-                      在同一处切换项目、搜索项目，并管理当前可见项目列表。
+                      在这里切换项目、搜索项目，并管理当前可见项目列表。
                     </div>
                   </div>
                   <Badge
@@ -399,16 +477,12 @@ export function ProjectSelector({
                   </Badge>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {projectSummaryBadges.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full border border-white/90 bg-white/85 px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
+                {!compact && projectSummaryText ? (
+                  <div className="rounded-[18px] border border-white/90 bg-white/85 px-3 py-2 text-[11px] leading-5 text-slate-600 shadow-sm">
+                    <span className="font-medium text-slate-800">当前项目：</span>
+                    <span>{projectSummaryText}</span>
+                  </div>
+                ) : null}
 
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -416,87 +490,116 @@ export function ProjectSelector({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="搜索项目"
-                    className="h-10 border-slate-200/80 bg-white/85 pl-9"
+                    className={cn(
+                      compact ? "h-9" : "h-10",
+                      "border-slate-200/80 bg-white/85 pl-9 focus-visible:border-slate-300 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0",
+                    )}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="px-4 py-4">
-              <ScrollArea className="max-h-[320px]">
-                <div className="space-y-3 pr-2">
-                {filteredProjects.length === 0 ? (
-                  <div className="rounded-[22px] border border-dashed border-slate-300/80 bg-white/80 px-4 py-8 text-center text-sm text-slate-500">
-                    未找到匹配项目
-                  </div>
-                ) : (
-                  filteredProjects.map((project) => {
-                    const isSelected = project.id === selectedProject?.id;
-                    return (
-                      <button
-                        key={project.id}
-                        type="button"
-                        onClick={() => handleSelect(project.id)}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-[22px] border px-4 py-3 text-left transition",
-                          isSelected
-                            ? "border-slate-900/20 bg-slate-900/5 shadow-sm shadow-slate-950/5"
-                            : "border-slate-200/80 bg-white/85 hover:border-slate-300 hover:bg-white",
-                        )}
-                      >
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-slate-200/80 bg-slate-50 text-slate-600">
-                          {project.icon ? (
-                            <span className="text-base">{project.icon}</span>
-                          ) : (
-                            <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className={bodyPaddingClass}>
+              <ScrollArea className={cn(compact ? "max-h-[280px]" : "max-h-[320px]")}>
+                <div className={cn("pr-2", compact ? "space-y-2" : "space-y-3")}>
+                  {filteredProjects.length === 0 ? (
+                    <div className="rounded-[22px] border border-dashed border-slate-300/80 bg-white/80 px-4 py-8 text-center text-sm text-slate-500">
+                      未找到匹配项目
+                    </div>
+                  ) : (
+                    filteredProjects.map((project) => {
+                      const isSelected = project.id === selectedProject?.id;
+                      return (
+                        <button
+                          key={project.id}
+                          type="button"
+                          onClick={() => handleSelect(project.id)}
+                          className={cn(
+                            compact
+                              ? "flex w-full items-center gap-2.5 rounded-[18px] border px-3 py-2.5 text-left transition"
+                              : "flex w-full items-center gap-3 rounded-[22px] border px-4 py-3 text-left transition",
+                            isSelected
+                              ? "border-slate-300 bg-slate-50/85"
+                              : "border-slate-200/80 bg-white/85 hover:border-slate-300 hover:bg-white",
                           )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-medium text-slate-900">
-                              {project.name}
-                            </span>
-                            {project.isDefault ? (
-                              <StarIcon className="h-3.5 w-3.5 shrink-0 fill-yellow-500 text-yellow-500" />
+                        >
+                          <div
+                            className={cn(
+                              "shrink-0 items-center justify-center border border-slate-200/80 bg-slate-50 text-slate-600",
+                              compact
+                                ? "flex h-9 w-9 rounded-[14px]"
+                                : "flex h-11 w-11 rounded-[16px]",
+                            )}
+                          >
+                            {project.icon ? (
+                              <span className={compact ? "text-sm" : "text-base"}>
+                                {project.icon}
+                              </span>
+                            ) : (
+                              <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "truncate text-slate-900",
+                                  compact ? "text-sm font-semibold" : "font-medium",
+                                )}
+                              >
+                                {project.name}
+                              </span>
+                              {project.isDefault ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-200/80 bg-amber-50 text-[10px] font-medium text-amber-700"
+                                >
+                                  默认
+                                </Badge>
+                              ) : null}
+                              <Badge
+                                variant="outline"
+                                className="border-slate-200/80 bg-white/80 text-[10px] text-slate-600"
+                              >
+                                {WorkspaceTypeLabels[project.workspaceType]}
+                              </Badge>
+                            </div>
+                            <div
+                              className="mt-1 truncate text-xs text-muted-foreground"
+                              title={project.rootPath}
+                            >
+                              {compact
+                                ? formatProjectPathPreview(project.rootPath)
+                                : project.rootPath}
+                            </div>
+                            {project.tags.length > 0 ? (
+                              <div className={cn("flex flex-wrap gap-1.5", compact ? "mt-1.5" : "mt-2")}>
+                                {project.tags.slice(0, 2).map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="outline"
+                                    className="border-slate-200/80 bg-white/70 text-[10px] text-slate-500"
+                                  >
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
                             ) : null}
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge
-                              variant="outline"
-                              className="border-slate-200/80 bg-white/80 text-[10px] text-slate-600"
-                            >
-                              {WorkspaceTypeLabels[project.workspaceType]}
-                            </Badge>
-                            {project.tags.slice(0, 2).map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="outline"
-                                className="border-slate-200/80 bg-white/70 text-[10px] text-slate-500"
-                              >
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                          <div className="mt-2 truncate text-xs text-muted-foreground">
-                            {project.rootPath}
-                          </div>
-                        </div>
-                        {isSelected ? (
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white">
-                            <Check className="h-4 w-4" />
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })
-                )}
+                          {isSelected ? (
+                            <Check className="h-4 w-4 shrink-0 text-slate-700" />
+                          ) : null}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </ScrollArea>
             </div>
 
             {enableManagement ? (
-              <div className="border-t border-white/80 px-4 py-4">
-                <div className="mb-3">
+              <div className={cn("border-t border-white/80", managementPaddingClass)}>
+                <div className={cn(compact ? "mb-2.5" : "mb-3")}>
                   <div className="text-sm font-semibold text-slate-900">
                     项目管理
                   </div>
@@ -509,7 +612,10 @@ export function ProjectSelector({
                     type="button"
                     variant="secondary"
                     size="sm"
-                    className="h-9 gap-1.5 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                    className={cn(
+                      compact ? "h-8 px-3 text-xs" : "h-9",
+                      "gap-1.5 rounded-full bg-slate-900 text-white hover:bg-slate-800",
+                    )}
                     onClick={() => {
                       setOpen(false);
                       setCreateDialogOpen(true);
@@ -522,7 +628,10 @@ export function ProjectSelector({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 gap-1.5 rounded-full border-slate-200/80 bg-white"
+                    className={cn(
+                      compact ? "h-8 px-3 text-xs" : "h-9",
+                      "gap-1.5 rounded-full border-slate-200/80 bg-white",
+                    )}
                     onClick={handleOpenRename}
                     disabled={!canRenameProject(selectedProject)}
                   >
@@ -533,7 +642,10 @@ export function ProjectSelector({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 gap-1.5 rounded-full border-rose-200/80 bg-rose-50/80 text-destructive hover:text-destructive"
+                    className={cn(
+                      compact ? "h-8 px-3 text-xs" : "h-9",
+                      "gap-1.5 rounded-full border-rose-200/80 bg-rose-50/80 text-destructive hover:text-destructive",
+                    )}
                     onClick={handleOpenDelete}
                     disabled={!canDeleteProject(selectedProject)}
                   >
@@ -634,10 +746,10 @@ export function ProjectSelector({
           </DialogHeader>
           <div className="px-6 py-5">
             <div className="rounded-[22px] border border-destructive/20 bg-destructive/5 px-4 py-4 text-sm">
-            <p className="font-medium text-destructive">此操作不可恢复</p>
-            <p className="mt-1 text-muted-foreground">
-              仅删除项目记录，不删除本地目录和已有文件。
-            </p>
+              <p className="font-medium text-destructive">此操作不可恢复</p>
+              <p className="mt-1 text-muted-foreground">
+                仅删除项目记录，不删除本地目录和已有文件。
+              </p>
             </div>
           </div>
           <DialogFooter className="border-t border-white/80 px-6 py-4">

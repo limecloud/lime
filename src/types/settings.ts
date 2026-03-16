@@ -32,11 +32,8 @@ export enum SettingsTabs {
 
   // 智能体
   Providers = "providers",
-  Assistant = "assistant",
   Skills = "skills",
-  ImageGen = "image-gen",
-  VideoGen = "video-gen",
-  Voice = "voice",
+  MediaServices = "media-services",
 
   // 系统
   ApiServer = "api-server",
@@ -46,7 +43,7 @@ export enum SettingsTabs {
   Environment = "environment",
   ChromeRelay = "chrome-relay",
   SecurityPerformance = "security-performance",
-  Heartbeat = "heartbeat",
+  Automation = "automation",
   ExecutionTracker = "execution-tracker",
 
   Experimental = "experimental",
@@ -85,11 +82,8 @@ export const SETTINGS_GROUPS: Record<SettingsGroupKey, SettingsTabs[]> = {
   ],
   [SettingsGroupKey.Agent]: [
     SettingsTabs.Providers,
-    SettingsTabs.Assistant,
     SettingsTabs.Skills,
-    SettingsTabs.ImageGen,
-    SettingsTabs.VideoGen,
-    SettingsTabs.Voice,
+    SettingsTabs.MediaServices,
   ],
   [SettingsGroupKey.System]: [
     SettingsTabs.ApiServer,
@@ -99,7 +93,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupKey, SettingsTabs[]> = {
     SettingsTabs.Environment,
     SettingsTabs.ChromeRelay,
     SettingsTabs.SecurityPerformance,
-    SettingsTabs.Heartbeat,
+    SettingsTabs.Automation,
     SettingsTabs.ExecutionTracker,
 
     SettingsTabs.Experimental,

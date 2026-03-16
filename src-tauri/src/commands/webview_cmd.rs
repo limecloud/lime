@@ -9,6 +9,15 @@
 //! - 控制窗口位置和大小
 
 use crate::app::AppState;
+use crate::database::DbConnection;
+use crate::services::automation_service::browser_runtime_sync::{
+    complete_browser_session_after_resume, sync_browser_session_runtime_state,
+};
+use crate::services::browser_profile_service::{
+    normalize_browser_profile_key,
+    resolve_chrome_profile_data_dir as resolve_managed_chrome_profile_data_dir,
+    resolve_chrome_profile_data_dir_from_base as resolve_managed_chrome_profile_data_dir_from_base,
+};
 use aster::chrome_mcp::{
     get_chrome_mcp_tools, is_chrome_integration_configured, is_chrome_integration_supported,
 };
@@ -179,12 +188,24 @@ pub struct CreateWebviewResponse {
 }
 
 /// 启动外部 Chrome Profile 的请求参数
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ChromeProfileLaunchOptions {
+    #[serde(default)]
+    pub proxy_server: Option<String>,
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
+/// 启动外部 Chrome Profile 的请求参数
 #[derive(Debug, Deserialize)]
 pub struct OpenChromeProfileRequest {
     /// Profile 隔离键（用于不同用途隔离）
     pub profile_key: String,
     /// 要打开的 URL
     pub url: String,
+    /// 浏览器启动级选项
+    #[serde(default)]
+    pub launch_options: Option<ChromeProfileLaunchOptions>,
 }
 
 /// 启动外部 Chrome Profile 的响应
@@ -350,6 +371,10 @@ pub struct OpenCdpSessionRequest {
     pub profile_key: String,
     #[serde(default)]
     pub target_id: Option<String>,
+    #[serde(default)]
+    pub environment_preset_id: Option<String>,
+    #[serde(default)]
+    pub environment_preset_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -408,21 +433,138 @@ static BROWSER_BACKEND_POLICY: Lazy<RwLock<BrowserBackendPolicy>> =
 
 const BROWSER_AUDIT_LOG_MAX: usize = 200;
 
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BrowserRuntimeAuditKind {
+    Action,
+    Launch,
+}
+
 #[derive(Debug, Clone, Serialize)]
-pub struct BrowserActionAuditRecord {
+pub struct BrowserRuntimeAuditRecord {
     pub id: String,
     pub created_at: String,
-    pub action: String,
+    pub kind: BrowserRuntimeAuditKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
     pub profile_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub requested_backend: Option<BrowserBackendType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_backend: Option<BrowserBackendType>,
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attempts: Vec<BrowserActionAttempt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environment_preset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environment_preset_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reused: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_window: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_mode: Option<BrowserStreamMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub browser_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_debugging_port: Option<u16>,
 }
 
-static BROWSER_ACTION_AUDIT_LOGS: Lazy<Mutex<VecDeque<BrowserActionAuditRecord>>> =
+pub type BrowserActionAuditRecord = BrowserRuntimeAuditRecord;
+
+#[derive(Debug, Clone)]
+pub struct BrowserRuntimeLaunchAuditInput {
+    pub profile_key: String,
+    pub profile_id: Option<String>,
+    pub environment_preset_id: Option<String>,
+    pub environment_preset_name: Option<String>,
+    pub target_id: Option<String>,
+    pub session_id: Option<String>,
+    pub url: String,
+    pub reused: Option<bool>,
+    pub open_window: bool,
+    pub stream_mode: BrowserStreamMode,
+    pub browser_source: Option<String>,
+    pub remote_debugging_port: Option<u16>,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+impl BrowserRuntimeAuditRecord {
+    fn action(
+        id: String,
+        action: String,
+        profile_key: Option<String>,
+        requested_backend: Option<BrowserBackendType>,
+        selected_backend: Option<BrowserBackendType>,
+        success: bool,
+        error: Option<String>,
+        attempts: Vec<BrowserActionAttempt>,
+    ) -> Self {
+        Self {
+            id,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            kind: BrowserRuntimeAuditKind::Action,
+            action: Some(action),
+            profile_key,
+            profile_id: None,
+            requested_backend,
+            selected_backend,
+            success,
+            error,
+            attempts,
+            environment_preset_id: None,
+            environment_preset_name: None,
+            target_id: None,
+            session_id: None,
+            url: None,
+            reused: None,
+            open_window: None,
+            stream_mode: None,
+            browser_source: None,
+            remote_debugging_port: None,
+        }
+    }
+
+    fn launch(input: BrowserRuntimeLaunchAuditInput) -> Self {
+        Self {
+            id: format!("browser-launch-{}", uuid::Uuid::new_v4()),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            kind: BrowserRuntimeAuditKind::Launch,
+            action: None,
+            profile_key: Some(input.profile_key),
+            profile_id: input.profile_id,
+            requested_backend: None,
+            selected_backend: None,
+            success: input.success,
+            error: input.error,
+            attempts: Vec::new(),
+            environment_preset_id: input.environment_preset_id,
+            environment_preset_name: input.environment_preset_name,
+            target_id: input.target_id,
+            session_id: input.session_id,
+            url: Some(input.url),
+            reused: input.reused,
+            open_window: Some(input.open_window),
+            stream_mode: Some(input.stream_mode),
+            browser_source: input.browser_source,
+            remote_debugging_port: input.remote_debugging_port,
+        }
+    }
+}
+
+static BROWSER_RUNTIME_AUDIT_LOGS: Lazy<Mutex<VecDeque<BrowserRuntimeAuditRecord>>> =
     Lazy::new(|| Mutex::new(VecDeque::new()));
 
 /// 创建独立的浏览器窗口
@@ -557,6 +699,7 @@ async fn open_chrome_profile_window_with_manager(
     request: OpenChromeProfileRequest,
 ) -> Result<OpenChromeProfileResponse, String> {
     let profile_key = normalize_profile_key(&request.profile_key);
+    let launch_options = request.launch_options.clone().unwrap_or_default();
     let parsed_url = match request.url.parse::<url::Url>() {
         Ok(url) => url,
         Err(e) => {
@@ -602,6 +745,12 @@ async fn open_chrome_profile_window_with_manager(
     let devtools_http_url = format!("http://127.0.0.1:{remote_port}/json/version");
 
     if wait_for_managed_cdp_ready(remote_port, None).await.is_ok() {
+        if launch_options.proxy_server.is_some() {
+            return Err(
+                "当前资料已有运行中的浏览器进程；代理属于启动参数，切换代理前请先关闭该资料会话"
+                    .to_string(),
+            );
+        }
         tracing::info!(
             "[ChromeProfile] 复用未登记的 CDP 会话: profile_key={}, port={}",
             profile_key,
@@ -639,6 +788,12 @@ async fn open_chrome_profile_window_with_manager(
         if let Some(existing) = guard.sessions.get_mut(&profile_key) {
             match existing.child.try_wait() {
                 Ok(None) => {
+                    if launch_options.proxy_server.is_some() {
+                        return Err(
+                            "当前资料已有运行中的浏览器进程；代理属于启动参数，切换代理前请先关闭该资料会话"
+                                .to_string(),
+                        );
+                    }
                     // reuse 场景：不重复加载扩展
                     spawn_chrome_with_profile(
                         &existing.browser_path,
@@ -647,6 +802,7 @@ async fn open_chrome_profile_window_with_manager(
                         &url_text,
                         true,
                         None,
+                        &launch_options,
                     )?;
                     existing.last_url = url_text.clone();
                     return Ok(OpenChromeProfileResponse {
@@ -678,6 +834,7 @@ async fn open_chrome_profile_window_with_manager(
         &url_text,
         true,
         Some(&extension_dir),
+        &launch_options,
     )?;
     let pid = child.id();
 
@@ -799,6 +956,7 @@ async fn ensure_managed_chrome_profile_with_manager(
     url: Option<String>,
 ) -> Result<ChromeProfileSessionInfo, String> {
     let normalized_profile_key = normalize_profile_key(&profile_key);
+    let launch_options = ChromeProfileLaunchOptions::default();
     if let Some(existing) = list_alive_profile_sessions(manager.clone())
         .await
         .into_iter()
@@ -855,6 +1013,7 @@ async fn ensure_managed_chrome_profile_with_manager(
         &url_text,
         true,
         None,
+        &launch_options,
     )?;
     let pid = child.id();
 
@@ -1214,6 +1373,8 @@ pub async fn open_cdp_session(
             profile_key: session.profile_key,
             remote_debugging_port: session.remote_debugging_port,
             target_id: request.target_id,
+            environment_preset_id: request.environment_preset_id,
+            environment_preset_name: request.environment_preset_name,
         })
         .await
 }
@@ -1231,6 +1392,8 @@ pub async fn open_cdp_session_global(
             profile_key: session.profile_key,
             remote_debugging_port: session.remote_debugging_port,
             target_id: request.target_id,
+            environment_preset_id: request.environment_preset_id,
+            environment_preset_name: request.environment_preset_name,
         })
         .await
 }
@@ -1288,62 +1451,94 @@ pub async fn stop_browser_stream_global(
 
 #[tauri::command]
 pub async fn get_browser_session_state(
+    db: tauri::State<'_, DbConnection>,
     request: BrowserSessionStateRequest,
 ) -> Result<CdpSessionState, String> {
-    shared_browser_runtime()
+    let state = shared_browser_runtime()
         .get_session_state(&request.session_id)
-        .await
+        .await?;
+    sync_automation_browser_state(db.inner(), &state, false);
+    Ok(state)
 }
 
 pub async fn get_browser_session_state_global(
+    db: DbConnection,
     request: BrowserSessionStateRequest,
 ) -> Result<CdpSessionState, String> {
-    get_browser_session_state(request).await
+    let state = shared_browser_runtime()
+        .get_session_state(&request.session_id)
+        .await?;
+    sync_automation_browser_state(&db, &state, false);
+    Ok(state)
 }
 
 #[tauri::command]
 pub async fn take_over_browser_session(
+    db: tauri::State<'_, DbConnection>,
     request: UpdateBrowserSessionControlRequest,
 ) -> Result<CdpSessionState, String> {
-    shared_browser_runtime()
+    let state = shared_browser_runtime()
         .take_over_session(&request.session_id, request.human_reason)
-        .await
+        .await?;
+    sync_automation_browser_state(db.inner(), &state, false);
+    Ok(state)
 }
 
 pub async fn take_over_browser_session_global(
+    db: DbConnection,
     request: UpdateBrowserSessionControlRequest,
 ) -> Result<CdpSessionState, String> {
-    take_over_browser_session(request).await
+    let state = shared_browser_runtime()
+        .take_over_session(&request.session_id, request.human_reason)
+        .await?;
+    sync_automation_browser_state(&db, &state, false);
+    Ok(state)
 }
 
 #[tauri::command]
 pub async fn release_browser_session(
+    db: tauri::State<'_, DbConnection>,
     request: UpdateBrowserSessionControlRequest,
 ) -> Result<CdpSessionState, String> {
-    shared_browser_runtime()
+    let state = shared_browser_runtime()
         .release_session(&request.session_id, request.human_reason)
-        .await
+        .await?;
+    sync_automation_browser_state(db.inner(), &state, false);
+    Ok(state)
 }
 
 pub async fn release_browser_session_global(
+    db: DbConnection,
     request: UpdateBrowserSessionControlRequest,
 ) -> Result<CdpSessionState, String> {
-    release_browser_session(request).await
+    let state = shared_browser_runtime()
+        .release_session(&request.session_id, request.human_reason)
+        .await?;
+    sync_automation_browser_state(&db, &state, false);
+    Ok(state)
 }
 
 #[tauri::command]
 pub async fn resume_browser_session(
+    db: tauri::State<'_, DbConnection>,
     request: UpdateBrowserSessionControlRequest,
 ) -> Result<CdpSessionState, String> {
-    shared_browser_runtime()
+    let state = shared_browser_runtime()
         .resume_session(&request.session_id, request.human_reason)
-        .await
+        .await?;
+    sync_automation_browser_state(db.inner(), &state, true);
+    Ok(state)
 }
 
 pub async fn resume_browser_session_global(
+    db: DbConnection,
     request: UpdateBrowserSessionControlRequest,
 ) -> Result<CdpSessionState, String> {
-    resume_browser_session(request).await
+    let state = shared_browser_runtime()
+        .resume_session(&request.session_id, request.human_reason)
+        .await?;
+    sync_automation_browser_state(&db, &state, true);
+    Ok(state)
 }
 
 #[tauri::command]
@@ -1360,6 +1555,21 @@ pub async fn get_browser_event_buffer_global(
     request: BrowserEventBufferRequest,
 ) -> Result<EventBufferSnapshotResponse, String> {
     get_browser_event_buffer(request).await
+}
+
+fn sync_automation_browser_state(db: &DbConnection, state: &CdpSessionState, finalize: bool) {
+    let result = if finalize {
+        complete_browser_session_after_resume(db, state)
+    } else {
+        sync_browser_session_runtime_state(db, state)
+    };
+    if let Err(error) = result {
+        tracing::warn!(
+            "[BrowserRuntime] 同步自动化浏览器运行态失败: session_id={}, error={}",
+            state.session_id,
+            error
+        );
+    }
 }
 
 /// 通过统一编排层执行浏览器动作
@@ -1380,7 +1590,7 @@ pub async fn get_browser_action_audit_logs(
     let max_count = limit
         .unwrap_or(BROWSER_AUDIT_LOG_MAX)
         .min(BROWSER_AUDIT_LOG_MAX);
-    let logs = BROWSER_ACTION_AUDIT_LOGS.lock().await;
+    let logs = BROWSER_RUNTIME_AUDIT_LOGS.lock().await;
     let mut result = logs.iter().cloned().collect::<Vec<_>>();
     result.reverse();
     result.truncate(max_count);
@@ -1442,17 +1652,16 @@ pub async fn browser_execute_action_with_manager(
                     error: None,
                     attempts: attempts.clone(),
                 };
-                append_browser_action_audit(BrowserActionAuditRecord {
-                    id: request_id,
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    action: result.action.clone(),
-                    profile_key: profile_key.clone(),
-                    requested_backend: request.backend.clone(),
-                    selected_backend: result.backend.clone(),
-                    success: true,
-                    error: None,
+                append_browser_runtime_audit(BrowserRuntimeAuditRecord::action(
+                    request_id,
+                    result.action.clone(),
+                    profile_key.clone(),
+                    request.backend.clone(),
+                    result.backend.clone(),
+                    true,
+                    None,
                     attempts,
-                })
+                ))
                 .await;
                 return Ok(result);
             }
@@ -1474,17 +1683,16 @@ pub async fn browser_execute_action_with_manager(
                         error: Some(error.clone()),
                         attempts: attempts.clone(),
                     };
-                    append_browser_action_audit(BrowserActionAuditRecord {
-                        id: request_id,
-                        created_at: chrono::Utc::now().to_rfc3339(),
-                        action: result.action.clone(),
-                        profile_key: profile_key.clone(),
-                        requested_backend: request.backend.clone(),
-                        selected_backend: None,
-                        success: false,
-                        error: Some(error),
+                    append_browser_runtime_audit(BrowserRuntimeAuditRecord::action(
+                        request_id,
+                        result.action.clone(),
+                        profile_key.clone(),
+                        request.backend.clone(),
+                        None,
+                        false,
+                        Some(error),
                         attempts,
-                    })
+                    ))
                     .await;
                     return Ok(result);
                 }
@@ -1503,17 +1711,16 @@ pub async fn browser_execute_action_with_manager(
         error: Some("没有可用的浏览器后端".to_string()),
         attempts: attempts.clone(),
     };
-    append_browser_action_audit(BrowserActionAuditRecord {
-        id: request_id,
-        created_at: chrono::Utc::now().to_rfc3339(),
+    append_browser_runtime_audit(BrowserRuntimeAuditRecord::action(
+        request_id,
         action,
         profile_key,
-        requested_backend: request.backend,
-        selected_backend: None,
-        success: false,
-        error: result.error.clone(),
+        request.backend,
+        None,
+        false,
+        result.error.clone(),
         attempts,
-    })
+    ))
     .await;
     Ok(result)
 }
@@ -1525,8 +1732,12 @@ pub async fn browser_execute_action_global(
     browser_execute_action_with_manager(shared_chrome_profile_manager(), request).await
 }
 
-async fn append_browser_action_audit(record: BrowserActionAuditRecord) {
-    let mut logs = BROWSER_ACTION_AUDIT_LOGS.lock().await;
+pub async fn append_browser_runtime_launch_audit(input: BrowserRuntimeLaunchAuditInput) {
+    append_browser_runtime_audit(BrowserRuntimeAuditRecord::launch(input)).await;
+}
+
+async fn append_browser_runtime_audit(record: BrowserRuntimeAuditRecord) {
+    let mut logs = BROWSER_RUNTIME_AUDIT_LOGS.lock().await;
     logs.push_back(record);
     while logs.len() > BROWSER_AUDIT_LOG_MAX {
         logs.pop_front();
@@ -1785,6 +1996,7 @@ fn extension_backend_capabilities() -> Vec<String> {
         "go_back".to_string(),
         "go_forward".to_string(),
         "switch_tab".to_string(),
+        "list_tabs".to_string(),
     ]
 }
 
@@ -2067,6 +2279,17 @@ async fn execute_extension_backend_action(
                 "profiles": sessions,
             }))
         }
+        "list_tabs" => execute_bridge_api_command(ChromeBridgeCommandRequest {
+            profile_key,
+            command: "list_tabs".to_string(),
+            target: None,
+            text: None,
+            url: None,
+            wait_for_page_info: false,
+            timeout_ms: Some(normalize_action_timeout(timeout_ms)),
+        })
+        .await
+        .map(bridge_result_to_value),
         "open_url" | "click" | "type" | "scroll" | "scroll_page" | "get_page_info"
         | "refresh_page" | "go_back" | "go_forward" | "switch_tab" => {
             execute_bridge_api_command(ChromeBridgeCommandRequest {
@@ -2200,6 +2423,7 @@ fn bridge_result_to_value(result: ChromeBridgeCommandResult) -> Value {
         "message": result.message,
         "error": result.error,
         "page_info": result.page_info,
+        "data": result.data,
     })
 }
 
@@ -2397,30 +2621,14 @@ async fn ensure_cdp_runtime_session(
             profile_key: profile_session.profile_key.clone(),
             remote_debugging_port: profile_session.remote_debugging_port,
             target_id: target_id.map(ToString::to_string),
+            environment_preset_id: None,
+            environment_preset_name: None,
         })
         .await
 }
 
-fn sanitize_profile_key(input: &str) -> String {
-    input
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect()
-}
-
 fn normalize_profile_key(input: &str) -> String {
-    let safe_key = sanitize_profile_key(input);
-    if safe_key.trim_matches('_').is_empty() {
-        "default".to_string()
-    } else {
-        safe_key
-    }
+    normalize_browser_profile_key(input)
 }
 
 fn normalize_bridge_host(host: &str) -> String {
@@ -2541,6 +2749,7 @@ fn spawn_chrome_with_profile(
     url: &str,
     new_window: bool,
     extension_dir: Option<&Path>,
+    launch_options: &ChromeProfileLaunchOptions,
 ) -> Result<Child, String> {
     let profile_arg = format!("--user-data-dir={}", profile_dir.to_string_lossy());
     let mut cmd = Command::new(browser_path);
@@ -2549,6 +2758,13 @@ fn spawn_chrome_with_profile(
         .arg("--remote-allow-origins=*")
         .arg("--no-first-run")
         .arg("--no-default-browser-check");
+
+    if let Some(proxy_server) = launch_options.proxy_server.as_deref() {
+        cmd.arg(format!("--proxy-server={proxy_server}"));
+    }
+    if let Some(language) = launch_options.language.as_deref() {
+        cmd.arg(format!("--lang={language}"));
+    }
 
     // 如果提供了扩展目录，添加 --load-extension 参数
     if let Some(ext_dir) = extension_dir {
@@ -2685,9 +2901,7 @@ fn resolve_profile_data_dir_from_base(base_dir: &Path, profile_key: &str) -> Pat
 }
 
 fn resolve_chrome_profile_data_dir_from_base(base_dir: &Path, profile_key: &str) -> PathBuf {
-    base_dir
-        .join("chrome_profiles")
-        .join(normalize_profile_key(profile_key))
+    resolve_managed_chrome_profile_data_dir_from_base(base_dir, profile_key)
 }
 
 fn resolve_profile_data_dir(app: &AppHandle, profile_key: &str) -> Result<PathBuf, String> {
@@ -2699,12 +2913,7 @@ fn resolve_profile_data_dir(app: &AppHandle, profile_key: &str) -> Result<PathBu
 
 fn resolve_chrome_profile_data_dir(app: &AppHandle, profile_key: &str) -> Result<PathBuf, String> {
     let _ = app;
-    let base_dir = proxycast_core::app_paths::preferred_data_dir()
-        .map_err(|e| format!("获取应用数据目录失败: {e}"))?;
-    Ok(resolve_chrome_profile_data_dir_from_base(
-        &base_dir,
-        profile_key,
-    ))
+    resolve_managed_chrome_profile_data_dir(profile_key)
 }
 
 fn get_system_chrome_path() -> Option<String> {
@@ -3009,6 +3218,7 @@ pub async fn focus_webview_panel(app: AppHandle, panel_id: String) -> Result<boo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::browser_profile_service::sanitize_browser_profile_key;
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     #[test]
@@ -3038,7 +3248,7 @@ mod tests {
 
     #[test]
     fn sanitize_profile_key_should_replace_unsafe_chars() {
-        let safe = sanitize_profile_key("search/google:zh-CN");
+        let safe = sanitize_browser_profile_key("search/google:zh-CN");
         assert_eq!(safe, "search_google_zh-CN");
     }
 
@@ -3089,9 +3299,94 @@ mod tests {
     }
 
     #[test]
+    fn extension_backend_capabilities_should_include_list_tabs() {
+        assert!(extension_backend_capabilities().contains(&"list_tabs".to_string()));
+    }
+
+    #[test]
+    fn bridge_result_to_value_should_include_data_payload() {
+        let value = bridge_result_to_value(ChromeBridgeCommandResult {
+            success: true,
+            request_id: "req-tabs".to_string(),
+            command: "list_tabs".to_string(),
+            message: Some("ok".to_string()),
+            error: None,
+            page_info: None,
+            data: Some(json!({
+                "tabs": [
+                    {
+                        "id": 101,
+                        "index": 0,
+                        "title": "首页",
+                    }
+                ],
+            })),
+        });
+
+        assert_eq!(
+            value.get("data"),
+            Some(&json!({
+                "tabs": [
+                    {
+                        "id": 101,
+                        "index": 0,
+                        "title": "首页",
+                    }
+                ],
+            })),
+        );
+    }
+
+    #[test]
     fn build_backend_candidates_should_prefer_forced_backend() {
         let policy = BrowserBackendPolicy::default();
         let candidates = build_backend_candidates(Some(BrowserBackendType::CdpDirect), &policy);
         assert_eq!(candidates, vec![BrowserBackendType::CdpDirect]);
+    }
+
+    #[tokio::test]
+    async fn browser_runtime_audit_should_store_launch_metadata() {
+        BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
+
+        append_browser_runtime_launch_audit(BrowserRuntimeLaunchAuditInput {
+            profile_key: "general_browser_assist".to_string(),
+            profile_id: Some("browser-profile-1".to_string()),
+            environment_preset_id: Some("browser-env-1".to_string()),
+            environment_preset_name: Some("美区桌面".to_string()),
+            target_id: Some("target-1".to_string()),
+            session_id: Some("session-1".to_string()),
+            url: "https://example.com".to_string(),
+            reused: Some(false),
+            open_window: true,
+            stream_mode: BrowserStreamMode::Both,
+            browser_source: Some("system".to_string()),
+            remote_debugging_port: Some(13001),
+            success: true,
+            error: None,
+        })
+        .await;
+
+        let logs = get_browser_action_audit_logs(Some(5))
+            .await
+            .expect("audit logs should be readable");
+        let record = logs.first().expect("launch audit must exist");
+        assert!(matches!(record.kind, BrowserRuntimeAuditKind::Launch));
+        assert_eq!(
+            record.profile_key.as_deref(),
+            Some("general_browser_assist")
+        );
+        assert_eq!(record.profile_id.as_deref(), Some("browser-profile-1"));
+        assert_eq!(
+            record.environment_preset_id.as_deref(),
+            Some("browser-env-1")
+        );
+        assert_eq!(record.session_id.as_deref(), Some("session-1"));
+        assert_eq!(record.url.as_deref(), Some("https://example.com"));
+        assert_eq!(record.open_window, Some(true));
+        assert!(matches!(record.stream_mode, Some(BrowserStreamMode::Both)));
+        assert_eq!(record.browser_source.as_deref(), Some("system"));
+        assert_eq!(record.remote_debugging_port, Some(13001));
+
+        BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
     }
 }

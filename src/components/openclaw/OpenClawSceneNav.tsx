@@ -5,6 +5,7 @@ import type {
   OpenClawSceneDefinition,
   OpenClawSceneStatus,
 } from "./types";
+import { openClawPanelClassName } from "./openclawStyles";
 
 interface OpenClawSceneNavProps {
   scenes: OpenClawSceneDefinition[];
@@ -19,29 +20,29 @@ function statusBadgeClass(tone: string): string {
     case "healthy":
     case "connected":
     case "done":
-      return "bg-emerald-500/10 text-emerald-700 border-emerald-300/50";
+      return "border-emerald-300/60 bg-emerald-50 text-emerald-700";
     case "starting":
     case "active":
-      return "bg-amber-500/10 text-amber-700 border-amber-300/50";
+      return "border-amber-300/60 bg-amber-50 text-amber-700";
     case "error":
     case "unhealthy":
     case "disconnected":
-      return "bg-red-500/10 text-red-700 border-red-300/50";
+      return "border-rose-300/60 bg-rose-50 text-rose-700";
     default:
-      return "bg-muted text-muted-foreground border-border";
+      return "border-slate-200 bg-slate-100 text-slate-600";
   }
 }
 
 function renderSceneIcon(current: boolean, tone: string) {
   if (current) {
-    return <PlayCircle className="h-5 w-5 text-primary" />;
+    return <PlayCircle className="h-5 w-5 text-white" />;
   }
 
   if (tone === "done") {
     return <CheckCircle2 className="h-5 w-5 text-emerald-600" />;
   }
 
-  return <Circle className="h-5 w-5 text-muted-foreground" />;
+  return <Circle className="h-5 w-5 text-slate-400" />;
 }
 
 export function OpenClawSceneNav({
@@ -51,11 +52,11 @@ export function OpenClawSceneNav({
   resolveStatus,
 }: OpenClawSceneNavProps) {
   return (
-    <section className="rounded-2xl border bg-card p-4 shadow-sm">
-      <div className="px-2 pb-3">
-        <h2 className="text-sm font-semibold">流程导航</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          建议按顺序完成安装、同步和 Dashboard 打开。
+    <section className={openClawPanelClassName}>
+      <div className="px-1 pb-4">
+        <h2 className="text-sm font-semibold text-slate-900">流程导航</h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">
+          按“安装环境 → 配置模型 → 运行与访问”的顺序推进，避免跳步骤后状态混乱。
         </p>
       </div>
 
@@ -70,8 +71,9 @@ export function OpenClawSceneNav({
               type="button"
               onClick={() => onSelect(scene.id)}
               className={cn(
-                "w-full rounded-xl border p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/40",
-                current && "border-primary bg-primary/5 ring-2 ring-primary/10",
+                "w-full rounded-[22px] border px-4 py-4 text-left transition hover:border-slate-300 hover:bg-slate-50",
+                current &&
+                  "border-slate-300 bg-slate-900 text-white shadow-sm hover:bg-slate-900",
               )}
             >
               <div className="flex items-start gap-3">
@@ -82,18 +84,33 @@ export function OpenClawSceneNav({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold">{scene.title}</div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      <p
+                        className={cn(
+                          "mt-1 text-xs leading-5",
+                          current ? "text-white/70" : "text-slate-500",
+                        )}
+                      >
                         {scene.description}
                       </p>
                     </div>
                     <div
-                      className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] ${statusBadgeClass(status.tone)}`}
+                      className={cn(
+                        "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                        current
+                          ? "border-white/15 bg-white/10 text-white"
+                          : statusBadgeClass(status.tone),
+                      )}
                     >
                       {status.label}
                     </div>
                   </div>
 
-                  <div className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <div
+                    className={cn(
+                      "mt-3 inline-flex items-center gap-1 text-xs",
+                      current ? "text-white/70" : "text-slate-500",
+                    )}
+                  >
                     <span>{current ? "当前步骤" : "切换到此步骤"}</span>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </div>

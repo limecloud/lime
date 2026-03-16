@@ -163,6 +163,8 @@ pub struct CdpTargetInfo {
 pub struct CdpSessionState {
     pub session_id: String,
     pub profile_key: String,
+    pub environment_preset_id: Option<String>,
+    pub environment_preset_name: Option<String>,
     pub target_id: String,
     pub target_title: String,
     pub target_url: String,

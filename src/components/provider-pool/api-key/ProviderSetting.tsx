@@ -33,6 +33,7 @@ import {
   ConnectionTestResult,
 } from "./ConnectionTestButton";
 import { ProviderModelList } from "./ProviderModelList";
+import { getProviderTypeLabel } from "./ProviderConfigForm.utils";
 import type {
   ChatTestResult,
   ProviderWithKeysDisplay,
@@ -221,8 +222,8 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
     },
     {
       label: "协议类型",
-      value: provider.type,
-      hint: provider.is_system ? "系统预设 Provider" : "自定义 Provider",
+      value: getProviderTypeLabel(provider.type),
+      hint: `${provider.type} · ${provider.is_system ? "系统预设 Provider" : "自定义 Provider"}`,
       compact: true,
     },
     {
@@ -284,7 +285,7 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
                     className="text-sm text-muted-foreground"
                     data-testid="provider-type"
                   >
-                    类型: {provider.type}
+                    类型: {getProviderTypeLabel(provider.type)}
                   </p>
                   <p className="break-all text-sm text-muted-foreground">
                     {provider.api_host}

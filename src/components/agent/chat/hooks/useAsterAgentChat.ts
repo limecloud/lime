@@ -163,6 +163,13 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
       return;
     }
 
+    const hasActiveTopic = session.topics.some(
+      (topic) => topic.id === activeSessionId,
+    );
+    if (!hasActiveTopic) {
+      return;
+    }
+
     const snapshot = buildLiveTaskSnapshot({
       messages,
       isSending: stream.isSending,
@@ -176,6 +183,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
     session.sessionId,
     session.messages,
     session.queuedTurns.length,
+    session.topics,
     session.updateTopicSnapshot,
     stream.isSending,
     tools.pendingActions.length,
@@ -228,6 +236,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatOptions) {
     deleteTopic: session.deleteTopic,
     renameTopic: session.renameTopic,
     loadTopics: session.loadTopics,
+    updateTopicSnapshot: session.updateTopicSnapshot,
 
     pendingActions: tools.pendingActions,
     confirmAction: tools.confirmAction,

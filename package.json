@@ -1,7 +1,7 @@
 {
   "name": "proxycast",
   "private": true,
-  "version": "0.87.0",
+  "version": "0.88.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"

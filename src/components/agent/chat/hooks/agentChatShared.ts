@@ -7,6 +7,14 @@ import type { Message, MessageImage, WriteArtifactContext } from "../types";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 
 export type TaskStatus = "draft" | "running" | "waiting" | "done" | "failed";
+export type TaskStatusReason =
+  | "default"
+  | "workspace_error"
+  | "browser_launching"
+  | "browser_awaiting_user"
+  | "browser_failed"
+  | "user_action"
+  | "tool_failure";
 
 export interface Topic {
   id: string;
@@ -16,6 +24,7 @@ export interface Topic {
   messagesCount: number;
   executionStrategy: AsterExecutionStrategy;
   status: TaskStatus;
+  statusReason?: TaskStatusReason;
   lastPreview: string;
   isPinned: boolean;
   hasUnread: boolean;
@@ -76,8 +85,14 @@ export interface LiveTaskSnapshot {
   updatedAt?: Date;
   messagesCount: number;
   status: TaskStatus;
+  statusReason?: TaskStatusReason;
   lastPreview: string;
   hasUnread: boolean;
+}
+
+export interface LiveTaskStatusDescriptor {
+  status: TaskStatus;
+  statusReason: TaskStatusReason;
 }
 
 export type SendMessageFn = (
@@ -136,22 +151,81 @@ function extractToolCallPreview(message: Message): string {
   return `最近执行：${toolName}`;
 }
 
+function extractActionRequestPreview(message: Message): string {
+  const pendingAction = [...(message.actionRequests || [])].reverse().find(
+    (item) => item.status !== "submitted",
+  );
+  if (!pendingAction) {
+    return "";
+  }
+
+  if (pendingAction.uiKind === "browser_preflight") {
+    return normalizeTaskPreviewText(
+      pendingAction.detail ||
+        pendingAction.prompt ||
+        "等待你启动或恢复浏览器后继续执行。",
+    );
+  }
+
+  const questionText = pendingAction.questions
+    ?.map((question) => question.question || question.header || "")
+    .join(" ");
+
+  return normalizeTaskPreviewText(
+    pendingAction.prompt ||
+      questionText ||
+      "等待你确认或补充信息后继续执行。",
+  );
+}
+
+function resolveLatestPendingAction(messages: Message[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const pendingAction = [...(messages[index].actionRequests || [])]
+      .reverse()
+      .find((item) => item.status !== "submitted");
+    if (pendingAction) {
+      return pendingAction;
+    }
+  }
+
+  return null;
+}
+
+function resolvePendingActionStatusReason(
+  pendingAction: NonNullable<ReturnType<typeof resolveLatestPendingAction>>,
+): TaskStatusReason {
+  if (pendingAction.uiKind !== "browser_preflight") {
+    return "user_action";
+  }
+
+  if (pendingAction.browserPrepState === "launching") {
+    return "browser_launching";
+  }
+
+  if (
+    pendingAction.browserPrepState === "awaiting_user" ||
+    pendingAction.browserPrepState === "ready_to_resume"
+  ) {
+    return "browser_awaiting_user";
+  }
+
+  return "browser_failed";
+}
+
 export function extractTaskPreviewFromMessages(messages: Message[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    const textContent = extractMessageTextContent(message);
-    if (textContent) {
-      return textContent;
+    const actionPreview = extractActionRequestPreview(message);
+    if (actionPreview) {
+      return actionPreview;
     }
   }
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    const hasPendingAction = message.actionRequests?.some(
-      (item) => item.status === "pending" || item.status === "queued",
-    );
-    if (hasPendingAction) {
-      return "等待你确认或补充信息后继续执行。";
+    const textContent = extractMessageTextContent(message);
+    if (textContent) {
+      return textContent;
     }
   }
 
@@ -183,6 +257,16 @@ export function deriveTaskStatusFromLiveState(params: {
   queuedTurnCount?: number;
   workspaceError: boolean;
 }): TaskStatus {
+  return deriveTaskLiveState(params).status;
+}
+
+export function deriveTaskLiveState(params: {
+  messages: Message[];
+  isSending: boolean;
+  pendingActionCount: number;
+  queuedTurnCount?: number;
+  workspaceError: boolean;
+}): LiveTaskStatusDescriptor {
   const {
     messages,
     isSending,
@@ -192,24 +276,34 @@ export function deriveTaskStatusFromLiveState(params: {
   } = params;
 
   if (workspaceError) {
-    return "failed";
+    return {
+      status: "failed",
+      statusReason: "workspace_error",
+    };
   }
 
   if (isSending || queuedTurnCount > 0) {
-    return "running";
+    return {
+      status: "running",
+      statusReason: "default",
+    };
   }
 
-  const hasPendingActionInMessages = messages.some((message) =>
-    message.actionRequests?.some(
-      (item) => item.status === "pending" || item.status === "queued",
-    ),
-  );
-  if (pendingActionCount > 0 || hasPendingActionInMessages) {
-    return "waiting";
+  const pendingAction = resolveLatestPendingAction(messages);
+  if (pendingActionCount > 0 || pendingAction) {
+    return {
+      status: "waiting",
+      statusReason: pendingAction
+        ? resolvePendingActionStatusReason(pendingAction)
+        : "user_action",
+    };
   }
 
   if (messages.length === 0) {
-    return "draft";
+    return {
+      status: "draft",
+      statusReason: "default",
+    };
   }
 
   const latestMessage = messages[messages.length - 1];
@@ -217,14 +311,23 @@ export function deriveTaskStatusFromLiveState(params: {
     (item) => item.status === "failed",
   );
   if (latestToolFailed) {
-    return "failed";
+    return {
+      status: "failed",
+      statusReason: "tool_failure",
+    };
   }
 
   if (latestMessage?.role === "user") {
-    return "running";
+    return {
+      status: "running",
+      statusReason: "default",
+    };
   }
 
-  return "done";
+  return {
+    status: "done",
+    statusReason: "default",
+  };
 }
 
 export function buildLiveTaskSnapshot(params: {
@@ -238,17 +341,19 @@ export function buildLiveTaskSnapshot(params: {
     params;
   const lastMessage = messages[messages.length - 1];
   const preview = extractTaskPreviewFromMessages(messages);
+  const taskState = deriveTaskLiveState({
+    messages,
+    isSending,
+    pendingActionCount,
+    queuedTurnCount,
+    workspaceError,
+  });
 
   return {
     updatedAt: lastMessage?.timestamp,
     messagesCount: messages.length,
-    status: deriveTaskStatusFromLiveState({
-      messages,
-      isSending,
-      pendingActionCount,
-      queuedTurnCount,
-      workspaceError,
-    }),
+    status: taskState.status,
+    statusReason: taskState.statusReason,
     lastPreview:
       preview || "等待你补充任务需求后开始执行。",
     hasUnread: false,
@@ -271,6 +376,7 @@ export const mapSessionToTopic = (session: AsterSessionInfo): Topic => {
     messagesCount,
     executionStrategy: normalizeExecutionStrategy(session.execution_strategy),
     status: messagesCount > 0 ? "done" : "draft",
+    statusReason: "default",
     lastPreview:
       messagesCount > 0
         ? `已记录 ${messagesCount} 条消息，可继续补充或复盘。`

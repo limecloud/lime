@@ -642,9 +642,6 @@ pub struct AppState {
     pub kiro_event_service: Arc<KiroEventService>,
     /// API Key Provider 服务（用于智能降级）
     pub api_key_service: Arc<proxycast_services::api_key_provider_service::ApiKeyProviderService>,
-    /// 批量任务执行器
-    pub batch_executor:
-        Arc<tokio::sync::RwLock<Option<handlers::batch_executor::BatchTaskExecutor>>>,
     /// 速率限制器
     pub rate_limiter: Option<Arc<middleware::rate_limit::SlidingWindowRateLimiter>>,
     /// 幂等性存储
@@ -1082,7 +1079,6 @@ async fn run_server(
         provider_models,
         kiro_event_service,
         api_key_service,
-        batch_executor: Arc::new(tokio::sync::RwLock::new(None)),
         rate_limiter: Some(Arc::new(
             middleware::rate_limit::SlidingWindowRateLimiter::new(
                 middleware::rate_limit::RateLimitConfig::default(),
@@ -1094,12 +1090,6 @@ async fn run_server(
         capability_routing_metrics_store,
         sanitizer: Arc::new(proxycast_core::sanitizer::CredentialSanitizer::with_defaults()),
     };
-
-    // 初始化批量任务执行器
-    {
-        let executor = handlers::batch_executor::BatchTaskExecutor::new(state.clone());
-        *state.batch_executor.write().await = Some(executor);
-    }
 
     // ========== 开发模式：通过回调启动桥接服务器 ==========
     if let Some(callback) = dev_bridge_callback {
@@ -1149,23 +1139,6 @@ async fn run_server(
         .route(
             "/v1/credentials/{uuid}/token",
             get(handlers::credentials_get_token),
-        );
-
-    // 批量任务 API 路由
-    let batch_api_routes = Router::new()
-        .route("/api/batch/tasks", post(handlers::create_batch_task))
-        .route("/api/batch/tasks", get(handlers::list_batch_tasks))
-        .route("/api/batch/tasks/:id", get(handlers::get_batch_task))
-        .route(
-            "/api/batch/tasks/:id",
-            axum::routing::delete(handlers::cancel_batch_task),
-        )
-        .route("/api/batch/templates", post(handlers::create_template))
-        .route("/api/batch/templates", get(handlers::list_templates))
-        .route("/api/batch/templates/:id", get(handlers::get_template))
-        .route(
-            "/api/batch/templates/:id",
-            axum::routing::delete(handlers::delete_template),
         );
 
     let allowed_origins = vec![
@@ -1245,8 +1218,6 @@ async fn run_server(
         .merge(kiro_api_routes)
         // 凭证 API 路由（用于 aster Agent 集成）
         .merge(credentials_api_routes)
-        // 批量任务 API 路由
-        .merge(batch_api_routes)
         .layer(cors_layer)
         .layer(DefaultBodyLimit::max(body_limit))
         .layer(TimeoutLayer::with_status_code(

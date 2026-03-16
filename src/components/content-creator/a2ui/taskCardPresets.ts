@@ -30,6 +30,13 @@ export const REVIEW_A2UI_TASK_CARD_PRESET: A2UITaskCardPreset = {
   loadingText: "结构化评审结果加载中...",
 };
 
+export const TIMELINE_A2UI_TASK_CARD_PRESET: A2UITaskCardPreset = {
+  title: "结构化问答预览",
+  subtitle: "当前阶段已整理结构化字段，仅作为回合记录预览展示。",
+  statusLabel: "阶段预览",
+  loadingText: "结构化问答整理中...",
+};
+
 export const WORKSPACE_CREATE_CONFIRMATION_TASK_PRESET: A2UITaskCardPreset = {
   ...DEFAULT_A2UI_TASK_CARD_PRESET,
   subtitle: "请选择一种开始方式，确认后我再继续执行后续创作。",

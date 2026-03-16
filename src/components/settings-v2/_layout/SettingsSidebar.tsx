@@ -35,6 +35,21 @@ const SidebarContainer = styled.aside`
     background: hsl(var(--border));
     border-radius: 2px;
   }
+
+  @media (max-width: 1200px) {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: min(40vh, 360px);
+    border-right: none;
+    border-bottom: 1px solid hsl(var(--border));
+    padding: 12px;
+  }
+
+  @media (max-width: 640px) {
+    max-height: min(44vh, 320px);
+    padding: 10px;
+  }
 `;
 
 const GroupContainer = styled.div`

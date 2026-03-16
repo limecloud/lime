@@ -74,6 +74,13 @@ export interface OpenChromeProfileRequest {
   profile_key: string;
   /** 要打开的 URL */
   url: string;
+  /** 浏览器启动级选项 */
+  launch_options?: ChromeProfileLaunchOptions;
+}
+
+export interface ChromeProfileLaunchOptions {
+  proxy_server?: string;
+  language?: string;
 }
 
 /**
@@ -112,6 +119,91 @@ export interface ChromeProfileSessionInfo {
   pid: number;
   started_at: string;
   last_url: string;
+}
+
+export type BrowserProfileTransportKind = "managed_cdp" | "existing_session";
+
+export interface BrowserProfileRecord {
+  id: string;
+  profile_key: string;
+  name: string;
+  description: string | null;
+  site_scope: string | null;
+  launch_url: string | null;
+  transport_kind: BrowserProfileTransportKind;
+  profile_dir: string;
+  managed_profile_dir: string | null;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+  archived_at: string | null;
+}
+
+export interface SaveBrowserProfileRequest {
+  id?: string;
+  profile_key: string;
+  name: string;
+  description?: string;
+  site_scope?: string;
+  launch_url?: string;
+  transport_kind?: BrowserProfileTransportKind;
+}
+
+export interface BrowserEnvironmentPresetRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  proxy_server: string | null;
+  timezone_id: string | null;
+  locale: string | null;
+  accept_language: string | null;
+  geolocation_lat: number | null;
+  geolocation_lng: number | null;
+  geolocation_accuracy_m: number | null;
+  user_agent: string | null;
+  platform: string | null;
+  viewport_width: number | null;
+  viewport_height: number | null;
+  device_scale_factor: number | null;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+  archived_at: string | null;
+}
+
+export interface SaveBrowserEnvironmentPresetRequest {
+  id?: string;
+  name: string;
+  description?: string;
+  proxy_server?: string;
+  timezone_id?: string;
+  locale?: string;
+  accept_language?: string;
+  geolocation_lat?: number;
+  geolocation_lng?: number;
+  geolocation_accuracy_m?: number;
+  user_agent?: string;
+  platform?: string;
+  viewport_width?: number;
+  viewport_height?: number;
+  device_scale_factor?: number;
+}
+
+export interface BrowserEnvironmentLaunchConfig {
+  preset_id?: string;
+  preset_name?: string;
+  proxy_server?: string;
+  timezone_id?: string;
+  locale?: string;
+  accept_language?: string;
+  geolocation_lat?: number;
+  geolocation_lng?: number;
+  geolocation_accuracy_m?: number;
+  user_agent?: string;
+  platform?: string;
+  viewport_width?: number;
+  viewport_height?: number;
+  device_scale_factor?: number;
 }
 
 export interface ChromeBridgeEndpointInfo {
@@ -181,6 +273,7 @@ export interface ChromeBridgeCommandResult {
   message?: string;
   error?: string;
   page_info?: ChromeBridgePageInfo;
+  data?: unknown;
 }
 
 export type BrowserBackendType =
@@ -237,17 +330,33 @@ export interface BrowserActionResult {
   attempts: BrowserActionAttempt[];
 }
 
-export interface BrowserActionAuditRecord {
+export type BrowserRuntimeAuditKind = "action" | "launch";
+
+export interface BrowserRuntimeAuditRecord {
   id: string;
   created_at: string;
-  action: string;
+  kind: BrowserRuntimeAuditKind;
+  action?: string;
   profile_key?: string;
+  profile_id?: string;
   requested_backend?: BrowserBackendType;
   selected_backend?: BrowserBackendType;
   success: boolean;
   error?: string;
-  attempts: BrowserActionAttempt[];
+  attempts?: BrowserActionAttempt[];
+  environment_preset_id?: string;
+  environment_preset_name?: string;
+  target_id?: string;
+  session_id?: string;
+  url?: string;
+  reused?: boolean;
+  open_window?: boolean;
+  stream_mode?: BrowserStreamMode;
+  browser_source?: string;
+  remote_debugging_port?: number;
 }
+
+export type BrowserActionAuditRecord = BrowserRuntimeAuditRecord;
 
 export interface CdpTargetInfo {
   id: string;
@@ -280,6 +389,8 @@ export type BrowserTransportKind = "cdp_frames";
 export interface CdpSessionState {
   session_id: string;
   profile_key: string;
+  environment_preset_id?: string;
+  environment_preset_name?: string;
   target_id: string;
   target_title: string;
   target_url: string;
@@ -427,18 +538,42 @@ export interface BrowserEventBufferSnapshot {
   next_cursor: number;
 }
 
-export interface LaunchBrowserRuntimeAssistRequest {
-  profile_key: string;
-  url: string;
+export interface LaunchBrowserSessionRequest {
+  profile_id?: string;
+  profile_key?: string;
+  url?: string;
+  environment_preset_id?: string;
+  environment?: BrowserEnvironmentLaunchConfig;
   target_id?: string;
   open_window?: boolean;
   stream_mode?: BrowserStreamMode;
 }
 
-export interface BrowserRuntimeAssistLaunchResponse {
+export interface LaunchBrowserProfileRuntimeAssistRequest {
+  id: string;
+  url?: string;
+  environment_preset_id?: string;
+  target_id?: string;
+  open_window?: boolean;
+  stream_mode?: BrowserStreamMode;
+}
+
+export interface LaunchBrowserRuntimeAssistRequest {
+  profile_key: string;
+  url: string;
+  profile_id?: string;
+  environment?: BrowserEnvironmentLaunchConfig;
+  target_id?: string;
+  open_window?: boolean;
+  stream_mode?: BrowserStreamMode;
+}
+
+export interface BrowserSessionLaunchResponse {
   profile: OpenChromeProfileResponse;
   session: CdpSessionState;
 }
+
+export type BrowserRuntimeAssistLaunchResponse = BrowserSessionLaunchResponse;
 
 export interface UpdateBrowserSessionControlRequest {
   session_id: string;
@@ -485,6 +620,76 @@ export async function closeChromeProfileSession(
 ): Promise<boolean> {
   return safeInvoke<boolean>("close_chrome_profile_session", {
     profileKey,
+  });
+}
+
+export async function listBrowserProfiles(params?: {
+  include_archived?: boolean;
+}): Promise<BrowserProfileRecord[]> {
+  return safeInvoke<BrowserProfileRecord[]>("list_browser_profiles_cmd", {
+    request: {
+      include_archived: params?.include_archived ?? false,
+    },
+  });
+}
+
+export async function saveBrowserProfile(
+  request: SaveBrowserProfileRequest,
+): Promise<BrowserProfileRecord> {
+  return safeInvoke<BrowserProfileRecord>("save_browser_profile_cmd", {
+    request,
+  });
+}
+
+export async function listBrowserEnvironmentPresets(params?: {
+  include_archived?: boolean;
+}): Promise<BrowserEnvironmentPresetRecord[]> {
+  return safeInvoke<BrowserEnvironmentPresetRecord[]>(
+    "list_browser_environment_presets_cmd",
+    {
+      request: {
+        include_archived: params?.include_archived ?? false,
+      },
+    },
+  );
+}
+
+export async function saveBrowserEnvironmentPreset(
+  request: SaveBrowserEnvironmentPresetRequest,
+): Promise<BrowserEnvironmentPresetRecord> {
+  return safeInvoke<BrowserEnvironmentPresetRecord>(
+    "save_browser_environment_preset_cmd",
+    {
+      request,
+    },
+  );
+}
+
+export async function archiveBrowserEnvironmentPreset(
+  id: string,
+): Promise<boolean> {
+  return safeInvoke<boolean>("archive_browser_environment_preset_cmd", {
+    request: { id },
+  });
+}
+
+export async function restoreBrowserEnvironmentPreset(
+  id: string,
+): Promise<boolean> {
+  return safeInvoke<boolean>("restore_browser_environment_preset_cmd", {
+    request: { id },
+  });
+}
+
+export async function archiveBrowserProfile(id: string): Promise<boolean> {
+  return safeInvoke<boolean>("archive_browser_profile_cmd", {
+    request: { id },
+  });
+}
+
+export async function restoreBrowserProfile(id: string): Promise<boolean> {
+  return safeInvoke<boolean>("restore_browser_profile_cmd", {
+    request: { id },
   });
 }
 
@@ -638,13 +843,39 @@ export async function closeBrowserRuntimeDebuggerWindow(): Promise<void> {
   return safeInvoke<void>("close_browser_runtime_debugger_window");
 }
 
+export async function launchBrowserSession(
+  request: LaunchBrowserSessionRequest,
+): Promise<BrowserSessionLaunchResponse> {
+  return safeInvoke<BrowserSessionLaunchResponse>("launch_browser_session", {
+    request,
+  });
+}
+
+export async function launchBrowserProfileRuntimeAssist(
+  request: LaunchBrowserProfileRuntimeAssistRequest,
+): Promise<BrowserRuntimeAssistLaunchResponse> {
+  return launchBrowserSession({
+    profile_id: request.id,
+    url: request.url,
+    environment_preset_id: request.environment_preset_id,
+    target_id: request.target_id,
+    open_window: request.open_window,
+    stream_mode: request.stream_mode,
+  });
+}
+
 export async function launchBrowserRuntimeAssist(
   request: LaunchBrowserRuntimeAssistRequest,
 ): Promise<BrowserRuntimeAssistLaunchResponse> {
-  return safeInvoke<BrowserRuntimeAssistLaunchResponse>(
-    "launch_browser_runtime_assist",
-    { request },
-  );
+  return launchBrowserSession({
+    profile_id: request.profile_id,
+    profile_key: request.profile_key,
+    url: request.url,
+    environment: request.environment,
+    target_id: request.target_id,
+    open_window: request.open_window,
+    stream_mode: request.stream_mode,
+  });
 }
 
 export async function browserExecuteAction(
@@ -653,15 +884,21 @@ export async function browserExecuteAction(
   return safeInvoke<BrowserActionResult>("browser_execute_action", { request });
 }
 
-export async function getBrowserActionAuditLogs(
+export async function getBrowserRuntimeAuditLogs(
   limit?: number,
-): Promise<BrowserActionAuditRecord[]> {
-  return safeInvoke<BrowserActionAuditRecord[]>(
+): Promise<BrowserRuntimeAuditRecord[]> {
+  return safeInvoke<BrowserRuntimeAuditRecord[]>(
     "get_browser_action_audit_logs",
     {
       limit,
     },
   );
+}
+
+export async function getBrowserActionAuditLogs(
+  limit?: number,
+): Promise<BrowserActionAuditRecord[]> {
+  return getBrowserRuntimeAuditLogs(limit);
 }
 
 /**

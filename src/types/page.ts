@@ -71,7 +71,7 @@ export type Page =
   | "style"
   | ThemeWorkspacePage
   | "image-gen"
-  | "batch"
+  | "automation"
   | "resources"
   | "browser-runtime"
   | "tools"
@@ -117,6 +117,7 @@ export type OpenClawSubpage =
   | "installing"
   | "configure"
   | "runtime"
+  | "updating"
   | "restarting"
   | "uninstalling"
   | "dashboard";

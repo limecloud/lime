@@ -41,7 +41,7 @@ pub struct AddCustomProviderRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateProviderRequest {
     pub name: Option<String>,
-    /// Provider 类型（仅自定义 Provider 可修改）
+    /// Provider 类型（系统/自定义 Provider 均可修改）
     #[serde(rename = "type")]
     pub provider_type: Option<String>,
     pub api_host: Option<String>,

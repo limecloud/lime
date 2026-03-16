@@ -71,6 +71,16 @@ export interface OpenClawHealthInfo {
   version?: string | null;
 }
 
+export interface OpenClawUpdateInfo {
+  hasUpdate: boolean;
+  currentVersion?: string | null;
+  latestVersion?: string | null;
+  channel?: string | null;
+  installKind?: string | null;
+  packageManager?: string | null;
+  message?: string | null;
+}
+
 export interface OpenClawChannelInfo {
   id: string;
   name: string;
@@ -146,6 +156,14 @@ export async function openclawCleanupTempArtifacts(): Promise<OpenClawActionResu
   return safeInvoke("openclaw_cleanup_temp_artifacts");
 }
 
+export async function openclawCheckUpdate(): Promise<OpenClawUpdateInfo> {
+  return safeInvoke("openclaw_check_update");
+}
+
+export async function openclawPerformUpdate(): Promise<OpenClawActionResult> {
+  return safeInvoke("openclaw_perform_update");
+}
+
 export async function openclawStartGateway(
   port?: number,
 ): Promise<OpenClawActionResult> {
@@ -209,6 +227,8 @@ export const openclawApi = {
   getCommandPreview: openclawGetCommandPreview,
   uninstall: openclawUninstall,
   cleanupTempArtifacts: openclawCleanupTempArtifacts,
+  checkUpdate: openclawCheckUpdate,
+  performUpdate: openclawPerformUpdate,
   startGateway: openclawStartGateway,
   stopGateway: openclawStopGateway,
   restartGateway: openclawRestartGateway,

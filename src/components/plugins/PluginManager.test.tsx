@@ -20,10 +20,15 @@ const { mockSafeInvoke, mockSafeListen, mockToast } = vi.hoisted(() => ({
     error: vi.fn(),
   },
 }));
+const mockOpenExternal = vi.fn();
 
 vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: (...args: unknown[]) => mockSafeInvoke(...args),
   safeListen: mockSafeListen,
+}));
+
+vi.mock("@tauri-apps/plugin-shell", () => ({
+  open: (...args: unknown[]) => mockOpenExternal(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -51,6 +56,7 @@ const runtimeFilterStorageKey = "proxycast.pluginDiagnostics.filters.v1";
 let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 let clipboardWriteTextMock: ReturnType<typeof vi.fn>;
 let originalClipboard: Clipboard | undefined;
+let originalUserAgent: PropertyDescriptor | undefined;
 
 function changeSelectValue(element: HTMLSelectElement | null, value: string) {
   act(() => {
@@ -136,6 +142,10 @@ describe("PluginManager 任务可观测", () => {
         writeText: clipboardWriteTextMock,
       },
     });
+    originalUserAgent = Object.getOwnPropertyDescriptor(
+      Navigator.prototype,
+      "userAgent",
+    );
     window.localStorage.clear();
     const mockTasks = buildMockTasks();
 
@@ -158,6 +168,7 @@ describe("PluginManager 任务可观测", () => {
                 status: "enabled",
                 path: "/tmp/plugins/demo-plugin",
                 hooks: ["on_request"],
+                min_proxycast_version: null,
                 config_schema: null,
                 config: {
                   enabled: true,
@@ -211,6 +222,15 @@ describe("PluginManager 任务可观测", () => {
               durationMs: 120,
               error: null,
             };
+          case "check_for_updates":
+            return {
+              current: "0.87.0",
+              latest: "0.88.0",
+              hasUpdate: false,
+              downloadUrl:
+                "https://github.com/aiclientproxy/proxycast/releases",
+              error: undefined,
+            };
           default:
             return [];
         }
@@ -225,6 +245,141 @@ describe("PluginManager 任务可观测", () => {
       configurable: true,
       value: originalClipboard,
     });
+    if (originalUserAgent) {
+      Object.defineProperty(
+        Navigator.prototype,
+        "userAgent",
+        originalUserAgent,
+      );
+    }
+  });
+
+  it("仅在 Windows 下展示主程序更新卡片", async () => {
+    Object.defineProperty(Navigator.prototype, "userAgent", {
+      configurable: true,
+      get: () => "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    });
+    mockSafeInvoke.mockImplementation(async (command: string) => {
+      switch (command) {
+        case "check_for_updates":
+          return {
+            current: "0.87.0",
+            latest: "0.88.0",
+            hasUpdate: true,
+            downloadUrl: "https://github.com/aiclientproxy/proxycast/releases",
+            error: undefined,
+          };
+        case "get_plugin_status":
+          return {
+            enabled: true,
+            plugin_count: 0,
+            plugins_dir: "/tmp/plugins",
+          };
+        case "get_plugins":
+        case "list_installed_plugins":
+        case "list_plugin_tasks":
+        case "get_plugin_queue_stats":
+          return [];
+        default:
+          return [];
+      }
+    });
+
+    const onNavigate = vi.fn();
+    const { container } = mountHarness(
+      PluginManager,
+      { onNavigate },
+      mountedRoots,
+    );
+    await flushEffects(8);
+
+    expect(
+      container.querySelector("[data-testid='plugin-windows-update-card']"),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("Windows 主程序更新与安装包");
+    expect(container.textContent).toContain("新版本 0.88.0");
+
+    const aboutButton = container.querySelector(
+      "[data-testid='plugin-windows-update-open-about']",
+    );
+    expect(aboutButton).not.toBeNull();
+    clickElement(aboutButton);
+
+    expect(onNavigate).toHaveBeenCalledWith("settings", { tab: "about" });
+  });
+
+  it("在 Windows 下提示插件要求更高主程序版本", async () => {
+    Object.defineProperty(Navigator.prototype, "userAgent", {
+      configurable: true,
+      get: () => "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    });
+    mockSafeInvoke.mockImplementation(async (command: string) => {
+      switch (command) {
+        case "check_for_updates":
+          return {
+            current: "0.87.0",
+            latest: "0.87.0",
+            hasUpdate: false,
+            downloadUrl: "https://github.com/aiclientproxy/proxycast/releases",
+            error: undefined,
+          };
+        case "get_plugin_status":
+          return {
+            enabled: true,
+            plugin_count: 1,
+            plugins_dir: "/tmp/plugins",
+          };
+        case "get_plugins":
+          return [
+            {
+              name: "compat-plugin",
+              version: "1.2.0",
+              description: "Need newer app",
+              author: "tester",
+              status: "enabled",
+              path: "/tmp/plugins/compat-plugin",
+              hooks: ["on_request"],
+              min_proxycast_version: "0.88.0",
+              config_schema: null,
+              config: {
+                enabled: true,
+                timeout_ms: 5000,
+                settings: {},
+              },
+              state: {
+                name: "compat-plugin",
+                status: "enabled",
+                loaded_at: new Date().toISOString(),
+                last_executed: null,
+                execution_count: 0,
+                error_count: 0,
+                last_error: null,
+              },
+            },
+          ];
+        case "list_installed_plugins":
+        case "list_plugin_tasks":
+        case "get_plugin_queue_stats":
+          return [];
+        default:
+          return [];
+      }
+    });
+
+    const { container } = mountHarness(PluginManager, {}, mountedRoots);
+    await flushEffects(8);
+
+    expect(
+      container.querySelector(
+        "[data-testid='plugin-windows-version-requirement-notice']",
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain(
+      "部分已加载插件要求 ProxyCast >= 0.88.0",
+    );
+    expect(container.textContent).toContain(
+      "当前已加载插件中有 1 个插件要求更高主程序版本",
+    );
   });
 
   it("展示插件任务状态和队列统计", async () => {

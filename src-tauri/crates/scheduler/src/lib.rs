@@ -13,7 +13,6 @@
 //! - 定时任务调度
 //! - 任务状态跟踪
 //! - 失败重试机制
-//! - 批量任务支持
 //!
 //! ## 使用示例
 //!
@@ -44,23 +43,14 @@
 //! # }
 //! ```
 
-pub mod batch;
-pub mod batch_dao;
 pub mod dao;
 pub mod executor;
 pub mod scheduler;
-pub mod template;
 pub mod types;
 
-pub use batch::{
-    BatchOptions, BatchTask, BatchTaskStatistics, BatchTaskStatus, TaskDefinition, TaskResult,
-    TaskStatus as BatchTaskStatus2, TokenUsage,
-};
-pub use batch_dao::{BatchTaskDao, TemplateDao};
 pub use dao::SchedulerDao;
 pub use executor::{AgentExecutor, TaskExecutor};
 pub use scheduler::{AgentScheduler, SchedulerGovernanceConfig, SchedulerTrait};
-pub use template::TaskTemplate;
 pub use types::{
     ScheduledTask, TaskFilter, TaskStatus, DEFAULT_TASK_COOLDOWN_SECS,
     DEFAULT_TASK_FAILURE_THRESHOLD,

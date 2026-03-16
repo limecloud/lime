@@ -3,7 +3,7 @@ use crate::database::DbConnection;
 use crate::services::openclaw_service::{
     openclaw_install_event_name, ActionResult, BinaryAvailabilityStatus, BinaryInstallStatus,
     ChannelInfo, CommandPreview, EnvironmentStatus, GatewayStatusInfo, HealthInfo,
-    InstallProgressEvent, NodeCheckResult, OpenClawServiceState, SyncModelEntry,
+    InstallProgressEvent, NodeCheckResult, OpenClawServiceState, SyncModelEntry, UpdateInfo,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
@@ -107,6 +107,14 @@ pub async fn openclaw_cleanup_temp_artifacts(
 }
 
 #[tauri::command]
+pub async fn openclaw_check_update(
+    service: State<'_, OpenClawServiceState>,
+) -> Result<UpdateInfo, String> {
+    let service = service.0.lock().await;
+    service.check_update().await
+}
+
+#[tauri::command]
 pub async fn openclaw_uninstall(
     app: AppHandle,
     service: State<'_, OpenClawServiceState>,
@@ -114,6 +122,16 @@ pub async fn openclaw_uninstall(
     let mut service = service.0.lock().await;
     service.clear_progress_logs();
     service.uninstall(&app).await
+}
+
+#[tauri::command]
+pub async fn openclaw_perform_update(
+    app: AppHandle,
+    service: State<'_, OpenClawServiceState>,
+) -> Result<ActionResult, String> {
+    let mut service = service.0.lock().await;
+    service.clear_progress_logs();
+    service.perform_update(&app).await
 }
 
 #[tauri::command]

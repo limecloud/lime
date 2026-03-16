@@ -1,6 +1,6 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 
-export type AgentRunSource = "chat" | "skill" | "heartbeat";
+export type AgentRunSource = "chat" | "skill" | "automation";
 
 export type AgentRunStatus =
   | "queued"

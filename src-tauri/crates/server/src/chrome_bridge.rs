@@ -32,6 +32,7 @@ const COMMAND_WHITELIST: &[&str] = &[
     "go_back",
     "go_forward",
     "switch_tab",
+    "list_tabs",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +109,8 @@ pub struct ChromeBridgeCommandResult {
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_info: Option<ChromeBridgePageInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -120,6 +123,8 @@ pub struct ObserverCommandResultPayload {
     pub message: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default)]
+    pub data: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -336,6 +341,7 @@ impl ChromeBridgeHub {
                         message: None,
                         error: Some("observer 通道发送失败，连接可能已断开。".to_string()),
                         page_info: None,
+                        data: None,
                     },
                     None,
                 )
@@ -363,6 +369,7 @@ impl ChromeBridgeHub {
                             message: None,
                             error: Some("等待 Chrome 执行结果超时。".to_string()),
                             page_info: None,
+                            data: None,
                         },
                         None,
                     )
@@ -449,6 +456,7 @@ impl ChromeBridgeHub {
                         message: None,
                         error: Some("observer 通道发送失败，连接可能已断开。".to_string()),
                         page_info: None,
+                        data: None,
                     },
                     None,
                 )
@@ -555,6 +563,7 @@ impl ChromeBridgeHub {
                     message: payload.message.or(Some("命令执行成功".to_string())),
                     error: None,
                     page_info: None,
+                    data: payload.data,
                 }
             } else {
                 ChromeBridgeCommandResult {
@@ -564,6 +573,7 @@ impl ChromeBridgeHub {
                     message: None,
                     error: payload.error.or(Some("命令执行失败".to_string())),
                     page_info: None,
+                    data: payload.data,
                 }
             };
 
@@ -617,6 +627,7 @@ impl ChromeBridgeHub {
                 message: pending_cmd.execution_message.clone(),
                 error: None,
                 page_info: Some(page_info.clone()),
+                data: None,
             };
             self.dispatch_pending_result(pending_cmd, result, Some(true))
                 .await;
@@ -735,6 +746,7 @@ impl ChromeBridgeHub {
                 message: None,
                 error: Some("命令执行超时。".to_string()),
                 page_info: None,
+                data: None,
             };
             self.dispatch_pending_result(pending, result, None).await;
         }
@@ -749,6 +761,7 @@ impl ChromeBridgeHub {
                 message: None,
                 error: Some("observer 已断开连接。".to_string()),
                 page_info: None,
+                data: None,
             };
             self.dispatch_pending_result(pending, result, None).await;
         }
@@ -801,6 +814,7 @@ impl ChromeBridgeHub {
                                 "requestId": result.request_id,
                                 "status": "success",
                                 "message": result.message,
+                                "data": result.data,
                             }
                         }),
                     )
@@ -1018,6 +1032,7 @@ mod tests {
     fn should_validate_command_whitelist() {
         assert!(validate_command("open_url", &Some("https://example.com".to_string())).is_ok());
         assert!(validate_command("click", &None).is_ok());
+        assert!(validate_command("list_tabs", &None).is_ok());
         assert!(validate_command("eval_js", &None).is_err());
     }
 
@@ -1135,5 +1150,77 @@ mod tests {
         let result = result_rx.await.expect("must receive page info result");
         assert!(result.success);
         assert!(result.page_info.is_some());
+    }
+
+    #[tokio::test]
+    async fn observer_command_result_should_preserve_data_payload() {
+        let hub = Arc::new(ChromeBridgeHub::new());
+        let (observer_tx, _observer_rx) = mpsc::unbounded_channel::<String>();
+        hub.register_observer(
+            "observer-a".to_string(),
+            Some("default".to_string()),
+            None,
+            observer_tx,
+        )
+        .await;
+
+        let (result_tx, result_rx) = oneshot::channel();
+        {
+            let mut inner = hub.inner.lock().await;
+            inner.pending_commands.insert(
+                "req-tabs".to_string(),
+                PendingCommand {
+                    request_id: "req-tabs".to_string(),
+                    source: PendingSource::Api(result_tx),
+                    command: "list_tabs".to_string(),
+                    observer_client_id: "observer-a".to_string(),
+                    wait_for_page_info: false,
+                    command_completed: false,
+                    execution_message: None,
+                    created_at: Utc::now(),
+                    expires_at: Instant::now() + Duration::from_secs(30),
+                },
+            );
+        }
+
+        hub.handle_observer_command_result(
+            "observer-a",
+            ObserverCommandResultPayload {
+                request_id: "req-tabs".to_string(),
+                status: "success".to_string(),
+                message: Some("ok".to_string()),
+                error: None,
+                data: Some(json!({
+                    "tabs": [
+                        {
+                            "id": 101,
+                            "index": 0,
+                            "title": "首页",
+                            "url": "https://weibo.com/home",
+                            "active": true,
+                        }
+                    ],
+                })),
+            },
+        )
+        .await;
+
+        let result = result_rx.await.expect("must receive tabs result");
+        assert!(result.success);
+        assert_eq!(result.command, "list_tabs");
+        assert_eq!(
+            result.data,
+            Some(json!({
+                "tabs": [
+                    {
+                        "id": 101,
+                        "index": 0,
+                        "title": "首页",
+                        "url": "https://weibo.com/home",
+                        "active": true,
+                    }
+                ],
+            })),
+        );
     }
 }

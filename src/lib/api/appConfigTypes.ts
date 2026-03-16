@@ -61,11 +61,13 @@ export interface MediaGenerationDefaultsConfig {
 }
 
 export interface ContentCreatorConfig {
+  schema_version?: number;
   enabled_themes: string[];
   media_defaults?: MediaGenerationDefaultsConfig;
 }
 
 export interface NavigationConfig {
+  schema_version?: number;
   enabled_items: string[];
 }
 
@@ -106,21 +108,6 @@ export interface ImageGenConfig {
   auto_download?: boolean;
   image_search_pexels_api_key?: string;
   image_search_pixabay_api_key?: string;
-}
-
-export interface AssistantConfig {
-  default_assistant_id?: string;
-  custom_assistants?: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    model?: string;
-    system_prompt?: string;
-    temperature?: number;
-    max_tokens?: number;
-  }>;
-  auto_select?: boolean;
-  show_suggestions?: boolean;
 }
 
 export interface UserProfile {
@@ -249,7 +236,6 @@ export interface Config {
   memory?: MemoryConfig;
   voice?: VoiceConfig;
   image_gen?: ImageGenConfig;
-  assistant?: AssistantConfig;
   user_profile?: UserProfile;
   gateway?: GatewayConfig;
   channels?: ChannelsConfig;

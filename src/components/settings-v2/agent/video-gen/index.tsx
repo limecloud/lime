@@ -16,6 +16,8 @@ const AUTO_VALUE = "__auto__";
 const DEFAULT_PREFERENCE: MediaGenerationPreference = {
   allowFallback: true,
 };
+const NOTICE_CARD_CLASS =
+  "flex items-start gap-2 rounded-[22px] border border-sky-200/70 bg-sky-50/70 p-4 text-xs leading-6 text-slate-600";
 
 export function VideoGenSettings() {
   const { providers, loading: providersLoading } = useApiKeyProvider();
@@ -154,9 +156,9 @@ export function VideoGenSettings() {
   };
 
   return (
-    <div className="space-y-4 max-w-2xl">
-      <div className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
-        <Film className="mt-0.5 h-4 w-4 flex-shrink-0" />
+    <div className="space-y-5 max-w-[980px]">
+      <div className={NOTICE_CARD_CLASS}>
+        <Film className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
         <p>
           这里配置的是全局默认视频服务。未在项目中单独覆盖时，视频素材与 AI
           视频任务都会优先使用这里的 Provider / 模型。
@@ -210,10 +212,10 @@ export function VideoGenSettings() {
       {message ? (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-lg p-3",
+            "flex items-center gap-2 rounded-[20px] border p-3",
             message.type === "success"
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700",
           )}
         >
           {message.type === "success" ? (

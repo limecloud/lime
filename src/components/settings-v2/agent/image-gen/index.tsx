@@ -103,6 +103,16 @@ const AUTO_VALUE = "__auto__";
 const DEFAULT_MEDIA_PREFERENCE: MediaGenerationPreference = {
   allowFallback: true,
 };
+const PANEL_CARD_CLASS =
+  "rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5";
+const CHOICE_BUTTON_CLASS =
+  "rounded-[18px] border px-3 py-3 text-left text-sm transition";
+const ACTIVE_CHOICE_BUTTON_CLASS =
+  "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-950/10";
+const INACTIVE_CHOICE_BUTTON_CLASS =
+  "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
+const INFO_CARD_CLASS =
+  "flex items-start gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/85 p-4 text-xs leading-6 text-slate-600";
 
 export function ImageGenSettings() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -291,7 +301,14 @@ export function ImageGenSettings() {
   };
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-5 max-w-[980px]">
+      <div className={INFO_CARD_CLASS}>
+        <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+        <p>
+          这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。
+        </p>
+      </div>
+
       <MediaPreferenceSection
         title="全局默认图片服务"
         description="新项目默认继承这里的设置；项目里留空时会继续跟随这里。"
@@ -339,7 +356,7 @@ export function ImageGenSettings() {
       />
 
       {/* 服务商选择 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center gap-2 mb-3">
           <Settings2 className="h-4 w-4 text-muted-foreground" />
           <div>
@@ -357,9 +374,10 @@ export function ImageGenSettings() {
               onClick={() => saveImageConfig("default_service", service.value)}
               className={cn(
                 "px-3 py-2 rounded-lg text-sm font-medium transition-colors border text-left",
+                CHOICE_BUTTON_CLASS,
                 imageConfig.default_service === service.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-muted",
+                  ? ACTIVE_CHOICE_BUTTON_CLASS
+                  : INACTIVE_CHOICE_BUTTON_CLASS,
               )}
             >
               <div className="font-medium">{service.label}</div>
@@ -370,7 +388,7 @@ export function ImageGenSettings() {
       </div>
 
       {/* 默认图像数量 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-muted-foreground" />
@@ -381,7 +399,7 @@ export function ImageGenSettings() {
               </p>
             </div>
           </div>
-          <span className="text-sm font-medium text-primary">
+          <span className="text-sm font-semibold text-slate-900">
             {imageConfig.default_count || 1}
           </span>
         </div>
@@ -392,10 +410,10 @@ export function ImageGenSettings() {
               key={count}
               onClick={() => saveImageConfig("default_count", count)}
               className={cn(
-                "px-3 py-2 rounded-lg text-sm font-medium transition-colors border",
+                CHOICE_BUTTON_CLASS,
                 imageConfig.default_count === count
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-muted",
+                  ? ACTIVE_CHOICE_BUTTON_CLASS
+                  : INACTIVE_CHOICE_BUTTON_CLASS,
               )}
             >
               {count}
@@ -405,7 +423,7 @@ export function ImageGenSettings() {
       </div>
 
       {/* 默认图像尺寸 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-sm font-medium">默认图像尺寸</h3>
@@ -413,7 +431,7 @@ export function ImageGenSettings() {
               选择生成图像的默认尺寸
             </p>
           </div>
-          <span className="text-sm font-medium text-primary">
+          <span className="text-sm font-semibold text-slate-900">
             {imageConfig.default_size || "1024x1024"}
           </span>
         </div>
@@ -424,10 +442,10 @@ export function ImageGenSettings() {
               key={size.value}
               onClick={() => saveImageConfig("default_size", size.value)}
               className={cn(
-                "px-3 py-2 rounded-lg text-sm transition-colors border text-left",
+                CHOICE_BUTTON_CLASS,
                 imageConfig.default_size === size.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-muted",
+                  ? ACTIVE_CHOICE_BUTTON_CLASS
+                  : INACTIVE_CHOICE_BUTTON_CLASS,
               )}
             >
               <div className="font-medium">{size.label}</div>
@@ -438,7 +456,7 @@ export function ImageGenSettings() {
       </div>
 
       {/* 图像质量 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center gap-2 mb-3">
           <Palette className="h-4 w-4 text-muted-foreground" />
           <div>
@@ -455,10 +473,10 @@ export function ImageGenSettings() {
               key={quality.value}
               onClick={() => saveImageConfig("default_quality", quality.value)}
               className={cn(
-                "px-3 py-2 rounded-lg text-sm transition-colors border text-left",
+                CHOICE_BUTTON_CLASS,
                 imageConfig.default_quality === quality.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-muted",
+                  ? ACTIVE_CHOICE_BUTTON_CLASS
+                  : INACTIVE_CHOICE_BUTTON_CLASS,
               )}
             >
               <div className="font-medium">{quality.label}</div>
@@ -469,7 +487,7 @@ export function ImageGenSettings() {
       </div>
 
       {/* 图像风格 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center gap-2 mb-3">
           <Palette className="h-4 w-4 text-muted-foreground" />
           <div>
@@ -486,10 +504,10 @@ export function ImageGenSettings() {
               key={style.value}
               onClick={() => saveImageConfig("default_style", style.value)}
               className={cn(
-                "px-3 py-2 rounded-lg text-sm transition-colors border text-left",
+                CHOICE_BUTTON_CLASS,
                 imageConfig.default_style === style.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "hover:bg-muted",
+                  ? ACTIVE_CHOICE_BUTTON_CLASS
+                  : INACTIVE_CHOICE_BUTTON_CLASS,
               )}
             >
               <div className="font-medium">{style.label}</div>
@@ -500,7 +518,7 @@ export function ImageGenSettings() {
       </div>
 
       {/* 其他选项 */}
-      <div className="rounded-lg border p-3">
+      <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center gap-2 mb-3">
           <Settings2 className="h-4 w-4 text-muted-foreground" />
           <div>
@@ -526,7 +544,7 @@ export function ImageGenSettings() {
                 saveImageConfig("enable_enhancement", e.target.checked)
               }
               disabled={loading}
-              className="w-4 h-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
             />
           </label>
 
@@ -544,15 +562,15 @@ export function ImageGenSettings() {
                 saveImageConfig("auto_download", e.target.checked)
               }
               disabled={loading}
-              className="w-4 h-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
             />
           </label>
         </div>
       </div>
 
       {/* 提示信息 */}
-      <div className="flex items-start gap-2 text-xs text-muted-foreground p-3 bg-muted/30 rounded-lg">
-        <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+      <div className={INFO_CARD_CLASS}>
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
         <p>
           不同的图像生成服务商支持的功能和参数可能不同。某些服务商可能不支持特定的尺寸或质量选项。
           实际生成的效果取决于所选服务商的能力。
@@ -563,10 +581,10 @@ export function ImageGenSettings() {
       {message && (
         <div
           className={cn(
-            "flex items-center gap-2 p-3 rounded-lg",
+            "flex items-center gap-2 rounded-[20px] border p-3",
             message.type === "success"
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700",
           )}
         >
           {message.type === "success" ? (

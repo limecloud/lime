@@ -267,17 +267,66 @@ export const parseProxycastExecutionSummary = (
 
 export const normalizeToolResultMetadata = (
   value: unknown,
-  fallbackText?: string,
+  ...fallbackTexts: Array<string | undefined>
 ): Record<string, unknown> | undefined => {
   const direct = parseToolResultMetadataRecord(value);
-  const fromBlock = extractProxycastToolMetadataBlock(fallbackText).metadata;
-  const fromSummary = parseProxycastExecutionSummary(fallbackText);
+  const fromBlock = fallbackTexts.reduce<Record<string, unknown> | undefined>(
+    (merged, text) => {
+      const metadata = extractProxycastToolMetadataBlock(text).metadata;
+      if (!metadata) return merged;
+      return {
+        ...(merged || {}),
+        ...metadata,
+      };
+    },
+    undefined,
+  );
+  const fromSummary = fallbackTexts.reduce<Record<string, unknown> | undefined>(
+    (merged, text) => {
+      const metadata = parseProxycastExecutionSummary(text);
+      if (!metadata) return merged;
+      return {
+        ...(merged || {}),
+        ...metadata,
+      };
+    },
+    undefined,
+  );
 
   if (!direct && !fromBlock && !fromSummary) return undefined;
   return {
     ...(direct || {}),
     ...(fromBlock || {}),
     ...(fromSummary || {}),
+  };
+};
+
+export const normalizeIncomingToolResult = <
+  T extends {
+    success?: boolean;
+    output?: string;
+    error?: string;
+    images?: unknown;
+    metadata?: unknown;
+  },
+>(
+  result: T | null | undefined,
+): T | undefined => {
+  if (!result) return undefined;
+
+  const normalizedOutput = extractProxycastToolMetadataBlock(result.output);
+  const normalizedError = extractProxycastToolMetadataBlock(result.error);
+
+  return {
+    ...result,
+    output: normalizedOutput.text,
+    error: normalizedError.text || undefined,
+    images: normalizeToolResultImages(result.images, normalizedOutput.text),
+    metadata: normalizeToolResultMetadata(
+      result.metadata,
+      result.output,
+      result.error,
+    ),
   };
 };
 

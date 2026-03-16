@@ -51,6 +51,18 @@ const ALL_CATEGORIES: ImageCategory[] = [
   "other",
 ];
 
+function getMaterialPreviewUrl(material: PosterMaterial): string | null {
+  if (material.metadata?.thumbnail) {
+    return material.metadata.thumbnail;
+  }
+
+  if (material.filePath) {
+    return `asset://localhost/${material.filePath}`;
+  }
+
+  return null;
+}
+
 /**
  * 图片素材库组件
  *
@@ -130,213 +142,291 @@ export function ImageGallery({
 
   if (loading) {
     return (
-      <div className={cn("flex items-center justify-center h-64", className)}>
-        <div className="text-muted-foreground">加载中...</div>
+      <div
+        className={cn(
+          "flex h-full min-h-[18rem] items-center justify-center rounded-[1.5rem] border border-slate-200/80 bg-white/90",
+          className,
+        )}
+      >
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-slate-300" />
+          加载中...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
-      {/* 工具栏 */}
-      <div className="flex items-center gap-2">
-        {/* 搜索框 */}
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="搜索图片..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8"
-          />
-          {searchQuery && (
+    <div className={cn("flex h-full min-h-0 flex-col gap-3", className)}>
+      <div className="flex flex-col gap-3 rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-3 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[14rem] flex-1">
+            <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="搜索图片..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 rounded-xl border-slate-200/80 bg-white pl-9 pr-9 text-sm shadow-sm shadow-slate-950/5 transition focus-visible:ring-sky-100"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                onClick={() => setSearchQuery("")}
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+
+          <div className="inline-flex items-center rounded-xl border border-slate-200/80 bg-slate-50/90 p-1">
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-              onClick={() => setSearchQuery("")}
+              className={cn(
+                "h-8 w-8 rounded-lg text-slate-500",
+                viewMode === "grid"
+                  ? "bg-white text-slate-900 shadow-sm shadow-slate-950/5"
+                  : "hover:bg-white/80 hover:text-slate-900",
+              )}
+              onClick={() => setViewMode("grid")}
             >
-              <XIcon className="h-3 w-3" />
+              <GridIcon className="h-4 w-4" />
             </Button>
-          )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8 rounded-lg text-slate-500",
+                viewMode === "list"
+                  ? "bg-white text-slate-900 shadow-sm shadow-slate-950/5"
+                  : "hover:bg-white/80 hover:text-slate-900",
+              )}
+              onClick={() => setViewMode("list")}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="inline-flex min-h-10 items-center rounded-xl border border-slate-200/80 bg-slate-50/90 px-3 text-xs font-medium text-slate-500">
+            共 {filteredMaterials.length} 张图片
+            {selectedIds.length > 0 && `，已选 ${selectedIds.length} 张`}
+          </div>
         </div>
 
-        {/* 视图切换 */}
-        <div className="flex border rounded-md">
+        <div className="flex flex-wrap gap-2">
           <Button
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="icon"
-            className="h-8 w-8 rounded-r-none"
-            onClick={() => setViewMode("grid")}
-          >
-            <GridIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="icon"
-            className="h-8 w-8 rounded-l-none"
-            onClick={() => setViewMode("list")}
-          >
-            <ListIcon className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* 分类筛选 */}
-      <div className="flex flex-wrap gap-1">
-        <Button
-          variant={!selectedCategory ? "secondary" : "ghost"}
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => handleCategoryFilter(null)}
-        >
-          全部
-        </Button>
-        {ALL_CATEGORIES.map((category) => (
-          <Button
-            key={category}
-            variant={selectedCategory === category ? "secondary" : "ghost"}
+            variant="ghost"
             size="sm"
-            className="h-7 text-xs"
-            onClick={() => handleCategoryFilter(category)}
+            className={cn(
+              "h-8 rounded-full border px-3 text-xs font-medium transition",
+              !selectedCategory
+                ? "border-slate-900/10 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"
+                : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
+            )}
+            onClick={() => handleCategoryFilter(null)}
           >
-            <span className="mr-1">{IMAGE_CATEGORY_ICONS[category]}</span>
-            {IMAGE_CATEGORY_NAMES[category]}
+            全部
           </Button>
-        ))}
+          {ALL_CATEGORIES.map((category) => (
+            <Button
+              key={category}
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-8 rounded-full border px-3 text-xs font-medium transition",
+                selectedCategory === category
+                  ? "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800"
+                  : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
+              )}
+              onClick={() => handleCategoryFilter(category)}
+            >
+              <span className="mr-1">{IMAGE_CATEGORY_ICONS[category]}</span>
+              {IMAGE_CATEGORY_NAMES[category]}
+            </Button>
+          ))}
+        </div>
       </div>
 
-      {/* 素材列表 */}
-      <ScrollArea style={{ maxHeight }} className="rounded-md border">
+      <ScrollArea
+        style={{ maxHeight }}
+        className="flex-1 min-h-0 rounded-[1.5rem] border border-slate-200/80 bg-white/92 shadow-sm shadow-slate-950/5"
+      >
         {filteredMaterials.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <ImageIcon className="h-10 w-10 mb-3 opacity-50" />
-            <p className="text-sm">暂无图片素材</p>
+          <div className="flex min-h-[22rem] flex-col items-center justify-center gap-4 px-6 py-12 text-center text-slate-500">
+            <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-sky-50 to-slate-100 text-sky-700">
+              <ImageIcon className="h-10 w-10 opacity-80" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-lg font-semibold text-slate-900">
+                暂无图片素材
+              </p>
+              <p className="text-sm">
+                可以先从图片搜索或本地上传添加素材，再回到这里筛选和插入。
+              </p>
+            </div>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-3 gap-2 p-2">
-            {filteredMaterials.map((material) => (
-              <div
-                key={material.id}
-                className={cn(
-                  "relative aspect-square rounded-md overflow-hidden cursor-pointer border-2 transition-all",
-                  isSelected(material.id)
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "border-transparent hover:border-muted-foreground/30",
-                )}
-                onClick={() => handleSelect(material)}
-                onDoubleClick={() => onDoubleClick?.(material)}
-              >
-                {/* 缩略图或占位符 */}
-                {material.metadata?.thumbnail ? (
-                  <img
-                    src={material.metadata.thumbnail}
-                    alt={material.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : material.filePath ? (
-                  <img
-                    src={`asset://localhost/${material.filePath}`}
-                    alt={material.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
-                )}
-
-                {/* 选中标记 */}
-                {isSelected(material.id) && (
-                  <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
-                    <CheckIcon className="h-3 w-3" />
-                  </div>
-                )}
-
-                {/* 分类标签 */}
-                {material.metadata?.imageCategory && (
-                  <div className="absolute bottom-1 left-1">
-                    <Badge
-                      variant="secondary"
-                      className="text-[10px] px-1 py-0 bg-background/80"
-                    >
-                      {
-                        IMAGE_CATEGORY_ICONS[
-                          material.metadata.imageCategory as ImageCategory
-                        ]
-                      }
-                    </Badge>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="divide-y">
-            {filteredMaterials.map((material) => (
-              <div
-                key={material.id}
-                className={cn(
-                  "flex items-center gap-3 p-2 cursor-pointer transition-colors",
-                  isSelected(material.id)
-                    ? "bg-primary/10"
-                    : "hover:bg-muted/50",
-                )}
-                onClick={() => handleSelect(material)}
-                onDoubleClick={() => onDoubleClick?.(material)}
-              >
-                {/* 缩略图 */}
-                <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-                  {material.metadata?.thumbnail ? (
+          <div
+            className="grid gap-3 p-3"
+            style={{
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            }}
+          >
+            {filteredMaterials.map((material) => {
+              const previewUrl = getMaterialPreviewUrl(material);
+              return (
+                <div
+                  key={material.id}
+                  className={cn(
+                    "group relative aspect-square cursor-pointer overflow-hidden rounded-[1.25rem] border bg-slate-50 shadow-sm shadow-slate-950/5 transition-all",
+                    isSelected(material.id)
+                      ? "border-slate-900/15 ring-2 ring-slate-900/10"
+                      : "border-slate-200/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-950/10",
+                  )}
+                  onClick={() => handleSelect(material)}
+                  onDoubleClick={() => onDoubleClick?.(material)}
+                >
+                  {previewUrl ? (
                     <img
-                      src={material.metadata.thumbnail}
+                      src={previewUrl}
                       alt={material.name}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                     />
                   ) : (
-                    <div className="w-full h-full bg-muted flex items-center justify-center">
-                      <ImageIcon className="h-5 w-5 text-muted-foreground/50" />
+                    <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
+                      <ImageIcon className="h-9 w-9" />
                     </div>
                   )}
-                </div>
 
-                {/* 信息 */}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">
-                    {material.name}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/78 via-slate-950/42 to-transparent p-3 text-white">
+                    <div className="truncate text-sm font-semibold">
+                      {material.name}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-white/72">
+                      {material.metadata?.width &&
+                        material.metadata?.height && (
+                          <span>
+                            {material.metadata.width}×{material.metadata.height}
+                          </span>
+                        )}
+                      {material.metadata?.imageCategory && (
+                        <span>
+                          {
+                            IMAGE_CATEGORY_NAMES[
+                              material.metadata.imageCategory as ImageCategory
+                            ]
+                          }
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {material.metadata?.imageCategory && (
-                      <span>
+
+                  {material.metadata?.imageCategory && (
+                    <div className="absolute left-2 top-2">
+                      <Badge className="rounded-full border border-white/60 bg-white/88 px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm">
+                        <span className="mr-1">
+                          {
+                            IMAGE_CATEGORY_ICONS[
+                              material.metadata.imageCategory as ImageCategory
+                            ]
+                          }
+                        </span>
                         {
                           IMAGE_CATEGORY_NAMES[
                             material.metadata.imageCategory as ImageCategory
                           ]
                         }
-                      </span>
-                    )}
-                    {material.metadata?.width && material.metadata?.height && (
-                      <span>
-                        {material.metadata.width}×{material.metadata.height}
-                      </span>
+                      </Badge>
+                    </div>
+                  )}
+
+                  {isSelected(material.id) && (
+                    <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm">
+                      <CheckIcon className="h-3.5 w-3.5" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-200/80 p-2">
+            {filteredMaterials.map((material) => {
+              const previewUrl = getMaterialPreviewUrl(material);
+              return (
+                <div
+                  key={material.id}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 rounded-[1rem] px-3 py-2.5 transition-colors",
+                    isSelected(material.id)
+                      ? "bg-slate-900/[0.04]"
+                      : "hover:bg-slate-50",
+                  )}
+                  onClick={() => handleSelect(material)}
+                  onDoubleClick={() => onDoubleClick?.(material)}
+                >
+                  <div className="h-14 w-14 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100 shadow-sm">
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt={material.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-slate-400">
+                        <ImageIcon className="h-5 w-5" />
+                      </div>
                     )}
                   </div>
-                </div>
 
-                {/* 选中标记 */}
-                {isSelected(material.id) && (
-                  <CheckIcon className="h-4 w-4 text-primary flex-shrink-0" />
-                )}
-              </div>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-900">
+                      {material.name}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      {material.metadata?.imageCategory && (
+                        <span>
+                          {
+                            IMAGE_CATEGORY_NAMES[
+                              material.metadata.imageCategory as ImageCategory
+                            ]
+                          }
+                        </span>
+                      )}
+                      {material.metadata?.width &&
+                        material.metadata?.height && (
+                          <span>
+                            {material.metadata.width}×{material.metadata.height}
+                          </span>
+                        )}
+                      {material.tags.length > 0 && (
+                        <span className="truncate">
+                          {material.tags.slice(0, 2).join(" / ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {isSelected(material.id) && (
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm">
+                      <CheckIcon className="h-3.5 w-3.5" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </ScrollArea>
 
-      {/* 统计信息 */}
-      <div className="text-xs text-muted-foreground">
-        共 {filteredMaterials.length} 张图片
-        {selectedIds.length > 0 && `，已选 ${selectedIds.length} 张`}
+      <div className="flex items-center justify-between gap-3 px-1 text-xs text-slate-500">
+        <span>双击图片可直接插入当前画布</span>
+        <span>
+          共 {filteredMaterials.length} 张图片
+          {selectedIds.length > 0 && `，已选 ${selectedIds.length} 张`}
+        </span>
       </div>
     </div>
   );

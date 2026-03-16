@@ -4,8 +4,10 @@
  * @module components/image-gen/ImageGenPage
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
+import { ChevronDown } from "lucide-react";
+import { CanvasBreadcrumbHeader } from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
 import { useProjects } from "@/hooks/useProjects";
 import {
   getStoredResourceProjectId,
@@ -14,130 +16,189 @@ import {
 } from "@/lib/resourceProjectSelection";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import type { Page, PageParams } from "@/types/page";
-import { ChevronDown } from "lucide-react";
-import { CanvasBreadcrumbHeader } from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
-
-type PageNavigate = (page: Page, params?: PageParams) => void;
 import { AiImageGenTab } from "./tabs/AiImageGenTab";
 import { ImageSearchTab } from "./tabs/ImageSearchTab";
 import { LocalImageTab } from "./tabs/LocalImageTab";
 import { MyGalleryTab } from "./tabs/MyGalleryTab";
 
+type PageNavigate = (page: Page, params?: PageParams) => void;
+
 interface ImageGenPageProps {
   onNavigate?: PageNavigate;
 }
 
-// ==================== Styled Components ====================
-
 const PageLayout = styled.div`
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: hsl(var(--background));
+  overflow: hidden;
+  background: linear-gradient(180deg, hsl(210 40% 98%) 0%, hsl(0 0% 100%) 100%);
+`;
+
+const PageChrome = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 0;
+  flex-shrink: 0;
+
+  @media (max-width: 960px) {
+    padding: 8px 8px 0;
+  }
 `;
 
 const HeaderBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px 6px;
-  background: hsl(var(--background));
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 18px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: hsl(var(--background) / 0.82);
+  box-shadow:
+    0 12px 28px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.74);
+  backdrop-filter: blur(16px);
+
+  @media (max-width: 960px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+`;
+
+const HeaderLead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+
+  @media (max-width: 960px) {
+    width: 100%;
+  }
 `;
 
 const ProjectSelectorWrapper = styled.div`
   position: relative;
   display: inline-flex;
   align-items: center;
+  min-width: 180px;
+
+  @media (max-width: 960px) {
+    width: 100%;
+  }
 `;
 
 const ProjectSelector = styled.select`
   appearance: none;
-  padding: 6px 32px 6px 14px;
+  width: 100%;
+  height: 36px;
+  padding: 0 34px 0 12px;
   border: 1px solid hsl(var(--border));
-  border-radius: 10px;
-  background: hsl(var(--card) / 0.6);
-  font-size: 13px;
+  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)),
+    hsl(var(--muted) / 0.12)
+  );
+  font-size: 12px;
+  font-weight: 600;
   color: hsl(var(--foreground));
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    border-color: hsl(var(--primary) / 0.5);
-    background: hsl(var(--card) / 0.9);
+    border-color: hsl(214 68% 38% / 0.32);
+    transform: translateY(-1px);
   }
 
   &:focus {
     outline: none;
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+    border-color: hsl(214 68% 38% / 0.34);
+    box-shadow: 0 0 0 4px hsl(211 100% 96%);
   }
 `;
 
 const SelectorIcon = styled.div`
   position: absolute;
-  right: 10px;
+  right: 12px;
   pointer-events: none;
   color: hsl(var(--muted-foreground));
 `;
 
 const MainContainer = styled.div`
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: hsl(var(--background));
+  padding: 0 10px 10px;
+
+  @media (max-width: 960px) {
+    padding: 0 8px 8px;
+  }
 `;
 
 const TabsBar = styled.div`
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 0 20px;
-  background: hsl(var(--background));
-  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: hsl(var(--muted) / 0.18);
+  overflow-x: auto;
 `;
 
-const slideIn = keyframes`
+const pulseIn = keyframes`
   from {
-    transform: scaleX(0);
+    opacity: 0.4;
+    transform: scale(0.96);
   }
+
   to {
-    transform: scaleX(1);
+    opacity: 1;
+    transform: scale(1);
   }
 `;
 
 const TabButton = styled.button<{ $active: boolean }>`
   position: relative;
-  padding: 12px 24px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  font-weight: ${({ $active }) => ($active ? 600 : 400)};
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid
+    ${({ $active }) => ($active ? "hsl(214 68% 38% / 0.18)" : "transparent")};
+  border-radius: 10px;
+  background: ${({ $active }) =>
+    $active
+      ? "linear-gradient(180deg, hsl(var(--background)), hsl(203 100% 97%))"
+      : "transparent"};
+  font-size: 13px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
   color: ${({ $active }) =>
-    $active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"};
+    $active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
   cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+  animation: ${({ $active }) => ($active ? pulseIn : "none")} 0.24s ease;
 
   &:hover {
-    color: ${({ $active }) =>
-    $active ? "hsl(var(--primary))" : "hsl(var(--foreground))"};
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    bottom: -1px;
-    left: 12px;
-    right: 12px;
-    height: 2px;
-    border-radius: 2px 2px 0 0;
-    background: ${({ $active }) =>
-    $active ? "hsl(var(--primary))" : "transparent"};
-    transition: background 0.2s ease;
-    animation: ${({ $active }) => ($active ? slideIn : "none")} 0.25s ease;
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted) / 0.18);
   }
 `;
 
@@ -145,9 +206,15 @@ const TabContent = styled.div`
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  margin-top: 8px;
+  border-radius: 22px;
+  border: 1px solid hsl(var(--border) / 0.72);
+  background: hsl(var(--background) / 0.52);
+  box-shadow:
+    0 12px 30px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.64);
+  backdrop-filter: blur(10px);
 `;
-
-// ==================== Component ====================
 
 const TABS = [
   { key: "ai-gen", label: "AI生图" },
@@ -158,7 +225,9 @@ const TABS = [
 
 export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
   const [activeTab, setActiveTab] = useState("ai-gen");
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null,
+  );
 
   const { projects, defaultProject, loading: projectsLoading } = useProjects();
 
@@ -166,26 +235,27 @@ export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
     onNavigate?.("agent", buildHomeAgentParams());
   };
 
-  // 可用项目列表（排除已归档）
   const availableProjects = useMemo(
     () => projects.filter((project) => !project.isArchived),
     [projects],
   );
 
-  // 初始化项目 ID
   useEffect(() => {
     if (projectsLoading) {
       return;
     }
 
     setSelectedProjectId((current) => {
-      // 如果当前值有效，保持不变
-      if (current && availableProjects.some((project) => project.id === current)) {
+      if (
+        current &&
+        availableProjects.some((project) => project.id === current)
+      ) {
         return current;
       }
 
-      // 从存储中获取
-      const storedProjectId = getStoredResourceProjectId({ includeLegacy: true });
+      const storedProjectId = getStoredResourceProjectId({
+        includeLegacy: true,
+      });
       if (
         storedProjectId &&
         availableProjects.some((project) => project.id === storedProjectId)
@@ -193,16 +263,15 @@ export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
         return storedProjectId;
       }
 
-      // 使用默认项目
       const preferredProject =
-        (defaultProject && !defaultProject.isArchived ? defaultProject : null) ??
-        availableProjects[0];
+        (defaultProject && !defaultProject.isArchived
+          ? defaultProject
+          : null) ?? availableProjects[0];
 
       return preferredProject?.id || null;
     });
   }, [projectsLoading, availableProjects, defaultProject]);
 
-  // 同步项目 ID 到存储
   useEffect(() => {
     if (selectedProjectId) {
       setStoredResourceProjectId(selectedProjectId, {
@@ -213,7 +282,6 @@ export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
     }
   }, [selectedProjectId]);
 
-  // 监听项目变更事件
   useEffect(() => {
     return onResourceProjectChange((detail) => {
       if (detail.source !== "resources") {
@@ -235,40 +303,43 @@ export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
 
   return (
     <PageLayout>
-      <HeaderBar>
-        <CanvasBreadcrumbHeader label="插图" onBackHome={handleBackHome} />
-        <ProjectSelectorWrapper>
-          <ProjectSelector
-            value={selectedProjectId || ""}
-            onChange={(e) => setSelectedProjectId(e.target.value || null)}
-            disabled={projectsLoading}
-          >
-            <option value="">选择项目</option>
-            {availableProjects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </ProjectSelector>
-          <SelectorIcon>
-            <ChevronDown size={14} />
-          </SelectorIcon>
-        </ProjectSelectorWrapper>
-      </HeaderBar>
+      <PageChrome>
+        <HeaderBar>
+          <HeaderLead>
+            <CanvasBreadcrumbHeader label="插图" onBackHome={handleBackHome} />
+            <TabsBar>
+              {TABS.map((tab) => (
+                <TabButton
+                  key={tab.key}
+                  $active={activeTab === tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                </TabButton>
+              ))}
+            </TabsBar>
+          </HeaderLead>
+          <ProjectSelectorWrapper>
+            <ProjectSelector
+              value={selectedProjectId || ""}
+              onChange={(e) => setSelectedProjectId(e.target.value || null)}
+              disabled={projectsLoading}
+            >
+              <option value="">选择项目</option>
+              {availableProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </ProjectSelector>
+            <SelectorIcon>
+              <ChevronDown size={14} />
+            </SelectorIcon>
+          </ProjectSelectorWrapper>
+        </HeaderBar>
+      </PageChrome>
 
       <MainContainer>
-        <TabsBar>
-          {TABS.map((tab) => (
-            <TabButton
-              key={tab.key}
-              $active={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-            </TabButton>
-          ))}
-        </TabsBar>
-
         <TabContent>
           {activeTab === "search" && (
             <ImageSearchTab
@@ -277,7 +348,10 @@ export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
             />
           )}
           {activeTab === "ai-gen" && (
-            <AiImageGenTab projectId={selectedProjectId} onNavigate={onNavigate} />
+            <AiImageGenTab
+              projectId={selectedProjectId}
+              onNavigate={onNavigate}
+            />
           )}
           {activeTab === "local" && (
             <LocalImageTab projectId={selectedProjectId} />

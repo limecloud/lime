@@ -70,6 +70,27 @@ const importSurfaceMonitors = [
     targets: ["src/lib/api/agentCompat.ts"],
     allowedPaths: [],
   },
+  {
+    id: "heartbeat-api-gateway",
+    classification: "deprecated",
+    description: "旧 heartbeat 前端 API 入口",
+    targets: ["src/lib/api/heartbeat.ts"],
+    allowedPaths: [],
+  },
+  {
+    id: "heartbeat-settings-page-entry",
+    classification: "deprecated",
+    description: "旧 heartbeat 设置页入口",
+    targets: ["src/components/settings-v2/system/heartbeat/index.tsx"],
+    allowedPaths: [],
+  },
+  {
+    id: "assistant-settings-page-entry",
+    classification: "deprecated",
+    description: "旧助理服务设置页入口",
+    targets: ["src/components/settings-v2/agent/assistant/index.tsx"],
+    allowedPaths: [],
+  },
 ];
 
 const commandSurfaceMonitors = [
@@ -114,6 +135,50 @@ const commandSurfaceMonitors = [
       "get_legacy_api_key_credentials",
       "migrate_legacy_api_key_credentials",
       "delete_legacy_api_key_credential",
+    ],
+    allowedPaths: [],
+  },
+  {
+    id: "heartbeat-legacy-commands",
+    classification: "deprecated",
+    description: "旧 heartbeat 命令前端边界",
+    commands: [
+      "get_heartbeat_config",
+      "update_heartbeat_config",
+      "get_heartbeat_status",
+      "get_heartbeat_tasks",
+      "add_heartbeat_task",
+      "delete_heartbeat_task",
+      "update_heartbeat_task",
+      "get_heartbeat_history",
+      "get_heartbeat_execution_detail",
+      "get_heartbeat_task_health",
+      "deliver_heartbeat_task_health_alerts",
+      "trigger_heartbeat_now",
+      "get_task_templates",
+      "apply_task_template",
+      "generate_content_creator_tasks",
+      "preview_heartbeat_schedule",
+      "validate_heartbeat_schedule",
+    ],
+    allowedPaths: [],
+  },
+];
+
+const frontendTextSurfaceMonitors = [
+  {
+    id: "frontend-assistant-settings-surfaces",
+    classification: "deprecated",
+    description: "前端助理服务设置页与配置面回流",
+    patterns: [
+      "SettingsTabs.Assistant",
+      "settings.tab.assistant",
+      "AssistantSettings",
+      "AssistantConfig",
+      "default_assistant_id",
+      "custom_assistants",
+      "show_suggestions",
+      "auto_select",
     ],
     allowedPaths: [],
   },
@@ -235,6 +300,38 @@ const rustTextSurfaceMonitors = [
       "proxycast_lib::services::request_tool_policy_prompt_service::",
       "services::request_tool_policy_prompt_service::",
     ],
+    allowedPaths: [],
+  },
+  {
+    id: "rust-heartbeat-business-surfaces",
+    classification: "deprecated",
+    description: "Rust 业务层 heartbeat 旧实现回流",
+    patterns: [
+      "crate::services::heartbeat_service::",
+      "services::heartbeat_service::",
+      "HeartbeatServiceState",
+      "heartbeat_service_adapter",
+      "proxycast_core::database::dao::heartbeat",
+      "heartbeat_tool",
+      "RunSource::Heartbeat",
+      "source = 'heartbeat'",
+      "source: \"heartbeat\".to_string()",
+    ],
+    allowedPaths: [],
+  },
+  {
+    id: "rust-assistant-config-surfaces",
+    classification: "deprecated",
+    description: "Rust 助理服务配置面回流",
+    patterns: [
+      "AssistantConfig",
+      "AssistantProfile",
+      "default_assistant_id",
+      "custom_assistants",
+      "show_suggestions",
+      "auto_select",
+    ],
+    includePathPrefixes: ["src-tauri/crates/core/src/config", "src-tauri/src/config"],
     allowedPaths: [],
   },
   {
@@ -935,6 +1032,8 @@ function printTextCountReport(result) {
 }
 
 const { runtimeSources, testSources } = collectSources();
+const { runtimeSources: frontendRuntimeTextSources, testSources: frontendTestTextSources } =
+  collectTextSources(sourceRoots, sourceExtensions);
 const { runtimeSources: rustRuntimeSources, testSources: rustTestSources } =
   collectTextSources(rustSourceRoots, rustSourceExtensions);
 const importResults = importSurfaceMonitors.map((monitor) =>
@@ -942,6 +1041,9 @@ const importResults = importSurfaceMonitors.map((monitor) =>
 );
 const commandResults = commandSurfaceMonitors.map((monitor) =>
   evaluateCommandMonitor(monitor, runtimeSources, testSources),
+);
+const frontendTextResults = frontendTextSurfaceMonitors.map((monitor) =>
+  evaluateTextMonitor(monitor, frontendRuntimeTextSources, frontendTestTextSources),
 );
 const rustTextResults = rustTextSurfaceMonitors.map((monitor) =>
   evaluateTextMonitor(monitor, rustRuntimeSources, rustTestSources),
@@ -963,6 +1065,9 @@ const violations = [
   ...commandResults.flatMap((result) =>
     result.violations.map((item) => `${result.id} -> ${item}`),
   ),
+  ...frontendTextResults.flatMap((result) =>
+    result.violations.map((item) => `${result.id} -> ${item}`),
+  ),
   ...rustTextResults.flatMap((result) =>
     result.violations.map((item) => `${result.id} -> ${item}`),
   ),
@@ -982,6 +1087,12 @@ console.log("");
 console.log("## 命令边界");
 for (const result of commandResults) {
   printCommandReport(result);
+}
+
+console.log("");
+console.log("## 前端护栏");
+for (const result of frontendTextResults) {
+  printTextReport(result);
 }
 
 console.log("");

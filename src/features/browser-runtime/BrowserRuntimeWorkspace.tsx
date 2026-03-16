@@ -4,7 +4,11 @@ import {
   getChromeProfileSessions,
   type ChromeProfileSessionInfo,
 } from "@/lib/webview-api";
+import { BrowserEnvironmentPresetManager } from "./BrowserEnvironmentPresetManager";
+import { BrowserProfileManager } from "./BrowserProfileManager";
 import { BrowserRuntimeDebugPanel } from "./BrowserRuntimeDebugPanel";
+import type { BrowserEnvironmentPresetRecord } from "./api";
+import { getExistingSessionBridgeStatus } from "./existingSessionBridgeClient";
 
 const MESSAGE_AUTO_HIDE_MS = 3000;
 const MESSAGE_DISMISS_SUPPRESS_MS = 12000;
@@ -38,8 +42,15 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
   } = props;
   const shouldActivate = standalone || embedded || active;
   const [sessions, setSessions] = useState<ChromeProfileSessionInfo[]>([]);
+  const [attachObserverCount, setAttachObserverCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<RuntimeMessage | null>(null);
+  const [preferredProfileKey, setPreferredProfileKey] = useState<string>("");
+  const [launchEnvironmentPresetId, setLaunchEnvironmentPresetId] =
+    useState<string>("");
+  const [environmentPresets, setEnvironmentPresets] = useState<
+    BrowserEnvironmentPresetRecord[]
+  >([]);
   const messageRef = useRef<RuntimeMessage | null>(null);
   const dismissedMessageRef = useRef<{
     key: string;
@@ -63,10 +74,7 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
     }
 
     const currentMessage = messageRef.current;
-    if (
-      currentMessage &&
-      createMessageKey(currentMessage) === nextMessageKey
-    ) {
+    if (currentMessage && createMessageKey(currentMessage) === nextMessageKey) {
       return;
     }
 
@@ -86,26 +94,33 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
     setMessage(null);
   }, []);
 
-  const refreshSessions = useCallback(async (silent = false) => {
-    if (!silent) {
-      setRefreshing(true);
-    }
-    try {
-      const next = await getChromeProfileSessions();
-      setSessions(next);
-    } catch (error) {
-      showMessage({
-        type: "error",
-        text: `刷新浏览器会话失败: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      });
-    } finally {
+  const refreshSessions = useCallback(
+    async (silent = false) => {
       if (!silent) {
-        setRefreshing(false);
+        setRefreshing(true);
       }
-    }
-  }, [showMessage]);
+      try {
+        const [nextSessions, nextBridgeStatus] = await Promise.all([
+          getChromeProfileSessions(),
+          getExistingSessionBridgeStatus(),
+        ]);
+        setSessions(nextSessions);
+        setAttachObserverCount(nextBridgeStatus?.observer_count ?? 0);
+      } catch (error) {
+        showMessage({
+          type: "error",
+          text: `刷新浏览器会话失败: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      } finally {
+        if (!silent) {
+          setRefreshing(false);
+        }
+      }
+    },
+    [showMessage],
+  );
 
   useEffect(() => {
     if (!shouldActivate) {
@@ -129,9 +144,23 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
 
   useEffect(() => {
     if (!message) return;
-    const timer = window.setTimeout(() => setMessage(null), MESSAGE_AUTO_HIDE_MS);
+    const timer = window.setTimeout(
+      () => setMessage(null),
+      MESSAGE_AUTO_HIDE_MS,
+    );
     return () => window.clearTimeout(timer);
   }, [message]);
+
+  useEffect(() => {
+    if (
+      launchEnvironmentPresetId &&
+      !environmentPresets.some(
+        (preset) => preset.id === launchEnvironmentPresetId,
+      )
+    ) {
+      setLaunchEnvironmentPresetId("");
+    }
+  }, [environmentPresets, launchEnvironmentPresetId]);
 
   if (!shouldActivate) {
     return null;
@@ -184,7 +213,19 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
               {sessions.length}
             </span>
             个
+            <span className="ml-4">
+              当前附着 Chrome：
+              <span className="ml-1 font-medium text-foreground">
+                {attachObserverCount}
+              </span>
+              个
+            </span>
           </div>
+          {attachObserverCount > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              附着当前 Chrome 复用的是你正在使用的浏览器页面，不会额外创建独立实时会话。
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -205,12 +246,39 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
         </div>
       ) : null}
 
+      {!embedded ? (
+        <BrowserProfileManager
+          onMessage={showMessage}
+          onProfileLaunched={(profileKey) => {
+            setPreferredProfileKey(profileKey);
+            void refreshSessions(true);
+          }}
+          launchEnvironmentPresetId={launchEnvironmentPresetId}
+          launchEnvironmentPresetOptions={environmentPresets}
+          onLaunchEnvironmentPresetChange={setLaunchEnvironmentPresetId}
+        />
+      ) : null}
+
+      {!embedded ? (
+        <BrowserEnvironmentPresetManager
+          onMessage={showMessage}
+          selectedPresetId={launchEnvironmentPresetId}
+          onSelectedPresetChange={setLaunchEnvironmentPresetId}
+          onPresetsChanged={setEnvironmentPresets}
+        />
+      ) : null}
+
       <div className={embedded ? "min-h-0 flex-1" : undefined}>
         <BrowserRuntimeDebugPanel
+          key={
+            preferredProfileKey || initialProfileKey || initialSessionId
+              ? `browser-runtime:${preferredProfileKey || initialProfileKey || initialSessionId}`
+              : "browser-runtime:default"
+          }
           sessions={sessions}
           onMessage={showMessage}
           showStandaloneWindowButton={!standalone}
-          initialProfileKey={initialProfileKey}
+          initialProfileKey={preferredProfileKey || initialProfileKey}
           initialSessionId={initialSessionId}
           initialTargetId={initialTargetId}
           embedded={embedded}

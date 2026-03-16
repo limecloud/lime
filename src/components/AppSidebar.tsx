@@ -7,17 +7,10 @@
 import { useState, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import {
-  Plus,
   Image,
-  Compass,
-  Settings,
   Moon,
   Sun,
   Search,
-  Library,
-  Wrench,
-  BrainCircuit,
-  Palette,
   PenTool,
   Video,
   Music,
@@ -27,10 +20,6 @@ import {
   FileType,
   ChevronDown,
   Activity,
-  Layers,
-  Terminal,
-  Bot,
-  MessageSquare,
   LucideIcon,
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
@@ -39,7 +28,6 @@ import {
   AgentPageParams,
   getThemeWorkspacePage,
   LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
-  OpenClawPageParams,
   Page,
   PageParams,
   ThemeWorkspacePage,
@@ -50,6 +38,17 @@ import {
   buildHomeAgentParams,
   buildWorkspaceResetParams,
 } from "@/lib/workspace/navigation";
+import {
+  DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
+  FOOTER_SIDEBAR_NAV_ITEMS,
+  MAIN_SIDEBAR_NAV_ITEMS,
+  resolveEnabledSidebarNavItems,
+  type SidebarNavItemDefinition,
+} from "@/lib/navigation/sidebarNav";
+import {
+  DEFAULT_ENABLED_CONTENT_THEME_IDS,
+  resolveEnabledContentThemes,
+} from "@/lib/contentCreator/themeDefaults";
 
 interface AppSidebarProps {
   currentPage: Page;
@@ -57,14 +56,7 @@ interface AppSidebarProps {
   onNavigate: (page: Page, params?: PageParams) => void;
 }
 
-interface SidebarNavItem {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  page: Page;
-  params?: PageParams;
-  isActive?: (currentPage: Page, currentParams?: PageParams) => boolean;
-}
+type SidebarNavItem = SidebarNavItemDefinition;
 
 const Container = styled.aside`
   display: flex;
@@ -235,7 +227,7 @@ const FooterArea = styled.div`
 const ActionRow = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 2px;
 `;
 
@@ -263,43 +255,6 @@ const IconActionButton = styled.button<{ $active?: boolean }>`
     height: 16px;
   }
 `;
-
-const MAIN_MENU_ITEMS: SidebarNavItem[] = [
-  {
-    id: "home-general",
-    label: "新建任务",
-    icon: Plus,
-    page: "agent",
-    params: buildHomeAgentParams(),
-    isActive: (currentPage, currentParams) =>
-      currentPage === "agent" &&
-      (currentParams as AgentPageParams | undefined)?.agentEntry ===
-        "new-task",
-  },
-  {
-    id: "claw",
-    label: "Claw",
-    icon: MessageSquare,
-    page: "agent",
-    params: buildClawAgentParams(),
-    isActive: (currentPage, currentParams) =>
-      currentPage === "agent" &&
-      (currentParams as AgentPageParams | undefined)?.agentEntry !==
-        "new-task",
-  },
-  {
-    id: "video",
-    label: "视频",
-    icon: Video,
-    page: getThemeWorkspacePage("video"),
-    params: { workspaceViewMode: "workspace" },
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
-  },
-  { id: "image-gen", label: "插图", icon: Image, page: "image-gen" },
-  { id: "batch", label: "批量任务", icon: Layers, page: "batch" },
-  { id: "terminal", label: "终端", icon: Terminal, page: "terminal" },
-  { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
-];
 
 const THEME_MENU_ITEMS: SidebarNavItem[] = [
   {
@@ -365,111 +320,6 @@ const THEME_MENU_ITEMS: SidebarNavItem[] = [
   },
 ];
 
-const FOOTER_MENU_ITEMS: SidebarNavItem[] = [
-  {
-    id: "openclaw",
-    label: "OpenClaw",
-    icon: Bot,
-    page: "openclaw",
-    params: { subpage: "runtime" } as OpenClawPageParams,
-    isActive: (currentPage) => currentPage === "openclaw",
-  },
-  {
-    id: "settings",
-    label: "设置",
-    icon: Settings,
-    page: "settings",
-    isActive: (currentPage) => currentPage === "settings",
-  },
-  {
-    id: "resources",
-    label: "资源",
-    icon: Library,
-    page: "resources",
-    isActive: (currentPage) => currentPage === "resources",
-  },
-  {
-    id: "browser-runtime",
-    label: "浏览器调试",
-    icon: Activity,
-    page: "browser-runtime",
-    isActive: (currentPage) => currentPage === "browser-runtime",
-  },
-  {
-    id: "tools",
-    label: "工具箱",
-    icon: Wrench,
-    page: "tools",
-    isActive: (currentPage) => currentPage === "tools",
-  },
-  {
-    id: "style-library",
-    label: "我的风格",
-    icon: Palette,
-    page: "style",
-    params: { section: "overview" },
-    isActive: (currentPage) => currentPage === "style",
-  },
-  {
-    id: "memory",
-    label: "记忆",
-    icon: BrainCircuit,
-    page: "memory",
-    isActive: (currentPage) => currentPage === "memory",
-  },
-];
-
-const DEFAULT_ENABLED_NAV_ITEMS = [
-  "home-general",
-  "claw",
-  "video",
-  "image-gen",
-];
-
-const ALL_NAV_ITEM_IDS = [
-  ...MAIN_MENU_ITEMS.map((item) => item.id),
-  ...FOOTER_MENU_ITEMS.map((item) => item.id),
-];
-
-const LEGACY_DEFAULT_NAV_ITEM_SETS: string[][] = [
-  ["home-general", "video", "image-gen", "plugins"],
-  ["home-general", "video", "image-gen", "terminal", "plugins"],
-];
-
-const normalizeEnabledNavItems = (items: string[]): string[] => {
-  const unique = Array.from(new Set(items));
-  return unique.filter((item) => ALL_NAV_ITEM_IDS.includes(item));
-};
-
-const hasSameMembers = (left: string[], right: string[]): boolean => {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((item) => rightSet.has(item));
-};
-
-const isLegacyDefaultEnabledItems = (items: string[]): boolean => {
-  return LEGACY_DEFAULT_NAV_ITEM_SETS.some((legacyItems) =>
-    hasSameMembers(items, legacyItems),
-  );
-};
-
-const resolveEnabledNavItems = (savedItems?: string[]): string[] => {
-  if (!savedItems || savedItems.length === 0) {
-    return [...DEFAULT_ENABLED_NAV_ITEMS];
-  }
-  const normalized = normalizeEnabledNavItems(savedItems);
-  if (isLegacyDefaultEnabledItems(normalized)) {
-    return [...DEFAULT_ENABLED_NAV_ITEMS];
-  }
-  const merged = [...normalized];
-  for (const item of DEFAULT_ENABLED_NAV_ITEMS) {
-    if (!merged.includes(item)) {
-      merged.push(item);
-    }
-  }
-  return merged;
-};
-
 function getIconByName(iconName: string): LucideIcon {
   const IconComponent = (
     LucideIcons as unknown as Record<string, LucideIcon | undefined>
@@ -496,16 +346,11 @@ export function AppSidebar({
   });
 
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
-    DEFAULT_ENABLED_NAV_ITEMS,
+    DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
   );
-  const [enabledThemes, setEnabledThemes] = useState<string[]>([
-    "general",
-    "social-media",
-    "poster",
-    "music",
-    "video",
-    "novel",
-  ]);
+  const [enabledThemes, setEnabledThemes] = useState<string[]>(
+    DEFAULT_ENABLED_CONTENT_THEME_IDS,
+  );
   const [sidebarPlugins, setSidebarPlugins] = useState<PluginUIInfo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [_activeThemeKey, setActiveThemeKey] = useState<string>(
@@ -517,12 +362,10 @@ export function AppSidebar({
       try {
         const config = await getConfig();
         const saved = config.navigation?.enabled_items;
-        setEnabledNavItems(resolveEnabledNavItems(saved));
+        setEnabledNavItems(resolveEnabledSidebarNavItems(saved));
 
         const savedThemes = config.content_creator?.enabled_themes;
-        if (savedThemes && savedThemes.length > 0) {
-          setEnabledThemes(savedThemes);
-        }
+        setEnabledThemes(resolveEnabledContentThemes(savedThemes));
       } catch (error) {
         console.error("加载配置失败:", error);
       }
@@ -544,16 +387,16 @@ export function AppSidebar({
   }, []);
 
   const filteredMainMenuItems = useMemo(() => {
-    return MAIN_MENU_ITEMS.filter((item) => enabledNavItems.includes(item.id));
+    return MAIN_SIDEBAR_NAV_ITEMS.filter((item) =>
+      enabledNavItems.includes(item.id),
+    );
   }, [enabledNavItems]);
 
   const filteredFooterMenuItems = useMemo(() => {
-    return FOOTER_MENU_ITEMS.filter((item) => {
-      if (item.id === "tools") {
-        return enabledNavItems.includes("tools");
-      }
-      return true;
-    });
+    return FOOTER_SIDEBAR_NAV_ITEMS.filter(
+      (item) =>
+        item.configurable === false || enabledNavItems.includes(item.id),
+    );
   }, [enabledNavItems]);
 
   const filteredThemeMenuItems = useMemo(() => {
@@ -656,13 +499,13 @@ export function AppSidebar({
         ? buildHomeAgentParams(item.params as AgentPageParams | undefined)
         : item.id === "claw"
           ? buildClawAgentParams(item.params as AgentPageParams | undefined)
-        : isThemeWorkspacePage(item.page)
-          ? buildWorkspaceResetParams(
-              item.params as AgentPageParams | undefined,
-              (item.params as AgentPageParams | undefined)?.workspaceViewMode ??
-                "project-management",
-            )
-          : item.params;
+          : isThemeWorkspacePage(item.page)
+            ? buildWorkspaceResetParams(
+                item.params as AgentPageParams | undefined,
+                (item.params as AgentPageParams | undefined)
+                  ?.workspaceViewMode ?? "project-management",
+              )
+            : item.params;
 
     onNavigate(item.page, params);
   };
@@ -751,14 +594,6 @@ export function AppSidebar({
             title={theme === "dark" ? "深色模式" : "浅色模式"}
           >
             {theme === "dark" ? <Moon /> : <Sun />}
-          </IconActionButton>
-
-          <IconActionButton
-            $active={currentPage === "settings"}
-            onClick={() => onNavigate("settings")}
-            title="设置"
-          >
-            <Settings />
           </IconActionButton>
         </ActionRow>
       </FooterArea>

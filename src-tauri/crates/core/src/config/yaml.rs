@@ -664,13 +664,16 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     if yaml_path.exists() {
         let content = std::fs::read_to_string(&yaml_path)?;
         let mut config: Config = serde_yaml::from_str(&content)?;
+        let mut should_save = config.normalize_workspace_preferences();
         // 如果配置中使用默认 API Key，生成强随机 Key 并保存
         if is_default_api_key(&config.server.api_key) {
             let new_key = generate_secure_api_key();
             tracing::warn!("[CONFIG] 检测到默认 API Key，已自动生成强随机 Key");
             config.server.api_key = new_key;
-            // 保存更新后的配置
-            if let Err(e) = save_config_yaml(&config) {
+            should_save = true;
+        }
+        if should_save {
+            if let Err(e) = save_config(&config) {
                 tracing::error!("[CONFIG] 保存配置失败: {}", e);
             }
         }
@@ -681,13 +684,16 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     if json_path.exists() {
         let content = std::fs::read_to_string(&json_path)?;
         let mut config: Config = serde_json::from_str(&content)?;
+        let mut should_save = config.normalize_workspace_preferences();
         // 如果配置中使用默认 API Key，生成强随机 Key 并保存
         if is_default_api_key(&config.server.api_key) {
             let new_key = generate_secure_api_key();
             tracing::warn!("[CONFIG] 检测到默认 API Key，已自动生成强随机 Key");
             config.server.api_key = new_key;
-            // 保存更新后的配置（迁移到 YAML）
-            if let Err(e) = save_config_yaml(&config) {
+            should_save = true;
+        }
+        if should_save {
+            if let Err(e) = save_config(&config) {
                 tracing::error!("[CONFIG] 保存配置失败: {}", e);
             }
         }

@@ -28,7 +28,7 @@ use crate::database::{self, DbConnection};
 use crate::logger;
 use crate::mcp::McpManagerState;
 use crate::plugin;
-use crate::services::heartbeat_service::{HeartbeatService, HeartbeatServiceState};
+use crate::services::automation_service::{AutomationService, AutomationServiceState};
 use crate::skills::ensure_default_local_skills;
 use crate::telemetry;
 use crate::voice::recording_service::{create_recording_service_state, RecordingServiceState};
@@ -78,7 +78,7 @@ pub struct AppStates {
     pub tool_hooks_service: ToolHooksServiceState,
     pub recording_service: RecordingServiceState,
     pub mcp_manager: McpManagerState,
-    pub heartbeat_service: HeartbeatServiceState,
+    pub automation_service: AutomationServiceState,
     pub workflow_service: Arc<RwLock<proxycast_services::content_creator::WorkflowService>>,
     pub progress_store: Arc<RwLock<proxycast_services::content_creator::ProgressStore>>,
     // 用于 setup hook 的共享实例
@@ -125,11 +125,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
                 tracing::warn!("[Bootstrap] Windows 数据库锁获取失败: {}", e);
             }
         }
-    }
-
-    // 初始化批量任务表
-    if let Err(e) = proxycast_scheduler::BatchTaskDao::init_tables(&db) {
-        tracing::warn!("[Bootstrap] 批量任务表初始化失败: {}", e);
     }
 
     // 服务状态
@@ -284,10 +279,11 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
     let mcp_manager = crate::mcp::McpClientManager::new(None);
     let mcp_manager_state: McpManagerState = Arc::new(tokio::sync::Mutex::new(mcp_manager));
 
-    // 初始化心跳引擎服务
-    let mut heartbeat_service = HeartbeatService::new(config.heartbeat.clone());
-    heartbeat_service.set_db(db.clone());
-    let heartbeat_service_state = HeartbeatServiceState(Arc::new(RwLock::new(heartbeat_service)));
+    // 初始化自动化调度服务
+    let mut automation_service = AutomationService::new(config.automation.clone());
+    automation_service.set_db(db.clone());
+    let automation_service_state =
+        AutomationServiceState(Arc::new(RwLock::new(automation_service)));
 
     // 初始化工作流服务
     let workflow_service = proxycast_services::content_creator::WorkflowService::new();
@@ -328,7 +324,7 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         tool_hooks_service: tool_hooks_service_state,
         recording_service: recording_service_state,
         mcp_manager: mcp_manager_state,
-        heartbeat_service: heartbeat_service_state,
+        automation_service: automation_service_state,
         workflow_service: workflow_service_state,
         progress_store: progress_store_state,
         shared_stats,

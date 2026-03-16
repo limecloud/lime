@@ -204,6 +204,7 @@ export interface AgentRuntimeRespondActionRequest {
   confirmed: boolean;
   response?: string;
   user_data?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentRuntimeUpdateSessionRequest {
@@ -627,12 +628,14 @@ export async function submitAsterElicitationResponse(
   sessionId: string,
   requestId: string,
   userData: unknown,
+  metadata?: Record<string, unknown>,
 ): Promise<void> {
   return await safeInvoke("aster_agent_submit_elicitation_response", {
     sessionId,
     request: {
       request_id: requestId,
       user_data: userData,
+      metadata,
     },
   });
 }

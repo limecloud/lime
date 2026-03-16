@@ -45,6 +45,7 @@ export interface AgentRuntimeActionResponse {
   confirmed: boolean;
   response?: string;
   userData?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentRuntimeAdapter {
@@ -139,6 +140,7 @@ export const defaultAgentRuntimeAdapter: AgentRuntimeAdapter = {
       confirmed: request.confirmed,
       response: request.response,
       user_data: request.userData,
+      metadata: request.metadata,
     });
   },
   async listenToTurnEvents(eventName, handler) {

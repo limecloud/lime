@@ -20,6 +20,8 @@ const {
   mockInstallDependency,
   mockGetEnvironmentStatus,
   mockGetStatus,
+  mockCheckUpdate,
+  mockPerformUpdate,
   mockGetNodeDownloadUrl,
   mockGetGitDownloadUrl,
   mockListenInstallProgress,
@@ -36,6 +38,8 @@ const {
   mockInstallDependency: vi.fn(),
   mockGetEnvironmentStatus: vi.fn(),
   mockGetStatus: vi.fn(),
+  mockCheckUpdate: vi.fn(),
+  mockPerformUpdate: vi.fn(),
   mockGetNodeDownloadUrl: vi.fn(),
   mockGetGitDownloadUrl: vi.fn(),
   mockListenInstallProgress: vi.fn(),
@@ -78,6 +82,8 @@ vi.mock("@/lib/api/openclaw", () => ({
   openclawApi: {
     getEnvironmentStatus: mockGetEnvironmentStatus,
     getStatus: mockGetStatus,
+    checkUpdate: mockCheckUpdate,
+    performUpdate: mockPerformUpdate,
     getNodeDownloadUrl: mockGetNodeDownloadUrl,
     getGitDownloadUrl: mockGetGitDownloadUrl,
     listenInstallProgress: mockListenInstallProgress,
@@ -268,12 +274,22 @@ beforeEach(() => {
   mockDetectDesktopPlatform.mockReturnValue("windows");
   mockGetEnvironmentStatus.mockResolvedValue(buildEnvironmentStatus());
   mockGetStatus.mockResolvedValue({ status: "stopped", port: 18790 });
+  mockCheckUpdate.mockResolvedValue({
+    hasUpdate: false,
+    currentVersion: "2026.3.8",
+    latestVersion: "2026.3.8",
+    channel: "stable",
+    installKind: "package",
+    packageManager: "pnpm",
+    message: null,
+  });
   mockGetNodeDownloadUrl.mockResolvedValue("https://nodejs.org/en/download");
   mockGetGitDownloadUrl.mockResolvedValue("https://git-scm.com/download/win");
   mockListenInstallProgress.mockResolvedValue(() => {});
   mockGetProgressLogs.mockResolvedValue([]);
   mockInstall.mockResolvedValue({ success: true, message: "ok" });
   mockInstallDependency.mockResolvedValue({ success: true, message: "ok" });
+  mockPerformUpdate.mockResolvedValue({ success: true, message: "ok" });
   mockRefreshDashboardUrl.mockResolvedValue(null);
   mockRefreshDashboardWindowState.mockResolvedValue(false);
 });

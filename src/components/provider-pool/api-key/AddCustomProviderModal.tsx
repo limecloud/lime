@@ -24,7 +24,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Search, X } from "lucide-react";
 import { useModelRegistry } from "@/hooks/useModelRegistry";
@@ -35,6 +34,7 @@ import {
   type SystemProviderCatalogItem,
 } from "@/lib/api/apiKeyProvider";
 import {
+  getProviderTypeLabel,
   isSupportedProviderType,
   PROVIDER_TYPE_FIELDS,
   PROVIDER_TYPE_OPTIONS,
@@ -691,8 +691,8 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
             }
             disabled={isSubmitting}
           >
-            <SelectTrigger data-testid="provider-type-select">
-              <SelectValue placeholder="选择类型" />
+            <SelectTrigger id="provider-type" data-testid="provider-type-select">
+              <span>{getProviderTypeLabel(formState.type)}</span>
             </SelectTrigger>
             <SelectContent>
               {PROVIDER_TYPE_OPTIONS.map((type) => (

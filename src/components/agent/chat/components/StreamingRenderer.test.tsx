@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StreamingRenderer } from "./StreamingRenderer";
 import type {
   AgentRuntimeStatus,
+  ActionRequired,
   ContentPart,
   WriteArtifactContext,
 } from "../types";
@@ -94,6 +95,9 @@ function renderHarness(props: {
   renderA2UIInline?: boolean;
   runtimeStatus?: AgentRuntimeStatus;
   showRuntimeStatusInline?: boolean;
+  actionRequests?: ActionRequired[];
+  promoteActionRequestsToA2UI?: boolean;
+  onPermissionResponse?: (payload: unknown) => void;
   onWriteFile?: (
     content: string,
     fileName: string,
@@ -263,5 +267,83 @@ describe("StreamingRenderer", () => {
     expect(container.textContent).toContain("Agent 正在准备执行");
     expect(container.textContent).toContain("正在理解请求并准备回合。");
     expect(container.textContent).toContain("等待首个事件");
+  });
+
+  it("提升为输入区 A2UI 的待处理问答不应继续渲染内联 DecisionPanel", () => {
+    const { container } = renderHarness({
+      content: "",
+      actionRequests: [
+        {
+          requestId: "req-ask-1",
+          actionType: "ask_user",
+          status: "pending",
+          prompt: "请选择执行模式",
+          questions: [{ question: "请选择执行模式" }],
+        },
+        {
+          requestId: "req-tool-1",
+          actionType: "tool_confirmation",
+          status: "pending",
+          prompt: "请确认是否继续",
+        },
+      ],
+      promoteActionRequestsToA2UI: true,
+      onPermissionResponse: vi.fn(),
+    });
+
+    expect(container.querySelectorAll('[data-testid="decision-panel"]')).toHaveLength(1);
+  });
+
+  it("已排队的 ask_user 应继续以内联只读 A2UI 卡片回显", () => {
+    const { container } = renderHarness({
+      content: "",
+      actionRequests: [
+        {
+          requestId: "req-ask-queued",
+          actionType: "ask_user",
+          status: "queued",
+          prompt: "请选择渠道",
+          questions: [
+            {
+              question: "请选择渠道",
+              options: [{ label: "小红书" }, { label: "视频号" }],
+            },
+          ],
+          submittedUserData: { answer: "小红书" },
+        },
+      ],
+      promoteActionRequestsToA2UI: true,
+      onPermissionResponse: vi.fn(),
+    });
+
+    expect(container.querySelectorAll('[data-testid="a2ui-card"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="decision-panel"]')).toBeNull();
+  });
+
+  it("交错内容中的已提交问答应渲染为只读 A2UI 卡片", () => {
+    const { container } = renderHarness({
+      content: "",
+      contentParts: [
+        {
+          type: "action_required",
+          actionRequired: {
+            requestId: "req-ask-submitted",
+            actionType: "ask_user",
+            status: "submitted",
+            prompt: "请选择执行模式",
+            questions: [
+              {
+                question: "请选择执行模式",
+                options: [{ label: "自动执行" }, { label: "逐步确认" }],
+              },
+            ],
+            submittedUserData: { answer: "自动执行" },
+          },
+        },
+      ],
+    });
+
+    expect(container.querySelectorAll('[data-testid="a2ui-card"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="decision-panel"]')).toBeNull();
   });
 });

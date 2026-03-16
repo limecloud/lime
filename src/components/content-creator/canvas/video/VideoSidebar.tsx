@@ -6,10 +6,10 @@ import {
   CircleHelp,
   Dices,
   ImagePlus,
-  Monitor,
+  Sparkles,
   X,
 } from "lucide-react";
-import { VideoCanvasState, VideoAspectRatio, VideoResolution } from "./types";
+import { VideoAspectRatio, VideoCanvasState, VideoResolution } from "./types";
 
 export interface VideoProviderOption {
   id: string;
@@ -26,63 +26,187 @@ interface VideoSidebarProps {
 
 const SidebarWrapper = styled.div`
   height: 100%;
-  padding: 10px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: hsl(var(--muted) / 0.32);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.84),
+    hsl(201 42% 98% / 0.72)
+  );
+
+  @media (max-width: 1100px) {
+    padding: 16px;
+  }
 `;
 
-const Section = styled.div`
+const PanelIntro = styled.div`
+  border-radius: 24px;
+  border: 1px solid hsl(152 30% 86%);
+  background: linear-gradient(
+    135deg,
+    hsl(154 48% 96%) 0%,
+    hsl(0 0% 100%) 48%,
+    hsl(201 62% 97%) 100%
+  );
+  padding: 18px;
+  box-shadow:
+    0 14px 32px hsl(200 38% 16% / 0.06),
+    inset 0 1px 0 hsl(0 0% 100% / 0.78);
+`;
+
+const PanelEyebrow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid hsl(154 36% 82%);
+  background: hsl(0 0% 100% / 0.8);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: hsl(154 50% 28%);
+`;
+
+const PanelTitle = styled.h2`
+  margin: 10px 0 6px;
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+`;
+
+const PanelDescription = styled.p`
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: hsl(var(--muted-foreground));
+`;
+
+const PanelMetaGrid = styled.div`
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+`;
+
+const PanelMetaCard = styled.div`
+  border-radius: 18px;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background: hsl(var(--background) / 0.86);
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
+`;
+
+const PanelMetaLabel = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+`;
+
+const PanelMetaValue = styled.span`
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  word-break: break-word;
+`;
+
+const Section = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 22px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: hsl(var(--background) / 0.86);
+  padding: 14px;
+  box-shadow:
+    0 10px 28px hsl(215 30% 14% / 0.04),
+    inset 0 1px 0 hsl(0 0% 100% / 0.75);
 `;
 
 const SectionTitle = styled.div`
   font-size: 14px;
-  line-height: 1.2;
-  margin: 0;
-  font-weight: 600;
+  line-height: 1.3;
+  font-weight: 700;
   color: hsl(var(--foreground));
+`;
+
+const SectionHint = styled.p`
+  margin: -6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
 `;
 
 const ModelTrigger = styled.button`
   width: 100%;
-  height: 42px;
-  border-radius: 12px;
+  min-height: 62px;
+  border-radius: 18px;
   border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)),
+    hsl(var(--muted) / 0.12)
+  );
   color: hsl(var(--foreground));
-  padding: 0 12px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 12px 14px;
   outline: none;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    border-color: hsl(var(--primary) / 0.4);
+    border-color: hsl(214 68% 38% / 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px hsl(215 32% 12% / 0.08);
   }
 
   &:focus-visible {
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.12);
+    border-color: hsl(214 68% 38% / 0.4);
+    box-shadow: 0 0 0 4px hsl(211 100% 96%);
   }
 `;
 
-const ModelTriggerText = styled.span`
+const ModelTriggerBody = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+`;
+
+const ModelTriggerLabel = styled.span`
+  font-size: 14px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+`;
+
+const ModelTriggerMeta = styled.span`
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
 `;
 
 const ModelPanelMask = styled.div`
   position: fixed;
   inset: 0;
-  background: hsl(220 36% 6% / 0.65);
+  background: hsl(220 36% 8% / 0.24);
+  backdrop-filter: blur(12px);
   z-index: 2100;
   display: flex;
   align-items: center;
@@ -91,67 +215,104 @@ const ModelPanelMask = styled.div`
 `;
 
 const ModelPanel = styled.div`
-  width: min(760px, calc(100vw - 36px));
-  max-height: min(780px, calc(100vh - 36px));
-  background: linear-gradient(180deg, #0f172a, #0a1020);
-  border: 1px solid rgba(110, 130, 170, 0.35);
-  border-radius: 16px;
-  padding: 20px 18px;
+  width: min(880px, calc(100vw - 36px));
+  max-height: min(820px, calc(100vh - 36px));
+  border-radius: 30px;
+  border: 1px solid hsl(var(--border) / 0.85);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.98),
+    hsl(204 38% 98% / 0.98)
+  );
+  padding: 22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  gap: 16px;
+  box-shadow: 0 28px 80px hsl(215 32% 12% / 0.18);
 `;
 
-const ModelPanelTitle = styled.div`
-  font-size: 28px;
-  line-height: 1;
-  transform: scale(0.5);
-  transform-origin: left center;
-  margin: -8px 0 -6px 0;
-  color: #e7edf9;
+const ModelPanelHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const ModelPanelEyebrow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid hsl(203 82% 88%);
+  background: hsl(200 100% 97%);
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.14em;
+  color: hsl(211 58% 38%);
+`;
+
+const ModelPanelTitle = styled.h3`
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+`;
+
+const ModelPanelDescription = styled.p`
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: hsl(var(--muted-foreground));
+  max-width: 720px;
 `;
 
 const ModelPanelDivider = styled.div`
   height: 1px;
-  background: rgba(134, 157, 197, 0.2);
+  background: hsl(var(--border) / 0.9);
 `;
 
 const ModelPanelList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   overflow: auto;
   padding-right: 2px;
+
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const ModelPanelItem = styled.button<{ $active: boolean }>`
   width: 100%;
   border: 1px solid
     ${(props) =>
-      props.$active ? "rgba(112, 164, 255, 0.55)" : "rgba(132, 149, 185, 0.26)"};
-  border-radius: 14px;
+      props.$active ? "hsl(214 68% 38% / 0.35)" : "hsl(var(--border) / 0.88)"};
+  border-radius: 24px;
   background: ${(props) =>
     props.$active
-      ? "linear-gradient(180deg, rgba(45, 80, 145, 0.6), rgba(28, 52, 96, 0.6))"
-      : "rgba(10, 20, 38, 0.82)"};
+      ? "linear-gradient(180deg, hsl(211 100% 98%), hsl(203 100% 97%))"
+      : "hsl(var(--background) / 0.92)"};
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 12px 14px;
-  gap: 10px;
-  color: #d9e4f7;
+  padding: 16px;
+  gap: 14px;
+  color: hsl(var(--foreground));
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+  box-shadow: ${(props) =>
+    props.$active ? "0 16px 36px hsl(204 68% 46% / 0.12)" : "none"};
 
   &:hover {
-    border-color: rgba(117, 173, 255, 0.48);
-    background: ${(props) =>
-      props.$active
-        ? "linear-gradient(180deg, rgba(45, 80, 145, 0.65), rgba(28, 52, 96, 0.65))"
-        : "rgba(18, 32, 60, 0.88)"};
+    border-color: hsl(214 68% 38% / 0.3);
+    transform: translateY(-1px);
   }
 `;
 
@@ -159,73 +320,91 @@ const ModelPanelBody = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 8px;
 `;
 
 const ModelPanelName = styled.div`
-  font-size: 30px;
-  line-height: 1;
-  transform: scale(0.5);
-  transform-origin: left center;
-  margin: -7px 0 -6px 0;
+  font-size: 18px;
+  line-height: 1.25;
   font-weight: 700;
-  color: #f1f5ff;
+  color: hsl(var(--foreground));
 `;
 
-const ModelPanelCost = styled.div`
-  font-size: 24px;
-  line-height: 1;
-  transform: scale(0.5);
-  transform-origin: left center;
-  margin: -3px 0 -3px 0;
-  color: #93a6ca;
+const ModelPanelMetaRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const ModelPanelCost = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(211 58% 38%);
+`;
+
+const ModelProviderTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.18);
+  padding: 0 10px;
+  font-size: 11px;
   font-weight: 600;
+  color: hsl(var(--muted-foreground));
 `;
 
 const ModelPanelDesc = styled.div`
-  font-size: 22px;
-  line-height: 1.15;
-  transform: scale(0.5);
-  transform-origin: left center;
-  margin: -2px 0 -2px 0;
-  color: #aab8d4;
+  font-size: 13px;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
 `;
 
 const ModelPanelSelected = styled.div<{ $active: boolean }>`
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   border: 1px solid
-    ${(props) => (props.$active ? "rgba(92, 154, 255, 0.95)" : "rgba(126, 147, 184, 0.35)")};
+    ${(props) =>
+      props.$active ? "hsl(214 68% 38% / 0.4)" : "hsl(var(--border) / 0.9)"};
   background: ${(props) =>
-    props.$active ? "rgba(56, 117, 221, 0.86)" : "rgba(28, 44, 73, 0.68)"};
+    props.$active ? "hsl(221 39% 16%)" : "hsl(var(--background))"};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #eff5ff;
+  color: ${(props) =>
+    props.$active ? "hsl(var(--background))" : "hsl(var(--muted-foreground))"};
   flex-shrink: 0;
 `;
 
 const ImageUploadArea = styled.div<{ $dragging?: boolean }>`
-  min-height: 116px;
-  border-radius: 12px;
+  min-height: 134px;
+  border-radius: 18px;
   background: ${(props) =>
-    props.$dragging ? "hsl(var(--primary) / 0.08)" : "hsl(var(--muted) / 0.3)"};
+    props.$dragging
+      ? "hsl(211 100% 96%)"
+      : "linear-gradient(180deg, hsl(var(--muted) / 0.18), hsl(var(--background)))"};
   border: 1px dashed
-    ${(props) => (props.$dragging ? "hsl(var(--primary))" : "hsl(var(--border))")};
+    ${(props) =>
+      props.$dragging
+        ? "hsl(214 68% 38% / 0.46)"
+        : "hsl(var(--border) / 0.95)"};
   display: flex;
   align-items: center;
   justify-content: center;
   color: hsl(var(--muted-foreground));
   transition:
-    border-color 0.2s,
-    background 0.2s;
-  padding: 10px;
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+  padding: 12px;
   cursor: pointer;
 
   &:hover {
-    background: hsl(var(--muted) / 0.5);
-    border-color: hsl(var(--primary));
+    background: hsl(var(--muted) / 0.24);
+    border-color: hsl(214 68% 38% / 0.35);
   }
 `;
 
@@ -234,49 +413,52 @@ const UploadPrompt = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   text-align: center;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
-  line-height: 1.4;
+  line-height: 1.55;
 
   svg {
     margin-bottom: 6px;
-    color: hsl(var(--muted-foreground));
+    color: hsl(211 58% 38%);
   }
 `;
 
 const UploadActionButton = styled.button`
   margin-top: 8px;
-  height: 30px;
+  height: 32px;
   border-radius: 999px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   padding: 0 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    border-color: hsl(var(--primary));
-    color: hsl(var(--primary));
+    border-color: hsl(214 68% 38% / 0.35);
+    transform: translateY(-1px);
   }
 `;
 
 const PreviewBox = styled.div`
   width: 100%;
-  min-height: 116px;
-  border-radius: 12px;
+  min-height: 134px;
+  border-radius: 18px;
   overflow: hidden;
   position: relative;
-  background: hsl(var(--muted) / 0.5);
+  background: hsl(var(--muted) / 0.18);
   border: 1px solid hsl(var(--border));
 
   img {
     display: block;
     width: 100%;
-    max-height: 140px;
+    max-height: 160px;
     object-fit: cover;
   }
 `;
@@ -288,32 +470,17 @@ const ReplaceHint = styled.div`
   bottom: 0;
   font-size: 11px;
   color: hsl(var(--foreground));
-  background: linear-gradient(transparent, hsl(var(--background) / 0.88));
-  padding: 20px 8px 8px;
+  background: linear-gradient(transparent, hsl(var(--background) / 0.92));
+  padding: 22px 10px 10px;
   text-align: center;
 `;
 
 const RemovePreviewButton = styled.button`
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 999px;
-  background: hsl(var(--background) / 0.9);
-  color: hsl(var(--foreground));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-`;
-
-const ReplacePreviewButton = styled.button`
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  height: 24px;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 999px;
   background: hsl(var(--background) / 0.92);
@@ -321,110 +488,127 @@ const ReplacePreviewButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 8px 16px hsl(215 30% 14% / 0.12);
+`;
+
+const ReplacePreviewButton = styled.button`
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: hsl(var(--background) / 0.94);
+  color: hsl(var(--foreground));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 16px hsl(215 30% 14% / 0.12);
 `;
 
 const RatioGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 `;
 
-const RatioItem = styled.div<{ $active?: boolean }>`
-  min-height: 56px;
-  border-radius: 10px;
+const RatioItem = styled.button<{ $active?: boolean }>`
+  min-height: 64px;
+  border-radius: 16px;
   background: ${(props) =>
-    props.$active ? "hsl(var(--primary)/0.1)" : "hsl(var(--muted)/0.3)"};
+    props.$active ? "hsl(211 100% 96%)" : "hsl(var(--muted) / 0.12)"};
   border: 1px solid
-    ${(props) => (props.$active ? "hsl(var(--primary) / 0.5)" : "transparent")};
+    ${(props) =>
+      props.$active ? "hsl(214 68% 38% / 0.3)" : "hsl(var(--border) / 0.75)"};
   color: ${(props) =>
-    props.$active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"};
+    props.$active ? "hsl(211 58% 38%)" : "hsl(var(--muted-foreground))"};
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 11px;
-  transition: all 0.2s;
+  font-weight: 700;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    background: ${(props) =>
-      props.$active ? "hsl(var(--primary)/0.1)" : "hsl(var(--muted)/0.5)"};
-  }
-
-  svg {
-    margin-bottom: 3px;
-    width: 16px;
-    height: 16px;
+    border-color: hsl(214 68% 38% / 0.25);
+    transform: translateY(-1px);
   }
 `;
 
 const RatioShape = styled.div<{ $active?: boolean }>`
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border: 1px solid
     ${(props) =>
-      props.$active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"};
-  border-radius: 3px;
-  margin-bottom: 4px;
-`;
-
-const ResolutionWrapper = styled.div`
-  padding: 2px;
-  border-radius: 12px;
-  background: hsl(var(--muted) / 0.35);
+      props.$active ? "hsl(211 58% 38%)" : "hsl(var(--muted-foreground))"};
+  border-radius: 4px;
+  margin-bottom: 6px;
 `;
 
 const ResolutionGroup = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 `;
 
 const ResolutionButton = styled.button<{ $active?: boolean }>`
-  height: 34px;
-  border-radius: 9px;
+  height: 38px;
+  border-radius: 14px;
   border: 1px solid
-    ${(props) => (props.$active ? "hsl(var(--primary))" : "hsl(var(--border))")};
+    ${(props) =>
+      props.$active ? "hsl(221 39% 16%)" : "hsl(var(--border) / 0.88)"};
   background: ${(props) =>
-    props.$active ? "hsl(var(--background))" : "hsl(var(--muted) / 0.1)"};
+    props.$active
+      ? "linear-gradient(180deg, hsl(221 39% 16%), hsl(216 34% 12%))"
+      : "hsl(var(--muted) / 0.12)"};
   color: ${(props) =>
-    props.$active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
+    props.$active ? "hsl(var(--background))" : "hsl(var(--muted-foreground))"};
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 
   &:hover {
-    border-color: hsl(var(--primary));
-    color: hsl(var(--primary));
+    transform: translateY(-1px);
+    border-color: hsl(214 68% 38% / 0.3);
   }
 `;
 
 const DurationRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 `;
 
 const DurationSlider = styled.input`
   flex: 1;
-  accent-color: hsl(var(--foreground));
+  accent-color: hsl(221 39% 16%);
   cursor: pointer;
 `;
 
 const DurationValue = styled.input`
-  width: 52px;
-  height: 40px;
-  border-radius: 10px;
+  width: 64px;
+  height: 42px;
+  border-radius: 14px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   text-align: center;
   font-size: 14px;
+  font-weight: 700;
   outline: none;
 `;
 
@@ -436,20 +620,20 @@ const SeedRow = styled.div`
 
 const SeedInput = styled.input`
   flex: 1;
-  height: 38px;
-  border-radius: 10px;
+  height: 42px;
+  border-radius: 14px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--background));
   color: hsl(var(--foreground));
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 12px;
+  font-size: 13px;
   outline: none;
 `;
 
 const SeedRandomButton = styled.button`
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--background));
   color: hsl(var(--muted-foreground));
@@ -457,10 +641,15 @@ const SeedRandomButton = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 
   &:hover {
     color: hsl(var(--foreground));
-    border-color: hsl(var(--primary) / 0.4);
+    border-color: hsl(214 68% 38% / 0.3);
+    transform: translateY(-1px);
   }
 `;
 
@@ -468,25 +657,41 @@ const ToggleRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+`;
+
+const ToggleCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+`;
+
+const ToggleTitle = styled.span`
   font-size: 14px;
   line-height: 1.2;
-  font-weight: 600;
+  font-weight: 700;
   color: hsl(var(--foreground));
 `;
 
+const ToggleDescription = styled.span`
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+`;
+
 const ToggleSwitch = styled.button<{ $checked: boolean }>`
-  width: 42px;
-  height: 24px;
+  width: 46px;
+  height: 26px;
   border: none;
   border-radius: 999px;
-  padding: 2px;
+  padding: 3px;
   cursor: pointer;
   background: ${(props) =>
-    props.$checked ? "hsl(var(--foreground))" : "hsl(var(--border))"};
+    props.$checked ? "hsl(221 39% 16%)" : "hsl(var(--border))"};
   display: flex;
   align-items: center;
   justify-content: ${(props) => (props.$checked ? "flex-end" : "flex-start")};
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 `;
 
 const ToggleDot = styled.span`
@@ -496,30 +701,34 @@ const ToggleDot = styled.span`
   background: hsl(var(--background));
 `;
 
-const FooterBar = styled.div`
-  margin-top: auto;
+const HelperCard = styled.div`
+  border-radius: 22px;
+  border: 1px solid hsl(203 72% 88%);
+  background: linear-gradient(
+    180deg,
+    hsl(204 100% 98%),
+    hsl(var(--background))
+  );
+  padding: 14px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  padding: 2px 0 0;
 `;
 
-const FooterButton = styled.button`
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: hsl(var(--muted-foreground));
+const HelperTitle = styled.div`
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+`;
 
-  &:hover {
-    color: hsl(var(--foreground));
-    background: hsl(var(--accent));
-  }
+const HelperText = styled.p`
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: hsl(var(--muted-foreground));
 `;
 
 const RATIOS: { label: string; value: VideoAspectRatio }[] = [
@@ -594,10 +803,7 @@ function getModelLabel(model: string): string {
   ) {
     return "Minimax Hailuo 2.3";
   }
-  if (
-    normalized === "minimax-hailuo-02" ||
-    normalized.includes("hailuo-02")
-  ) {
+  if (normalized === "minimax-hailuo-02" || normalized.includes("hailuo-02")) {
     return "Minimax Hailuo-02";
   }
   if (
@@ -624,72 +830,72 @@ function getModelMeta(model: string): { cost: string; description: string } {
   if (normalized.includes("veo-3.1")) {
     return {
       cost: "30 credits / sec · est. 240 for 8s",
-      description: "Google Veo 3.1 支持1080p/4K，多图参考与首尾帧",
+      description: "Google Veo 3.1 支持1080p/4K、多图参考与首尾帧。",
     };
   }
   if (normalized.includes("sora-2-pro") || normalized.includes("sora2-pro")) {
     return {
       cost: "20 credits / sec · est. 80 for 4s",
-      description: "Sora-2 Pro 生成时间约2分钟，稳定性高",
+      description: "Sora-2 Pro 生成时间约 2 分钟，稳定性高。",
     };
   }
   if (normalized.includes("sora-2")) {
     return {
       cost: "2.7 credits / sec · est. 40.5 for 15s",
-      description: "Sora2最长15秒，不支持上传人物图",
+      description: "Sora 2 最长 15 秒，不支持上传人物图。",
     };
   }
   if (normalized.includes("seedance-1-5-pro")) {
     return {
       cost: "20 credits / sec · est. 100 for 5s",
-      description: "支持文生视频与首帧/首尾帧图生视频",
+      description: "支持文生视频与首帧 / 首尾帧图生视频。",
     };
   }
   if (normalized.includes("kling-2.6")) {
     return {
       cost: "27 credits / sec · est. 135 for 5s",
-      description: "支持1080p文生视频和图生视频",
+      description: "支持 1080p 文生视频和图生视频。",
     };
   }
   if (normalized.includes("minimax-hailuo-2.3")) {
     return {
       cost: "25 credits / sec · est. 150 for 6s",
-      description: "全新升级的视频生成模型，支持文生视频和图生视频",
+      description: "支持文生视频和图生视频，适合泛场景生成。",
     };
   }
   if (normalized.includes("minimax-hailuo-02")) {
     return {
       cost: "25 credits / sec · est. 150 for 6s",
-      description: "支持首尾帧与1080p",
+      description: "支持首尾帧与 1080p 输出。",
     };
   }
   if (normalized.includes("runway-gen-4-turbo")) {
     return {
       cost: "30 credits / sec · est. 150 for 5s",
-      description: "仅支持图生视频",
+      description: "仅支持图生视频，适合已有视觉锚点的场景。",
     };
   }
   if (normalized.includes("seedance-1-5-lite")) {
     return {
       cost: "8 credits / sec · est. 40 for 5s",
-      description: "轻量版 Seedance，速度更快，成本更低",
+      description: "轻量版 Seedance，速度更快、成本更低。",
     };
   }
   if (normalized.includes("wanx2.1-t2v-turbo")) {
     return {
       cost: "18 credits / sec · est. 90 for 5s",
-      description: "阿里万相文生视频 Turbo 模型",
+      description: "阿里万相文生视频 Turbo 模型。",
     };
   }
   if (normalized.includes("wanx2.1-kf2v-plus")) {
     return {
       cost: "22 credits / sec · est. 110 for 5s",
-      description: "阿里万相关键帧图生视频 Plus 模型",
+      description: "阿里万相关键帧图生视频 Plus 模型。",
     };
   }
   return {
     cost: "按服务商计费",
-    description: "具体能力与计费以服务商后台为准",
+    description: "具体能力与计费以服务商后台为准。",
   };
 }
 
@@ -703,7 +909,9 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
     const endFileInputRef = useRef<HTMLInputElement>(null);
     const modelPanelRef = useRef<HTMLDivElement>(null);
     const [modelPanelOpen, setModelPanelOpen] = useState(false);
-    const [draggingArea, setDraggingArea] = useState<FrameDropArea | null>(null);
+    const [draggingArea, setDraggingArea] = useState<FrameDropArea | null>(
+      null,
+    );
 
     useEffect(() => {
       if (!modelPanelOpen) {
@@ -751,8 +959,8 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
       if (options.length === 0 && state.providerId && state.model) {
         const meta = getModelMeta(state.model);
         const fallbackProviderName =
-          providers.find((provider) => provider.id === state.providerId)?.name ??
-          state.providerId;
+          providers.find((provider) => provider.id === state.providerId)
+            ?.name ?? state.providerId;
         options.push({
           key: `${state.providerId}::${state.model}`,
           providerId: state.providerId,
@@ -773,9 +981,15 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
       }
       return modelOptions[0]?.key ?? "";
     }, [modelOptions, state.model, state.providerId]);
+
     const selectedModelOption = useMemo(
       () => modelOptions.find((item) => item.key === selectedModelKey) ?? null,
       [modelOptions, selectedModelKey],
+    );
+
+    const referenceCount = useMemo(
+      () => [state.startImage, state.endImage].filter(Boolean).length,
+      [state.endImage, state.startImage],
     );
 
     const frameConfigs: {
@@ -821,15 +1035,57 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
 
     return (
       <SidebarWrapper>
+        <PanelIntro>
+          <PanelEyebrow>VIDEO CONTROL</PanelEyebrow>
+          <PanelTitle>生成参数</PanelTitle>
+          <PanelDescription>
+            先确定模型，再补参考图和输出规格。这里保持轻量控制，主创作仍留在右侧画布。
+          </PanelDescription>
+          <PanelMetaGrid>
+            <PanelMetaCard>
+              <PanelMetaLabel>当前模型</PanelMetaLabel>
+              <PanelMetaValue>
+                {selectedModelOption?.label ?? "待配置视频模型"}
+              </PanelMetaValue>
+            </PanelMetaCard>
+            <PanelMetaCard>
+              <PanelMetaLabel>输出规格</PanelMetaLabel>
+              <PanelMetaValue>
+                {state.aspectRatio} · {state.resolution}
+              </PanelMetaValue>
+            </PanelMetaCard>
+            <PanelMetaCard>
+              <PanelMetaLabel>时长</PanelMetaLabel>
+              <PanelMetaValue>{state.duration} 秒</PanelMetaValue>
+            </PanelMetaCard>
+            <PanelMetaCard>
+              <PanelMetaLabel>参考图</PanelMetaLabel>
+              <PanelMetaValue>
+                {referenceCount > 0 ? `${referenceCount} 张已就绪` : "暂未上传"}
+              </PanelMetaValue>
+            </PanelMetaCard>
+          </PanelMetaGrid>
+        </PanelIntro>
+
         <Section>
+          <SectionTitle>模型</SectionTitle>
+          <SectionHint>
+            模型能力决定可选分辨率、时长和图生视频支持范围。
+          </SectionHint>
           <ModelTrigger
             type="button"
             onClick={() => setModelPanelOpen(true)}
             title="选择视频模型"
           >
-            <ModelTriggerText>
-              {selectedModelOption?.label ?? "暂无可用视频模型"}
-            </ModelTriggerText>
+            <ModelTriggerBody>
+              <ModelTriggerLabel>
+                {selectedModelOption?.label ?? "暂无可用视频模型"}
+              </ModelTriggerLabel>
+              <ModelTriggerMeta>
+                {selectedModelOption?.providerName ??
+                  "请先配置支持视频的 Provider"}
+              </ModelTriggerMeta>
+            </ModelTriggerBody>
             <ChevronDown size={16} />
           </ModelTrigger>
         </Section>
@@ -843,7 +1099,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
             }}
           >
             <ModelPanel ref={modelPanelRef}>
-              <ModelPanelTitle>AI models</ModelPanelTitle>
+              <ModelPanelHeader>
+                <ModelPanelEyebrow>MODEL LIBRARY</ModelPanelEyebrow>
+                <ModelPanelTitle>选择视频模型</ModelPanelTitle>
+                <ModelPanelDescription>
+                  统一在一个面板里查看模型能力、成本与 Provider
+                  来源，避免在侧栏里堆叠过多信息。
+                </ModelPanelDescription>
+              </ModelPanelHeader>
               <ModelPanelDivider />
               <ModelPanelList>
                 {modelOptions.length === 0 ? (
@@ -854,7 +1117,9 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
                   >
                     <ModelPanelBody>
                       <ModelPanelName>暂无可用视频模型</ModelPanelName>
-                      <ModelPanelDesc>请先配置支持视频的 Provider</ModelPanelDesc>
+                      <ModelPanelDesc>
+                        请先配置支持视频生成的 Provider。
+                      </ModelPanelDesc>
                     </ModelPanelBody>
                     <ModelPanelSelected $active={false}>
                       <X size={14} />
@@ -877,11 +1142,17 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
                     >
                       <ModelPanelBody>
                         <ModelPanelName>{option.label}</ModelPanelName>
-                        <ModelPanelCost>{option.cost}</ModelPanelCost>
+                        <ModelPanelMetaRow>
+                          <ModelPanelCost>{option.cost}</ModelPanelCost>
+                          <ModelProviderTag>
+                            {option.providerName}
+                          </ModelProviderTag>
+                        </ModelPanelMetaRow>
                         <ModelPanelDesc>{option.description}</ModelPanelDesc>
-                        <ModelPanelDesc>Provider: {option.providerName}</ModelPanelDesc>
                       </ModelPanelBody>
-                      <ModelPanelSelected $active={option.key === selectedModelKey}>
+                      <ModelPanelSelected
+                        $active={option.key === selectedModelKey}
+                      >
                         {option.key === selectedModelKey ? (
                           <Check size={15} />
                         ) : null}
@@ -903,6 +1174,11 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
           return (
             <Section key={frame.field}>
               <SectionTitle>{frame.title}</SectionTitle>
+              <SectionHint>
+                {frame.field === "startImage"
+                  ? "用于锁定开场构图、人物与场景氛围。"
+                  : "用于约束收尾镜头，让前后画面更连贯。"}
+              </SectionHint>
               <ImageUploadArea
                 $dragging={draggingArea === frame.area}
                 onDragOver={(event) => {
@@ -947,15 +1223,15 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
                         setFrameImage(frame.field, undefined);
                       }}
                     >
-                        <X size={14} />
-                      </RemovePreviewButton>
-                    <ReplaceHint>拖拽上传可替换图片</ReplaceHint>
+                      <X size={14} />
+                    </RemovePreviewButton>
+                    <ReplaceHint>拖拽上传即可替换当前图片</ReplaceHint>
                   </PreviewBox>
                 ) : (
                   <UploadPrompt>
                     <ImagePlus size={18} />
                     <div>添加图片</div>
-                    <div>拖拽上传参考图</div>
+                    <div>拖拽或点击上传参考图</div>
                     <UploadActionButton
                       type="button"
                       onClick={(event) => {
@@ -988,6 +1264,7 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
             {RATIOS.map((ratio) => (
               <RatioItem
                 key={ratio.value}
+                type="button"
                 $active={state.aspectRatio === ratio.value}
                 onClick={() =>
                   onStateChange({ ...state, aspectRatio: ratio.value })
@@ -1000,7 +1277,8 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
                       ratio.value === "adaptive"
                         ? "1 / 1"
                         : ratio.value.replace(":", "/"),
-                    borderStyle: ratio.value === "adaptive" ? "dashed" : "solid",
+                    borderStyle:
+                      ratio.value === "adaptive" ? "dashed" : "solid",
                   }}
                 />
                 {ratio.label}
@@ -1011,25 +1289,27 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
 
         <Section>
           <SectionTitle>分辨率</SectionTitle>
-          <ResolutionWrapper>
-            <ResolutionGroup>
-              {(["480p", "720p", "1080p"] as VideoResolution[]).map(
-                (resolution) => (
-                  <ResolutionButton
-                    key={resolution}
-                    $active={state.resolution === resolution}
-                    onClick={() => onStateChange({ ...state, resolution })}
-                  >
-                    {resolution}
-                  </ResolutionButton>
-                ),
-              )}
-            </ResolutionGroup>
-          </ResolutionWrapper>
+          <ResolutionGroup>
+            {(["480p", "720p", "1080p"] as VideoResolution[]).map(
+              (resolution) => (
+                <ResolutionButton
+                  key={resolution}
+                  type="button"
+                  $active={state.resolution === resolution}
+                  onClick={() => onStateChange({ ...state, resolution })}
+                >
+                  {resolution}
+                </ResolutionButton>
+              ),
+            )}
+          </ResolutionGroup>
         </Section>
 
         <Section>
           <SectionTitle>时长</SectionTitle>
+          <SectionHint>
+            建议先用 4 到 8 秒验证镜头是否成立，再逐步拉长。
+          </SectionHint>
           <DurationRow>
             <DurationSlider
               type="range"
@@ -1065,6 +1345,9 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
 
         <Section>
           <SectionTitle>种子</SectionTitle>
+          <SectionHint>
+            需要复现某次结果时再固定种子；探索阶段保持随机即可。
+          </SectionHint>
           <SeedRow>
             <SeedInput
               type="number"
@@ -1103,7 +1386,12 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
 
         <Section>
           <ToggleRow>
-            <span>生成音频</span>
+            <ToggleCopy>
+              <ToggleTitle>生成音频</ToggleTitle>
+              <ToggleDescription>
+                需要环境声或基础配乐时再开启。
+              </ToggleDescription>
+            </ToggleCopy>
             <ToggleSwitch
               type="button"
               $checked={state.generateAudio}
@@ -1115,7 +1403,12 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
             </ToggleSwitch>
           </ToggleRow>
           <ToggleRow>
-            <span>固定镜头</span>
+            <ToggleCopy>
+              <ToggleTitle>固定镜头</ToggleTitle>
+              <ToggleDescription>
+                减少镜头摇移，适合产品或静态场景。
+              </ToggleDescription>
+            </ToggleCopy>
             <ToggleSwitch
               type="button"
               $checked={state.cameraFixed}
@@ -1128,14 +1421,22 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
           </ToggleRow>
         </Section>
 
-        <FooterBar>
-          <FooterButton title="帮助">
+        <HelperCard>
+          <HelperTitle>
+            <Sparkles size={14} />
+            生成建议
+          </HelperTitle>
+          <HelperText>
+            提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目素材，便于后续复用。
+          </HelperText>
+          <HelperTitle>
             <CircleHelp size={14} />
-          </FooterButton>
-          <FooterButton title="面板">
-            <Monitor size={14} />
-          </FooterButton>
-        </FooterBar>
+            参数节奏
+          </HelperTitle>
+          <HelperText>
+            推荐先锁模型与比例，再逐步增加参考图和固定镜头等约束，避免一次加入太多变量导致结果难以判断。
+          </HelperText>
+        </HelperCard>
       </SidebarWrapper>
     );
   },

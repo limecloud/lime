@@ -6,9 +6,8 @@
 
 use crate::agent::aster_state::{ProviderConfig, SessionConfigBuilder};
 use crate::agent::{
-    AsterAgentState, AsterAgentWrapper, HeartbeatServiceAdapter, ProxyCastScheduler,
-    QueueInsertResult, QueuedTurnSnapshot, QueuedTurnTask, SessionDetail, SessionInfo,
-    SubAgentRole, TauriAgentEvent,
+    AsterAgentState, AsterAgentWrapper, ProxyCastScheduler, QueueInsertResult, QueuedTurnSnapshot,
+    QueuedTurnTask, SessionDetail, SessionInfo, SubAgentRole, TauriAgentEvent,
 };
 use crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState;
 use crate::commands::webview_cmd::{
@@ -25,8 +24,8 @@ use crate::mcp::{McpManagerState, McpServerConfig};
 use crate::services::agent_timeline_service::{
     build_action_response_value, complete_action_item, AgentTimelineRecorder,
 };
+use crate::services::automation_service::AutomationServiceState;
 use crate::services::execution_tracker_service::{ExecutionTracker, RunFinishDecision, RunSource};
-use crate::services::heartbeat_service::HeartbeatServiceState;
 use crate::services::memory_profile_prompt_service::{
     merge_system_prompt_with_memory_profile, merge_system_prompt_with_memory_sources,
 };
@@ -103,6 +102,7 @@ const PROXYCAST_CREATE_IMAGE_TASK_TOOL_NAME: &str = "proxycast_create_image_gene
 const PROXYCAST_CREATE_URL_PARSE_TASK_TOOL_NAME: &str = "proxycast_create_url_parse_task";
 const PROXYCAST_CREATE_TYPESETTING_TASK_TOOL_NAME: &str = "proxycast_create_typesetting_task";
 const AUTO_CONTINUE_PROMPT_MARKER: &str = "【自动续写策略】";
+const ELICITATION_CONTEXT_PROMPT_MARKER: &str = "【已收集的补充信息】";
 const PROXYCAST_TOOL_METADATA_BEGIN: &str = "[ProxyCast 工具元数据开始]";
 const PROXYCAST_TOOL_METADATA_END: &str = "[ProxyCast 工具元数据结束]";
 const BROWSER_ASSIST_ALLOW_PATTERN: &str = "mcp__proxycast-browser__*";
@@ -558,6 +558,8 @@ pub struct AgentRuntimeRespondActionRequest {
     pub response: Option<String>,
     #[serde(default, alias = "userData")]
     pub user_data: Option<serde_json::Value>,
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -671,6 +673,123 @@ fn merge_system_prompt_with_auto_continue(
             }
         }
         None => Some(auto_continue_prompt),
+    }
+}
+
+fn build_elicitation_context_system_prompt(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    let metadata = request_metadata?.as_object()?;
+    let context = metadata.get("elicitation_context")?.as_object()?;
+    let entries = context.get("entries")?.as_array()?;
+
+    let rendered_entries = entries
+        .iter()
+        .filter_map(|entry| {
+            let entry_object = entry.as_object()?;
+            let label = entry_object
+                .get("label")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?;
+            let summary = entry_object
+                .get("summary")
+                .or_else(|| entry_object.get("value"))
+                .and_then(render_elicitation_context_value)?;
+            Some(format!("- {label}: {summary}"))
+        })
+        .collect::<Vec<_>>();
+
+    if rendered_entries.is_empty() {
+        return None;
+    }
+
+    let source = context
+        .get("source")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("structured_form");
+    let mode = context
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("runtime_metadata");
+
+    Some(format!(
+        "{ELICITATION_CONTEXT_PROMPT_MARKER}\n\
+来源：{source}\n\
+模式：{mode}\n\
+执行要求：\n\
+1. 下列信息来自用户刚刚提交的结构化补充信息，视为本轮已确认约束。\n\
+2. 回答与后续执行时优先吸收这些信息，不要重复追问同一字段。\n\
+3. 若仍缺关键信息，只追问尚未填写的最少字段。\n\
+已确认信息：\n\
+{}",
+        rendered_entries.join("\n")
+    ))
+}
+
+fn render_elicitation_context_value(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(text) => {
+            let normalized = text.trim();
+            if normalized.is_empty() {
+                None
+            } else {
+                Some(normalized.to_string())
+            }
+        }
+        serde_json::Value::Number(number) => Some(number.to_string()),
+        serde_json::Value::Bool(boolean) => Some(if *boolean {
+            "是".to_string()
+        } else {
+            "否".to_string()
+        }),
+        serde_json::Value::Array(items) => {
+            let rendered = items
+                .iter()
+                .filter_map(render_elicitation_context_value)
+                .collect::<Vec<_>>();
+            if rendered.is_empty() {
+                None
+            } else {
+                Some(rendered.join("、"))
+            }
+        }
+        serde_json::Value::Object(object) => {
+            let rendered = serde_json::to_string(object).ok()?;
+            let normalized = rendered.trim();
+            if normalized.is_empty() {
+                None
+            } else {
+                Some(normalized.to_string())
+            }
+        }
+        serde_json::Value::Null => None,
+    }
+}
+
+fn merge_system_prompt_with_elicitation_context(
+    base_prompt: Option<String>,
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    let Some(elicitation_prompt) = build_elicitation_context_system_prompt(request_metadata) else {
+        return base_prompt;
+    };
+
+    match base_prompt {
+        Some(base) => {
+            if base.contains(ELICITATION_CONTEXT_PROMPT_MARKER) {
+                Some(base)
+            } else if base.trim().is_empty() {
+                Some(elicitation_prompt)
+            } else {
+                Some(format!("{base}\n\n{elicitation_prompt}"))
+            }
+        }
+        None => Some(elicitation_prompt),
     }
 }
 
@@ -976,6 +1095,42 @@ fn is_browser_assist_enabled(request_metadata: Option<&serde_json::Value>) -> bo
     extract_browser_assist_runtime_hint(request_metadata).is_some() || !browser_assist.is_empty()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BrowserTaskRequirement {
+    Optional,
+    Required,
+    RequiredWithUserStep,
+}
+
+fn extract_browser_task_requirement(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<BrowserTaskRequirement> {
+    match extract_harness_string(
+        request_metadata,
+        &["browser_requirement", "browserRequirement"],
+    )
+    .as_deref()
+    {
+        Some("optional") => Some(BrowserTaskRequirement::Optional),
+        Some("required") => Some(BrowserTaskRequirement::Required),
+        Some("required_with_user_step") => Some(BrowserTaskRequirement::RequiredWithUserStep),
+        _ => None,
+    }
+}
+
+fn apply_browser_requirement_to_request_tool_policy(
+    request_metadata: Option<&serde_json::Value>,
+    request_web_search: Option<bool>,
+    request_search_mode: Option<RequestToolPolicyMode>,
+) -> (Option<bool>, Option<RequestToolPolicyMode>) {
+    match extract_browser_task_requirement(request_metadata) {
+        Some(BrowserTaskRequirement::Required | BrowserTaskRequirement::RequiredWithUserStep) => {
+            (Some(false), Some(RequestToolPolicyMode::Disabled))
+        }
+        _ => (request_web_search, request_search_mode),
+    }
+}
+
 fn build_session_scoped_permission_conditions(session_id: &str) -> Vec<PermissionCondition> {
     let session_id = session_id.trim();
     if session_id.is_empty() {
@@ -1233,6 +1388,7 @@ fn build_turn_runtime_statuses(
     let reasoning_supported = model_supports_reasoning(model_name);
     let news_expansion_needed = request_tool_policy.allows_web_search()
         && message_suggests_news_expansion(&request.message);
+    let browser_task_requirement = extract_browser_task_requirement(request.metadata.as_ref());
 
     let initial_checkpoints = vec![
         execution_strategy_label(effective_strategy).to_string(),
@@ -1244,6 +1400,14 @@ fn build_turn_runtime_statuses(
             "联网搜索仅作为候选能力待命".to_string()
         } else {
             "默认直接回答优先".to_string()
+        },
+        if matches!(
+            browser_task_requirement,
+            Some(BrowserTaskRequirement::Required | BrowserTaskRequirement::RequiredWithUserStep)
+        ) {
+            "当前任务要求真实浏览器执行，不允许退化为联网检索".to_string()
+        } else {
+            "浏览器能力按需升级".to_string()
         },
         if thinking_enabled && reasoning_supported {
             "模型支持深度思考，先进入推理判定".to_string()
@@ -1397,6 +1561,12 @@ fn extend_map_with_harness_fields(
         ("runTitle", "run_title"),
         ("content_id", "content_id"),
         ("contentId", "content_id"),
+        ("browser_requirement", "browser_requirement"),
+        ("browserRequirement", "browser_requirement"),
+        ("browser_requirement_reason", "browser_requirement_reason"),
+        ("browserRequirementReason", "browser_requirement_reason"),
+        ("browser_launch_url", "browser_launch_url"),
+        ("browserLaunchUrl", "browser_launch_url"),
     ] {
         if target.contains_key(target_key) {
             continue;
@@ -2994,6 +3164,47 @@ impl ProxycastBrowserMcpTool {
         parse_browser_backend_hint(&raw)
     }
 
+    fn supports_cdp_direct_action(action_name: &str) -> bool {
+        matches!(
+            action_name.trim().to_ascii_lowercase().as_str(),
+            "tabs_context_mcp"
+                | "tabs_create_mcp"
+                | "navigate"
+                | "click"
+                | "type"
+                | "form_input"
+                | "scroll"
+                | "scroll_page"
+                | "refresh_page"
+                | "go_back"
+                | "go_forward"
+                | "get_page_info"
+                | "read_page"
+                | "get_page_text"
+                | "read_console_messages"
+                | "read_network_requests"
+        )
+    }
+
+    fn resolve_backend(
+        action_name: &str,
+        params: &serde_json::Value,
+        session_hint: Option<&BrowserAssistRuntimeHint>,
+    ) -> Option<BrowserBackendType> {
+        if let Some(explicit_backend) = Self::parse_backend(params) {
+            return Some(explicit_backend);
+        }
+
+        match session_hint.and_then(|hint| hint.preferred_backend.clone()) {
+            Some(BrowserBackendType::CdpDirect)
+                if !Self::supports_cdp_direct_action(action_name) =>
+            {
+                None
+            }
+            other => other,
+        }
+    }
+
     fn extract_profile_key(params: &serde_json::Value, context: &ToolContext) -> Option<String> {
         if let Some(value) = params.get("profile_key").and_then(|v| v.as_str()) {
             let trimmed = value.trim();
@@ -3054,11 +3265,7 @@ impl Tool for ProxycastBrowserMcpTool {
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
         let session_hint = get_browser_assist_runtime_hint(&_context.session_id).await;
-        let backend = Self::parse_backend(&params).or_else(|| {
-            session_hint
-                .as_ref()
-                .and_then(|hint| hint.preferred_backend.clone())
-        });
+        let backend = Self::resolve_backend(&self.action_name, &params, session_hint.as_ref());
         let profile_key = Self::extract_profile_key(&params, _context)
             .or_else(|| session_hint.as_ref().map(|hint| hint.profile_key.clone()));
         if let (Some(hint), Some(profile_key)) = (session_hint.as_ref(), profile_key.as_ref()) {
@@ -4560,7 +4767,7 @@ async fn apply_workspace_sandbox_permissions(
     config_manager: &GlobalConfigManagerState,
     db: &DbConnection,
     api_key_provider_service: &ApiKeyProviderServiceState,
-    heartbeat_state: &HeartbeatServiceState,
+    _automation_state: &AutomationServiceState,
     app_handle: &AppHandle,
     session_id: &str,
     request_metadata: Option<&serde_json::Value>,
@@ -5017,7 +5224,6 @@ async fn apply_workspace_sandbox_permissions(
         "ask",
         "tool_search",
         "three_stage_workflow",
-        "heartbeat",
         SOCIAL_IMAGE_TOOL_NAME,
         PROXYCAST_CREATE_VIDEO_TASK_TOOL_NAME,
         PROXYCAST_CREATE_BROADCAST_TASK_TOOL_NAME,
@@ -5106,12 +5312,6 @@ async fn apply_workspace_sandbox_permissions(
         registry.register(Box::new(workspace_bash_tool));
     }
 
-    // 注册心跳工具
-    let heartbeat_adapter =
-        HeartbeatServiceAdapter::new(heartbeat_state.clone(), app_handle.clone());
-    let heartbeat_tool = proxycast_agent::tools::HeartbeatTool::new(Arc::new(heartbeat_adapter));
-    registry.register(Box::new(heartbeat_tool));
-
     register_social_image_tool_to_registry(&mut registry, config_manager.0.clone());
     register_creation_task_tools_to_registry(
         &mut registry,
@@ -5145,7 +5345,7 @@ async fn execute_aster_chat_request(
     logs: &LogState,
     config_manager: &GlobalConfigManagerState,
     mcp_manager: &McpManagerState,
-    heartbeat_state: &HeartbeatServiceState,
+    automation_state: &AutomationServiceState,
     request: AsterChatRequest,
 ) -> Result<(), String> {
     tracing::info!(
@@ -5298,21 +5498,29 @@ async fn execute_aster_chat_request(
 
     let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
     let mode_default_web_search = default_web_search_enabled_for_chat_mode(runtime_chat_mode);
+    let (request_web_search, request_search_mode) =
+        apply_browser_requirement_to_request_tool_policy(
+            request.metadata.as_ref(),
+            request.web_search,
+            request.search_mode,
+        );
 
     // 构建请求级工具策略：
     // - web_search=true 默认只表示“允许搜索”
     // - 仅显式 search_mode=required 时才强制预搜索
     let request_tool_policy = resolve_request_tool_policy_with_mode(
-        request.web_search,
-        request.search_mode,
+        request_web_search,
+        request_search_mode,
         mode_default_web_search,
     );
     tracing::info!(
-        "[AsterAgent][WebSearchGuard] session={}, chat_mode={:?}, request_web_search={:?}, request_search_mode={:?}, mode_default_web_search={}, effective_web_search={}, search_mode={}",
+        "[AsterAgent][WebSearchGuard] session={}, chat_mode={:?}, request_web_search={:?}, request_search_mode={:?}, effective_request_web_search={:?}, effective_request_search_mode={:?}, mode_default_web_search={}, effective_web_search={}, search_mode={}",
         session_id,
         runtime_chat_mode,
         request.web_search,
         request.search_mode,
+        request_web_search,
+        request_search_mode,
         mode_default_web_search,
         request_tool_policy.effective_web_search,
         request_tool_policy.search_mode.as_str()
@@ -5398,9 +5606,12 @@ async fn execute_aster_chat_request(
             None,
         );
         let merged_prompt = merge_system_prompt_with_auto_continue(
-            merge_system_prompt_with_request_tool_policy(
-                merge_system_prompt_with_web_search(prompt_with_memory, &runtime_config),
-                &request_tool_policy,
+            merge_system_prompt_with_elicitation_context(
+                merge_system_prompt_with_request_tool_policy(
+                    merge_system_prompt_with_web_search(prompt_with_memory, &runtime_config),
+                    &request_tool_policy,
+                ),
+                request.metadata.as_ref(),
             ),
             auto_continue_config.as_ref(),
         );
@@ -5482,7 +5693,7 @@ async fn execute_aster_chat_request(
         config_manager,
         db,
         api_key_provider_service,
-        heartbeat_state,
+        automation_state,
         app,
         session_id,
         request.metadata.as_ref(),
@@ -5837,7 +6048,7 @@ pub async fn aster_agent_chat_stream(
     logs: State<'_, LogState>,
     config_manager: State<'_, GlobalConfigManagerState>,
     mcp_manager: State<'_, McpManagerState>,
-    heartbeat_state: State<'_, HeartbeatServiceState>,
+    automation_state: State<'_, AutomationServiceState>,
     request: AsterChatRequest,
 ) -> Result<(), String> {
     execute_aster_chat_request(
@@ -5848,7 +6059,7 @@ pub async fn aster_agent_chat_stream(
         logs.inner(),
         config_manager.inner(),
         mcp_manager.inner(),
-        heartbeat_state.inner(),
+        automation_state.inner(),
         request,
     )
     .await
@@ -5862,7 +6073,7 @@ struct AgentRuntimeExecutionContext {
     logs: LogState,
     config_manager: GlobalConfigManagerState,
     mcp_manager: McpManagerState,
-    heartbeat_state: HeartbeatServiceState,
+    automation_state: AutomationServiceState,
 }
 
 impl AgentRuntimeExecutionContext {
@@ -5874,7 +6085,7 @@ impl AgentRuntimeExecutionContext {
         logs: &LogState,
         config_manager: &GlobalConfigManagerState,
         mcp_manager: &McpManagerState,
-        heartbeat_state: &HeartbeatServiceState,
+        automation_state: &AutomationServiceState,
     ) -> Self {
         Self {
             app,
@@ -5886,7 +6097,7 @@ impl AgentRuntimeExecutionContext {
             logs: logs.clone(),
             config_manager: GlobalConfigManagerState(config_manager.0.clone()),
             mcp_manager: mcp_manager.clone(),
-            heartbeat_state: heartbeat_state.clone(),
+            automation_state: automation_state.clone(),
         }
     }
 }
@@ -5903,7 +6114,7 @@ impl Clone for AgentRuntimeExecutionContext {
             logs: self.logs.clone(),
             config_manager: GlobalConfigManagerState(self.config_manager.0.clone()),
             mcp_manager: self.mcp_manager.clone(),
-            heartbeat_state: self.heartbeat_state.clone(),
+            automation_state: self.automation_state.clone(),
         }
     }
 }
@@ -6137,7 +6348,7 @@ async fn execute_runtime_turn_and_continue_queue(
         &context.logs,
         &context.config_manager,
         &context.mcp_manager,
-        &context.heartbeat_state,
+        &context.automation_state,
         request,
     )
     .await;
@@ -6210,7 +6421,7 @@ pub fn resume_persisted_runtime_queues_on_startup(
     logs: &LogState,
     config_manager: &GlobalConfigManagerState,
     mcp_manager: &McpManagerState,
-    heartbeat_state: &HeartbeatServiceState,
+    automation_state: &AutomationServiceState,
 ) -> Result<usize, String> {
     let session_ids = list_persisted_runtime_queue_session_ids(db)?;
     if session_ids.is_empty() {
@@ -6227,7 +6438,7 @@ pub fn resume_persisted_runtime_queues_on_startup(
             logs,
             config_manager,
             mcp_manager,
-            heartbeat_state,
+            automation_state,
         );
         if resume_runtime_queue_if_needed(context, session_id.clone())? {
             resumed += 1;
@@ -6261,7 +6472,7 @@ pub async fn agent_runtime_submit_turn(
     logs: State<'_, LogState>,
     config_manager: State<'_, GlobalConfigManagerState>,
     mcp_manager: State<'_, McpManagerState>,
-    heartbeat_state: State<'_, HeartbeatServiceState>,
+    automation_state: State<'_, AutomationServiceState>,
     request: AgentRuntimeSubmitTurnRequest,
 ) -> Result<(), String> {
     let runtime_request: AsterChatRequest = request.into();
@@ -6277,7 +6488,7 @@ pub async fn agent_runtime_submit_turn(
         logs.inner(),
         config_manager.inner(),
         mcp_manager.inner(),
-        heartbeat_state.inner(),
+        automation_state.inner(),
     );
 
     let _ = resume_runtime_queue_if_needed(context.clone(), session_id.clone())?;
@@ -6444,7 +6655,7 @@ pub async fn agent_runtime_get_session(
     logs: State<'_, LogState>,
     config_manager: State<'_, GlobalConfigManagerState>,
     mcp_manager: State<'_, McpManagerState>,
-    heartbeat_state: State<'_, HeartbeatServiceState>,
+    automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<AgentRuntimeSessionDetail, String> {
     ensure_runtime_queue_loaded(state.inner(), db.inner(), &session_id)?;
@@ -6459,7 +6670,7 @@ pub async fn agent_runtime_get_session(
             logs.inner(),
             config_manager.inner(),
             mcp_manager.inner(),
-            heartbeat_state.inner(),
+            automation_state.inner(),
         );
         if let Err(error) = resume_runtime_queue_if_needed(context, session_id.clone()) {
             tracing::warn!(
@@ -6622,6 +6833,8 @@ pub async fn aster_agent_confirm(
 pub struct SubmitElicitationResponseRequest {
     pub request_id: String,
     pub user_data: serde_json::Value,
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
 }
 
 fn validate_elicitation_submission(session_id: &str, request_id: &str) -> Result<String, String> {
@@ -6688,6 +6901,7 @@ pub async fn agent_runtime_respond_action(
                 SubmitElicitationResponseRequest {
                     request_id: request.request_id.clone(),
                     user_data,
+                    metadata: request.metadata.clone(),
                 },
             )
             .await
@@ -6722,9 +6936,14 @@ pub async fn aster_agent_submit_elicitation_response(
             request.user_data,
         ));
 
-    let session_config = SessionConfigBuilder::new(&session_id)
-        .include_context_trace(true)
-        .build();
+    let mut session_config_builder =
+        SessionConfigBuilder::new(&session_id).include_context_trace(true);
+    if let Some(prompt) =
+        merge_system_prompt_with_elicitation_context(None, request.metadata.as_ref())
+    {
+        session_config_builder = session_config_builder.system_prompt(prompt);
+    }
+    let session_config = session_config_builder.build();
 
     let agent_arc = state.get_agent_arc();
     let guard = agent_arc.read().await;
@@ -7022,6 +7241,42 @@ mod tests {
     }
 
     #[test]
+    fn test_browser_required_task_disables_web_search_policy() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "browser_requirement": "required_with_user_step"
+            }
+        });
+
+        assert_eq!(
+            apply_browser_requirement_to_request_tool_policy(
+                Some(&metadata),
+                Some(true),
+                Some(RequestToolPolicyMode::Allowed),
+            ),
+            (Some(false), Some(RequestToolPolicyMode::Disabled))
+        );
+    }
+
+    #[test]
+    fn test_optional_browser_task_keeps_original_web_search_policy() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "browser_requirement": "optional"
+            }
+        });
+
+        assert_eq!(
+            apply_browser_requirement_to_request_tool_policy(
+                Some(&metadata),
+                Some(true),
+                Some(RequestToolPolicyMode::Allowed),
+            ),
+            (Some(true), Some(RequestToolPolicyMode::Allowed))
+        );
+    }
+
+    #[test]
     fn test_should_enable_model_skill_tool_defaults_to_false() {
         let metadata = serde_json::json!({
             "harness": {
@@ -7081,6 +7336,68 @@ mod tests {
                 auto_launch: true,
                 launch_url: Some("https://www.google.com".to_string()),
             })
+        );
+    }
+
+    #[test]
+    fn test_resolve_browser_backend_keeps_explicit_backend() {
+        let params = serde_json::json!({
+            "backend": "cdp_direct"
+        });
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::AsterCompat),
+            auto_launch: true,
+            launch_url: None,
+        };
+
+        assert_eq!(
+            ProxycastBrowserMcpTool::resolve_backend("find", &params, Some(&session_hint)),
+            Some(BrowserBackendType::CdpDirect)
+        );
+    }
+
+    #[test]
+    fn test_resolve_browser_backend_does_not_force_cdp_for_unsupported_action() {
+        let params = serde_json::json!({});
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: None,
+        };
+
+        assert_eq!(
+            ProxycastBrowserMcpTool::resolve_backend("find", &params, Some(&session_hint)),
+            None
+        );
+        assert_eq!(
+            ProxycastBrowserMcpTool::resolve_backend(
+                "javascript_tool",
+                &params,
+                Some(&session_hint)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn test_resolve_browser_backend_keeps_cdp_for_supported_action() {
+        let params = serde_json::json!({});
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: None,
+        };
+
+        assert_eq!(
+            ProxycastBrowserMcpTool::resolve_backend("navigate", &params, Some(&session_hint)),
+            Some(BrowserBackendType::CdpDirect)
+        );
+        assert_eq!(
+            ProxycastBrowserMcpTool::resolve_backend("read_page", &params, Some(&session_hint)),
+            Some(BrowserBackendType::CdpDirect)
         );
     }
 
@@ -7211,6 +7528,7 @@ mod tests {
             confirmed: true,
             response: Some("{\"answer\":\"A\"}".to_string()),
             user_data: Some(serde_json::json!({ "answer": "B" })),
+            metadata: None,
         };
 
         assert_eq!(
@@ -7228,6 +7546,7 @@ mod tests {
             confirmed: true,
             response: Some("{\"answer\":\"A\"}".to_string()),
             user_data: None,
+            metadata: None,
         };
 
         assert_eq!(
@@ -7449,6 +7768,89 @@ mod tests {
         let base = Some("你是助手".to_string());
         let merged = merge_system_prompt_with_auto_continue(base.clone(), Some(&config));
         assert_eq!(merged, base);
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_elicitation_context_appends_prompt() {
+        let metadata = serde_json::json!({
+            "elicitation_context": {
+                "source": "legacy_questionnaire",
+                "mode": "compatibility_bridge",
+                "entries": [
+                    {
+                        "label": "目标受众",
+                        "summary": "客户"
+                    },
+                    {
+                        "label": "语气偏好",
+                        "summary": "友好专业"
+                    }
+                ]
+            }
+        });
+
+        let merged = merge_system_prompt_with_elicitation_context(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains(ELICITATION_CONTEXT_PROMPT_MARKER));
+        assert!(merged.contains("目标受众"));
+        assert!(merged.contains("友好专业"));
+        assert!(merged.contains("legacy_questionnaire"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_elicitation_context_skips_duplicate_marker() {
+        let metadata = serde_json::json!({
+            "elicitation_context": {
+                "entries": [
+                    {
+                        "label": "目标受众",
+                        "summary": "客户"
+                    }
+                ]
+            }
+        });
+        let base = Some(format!("{ELICITATION_CONTEXT_PROMPT_MARKER}\n已有信息"));
+        let merged = merge_system_prompt_with_elicitation_context(base.clone(), Some(&metadata));
+        assert_eq!(merged, base);
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_elicitation_context_formats_non_string_values() {
+        let metadata = serde_json::json!({
+            "elicitation_context": {
+                "entries": [
+                    {
+                        "label": "渠道偏好",
+                        "value": ["公众号", "视频号"]
+                    },
+                    {
+                        "label": "是否需要 CTA",
+                        "value": true
+                    },
+                    {
+                        "label": "目标轮次",
+                        "value": 3
+                    }
+                ]
+            }
+        });
+
+        let merged = merge_system_prompt_with_elicitation_context(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("渠道偏好"));
+        assert!(merged.contains("公众号、视频号"));
+        assert!(merged.contains("是否需要 CTA"));
+        assert!(merged.contains("是"));
+        assert!(merged.contains("目标轮次"));
+        assert!(merged.contains("3"));
     }
 
     #[test]

@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import styled from "styled-components";
-import { Video } from "lucide-react";
+import { ArrowUpRight, Sparkles, Video } from "lucide-react";
 import { toast } from "sonner";
 import { VideoCanvasState } from "./types";
 import { PromptInput } from "./PromptInput";
@@ -28,130 +28,564 @@ interface VideoWorkspaceProps {
 }
 
 const WorkspaceWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
+  position: relative;
   height: 100%;
   width: 100%;
-  padding: 28px 32px 24px;
+  overflow: auto;
+  padding: 28px 28px 32px;
+
+  @media (max-width: 1100px) {
+    padding: 20px 18px 24px;
+  }
 `;
 
-const ContentWrapper = styled.div`
+const PageShell = styled.div`
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 920px;
-  gap: 32px;
+  gap: 18px;
 `;
 
-const EmptyStateWrapper = styled.div`
-  width: 100%;
-  max-width: 920px;
+const SurfaceCard = styled.section`
+  position: relative;
+  overflow: hidden;
+  border-radius: 32px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.96),
+    hsl(201 46% 98% / 0.96)
+  );
+  box-shadow:
+    0 22px 54px hsl(215 30% 14% / 0.08),
+    inset 0 1px 0 hsl(0 0% 100% / 0.74);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: auto auto -120px -80px;
+    width: 260px;
+    height: 260px;
+    border-radius: 999px;
+    background: hsl(154 62% 84% / 0.18);
+    filter: blur(56px);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -120px -80px auto auto;
+    width: 240px;
+    height: 240px;
+    border-radius: 999px;
+    background: hsl(203 88% 84% / 0.18);
+    filter: blur(56px);
+    pointer-events: none;
+  }
+`;
+
+const HeroPanel = styled(SurfaceCard)`
+  padding: 26px;
+
+  @media (max-width: 1100px) {
+    padding: 20px;
+  }
+`;
+
+const HeroHeader = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+
+  @media (max-width: 1100px) {
+    flex-direction: column;
+  }
+`;
+
+const HeroCopy = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 28px;
-  margin-top: clamp(80px, 16vh, 180px);
+  gap: 10px;
+  max-width: 680px;
 `;
 
-const HeaderIcons = styled.div`
+const Eyebrow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid hsl(203 82% 88%);
+  background: hsl(200 100% 97%);
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: hsl(211 58% 38%);
+`;
+
+const HeroTitleRow = styled.div`
   display: flex;
   align-items: center;
   gap: 14px;
 `;
 
 const IconBox = styled.div`
-  width: 54px;
-  height: 54px;
-  background: hsl(var(--foreground));
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, hsl(221 39% 16%), hsl(216 34% 12%));
   color: hsl(var(--background));
-  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 18px 36px hsl(220 40% 12% / 0.18);
 `;
 
-const Title = styled.h1`
-  font-size: 48px;
-  line-height: 1;
+const HeroTitle = styled.h1`
+  margin: 0;
+  font-size: clamp(34px, 4vw, 48px);
+  line-height: 1.04;
   font-weight: 700;
   color: hsl(var(--foreground));
+`;
+
+const HeroDescription = styled.p`
   margin: 0;
+  max-width: 720px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: hsl(var(--muted-foreground));
 `;
 
-const VideoPlayerPlaceholder = styled.div`
-  width: 100%;
-  aspect-ratio: 16/9;
-  background: hsl(var(--muted) / 0.3);
-  border-radius: 12px;
-  border: 1px solid hsl(var(--border));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+const StatsGrid = styled.div`
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: min(360px, 100%);
+
+  @media (max-width: 1100px) {
+    width: 100%;
+  }
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
 `;
 
-const TaskList = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const TaskCard = styled.div`
-  border: 1px solid hsl(var(--border));
-  border-radius: 10px;
-  background: hsl(var(--background));
-  padding: 12px;
+const StatCard = styled.div`
+  border-radius: 22px;
+  border: 1px solid hsl(var(--border) / 0.82);
+  background: hsl(var(--background) / 0.88);
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 `;
 
-const StatusBadge = styled.span<{ $status: string }>`
+const StatLabel = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+`;
+
+const StatValue = styled.span`
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  word-break: break-word;
+`;
+
+const StatHint = styled.span`
+  font-size: 12px;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
+`;
+
+const PromptBlock = styled.div`
+  position: relative;
+  z-index: 1;
+  margin-top: 22px;
+`;
+
+const WorkspaceHeaderCard = styled(SurfaceCard)`
+  padding: 22px;
+
+  @media (max-width: 1100px) {
+    padding: 18px;
+  }
+`;
+
+const WorkspaceHeaderTop = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+
+  @media (max-width: 960px) {
+    flex-direction: column;
+  }
+`;
+
+const WorkspaceHeaderCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 760px;
+`;
+
+const WorkspaceTitle = styled.h2`
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.12;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+`;
+
+const WorkspaceDescription = styled.p`
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: hsl(var(--muted-foreground));
+`;
+
+const HeaderBadgeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const StatusBadge = styled.span<{
+  $tone: "neutral" | "processing" | "success" | "error" | "cancelled";
+}>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 22px;
+  height: 32px;
   border-radius: 999px;
-  padding: 0 10px;
-  font-size: 11px;
-  background: ${({ $status }) =>
-    $status === "success"
-      ? "hsl(142 71% 45% / 0.12)"
-      : $status === "error"
-        ? "hsl(0 84% 60% / 0.12)"
-        : "hsl(var(--primary) / 0.12)"};
-  color: ${({ $status }) =>
-    $status === "success"
-      ? "hsl(142 71% 35%)"
-      : $status === "error"
-        ? "hsl(0 84% 45%)"
-        : "hsl(var(--primary))"};
+  padding: 0 12px;
+  border: 1px solid
+    ${({ $tone }) =>
+      $tone === "success"
+        ? "hsl(152 52% 82%)"
+        : $tone === "error"
+          ? "hsl(0 84% 87%)"
+          : $tone === "processing"
+            ? "hsl(203 86% 84%)"
+            : $tone === "cancelled"
+              ? "hsl(215 20% 85%)"
+              : "hsl(var(--border) / 0.88)"};
+  background: ${({ $tone }) =>
+    $tone === "success"
+      ? "hsl(152 62% 95%)"
+      : $tone === "error"
+        ? "hsl(0 100% 97%)"
+        : $tone === "processing"
+          ? "hsl(203 100% 97%)"
+          : $tone === "cancelled"
+            ? "hsl(215 25% 95%)"
+            : "hsl(var(--background))"};
+  color: ${({ $tone }) =>
+    $tone === "success"
+      ? "hsl(152 56% 26%)"
+      : $tone === "error"
+        ? "hsl(0 72% 38%)"
+        : $tone === "processing"
+          ? "hsl(211 58% 38%)"
+          : $tone === "cancelled"
+            ? "hsl(215 16% 42%)"
+            : "hsl(var(--muted-foreground))"};
+  font-size: 12px;
+  font-weight: 700;
 `;
 
-const TaskMeta = styled.div`
-  display: flex;
-  justify-content: space-between;
+const HeaderChip = styled.span`
+  display: inline-flex;
   align-items: center;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border) / 0.88);
+  background: hsl(var(--background) / 0.84);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+`;
+
+const ResultGrid = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+  gap: 18px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ResultPanel = styled(SurfaceCard)`
+  padding: 18px;
+`;
+
+const ResultPanelHeader = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+  }
+`;
+
+const ResultPanelCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const ResultPanelTitle = styled.h3`
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+`;
+
+const ResultPanelDescription = styled.p`
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
+`;
+
+const StageFrame = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 28px;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background:
+    radial-gradient(circle at top, hsl(202 100% 97%), transparent 34%),
+    linear-gradient(180deg, hsl(214 52% 11%), hsl(219 44% 9%));
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.08);
+`;
+
+const StageVideo = styled.video`
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+`;
+
+const StagePlaceholder = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  color: hsl(210 40% 96%);
+`;
+
+const StagePlaceholderIcon = styled.div`
+  width: 68px;
+  height: 68px;
+  border-radius: 22px;
+  background: hsl(0 0% 100% / 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const StagePlaceholderTitle = styled.div`
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 700;
+`;
+
+const StagePlaceholderDescription = styled.p`
+  margin: 0;
+  max-width: 460px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: hsl(212 32% 78%);
+`;
+
+const StageFooter = styled.div`
+  position: relative;
+  z-index: 1;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const StageFooterText = styled.p`
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
+`;
+
+const TaskCounter = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: hsl(var(--muted) / 0.18);
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const TaskList = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const TaskCard = styled.article<{ $active?: boolean }>`
+  border-radius: 24px;
+  border: 1px solid
+    ${(props) =>
+      props.$active ? "hsl(214 68% 38% / 0.34)" : "hsl(var(--border) / 0.84)"};
+  background: ${(props) =>
+    props.$active ? "hsl(203 100% 97%)" : "hsl(var(--background) / 0.92)"};
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  box-shadow: ${(props) =>
+    props.$active ? "0 14px 32px hsl(204 68% 46% / 0.1)" : "none"};
+`;
+
+const TaskTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const TaskMetaRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
 `;
 
 const TaskPrompt = styled.div`
-  font-size: 13px;
+  font-size: 14px;
   color: hsl(var(--foreground));
-  line-height: 1.5;
+  line-height: 1.65;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
+`;
+
+const TaskProgressTrack = styled.div`
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--muted) / 0.35);
+  overflow: hidden;
+`;
+
+const TaskProgressBar = styled.div<{ $progress: number }>`
+  width: ${({ $progress }) => `${$progress}%`};
+  height: 100%;
+  background: linear-gradient(90deg, hsl(211 58% 48%), hsl(195 72% 48%));
+  border-radius: 999px;
+`;
+
+const TaskAssistText = styled.p<{ $tone?: "default" | "success" | "error" }>`
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: ${({ $tone }) =>
+    $tone === "success"
+      ? "hsl(152 56% 26%)"
+      : $tone === "error"
+        ? "hsl(0 72% 38%)"
+        : "hsl(var(--muted-foreground))"};
+`;
+
+const TaskBottomRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const TaskActionButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: hsl(214 68% 38% / 0.34);
+    box-shadow: 0 12px 24px hsl(215 30% 14% / 0.08);
+  }
+`;
+
+const EmptyTasks = styled.div`
+  position: relative;
+  z-index: 1;
+  border-radius: 24px;
+  border: 1px dashed hsl(var(--border));
+  background: hsl(var(--muted) / 0.12);
+  padding: 28px 18px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.7;
+  color: hsl(var(--muted-foreground));
 `;
 
 interface WorkspaceTask extends VideoGenerationTask {
@@ -187,11 +621,12 @@ function buildVideoMaterialName(task: WorkspaceTask): string {
 }
 
 function formatTaskTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${date.getHours().toString().padStart(2, "0")}:${date
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(timestamp);
 }
 
 function mergeTaskList(
@@ -223,6 +658,51 @@ function mergeTaskList(
   return merged;
 }
 
+function getStatusTone(
+  status: string,
+): "neutral" | "processing" | "success" | "error" | "cancelled" {
+  if (status === "success") {
+    return "success";
+  }
+  if (status === "error") {
+    return "error";
+  }
+  if (status === "cancelled") {
+    return "cancelled";
+  }
+  if (
+    status === "pending" ||
+    status === "processing" ||
+    status === "generating"
+  ) {
+    return "processing";
+  }
+  return "neutral";
+}
+
+function getTaskStatusLabel(status: string): string {
+  if (status === "success") {
+    return "已完成";
+  }
+  if (status === "error") {
+    return "失败";
+  }
+  if (status === "cancelled") {
+    return "已取消";
+  }
+  if (status === "pending") {
+    return "排队中";
+  }
+  return "生成中";
+}
+
+function clampProgress(value?: number | null): number | null {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
   ({ state, projectId, onStateChange }) => {
     const [tasks, setTasks] = useState<WorkspaceTask[]>([]);
@@ -231,7 +711,6 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
     const savingTaskIdsRef = useRef<Set<string>>(new Set());
     const materialRefCache = useRef<Map<string, string>>(new Map());
 
-    // 加载技能列表
     useEffect(() => {
       skillsApi
         .getAll("proxycast")
@@ -560,88 +1039,353 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       [ensureReferenceImageUrl, onStateChange, projectId, state],
     );
 
+    const handlePreviewTask = useCallback(
+      (task: WorkspaceTask) => {
+        if (!task.resultUrl) {
+          return;
+        }
+        onStateChange({
+          ...state,
+          status: "success",
+          videoUrl: task.resultUrl,
+          errorMessage: undefined,
+        });
+      },
+      [onStateChange, state],
+    );
+
     const isGenerated = tasks.length > 0 || state.status !== "idle";
+    const latestTask = tasks[0] ?? null;
+    const referenceCount = [state.startImage, state.endImage].filter(
+      Boolean,
+    ).length;
+
+    const summaryCards = useMemo(
+      () => [
+        {
+          label: "当前模型",
+          value: state.model || "待选择",
+          hint: state.providerId || "请先在左侧选择视频服务",
+        },
+        {
+          label: "输出规格",
+          value: `${state.aspectRatio} · ${state.resolution}`,
+          hint: `时长 ${state.duration} 秒`,
+        },
+        {
+          label: "参考图",
+          value:
+            referenceCount > 0 ? `${referenceCount} 张参考图` : "纯文生视频",
+          hint:
+            referenceCount > 0
+              ? "可用于锁定开场、结尾或主体一致性"
+              : "先验证镜头，再逐步加入约束",
+        },
+        {
+          label: "任务同步",
+          value: projectId ? "结果自动入库" : "需先选择项目",
+          hint: projectId ? "成功后会沉淀到项目素材" : "当前无法提交视频任务",
+        },
+      ],
+      [
+        projectId,
+        referenceCount,
+        state.aspectRatio,
+        state.duration,
+        state.model,
+        state.providerId,
+        state.resolution,
+      ],
+    );
+
+    const workspaceStatus = useMemo(() => {
+      if (state.status === "generating") {
+        return {
+          label: "生成中",
+          tone: "processing" as const,
+          detail:
+            latestTask?.progress != null
+              ? `当前进度 ${Math.round(latestTask.progress)}%`
+              : "已提交任务，正在持续轮询状态。",
+        };
+      }
+      if (state.status === "success" && state.videoUrl) {
+        return {
+          label: "已生成",
+          tone: "success" as const,
+          detail: "可在右侧切换历史结果，最新成功结果会自动成为主预览。",
+        };
+      }
+      if (state.status === "error") {
+        return {
+          label: "生成失败",
+          tone: "error" as const,
+          detail: state.errorMessage ?? "请检查提示词、模型配置或参考图。",
+        };
+      }
+      return {
+        label: "待开始",
+        tone: "neutral" as const,
+        detail: "先在提示框描述画面，再提交一次生成任务。",
+      };
+    }, [
+      latestTask?.progress,
+      state.errorMessage,
+      state.status,
+      state.videoUrl,
+    ]);
 
     return (
       <WorkspaceWrapper>
-        {!isGenerated ? (
-          <EmptyStateWrapper>
-            <HeaderIcons>
-              <IconBox>
-                <Video size={28} />
-              </IconBox>
-              <Title>视频</Title>
-            </HeaderIcons>
-            <PromptInput
-              state={state}
-              onStateChange={onStateChange}
-              onGenerate={handleGenerate}
-              skills={skills}
-            />
-          </EmptyStateWrapper>
-        ) : (
-          <ContentWrapper
-            style={{ height: "100%", justifyContent: "flex-start" }}
-          >
-            <VideoPlayerPlaceholder>
-              {state.status === "generating" ? (
-                <span>正在生成视频中...</span>
-              ) : state.status === "error" ? (
-                <span>{state.errorMessage ?? "视频生成失败"}</span>
-              ) : state.videoUrl ? (
-                <video
-                  controls
-                  src={state.videoUrl}
-                  style={{ width: "100%", height: "100%", borderRadius: 12 }}
+        <PageShell>
+          {!isGenerated ? (
+            <HeroPanel>
+              <HeroHeader>
+                <HeroCopy>
+                  <Eyebrow>VIDEO WORKBENCH</Eyebrow>
+                  <HeroTitleRow>
+                    <IconBox>
+                      <Video size={28} />
+                    </IconBox>
+                    <HeroTitle>视频创作</HeroTitle>
+                  </HeroTitleRow>
+                  <HeroDescription>
+                    用一句清晰的场景描述启动视频生成，再逐步补充镜头运动、情绪和画面锚点。
+                    先让结构成立，再慢慢叠加参考图与参数约束。
+                  </HeroDescription>
+                </HeroCopy>
+
+                <StatsGrid>
+                  {summaryCards.map((item) => (
+                    <StatCard key={item.label}>
+                      <StatLabel>{item.label}</StatLabel>
+                      <StatValue>{item.value}</StatValue>
+                      <StatHint>{item.hint}</StatHint>
+                    </StatCard>
+                  ))}
+                </StatsGrid>
+              </HeroHeader>
+
+              <PromptBlock>
+                <PromptInput
+                  state={state}
+                  onStateChange={onStateChange}
+                  onGenerate={handleGenerate}
+                  skills={skills}
                 />
-              ) : (
-                <span>等待视频生成结果...</span>
-              )}
-            </VideoPlayerPlaceholder>
+              </PromptBlock>
+            </HeroPanel>
+          ) : (
+            <>
+              <WorkspaceHeaderCard>
+                <WorkspaceHeaderTop>
+                  <WorkspaceHeaderCopy>
+                    <Eyebrow>VIDEO SESSION</Eyebrow>
+                    <WorkspaceTitle>
+                      继续调整提示词并追踪最新结果
+                    </WorkspaceTitle>
+                    <WorkspaceDescription>
+                      这里集中展示主预览、历史任务和当前输入入口，避免在多个视图之间来回切换。
+                    </WorkspaceDescription>
+                    <HeaderBadgeRow>
+                      <StatusBadge $tone={workspaceStatus.tone}>
+                        {workspaceStatus.label}
+                      </StatusBadge>
+                      <HeaderChip>
+                        {tasks.length > 0
+                          ? `累计 ${tasks.length} 个任务`
+                          : "暂无历史任务"}
+                      </HeaderChip>
+                      <HeaderChip>
+                        {state.model || "待选择模型"} · {state.resolution}
+                      </HeaderChip>
+                    </HeaderBadgeRow>
+                  </WorkspaceHeaderCopy>
 
-            <TaskList>
-              {tasks.map((task) => (
-                <TaskCard key={task.id}>
-                  <TaskMeta>
-                    <StatusBadge $status={task.status}>
-                      {task.status === "success"
-                        ? "已完成"
-                        : task.status === "error"
-                          ? "失败"
-                          : task.status === "cancelled"
-                            ? "已取消"
-                            : "生成中"}
+                  <StatsGrid>
+                    {summaryCards.map((item) => (
+                      <StatCard key={item.label}>
+                        <StatLabel>{item.label}</StatLabel>
+                        <StatValue>{item.value}</StatValue>
+                        <StatHint>{item.hint}</StatHint>
+                      </StatCard>
+                    ))}
+                  </StatsGrid>
+                </WorkspaceHeaderTop>
+
+                <PromptInput
+                  state={state}
+                  onStateChange={onStateChange}
+                  onGenerate={handleGenerate}
+                  skills={skills}
+                />
+              </WorkspaceHeaderCard>
+
+              <ResultGrid>
+                <ResultPanel>
+                  <ResultPanelHeader>
+                    <ResultPanelCopy>
+                      <ResultPanelTitle>主预览</ResultPanelTitle>
+                      <ResultPanelDescription>
+                        {workspaceStatus.detail}
+                      </ResultPanelDescription>
+                    </ResultPanelCopy>
+                    <StatusBadge $tone={workspaceStatus.tone}>
+                      {workspaceStatus.label}
                     </StatusBadge>
-                    <span>{formatTaskTime(task.createdAt)}</span>
-                  </TaskMeta>
-                  <TaskPrompt>{task.prompt}</TaskPrompt>
-                  <TaskMeta>
-                    <span>
-                      {task.providerId} · {task.model}
-                    </span>
-                    <span>
-                      {task.progress !== undefined && task.progress !== null
-                        ? `${task.progress}%`
-                        : "--"}
-                    </span>
-                  </TaskMeta>
-                  {task.errorMessage ? (
-                    <div style={{ fontSize: 12, color: "hsl(0 84% 45%)" }}>
-                      {task.errorMessage}
-                    </div>
-                  ) : null}
-                </TaskCard>
-              ))}
-            </TaskList>
+                  </ResultPanelHeader>
 
-            <PromptInput
-              state={state}
-              onStateChange={onStateChange}
-              onGenerate={handleGenerate}
-              skills={skills}
-            />
-          </ContentWrapper>
-        )}
+                  <StageFrame>
+                    {state.status === "success" && state.videoUrl ? (
+                      <StageVideo controls src={state.videoUrl} />
+                    ) : state.status === "error" ? (
+                      <StagePlaceholder>
+                        <StagePlaceholderIcon>
+                          <Video size={30} />
+                        </StagePlaceholderIcon>
+                        <StagePlaceholderTitle>
+                          这次生成没有成功
+                        </StagePlaceholderTitle>
+                        <StagePlaceholderDescription>
+                          {state.errorMessage ??
+                            "请检查模型配置、提示词或参考图后再试。"}
+                        </StagePlaceholderDescription>
+                      </StagePlaceholder>
+                    ) : (
+                      <StagePlaceholder>
+                        <StagePlaceholderIcon>
+                          <Sparkles size={30} />
+                        </StagePlaceholderIcon>
+                        <StagePlaceholderTitle>
+                          {state.status === "generating"
+                            ? "正在生成视频"
+                            : "等待第一条生成结果"}
+                        </StagePlaceholderTitle>
+                        <StagePlaceholderDescription>
+                          {state.status === "generating"
+                            ? "任务已提交，右侧卡片会持续刷新进度。你可以继续优化提示词，准备下一轮迭代。"
+                            : "提交任务后，最新成功结果会自动显示在这里。"}
+                        </StagePlaceholderDescription>
+                      </StagePlaceholder>
+                    )}
+                  </StageFrame>
+
+                  <StageFooter>
+                    <StageFooterText>
+                      成功结果会自动同步到项目素材；切换历史任务预览不会覆盖你当前输入的提示词。
+                    </StageFooterText>
+                    {latestTask ? (
+                      <TaskCounter>
+                        最近更新于 {formatTaskTime(latestTask.createdAt)}
+                      </TaskCounter>
+                    ) : null}
+                  </StageFooter>
+                </ResultPanel>
+
+                <ResultPanel>
+                  <ResultPanelHeader>
+                    <ResultPanelCopy>
+                      <ResultPanelTitle>最近任务</ResultPanelTitle>
+                      <ResultPanelDescription>
+                        按时间倒序展示最新视频任务，便于切换预览与排查失败原因。
+                      </ResultPanelDescription>
+                    </ResultPanelCopy>
+                    <TaskCounter>{tasks.length} 条</TaskCounter>
+                  </ResultPanelHeader>
+
+                  {tasks.length === 0 ? (
+                    <EmptyTasks>
+                      当前还没有可展示的任务记录。先提交一次视频生成，结果会自动沉淀到这里。
+                    </EmptyTasks>
+                  ) : (
+                    <TaskList>
+                      {tasks.map((task) => {
+                        const progress = clampProgress(task.progress);
+                        const tone = getStatusTone(task.status);
+                        const syncMessage =
+                          task.status === "success"
+                            ? task.resourceMaterialId
+                              ? "已同步到项目素材"
+                              : task.resourceSaveError
+                                ? `素材入库失败：${task.resourceSaveError}`
+                                : "结果已生成，正在同步到项目素材"
+                            : task.status === "error"
+                              ? (task.errorMessage ?? "任务执行失败")
+                              : task.status === "cancelled"
+                                ? "任务已取消"
+                                : progress != null
+                                  ? `当前进度 ${progress}%`
+                                  : "正在等待服务端返回进度";
+
+                        return (
+                          <TaskCard
+                            key={task.id}
+                            $active={Boolean(
+                              task.resultUrl &&
+                              task.resultUrl === state.videoUrl,
+                            )}
+                          >
+                            <TaskTopRow>
+                              <TaskMetaRow>
+                                <StatusBadge $tone={tone}>
+                                  {getTaskStatusLabel(task.status)}
+                                </StatusBadge>
+                                <span>{formatTaskTime(task.createdAt)}</span>
+                              </TaskMetaRow>
+                              <TaskMetaRow>
+                                <span>{task.providerId}</span>
+                                <span>{task.model}</span>
+                              </TaskMetaRow>
+                            </TaskTopRow>
+
+                            <TaskPrompt>{task.prompt}</TaskPrompt>
+
+                            {progress != null &&
+                            (task.status === "pending" ||
+                              task.status === "processing") ? (
+                              <TaskProgressTrack>
+                                <TaskProgressBar $progress={progress} />
+                              </TaskProgressTrack>
+                            ) : null}
+
+                            <TaskAssistText
+                              $tone={
+                                task.status === "success"
+                                  ? "success"
+                                  : task.status === "error"
+                                    ? "error"
+                                    : "default"
+                              }
+                            >
+                              {syncMessage}
+                            </TaskAssistText>
+
+                            <TaskBottomRow>
+                              <TaskMetaRow>
+                                <span>ID {task.id}</span>
+                              </TaskMetaRow>
+                              {task.resultUrl ? (
+                                <TaskActionButton
+                                  type="button"
+                                  onClick={() => handlePreviewTask(task)}
+                                >
+                                  {task.resultUrl === state.videoUrl
+                                    ? "当前预览"
+                                    : "切换预览"}
+                                  <ArrowUpRight size={14} />
+                                </TaskActionButton>
+                              ) : null}
+                            </TaskBottomRow>
+                          </TaskCard>
+                        );
+                      })}
+                    </TaskList>
+                  )}
+                </ResultPanel>
+              </ResultGrid>
+            </>
+          )}
+        </PageShell>
       </WorkspaceWrapper>
     );
   },

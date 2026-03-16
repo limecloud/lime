@@ -235,6 +235,11 @@ async function executeRemoteCommand(commandData) {
     return;
   }
 
+  if (command === "list_tabs") {
+    await handleListTabs(commandData);
+    return;
+  }
+
   const tabId = await resolveTargetTabId();
   if (!tabId) {
     sendCommandResult({
@@ -386,6 +391,41 @@ async function handleSwitchTab(commandData, waitForPageInfo) {
 
   if (waitForPageInfo) {
     await triggerPageCapture("switch_tab");
+  }
+}
+
+async function handleListTabs(commandData) {
+  const requestId = commandData.requestId;
+  const sourceClientId = commandData.sourceClientId;
+
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const normalizedTabs = tabs
+      .filter((tab) => Number.isInteger(tab.id) && Number.isInteger(tab.index))
+      .map((tab) => ({
+        id: tab.id,
+        index: tab.index,
+        active: tab.active === true,
+        title: tab.title || "",
+        url: tab.url || "",
+      }));
+
+    sendCommandResult({
+      requestId,
+      sourceClientId,
+      status: "success",
+      message: `已读取 ${normalizedTabs.length} 个标签页`,
+      data: {
+        tabs: normalizedTabs,
+      },
+    });
+  } catch (error) {
+    sendCommandResult({
+      requestId,
+      sourceClientId,
+      status: "error",
+      error: error?.message || String(error),
+    });
   }
 }
 

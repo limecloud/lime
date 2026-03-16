@@ -4,8 +4,6 @@
 
 pub mod api;
 pub mod api_key_provider_utils;
-pub mod batch_api;
-pub mod batch_executor;
 pub mod chrome_bridge_ws;
 pub mod credentials_api;
 pub mod image_handler;
@@ -14,7 +12,6 @@ pub mod provider_calls;
 pub mod websocket;
 
 pub use api::*;
-pub use batch_api::*;
 pub use chrome_bridge_ws::*;
 pub use credentials_api::*;
 pub use image_handler::*;

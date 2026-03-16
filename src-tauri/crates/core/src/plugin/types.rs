@@ -445,6 +445,8 @@ pub struct PluginInfo {
     pub path: PathBuf,
     /// 支持的钩子
     pub hooks: Vec<String>,
+    /// 最低 ProxyCast 版本要求
+    pub min_proxycast_version: Option<String>,
     /// 配置 schema
     pub config_schema: Option<serde_json::Value>,
     /// 当前配置
@@ -528,6 +530,7 @@ impl PluginInstance {
             status: self.state.status,
             path: self.path.clone(),
             hooks: manifest.hooks.clone(),
+            min_proxycast_version: manifest.min_proxycast_version.clone(),
             config_schema: manifest.config_schema.clone(),
             config: self.config.clone(),
             state: self.state.clone(),

@@ -117,28 +117,58 @@ const shimmer = keyframes`
 // ==================== Styled Components ====================
 
 const Container = styled.div`
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: hsl(var(--background));
+  gap: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg, hsl(210 40% 98%) 0%, hsl(0 0% 100%) 100%);
 `;
 
 const SearchPanel = styled.div`
-  padding: 20px 24px 16px;
+  position: relative;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  border-bottom: 1px solid hsl(var(--border) / 0.3);
+  gap: 10px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  border-radius: 24px;
+  background: hsl(var(--background) / 0.84);
+  box-shadow:
+    0 16px 38px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
+  overflow: visible;
+`;
+
+const ComposerRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 10px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const SearchToolsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 `;
 
 const PromptArea = styled.textarea`
   width: 100%;
-  min-height: 80px;
-  max-height: 140px;
+  min-height: 76px;
+  max-height: 128px;
   padding: 14px 16px;
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
-  background: hsl(var(--card) / 0.5);
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)),
+    hsl(var(--muted) / 0.12)
+  );
   color: hsl(var(--foreground));
   font-size: 14px;
   line-height: 1.6;
@@ -148,13 +178,13 @@ const PromptArea = styled.textarea`
 
   &:focus {
     outline: none;
-    border-color: hsl(var(--primary) / 0.6);
-    background: hsl(var(--card) / 0.8);
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.08);
+    border-color: hsl(214 68% 38% / 0.34);
+    background: hsl(var(--background));
+    box-shadow: 0 0 0 4px hsl(211 100% 96%);
   }
 
   &::placeholder {
-    color: hsl(var(--muted-foreground) / 0.6);
+    color: hsl(var(--muted-foreground));
   }
 `;
 
@@ -162,25 +192,28 @@ const FiltersRow = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const RatioDropdown = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  height: 38px;
+  padding: 0 14px;
   border: 1px solid hsl(var(--border));
-  border-radius: 10px;
-  background: hsl(var(--card) / 0.5);
+  border-radius: 14px;
+  background: hsl(var(--background) / 0.92);
   color: hsl(var(--foreground));
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   position: relative;
   transition: all 0.2s;
 
   &:hover {
-    border-color: hsl(var(--primary) / 0.4);
-    background: hsl(var(--card) / 0.8);
+    border-color: hsl(214 68% 38% / 0.28);
+    background: hsl(var(--background));
   }
 `;
 
@@ -192,9 +225,9 @@ const RatioOptions = styled.div<{ $open: boolean }>`
   min-width: 140px;
   padding: 6px;
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
+  border-radius: 14px;
   background: hsl(var(--popover));
-  box-shadow: 0 8px 32px hsl(var(--background) / 0.5);
+  box-shadow: 0 16px 36px hsl(215 32% 12% / 0.14);
   display: ${({ $open }) => ($open ? "flex" : "none")};
   flex-direction: column;
   gap: 2px;
@@ -224,17 +257,13 @@ const RatioOption = styled.div<{ $active: boolean }>`
 
 const SearchButton = styled.button<{ $loading: boolean }>`
   width: 100%;
-  height: 44px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(
-    135deg,
-    hsl(var(--primary)),
-    hsl(var(--primary) / 0.8)
-  );
-  color: hsl(var(--primary-foreground));
+  min-height: 76px;
+  border: 1px solid hsl(215 28% 17% / 0.92);
+  border-radius: 18px;
+  background: linear-gradient(180deg, hsl(221 39% 16%), hsl(216 34% 12%));
+  color: hsl(var(--background));
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: ${({ $loading }) => ($loading ? "wait" : "pointer")};
   display: flex;
   align-items: center;
@@ -246,7 +275,7 @@ const SearchButton = styled.button<{ $loading: boolean }>`
 
   &:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 6px 24px hsl(var(--primary) / 0.3);
+    box-shadow: 0 18px 36px hsl(220 40% 12% / 0.18);
   }
 
   &:active:not(:disabled) {
@@ -275,24 +304,31 @@ const SearchButton = styled.button<{ $loading: boolean }>`
 
 const SourceTabs = styled.div`
   display: flex;
-  border: 1px solid hsl(var(--border) / 0.8);
-  border-radius: 12px;
+  flex: 1;
+  min-width: 280px;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid hsl(var(--border) / 0.82);
+  border-radius: 16px;
   overflow: hidden;
-  background: hsl(var(--muted) / 0.35);
+  background: hsl(var(--muted) / 0.18);
 `;
 
 const SourceTab = styled.button<{ $active: boolean }>`
   flex: 1;
-  padding: 9px 16px;
-  border: none;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid
+    ${({ $active }) => ($active ? "hsl(214 68% 38% / 0.18)" : "transparent")};
+  border-radius: 12px;
   background: ${({ $active }) =>
     $active
-      ? "linear-gradient(135deg, hsl(var(--primary) / 0.22), hsl(var(--primary) / 0.1))"
+      ? "linear-gradient(180deg, hsl(var(--background)), hsl(203 100% 97%))"
       : "transparent"};
   color: ${({ $active }) =>
-    $active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"};
+    $active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
   font-size: 13px;
-  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  font-weight: ${({ $active }) => ($active ? 700 : 600)};
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -301,59 +337,55 @@ const SourceTab = styled.button<{ $active: boolean }>`
   justify-content: center;
   gap: 6px;
 
-  &:first-child {
-    border-right: 1px solid hsl(var(--border) / 0.7);
-  }
-
   &:hover {
     color: ${({ $active }) =>
-      $active ? "hsl(var(--primary))" : "hsl(var(--foreground))"};
+      $active ? "hsl(var(--foreground))" : "hsl(var(--foreground))"};
     background: ${({ $active }) =>
       $active
-        ? "linear-gradient(135deg, hsl(var(--primary) / 0.25), hsl(var(--primary) / 0.12))"
-        : "hsl(var(--accent) / 0.4)"};
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 2px;
-    height: 2px;
-    border-radius: 2px;
-    background: ${({ $active }) =>
-      $active ? "hsl(var(--primary))" : "transparent"};
+        ? "linear-gradient(180deg, hsl(var(--background)), hsl(203 100% 97%))"
+        : "hsl(var(--background) / 0.72)"};
   }
 `;
 
 const ResultsArea = styled.div`
   flex: 1;
   min-height: 0;
+  border-radius: 28px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: hsl(var(--background) / 0.84);
+  box-shadow:
+    0 18px 42px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
+  overflow: hidden;
 `;
 
 const ImageGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 10px;
-  padding: 16px 24px 24px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 14px 16px 18px;
 `;
 
 const ImageCard = styled.div<{ $aspectRatio?: number }>`
   position: relative;
   aspect-ratio: ${({ $aspectRatio }) =>
-    $aspectRatio ? Math.max(0.75, Math.min(1.6, $aspectRatio)) : 4 / 3};
+    $aspectRatio ? Math.max(0.82, Math.min(1.5, $aspectRatio)) : 4 / 3};
   min-height: 180px;
-  max-height: 320px;
-  border-radius: 12px;
+  max-height: 340px;
+  border-radius: 20px;
+  border: 1px solid hsl(var(--border) / 0.82);
   overflow: hidden;
   cursor: pointer;
   animation: ${fadeIn} 0.35s ease both;
   transition: all 0.25s ease;
+  background: hsl(var(--background));
+  box-shadow:
+    0 14px 34px hsl(215 32% 12% / 0.06),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
 
   &:hover {
     transform: translateY(-3px);
-    box-shadow: 0 12px 40px hsl(var(--background) / 0.6);
+    box-shadow: 0 20px 44px hsl(215 32% 12% / 0.1);
   }
 
   img {
@@ -373,8 +405,8 @@ const Overlay = styled.div`
   inset: 0;
   background: linear-gradient(
     180deg,
-    transparent 40%,
-    hsl(var(--background) / 0.85) 100%
+    transparent 34%,
+    hsl(220 40% 12% / 0.78) 100%
   );
   opacity: 0;
   display: flex;
@@ -400,14 +432,16 @@ const ActionButton = styled.button<{ $primary?: boolean }>`
   flex: 1;
   height: 36px;
   border: ${({ $primary }) =>
-    $primary ? "none" : "1px solid hsl(var(--border) / 0.6)"};
-  border-radius: 10px;
+    $primary ? "none" : "1px solid hsl(0 0% 100% / 0.2)"};
+  border-radius: 12px;
   background: ${({ $primary }) =>
-    $primary ? "hsl(var(--primary))" : "hsl(var(--background) / 0.8)"};
+    $primary
+      ? "linear-gradient(180deg, hsl(221 39% 18%), hsl(216 34% 14%))"
+      : "hsl(0 0% 100% / 0.12)"};
   color: ${({ $primary }) =>
-    $primary ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))"};
+    $primary ? "hsl(var(--background))" : "hsl(var(--background))"};
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -418,7 +452,7 @@ const ActionButton = styled.button<{ $primary?: boolean }>`
 
   &:hover {
     transform: scale(1.03);
-    box-shadow: 0 2px 8px hsl(var(--background) / 0.3);
+    box-shadow: 0 8px 18px hsl(215 32% 12% / 0.22);
   }
 
   &:disabled {
@@ -432,8 +466,8 @@ const MetaBadge = styled.div`
   top: 8px;
   right: 8px;
   padding: 3px 8px;
-  border-radius: 6px;
-  background: hsl(var(--background) / 0.75);
+  border-radius: 999px;
+  background: hsl(var(--background) / 0.84);
   backdrop-filter: blur(8px);
   font-size: 10px;
   color: hsl(var(--foreground) / 0.8);
@@ -450,11 +484,11 @@ const ProviderBadge = styled.div`
   bottom: 8px;
   left: 8px;
   padding: 3px 8px;
-  border-radius: 6px;
-  background: hsl(var(--primary) / 0.85);
+  border-radius: 999px;
+  background: hsl(221 39% 16% / 0.92);
   backdrop-filter: blur(8px);
   font-size: 10px;
-  color: hsl(var(--primary-foreground));
+  color: hsl(var(--background));
   display: flex;
   align-items: center;
   gap: 4px;
@@ -471,7 +505,8 @@ const EmptyState = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px 48px;
+  min-height: 100%;
+  padding: 72px 48px;
   gap: 16px;
   color: hsl(var(--muted-foreground));
   text-align: center;
@@ -481,18 +516,22 @@ const EmptyIcon = styled.div`
   width: 80px;
   height: 80px;
   border-radius: 24px;
-  background: hsl(var(--muted) / 0.3);
+  background: linear-gradient(
+    135deg,
+    hsl(203 100% 97%),
+    hsl(201 52% 94% / 0.86)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  color: hsl(var(--muted-foreground) / 0.5);
+  color: hsl(211 58% 38%);
 `;
 
 const EmptyTitle = styled.h3`
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: hsl(var(--foreground) / 0.7);
+  font-size: 22px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
 `;
 
 const EmptyHint = styled.p`
@@ -505,16 +544,18 @@ const Footer = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 24px;
+  padding: 12px 16px;
+  gap: 12px;
+  flex-wrap: wrap;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
-  border-top: 1px solid hsl(var(--border) / 0.3);
+  border-top: 1px solid hsl(var(--border) / 0.42);
 `;
 
 const Attribution = styled.a`
-  color: hsl(var(--primary) / 0.8);
+  color: hsl(211 58% 38%);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
   transition: color 0.2s;
 
   &:hover {
@@ -524,15 +565,15 @@ const Attribution = styled.a`
 `;
 
 const LoadMoreButton = styled.button<{ $loading: boolean }>`
-  width: calc(100% - 48px);
-  margin: 0 24px 16px;
-  height: 42px;
+  width: calc(100% - 32px);
+  margin: 0 16px 16px;
+  height: 40px;
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
-  background: hsl(var(--card) / 0.5);
+  border-radius: 14px;
+  background: hsl(var(--background) / 0.9);
   color: hsl(var(--foreground));
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: ${({ $loading }) => ($loading ? "wait" : "pointer")};
   display: flex;
   align-items: center;
@@ -541,8 +582,8 @@ const LoadMoreButton = styled.button<{ $loading: boolean }>`
   transition: all 0.2s;
 
   &:hover:not(:disabled) {
-    border-color: hsl(var(--primary) / 0.4);
-    background: hsl(var(--card) / 0.8);
+    border-color: hsl(214 68% 38% / 0.28);
+    background: hsl(var(--background));
     transform: translateY(-1px);
   }
 
@@ -554,16 +595,14 @@ const LoadMoreButton = styled.button<{ $loading: boolean }>`
 const ResultCount = styled.span`
   font-size: 13px;
   color: hsl(var(--muted-foreground));
-  padding: 0 24px;
+  padding: 14px 16px 0;
   display: block;
-  margin-bottom: 4px;
 `;
 
 const RecentInsertPanel = styled.div`
-  margin: 10px 24px 0;
   border: 1px solid hsl(var(--border) / 0.55);
-  border-radius: 12px;
-  background: hsl(var(--card) / 0.45);
+  border-radius: 18px;
+  background: hsl(var(--background) / 0.86);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -572,12 +611,13 @@ const RecentInsertPanel = styled.div`
 
 const RecentInsertHeader = styled.div`
   font-size: 12px;
+  font-weight: 600;
   color: hsl(var(--muted-foreground));
 `;
 
 const RecentInsertList = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
 `;
 
@@ -586,6 +626,11 @@ const RecentInsertItem = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 260px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid hsl(var(--border) / 0.8);
+  background: hsl(var(--background) / 0.88);
 `;
 
 const RecentInsertMeta = styled.div`
@@ -613,18 +658,19 @@ const RecentInsertHint = styled.div`
 
 const RelocateButton = styled.button`
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
+  border-radius: 12px;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-size: 11px;
-  padding: 4px 10px;
+  padding: 6px 10px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
 
   &:hover {
-    border-color: hsl(var(--primary) / 0.45);
-    color: hsl(var(--primary));
+    border-color: hsl(214 68% 38% / 0.32);
+    color: hsl(211 58% 38%);
   }
 `;
 
@@ -883,79 +929,83 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
   return (
     <Container>
       <SearchPanel>
-        <PromptArea
-          placeholder="输入关键词搜索图片，例如：世界旅游胜地、科技感背景..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={3}
-        />
+        <ComposerRow>
+          <PromptArea
+            placeholder="输入关键词搜索图片，例如：世界旅游胜地、科技感背景..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={3}
+          />
 
-        <FiltersRow>
-          <RatioDropdown
-            onClick={() => setRatioOpen(!ratioOpen)}
-            onBlur={() => setTimeout(() => setRatioOpen(false), 150)}
+          <SearchButton
+            $loading={loading}
+            onClick={handleSearch}
+            disabled={loading || !query.trim()}
           >
-            <ImageIcon size={14} />
-            {currentRatioLabel}
-            <ChevronDown size={12} />
-            <RatioOptions $open={ratioOpen}>
-              {RATIO_OPTIONS.map((option) => (
-                <RatioOption
-                  key={option.value}
-                  $active={aspectRatio === option.value}
-                  role="button"
-                  tabIndex={0}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setAspectRatio(option.value);
-                    setRatioOpen(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                搜索中...
+              </>
+            ) : (
+              <>
+                <Search size={16} />
+                搜索图片
+              </>
+            )}
+          </SearchButton>
+        </ComposerRow>
+
+        <SearchToolsRow>
+          <FiltersRow>
+            <RatioDropdown
+              onClick={() => setRatioOpen(!ratioOpen)}
+              onBlur={() => setTimeout(() => setRatioOpen(false), 150)}
+            >
+              <ImageIcon size={14} />
+              {currentRatioLabel}
+              <ChevronDown size={12} />
+              <RatioOptions $open={ratioOpen}>
+                {RATIO_OPTIONS.map((option) => (
+                  <RatioOption
+                    key={option.value}
+                    $active={aspectRatio === option.value}
+                    role="button"
+                    tabIndex={0}
+                    onMouseDown={(e) => {
                       e.preventDefault();
                       setAspectRatio(option.value);
                       setRatioOpen(false);
-                    }
-                  }}
-                >
-                  {option.icon} {option.label}
-                </RatioOption>
-              ))}
-            </RatioOptions>
-          </RatioDropdown>
-        </FiltersRow>
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setAspectRatio(option.value);
+                        setRatioOpen(false);
+                      }
+                    }}
+                  >
+                    {option.icon} {option.label}
+                  </RatioOption>
+                ))}
+              </RatioOptions>
+            </RatioDropdown>
+          </FiltersRow>
 
-        <SearchButton
-          $loading={loading}
-          onClick={handleSearch}
-          disabled={loading || !query.trim()}
-        >
-          {loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              搜索中...
-            </>
-          ) : (
-            <>
-              <Search size={16} />
-              搜索图片
-            </>
-          )}
-        </SearchButton>
-
-        <SourceTabs>
-          {SOURCE_TABS.map((tab) => (
-            <SourceTab
-              key={tab.key}
-              $active={searchSource === tab.key}
-              onClick={() => setSearchSource(tab.key as SearchSource)}
-            >
-              <tab.icon size={13} />
-              {tab.label}
-            </SourceTab>
-          ))}
-        </SourceTabs>
+          <SourceTabs>
+            {SOURCE_TABS.map((tab) => (
+              <SourceTab
+                key={tab.key}
+                $active={searchSource === tab.key}
+                onClick={() => setSearchSource(tab.key as SearchSource)}
+              >
+                <tab.icon size={13} />
+                {tab.label}
+              </SourceTab>
+            ))}
+          </SourceTabs>
+        </SearchToolsRow>
 
         {recentInsertHistory.length > 0 && (
           <RecentInsertPanel>

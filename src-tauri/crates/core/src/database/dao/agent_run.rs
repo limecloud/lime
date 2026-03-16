@@ -1,6 +1,6 @@
 //! 统一执行追踪（agent_runs）数据访问对象
 //!
-//! 提供跨 chat / skill / heartbeat 的执行摘要记录能力。
+//! 提供跨 chat / skill / automation 的执行摘要记录能力。
 
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -137,6 +137,26 @@ impl AgentRunDao {
         Ok(changed > 0)
     }
 
+    pub fn refresh_running_run(
+        conn: &Connection,
+        id: &str,
+        updated_at: &str,
+        session_id: Option<&str>,
+        metadata: Option<&str>,
+    ) -> Result<bool, rusqlite::Error> {
+        let changed = conn.execute(
+            "UPDATE agent_runs
+             SET session_id = COALESCE(?1, session_id),
+                 metadata = COALESCE(?2, metadata),
+                 updated_at = ?3
+             WHERE id = ?4
+               AND finished_at IS NULL
+               AND status IN ('queued', 'running')",
+            params![session_id, metadata, updated_at, id],
+        )?;
+        Ok(changed > 0)
+    }
+
     pub fn get_run(conn: &Connection, id: &str) -> Result<Option<AgentRun>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT id, source, source_ref, session_id, status, started_at, finished_at, duration_ms,
@@ -223,6 +243,46 @@ impl AgentRunDao {
         )?;
 
         let iter = stmt.query_map(params![session_id, limit as i64], |row| {
+            let status_raw: String = row.get(4)?;
+            let status =
+                AgentRunStatus::try_from(status_raw.as_str()).unwrap_or(AgentRunStatus::Error);
+            Ok(AgentRun {
+                id: row.get(0)?,
+                source: row.get(1)?,
+                source_ref: row.get(2)?,
+                session_id: row.get(3)?,
+                status,
+                started_at: row.get(5)?,
+                finished_at: row.get(6)?,
+                duration_ms: row.get(7)?,
+                error_code: row.get(8)?,
+                error_message: row.get(9)?,
+                metadata: row.get(10)?,
+                created_at: row.get(11)?,
+                updated_at: row.get(12)?,
+            })
+        })?;
+
+        iter.collect()
+    }
+
+    pub fn list_runs_by_source_ref(
+        conn: &Connection,
+        source: &str,
+        source_ref: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentRun>, rusqlite::Error> {
+        let mut stmt = conn.prepare(
+            "SELECT id, source, source_ref, session_id, status, started_at, finished_at, duration_ms,
+                    error_code, error_message, metadata, created_at, updated_at
+             FROM agent_runs
+             WHERE source = ?1
+               AND source_ref = ?2
+             ORDER BY started_at DESC
+             LIMIT ?3",
+        )?;
+
+        let iter = stmt.query_map(params![source, source_ref, limit as i64], |row| {
             let status_raw: String = row.get(4)?;
             let status =
                 AgentRunStatus::try_from(status_raw.as_str()).unwrap_or(AgentRunStatus::Error);
@@ -446,5 +506,35 @@ mod tests {
             .expect("查询第二页终态记录失败");
         assert_eq!(second_page.len(), 1);
         assert_eq!(second_page[0].id, "run-success");
+    }
+
+    #[test]
+    fn refresh_running_run_should_update_session_and_metadata() {
+        let conn = setup_conn();
+        let mut run = sample_run("run-refresh", AgentRunStatus::Running);
+        run.session_id = None;
+        AgentRunDao::create_run(&conn, &run).expect("写入 run 失败");
+
+        let updated_at = Utc::now().to_rfc3339();
+        let changed = AgentRunDao::refresh_running_run(
+            &conn,
+            "run-refresh",
+            &updated_at,
+            Some("session-refresh"),
+            Some("{\"browser_lifecycle_state\":\"waiting_for_human\"}"),
+        )
+        .expect("刷新运行中 run 失败");
+
+        assert!(changed);
+
+        let fetched = AgentRunDao::get_run(&conn, "run-refresh")
+            .expect("查询 run 失败")
+            .expect("run 不存在");
+        assert_eq!(fetched.session_id.as_deref(), Some("session-refresh"));
+        assert_eq!(
+            fetched.metadata.as_deref(),
+            Some("{\"browser_lifecycle_state\":\"waiting_for_human\"}")
+        );
+        assert_eq!(fetched.updated_at, updated_at);
     }
 }

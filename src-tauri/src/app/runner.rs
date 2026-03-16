@@ -88,7 +88,7 @@ pub fn run() {
         tool_hooks_service,
         recording_service,
         mcp_manager: mcp_manager_state,
-        heartbeat_service: heartbeat_service_state,
+        automation_service: automation_service_state,
         workflow_service,
         progress_store,
         shared_stats,
@@ -178,7 +178,7 @@ pub fn run() {
         .manage(tool_hooks_service)
         .manage(recording_service)
         .manage(mcp_manager_state)
-        .manage(heartbeat_service_state)
+        .manage(automation_service_state)
         .manage(workflow_service)
         .manage(progress_store)
         .manage(proxycast_gateway::telegram::TelegramGatewayState::default())
@@ -303,8 +303,8 @@ pub fn run() {
                 let log_state = app.try_state::<crate::LogState>();
                 let config_manager = app.try_state::<crate::config::GlobalConfigManagerState>();
                 let mcp_manager = app.try_state::<crate::mcp::McpManagerState>();
-                let heartbeat_state =
-                    app.try_state::<crate::services::heartbeat_service::HeartbeatServiceState>();
+                let automation_state =
+                    app.try_state::<crate::services::automation_service::AutomationServiceState>();
 
                 match (
                     aster_agent_state,
@@ -313,7 +313,7 @@ pub fn run() {
                     log_state,
                     config_manager,
                     mcp_manager,
-                    heartbeat_state,
+                    automation_state,
                 ) {
                     (
                         Some(aster_agent_state),
@@ -322,7 +322,7 @@ pub fn run() {
                         Some(log_state),
                         Some(config_manager),
                         Some(mcp_manager),
-                        Some(heartbeat_state),
+                        Some(automation_state),
                     ) => Some((
                         app.handle().clone(),
                         aster_agent_state.inner().clone(),
@@ -335,7 +335,7 @@ pub fn run() {
                             config_manager.0.clone(),
                         ),
                         mcp_manager.inner().clone(),
-                        heartbeat_state.inner().clone(),
+                        automation_state.inner().clone(),
                     )),
                     _ => None,
                 }
@@ -349,7 +349,7 @@ pub fn run() {
                 logs,
                 config_manager,
                 mcp_manager,
-                heartbeat_state,
+                automation_state,
             )) = startup_runtime_resume
             {
                 match crate::commands::aster_agent_cmd::resume_persisted_runtime_queues_on_startup(
@@ -360,7 +360,7 @@ pub fn run() {
                     &logs,
                     &config_manager,
                     &mcp_manager,
-                    &heartbeat_state,
+                    &automation_state,
                 ) {
                     Ok(resumed) if resumed > 0 => {
                         tracing::info!("[启动] 已恢复 {} 个会话的排队执行", resumed);
@@ -816,57 +816,48 @@ pub fn run() {
                 }
             });
 
-            // 初始化心跳引擎（设置 AppHandle 并根据配置自动启动）
+            // 初始化自动化调度服务（设置 AppHandle 并根据配置自动启动）
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    // 组件监督器：心跳引擎启动失败时自动重试
+                    // 组件监督器：自动化调度服务启动失败时自动重试
                     let max_retries = 3;
                     let mut retry_count = 0;
                     let mut retry_delay = tokio::time::Duration::from_secs(5);
 
                     loop {
                         if retry_count >= max_retries {
-                            tracing::error!("[启动] 心跳引擎启动重试次数已达上限，放弃启动");
+                            tracing::error!("[启动] 自动化调度服务启动重试次数已达上限，放弃启动");
                             break;
                         }
 
                         tokio::time::sleep(retry_delay).await;
 
-                        if let Some(hb_state) = app_handle
-                            .try_state::<crate::services::heartbeat_service::HeartbeatServiceState>()
+                        if let Some(automation_state) = app_handle
+                            .try_state::<crate::services::automation_service::AutomationServiceState>()
                         {
-                            let mut service = hb_state.0.write().await;
+                            let mut service = automation_state.0.write().await;
                             service.set_app_handle(app_handle.clone());
 
                             if service.get_config().enabled {
-                                let app_data_dir = match proxycast_core::app_paths::preferred_data_dir() {
-                                    Ok(dir) => dir,
-                                    Err(e) => {
-                                        tracing::error!("[启动] 无法获取应用数据目录: {}", e);
-                                        retry_count += 1;
-                                        retry_delay = retry_delay.saturating_mul(2); // 指数退避
-                                        continue;
-                                    }
-                                };
-                                let self_ref = hb_state.0.clone();
-                                match service.start(app_data_dir, self_ref).await {
+                                let self_ref = automation_state.0.clone();
+                                match service.start(self_ref).await {
                                     Ok(()) => {
-                                        tracing::info!("[启动] 心跳引擎已自动启动（尝试 {}/{}）", retry_count + 1, max_retries);
+                                        tracing::info!("[启动] 自动化调度服务已自动启动（尝试 {}/{}）", retry_count + 1, max_retries);
                                         break;
                                     }
                                     Err(e) => {
-                                        tracing::warn!("[启动] 心跳引擎启动失败（尝试 {}/{}）: {}", retry_count + 1, max_retries, e);
+                                        tracing::warn!("[启动] 自动化调度服务启动失败（尝试 {}/{}）: {}", retry_count + 1, max_retries, e);
                                         retry_count += 1;
                                         retry_delay = retry_delay.saturating_mul(2);
                                     }
                                 }
                             } else {
-                                tracing::info!("[启动] 心跳引擎已禁用，跳过启动");
+                                tracing::info!("[启动] 自动化调度服务已禁用，跳过启动");
                                 break;
                             }
                         } else {
-                            tracing::error!("[启动] 无法获取 HeartbeatServiceState");
+                            tracing::error!("[启动] 无法获取 AutomationServiceState");
                             break;
                         }
                     }
@@ -1076,7 +1067,9 @@ pub fn run() {
             commands::openclaw_cmd::openclaw_get_progress_logs,
             commands::openclaw_cmd::openclaw_install,
             commands::openclaw_cmd::openclaw_install_dependency,
+            commands::openclaw_cmd::openclaw_check_update,
             commands::openclaw_cmd::openclaw_uninstall,
+            commands::openclaw_cmd::openclaw_perform_update,
             commands::openclaw_cmd::openclaw_cleanup_temp_artifacts,
             commands::openclaw_cmd::openclaw_start_gateway,
             commands::openclaw_cmd::openclaw_stop_gateway,
@@ -1218,6 +1211,7 @@ pub fn run() {
             commands::provider_pool_cmd::cancel_kiro_playwright_login,
             commands::browser_runtime_cmd::open_browser_runtime_debugger_window,
             commands::browser_runtime_cmd::close_browser_runtime_debugger_window,
+            commands::browser_runtime_cmd::launch_browser_session,
             commands::browser_runtime_cmd::launch_browser_runtime_assist,
             // API Key Provider commands
             commands::api_key_provider_cmd::get_system_provider_catalog,
@@ -1472,6 +1466,17 @@ pub fn run() {
             commands::connection_cmd::connection_save_raw_config,
             commands::connection_cmd::connection_test,
             commands::connection_cmd::connection_import_ssh_host,
+            // Browser environment preset commands
+            commands::browser_environment_cmd::list_browser_environment_presets_cmd,
+            commands::browser_environment_cmd::save_browser_environment_preset_cmd,
+            commands::browser_environment_cmd::archive_browser_environment_preset_cmd,
+            commands::browser_environment_cmd::restore_browser_environment_preset_cmd,
+            // Browser profile commands
+            commands::browser_profile_cmd::list_browser_profiles_cmd,
+            commands::browser_profile_cmd::save_browser_profile_cmd,
+            commands::browser_profile_cmd::archive_browser_profile_cmd,
+            commands::browser_profile_cmd::restore_browser_profile_cmd,
+            commands::browser_profile_cmd::launch_browser_profile_runtime_assist_cmd,
             // Sysinfo commands
             crate::services::sysinfo_service::get_sysinfo,
             crate::services::sysinfo_service::subscribe_sysinfo,
@@ -1775,24 +1780,20 @@ pub fn run() {
             crate::voice::commands::cancel_recording,
             crate::voice::commands::get_recording_status,
             crate::voice::commands::list_audio_devices,
-            // Heartbeat Engine commands
-            commands::heartbeat_cmd::get_heartbeat_config,
-            commands::heartbeat_cmd::update_heartbeat_config,
-            commands::heartbeat_cmd::get_heartbeat_status,
-            commands::heartbeat_cmd::get_heartbeat_tasks,
-            commands::heartbeat_cmd::add_heartbeat_task,
-            commands::heartbeat_cmd::delete_heartbeat_task,
-            commands::heartbeat_cmd::update_heartbeat_task,
-            commands::heartbeat_cmd::get_heartbeat_history,
-            commands::heartbeat_cmd::get_heartbeat_execution_detail,
-            commands::heartbeat_cmd::get_heartbeat_task_health,
-            commands::heartbeat_cmd::deliver_heartbeat_task_health_alerts,
-            commands::heartbeat_cmd::get_task_templates,
-            commands::heartbeat_cmd::apply_task_template,
-            commands::heartbeat_cmd::generate_content_creator_tasks,
-            commands::heartbeat_cmd::trigger_heartbeat_now,
-            commands::heartbeat_cmd::preview_heartbeat_schedule,
-            commands::heartbeat_cmd::validate_heartbeat_schedule,
+            // Automation commands
+            commands::automation_cmd::get_automation_scheduler_config,
+            commands::automation_cmd::update_automation_scheduler_config,
+            commands::automation_cmd::get_automation_status,
+            commands::automation_cmd::get_automation_jobs,
+            commands::automation_cmd::get_automation_job,
+            commands::automation_cmd::create_automation_job,
+            commands::automation_cmd::update_automation_job,
+            commands::automation_cmd::delete_automation_job,
+            commands::automation_cmd::run_automation_job_now,
+            commands::automation_cmd::get_automation_health,
+            commands::automation_cmd::get_automation_run_history,
+            commands::automation_cmd::preview_automation_schedule,
+            commands::automation_cmd::validate_automation_schedule,
             // Telegram 远程触发命令
             commands::gateway_channel_cmd::gateway_channel_start,
             commands::gateway_channel_cmd::gateway_channel_stop,

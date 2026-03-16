@@ -38,6 +38,7 @@ import {
   isUnifiedWebSearchToolName,
   resolveSearchResultPreviewItemsFromText,
 } from "../utils/searchResultPreview";
+import { extractProxycastToolMetadataBlock } from "../hooks/agentChatToolResult";
 import {
   classifySearchQuerySemantic,
   summarizeSearchQuerySemantics,
@@ -733,6 +734,11 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     () => normalizeToolResultMetadata(toolCall.result?.metadata),
     [toolCall.result?.metadata],
   );
+  const resultText = useMemo(() => {
+    const rawText = toolCall.result?.error || toolCall.result?.output || "";
+    const normalized = extractProxycastToolMetadataBlock(rawText).text;
+    return normalized || "(无输出)";
+  }, [toolCall.result?.error, toolCall.result?.output]);
   const resultMetaItems = useMemo(() => {
     if (!resultMetadata) return [];
 
@@ -1014,7 +1020,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
               isFailed ? "text-red-500" : "text-[var(--ink-700)]",
             )}
           >
-            {toolCall.result?.error || toolCall.result?.output || "(无输出)"}
+            {resultText}
           </pre>
         </div>
       )}

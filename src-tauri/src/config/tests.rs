@@ -5,10 +5,9 @@
 use proptest::prelude::*;
 use proxycast_core::config::{
     collapse_tilde, contains_tilde, expand_tilde, Config, ConfigManager, CustomProviderConfig,
-    HotReloadManager, InjectionSettings, LoggingConfig, ProviderConfig, ProvidersConfig,
-    ReloadResult, RetrySettings, RoutingConfig, ServerConfig, YamlService,
+    HotReloadManager, LoggingConfig, ProviderConfig, ProvidersConfig, ReloadResult,
+    RetrySettings, RoutingConfig, ServerConfig, YamlService,
 };
-use proxycast_core::config::{ContentCreatorConfig, NavigationConfig};
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -162,6 +161,25 @@ fn arb_logging_config() -> impl Strategy<Value = LoggingConfig> {
         )
 }
 
+fn build_test_config(
+    server: ServerConfig,
+    providers: ProvidersConfig,
+    routing: RoutingConfig,
+    retry: RetrySettings,
+    logging: LoggingConfig,
+) -> Config {
+    let default_provider = routing.default_provider.clone();
+    Config {
+        server,
+        providers,
+        default_provider,
+        routing,
+        retry,
+        logging,
+        ..Config::default()
+    }
+}
+
 /// 生成随机的完整配置
 fn arb_config() -> impl Strategy<Value = Config> {
     (
@@ -171,45 +189,8 @@ fn arb_config() -> impl Strategy<Value = Config> {
         arb_retry_settings(),
         arb_logging_config(),
     )
-        .prop_map(|(server, providers, routing, retry, logging)| Config {
-            server,
-            providers,
-            default_provider: routing.default_provider.clone(),
-            routing,
-            retry,
-            logging,
-            injection: InjectionSettings::default(),
-            auth_dir: "~/.proxycast/auth".to_string(),
-            credential_pool: proxycast_core::config::CredentialPoolConfig::default(),
-            remote_management: proxycast_core::config::RemoteManagementConfig::default(),
-            quota_exceeded: proxycast_core::config::QuotaExceededConfig::default(),
-            proxy_url: None,
-            ampcode: proxycast_core::config::AmpConfig::default(),
-            endpoint_providers: proxycast_core::config::EndpointProvidersConfig::default(),
-            minimize_to_tray: true,
-            models: proxycast_core::config::ModelsConfig::default(),
-            agent: proxycast_core::config::NativeAgentConfig::default(),
-            language: "zh".to_string(),
-            experimental: proxycast_core::config::ExperimentalFeatures::default(),
-            tool_calling: proxycast_core::config::ToolCallingConfig::default(),
-            content_creator: ContentCreatorConfig::default(),
-            navigation: NavigationConfig::default(),
-            chat_appearance: proxycast_core::config::ChatAppearanceConfig::default(),
-            environment: proxycast_core::config::EnvironmentConfig::default(),
-            web_search: proxycast_core::config::WebSearchConfig::default(),
-            memory: proxycast_core::config::MemoryConfig::default(),
-            voice: proxycast_core::config::VoiceConfig::default(),
-            image_gen: proxycast_core::config::ImageGenConfig::default(),
-            assistant: proxycast_core::config::AssistantConfig::default(),
-            user_profile: proxycast_core::config::UserProfile::default(),
-            rate_limit: proxycast_core::config::RateLimitSettings::default(),
-            conversation: proxycast_core::config::ConversationSettings::default(),
-            hint_router: proxycast_core::config::HintRouterSettings::default(),
-            pairing: proxycast_core::config::PairingSettings::default(),
-            heartbeat: proxycast_core::config::HeartbeatSettings::default(),
-            channels: proxycast_core::config::ChannelsConfig::default(),
-            crash_reporting: proxycast_core::config::CrashReportingConfig::default(),
-            gateway: proxycast_core::config::GatewayConfig::default(),
+        .prop_map(|(server, providers, routing, retry, logging)| {
+            build_test_config(server, providers, routing, retry, logging)
         })
 }
 
@@ -429,45 +410,8 @@ fn arb_valid_config() -> impl Strategy<Value = Config> {
         arb_valid_retry_settings(),
         arb_valid_logging_config(),
     )
-        .prop_map(|(server, providers, routing, retry, logging)| Config {
-            server,
-            providers,
-            default_provider: routing.default_provider.clone(),
-            routing,
-            retry,
-            logging,
-            injection: InjectionSettings::default(),
-            auth_dir: "~/.proxycast/auth".to_string(),
-            credential_pool: proxycast_core::config::CredentialPoolConfig::default(),
-            remote_management: proxycast_core::config::RemoteManagementConfig::default(),
-            quota_exceeded: proxycast_core::config::QuotaExceededConfig::default(),
-            proxy_url: None,
-            ampcode: proxycast_core::config::AmpConfig::default(),
-            endpoint_providers: proxycast_core::config::EndpointProvidersConfig::default(),
-            minimize_to_tray: true,
-            models: proxycast_core::config::ModelsConfig::default(),
-            agent: proxycast_core::config::NativeAgentConfig::default(),
-            language: "zh".to_string(),
-            experimental: proxycast_core::config::ExperimentalFeatures::default(),
-            tool_calling: proxycast_core::config::ToolCallingConfig::default(),
-            content_creator: ContentCreatorConfig::default(),
-            navigation: NavigationConfig::default(),
-            chat_appearance: proxycast_core::config::ChatAppearanceConfig::default(),
-            environment: proxycast_core::config::EnvironmentConfig::default(),
-            web_search: proxycast_core::config::WebSearchConfig::default(),
-            memory: proxycast_core::config::MemoryConfig::default(),
-            voice: proxycast_core::config::VoiceConfig::default(),
-            image_gen: proxycast_core::config::ImageGenConfig::default(),
-            assistant: proxycast_core::config::AssistantConfig::default(),
-            user_profile: proxycast_core::config::UserProfile::default(),
-            rate_limit: proxycast_core::config::RateLimitSettings::default(),
-            conversation: proxycast_core::config::ConversationSettings::default(),
-            hint_router: proxycast_core::config::HintRouterSettings::default(),
-            pairing: proxycast_core::config::PairingSettings::default(),
-            heartbeat: proxycast_core::config::HeartbeatSettings::default(),
-            channels: proxycast_core::config::ChannelsConfig::default(),
-            crash_reporting: proxycast_core::config::CrashReportingConfig::default(),
-            gateway: proxycast_core::config::GatewayConfig::default(),
+        .prop_map(|(server, providers, routing, retry, logging)| {
+            build_test_config(server, providers, routing, retry, logging)
         })
 }
 
@@ -497,46 +441,7 @@ fn arb_invalid_config() -> impl Strategy<Value = Config> {
     )
         .prop_map(
             |(server, providers, routing, retry, logging, invalid_type)| {
-                let mut config = Config {
-                    server,
-                    providers,
-                    default_provider: routing.default_provider.clone(),
-                    routing,
-                    retry,
-                    logging,
-                    injection: InjectionSettings::default(),
-                    auth_dir: "~/.proxycast/auth".to_string(),
-                    credential_pool: proxycast_core::config::CredentialPoolConfig::default(),
-                    remote_management: proxycast_core::config::RemoteManagementConfig::default(),
-                    quota_exceeded: proxycast_core::config::QuotaExceededConfig::default(),
-                    proxy_url: None,
-                    ampcode: proxycast_core::config::AmpConfig::default(),
-                    endpoint_providers: proxycast_core::config::EndpointProvidersConfig::default(),
-                    minimize_to_tray: true,
-                    models: proxycast_core::config::ModelsConfig::default(),
-                    agent: proxycast_core::config::NativeAgentConfig::default(),
-                    language: "zh".to_string(),
-                    experimental: proxycast_core::config::ExperimentalFeatures::default(),
-                    tool_calling: proxycast_core::config::ToolCallingConfig::default(),
-                    content_creator: ContentCreatorConfig::default(),
-                    navigation: NavigationConfig::default(),
-                    chat_appearance: proxycast_core::config::ChatAppearanceConfig::default(),
-                    environment: proxycast_core::config::EnvironmentConfig::default(),
-                    web_search: proxycast_core::config::WebSearchConfig::default(),
-                    memory: proxycast_core::config::MemoryConfig::default(),
-                    voice: proxycast_core::config::VoiceConfig::default(),
-                    image_gen: proxycast_core::config::ImageGenConfig::default(),
-                    assistant: proxycast_core::config::AssistantConfig::default(),
-                    user_profile: proxycast_core::config::UserProfile::default(),
-                    rate_limit: proxycast_core::config::RateLimitSettings::default(),
-                    conversation: proxycast_core::config::ConversationSettings::default(),
-                    hint_router: proxycast_core::config::HintRouterSettings::default(),
-                    pairing: proxycast_core::config::PairingSettings::default(),
-                    heartbeat: proxycast_core::config::HeartbeatSettings::default(),
-                    channels: proxycast_core::config::ChannelsConfig::default(),
-                    crash_reporting: proxycast_core::config::CrashReportingConfig::default(),
-                    gateway: proxycast_core::config::GatewayConfig::default(),
-                };
+                let mut config = build_test_config(server, providers, routing, retry, logging);
                 // 根据类型使配置无效
                 match invalid_type {
                     InvalidConfigType::ZeroPort => config.server.port = 0,

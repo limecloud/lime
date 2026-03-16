@@ -1,4 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
+import {
+  checkForUpdates,
+  downloadUpdate,
+  type VersionInfo,
+} from "@/lib/api/appUpdate";
 import { safeListen } from "@/lib/dev-bridge";
 import {
   cancelPluginTask,
@@ -28,6 +34,8 @@ import {
   Plus,
   Package,
   Ban,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { PluginInstallDialog } from "./PluginInstallDialog";
@@ -36,6 +44,8 @@ import { PluginItemContextMenu } from "./PluginItemContextMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import type { Page, PageParams } from "@/types/page";
+import { SettingsTabs } from "@/types/settings";
 
 interface PluginState {
   name: string;
@@ -61,6 +71,7 @@ interface PluginInfo {
   status: string;
   path: string;
   hooks: string[];
+  min_proxycast_version?: string | null;
   config_schema: Record<string, unknown> | null;
   config: PluginConfig;
   state: PluginState;
@@ -490,6 +501,41 @@ const readPersistedRuntimeFilters = (): PersistedRuntimeFilters => {
   }
 };
 
+type SemverLike = readonly [number, number, number];
+
+const parseSemverLike = (value: string): SemverLike | null => {
+  const normalized = value.trim().replace(/^[^\d]+/, "");
+  if (!normalized) {
+    return null;
+  }
+
+  const core = normalized.split(/[-+]/)[0];
+  const [major = "0", minor = "0", patch = "0"] = core.split(".");
+  const parsed = [major, minor, patch].map((part) => Number.parseInt(part, 10));
+  if (parsed.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  return [parsed[0], parsed[1], parsed[2]];
+};
+
+const compareSemverLike = (left: string, right: string): number | null => {
+  const parsedLeft = parseSemverLike(left);
+  const parsedRight = parseSemverLike(right);
+  if (!parsedLeft || !parsedRight) {
+    return null;
+  }
+
+  for (let index = 0; index < parsedLeft.length; index += 1) {
+    if (parsedLeft[index] === parsedRight[index]) {
+      continue;
+    }
+    return parsedLeft[index] > parsedRight[index] ? 1 : -1;
+  }
+
+  return 0;
+};
+
 /** 安装来源 */
 interface InstallSource {
   type: "local" | "url" | "github";
@@ -513,11 +559,20 @@ interface InstalledPlugin {
   enabled: boolean;
 }
 
-export function PluginManager() {
+interface PluginManagerProps {
+  onNavigate?: (page: Page, params?: PageParams) => void;
+}
+
+const WINDOWS_RELEASES_URL =
+  "https://github.com/aiclientproxy/proxycast/releases";
+
+export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
   const initialRuntimeFilters = useMemo(
     () => readPersistedRuntimeFilters(),
     [],
   );
+  const isWindows =
+    typeof navigator !== "undefined" && navigator.userAgent.includes("Windows");
   const [status, setStatus] = useState<PluginServiceStatus | null>(null);
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [installedPlugins, setInstalledPlugins] = useState<InstalledPlugin[]>(
@@ -581,6 +636,16 @@ export function PluginManager() {
   );
   const [selectedTaskDetail, setSelectedTaskDetail] =
     useState<PluginTaskRecord | null>(null);
+  const [versionInfo, setVersionInfo] = useState<VersionInfo>({
+    current: "",
+    latest: undefined,
+    hasUpdate: false,
+    downloadUrl: WINDOWS_RELEASES_URL,
+    error: undefined,
+  });
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+  const currentVersion = versionInfo.current;
 
   // 对话框状态
   const [showInstallDialog, setShowInstallDialog] = useState(false);
@@ -645,6 +710,33 @@ export function PluginManager() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const refreshWindowsVersionInfo = useCallback(async () => {
+    if (!isWindows) {
+      return;
+    }
+
+    try {
+      setUpdateLoading(true);
+      const result = await checkForUpdates();
+      setVersionInfo({
+        ...result,
+        downloadUrl: result.downloadUrl || WINDOWS_RELEASES_URL,
+      });
+    } catch (err) {
+      setVersionInfo((prev) => ({
+        ...prev,
+        error: err instanceof Error ? err.message : String(err),
+        downloadUrl: prev.downloadUrl || WINDOWS_RELEASES_URL,
+      }));
+    } finally {
+      setUpdateLoading(false);
+    }
+  }, [isWindows]);
+
+  useEffect(() => {
+    void refreshWindowsVersionInfo();
+  }, [refreshWindowsVersionInfo]);
 
   useEffect(() => {
     fetchRuntimeData();
@@ -806,6 +898,143 @@ export function PluginManager() {
       setDetailLoadingTaskId(null);
     }
   };
+
+  const openWindowsDownloadPage = useCallback(async () => {
+    const url = versionInfo.downloadUrl || WINDOWS_RELEASES_URL;
+    try {
+      await openExternal(url);
+    } catch {
+      window.open(url, "_blank");
+    }
+  }, [versionInfo.downloadUrl]);
+
+  const handleOpenAboutPage = useCallback(() => {
+    onNavigate?.("settings", { tab: SettingsTabs.About });
+  }, [onNavigate]);
+
+  const handleDownloadAppUpdate = useCallback(async () => {
+    try {
+      setDownloadingUpdate(true);
+      const result = await downloadUpdate();
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "下载更新失败");
+    } finally {
+      setDownloadingUpdate(false);
+    }
+  }, []);
+
+  const pluginVersionRequirementNotice = useMemo(() => {
+    if (!isWindows || !currentVersion) {
+      return null;
+    }
+
+    let affectedCount = 0;
+    let highestRequiredVersion: string | null = null;
+
+    for (const plugin of plugins) {
+      const requiredVersion = plugin.min_proxycast_version?.trim();
+      if (!requiredVersion) {
+        continue;
+      }
+
+      const currentComparison = compareSemverLike(
+        currentVersion,
+        requiredVersion,
+      );
+      if (currentComparison === null || currentComparison >= 0) {
+        continue;
+      }
+
+      affectedCount += 1;
+      if (!highestRequiredVersion) {
+        highestRequiredVersion = requiredVersion;
+        continue;
+      }
+
+      const requiredComparison = compareSemverLike(
+        highestRequiredVersion,
+        requiredVersion,
+      );
+      if (requiredComparison === -1) {
+        highestRequiredVersion = requiredVersion;
+      }
+    }
+
+    if (!highestRequiredVersion || affectedCount === 0) {
+      return null;
+    }
+
+    return {
+      affectedCount,
+      highestRequiredVersion,
+    };
+  }, [currentVersion, isWindows, plugins]);
+
+  const windowsUpdateCard = useMemo(() => {
+    if (updateLoading) {
+      return {
+        toneClassName: "border-slate-300 bg-slate-50/80",
+        badgeClassName: "bg-slate-900 text-white hover:bg-slate-900",
+        badgeText: "检查中",
+        title: "正在检查 Windows 主程序版本",
+        summary:
+          "插件中心负责扩展能力；如果需要更新 ProxyCast 主程序或切换安装包，也可以直接从这里进入。",
+      };
+    }
+
+    if (versionInfo.hasUpdate) {
+      return {
+        toneClassName: "border-emerald-300 bg-emerald-50/80",
+        badgeClassName: "bg-emerald-600 text-white hover:bg-emerald-600",
+        badgeText: `发现新版本 ${versionInfo.latest}`,
+        title: "建议先升级主程序，再继续安装或排查插件",
+        summary: pluginVersionRequirementNotice
+          ? `当前已加载插件中有 ${pluginVersionRequirementNotice.affectedCount} 个插件要求 ProxyCast >= ${pluginVersionRequirementNotice.highestRequiredVersion}；优先从这里升级主程序会更直接。`
+          : "插件扩展不包含主程序升级；若你正在处理安装失败、运行时缺失或版本不兼容，优先从这里更新主程序会更直接。",
+      };
+    }
+
+    if (pluginVersionRequirementNotice) {
+      return {
+        toneClassName: "border-amber-300 bg-amber-50/80",
+        badgeClassName: "bg-amber-500 text-white hover:bg-amber-500",
+        badgeText: "插件要求更高版本",
+        title: `部分已加载插件要求 ProxyCast >= ${pluginVersionRequirementNotice.highestRequiredVersion}`,
+        summary: `当前已加载插件中有 ${pluginVersionRequirementNotice.affectedCount} 个插件要求更高主程序版本。若安装、加载或运行异常，建议先升级 Windows 主程序。`,
+      };
+    }
+
+    if (versionInfo.error) {
+      return {
+        toneClassName: "border-amber-300 bg-amber-50/80",
+        badgeClassName: "bg-amber-500 text-white hover:bg-amber-500",
+        badgeText: "检查失败",
+        title: "暂时无法确认主程序版本状态",
+        summary:
+          "你仍可前往关于页或网页下载页获取在线包与离线包；如果当前网络受限，建议直接走网页下载页。",
+      };
+    }
+
+    return {
+      toneClassName: "border-sky-200 bg-sky-50/70",
+      badgeClassName: "bg-sky-600 text-white hover:bg-sky-600",
+      badgeText: "已是最新",
+      title: "当前主程序版本可继续使用",
+      summary:
+        "插件中心负责扩展能力；如果只是需要切换 Windows 在线包 / 离线包，也可以直接从这里进入下载入口。",
+    };
+  }, [
+    pluginVersionRequirementNotice,
+    updateLoading,
+    versionInfo.error,
+    versionInfo.hasUpdate,
+    versionInfo.latest,
+  ]);
 
   const exportDiagnosticTasks = () => {
     try {
@@ -1416,6 +1645,110 @@ export function PluginManager() {
 
   return (
     <div className="space-y-4">
+      {isWindows && (
+        <div
+          className={`rounded-lg border p-4 ${windowsUpdateCard.toneClassName}`}
+          data-testid="plugin-windows-update-card"
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="font-semibold text-slate-900">
+                  Windows 主程序更新与安装包
+                </div>
+                <Badge
+                  className={windowsUpdateCard.badgeClassName}
+                  data-testid="plugin-windows-update-status"
+                >
+                  {windowsUpdateCard.badgeText}
+                </Badge>
+              </div>
+              <p className="text-sm font-medium text-slate-800">
+                {windowsUpdateCard.title}
+              </p>
+              <p className="text-sm text-slate-700">
+                {windowsUpdateCard.summary}
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs text-slate-700">
+                <div className="rounded-md border border-white/70 bg-white/70 px-2.5 py-1">
+                  当前版本：{versionInfo.current || "未获取"}
+                </div>
+                <div className="rounded-md border border-white/70 bg-white/70 px-2.5 py-1">
+                  最新版本：
+                  {updateLoading
+                    ? "检查中"
+                    : versionInfo.latest || "当前已是最新"}
+                </div>
+                <div className="rounded-md border border-white/70 bg-white/70 px-2.5 py-1">
+                  默认推荐：online 安装包
+                </div>
+                <div className="rounded-md border border-white/70 bg-white/70 px-2.5 py-1">
+                  备用场景：offline 安装包
+                </div>
+              </div>
+              <p className="text-xs text-slate-600">
+                默认推荐在线安装包；离线、内网或受限网络环境请改用 offline
+                安装包。
+              </p>
+              {pluginVersionRequirementNotice && (
+                <div
+                  className="rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-900"
+                  data-testid="plugin-windows-version-requirement-notice"
+                >
+                  当前已加载插件中有{" "}
+                  {pluginVersionRequirementNotice.affectedCount} 个插件要求更高主程序版本，
+                  最高要求 ProxyCast {"\u003e="}{" "}
+                  {pluginVersionRequirementNotice.highestRequiredVersion}。
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {versionInfo.hasUpdate && (
+                <Button
+                  size="sm"
+                  onClick={() => void handleDownloadAppUpdate()}
+                  disabled={downloadingUpdate}
+                  data-testid="plugin-windows-update-download"
+                >
+                  <Download className="mr-1 h-4 w-4" />
+                  {downloadingUpdate ? "下载中..." : "下载更新"}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void refreshWindowsVersionInfo()}
+                disabled={updateLoading}
+                data-testid="plugin-windows-update-refresh"
+              >
+                <RefreshCw
+                  className={`mr-1 h-4 w-4 ${updateLoading ? "animate-spin" : ""}`}
+                />
+                重新检查
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenAboutPage}
+                disabled={!onNavigate}
+                data-testid="plugin-windows-update-open-about"
+              >
+                前往关于页
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void openWindowsDownloadPage()}
+                data-testid="plugin-windows-update-open-downloads"
+              >
+                <ExternalLink className="mr-1 h-4 w-4" />
+                网页下载
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 状态概览 */}
       <div className="rounded-lg border bg-card p-4">
         <div className="flex items-center justify-between mb-4">

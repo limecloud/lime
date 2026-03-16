@@ -503,7 +503,7 @@ impl RpcHandler {
         self.create_run_record(
             &db,
             &execution_id,
-            "heartbeat",
+            "automation",
             Some(task.id.clone()),
             None,
             Some(json!({
@@ -667,7 +667,7 @@ impl RpcHandler {
                 .prepare(
                     "SELECT status, started_at
                      FROM agent_runs
-                     WHERE source = 'heartbeat'
+                     WHERE source = 'automation'
                        AND status IN ('error', 'timeout')
                        AND datetime(started_at) >= datetime(?1)",
                 )
@@ -1417,7 +1417,7 @@ mod tests {
             let now = Utc::now().to_rfc3339();
             let run_error = AgentRun {
                 id: Uuid::new_v4().to_string(),
-                source: "heartbeat".to_string(),
+                source: "automation".to_string(),
                 source_ref: Some("task-1".to_string()),
                 session_id: None,
                 status: AgentRunStatus::Error,
@@ -1433,7 +1433,7 @@ mod tests {
             AgentRunDao::create_run(&conn, &run_error).expect("插入错误执行记录失败");
             let run_timeout = AgentRun {
                 id: Uuid::new_v4().to_string(),
-                source: "heartbeat".to_string(),
+                source: "automation".to_string(),
                 source_ref: Some("task-2".to_string()),
                 session_id: None,
                 status: AgentRunStatus::Timeout,

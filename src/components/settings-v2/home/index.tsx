@@ -2,6 +2,7 @@ import {
   ArrowRight,
   Blocks,
   Brain,
+  Image as ImageIcon,
   Palette,
   Settings2,
   ShieldCheck,
@@ -55,7 +56,7 @@ const groupMeta: Record<
     icon: Palette,
   },
   agent: {
-    description: "服务商、技能、图片、视频与语音能力。",
+    description: "服务商、技能与媒体能力的统一配置。",
     accentClassName:
       "from-emerald-200/70 via-white to-white",
     iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
@@ -94,6 +95,11 @@ const quickAccessMeta: Partial<
     title: "技能管理",
     description: "管理内置、本地与远程 Skill",
     icon: Blocks,
+  },
+  [SettingsTabs.MediaServices]: {
+    title: "媒体服务",
+    description: "集中管理图片、视频与语音默认策略",
+    icon: ImageIcon,
   },
   [SettingsTabs.SecurityPerformance]: {
     title: "安全与性能",

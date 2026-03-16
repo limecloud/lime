@@ -22,10 +22,8 @@ import {
 } from "./agentChatCoreUtils";
 import { upsertAssistantActionRequest } from "./agentChatActionState";
 import {
-  extractProxycastToolMetadataBlock,
   isToolResultSuccessful,
-  normalizeToolResultImages,
-  normalizeToolResultMetadata,
+  normalizeIncomingToolResult,
 } from "./agentChatToolResult";
 import {
   buildArtifactFromWrite,
@@ -427,21 +425,7 @@ export function handleToolEndEvent({
   ToolTrackingContext & {
     data: StreamEventToolEnd;
   }) {
-  const normalizedOutput = extractProxycastToolMetadataBlock(
-    data.result?.output,
-  );
-  const normalizedResult = {
-    ...data.result,
-    output: normalizedOutput.text,
-    images: normalizeToolResultImages(
-      data.result?.images,
-      normalizedOutput.text,
-    ),
-    metadata: normalizeToolResultMetadata(
-      data.result?.metadata,
-      data.result?.output,
-    ),
-  };
+  const normalizedResult = normalizeIncomingToolResult(data.result) || data.result;
   const isSuccess = isToolResultSuccessful(normalizedResult);
   const eventType = isSuccess ? "tool_complete" : "tool_error";
   const startedAt = toolStartedAtByToolId.get(data.tool_id);
@@ -449,9 +433,10 @@ export function handleToolEndEvent({
   const duration =
     typeof startedAt === "number" ? Date.now() - startedAt : undefined;
   const toolLogId = toolLogIdByToolId.get(data.tool_id);
-  const outputText = normalizedResult.output
-    ? truncateForLog(normalizedResult.output, 120)
-    : "";
+  const outputText = truncateForLog(
+    normalizedResult.output || normalizedResult.error || "",
+    120,
+  );
 
   if (toolLogId) {
     activityLogger.updateLog(toolLogId, {

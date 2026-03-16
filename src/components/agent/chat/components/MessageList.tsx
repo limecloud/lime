@@ -42,6 +42,7 @@ import {
 import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
 import type { ConfirmResponse } from "../types";
 import { buildMessageTurnTimeline } from "../utils/threadTimelineView";
+import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
 import logoImg from "/logo.png";
 
 interface MessageListProps {
@@ -76,6 +77,8 @@ interface MessageListProps {
   collapseCodeBlocks?: boolean;
   /** 代码块点击回调（用于在画布中显示） */
   onCodeBlockClick?: (language: string, code: string) => void;
+  /** 是否将待处理问答提升为输入区 A2UI 表单 */
+  promoteActionRequestsToA2UI?: boolean;
 }
 
 const MessageListInner: React.FC<MessageListProps> = ({
@@ -96,6 +99,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onPermissionResponse,
   collapseCodeBlocks,
   onCodeBlockClick,
+  promoteActionRequestsToA2UI = false,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -117,6 +121,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const timelineByMessageId = useMemo(
     () => buildMessageTurnTimeline(visibleMessages, turns, threadItems),
     [threadItems, turns, visibleMessages],
+  );
+  const messageGroups = useMemo(
+    () => buildMessageTurnGroups(visibleMessages),
+    [visibleMessages],
   );
 
   // 检测用户是否在手动滚动
@@ -161,6 +169,21 @@ const MessageListInner: React.FC<MessageListProps> = ({
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const formatGroupNumber = (index: number) => {
+    return String(index + 1).padStart(2, "0");
+  };
+
+  const truncatePreview = (value: string, maxLength = 56) => {
+    const normalized = value.trim().replace(/\s+/g, " ");
+    if (!normalized) {
+      return "继续当前任务";
+    }
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+  };
+
   const handleCopy = async (content: string, id: string) => {
     try {
       await navigator.clipboard.writeText(content);
@@ -195,6 +218,216 @@ const MessageListInner: React.FC<MessageListProps> = ({
       onDeleteMessage(id);
       toast.success("消息已删除");
     }
+  };
+
+  const renderMessageItem = (
+    msg: Message,
+    options?: {
+      showIdentity?: boolean;
+    },
+  ) => {
+    const timeline = timelineByMessageId.get(msg.id);
+    const showIdentity = options?.showIdentity ?? true;
+
+    return (
+      <MessageWrapper key={msg.id} $isUser={msg.role === "user"}>
+        <AvatarColumn>
+          {msg.role === "user" ? (
+            <AvatarCircle $isUser={true}>
+              <User size={20} />
+            </AvatarCircle>
+          ) : showIdentity ? (
+            <img
+              src={logoImg}
+              alt="ProxyCast"
+              style={{
+                width: 45,
+                height: 45,
+                minWidth: 45,
+                minHeight: 45,
+                borderRadius: 8,
+                display: "block",
+              }}
+            />
+          ) : (
+            <div className="flex h-[45px] w-[45px] items-start justify-center pt-4">
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300/90 dark:bg-slate-600/90" />
+            </div>
+          )}
+        </AvatarColumn>
+
+        <ContentColumn>
+          {showIdentity ? (
+            <MessageHeader>
+              <SenderName>{msg.role === "user" ? "用户" : assistantLabel}</SenderName>
+              <TimeStamp>{formatTime(msg.timestamp)}</TimeStamp>
+            </MessageHeader>
+          ) : (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50/80 px-2 py-0.5 font-medium text-slate-600 dark:border-slate-700/70 dark:bg-slate-900/40 dark:text-slate-300">
+                继续处理
+              </span>
+              <span>{formatTime(msg.timestamp)}</span>
+            </div>
+          )}
+
+          <MessageBubble $isUser={msg.role === "user"}>
+            {editingId === msg.id ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full min-h-[100px] p-2 rounded border border-border bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                  autoFocus
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                    取消
+                  </Button>
+                  <Button size="sm" onClick={() => handleSaveEdit(msg.id)}>
+                    保存
+                  </Button>
+                </div>
+              </div>
+            ) : msg.role === "assistant" ? (
+              <StreamingRenderer
+                content={msg.content}
+                isStreaming={msg.isThinking}
+                toolCalls={msg.toolCalls}
+                showCursor={msg.isThinking && !msg.content}
+                thinkingContent={msg.thinkingContent}
+                runtimeStatus={msg.runtimeStatus}
+                contentParts={msg.contentParts}
+                actionRequests={msg.actionRequests}
+                onA2UISubmit={
+                  onA2UISubmit
+                    ? (formData) => onA2UISubmit(formData, msg.id)
+                    : undefined
+                }
+                a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
+                a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
+                onA2UIFormChange={onA2UIFormChange}
+                renderA2UIInline={renderA2UIInline}
+                onWriteFile={
+                  onWriteFile
+                    ? (content, fileName, context) =>
+                        onWriteFile(content, fileName, {
+                          ...context,
+                          sourceMessageId: context?.sourceMessageId || msg.id,
+                          source: context?.source || "message_content",
+                        })
+                    : undefined
+                }
+                onFileClick={onFileClick}
+                onPermissionResponse={onPermissionResponse}
+                collapseCodeBlocks={collapseCodeBlocks}
+                onCodeBlockClick={onCodeBlockClick}
+                promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
+              />
+            ) : (
+              <MarkdownRenderer
+                content={msg.content}
+                onA2UISubmit={
+                  onA2UISubmit
+                    ? (formData) => onA2UISubmit(formData, msg.id)
+                    : undefined
+                }
+                renderA2UIInline={renderA2UIInline}
+              />
+            )}
+
+            {msg.images && msg.images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {msg.images.map((img, i) => (
+                  <img
+                    key={i}
+                    src={`data:${img.mediaType};base64,${img.data}`}
+                    className="max-w-xs rounded-lg border border-border"
+                    alt="attachment"
+                  />
+                ))}
+              </div>
+            )}
+
+            {msg.role === "assistant" && renderArtifactCards(msg.artifacts)}
+
+            {msg.role === "assistant" && timeline ? (
+              <AgentThreadTimeline
+                turn={timeline.turn}
+                items={timeline.items}
+                actionRequests={msg.actionRequests}
+                isCurrentTurn={timeline.turn.id === currentTurnId}
+                onFileClick={onFileClick}
+                onPermissionResponse={onPermissionResponse}
+              />
+            ) : null}
+
+            {msg.role === "assistant" && !msg.isThinking && msg.usage && (
+              <TokenUsageDisplay usage={msg.usage} />
+            )}
+
+            {msg.role === "assistant" &&
+              !msg.isThinking &&
+              msg.contextTrace &&
+              msg.contextTrace.length > 0 && (
+                <details className="mt-3 rounded border border-border/60 bg-muted/20">
+                  <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
+                    上下文轨迹 ({msg.contextTrace.length})
+                  </summary>
+                  <div className="border-t border-border/60 px-3 py-2 space-y-1.5">
+                    {msg.contextTrace.map((step, index) => (
+                      <div key={`${step.stage}-${index}`} className="text-xs">
+                        <span className="font-medium text-foreground/90">
+                          {step.stage}
+                        </span>
+                        <span className="text-muted-foreground">: </span>
+                        <span className="text-muted-foreground">
+                          {step.detail}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+            {editingId !== msg.id && (
+              <MessageActions className="message-actions">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => handleCopy(msg.content, msg.id)}
+                >
+                  {copiedId === msg.id ? (
+                    <Check size={12} className="text-green-500" />
+                  ) : (
+                    <Copy size={12} />
+                  )}
+                </Button>
+                {msg.role === "user" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={() => handleEdit(msg)}
+                  >
+                    <Edit2 size={12} />
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleDelete(msg.id)}
+                >
+                  <Trash2 size={12} />
+                </Button>
+              </MessageActions>
+            )}
+          </MessageBubble>
+        </ContentColumn>
+      </MessageWrapper>
+    );
   };
 
   const renderArtifactCards = (artifacts: Artifact[] | undefined) => {
@@ -263,8 +496,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
   return (
     <MessageListContainer ref={containerRef}>
-      <div className="py-8 flex flex-col">
-        {visibleMessages.length === 0 && (
+      <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-4 py-8">
+        {messageGroups.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground opacity-50">
             <img
               src={logoImg}
@@ -275,199 +508,63 @@ const MessageListInner: React.FC<MessageListProps> = ({
           </div>
         )}
 
-        {visibleMessages.map((msg) => {
-          const timeline = timelineByMessageId.get(msg.id);
+        {messageGroups.map((group, groupIndex) => {
+          const previewSource =
+            group.userMessage?.content ||
+            group.assistantMessages[0]?.content ||
+            "继续当前任务";
+          const hasTimeline = group.messages.some((message) =>
+            timelineByMessageId.has(message.id),
+          );
+          let assistantMessageCount = 0;
 
           return (
-            <MessageWrapper key={msg.id} $isUser={msg.role === "user"}>
-            <AvatarColumn>
-              {msg.role === "user" ? (
-                <AvatarCircle $isUser={true}>
-                  <User size={20} />
-                </AvatarCircle>
-              ) : (
-                <img
-                  src={logoImg}
-                  alt="ProxyCast"
-                  style={{
-                    width: 45,
-                    height: 45,
-                    minWidth: 45,
-                    minHeight: 45,
-                    borderRadius: 8,
-                    display: "block",
-                  }}
-                />
-              )}
-            </AvatarColumn>
-
-            <ContentColumn>
-              <MessageHeader>
-                <SenderName>
-                  {msg.role === "user" ? "用户" : assistantLabel}
-                </SenderName>
-                <TimeStamp>{formatTime(msg.timestamp)}</TimeStamp>
-              </MessageHeader>
-
-              <MessageBubble $isUser={msg.role === "user"}>
-                {msg.role === "assistant" && timeline ? (
-                  <AgentThreadTimeline
-                    turn={timeline.turn}
-                    items={timeline.items}
-                    isCurrentTurn={timeline.turn.id === currentTurnId}
-                    onFileClick={onFileClick}
-                    onPermissionResponse={onPermissionResponse}
-                  />
+            <section
+              key={group.id}
+              data-testid="message-turn-group"
+              data-group-index={groupIndex + 1}
+              className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-4 py-4 shadow-sm shadow-slate-950/5 dark:border-slate-800/80 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.92)_0%,rgba(15,23,42,0.84)_100%)]"
+            >
+              <div
+                data-testid={`message-turn-group:${groupIndex + 1}:header`}
+                className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+              >
+                <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/90 px-2.5 py-1 font-medium text-slate-700 shadow-sm shadow-slate-950/5 dark:border-slate-700/80 dark:bg-slate-900/80 dark:text-slate-200">
+                  回合 {formatGroupNumber(groupIndex)}
+                </span>
+                <span>{formatTime(group.startedAt)}</span>
+                {group.endedAt.getTime() !== group.startedAt.getTime() ? (
+                  <span>至 {formatTime(group.endedAt)}</span>
                 ) : null}
+                {group.assistantMessages.length > 1 ? (
+                  <span className="inline-flex items-center rounded-full border border-sky-200/70 bg-sky-50/80 px-2 py-0.5 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+                    {group.assistantMessages.length} 条回复
+                  </span>
+                ) : hasTimeline ? (
+                  <span className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2 py-0.5 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                    含执行轨迹
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1 rounded-full bg-slate-100/80 px-2.5 py-1 text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">
+                  <span className="block truncate">
+                    {truncatePreview(previewSource)}
+                  </span>
+                </span>
+              </div>
 
-                {editingId === msg.id ? (
-                  <div className="flex flex-col gap-2">
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full min-h-[100px] p-2 rounded border border-border bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                      autoFocus
-                    />
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancelEdit}
-                      >
-                        取消
-                      </Button>
-                      <Button size="sm" onClick={() => handleSaveEdit(msg.id)}>
-                        保存
-                      </Button>
-                    </div>
-                  </div>
-                ) : msg.role === "assistant" ? (
-                  /* 使用 StreamingRenderer 渲染 assistant 消息 - Requirements: 9.3, 9.4 */
-                  <StreamingRenderer
-                    content={msg.content}
-                    isStreaming={msg.isThinking}
-                    toolCalls={msg.toolCalls}
-                    showCursor={msg.isThinking && !msg.content}
-                    thinkingContent={msg.thinkingContent}
-                    runtimeStatus={msg.runtimeStatus}
-                    contentParts={msg.contentParts}
-                    actionRequests={msg.actionRequests}
-                    onA2UISubmit={
-                      onA2UISubmit
-                        ? (formData) => onA2UISubmit(formData, msg.id)
-                        : undefined
-                    }
-                    a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
-                    a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
-                    onA2UIFormChange={onA2UIFormChange}
-                    renderA2UIInline={renderA2UIInline}
-                    onWriteFile={
-                      onWriteFile
-                        ? (content, fileName, context) =>
-                            onWriteFile(content, fileName, {
-                              ...context,
-                              sourceMessageId:
-                                context?.sourceMessageId || msg.id,
-                              source: context?.source || "message_content",
-                            })
-                        : undefined
-                    }
-                    onFileClick={onFileClick}
-                    onPermissionResponse={onPermissionResponse}
-                    collapseCodeBlocks={collapseCodeBlocks}
-                    onCodeBlockClick={onCodeBlockClick}
-                  />
-                ) : (
-                  <MarkdownRenderer
-                    content={msg.content}
-                    onA2UISubmit={
-                      onA2UISubmit
-                        ? (formData) => onA2UISubmit(formData, msg.id)
-                        : undefined
-                    }
-                    renderA2UIInline={renderA2UIInline}
-                  />
-                )}
+              <div className="space-y-1">
+                {group.messages.map((msg) => {
+                  const showIdentity =
+                    msg.role === "user" || assistantMessageCount === 0;
 
-                {msg.images && msg.images.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {msg.images.map((img, i) => (
-                      <img
-                        key={i}
-                        src={`data:${img.mediaType};base64,${img.data}`}
-                        className="max-w-xs rounded-lg border border-border"
-                        alt="attachment"
-                      />
-                    ))}
-                  </div>
-                )}
+                  if (msg.role === "assistant") {
+                    assistantMessageCount += 1;
+                  }
 
-                {msg.role === "assistant" && renderArtifactCards(msg.artifacts)}
-
-                {/* Token 使用量显示 - Requirements: 9.5 */}
-                {msg.role === "assistant" && !msg.isThinking && msg.usage && (
-                  <TokenUsageDisplay usage={msg.usage} />
-                )}
-
-                {msg.role === "assistant" &&
-                  !msg.isThinking &&
-                  msg.contextTrace &&
-                  msg.contextTrace.length > 0 && (
-                    <details className="mt-3 rounded border border-border/60 bg-muted/20">
-                      <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
-                        上下文轨迹 ({msg.contextTrace.length})
-                      </summary>
-                      <div className="border-t border-border/60 px-3 py-2 space-y-1.5">
-                        {msg.contextTrace.map((step, index) => (
-                          <div key={`${step.stage}-${index}`} className="text-xs">
-                            <span className="font-medium text-foreground/90">
-                              {step.stage}
-                            </span>
-                            <span className="text-muted-foreground">: </span>
-                            <span className="text-muted-foreground">{step.detail}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-
-                {editingId !== msg.id && (
-                  <MessageActions className="message-actions">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                      onClick={() => handleCopy(msg.content, msg.id)}
-                    >
-                      {copiedId === msg.id ? (
-                        <Check size={12} className="text-green-500" />
-                      ) : (
-                        <Copy size={12} />
-                      )}
-                    </Button>
-                    {msg.role === "user" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleEdit(msg)}
-                      >
-                        <Edit2 size={12} />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(msg.id)}
-                    >
-                      <Trash2 size={12} />
-                    </Button>
-                  </MessageActions>
-                )}
-              </MessageBubble>
-            </ContentColumn>
-          </MessageWrapper>
+                  return renderMessageItem(msg, { showIdentity });
+                })}
+              </div>
+            </section>
           );
         })}
         <div ref={scrollRef} />

@@ -38,7 +38,7 @@ const {
   mockSkillsGetAll,
   mockCanvasWorkbenchLayoutState,
   mockCanvasWorkbenchLayout,
-  mockLaunchBrowserRuntimeAssist,
+  mockLaunchBrowserSession,
   mockBrowserExecuteAction,
 } = vi.hoisted(() => ({
   mockUseAgentChatUnified: vi.fn(),
@@ -130,7 +130,7 @@ const {
       </div>
     );
   }),
-  mockLaunchBrowserRuntimeAssist: vi.fn(),
+  mockLaunchBrowserSession: vi.fn(),
   mockBrowserExecuteAction: vi.fn(),
 }));
 
@@ -205,6 +205,8 @@ vi.mock("./components/ChatNavbar", () => ({
     harnessPanelVisible,
     onToggleHarnessPanel,
     harnessToggleLabel,
+    browserAssistLabel,
+    browserAssistAttentionLevel,
   }: {
     onToggleHistory?: () => void;
     onToggleCanvas?: () => void;
@@ -215,6 +217,8 @@ vi.mock("./components/ChatNavbar", () => ({
     harnessPanelVisible?: boolean;
     onToggleHarnessPanel?: () => void;
     harnessToggleLabel?: string;
+    browserAssistLabel?: string;
+    browserAssistAttentionLevel?: string;
   }) => (
     <div
       data-testid="chat-navbar"
@@ -223,6 +227,8 @@ vi.mock("./components/ChatNavbar", () => ({
       data-harness-toggle-label={harnessToggleLabel || "Harness"}
       data-show-canvas-toggle={showCanvasToggle ? "true" : "false"}
       data-canvas-open={isCanvasOpen ? "true" : "false"}
+      data-browser-assist-label={browserAssistLabel || ""}
+      data-browser-assist-attention={browserAssistAttentionLevel || "idle"}
     >
       <button
         type="button"
@@ -271,8 +277,13 @@ vi.mock("./components/ChatNavbar", () => ({
 vi.mock("./components/ChatSidebar", () => ({
   ChatSidebar: ({
     onSwitchTopic,
+    onResumeTask,
   }: {
     onSwitchTopic?: (topicId: string) => Promise<void> | void;
+    onResumeTask?: (
+      topicId: string,
+      statusReason?: string,
+    ) => Promise<void> | void;
   }) => (
     <div data-testid="chat-sidebar">
       <button
@@ -283,6 +294,15 @@ vi.mock("./components/ChatSidebar", () => ({
         }}
       >
         切换话题
+      </button>
+      <button
+        type="button"
+        data-testid="resume-topic"
+        onClick={() => {
+          void onResumeTask?.("topic-a", "browser_awaiting_user");
+        }}
+      >
+        恢复任务
       </button>
     </div>
   ),
@@ -526,7 +546,7 @@ vi.mock("@/lib/api/skills", () => ({
 }));
 
 vi.mock("@/lib/webview-api", () => ({
-  launchBrowserRuntimeAssist: mockLaunchBrowserRuntimeAssist,
+  launchBrowserSession: mockLaunchBrowserSession,
   browserExecuteAction: mockBrowserExecuteAction,
 }));
 
@@ -809,7 +829,7 @@ beforeEach(() => {
     workflow_steps: [],
   });
   mockSkillsGetAll.mockResolvedValue([]);
-  mockLaunchBrowserRuntimeAssist.mockResolvedValue({
+  mockLaunchBrowserSession.mockResolvedValue({
     profile: {
       success: true,
       reused: true,
@@ -1172,6 +1192,64 @@ describe("AgentChatPage 侧栏显示控制", () => {
 
     expect(
       container.querySelector('[data-testid="claw-empty-state"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('[data-testid="empty-state"]')).toBeNull();
+  });
+
+  it("新建任务模式在首条消息进入后应立即展示聊天区", async () => {
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return {
+          providerType: "kiro",
+          setProviderType: vi.fn(),
+          model: "mock-model",
+          setModel: vi.fn(),
+          executionStrategy: "auto",
+          setExecutionStrategy: vi.fn(),
+          messages: [
+            {
+              id: "msg-user-1",
+              role: "user",
+              content: "帮我规划一个发布任务",
+              timestamp: new Date(),
+            },
+          ],
+          isSending: true,
+          sendMessage: sharedSendMessageMock,
+          stopSending: vi.fn(async () => undefined),
+          clearMessages: vi.fn(),
+          deleteMessage: vi.fn(),
+          editMessage: vi.fn(),
+          handlePermissionResponse: vi.fn(),
+          triggerAIGuide: sharedTriggerAIGuideMock,
+          topics: [
+            {
+              id: "topic-a",
+              title: "任务 A",
+              updatedAt: Date.now(),
+            },
+          ],
+          sessionId: "session-1",
+          switchTopic: sharedSwitchTopicMock,
+          deleteTopic: vi.fn(),
+          renameTopic: vi.fn(),
+          pendingActions: [],
+          workspacePathMissing: false,
+          fixWorkspacePathAndRetry: vi.fn(),
+          dismissWorkspacePathError: vi.fn(),
+        };
+      },
+    );
+
+    const container = renderPage({
+      agentEntry: "new-task",
+      projectId: "project-entry",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="message-list"]'),
     ).not.toBeNull();
     expect(container.querySelector('[data-testid="empty-state"]')).toBeNull();
   });
@@ -1564,7 +1642,7 @@ describe("AgentChatPage 通用工作台", () => {
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
-    expect(mockLaunchBrowserRuntimeAssist).toHaveBeenCalledWith({
+    expect(mockLaunchBrowserSession).toHaveBeenCalledWith({
       profile_key: "general_browser_assist",
       url: "https://accounts.example.com",
       open_window: false,
@@ -1612,7 +1690,7 @@ describe("AgentChatPage 通用工作台", () => {
     expect(mockSetSelectedArtifactIdAtom).toHaveBeenCalledWith(
       "browser-assist:general",
     );
-    expect(mockLaunchBrowserRuntimeAssist).not.toHaveBeenCalled();
+    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
     expect(mockJotaiState.artifacts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1721,6 +1799,148 @@ describe("AgentChatPage 通用工作台", () => {
     );
   });
 
+  it("强浏览器任务应先进入浏览器前置引导，而不是立刻退化为普通发送", async () => {
+    const container = renderPage({
+      projectId: "project-browser-required",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    const prompt = "帮我把这篇文章发布到微信公众号后台";
+    const emptyStateProps = mockEmptyState.mock.calls.at(-1)?.[0] as
+      | {
+          onSend?: (
+            value: string,
+            executionStrategy?: "react" | "code_orchestrated" | "auto",
+            images?: unknown[],
+          ) => void | Promise<void>;
+        }
+      | undefined;
+
+    await act(async () => {
+      await emptyStateProps?.onSend?.(prompt, "auto", []);
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    expect(mockLaunchBrowserSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profile_key: "general_browser_assist",
+        url: "https://mp.weixin.qq.com/",
+      }),
+    );
+
+    const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    const latestAssistant = messageListProps?.messages?.at(-1) as
+      | {
+          actionRequests?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    const latestAction = latestAssistant?.actionRequests?.[0];
+
+    expect(latestAction).toMatchObject({
+      uiKind: "browser_preflight",
+      browserRequirement: "required_with_user_step",
+      browserPrepState: "awaiting_user",
+    });
+    expect(
+      container
+        .querySelector('[data-testid="chat-navbar"]')
+        ?.getAttribute("data-browser-assist-label"),
+    ).toBe("等待登录");
+    expect(
+      container
+        .querySelector('[data-testid="chat-navbar"]')
+        ?.getAttribute("data-browser-assist-attention"),
+    ).toBe("warning");
+  });
+
+  it("浏览器前置引导继续后应恢复原任务发送并禁用检索降级", async () => {
+    renderPage({
+      projectId: "project-browser-required-continue",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    const prompt = "帮我把这篇文章发布到微信公众号后台";
+    const emptyStateProps = mockEmptyState.mock.calls.at(-1)?.[0] as
+      | {
+          onSend?: (
+            value: string,
+            executionStrategy?: "react" | "code_orchestrated" | "auto",
+            images?: unknown[],
+          ) => void | Promise<void>;
+        }
+      | undefined;
+
+    await act(async () => {
+      await emptyStateProps?.onSend?.(prompt, "auto", []);
+    });
+    await flushEffects(12);
+
+    const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<Record<string, unknown>>;
+          onPermissionResponse?: (payload: {
+            requestId: string;
+            confirmed: boolean;
+            actionType?: "ask_user";
+            response?: string;
+            userData?: unknown;
+          }) => Promise<void>;
+        }
+      | undefined;
+    const latestAssistant = messageListProps?.messages?.at(-1) as
+      | {
+          actionRequests?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    const requestId = latestAssistant?.actionRequests?.[0]?.requestId as
+      | string
+      | undefined;
+
+    await act(async () => {
+      await messageListProps?.onPermissionResponse?.({
+        requestId: requestId || "",
+        confirmed: true,
+        actionType: "ask_user",
+        response: "我已完成登录，继续执行",
+        userData: {
+          answer: "我已完成登录，继续执行",
+          browserAction: "continue",
+        },
+      });
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).toHaveBeenCalledWith(
+      prompt,
+      [],
+      false,
+      false,
+      false,
+      "auto",
+      "mock-model",
+      undefined,
+      expect.objectContaining({
+        browserPreflightConfirmed: true,
+        requestMetadata: expect.objectContaining({
+          harness: expect.objectContaining({
+            browser_requirement: "required_with_user_step",
+            browser_launch_url: "https://mp.weixin.qq.com/",
+            browser_user_step_required: true,
+          }),
+        }),
+      }),
+    );
+  });
+
   it("切换到新会话时不应复用旧 scope 的浏览器协助 artifact", async () => {
     mockJotaiState.artifacts = [
       {
@@ -1757,6 +1977,85 @@ describe("AgentChatPage 通用工作台", () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat");
     expect(mockJotaiState.artifacts).toEqual([]);
+  });
+
+  it("当前待继续任务可从侧栏直接打开浏览器协助", async () => {
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return {
+          providerType: "kiro",
+          setProviderType: vi.fn(),
+          model: "mock-model",
+          setModel: vi.fn(),
+          executionStrategy: "auto",
+          setExecutionStrategy: vi.fn(),
+          messages: [
+            {
+              id: "msg-browser-user",
+              role: "user",
+              content: "帮我把文章发布到微信公众号后台",
+              timestamp: new Date("2026-03-15T09:00:00.000Z"),
+            },
+            {
+              id: "msg-browser-assistant",
+              role: "assistant",
+              content: "请先完成登录。",
+              timestamp: new Date("2026-03-15T09:00:01.000Z"),
+              actionRequests: [
+                {
+                  requestId: "req-browser-sidebar",
+                  actionType: "ask_user",
+                  uiKind: "browser_preflight",
+                  browserRequirement: "required_with_user_step",
+                  browserPrepState: "awaiting_user",
+                  prompt: "请先在浏览器完成登录",
+                },
+              ],
+            },
+          ],
+          isSending: false,
+          sendMessage: sharedSendMessageMock,
+          stopSending: vi.fn(async () => undefined),
+          clearMessages: vi.fn(),
+          deleteMessage: vi.fn(),
+          editMessage: vi.fn(),
+          handlePermissionResponse: vi.fn(),
+          triggerAIGuide: sharedTriggerAIGuideMock,
+          topics: [
+            {
+              id: "topic-a",
+              title: "话题 A",
+              updatedAt: Date.now(),
+            },
+          ],
+          sessionId: "topic-a",
+          switchTopic: sharedSwitchTopicMock,
+          deleteTopic: vi.fn(),
+          renameTopic: vi.fn(),
+          workspacePathMissing: false,
+          fixWorkspacePathAndRetry: vi.fn(),
+          dismissWorkspacePathError: vi.fn(),
+        };
+      },
+    );
+
+    const container = renderPage({
+      projectId: "project-sidebar-resume",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    clickButton(container, "resume-topic");
+    await flushEffects(12);
+
+    expect(sharedSwitchTopicMock).not.toHaveBeenCalled();
+    expect(mockLaunchBrowserSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profile_key: "general_browser_assist",
+      }),
+    );
   });
 });
 
@@ -3562,5 +3861,339 @@ describe("AgentChatPage 小说主题工作台", () => {
     );
     expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("AgentChatPage legacy 问卷 A2UI", () => {
+  it("应将结构化问卷提升到输入区浮层，并按字段标签提交摘要", async () => {
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return {
+          providerType: "kiro",
+          setProviderType: vi.fn(),
+          model: "mock-model",
+          setModel: vi.fn(),
+          executionStrategy: "auto",
+          setExecutionStrategy: vi.fn(),
+          messages: [
+            {
+              id: "msg-legacy-user",
+              role: "user",
+              content: "帮我先梳理需求",
+              timestamp: new Date("2026-03-15T09:00:00.000Z"),
+            },
+            {
+              id: "msg-legacy-assistant",
+              role: "assistant",
+              content: `为了继续推进，我需要你先补充以下信息：
+
+1. 目标与对象
+- 这次内容主要面向谁？（客户 / 上级 / 同事）
+- 这次最想达成的目标是什么？
+
+2. 风格与限制
+- 语气偏好：正式严谨 / 友好专业 / 直接高效
+- 是否需要加入明确行动号召？`,
+              timestamp: new Date("2026-03-15T09:00:01.000Z"),
+            },
+          ],
+          isSending: false,
+          sendMessage: sharedSendMessageMock,
+          stopSending: vi.fn(async () => undefined),
+          clearMessages: vi.fn(),
+          deleteMessage: vi.fn(),
+          editMessage: vi.fn(),
+          handlePermissionResponse: vi.fn(),
+          triggerAIGuide: sharedTriggerAIGuideMock,
+          topics: [
+            {
+              id: "topic-a",
+              title: "话题 A",
+              updatedAt: Date.now(),
+            },
+          ],
+          sessionId: "session-1",
+          switchTopic: sharedSwitchTopicMock,
+          deleteTopic: vi.fn(),
+          renameTopic: vi.fn(),
+          workspacePathMissing: false,
+          fixWorkspacePathAndRetry: vi.fn(),
+          dismissWorkspacePathError: vi.fn(),
+        };
+      },
+    );
+
+    renderPage({
+      projectId: "project-legacy-a2ui",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    expect(latestMessageListProps?.messages?.[1]?.content).toBe(
+      "已整理为补充信息表单，请在输入区完成填写。",
+    );
+
+    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
+      | {
+          pendingA2UIForm?: {
+            data?: Record<string, unknown>;
+            components?: Array<Record<string, unknown>>;
+          } | null;
+          onA2UISubmit?: (formData: Record<string, unknown>) => void;
+        }
+      | undefined;
+
+    expect(latestInputbarProps?.pendingA2UIForm).toBeTruthy();
+    expect(latestInputbarProps?.pendingA2UIForm?.data).toMatchObject({
+      source: "legacy_questionnaire",
+    });
+
+    const componentIdByLabel = Object.fromEntries(
+      (latestInputbarProps?.pendingA2UIForm?.components || [])
+        .filter(
+          (component) =>
+            (component.component === "ChoicePicker" ||
+              component.component === "TextField") &&
+            typeof component.label === "string" &&
+            typeof component.id === "string",
+        )
+        .map((component) => [component.label, component.id]),
+    );
+
+    await act(async () => {
+      latestInputbarProps?.onA2UISubmit?.({
+        [componentIdByLabel["这次内容主要面向谁？"]]: ["客户"],
+        [componentIdByLabel["这次最想达成的目标是什么？"]]:
+          "帮助市场团队统一宣传口径",
+        [componentIdByLabel["语气偏好"]]: ["友好专业"],
+        [componentIdByLabel["是否需要加入明确行动号召？"]]: ["是"],
+      });
+    });
+    await flushEffects(10);
+
+    expect(sharedSendMessageMock).toHaveBeenCalledWith(
+      `我的选择：
+- 这次内容主要面向谁？: 客户
+- 这次最想达成的目标是什么？: 帮助市场团队统一宣传口径
+- 语气偏好: 友好专业
+- 是否需要加入明确行动号召？: 是`,
+      [],
+      false,
+      false,
+      false,
+      undefined,
+      undefined,
+      undefined,
+      expect.objectContaining({
+        requestMetadata: {
+          elicitation_context: expect.objectContaining({
+            source: "legacy_questionnaire",
+            mode: "compatibility_bridge",
+            entries: expect.arrayContaining([
+              expect.objectContaining({
+                label: "这次内容主要面向谁？",
+                value: "客户",
+                summary: "客户",
+              }),
+            ]),
+          }),
+        },
+      }),
+    );
+  });
+
+  it("问卷已提交后，消息区应折叠为简短确认而不是继续展示完整题面", async () => {
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return {
+          providerType: "kiro",
+          setProviderType: vi.fn(),
+          model: "mock-model",
+          setModel: vi.fn(),
+          executionStrategy: "auto",
+          setExecutionStrategy: vi.fn(),
+          messages: [
+            {
+              id: "msg-legacy-user",
+              role: "user",
+              content: "帮我先梳理需求",
+              timestamp: new Date("2026-03-15T09:00:00.000Z"),
+            },
+            {
+              id: "msg-legacy-assistant",
+              role: "assistant",
+              content: `为了继续推进，我需要你先补充以下信息：
+
+1. 目标与对象
+- 这次内容主要面向谁？（客户 / 上级 / 同事）
+- 这次最想达成的目标是什么？
+
+2. 风格与限制
+- 语气偏好：正式严谨 / 友好专业 / 直接高效
+- 是否需要加入明确行动号召？`,
+              timestamp: new Date("2026-03-15T09:00:01.000Z"),
+            },
+            {
+              id: "msg-legacy-summary",
+              role: "user",
+              content: `我的选择：
+- 这次内容主要面向谁？: 客户
+- 这次最想达成的目标是什么？: 帮助市场团队统一宣传口径`,
+              timestamp: new Date("2026-03-15T09:01:00.000Z"),
+            },
+          ],
+          isSending: false,
+          sendMessage: sharedSendMessageMock,
+          stopSending: vi.fn(async () => undefined),
+          clearMessages: vi.fn(),
+          deleteMessage: vi.fn(),
+          editMessage: vi.fn(),
+          handlePermissionResponse: vi.fn(),
+          triggerAIGuide: sharedTriggerAIGuideMock,
+          topics: [
+            {
+              id: "topic-a",
+              title: "话题 A",
+              updatedAt: Date.now(),
+            },
+          ],
+          sessionId: "session-1",
+          switchTopic: sharedSwitchTopicMock,
+          deleteTopic: vi.fn(),
+          renameTopic: vi.fn(),
+          workspacePathMissing: false,
+          fixWorkspacePathAndRetry: vi.fn(),
+          dismissWorkspacePathError: vi.fn(),
+        };
+      },
+    );
+
+    renderPage({
+      projectId: "project-legacy-a2ui-completed",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    expect(latestMessageListProps?.messages?.[1]?.content).toBe(
+      "补充信息表单已提交。",
+    );
+  });
+
+  it("真实 action_required 存在时，不应被 legacy 折叠逻辑覆盖", async () => {
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return {
+          providerType: "kiro",
+          setProviderType: vi.fn(),
+          model: "mock-model",
+          setModel: vi.fn(),
+          executionStrategy: "auto",
+          setExecutionStrategy: vi.fn(),
+          messages: [
+            {
+              id: "msg-legacy-user",
+              role: "user",
+              content: "帮我先梳理需求",
+              timestamp: new Date("2026-03-15T09:00:00.000Z"),
+            },
+            {
+              id: "msg-protocol-assistant",
+              role: "assistant",
+              content: `为了继续推进，我需要你先补充以下信息：
+
+1. 目标与对象
+- 这次内容主要面向谁？（客户 / 上级 / 同事）
+- 这次最想达成的目标是什么？
+
+2. 风格与限制
+- 语气偏好：正式严谨 / 友好专业 / 直接高效
+- 是否需要加入明确行动号召？`,
+              timestamp: new Date("2026-03-15T09:00:01.000Z"),
+              actionRequests: [
+                {
+                  requestId: "req-action-required",
+                  actionType: "elicitation",
+                  prompt: "请补充本次任务的关键信息",
+                  requestedSchema: {
+                    type: "object",
+                    properties: {
+                      audience: {
+                        type: "string",
+                        title: "目标受众",
+                      },
+                    },
+                  },
+                  status: "pending",
+                },
+              ],
+            },
+          ],
+          isSending: false,
+          sendMessage: sharedSendMessageMock,
+          stopSending: vi.fn(async () => undefined),
+          clearMessages: vi.fn(),
+          deleteMessage: vi.fn(),
+          editMessage: vi.fn(),
+          handlePermissionResponse: vi.fn(),
+          triggerAIGuide: sharedTriggerAIGuideMock,
+          topics: [
+            {
+              id: "topic-a",
+              title: "话题 A",
+              updatedAt: Date.now(),
+            },
+          ],
+          sessionId: "session-1",
+          switchTopic: sharedSwitchTopicMock,
+          deleteTopic: vi.fn(),
+          renameTopic: vi.fn(),
+          workspacePathMissing: false,
+          fixWorkspacePathAndRetry: vi.fn(),
+          dismissWorkspacePathError: vi.fn(),
+        };
+      },
+    );
+
+    renderPage({
+      projectId: "project-action-required-priority",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    expect(latestMessageListProps?.messages?.[1]?.content).toContain(
+      "为了继续推进，我需要你先补充以下信息",
+    );
+
+    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+          } | null;
+        }
+      | undefined;
+    expect(latestInputbarProps?.pendingA2UIForm?.id).toBe(
+      "action-request-req-action-required",
+    );
   });
 });

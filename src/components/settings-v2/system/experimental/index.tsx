@@ -6,14 +6,20 @@
  * 需求: 6.1, 6.2, 6.3, 6.5 - 实验室标签页，截图对话功能开关，快捷键设置，权限警告
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import {
+  AlertCircle,
   FlaskConical,
   Camera,
   AlertTriangle,
   RefreshCw,
   Bug,
   Wrench,
+  Mic,
+  ShieldAlert,
+  Sparkles,
+  FolderOpen,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -59,6 +65,7 @@ import {
 } from "@/lib/crashDiagnostic";
 import { ClipboardPermissionGuideCard } from "../shared/ClipboardPermissionGuideCard";
 import { WorkspaceRepairHistoryCard } from "../shared/WorkspaceRepairHistoryCard";
+import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_TOOL_CALLING_CONFIG,
   normalizeToolCallingConfig,
@@ -67,6 +74,91 @@ import {
 // ============================================================
 // 组件
 // ============================================================
+
+interface ExperimentalPanelProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  children: ReactNode;
+  aside?: ReactNode;
+}
+
+function ExperimentalPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+  aside,
+}: ExperimentalPanelProps) {
+  return (
+    <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <Icon className="h-4 w-4 text-sky-600" />
+            {title}
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+        </div>
+        {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
+      </div>
+
+      <div className="mt-5">{children}</div>
+    </article>
+  );
+}
+
+function SummaryStat({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-white/90 bg-white/86 p-4 shadow-sm">
+      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+        {value}
+      </p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function StatusPill({
+  active,
+  activeLabel,
+  inactiveLabel,
+}: {
+  active: boolean;
+  activeLabel: string;
+  inactiveLabel: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium",
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-slate-200 bg-slate-100 text-slate-500",
+      )}
+    >
+      {active ? activeLabel : inactiveLabel}
+    </span>
+  );
+}
+
+const SECONDARY_BUTTON_CLASS_NAME =
+  "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
+const PRIMARY_BUTTON_CLASS_NAME =
+  "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
+const FIELD_CLASS_NAME =
+  "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200";
 
 export function ExperimentalSettings() {
   // 状态
@@ -486,416 +578,554 @@ export function ExperimentalSettings() {
     }
   }, []);
 
-  // 加载中状态
+  const summary = useMemo(
+    () => ({
+      toolCallingLabel: toolCallingConfig.enabled ? "已启用" : "未启用",
+      screenshotLabel: config?.screenshot_chat.enabled ? "已启用" : "未启用",
+      voiceLabel: voiceConfig?.enabled ? "已启用" : "未启用",
+      crashLabel: crashConfig.enabled ? "已启用" : "未启用",
+    }),
+    [
+      config?.screenshot_chat.enabled,
+      crashConfig.enabled,
+      toolCallingConfig.enabled,
+      voiceConfig?.enabled,
+    ],
+  );
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="space-y-6 pb-8">
+        <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
+          <div className="h-[320px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
+          <div className="h-[320px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
+        </div>
       </div>
     );
   }
 
-  // 错误状态
   if (error && !config) {
     return (
-      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <span className="text-sm font-medium">加载配置失败</span>
+      <div className="rounded-[26px] border border-rose-200 bg-rose-50/80 p-5 shadow-sm shadow-slate-950/5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-rose-600" />
+          <div>
+            <p className="text-sm font-semibold text-rose-700">加载配置失败</p>
+            <p className="mt-1 text-sm leading-6 text-rose-600">{error}</p>
+            <button
+              type="button"
+              onClick={() => void loadConfig()}
+              className="mt-3 inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100/70"
+            >
+              <RefreshCw className="h-4 w-4" />
+              重试
+            </button>
+          </div>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-        <button
-          onClick={loadConfig}
-          className="mt-2 text-sm text-primary hover:underline"
-        >
-          重试
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 max-w-2xl">
-      {/* 页面标题 */}
-      <div className="flex items-center gap-2 mb-4">
-        <FlaskConical className="h-5 w-5 text-primary" />
-        <div>
-          <h3 className="text-sm font-medium">实验室功能</h3>
-          <p className="text-xs text-muted-foreground">
-            这些功能仍在开发中，可能不稳定
-          </p>
-        </div>
-      </div>
-
-      {/* 消息提示 */}
+    <div className="space-y-6 pb-8">
       {message && (
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-sm",
+            "flex items-center gap-2 rounded-[20px] border px-4 py-3 text-sm shadow-sm shadow-slate-950/5",
             message.type === "success"
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-destructive/10 text-destructive",
+              ? "border-emerald-200 bg-emerald-50/90 text-emerald-700"
+              : "border-rose-200 bg-rose-50/90 text-rose-700",
           )}
         >
+          <AlertCircle className="h-4 w-4" />
           {message.text}
         </div>
       )}
 
-      {showClipboardGuide && <ClipboardPermissionGuideCard />}
+      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
+        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
+        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
 
-      {/* Tool Calling 2.0 */}
-      <div className="rounded-lg border p-4 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <Wrench className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <h4 className="text-sm font-medium">Tool Calling 2.0</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                控制编程式工具调用、动态过滤和 input examples 透传
-              </p>
-            </div>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={toolCallingConfig.enabled}
-              onChange={handleToggleToolCallingEnabled}
-              disabled={saving}
-              className="sr-only peer"
-            />
-            <div
-              className={cn(
-                "w-9 h-5 rounded-full transition-colors",
-                "bg-muted peer-checked:bg-primary",
-                "after:content-[''] after:absolute after:top-0.5 after:left-0.5",
-                "after:bg-white after:rounded-full after:h-4 after:w-4",
-                "after:transition-transform peer-checked:after:translate-x-4",
-                saving && "opacity-50 cursor-not-allowed",
-              )}
-            />
-          </label>
-        </div>
+        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+            <div className="max-w-3xl space-y-5">
+              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
+                EXPERIMENT LAB
+              </span>
+              <div className="space-y-2">
+                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                  把还在试验中的能力统一放到一处管理，但不要把风险提示藏起来
+                </p>
+                <p className="max-w-2xl text-sm leading-7 text-slate-600">
+                  实验功能的重点不是堆更多开关，而是明确告诉你哪些能力正在变化、哪些配置和诊断动作应该优先验证。
+                </p>
+              </div>
 
-        <div className="pt-3 border-t space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h5 className="text-sm">动态过滤</h5>
-              <p className="text-xs text-muted-foreground">
-                自动过滤网页抓取中的 HTML 噪音，减少上下文无关内容
-              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+                  建议先在个人环境验证后再推广给团队
+                </span>
+                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+                  诊断动作会采集日志、运行态快照与系统自检信息
+                </span>
+                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+                  屏幕录制、剪贴板等权限问题会在本页集中提示
+                </span>
+              </div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={toolCallingConfig.dynamic_filtering}
-                onChange={handleToggleDynamicFiltering}
-                disabled={saving || !toolCallingConfig.enabled}
-                className="sr-only peer"
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
+              <SummaryStat
+                label="Tool Calling"
+                value={summary.toolCallingLabel}
+                description="控制编程式工具调用与动态过滤链路。"
               />
-              <div
-                className={cn(
-                  "w-9 h-5 rounded-full transition-colors",
-                  "bg-muted peer-checked:bg-primary",
-                  "after:content-[''] after:absolute after:top-0.5 after:left-0.5",
-                  "after:bg-white after:rounded-full after:h-4 after:w-4",
-                  "after:transition-transform peer-checked:after:translate-x-4",
-                  (saving || !toolCallingConfig.enabled) &&
-                    "opacity-50 cursor-not-allowed",
-                )}
+              <SummaryStat
+                label="截图对话"
+                value={summary.screenshotLabel}
+                description="决定是否允许通过全局快捷键进入截图问答流程。"
               />
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h5 className="text-sm">原生 input examples 透传</h5>
-              <p className="text-xs text-muted-foreground">
-                在支持的模型协议中，直接携带工具调用示例提升复杂参数准确率
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={toolCallingConfig.native_input_examples}
-                onChange={handleToggleNativeInputExamples}
-                disabled={saving || !toolCallingConfig.enabled}
-                className="sr-only peer"
+              <SummaryStat
+                label="语音输入"
+                value={summary.voiceLabel}
+                description="实验语音链路是否已启用并允许快捷键输入。"
               />
-              <div
-                className={cn(
-                  "w-9 h-5 rounded-full transition-colors",
-                  "bg-muted peer-checked:bg-primary",
-                  "after:content-[''] after:absolute after:top-0.5 after:left-0.5",
-                  "after:bg-white after:rounded-full after:h-4 after:w-4",
-                  "after:transition-transform peer-checked:after:translate-x-4",
-                  (saving || !toolCallingConfig.enabled) &&
-                    "opacity-50 cursor-not-allowed",
-                )}
+              <SummaryStat
+                label="崩溃上报"
+                value={summary.crashLabel}
+                description="控制 Sentry 上报和诊断导出相关能力。"
               />
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {/* 截图对话功能 */}
-      <div className="rounded-lg border p-4 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <Camera className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <h4 className="text-sm font-medium">截图对话</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                使用全局快捷键截取屏幕区域，并与 AI 进行对话
-              </p>
             </div>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={config?.screenshot_chat.enabled ?? false}
-              onChange={handleToggleSmartInput}
-              disabled={saving}
-              className="sr-only peer"
-            />
-            <div
-              className={cn(
-                "w-9 h-5 rounded-full transition-colors",
-                "bg-muted peer-checked:bg-primary",
-                "after:content-[''] after:absolute after:top-0.5 after:left-0.5",
-                "after:bg-white after:rounded-full after:h-4 after:w-4",
-                "after:transition-transform peer-checked:after:translate-x-4",
-                saving && "opacity-50 cursor-not-allowed",
-              )}
-            />
-          </label>
-        </div>
 
-        {/* 快捷键设置 - 仅在功能启用时显示 */}
-        {config?.screenshot_chat.enabled && (
-          <div className="pt-3 border-t">
-            <ShortcutSettings
-              currentShortcut={config.screenshot_chat.shortcut}
-              onShortcutChange={handleShortcutChange}
-              onValidate={handleValidateShortcut}
-              disabled={saving}
-            />
-          </div>
-        )}
-
-        {/* macOS 权限警告 */}
-        {isMacOS && config?.screenshot_chat.enabled && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-            <div className="text-xs flex-1">
-              <p className="font-medium text-amber-800 dark:text-amber-300">
-                需要屏幕录制权限
-              </p>
-              <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                截图功能需要屏幕录制权限才能正常工作。如果截图只显示桌面背景而不是窗口内容，请授权此权限。
-              </p>
-              <button
-                onClick={async () => {
-                  try {
-                    const { open } = await import("@tauri-apps/plugin-shell");
-                    await open(
-                      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-                    );
-                  } catch (e) {
-                    console.error("打开系统设置失败:", e);
-                  }
-                }}
-                className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
-              >
-                打开系统设置
-              </button>
+          <div className="flex flex-col gap-4 rounded-[24px] border border-white/90 bg-white/80 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill
+                active={toolCallingConfig.enabled}
+                activeLabel="Tool Calling 已启用"
+                inactiveLabel="Tool Calling 未启用"
+              />
+              <StatusPill
+                active={Boolean(config?.screenshot_chat.enabled)}
+                activeLabel="截图对话已启用"
+                inactiveLabel="截图对话未启用"
+              />
+              <StatusPill
+                active={Boolean(crashConfig.enabled)}
+                activeLabel="崩溃上报已启用"
+                inactiveLabel="崩溃上报未启用"
+              />
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
+              </span>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* 自动更新检查设置 */}
-      <div className="rounded-lg border p-4">
-        <UpdateCheckSettings />
-      </div>
-
-      {/* 崩溃上报 */}
-      <div className="rounded-lg border p-4 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <Bug className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <h4 className="text-sm font-medium">崩溃上报（Sentry）</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                收集前端渲染错误与崩溃信息，用于定位 Windows 客诉闪退问题
-              </p>
-            </div>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(crashConfig.enabled)}
-              onChange={handleCrashEnabledToggle}
-              disabled={saving}
-              className="sr-only peer"
-            />
-            <div
-              className={cn(
-                "w-9 h-5 rounded-full transition-colors",
-                "bg-muted peer-checked:bg-primary",
-                "after:content-[''] after:absolute after:top-0.5 after:left-0.5",
-                "after:bg-white after:rounded-full after:h-4 after:w-4",
-                "after:transition-transform peer-checked:after:translate-x-4",
-                saving && "opacity-50 cursor-not-allowed",
-              )}
-            />
-          </label>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs text-muted-foreground">DSN</label>
-            <input
-              value={crashConfig.dsn ?? ""}
-              onChange={(event) =>
-                handleCrashFieldChange("dsn", event.target.value || null)
-              }
-              disabled={saving}
-              placeholder="https://xxx@o0.ingest.sentry.io/0"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Environment</label>
-            <input
-              value={crashConfig.environment ?? "production"}
-              onChange={(event) =>
-                handleCrashFieldChange("environment", event.target.value)
-              }
-              disabled={saving}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              采样率 (0-1)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={1}
-              step={0.1}
-              value={Number(crashConfig.sample_rate ?? 1)}
-              onChange={(event) =>
-                handleCrashFieldChange(
-                  "sample_rate",
-                  Number(event.target.value || 1),
-                )
-              }
-              disabled={saving}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
+            <p className="text-sm leading-6 text-slate-600">
+              先确认是否真的需要启用实验能力，再决定是否导出完整诊断包；这样更容易控制噪音范围。
+            </p>
           </div>
         </div>
+      </section>
 
-        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(crashConfig.send_pii)}
-            onChange={(event) =>
-              handleCrashFieldChange("send_pii", event.target.checked)
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
+        <div className="space-y-6">
+          <ExperimentalPanel
+            icon={Wrench}
+            title="Tool Calling 2.0"
+            description="控制编程式工具调用、动态过滤和 input examples 透传。"
+            aside={
+              <StatusPill
+                active={toolCallingConfig.enabled}
+                activeLabel="已启用"
+                inactiveLabel="未启用"
+              />
             }
-            disabled={saving}
-            className="h-4 w-4 rounded border"
-          />
-          发送默认 PII 字段（默认关闭）
-        </label>
+          >
+            <div className="space-y-4">
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
+                这部分更适合用于调优复杂工具调用链路。若当前主要排查 UI 或 Provider 问题，不建议先改这里。
+              </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            关闭后仅写本地日志，不发送远端。若 DSN 为空，也会自动仅本地记录。
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void copyCrashDiagnostic()}
-              disabled={saving || diagnosticBusy}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs transition-colors",
-                (saving || diagnosticBusy) && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              复制诊断信息
-            </button>
-            <button
-              type="button"
-              onClick={() => void exportCrashDiagnostic()}
-              disabled={saving || diagnosticBusy}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs transition-colors",
-                (saving || diagnosticBusy) && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              导出诊断 JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => void copyCrashDiagnosticJson()}
-              disabled={saving || diagnosticBusy}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs transition-colors",
-                (saving || diagnosticBusy) && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              复制纯 JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => void openCrashDownloadDirectory()}
-              disabled={saving || diagnosticBusy}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs transition-colors",
-                (saving || diagnosticBusy) && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              打开下载目录
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveCrashConfig}
-              disabled={saving || diagnosticBusy}
-              className={cn(
-                "rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground transition-colors",
-                (saving || diagnosticBusy) && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              保存配置
-            </button>
-          </div>
+              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    启用 Tool Calling 2.0
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    开启后才会使用新的工具调用策略与相关优化。
+                  </p>
+                </div>
+                <Switch
+                  checked={toolCallingConfig.enabled}
+                  onCheckedChange={handleToggleToolCallingEnabled}
+                  disabled={saving}
+                  aria-label="切换 Tool Calling 2.0"
+                />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        动态过滤
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        自动过滤网页抓取中的 HTML 噪音，减少上下文无关内容。
+                      </p>
+                    </div>
+                    <Switch
+                      checked={toolCallingConfig.dynamic_filtering}
+                      onCheckedChange={handleToggleDynamicFiltering}
+                      disabled={saving || !toolCallingConfig.enabled}
+                      aria-label="切换动态过滤"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        原生 input examples 透传
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        在支持的模型协议中直接携带工具调用示例，提升复杂参数准确率。
+                      </p>
+                    </div>
+                    <Switch
+                      checked={toolCallingConfig.native_input_examples}
+                      onCheckedChange={handleToggleNativeInputExamples}
+                      disabled={saving || !toolCallingConfig.enabled}
+                      aria-label="切换原生 input examples 透传"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ExperimentalPanel>
+
+          <ExperimentalPanel
+            icon={Camera}
+            title="截图对话"
+            description="用全局快捷键截取屏幕区域，并直接进入问答或上下文分析。"
+            aside={
+              <StatusPill
+                active={Boolean(config?.screenshot_chat.enabled)}
+                activeLabel="已启用"
+                inactiveLabel="未启用"
+              />
+            }
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    启用截图对话
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    开启后可使用全局快捷键唤起截图交互。
+                  </p>
+                </div>
+                <Switch
+                  checked={config?.screenshot_chat.enabled ?? false}
+                  onCheckedChange={handleToggleSmartInput}
+                  disabled={saving}
+                  aria-label="切换截图对话"
+                />
+              </div>
+
+              {config?.screenshot_chat.enabled ? (
+                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                  <ShortcutSettings
+                    currentShortcut={config.screenshot_chat.shortcut}
+                    onShortcutChange={handleShortcutChange}
+                    onValidate={handleValidateShortcut}
+                    disabled={saving}
+                  />
+                </div>
+              ) : null}
+
+              {isMacOS && config?.screenshot_chat.enabled ? (
+                <div className="rounded-[22px] border border-amber-200 bg-amber-50/85 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        需要屏幕录制权限
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-amber-700">
+                        如果截图只显示桌面背景而不是窗口内容，通常说明系统尚未授予屏幕录制权限。
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const { open } = await import("@tauri-apps/plugin-shell");
+                            await open(
+                              "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+                            );
+                          } catch (e) {
+                            console.error("打开系统设置失败:", e);
+                          }
+                        }}
+                        className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+                      >
+                        打开系统设置
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </ExperimentalPanel>
+
+          <ExperimentalPanel
+            icon={Bug}
+            title="崩溃上报与诊断"
+            description="收集前端错误、崩溃信息与运行态诊断，用于定位闪退和异常启动问题。"
+            aside={
+              <StatusPill
+                active={Boolean(crashConfig.enabled)}
+                activeLabel="已启用"
+                inactiveLabel="未启用"
+              />
+            }
+          >
+            <div className="space-y-4">
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
+                DSN 为空时会自动退化为仅本地记录。导出诊断包前建议先完成复现，减少历史噪音。
+              </div>
+
+              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    启用崩溃上报
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    控制远端上报与本地诊断采集策略。
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(crashConfig.enabled)}
+                  onCheckedChange={handleCrashEnabledToggle}
+                  disabled={saving}
+                  aria-label="切换崩溃上报"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-slate-700">DSN</label>
+                  <input
+                    value={crashConfig.dsn ?? ""}
+                    onChange={(event) =>
+                      handleCrashFieldChange("dsn", event.target.value || null)
+                    }
+                    disabled={saving}
+                    placeholder="https://xxx@o0.ingest.sentry.io/0"
+                    className={FIELD_CLASS_NAME}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Environment
+                  </label>
+                  <input
+                    value={crashConfig.environment ?? "production"}
+                    onChange={(event) =>
+                      handleCrashFieldChange("environment", event.target.value)
+                    }
+                    disabled={saving}
+                    className={FIELD_CLASS_NAME}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    采样率 (0-1)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={Number(crashConfig.sample_rate ?? 1)}
+                    onChange={(event) =>
+                      handleCrashFieldChange(
+                        "sample_rate",
+                        Number(event.target.value || 1),
+                      )
+                    }
+                    disabled={saving}
+                    className={FIELD_CLASS_NAME}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-slate-50/60 px-4 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    发送默认 PII 字段
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    默认关闭，仅在明确需要时再打开。
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(crashConfig.send_pii)}
+                  onCheckedChange={(checked) =>
+                    handleCrashFieldChange("send_pii", checked)
+                  }
+                  disabled={saving}
+                  aria-label="切换发送默认 PII 字段"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs leading-5 text-slate-500">
+                  复制、导出与打开目录的用途不同。直接发给开发者时优先“复制诊断信息”；需要归档或程序化比对时再选 JSON。
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void copyCrashDiagnostic()}
+                    disabled={saving || diagnosticBusy}
+                    className={SECONDARY_BUTTON_CLASS_NAME}
+                  >
+                    <Bug className="h-4 w-4" />
+                    复制诊断信息
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void copyCrashDiagnosticJson()}
+                    disabled={saving || diagnosticBusy}
+                    className={SECONDARY_BUTTON_CLASS_NAME}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    复制纯 JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void exportCrashDiagnostic()}
+                    disabled={saving || diagnosticBusy}
+                    className={SECONDARY_BUTTON_CLASS_NAME}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    导出诊断 JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openCrashDownloadDirectory()}
+                    disabled={saving || diagnosticBusy}
+                    className={SECONDARY_BUTTON_CLASS_NAME}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    打开下载目录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCrashConfig}
+                    disabled={saving || diagnosticBusy}
+                    className={PRIMARY_BUTTON_CLASS_NAME}
+                  >
+                    保存配置
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ExperimentalPanel>
         </div>
-      </div>
 
-      <WorkspaceRepairHistoryCard
-        title="Workspace 自愈记录（实验室）"
-        description="用于排查“路径不存在/自动迁移”问题，记录最近修复事件"
-      />
+        <div className="space-y-6">
+          <ExperimentalPanel
+            icon={Sparkles}
+            title="实验提醒"
+            description="先判断当前问题类型，再决定应该动哪个实验开关，避免盲目联调。"
+          >
+            <div className="space-y-3">
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  先做小范围验证
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  实验功能优先在个人环境或少量账号上验证，不建议直接推给全部工作流。
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  排障时减少变量
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  如果问题和工具链无关，不要同时改 Tool Calling、截图和语音配置。
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  需要复现场景时先清理旧样本
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  导出前优先确认刚刚复现的问题是否已覆盖旧诊断历史，避免误导。
+                </p>
+              </div>
+            </div>
+          </ExperimentalPanel>
 
-      {/* 语音输入功能 */}
-      {voiceConfig && (
-        <div className="rounded-lg border p-4">
-          <VoiceSettings
-            config={voiceConfig}
-            onConfigChange={handleVoiceConfigChange}
-            onValidateShortcut={handleValidateShortcut}
-            disabled={saving}
+          {showClipboardGuide ? (
+            <ExperimentalPanel
+              icon={ShieldAlert}
+              title="剪贴板权限指引"
+              description="复制诊断失败且属于权限问题时，可按下面的系统提示恢复。"
+            >
+              <ClipboardPermissionGuideCard />
+            </ExperimentalPanel>
+          ) : null}
+
+          <ExperimentalPanel
+            icon={RefreshCw}
+            title="更新提醒实验"
+            description="管理自动更新检查和提醒验证，便于排查更新链路。"
+          >
+            <UpdateCheckSettings />
+          </ExperimentalPanel>
+
+          {voiceConfig ? (
+            <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+              <div className="mb-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <Mic className="h-4 w-4 text-sky-600" />
+                  语音输入实验
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  语音快捷键、润色和翻译指令属于实验链路，适合单独验证输入体验。
+                </p>
+              </div>
+              <VoiceSettings
+                config={voiceConfig}
+                onConfigChange={handleVoiceConfigChange}
+                onValidateShortcut={handleValidateShortcut}
+                disabled={saving}
+              />
+            </div>
+          ) : null}
+
+          <WorkspaceRepairHistoryCard
+            className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
+            title="Workspace 自愈记录（实验室）"
+            description="用于排查路径不存在、自动迁移和修复事件。"
           />
-        </div>
-      )}
 
-      {/* 更多实验功能占位 */}
-      <div className="rounded-lg border border-dashed p-4 text-center">
-        <p className="text-sm text-muted-foreground">更多实验功能即将推出...</p>
+          <ExperimentalPanel
+            icon={FlaskConical}
+            title="更多实验能力"
+            description="新实验功能会继续放在这里，但不会为了占位而提前暴露无效入口。"
+          >
+            <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
+              更多实验功能即将推出，新增前会优先明确适用场景、风险提示和降级路径。
+            </div>
+          </ExperimentalPanel>
+        </div>
       </div>
     </div>
   );

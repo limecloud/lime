@@ -52,6 +52,13 @@ export function isSupportedProviderType(
   return PROVIDER_TYPE_VALUES.includes(providerType as ProviderType);
 }
 
+export function getProviderTypeLabel(providerType: string): string {
+  return (
+    PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ??
+    providerType
+  );
+}
+
 export function dedupeModelIds(modelIds: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];

@@ -14,12 +14,24 @@ export const Navbar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  height: 48px;
-  border-bottom: 1px solid var(--border);
-  background-color: var(--background);
+  gap: 12px;
+  padding: 8px 14px;
+  min-height: 56px;
+  border-bottom: 1px solid hsl(var(--border) / 0.72);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.98) 0%,
+      hsl(var(--background) / 0.94) 62%,
+      hsl(var(--secondary) / 0.58) 100%
+    );
+  box-shadow:
+    inset 0 -1px 0 hsl(var(--background) / 0.58),
+    0 8px 24px hsl(var(--foreground) / 0.04);
+  backdrop-filter: blur(14px);
   flex-shrink: 0;
   position: relative;
+  z-index: 10;
 `;
 
 export const Breadcrumb = styled.div`
@@ -61,7 +73,7 @@ export const ChatArea = styled.div`
 
 export const MessageListContainer = styled(ScrollArea)`
   flex: 1;
-  padding: 20px 0;
+  padding: 10px 0 16px;
 `;
 
 // Linear Layout Wrapper: Always Row, Left Aligned

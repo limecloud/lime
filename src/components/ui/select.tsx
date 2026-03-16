@@ -94,7 +94,8 @@ const Select: React.FC<SelectProps> = ({
   );
 };
 
-interface SelectTriggerProps {
+interface SelectTriggerProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   children: React.ReactNode;
 }
@@ -102,21 +103,30 @@ interface SelectTriggerProps {
 const SelectTrigger: React.FC<SelectTriggerProps> = ({
   className,
   children,
+  ...props
 }) => {
   const context = useContext(SelectContext);
   if (!context) throw new Error("SelectTrigger must be used within Select");
 
   const { open, setOpen, disabled } = context;
 
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    props.onClick?.(event);
+    if (!event.defaultPrevented && !disabled) {
+      setOpen(!open);
+    }
+  };
+
   return (
     <button
       type="button"
+      {...props}
       disabled={disabled}
       className={cn(
         "flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
-      onClick={() => !disabled && setOpen(!open)}
+      onClick={handleClick}
     >
       {children}
       <ChevronDown className="h-4 w-4 opacity-50" />

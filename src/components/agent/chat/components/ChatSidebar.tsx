@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Clock3,
+  Globe,
   Loader2,
   MoreHorizontal,
   PencilLine,
@@ -20,7 +21,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { Topic, TaskStatus } from "../hooks/agentChatShared";
+import {
+  deriveTaskLiveState,
+  extractTaskPreviewFromMessages,
+  type Topic,
+  type TaskStatus,
+  type TaskStatusReason,
+} from "../hooks/agentChatShared";
 import type { Message } from "../types";
 
 const RECENT_TASK_WINDOW_MS = 1000 * 60 * 60 * 24 * 3;
@@ -60,14 +67,19 @@ const STATUS_META: Record<
     dotClassName: "bg-emerald-500",
   },
   failed: {
-    label: "异常中断",
+    label: "执行失败",
     badgeClassName:
       "border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300",
     dotClassName: "bg-rose-500",
   },
 };
 
-type TaskSectionKey = "running" | "waiting" | "recent" | "older";
+type TaskSectionKey =
+  | "running"
+  | "resumable"
+  | "waiting"
+  | "recent"
+  | "older";
 
 interface TaskCardViewModel {
   id: string;
@@ -75,6 +87,7 @@ interface TaskCardViewModel {
   updatedAt: Date;
   messagesCount: number;
   status: TaskStatus;
+  statusReason?: TaskStatusReason;
   statusLabel: string;
   lastPreview: string;
   isCurrent: boolean;
@@ -92,13 +105,26 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   topics: Topic[];
   currentTopicId: string | null;
-  onSwitchTopic: (topicId: string) => void;
+  onSwitchTopic: (topicId: string) => void | Promise<void>;
+  onResumeTask?: (
+    topicId: string,
+    statusReason?: TaskStatusReason,
+  ) => void | Promise<void>;
   onDeleteTopic: (topicId: string) => void;
   onRenameTopic?: (topicId: string, newTitle: string) => void;
   currentMessages?: Message[];
   isSending?: boolean;
   pendingActionCount?: number;
+  queuedTurnCount?: number;
   workspaceError?: boolean;
+}
+
+function isResumableStatusReason(statusReason?: TaskStatusReason) {
+  return (
+    statusReason === "browser_launching" ||
+    statusReason === "browser_awaiting_user" ||
+    statusReason === "browser_failed"
+  );
 }
 
 function formatRelativeTime(date: Date) {
@@ -130,25 +156,7 @@ function normalizePreviewText(value: string) {
 }
 
 function resolveCurrentTaskPreview(messages: Message[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    const content = normalizePreviewText(
-      message.content ||
-        message.contentParts
-          ?.filter(
-            (part): part is Extract<(typeof message.contentParts)[number], { type: "text" | "thinking" }> =>
-              part.type === "text" || part.type === "thinking",
-          )
-          .map((part) => part.text)
-          .join(" ") ||
-        "",
-    );
-    if (content) {
-      return content;
-    }
-  }
-
-  return "";
+  return extractTaskPreviewFromMessages(messages);
 }
 
 function sortTaskItems(items: TaskCardViewModel[]) {
@@ -181,15 +189,25 @@ function loadPinnedTaskIds() {
 
 function resolveCurrentStatusPreview(
   status: TaskStatus,
+  statusReason: TaskStatusReason | undefined,
   fallbackPreview: string,
   pendingActionCount: number,
   workspaceError: boolean,
 ) {
-  if (workspaceError && status === "failed") {
+  if ((workspaceError || statusReason === "workspace_error") && status === "failed") {
     return "工作区异常，等待你重新选择本地目录后继续。";
   }
   if (status === "running") {
     return "正在生成回复或执行工具，请稍候。";
+  }
+  if (status === "waiting" && statusReason === "browser_launching") {
+    return "正在建立浏览器会话，请稍候。";
+  }
+  if (status === "waiting" && statusReason === "browser_awaiting_user") {
+    return fallbackPreview || "请先在浏览器完成登录或授权后继续。";
+  }
+  if (status === "waiting" && statusReason === "browser_failed") {
+    return fallbackPreview || "浏览器/CDP 还未连接，请重试启动后继续。";
   }
   if (status === "waiting" && pendingActionCount > 0) {
     return "等待你确认或补充信息后继续执行。";
@@ -200,34 +218,88 @@ function resolveCurrentStatusPreview(
   return fallbackPreview;
 }
 
+function resolveStatusLabel(
+  status: TaskStatus,
+  statusReason?: TaskStatusReason,
+): string {
+  if (status === "waiting" && statusReason === "browser_launching") {
+    return "连接浏览器";
+  }
+
+  if (status === "waiting" && statusReason === "browser_awaiting_user") {
+    return "待继续";
+  }
+
+  if (status === "waiting" && statusReason === "browser_failed") {
+    return "浏览器未就绪";
+  }
+
+  if (status === "failed" && statusReason === "workspace_error") {
+    return "工作区异常";
+  }
+
+  return STATUS_META[status].label;
+}
+
+function resolveResumableActionLabel(
+  statusReason?: TaskStatusReason,
+  isCurrent = false,
+): string {
+  if (!isCurrent) {
+    return "进入任务";
+  }
+
+  switch (statusReason) {
+    case "browser_launching":
+      return "查看浏览器";
+    case "browser_awaiting_user":
+      return "打开浏览器";
+    case "browser_failed":
+      return "重试浏览器";
+    default:
+      return "继续处理";
+  }
+}
+
 function resolveTaskStatus(params: {
   topic: Topic;
   currentTopicId: string | null;
+  currentMessages: Message[];
   isSending: boolean;
   pendingActionCount: number;
+  queuedTurnCount: number;
   workspaceError: boolean;
 }) {
-  const { topic, currentTopicId, isSending, pendingActionCount, workspaceError } =
-    params;
+  const {
+    topic,
+    currentTopicId,
+    currentMessages,
+    isSending,
+    pendingActionCount,
+    queuedTurnCount,
+    workspaceError,
+  } = params;
 
   if (topic.id === currentTopicId) {
-    if (workspaceError) {
-      return "failed" as const;
-    }
-    if (isSending) {
-      return "running" as const;
-    }
-    if (pendingActionCount > 0) {
-      return "waiting" as const;
-    }
+    return deriveTaskLiveState({
+      messages: currentMessages,
+      isSending,
+      pendingActionCount,
+      queuedTurnCount,
+      workspaceError,
+    });
   }
 
-  return topic.status;
+  return {
+    status: topic.status,
+    statusReason: topic.statusReason ?? "default",
+  };
 }
 
 function buildTaskSections(items: TaskCardViewModel[]) {
   const now = Date.now();
   const running: TaskCardViewModel[] = [];
+  const resumable: TaskCardViewModel[] = [];
   const waiting: TaskCardViewModel[] = [];
   const recent: TaskCardViewModel[] = [];
   const older: TaskCardViewModel[] = [];
@@ -235,6 +307,14 @@ function buildTaskSections(items: TaskCardViewModel[]) {
   for (const item of items) {
     if (item.status === "running") {
       running.push(item);
+      continue;
+    }
+
+    if (
+      item.status === "waiting" &&
+      isResumableStatusReason(item.statusReason)
+    ) {
+      resumable.push(item);
       continue;
     }
 
@@ -257,6 +337,7 @@ function buildTaskSections(items: TaskCardViewModel[]) {
 
   return [
     { key: "running", title: "进行中", items: sortTaskItems(running) },
+    { key: "resumable", title: "待继续", items: sortTaskItems(resumable) },
     { key: "waiting", title: "待处理", items: sortTaskItems(waiting) },
     { key: "recent", title: "最近完成", items: sortTaskItems(recent) },
     { key: "older", title: "更早任务", items: sortTaskItems(older) },
@@ -268,17 +349,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   topics,
   currentTopicId,
   onSwitchTopic,
+  onResumeTask,
   onDeleteTopic,
   onRenameTopic,
   currentMessages = [],
   isSending = false,
   pendingActionCount = 0,
+  queuedTurnCount = 0,
   workspaceError = false,
 }) => {
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "resumable"
+  >("all");
   const [showAllOlder, setShowAllOlder] = useState(false);
   const [pinnedTaskIds, setPinnedTaskIds] = useState<string[]>(() =>
     loadPinnedTaskIds(),
@@ -287,6 +372,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     Record<TaskSectionKey, boolean>
   >({
     running: false,
+    resumable: false,
     waiting: false,
     recent: false,
     older: false,
@@ -304,20 +390,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   const taskItems = useMemo(() => {
     return topics.map((topic) => {
-      const status = resolveTaskStatus({
+      const { status, statusReason } = resolveTaskStatus({
         topic,
         currentTopicId,
+        currentMessages,
         isSending,
         pendingActionCount,
+        queuedTurnCount,
         workspaceError,
       });
 
-      const statusLabel = STATUS_META[status].label;
+      const statusLabel = resolveStatusLabel(status, statusReason);
       const isCurrent = topic.id === currentTopicId;
       const fallbackPreview = normalizePreviewText(topic.lastPreview);
       const preview = isCurrent
         ? resolveCurrentStatusPreview(
             status,
+            statusReason,
             currentTaskPreview || fallbackPreview,
             pendingActionCount,
             workspaceError,
@@ -330,6 +419,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         updatedAt: topic.updatedAt || topic.createdAt,
         messagesCount: topic.messagesCount,
         status,
+        statusReason,
         statusLabel,
         lastPreview: preview || "等待你补充任务需求后开始执行。",
         isCurrent,
@@ -340,8 +430,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   }, [
     currentTaskPreview,
     currentTopicId,
+    currentMessages,
     isSending,
     pendingActionCount,
+    queuedTurnCount,
     pinnedTaskIdSet,
     topics,
     workspaceError,
@@ -350,6 +442,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const filteredTaskItems = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
     return taskItems.filter((item) => {
+      if (
+        statusFilter === "resumable" &&
+        !(
+          item.status === "waiting" &&
+          isResumableStatusReason(item.statusReason)
+        )
+      ) {
+        return false;
+      }
+
       if (
         statusFilter === "active" &&
         item.status !== "running" &&
@@ -372,6 +474,31 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     () => buildTaskSections(filteredTaskItems),
     [filteredTaskItems],
   );
+  const resumableTaskCount = useMemo(
+    () =>
+      taskItems.filter(
+        (item) =>
+          item.status === "waiting" &&
+          isResumableStatusReason(item.statusReason),
+      ).length,
+    [taskItems],
+  );
+  const resumableItems = useMemo(
+    () =>
+      filteredTaskItems.filter(
+        (item) =>
+          item.status === "waiting" &&
+          isResumableStatusReason(item.statusReason),
+      ),
+    [filteredTaskItems],
+  );
+  const primaryResumableItem = useMemo(() => {
+    if (resumableItems.length === 0) {
+      return null;
+    }
+
+    return resumableItems.find((item) => item.isCurrent) || resumableItems[0];
+  }, [resumableItems]);
 
   const hasAnyTasks = topics.length > 0;
   const hasFilteredResults = filteredTaskItems.length > 0;
@@ -413,6 +540,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         ? current.filter((item) => item !== topicId)
         : [...current, topicId],
     );
+  };
+
+  const handleResumeTask = (item: TaskCardViewModel) => {
+    if (onResumeTask) {
+      void onResumeTask(item.id, item.statusReason);
+      return;
+    }
+
+    void onSwitchTopic(item.id);
   };
 
   const handleSaveEdit = () => {
@@ -463,7 +599,60 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             新建任务
           </button>
 
-          <div className="flex items-center gap-2">
+          {primaryResumableItem ? (
+            <div className="rounded-[22px] border border-amber-200/80 bg-amber-50/85 px-3.5 py-3 shadow-sm shadow-amber-950/5 dark:border-amber-500/20 dark:bg-amber-500/10">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
+                  <Globe className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      {primaryResumableItem.isCurrent
+                        ? "当前任务待继续"
+                        : `有 ${resumableItems.length} 个任务待继续`}
+                    </div>
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-white/10 dark:text-amber-200">
+                      {primaryResumableItem.statusLabel}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-5 text-amber-800/90 dark:text-amber-200/90">
+                    {primaryResumableItem.isCurrent
+                      ? "当前任务卡在浏览器环节，先恢复浏览器会话再继续执行后续动作。"
+                      : `优先恢复“${primaryResumableItem.title}”，避免关键浏览器步骤继续堆积。`}
+                  </p>
+                  <div className="mt-2 line-clamp-2 text-xs leading-5 text-amber-800/85 dark:text-amber-200/85">
+                    {primaryResumableItem.lastPreview}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center justify-center rounded-xl bg-amber-600 px-3 text-xs font-semibold text-white transition hover:bg-amber-700"
+                      onClick={() => handleResumeTask(primaryResumableItem)}
+                    >
+                      {resolveResumableActionLabel(
+                        primaryResumableItem.statusReason,
+                        primaryResumableItem.isCurrent,
+                      )}
+                    </button>
+                    {!primaryResumableItem.isCurrent ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-8 items-center justify-center rounded-xl border border-amber-200 bg-white/80 px-3 text-xs font-medium text-amber-800 transition hover:border-amber-300 hover:bg-white dark:border-amber-500/20 dark:bg-white/5 dark:text-amber-200 dark:hover:bg-white/10"
+                        onClick={() => {
+                          void onSwitchTopic(primaryResumableItem.id);
+                        }}
+                      >
+                        查看任务
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setStatusFilter("all")}
@@ -488,6 +677,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             >
               仅看进行中
             </button>
+            {resumableTaskCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setStatusFilter("resumable")}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center rounded-xl border px-3 text-xs font-medium transition",
+                  statusFilter === "resumable"
+                    ? "border-amber-500 bg-amber-500 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-slate-900"
+                    : "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200",
+                )}
+              >
+                待继续 {resumableTaskCount}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -528,6 +731,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             <div className="space-y-3">
               {sections.map((section) => {
                 const isOlderSection = section.key === "older";
+                const isResumableSection = section.key === "resumable";
+                const isSectionCollapsed = isResumableSection
+                  ? false
+                  : collapsedSections[section.key];
                 const visibleItems =
                   isOlderSection && !showAllOlder
                     ? section.items.slice(0, OLDER_TASKS_INITIAL_COUNT)
@@ -539,36 +746,57 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                 return (
                   <section key={section.key} className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCollapsedSections((prev) => ({
-                          ...prev,
-                          [section.key]: !prev[section.key],
-                        }))
-                      }
-                      className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-white/70 dark:hover:bg-white/5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 text-slate-400 transition-transform",
-                            collapsedSections[section.key] ? "-rotate-90" : "",
-                          )}
-                        />
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          {section.title}
-                        </span>
+                    {isResumableSection ? (
+                      <div className="rounded-[20px] border border-amber-200/80 bg-amber-50/80 px-3 py-3 dark:border-amber-500/20 dark:bg-amber-500/10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                              {section.title}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                            {section.items.length}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] leading-5 text-amber-700/90 dark:text-amber-300/90">
+                          这些任务需要你先在浏览器完成登录、授权或恢复连接，再继续执行。
+                        </p>
                       </div>
-                      <span className="text-[11px] text-slate-400">
-                        {section.items.length}
-                      </span>
-                    </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedSections((prev) => ({
+                            ...prev,
+                            [section.key]: !prev[section.key],
+                          }))
+                        }
+                        className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-white/70 dark:hover:bg-white/5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 text-slate-400 transition-transform",
+                              isSectionCollapsed ? "-rotate-90" : "",
+                            )}
+                          />
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            {section.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          {section.items.length}
+                        </span>
+                      </button>
+                    )}
 
-                    {collapsedSections[section.key] ? null : (
+                    {isSectionCollapsed ? null : (
                       <div className="space-y-2">
                         {visibleItems.map((item) => {
                           const statusMeta = STATUS_META[item.status];
+                          const isResumableItem = isResumableStatusReason(
+                            item.statusReason,
+                          );
 
                           return (
                             <div
@@ -596,6 +824,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                               }}
                               className={cn(
                                 "group rounded-[20px] border p-3 text-left transition",
+                                isResumableItem
+                                  ? "border-amber-200 bg-white shadow-sm shadow-amber-950/5 dark:border-amber-500/20 dark:bg-white/10"
+                                  : "",
                                 item.isCurrent
                                   ? "border-slate-300 bg-white shadow-sm shadow-slate-950/5 dark:border-white/15 dark:bg-white/10"
                                   : "border-transparent bg-transparent hover:border-slate-200 hover:bg-white/82 dark:hover:border-white/10 dark:hover:bg-white/5",
@@ -641,59 +872,80 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                                             ) : null}
                                           </div>
                                         </div>
-                                        <div className="shrink-0 pt-0.5 text-[11px] text-slate-400">
-                                          {formatRelativeTime(item.updatedAt)}
-                                        </div>
-                                      </>
-                                    )}
-
-                                    {editingTopicId === item.id ? null : (
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
+                                        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                                          <div className="text-[11px] text-slate-400">
+                                            {formatRelativeTime(item.updatedAt)}
+                                          </div>
                                           <button
                                             type="button"
-                                            aria-label="任务操作"
-                                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 dark:hover:bg-white/10 dark:hover:text-slate-100"
-                                            onClick={(event) =>
-                                              event.stopPropagation()
-                                            }
-                                          >
-                                            <MoreHorizontal className="h-4 w-4" />
-                                          </button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              handleStartEdit(item.id, item.title)
-                                            }
-                                          >
-                                            <PencilLine className="h-4 w-4" />
-                                            重命名任务
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              handleTogglePinned(item.id)
-                                            }
-                                          >
-                                            {item.isPinned ? (
-                                              <PinOff className="h-4 w-4" />
-                                            ) : (
-                                              <Pin className="h-4 w-4" />
+                                            aria-label="删除任务"
+                                            title="删除任务"
+                                            className={cn(
+                                              "inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-300",
+                                              item.isCurrent
+                                                ? "opacity-100"
+                                                : "opacity-0 group-hover:opacity-100",
                                             )}
-                                            {item.isPinned ? "取消固定" : "固定任务"}
-                                          </DropdownMenuItem>
-                                          <DropdownMenuSeparator />
-                                          <DropdownMenuItem
-                                            className="text-rose-600"
-                                            onClick={() =>
-                                              handleDeleteClick(item.id)
-                                            }
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleDeleteClick(item.id);
+                                            }}
                                           >
                                             <Trash2 className="h-4 w-4" />
-                                            删除任务
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
+                                          </button>
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                              <button
+                                                type="button"
+                                                aria-label="任务操作"
+                                                className={cn(
+                                                  "inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100",
+                                                  item.isCurrent
+                                                    ? "opacity-100"
+                                                    : "opacity-0 group-hover:opacity-100",
+                                                )}
+                                                onClick={(event) =>
+                                                  event.stopPropagation()
+                                                }
+                                              >
+                                                <MoreHorizontal className="h-4 w-4" />
+                                              </button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                              <DropdownMenuItem
+                                                onClick={() =>
+                                                  handleStartEdit(item.id, item.title)
+                                                }
+                                              >
+                                                <PencilLine className="h-4 w-4" />
+                                                重命名任务
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={() =>
+                                                  handleTogglePinned(item.id)
+                                                }
+                                              >
+                                                {item.isPinned ? (
+                                                  <PinOff className="h-4 w-4" />
+                                                ) : (
+                                                  <Pin className="h-4 w-4" />
+                                                )}
+                                                {item.isPinned ? "取消固定" : "固定任务"}
+                                              </DropdownMenuItem>
+                                              <DropdownMenuSeparator />
+                                              <DropdownMenuItem
+                                                className="text-rose-600"
+                                                onClick={() =>
+                                                  handleDeleteClick(item.id)
+                                                }
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                                删除任务
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
+                                        </div>
+                                      </>
                                     )}
                                   </div>
 
@@ -712,13 +964,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                                       {item.status === "running" ? (
                                         <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                                       ) : null}
-                                      {statusMeta.label}
+                                      {item.statusLabel}
                                     </Badge>
                                     <span className="text-[11px] text-slate-400">
                                       {item.messagesCount > 0
                                         ? `${item.messagesCount} 条消息`
                                         : "尚未开始执行"}
                                     </span>
+                                    {isResumableItem ? (
+                                      <button
+                                        type="button"
+                                        className="ml-auto inline-flex h-7 items-center justify-center rounded-lg bg-amber-600 px-2.5 text-[11px] font-medium text-white transition hover:bg-amber-700"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleResumeTask(item);
+                                        }}
+                                      >
+                                        {resolveResumableActionLabel(
+                                          item.statusReason,
+                                          item.isCurrent,
+                                        )}
+                                      </button>
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>

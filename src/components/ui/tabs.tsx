@@ -53,7 +53,8 @@ const TabsList: React.FC<TabsListProps> = ({ className, children }) => (
   </div>
 );
 
-interface TabsTriggerProps {
+interface TabsTriggerProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value: string;
   className?: string;
   children: React.ReactNode;
@@ -63,6 +64,7 @@ const TabsTrigger: React.FC<TabsTriggerProps> = ({
   value,
   className,
   children,
+  ...props
 }) => {
   const context = useContext(TabsContext);
   if (!context) {
@@ -83,6 +85,7 @@ const TabsTrigger: React.FC<TabsTriggerProps> = ({
         className,
       )}
       onClick={() => onValueChange(value)}
+      {...props}
     >
       {children}
     </button>

@@ -6,7 +6,7 @@
 
 - Observer 通道自动连接：`/proxycast-chrome-observer/Proxycast_Key=...`
 - 页面信息上报：标题、URL、Markdown
-- 远程指令执行：`open_url` / `click` / `type` / `scroll` / `switch_tab` / `go_back` 等
+- 远程指令执行：`open_url` / `click` / `type` / `scroll` / `switch_tab` / `list_tabs` / `go_back` 等
 - 弹窗配置：`serverUrl`、`bridgeKey`、`profileKey`、监控开关、手动抓取
 
 ## 安装

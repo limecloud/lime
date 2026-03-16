@@ -184,7 +184,7 @@ describe("ChatNavbar", () => {
     });
 
     const button = container.querySelector(
-      'button[aria-label="打开浏览器协助"]',
+      'button[aria-label="在右侧画布打开浏览器协助"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
@@ -195,6 +195,54 @@ describe("ChatNavbar", () => {
     });
 
     expect(onOpenBrowserAssist).toHaveBeenCalledTimes(1);
+  });
+
+  it("应支持显示浏览器协助状态文案", () => {
+    const container = renderChatNavbar({
+      showBrowserAssistEntry: true,
+      browserAssistLabel: "等待登录",
+    });
+
+    const button = container.querySelector(
+      'button[aria-label="在右侧画布打开浏览器协助"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button?.textContent).toContain("等待登录");
+  });
+
+  it("浏览器待继续时顶栏按钮应显示恢复态语义", () => {
+    const container = renderChatNavbar({
+      showBrowserAssistEntry: true,
+      browserAssistAttentionLevel: "warning",
+      browserAssistLabel: "等待登录",
+    });
+
+    const button = container.querySelector(
+      'button[aria-label="恢复浏览器协助"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).not.toBeNull();
+    expect(button?.textContent).toContain("等待登录");
+    expect(button?.className).toContain("border-amber-300");
+    expect(button?.className).toContain("text-amber-800");
+  });
+
+  it("浏览器启动中时顶栏按钮应显示启动态语义", () => {
+    const container = renderChatNavbar({
+      showBrowserAssistEntry: true,
+      browserAssistAttentionLevel: "info",
+      browserAssistLoading: true,
+    });
+
+    const button = container.querySelector(
+      'button[aria-label="查看浏览器启动状态"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
+    expect(button?.textContent).toContain("启动中...");
+    expect(button?.className).toContain("border-sky-300");
+    expect(button?.className).toContain("text-sky-800");
   });
 
   it("通用对话项目选择器应启用管理能力", () => {
@@ -208,6 +256,27 @@ describe("ChatNavbar", () => {
       | Record<string, unknown>
       | undefined;
     expect(lastCall?.enableManagement).toBe(true);
+    expect(lastCall?.density).toBe("compact");
+    expect(lastCall?.chrome).toBe("embedded");
+  });
+
+  it("应支持从右上角工具组打开设置", () => {
+    const onToggleSettings = vi.fn();
+    const container = renderChatNavbar({
+      onToggleSettings,
+    });
+
+    const button = container.querySelector(
+      'button[aria-label="打开设置"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).not.toBeNull();
+
+    act(() => {
+      button?.click();
+    });
+
+    expect(onToggleSettings).toHaveBeenCalledTimes(1);
   });
 
   it("应支持在顶栏展开和折叠画布", () => {

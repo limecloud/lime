@@ -33,42 +33,92 @@ export interface MyGalleryTabProps {
 }
 
 const Container = styled.div`
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 16px 20px;
+  gap: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg, hsl(210 40% 98%) 0%, hsl(0 0% 100%) 100%);
 `;
 
 const ActionBar = styled.div`
   display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  border-radius: 24px;
+  background: hsl(var(--background) / 0.84);
+  box-shadow:
+    0 16px 38px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
+`;
+
+const ActionRow = styled.div`
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border: 1px solid hsl(var(--border) / 0.6);
-  border-radius: 10px;
-  background: hsl(var(--card) / 0.5);
+  flex-wrap: wrap;
+`;
+
+const ActionCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+`;
+
+const ActionEyebrow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid hsl(203 82% 88%);
+  background: hsl(200 100% 97%);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: hsl(211 58% 38%);
+`;
+
+const ActionTitle = styled.div`
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: hsl(var(--foreground));
 `;
 
 const ActionHint = styled.div`
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.6;
   color: hsl(var(--muted-foreground));
 `;
 
+const ActionButtons = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
 const InsertButton = styled.button`
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  border-radius: 8px;
-  font-size: 12px;
-  padding: 6px 12px;
+  height: 40px;
+  border: 1px solid hsl(215 28% 17% / 0.92);
+  background: linear-gradient(180deg, hsl(221 39% 16%), hsl(216 34% 12%));
+  color: hsl(var(--background));
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    border-color: hsl(var(--primary) / 0.5);
-    background: hsl(var(--accent) / 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 16px 32px hsl(220 40% 12% / 0.14);
   }
 
   &:disabled {
@@ -78,8 +128,79 @@ const InsertButton = styled.button`
 `;
 
 const RelocateButton = styled(InsertButton)`
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 14px;
+  box-shadow: none;
+`;
+
+const RecentList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const RecentCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 1px solid hsl(var(--border) / 0.82);
+  background: hsl(var(--background) / 0.84);
+`;
+
+const RecentMeta = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const RecentTitle = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const RecentHint = styled.div`
   font-size: 11px;
-  padding: 5px 10px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const GalleryPanel = styled.div`
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  border-radius: 28px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: hsl(var(--background) / 0.84);
+  box-shadow:
+    0 18px 42px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
+  overflow: hidden;
+`;
+
+const GalleryContent = styled(ImageGallery)`
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  > div:last-child {
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const EmptyState = styled.div`
@@ -87,34 +208,45 @@ const EmptyState = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  flex: 1;
   gap: 16px;
   color: hsl(var(--muted-foreground));
   text-align: center;
-  padding: 48px;
+  padding: 48px 24px;
+  border-radius: 28px;
+  border: 1px solid hsl(var(--border) / 0.78);
+  background: hsl(var(--background) / 0.84);
+  box-shadow:
+    0 18px 42px hsl(215 32% 12% / 0.05),
+    inset 0 1px 0 hsl(0 0% 100% / 0.72);
 `;
 
 const EmptyIcon = styled.div`
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   border-radius: 20px;
-  background: hsl(var(--muted) / 0.2);
+  background: linear-gradient(
+    135deg,
+    hsl(203 100% 97%),
+    hsl(201 52% 94% / 0.86)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  color: hsl(var(--muted-foreground) / 0.5);
+  color: hsl(211 58% 38%);
 `;
 
 const EmptyTitle = styled.p`
   margin: 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: hsl(var(--foreground) / 0.7);
+  font-size: 18px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
 `;
 
 const EmptyHint = styled.p`
   margin: 0;
   font-size: 13px;
+  line-height: 1.6;
 `;
 
 function normalizeCanvasType(
@@ -163,9 +295,8 @@ function getVisibleInsertHistory(
 }
 
 export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
-  const [selectedMaterial, setSelectedMaterial] = useState<PosterMaterial | null>(
-    null,
-  );
+  const [selectedMaterial, setSelectedMaterial] =
+    useState<PosterMaterial | null>(null);
   const [recentInsertHistory, setRecentInsertHistory] = useState<
     CanvasImageInsertHistoryEntry[]
   >(() => getVisibleInsertHistory(projectId));
@@ -188,7 +319,9 @@ export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
 
   useEffect(() => {
     const unsubscribe = onCanvasImageInsertAck((ack: CanvasImageInsertAck) => {
-      const pendingMeta = pendingInsertRequestMetaRef.current.get(ack.requestId);
+      const pendingMeta = pendingInsertRequestMetaRef.current.get(
+        ack.requestId,
+      );
       if (!pendingMeta) {
         return;
       }
@@ -305,43 +438,73 @@ export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
   return (
     <Container>
       <ActionBar>
-        <ActionHint>
-          {selectedMaterial
-            ? `已选中：${selectedMaterial.name}`
-            : "可双击图片直接插入当前画布，或先单击选中后点击右侧按钮"}
-        </ActionHint>
-        <div className="flex items-center gap-2">
-          {recentInsertHistory[0] && (
-            <RelocateButton
+        <ActionRow>
+          <ActionCopy>
+            <ActionEyebrow>GALLERY</ActionEyebrow>
+            <ActionTitle>我的图片库</ActionTitle>
+            <ActionHint>
+              {selectedMaterial
+                ? `已选中：${selectedMaterial.name}`
+                : "双击图片可直接插入当前画布，或先单击选中后再执行插入。"}
+            </ActionHint>
+          </ActionCopy>
+          <ActionButtons>
+            {recentInsertHistory[0] && (
+              <RelocateButton
+                type="button"
+                onClick={() => handleRelocate(recentInsertHistory[0])}
+              >
+                再次定位
+              </RelocateButton>
+            )}
+            <InsertButton
               type="button"
-              onClick={() => handleRelocate(recentInsertHistory[0])}
+              disabled={!selectedMaterial}
+              onClick={() => {
+                if (!selectedMaterial) {
+                  return;
+                }
+                handleInsertFromGallery(selectedMaterial);
+              }}
             >
-              再次定位
-            </RelocateButton>
-          )}
-          <InsertButton
-            type="button"
-            disabled={!selectedMaterial}
-            onClick={() => {
-              if (!selectedMaterial) {
-                return;
-              }
-              handleInsertFromGallery(selectedMaterial);
-            }}
-          >
-            插入选中图片到当前画布
-          </InsertButton>
-        </div>
+              插入选中图片到当前画布
+            </InsertButton>
+          </ActionButtons>
+        </ActionRow>
+
+        {recentInsertHistory.length > 0 && (
+          <RecentList>
+            {recentInsertHistory.map((entry) => (
+              <RecentCard key={entry.requestId}>
+                <RecentMeta>
+                  <RecentTitle>
+                    {entry.imageTitle?.trim() || "图片"}
+                  </RecentTitle>
+                  <RecentHint>{entry.locationLabel || "已插入"}</RecentHint>
+                </RecentMeta>
+                <RelocateButton
+                  type="button"
+                  onClick={() => handleRelocate(entry)}
+                >
+                  定位
+                </RelocateButton>
+              </RecentCard>
+            ))}
+          </RecentList>
+        )}
       </ActionBar>
-      <ImageGallery
-        projectId={projectId}
-        maxHeight="calc(100vh - 200px)"
-        selectedIds={selectedMaterial ? [selectedMaterial.id] : []}
-        onSelect={(materials) => {
-          setSelectedMaterial(materials[0] || null);
-        }}
-        onDoubleClick={handleInsertFromGallery}
-      />
+      <GalleryPanel>
+        <GalleryContent
+          projectId={projectId}
+          className="h-full"
+          maxHeight="calc(100vh - 250px)"
+          selectedIds={selectedMaterial ? [selectedMaterial.id] : []}
+          onSelect={(materials) => {
+            setSelectedMaterial(materials[0] || null);
+          }}
+          onDoubleClick={handleInsertFromGallery}
+        />
+      </GalleryPanel>
     </Container>
   );
 }

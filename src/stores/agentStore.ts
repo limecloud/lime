@@ -34,6 +34,11 @@ import {
   isAsterSessionNotFoundError,
   resolveRestorableSessionId,
 } from "@/lib/asterSessionRecovery";
+import {
+  buildActionRequestSubmissionContext,
+  type ActionRequestSubmissionContext,
+} from "@/components/agent/chat/utils/actionRequestA2UI";
+import type { ActionRequired as ChatActionRequired } from "@/components/agent/chat/types";
 
 // ============ 类型定义 ============
 
@@ -98,6 +103,7 @@ export interface ActionRequired {
   toolName?: string;
   arguments?: Record<string, unknown>;
   prompt?: string;
+  questions?: ChatActionRequired["questions"];
   requestedSchema?: Record<string, unknown>;
   options?: Array<{
     label: string;
@@ -113,6 +119,38 @@ export interface ConfirmResponse {
   response?: string;
   actionType?: ActionRequired["actionType"];
   userData?: unknown;
+}
+
+function toChatActionRequired(
+  action: ActionRequired | undefined,
+): ChatActionRequired | null {
+  if (
+    !action ||
+    (action.actionType !== "ask_user" && action.actionType !== "elicitation")
+  ) {
+    return null;
+  }
+
+  return {
+    requestId: action.requestId,
+    actionType: action.actionType,
+    prompt: action.prompt,
+    questions: action.questions,
+    requestedSchema: action.requestedSchema,
+  };
+}
+
+function resolveLegacyStoreSubmissionMetadata(
+  action: ActionRequired | undefined,
+  userData: unknown,
+): ActionRequestSubmissionContext["requestMetadata"] | undefined {
+  const normalizedAction = toChatActionRequired(action);
+  if (!normalizedAction) {
+    return undefined;
+  }
+
+  return buildActionRequestSubmissionContext(normalizedAction, userData)
+    ?.requestMetadata;
 }
 
 // ============ Tauri 事件类型 ============
@@ -314,6 +352,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         state.pendingActions.find(
           (item) => item.requestId === response.requestId,
         )?.actionType;
+      const pendingAction = state.pendingActions.find(
+        (item) => item.requestId === response.requestId,
+      );
 
       if (actionType === "elicitation" || actionType === "ask_user") {
         if (!state.currentSessionId) {
@@ -344,6 +385,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           state.currentSessionId,
           response.requestId,
           userData,
+          resolveLegacyStoreSubmissionMetadata(pendingAction, userData),
         );
       } else {
         await confirmAsterAction(
@@ -657,6 +699,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
               toolName: event.tool_name,
               arguments: event.arguments,
               prompt: event.prompt || event.questions?.[0]?.question,
+              questions: event.questions,
               requestedSchema: event.requested_schema,
               options: event.questions?.[0]?.options,
               timestamp: new Date(),

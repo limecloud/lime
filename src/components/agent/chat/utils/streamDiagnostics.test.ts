@@ -71,6 +71,28 @@ describe("streamDiagnostics", () => {
     });
   });
 
+  it("tool_end 缺少 output 时不应抛错", () => {
+    const reporter = createStreamDiagnosticsReporter("useAgentChat");
+    reporter.start({
+      sessionId: "session-1",
+      eventName: "agent_stream_1",
+      assistantMessageId: "assistant-1",
+      source: "sendMessage",
+    });
+
+    expect(() =>
+      reporter.record({
+        type: "tool_end",
+        tool_id: "tool-1",
+        result: {
+          success: false,
+          output: "",
+          error: "failed",
+        },
+      }),
+    ).not.toThrow();
+  });
+
   it("解析失败时应记录 invalid 事件", () => {
     const reporter = createStreamDiagnosticsReporter("useAgentChat");
     reporter.start({

@@ -44,9 +44,18 @@ pub struct ConnectionTestResult {
 mod tests {
     use super::ApiKeyProviderService;
     use proxycast_core::database::dao::api_key_provider::ApiProviderType;
-    use proxycast_core::database::init_database;
+    use proxycast_core::database::{migration, schema, DbConnection};
+    use rusqlite::Connection;
     use rusqlite::OptionalExtension;
+    use std::sync::{Arc, Mutex};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn init_test_database() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        schema::create_tables(&conn).expect("初始化表结构失败");
+        migration::migrate_from_json(&conn).expect("执行数据库迁移失败");
+        Arc::new(Mutex::new(conn))
+    }
 
     fn resolve_real_codex_provider_id(
         db: &proxycast_core::database::DbConnection,
@@ -144,6 +153,42 @@ data: [DONE]\n";
 
         let none = ApiKeyProviderService::pick_test_model(None, &[], &[]);
         assert!(none.is_none());
+    }
+
+    #[test]
+    fn test_system_provider_type_can_be_updated() {
+        let db = init_test_database();
+        let service = ApiKeyProviderService::new();
+
+        service
+            .initialize_system_providers(&db)
+            .expect("初始化系统 Provider 失败");
+
+        let updated = service
+            .update_provider(
+                &db,
+                "openai",
+                None,
+                Some(ApiProviderType::Openai),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("更新系统 Provider 类型失败");
+
+        assert_eq!(updated.provider_type, ApiProviderType::Openai);
+
+        let persisted = service
+            .get_provider(&db, "openai")
+            .expect("读取系统 Provider 失败")
+            .expect("系统 Provider 应存在");
+
+        assert_eq!(persisted.provider.provider_type, ApiProviderType::Openai);
     }
 
     #[test]
@@ -1153,11 +1198,7 @@ impl ApiKeyProviderService {
         if let Some(n) = name {
             provider.name = n;
         }
-        // 只有自定义 Provider 才能修改类型
         if let Some(t) = provider_type {
-            if provider.is_system {
-                return Err("系统 Provider 不允许修改类型".to_string());
-            }
             provider.provider_type = t;
         }
         if let Some(h) = api_host {

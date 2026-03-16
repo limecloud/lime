@@ -17,6 +17,7 @@ import type {
 import { resolveActionPromptKey } from "./agentChatCoreUtils";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { markThreadActionItemSubmitted } from "./agentThreadState";
+import { buildActionRequestSubmissionContext } from "../utils/actionRequestA2UI";
 
 interface UseAgentToolsOptions {
   runtime: AgentRuntimeAdapter;
@@ -61,6 +62,7 @@ export function useAgentTools(options: UseAgentToolsOptions) {
           typeof response.response === "string" ? response.response.trim() : "";
         let submittedUserData: unknown = response.userData;
         let effectiveRequestId = response.requestId;
+        let metadataAction = pendingAction;
         const acknowledgedRequestIds = new Set<string>([response.requestId]);
 
         if (actionType === "elicitation" || actionType === "ask_user") {
@@ -104,60 +106,66 @@ export function useAgentTools(options: UseAgentToolsOptions) {
 
               if (!resolvedAction) {
                 queuedFallbackResponsesRef.current.set(fallbackPromptKey, {
-                ...response,
-                actionType,
-                requestId: pendingAction.requestId,
-                userData,
-              });
-              setPendingActions((prev) =>
-                prev.map((item) =>
-                  item.requestId === pendingAction.requestId
-                    ? {
-                        ...item,
-                        status: "queued",
-                        submittedResponse: normalizedResponse || undefined,
-                        submittedUserData,
-                      }
-                    : item,
-                ),
-              );
-              setMessages((prev) =>
-                prev.map((msg) => ({
-                  ...msg,
-                  actionRequests: msg.actionRequests?.map((item) =>
+                  ...response,
+                  actionType,
+                  requestId: pendingAction.requestId,
+                  userData,
+                });
+                setPendingActions((prev) =>
+                  prev.map((item) =>
                     item.requestId === pendingAction.requestId
                       ? {
                           ...item,
-                          status: "queued" as const,
+                          status: "queued",
                           submittedResponse: normalizedResponse || undefined,
                           submittedUserData,
                         }
                       : item,
                   ),
-                  contentParts: msg.contentParts?.map((part) =>
-                    part.type === "action_required" &&
-                    part.actionRequired.requestId === pendingAction.requestId
-                      ? {
-                          ...part,
-                          actionRequired: {
-                            ...part.actionRequired,
+                );
+                setMessages((prev) =>
+                  prev.map((msg) => ({
+                    ...msg,
+                    actionRequests: msg.actionRequests?.map((item) =>
+                      item.requestId === pendingAction.requestId
+                        ? {
+                            ...item,
                             status: "queued" as const,
                             submittedResponse: normalizedResponse || undefined,
                             submittedUserData,
-                          },
-                        }
-                      : part,
-                  ),
-                })),
-              );
-              toast.info("已记录你的回答，等待系统请求就绪后自动提交");
-              return;
-            }
+                          }
+                        : item,
+                    ),
+                    contentParts: msg.contentParts?.map((part) =>
+                      part.type === "action_required" &&
+                      part.actionRequired.requestId === pendingAction.requestId
+                        ? {
+                            ...part,
+                            actionRequired: {
+                              ...part.actionRequired,
+                              status: "queued" as const,
+                              submittedResponse:
+                                normalizedResponse || undefined,
+                              submittedUserData,
+                            },
+                          }
+                        : part,
+                    ),
+                  })),
+                );
+                toast.info("已记录你的回答，等待系统请求就绪后自动提交");
+                return;
+              }
 
-            effectiveRequestId = resolvedAction.requestId;
-            acknowledgedRequestIds.add(resolvedAction.requestId);
+              effectiveRequestId = resolvedAction.requestId;
+              metadataAction = resolvedAction;
+              acknowledgedRequestIds.add(resolvedAction.requestId);
             }
           }
+
+          const submissionContext = metadataAction
+            ? buildActionRequestSubmissionContext(metadataAction, userData)
+            : null;
 
           await runtime.respondToAction({
             sessionId: activeSessionId,
@@ -166,6 +174,7 @@ export function useAgentTools(options: UseAgentToolsOptions) {
             confirmed: response.confirmed,
             response: response.response,
             userData,
+            metadata: submissionContext?.requestMetadata,
           });
         } else {
           await runtime.respondToAction({

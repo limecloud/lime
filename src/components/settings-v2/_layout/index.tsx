@@ -18,8 +18,8 @@ import { AppearanceSettings } from "../general/appearance";
 import { MemorySettings } from "../general/memory";
 // 安全与性能
 import { SecurityPerformanceSettings } from "../system/security-performance";
-// 心跳引擎
-import { HeartbeatSettings } from "../system/heartbeat";
+// 自动化设置
+import { AutomationSettings } from "../system/automation";
 import { ExecutionTrackerSettings } from "../system/execution-tracker";
 // 实验功能
 import { ExperimentalSettings } from "../system/experimental";
@@ -32,13 +32,7 @@ import { ExtensionsSettings } from "../agent/skills";
 // 快捷键设置
 import { HotkeysSettings } from "../general/hotkeys";
 // 记忆设置
-// 语音服务设置
-import { VoiceSettings } from "../agent/voice";
-// 助理服务设置
-import { AssistantSettings } from "../agent/assistant";
-// 图像生成设置
-import { ImageGenSettings } from "../agent/image-gen";
-import { VideoGenSettings } from "../agent/video-gen";
+import { MediaServicesSettings } from "../agent/media-services";
 // 数据统计
 import { StatsSettings } from "../account/stats";
 // 个人资料
@@ -59,6 +53,10 @@ const LayoutContainer = styled.div`
   flex: 1;
   min-height: 0;
   background: hsl(var(--background));
+
+  @media (max-width: 1200px) {
+    flex-direction: column;
+  }
 `;
 
 const HeaderBar = styled.div`
@@ -67,10 +65,15 @@ const HeaderBar = styled.div`
   padding: 8px 24px;
   border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--background));
+
+  @media (max-width: 640px) {
+    padding: 8px 12px;
+  }
 `;
 
 const ContentContainer = styled.main`
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 24px 32px;
 
@@ -86,10 +89,19 @@ const ContentContainer = styled.main`
     background: hsl(var(--border));
     border-radius: 3px;
   }
+
+  @media (max-width: 1200px) {
+    padding: 20px;
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px 12px 24px;
+  }
 `;
 
 const ContentWrapper = styled.div<{ $wide: boolean }>`
   width: 100%;
+  min-width: 0;
   max-width: ${({ $wide }) => ($wide ? "1440px" : "800px")};
 `;
 
@@ -111,15 +123,13 @@ const PlaceholderPage = styled.div`
 /**
  * 渲染设置内容
  */
-function normalizeSettingsTab(tab: SettingsTabs): SettingsTabs {
-  return tab === SettingsTabs.ChatAppearance ? SettingsTabs.Appearance : tab;
-}
 
 function renderSettingsContent(
   tab: SettingsTabs,
   onTabChange: (tab: SettingsTabs) => void,
+  onNavigate?: (page: Page, params?: PageParams) => void,
 ): ReactNode {
-  switch (normalizeSettingsTab(tab)) {
+  switch (tab) {
     case SettingsTabs.Home:
       return <SettingsHomePage onTabChange={onTabChange} />;
 
@@ -174,14 +184,6 @@ function renderSettingsContent(
         </>
       );
 
-    case SettingsTabs.Assistant:
-      return (
-        <>
-          <SettingHeader title="助理服务" />
-          <AssistantSettings />
-        </>
-      );
-
     case SettingsTabs.Skills:
       return (
         <>
@@ -190,28 +192,9 @@ function renderSettingsContent(
         </>
       );
 
-    case SettingsTabs.ImageGen:
+    case SettingsTabs.MediaServices:
       return (
-        <>
-          <SettingHeader title="图片服务" />
-          <ImageGenSettings />
-        </>
-      );
-
-    case SettingsTabs.VideoGen:
-      return (
-        <>
-          <SettingHeader title="视频服务" />
-          <VideoGenSettings />
-        </>
-      );
-
-    case SettingsTabs.Voice:
-      return (
-        <>
-          <SettingHeader title="语音服务" />
-          <VoiceSettings />
-        </>
+        <MediaServicesSettings />
       );
 
     // 系统组
@@ -271,44 +254,27 @@ function renderSettingsContent(
         </>
       );
 
-    case SettingsTabs.Heartbeat:
+    case SettingsTabs.Automation:
       return (
         <>
-          <HeartbeatSettings />
+          <AutomationSettings
+            mode="settings"
+            onOpenWorkspace={() => onNavigate?.("automation")}
+          />
         </>
       );
 
     case SettingsTabs.ExecutionTracker:
-      return (
-        <>
-          <SettingHeader title="执行轨迹" />
-          <ExecutionTrackerSettings />
-        </>
-      );
+      return <ExecutionTrackerSettings />;
 
     case SettingsTabs.Experimental:
-      return (
-        <>
-          <SettingHeader title="实验功能" />
-          <ExperimentalSettings />
-        </>
-      );
+      return <ExperimentalSettings />;
 
     case SettingsTabs.Developer:
-      return (
-        <>
-          <SettingHeader title="开发者" />
-          <DeveloperSettings />
-        </>
-      );
+      return <DeveloperSettings />;
 
     case SettingsTabs.About:
-      return (
-        <>
-          <SettingHeader title="关于" />
-          <AboutSection />
-        </>
-      );
+      return <AboutSection />;
 
     default:
       return (
@@ -337,7 +303,9 @@ const WIDE_CONTENT_TABS = new Set<SettingsTabs>([
   SettingsTabs.Memory,
   SettingsTabs.Providers,
   SettingsTabs.Skills,
+  SettingsTabs.MediaServices,
   SettingsTabs.ApiServer,
+  SettingsTabs.Automation,
   SettingsTabs.McpServer,
   SettingsTabs.Channels,
   SettingsTabs.SecurityPerformance,
@@ -346,6 +314,8 @@ const WIDE_CONTENT_TABS = new Set<SettingsTabs>([
   SettingsTabs.Environment,
   SettingsTabs.ChromeRelay,
   SettingsTabs.ExecutionTracker,
+  SettingsTabs.Experimental,
+  SettingsTabs.About,
 ]);
 
 export function SettingsLayoutV2({
@@ -353,12 +323,16 @@ export function SettingsLayoutV2({
   initialTab,
 }: SettingsLayoutV2Props) {
   const [activeTab, setActiveTab] = useState<SettingsTabs>(
-    normalizeSettingsTab(initialTab || SettingsTabs.Home),
+    initialTab === SettingsTabs.ChatAppearance
+      ? SettingsTabs.Appearance
+      : (initialTab ?? SettingsTabs.Home),
   );
   const contentContainerRef = useRef<HTMLElement | null>(null);
 
   const handleTabChange = useCallback((tab: SettingsTabs) => {
-    setActiveTab(normalizeSettingsTab(tab));
+    setActiveTab(
+      tab === SettingsTabs.ChatAppearance ? SettingsTabs.Appearance : tab,
+    );
   }, []);
 
   const handleBackHome = useCallback(() => {
@@ -367,7 +341,11 @@ export function SettingsLayoutV2({
 
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(normalizeSettingsTab(initialTab));
+      setActiveTab(
+        initialTab === SettingsTabs.ChatAppearance
+          ? SettingsTabs.Appearance
+          : initialTab,
+      );
     }
   }, [initialTab]);
 
@@ -385,7 +363,7 @@ export function SettingsLayoutV2({
         <SettingsSidebar activeTab={activeTab} onTabChange={handleTabChange} />
         <ContentContainer ref={contentContainerRef}>
           <ContentWrapper $wide={WIDE_CONTENT_TABS.has(activeTab)}>
-            {renderSettingsContent(activeTab, handleTabChange)}
+            {renderSettingsContent(activeTab, handleTabChange, onNavigate)}
           </ContentWrapper>
         </ContentContainer>
       </LayoutContainer>

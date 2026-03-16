@@ -17,8 +17,6 @@ import {
   Bot,
   Blocks,
   Image,
-  Film,
-  Mic,
   Server,
   Plug,
   Route,
@@ -26,7 +24,6 @@ import {
   Variable,
   Monitor,
   ShieldCheck,
-  HeartPulse,
   Activity,
   FlaskConical,
   Code,
@@ -129,29 +126,14 @@ export function useSettingsCategory(): CategoryGroup[] {
           icon: Brain,
         },
         {
-          key: SettingsTabs.Assistant,
-          label: t("settings.tab.assistant", "助理服务"),
-          icon: Bot,
-        },
-        {
           key: SettingsTabs.Skills,
           label: t("settings.tab.skills", "技能管理"),
           icon: Blocks,
         },
         {
-          key: SettingsTabs.ImageGen,
-          label: t("settings.tab.imageGen", "图片服务"),
+          key: SettingsTabs.MediaServices,
+          label: t("settings.tab.mediaServices", "媒体服务"),
           icon: Image,
-        },
-        {
-          key: SettingsTabs.VideoGen,
-          label: t("settings.tab.videoGen", "视频服务"),
-          icon: Film,
-        },
-        {
-          key: SettingsTabs.Voice,
-          label: t("settings.tab.voice", "语音服务"),
-          icon: Mic,
         },
       ],
     });
@@ -197,9 +179,9 @@ export function useSettingsCategory(): CategoryGroup[] {
           icon: ShieldCheck,
         },
         {
-          key: SettingsTabs.Heartbeat,
-          label: t("settings.tab.heartbeat", "心跳引擎"),
-          icon: HeartPulse,
+          key: SettingsTabs.Automation,
+          label: t("settings.tab.automation", "自动化设置"),
+          icon: Bot,
         },
         {
           key: SettingsTabs.ExecutionTracker,

@@ -22,7 +22,7 @@ export function PluginsPage({ onNavigate: _onNavigate }: PluginsPageProps) {
         <p className="text-muted-foreground mt-1">管理和配置 ProxyCast 插件</p>
       </div>
 
-      <PluginManager />
+      <PluginManager onNavigate={_onNavigate} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 //! 统一执行追踪服务
 //!
-//! 负责跨入口（chat / skill / heartbeat）的运行摘要记录，
+//! 负责跨入口（chat / skill / automation）的运行摘要记录，
 //! 通过单点服务避免各模块重复实现生命周期写库逻辑。
 
 use crate::database::dao::agent_run::{AgentRun, AgentRunDao, AgentRunStatus};
@@ -16,7 +16,7 @@ use uuid::Uuid;
 pub enum RunSource {
     Chat,
     Skill,
-    Heartbeat,
+    Automation,
 }
 
 impl RunSource {
@@ -24,7 +24,7 @@ impl RunSource {
         match self {
             Self::Chat => "chat",
             Self::Skill => "skill",
-            Self::Heartbeat => "heartbeat",
+            Self::Automation => "automation",
         }
     }
 }
@@ -142,6 +142,37 @@ impl ExecutionTracker {
         metadata: Option<Value>,
     ) {
         self.finish(handle, status, error_code, error_message, metadata);
+    }
+
+    pub fn refresh_running_metadata(
+        &self,
+        handle: &RunHandle,
+        session_id: Option<&str>,
+        metadata: Option<Value>,
+    ) {
+        if !self.enabled {
+            return;
+        }
+
+        let updated_at = Utc::now().to_rfc3339();
+        let metadata_json = metadata.map(|value| value.to_string());
+        let conn = match self.db.lock() {
+            Ok(conn) => conn,
+            Err(e) => {
+                tracing::warn!("[ExecutionTracker] 数据库锁定失败，跳过 refresh: {}", e);
+                return;
+            }
+        };
+
+        if let Err(e) = AgentRunDao::refresh_running_run(
+            &conn,
+            &handle.id,
+            &updated_at,
+            session_id,
+            metadata_json.as_deref(),
+        ) {
+            tracing::warn!("[ExecutionTracker] 刷新运行中 run 失败: {}", e);
+        }
     }
 
     fn finish(
@@ -398,5 +429,31 @@ mod tests {
         assert!(!runs.is_empty());
         assert_eq!(runs[0].status, AgentRunStatus::Error);
         assert_eq!(runs[0].error_code.as_deref(), Some("skill_failed"));
+    }
+
+    #[test]
+    fn refresh_running_metadata_should_update_session_and_metadata() {
+        let tracker = ExecutionTracker::new(setup_db());
+        let handle = tracker
+            .start(RunSource::Automation, Some("job-1".to_string()), None, None)
+            .expect("应创建运行句柄");
+
+        tracker.refresh_running_metadata(
+            &handle,
+            Some("session-1"),
+            Some(serde_json::json!({
+                "browser_lifecycle_state": "human_controlling"
+            })),
+        );
+
+        let run = tracker
+            .get_run(&handle.id)
+            .expect("查询 run 失败")
+            .expect("run 不存在");
+        assert_eq!(run.session_id.as_deref(), Some("session-1"));
+        assert_eq!(
+            run.metadata.as_deref(),
+            Some("{\"browser_lifecycle_state\":\"human_controlling\"}")
+        );
     }
 }

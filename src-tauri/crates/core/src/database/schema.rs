@@ -649,6 +649,95 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // ============================================================================
+    // Browser Profile 相关表
+    // ============================================================================
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS browser_profiles (
+            id TEXT PRIMARY KEY,
+            profile_key TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            description TEXT,
+            site_scope TEXT,
+            launch_url TEXT,
+            transport_kind TEXT NOT NULL DEFAULT 'managed_cdp',
+            profile_dir TEXT NOT NULL,
+            managed_profile_dir TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_used_at TEXT,
+            archived_at TEXT
+        )",
+        [],
+    )?;
+
+    let _ = conn.execute(
+        "ALTER TABLE browser_profiles ADD COLUMN transport_kind TEXT NOT NULL DEFAULT 'managed_cdp'",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE browser_profiles ADD COLUMN managed_profile_dir TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE browser_profiles
+         SET managed_profile_dir = profile_dir
+         WHERE transport_kind = 'managed_cdp'
+           AND (managed_profile_dir IS NULL OR managed_profile_dir = '')",
+        [],
+    );
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_browser_profiles_key ON browser_profiles(profile_key)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_browser_profiles_archived ON browser_profiles(archived_at)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_browser_profiles_updated ON browser_profiles(updated_at)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS browser_environment_presets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            proxy_server TEXT,
+            timezone_id TEXT,
+            locale TEXT,
+            accept_language TEXT,
+            geolocation_lat REAL,
+            geolocation_lng REAL,
+            geolocation_accuracy_m REAL,
+            user_agent TEXT,
+            platform TEXT,
+            viewport_width INTEGER,
+            viewport_height INTEGER,
+            device_scale_factor REAL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_used_at TEXT,
+            archived_at TEXT
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_browser_environment_presets_archived ON browser_environment_presets(archived_at)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_browser_environment_presets_updated ON browser_environment_presets(updated_at)",
+        [],
+    )?;
+
     // Migration: 添加项目管理相关字段到 workspaces 表
     let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN icon TEXT", []);
     let _ = conn.execute("ALTER TABLE workspaces ADD COLUMN color TEXT", []);
@@ -1267,29 +1356,49 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // 心跳任务执行记录表
+    // 自动化任务表
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS heartbeat_executions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_description TEXT NOT NULL,
-            priority INTEGER,
+        "CREATE TABLE IF NOT EXISTS automation_jobs (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            workspace_id TEXT NOT NULL,
             execution_mode TEXT NOT NULL,
-            status TEXT NOT NULL,
-            started_at TEXT NOT NULL,
-            completed_at TEXT,
-            duration_ms INTEGER,
-            output TEXT,
-            retry_count INTEGER NOT NULL DEFAULT 0,
-            metadata TEXT
+            schedule_json TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            delivery_json TEXT NOT NULL,
+            timeout_secs INTEGER,
+            max_retries INTEGER NOT NULL DEFAULT 3,
+            next_run_at TEXT,
+            last_status TEXT,
+            last_error TEXT,
+            last_run_at TEXT,
+            last_finished_at TEXT,
+            running_started_at TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            last_retry_count INTEGER NOT NULL DEFAULT 0,
+            auto_disabled_until TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_delivery_json TEXT
         )",
         [],
     )?;
+    let _ = conn.execute(
+        "ALTER TABLE automation_jobs ADD COLUMN last_delivery_json TEXT",
+        [],
+    );
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_heartbeat_executions_started_at ON heartbeat_executions(started_at)",
+        "CREATE INDEX IF NOT EXISTS idx_automation_jobs_next_run_at ON automation_jobs(next_run_at)",
         [],
     )?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_heartbeat_executions_status ON heartbeat_executions(status)",
+        "CREATE INDEX IF NOT EXISTS idx_automation_jobs_workspace_id ON automation_jobs(workspace_id)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_automation_jobs_enabled_updated_at ON automation_jobs(enabled, updated_at DESC)",
         [],
     )?;
 
@@ -1326,6 +1435,76 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_upgrade_legacy_browser_profile_table_with_transport_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE browser_profiles (
+                id TEXT PRIMARY KEY,
+                profile_key TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                description TEXT,
+                site_scope TEXT,
+                launch_url TEXT,
+                profile_dir TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_used_at TEXT,
+                archived_at TEXT
+            )",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO browser_profiles (
+                id, profile_key, name, description, site_scope, launch_url, profile_dir,
+                created_at, updated_at, last_used_at, archived_at
+            ) VALUES (?1, ?2, ?3, NULL, NULL, ?4, ?5, ?6, ?6, NULL, NULL)",
+            (
+                "profile-1",
+                "shop_us",
+                "美区资料",
+                "https://seller.example.com/",
+                "/tmp/proxycast/chrome_profiles/shop_us",
+                "2026-03-15T00:00:00Z",
+            ),
+        )
+        .unwrap();
+
+        create_tables(&conn).expect("应成功升级旧版 browser_profiles 表");
+
+        let mut columns = conn.prepare("PRAGMA table_info(browser_profiles)").unwrap();
+        let column_names = columns
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(column_names.iter().any(|name| name == "transport_kind"));
+        assert!(column_names
+            .iter()
+            .any(|name| name == "managed_profile_dir"));
+
+        let upgraded = conn
+            .query_row(
+                "SELECT transport_kind, managed_profile_dir
+                 FROM browser_profiles
+                 WHERE id = ?1",
+                ["profile-1"],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+            )
+            .unwrap();
+        assert_eq!(upgraded.0, "managed_cdp");
+        assert_eq!(
+            upgraded.1.as_deref(),
+            Some("/tmp/proxycast/chrome_profiles/shop_us")
+        );
+    }
 }
 
 /// 迁移：添加proxy_url列到provider_pool_credentials表

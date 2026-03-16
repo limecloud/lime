@@ -416,9 +416,6 @@ pub struct Config {
     /// 图像生成服务配置
     #[serde(default)]
     pub image_gen: ImageGenConfig,
-    /// 助理配置
-    #[serde(default)]
-    pub assistant: AssistantConfig,
     /// 用户资料
     #[serde(default)]
     pub user_profile: UserProfile,
@@ -437,9 +434,9 @@ pub struct Config {
     /// 配对认证配置
     #[serde(default)]
     pub pairing: PairingSettings,
-    /// 心跳引擎配置
+    /// 自动化调度配置
     #[serde(default)]
-    pub heartbeat: HeartbeatSettings,
+    pub automation: AutomationSettings,
     /// Gateway 全局配置（隧道/公网接入）
     #[serde(default)]
     pub gateway: GatewayConfig,
@@ -560,6 +557,9 @@ impl Default for NativeAgentConfig {
 /// 配置内容创作模式中显示的主题标签
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ContentCreatorConfig {
+    /// 工作区主题默认值版本
+    #[serde(default)]
+    pub schema_version: u8,
     /// 启用的主题列表
     #[serde(default = "default_enabled_themes")]
     pub enabled_themes: Vec<String>,
@@ -568,20 +568,18 @@ pub struct ContentCreatorConfig {
     pub media_defaults: MediaGenerationDefaultsConfig,
 }
 
+fn current_workspace_preferences_schema_version() -> u8 {
+    1
+}
+
 fn default_enabled_themes() -> Vec<String> {
-    vec![
-        "general".to_string(),
-        "social-media".to_string(),
-        "poster".to_string(),
-        "music".to_string(),
-        "video".to_string(),
-        "novel".to_string(),
-    ]
+    vec!["social-media".to_string(), "poster".to_string()]
 }
 
 impl Default for ContentCreatorConfig {
     fn default() -> Self {
         Self {
+            schema_version: current_workspace_preferences_schema_version(),
             enabled_themes: default_enabled_themes(),
             media_defaults: MediaGenerationDefaultsConfig::default(),
         }
@@ -631,6 +629,9 @@ pub struct MediaGenerationDefaultsConfig {
 /// 配置左侧导航栏中显示的功能模块
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NavigationConfig {
+    /// 工作区导航默认值版本
+    #[serde(default)]
+    pub schema_version: u8,
     /// 启用的导航模块列表
     #[serde(default = "default_enabled_nav_items")]
     pub enabled_items: Vec<String>,
@@ -638,20 +639,96 @@ pub struct NavigationConfig {
 
 fn default_enabled_nav_items() -> Vec<String> {
     vec![
-        "agent".to_string(),
-        "projects".to_string(),
+        "home-general".to_string(),
+        "claw".to_string(),
+        "video".to_string(),
         "image-gen".to_string(),
-        "api-server".to_string(),
-        "provider-pool".to_string(),
+        "automation".to_string(),
+        "openclaw".to_string(),
+        "resources".to_string(),
+        "style-library".to_string(),
+        "memory".to_string(),
     ]
 }
 
 impl Default for NavigationConfig {
     fn default() -> Self {
         Self {
+            schema_version: current_workspace_preferences_schema_version(),
             enabled_items: default_enabled_nav_items(),
         }
     }
+}
+
+const LEGACY_DEFAULT_THEME_IDS: &[&str] = &[
+    "general",
+    "social-media",
+    "poster",
+    "music",
+    "video",
+    "novel",
+];
+
+const CURRENT_MAIN_NAV_ITEM_IDS: &[&str] = &[
+    "home-general",
+    "claw",
+    "video",
+    "image-gen",
+    "automation",
+    "terminal",
+    "plugins",
+];
+
+const CURRENT_FOOTER_NAV_ITEM_IDS: &[&str] = &[
+    "openclaw",
+    "settings",
+    "resources",
+    "tools",
+    "style-library",
+    "memory",
+];
+
+const LEGACY_ONLY_NAV_ITEM_IDS: &[&str] = &["agent", "projects", "api-server", "provider-pool"];
+
+const LEGACY_DEFAULT_NAV_ITEM_SETS: &[&[&str]] = &[
+    &["home-general", "claw", "video", "image-gen"],
+    &["home-general", "claw", "video", "image-gen", "automation"],
+    &["home-general", "video", "image-gen", "plugins"],
+    &["home-general", "video", "image-gen", "terminal", "plugins"],
+];
+
+fn has_same_members(items: &[String], expected: &[&str]) -> bool {
+    if items.len() != expected.len() {
+        return false;
+    }
+
+    let item_set: std::collections::HashSet<&str> = items.iter().map(String::as_str).collect();
+    expected.iter().all(|item| item_set.contains(item))
+}
+
+fn should_upgrade_legacy_navigation_defaults(items: &[String]) -> bool {
+    if items.is_empty() {
+        return true;
+    }
+
+    if LEGACY_DEFAULT_NAV_ITEM_SETS
+        .iter()
+        .any(|legacy_items| has_same_members(items, legacy_items))
+    {
+        return true;
+    }
+
+    let contains_footer_items = items
+        .iter()
+        .any(|item| CURRENT_FOOTER_NAV_ITEM_IDS.contains(&item.as_str()));
+    let contains_legacy_only_items = items
+        .iter()
+        .any(|item| LEGACY_ONLY_NAV_ITEM_IDS.contains(&item.as_str()));
+    let main_only_legacy_items = items
+        .iter()
+        .all(|item| CURRENT_MAIN_NAV_ITEM_IDS.contains(&item.as_str()));
+
+    contains_legacy_only_items || (main_only_legacy_items && !contains_footer_items)
 }
 
 // ============ 实验室功能配置类型 ============
@@ -1998,17 +2075,48 @@ impl Default for Config {
             memory: MemoryConfig::default(),
             voice: VoiceConfig::default(),
             image_gen: ImageGenConfig::default(),
-            assistant: AssistantConfig::default(),
             user_profile: UserProfile::default(),
             rate_limit: RateLimitSettings::default(),
             crash_reporting: CrashReportingConfig::default(),
             conversation: ConversationSettings::default(),
             hint_router: HintRouterSettings::default(),
             pairing: PairingSettings::default(),
-            heartbeat: HeartbeatSettings::default(),
+            automation: AutomationSettings::default(),
             gateway: GatewayConfig::default(),
             channels: ChannelsConfig::default(),
         }
+    }
+}
+
+impl Config {
+    pub fn normalize_workspace_preferences(&mut self) -> bool {
+        let mut changed = false;
+        let current_version = current_workspace_preferences_schema_version();
+
+        if self.content_creator.schema_version < current_version {
+            if self.content_creator.enabled_themes.is_empty()
+                || has_same_members(
+                    &self.content_creator.enabled_themes,
+                    LEGACY_DEFAULT_THEME_IDS,
+                )
+            {
+                self.content_creator.enabled_themes = default_enabled_themes();
+            }
+
+            self.content_creator.schema_version = current_version;
+            changed = true;
+        }
+
+        if self.navigation.schema_version < current_version {
+            if should_upgrade_legacy_navigation_defaults(&self.navigation.enabled_items) {
+                self.navigation.enabled_items = default_enabled_nav_items();
+            }
+
+            self.navigation.schema_version = current_version;
+            changed = true;
+        }
+
+        changed
     }
 }
 
@@ -2474,47 +2582,6 @@ pub struct ImageGenConfig {
     pub image_search_pixabay_api_key: Option<String>,
 }
 
-/// 助理配置
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct AssistantConfig {
-    /// 默认助理 ID
-    #[serde(default)]
-    pub default_assistant_id: Option<String>,
-    /// 自定义助理列表
-    #[serde(default)]
-    pub custom_assistants: Option<Vec<AssistantProfile>>,
-    /// 启用助理自动选择
-    #[serde(default)]
-    pub auto_select: Option<bool>,
-    /// 显示助理建议
-    #[serde(default)]
-    pub show_suggestions: Option<bool>,
-}
-
-/// 助理档案
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct AssistantProfile {
-    /// ID
-    pub id: String,
-    /// 名称
-    pub name: String,
-    /// 描述
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// 模型
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// 系统提示词
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub system_prompt: Option<String>,
-    /// 温度参数
-    #[serde(default)]
-    pub temperature: Option<f32>,
-    /// 最大 token 数
-    #[serde(default)]
-    pub max_tokens: Option<u32>,
-}
-
 /// 用户资料
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct UserProfile {
@@ -2567,6 +2634,105 @@ mod unit_tests {
         assert_eq!(config.crash_reporting.environment, "production");
         assert_eq!(config.crash_reporting.sample_rate, 1.0);
         assert!(!config.crash_reporting.send_pii);
+        assert_eq!(config.content_creator.schema_version, 1);
+        assert_eq!(
+            config.content_creator.enabled_themes,
+            vec!["social-media".to_string(), "poster".to_string()]
+        );
+        assert_eq!(config.navigation.schema_version, 1);
+        assert_eq!(
+            config.navigation.enabled_items,
+            vec![
+                "home-general".to_string(),
+                "claw".to_string(),
+                "video".to_string(),
+                "image-gen".to_string(),
+                "automation".to_string(),
+                "openclaw".to_string(),
+                "resources".to_string(),
+                "style-library".to_string(),
+                "memory".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_workspace_preferences_upgrades_legacy_defaults() {
+        let mut config = Config::default();
+        config.content_creator.schema_version = 0;
+        config.content_creator.enabled_themes = vec![
+            "general".to_string(),
+            "social-media".to_string(),
+            "poster".to_string(),
+            "music".to_string(),
+            "video".to_string(),
+            "novel".to_string(),
+        ];
+        config.navigation.schema_version = 0;
+        config.navigation.enabled_items = vec![
+            "home-general".to_string(),
+            "claw".to_string(),
+            "video".to_string(),
+            "image-gen".to_string(),
+        ];
+
+        let changed = config.normalize_workspace_preferences();
+
+        assert!(changed);
+        assert_eq!(config.content_creator.schema_version, 1);
+        assert_eq!(
+            config.content_creator.enabled_themes,
+            vec!["social-media".to_string(), "poster".to_string()]
+        );
+        assert_eq!(config.navigation.schema_version, 1);
+        assert_eq!(
+            config.navigation.enabled_items,
+            vec![
+                "home-general".to_string(),
+                "claw".to_string(),
+                "video".to_string(),
+                "image-gen".to_string(),
+                "automation".to_string(),
+                "openclaw".to_string(),
+                "resources".to_string(),
+                "style-library".to_string(),
+                "memory".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_workspace_preferences_preserves_current_custom_values() {
+        let mut config = Config::default();
+        config.content_creator.schema_version = 0;
+        config.content_creator.enabled_themes =
+            vec!["social-media".to_string(), "video".to_string()];
+        config.navigation.schema_version = 0;
+        config.navigation.enabled_items = vec![
+            "home-general".to_string(),
+            "claw".to_string(),
+            "resources".to_string(),
+            "tools".to_string(),
+        ];
+
+        let changed = config.normalize_workspace_preferences();
+
+        assert!(changed);
+        assert_eq!(config.content_creator.schema_version, 1);
+        assert_eq!(
+            config.content_creator.enabled_themes,
+            vec!["social-media".to_string(), "video".to_string()]
+        );
+        assert_eq!(config.navigation.schema_version, 1);
+        assert_eq!(
+            config.navigation.enabled_items,
+            vec![
+                "home-general".to_string(),
+                "claw".to_string(),
+                "resources".to_string(),
+                "tools".to_string(),
+            ]
+        );
     }
 
     #[test]
@@ -3030,7 +3196,7 @@ impl Default for TaskSchedule {
     }
 }
 
-/// 通知投递配置
+/// 自动化输出/通知投递配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DeliveryConfig {
     /// 投递模式: "none" | "announce"
@@ -3045,10 +3211,20 @@ pub struct DeliveryConfig {
     /// 投递失败是否算任务失败
     #[serde(default)]
     pub best_effort: bool,
+    /// 输出契约，留空时按旧任务结果自动推断
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<String>,
+    /// 输出格式: "text" | "json"
+    #[serde(default = "default_delivery_output_format")]
+    pub output_format: String,
 }
 
 fn default_delivery_mode() -> String {
     "none".to_string()
+}
+
+fn default_delivery_output_format() -> String {
+    "text".to_string()
 }
 
 impl Default for DeliveryConfig {
@@ -3058,14 +3234,16 @@ impl Default for DeliveryConfig {
             channel: None,
             target: None,
             best_effort: true,
+            output_schema: None,
+            output_format: default_delivery_output_format(),
         }
     }
 }
 
-/// 心跳执行模式
+/// 自动化执行模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum HeartbeatExecutionMode {
+pub enum AutomationExecutionMode {
     /// 智能模式：通过 AI Agent 执行任务
     #[default]
     Intelligent,
@@ -3075,77 +3253,33 @@ pub enum HeartbeatExecutionMode {
     LogOnly,
 }
 
-/// 心跳引擎配置
+/// 自动化调度配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct HeartbeatSettings {
-    /// 是否启用心跳引擎
+pub struct AutomationSettings {
+    /// 是否启用自动化调度
     #[serde(default)]
     pub enabled: bool,
-    /// 心跳间隔（秒），最小 300（5分钟）- 向后兼容
-    #[serde(default = "default_heartbeat_interval")]
-    pub interval_secs: u64,
-    /// 灵活调度配置（优先于 interval_secs）
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub schedule: Option<TaskSchedule>,
-    /// 任务文件名（相对于应用数据目录）
-    #[serde(default = "default_heartbeat_task_file")]
-    pub task_file: String,
-    /// 执行模式
-    #[serde(default)]
-    pub execution_mode: HeartbeatExecutionMode,
-    /// 是否启用任务历史记录
+    /// 后台轮询间隔（秒）
+    #[serde(default = "default_automation_poll_interval")]
+    pub poll_interval_secs: u64,
+    /// 是否启用运行历史
     #[serde(default = "default_enable_history")]
     pub enable_history: bool,
-    /// 失败重试次数
-    #[serde(default = "default_heartbeat_max_retries")]
-    pub max_retries: u32,
-    /// 通知投递配置
-    #[serde(default)]
-    pub delivery: DeliveryConfig,
-    /// 安全策略配置
-    #[serde(default)]
-    pub security: HeartbeatSecurityConfig,
 }
 
-/// 心跳安全策略配置
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct HeartbeatSecurityConfig {
-    /// 允许的命令白名单（仅适用于 shell 类任务）
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub allowed_commands: Vec<String>,
-    /// 允许的路径前缀（安全起见）
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub allowed_paths: Vec<String>,
-    /// 是否启用安全检查
-    #[serde(default)]
-    pub enabled: bool,
-}
-
-fn default_heartbeat_interval() -> u64 {
-    300
-}
-fn default_heartbeat_task_file() -> String {
-    "HEARTBEAT.md".to_string()
+fn default_automation_poll_interval() -> u64 {
+    30
 }
 fn default_enable_history() -> bool {
     true
 }
-fn default_heartbeat_max_retries() -> u32 {
-    3
-}
 
-impl Default for HeartbeatSettings {
+impl Default for AutomationSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            interval_secs: 300,
-            schedule: None,
-            task_file: "HEARTBEAT.md".to_string(),
-            execution_mode: HeartbeatExecutionMode::default(),
+            poll_interval_secs: default_automation_poll_interval(),
             enable_history: true,
-            max_retries: default_heartbeat_max_retries(),
-            delivery: DeliveryConfig::default(),
-            security: HeartbeatSecurityConfig::default(),
         }
     }
 }

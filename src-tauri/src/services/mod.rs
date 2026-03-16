@@ -6,13 +6,15 @@
 // 保留在主 crate 的 Tauri 相关服务
 pub mod agent_timeline_service;
 pub mod auto_memory_service;
+pub mod automation_service;
+pub mod browser_environment_service;
+pub mod browser_profile_service;
 pub mod browser_runtime_window;
 pub mod chat_history_service;
 pub mod conversation_statistics_service;
 pub mod environment_service;
 pub mod execution_tracker_service;
 pub mod file_browser_service;
-pub mod heartbeat_service;
 pub mod memory_import_parser_service;
 pub mod memory_profile_prompt_service;
 pub mod memory_rules_loader_service;

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  ArrowRight,
   ArrowUp,
+  Clock3,
   File,
   FilePlus2,
   FileText,
@@ -15,9 +17,11 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Sparkles,
   Trash2,
   Upload,
   Video,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +40,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -68,9 +71,19 @@ import type { ResourceItem } from "./services/types";
 import { resourcesSelectors, useResourcesStore } from "./store";
 
 type ResourceViewCategory = "all" | "document" | "image" | "audio" | "video";
+type ResourceSortField = "updatedAt" | "createdAt" | "name";
+type ResourceSortDirection = "asc" | "desc";
 
 interface ResourcesPageProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
+}
+
+interface ResourceEmptyAction {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  action: () => void;
 }
 
 const kindLabelMap: Record<ResourceItem["kind"], string> = {
@@ -110,10 +123,23 @@ const mediaCategoryLabelMap: Record<"image" | "audio" | "video", string> = {
   video: "视频",
 };
 
-const sortFieldLabelMap: Record<"updatedAt" | "createdAt" | "name", string> = {
+const resourceCategoryIconMap: Record<ResourceViewCategory, LucideIcon> = {
+  all: Library,
+  document: FileText,
+  image: ImageIcon,
+  audio: Music2,
+  video: Video,
+};
+
+const sortFieldLabelMap: Record<ResourceSortField, string> = {
   updatedAt: "更新时间",
   createdAt: "创建时间",
   name: "名称",
+};
+
+const sortDirectionLabelMap: Record<ResourceSortDirection, string> = {
+  asc: "升序",
+  desc: "降序",
 };
 
 const imageExtensions = new Set([
@@ -226,8 +252,8 @@ const matchSearch = (item: ResourceItem, keyword: string): boolean => {
 const compareBySortField = (
   a: ResourceItem,
   b: ResourceItem,
-  field: "updatedAt" | "createdAt" | "name",
-  direction: "asc" | "desc",
+  field: ResourceSortField,
+  direction: ResourceSortDirection,
 ): number => {
   let value = 0;
 
@@ -244,8 +270,8 @@ const compareBySortField = (
 
 const sortResources = (
   resources: ResourceItem[],
-  field: "updatedAt" | "createdAt" | "name",
-  direction: "asc" | "desc",
+  field: ResourceSortField,
+  direction: ResourceSortDirection,
 ): ResourceItem[] => {
   return [...resources].sort((a, b) =>
     compareBySortField(a, b, field, direction),
@@ -615,163 +641,274 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     return `资源库：${selectedProject?.name ?? "未命名项目"}`;
   }, [currentFolder, currentFolderId, projectId, selectedProject?.name]);
 
-  const emptyActions = useMemo(
+  const activeCategoryLabel = resourceCategoryLabelMap[viewCategory];
+  const ActiveCategoryIcon = resourceCategoryIconMap[viewCategory];
+
+  const totalFolderCount = useMemo(
+    () => items.filter((item) => item.kind === "folder").length,
+    [items],
+  );
+
+  const latestVisibleUpdateLabel = useMemo(() => {
+    if (displayItems.length === 0) {
+      return "暂无更新";
+    }
+
+    const latestItem = displayItems.reduce((latest, item) =>
+      item.updatedAt > latest.updatedAt ? item : latest,
+    );
+    return formatTime(latestItem.updatedAt);
+  }, [displayItems]);
+
+  const currentScopeLabel = useMemo(() => {
+    if (!projectId) return "待选择";
+    if (!isFolderMode) {
+      return activeCategoryLabel;
+    }
+    return currentFolder?.name ?? "根目录";
+  }, [activeCategoryLabel, currentFolder?.name, isFolderMode, projectId]);
+
+  const currentScopeDescription = useMemo(() => {
+    if (!projectId) {
+      return "先在左侧选择一个项目资源库。";
+    }
+    if (!isFolderMode) {
+      return `跨目录查看当前资源库内的${activeCategoryLabel}资源。`;
+    }
+    if (currentFolder && breadcrumbs.length > 0) {
+      return `路径：根目录 / ${breadcrumbs.map((folder) => folder.name).join(" / ")}`;
+    }
+    return "当前位于根目录，可继续进入子文件夹浏览。";
+  }, [
+    activeCategoryLabel,
+    breadcrumbs,
+    currentFolder,
+    isFolderMode,
+    projectId,
+  ]);
+
+  const contentPanelDescription = useMemo(() => {
+    if (!projectId) {
+      return "选择资源库后，这里会显示当前项目的文档、素材和目录结构。";
+    }
+    if (searchQuery.trim()) {
+      return `已按“${searchQuery.trim()}”筛选，当前范围内共 ${displayItems.length} 个结果。`;
+    }
+    if (!isFolderMode) {
+      return `当前为${activeCategoryLabel}分类视图，共展示 ${displayItems.length} 个条目。`;
+    }
+    if (currentFolder) {
+      return `当前目录共展示 ${displayItems.length} 个条目，可继续进入子文件夹或直接打开文件。`;
+    }
+    return `当前位于根目录，共展示 ${displayItems.length} 个条目。`;
+  }, [
+    activeCategoryLabel,
+    currentFolder,
+    displayItems.length,
+    isFolderMode,
+    projectId,
+    searchQuery,
+  ]);
+
+  const summaryCards = useMemo(
     () => [
       {
-        key: "new-library",
-        label: "新建资源库",
-        action: () => toast.info("资源库来源于项目，请在项目模块中创建"),
+        key: "library",
+        title: "当前资源库",
+        value: selectedProject?.name ?? "未选择",
+        description: projectId
+          ? `${items.length} 个总条目，${availableProjects.length} 个项目可切换`
+          : "先在左侧选择一个项目资源库",
+        icon: Library,
+        iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
+        valueClassName: "text-2xl leading-8",
+      },
+      {
+        key: "scope",
+        title: "浏览范围",
+        value: currentScopeLabel,
+        description: currentScopeDescription,
+        icon: ActiveCategoryIcon,
+        iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
+        valueClassName: "text-2xl leading-8",
+      },
+      {
+        key: "results",
+        title: "当前结果",
+        value: `${displayItems.length}`,
+        description: `${sortFieldLabelMap[sortField]} · ${sortDirectionLabelMap[sortDirection]}`,
+        icon: Sparkles,
+        iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
+        valueClassName: "text-3xl",
+      },
+      {
+        key: "updated",
+        title: "最近更新",
+        value: latestVisibleUpdateLabel,
+        description:
+          displayItems.length > 0
+            ? "优先展示当前筛选范围内最近发生变化的内容。"
+            : "当前范围内还没有可展示的更新记录。",
+        icon: Clock3,
+        iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
+        valueClassName: "text-xl leading-8",
+      },
+    ],
+    [
+      ActiveCategoryIcon,
+      availableProjects.length,
+      currentScopeDescription,
+      currentScopeLabel,
+      displayItems.length,
+      items.length,
+      latestVisibleUpdateLabel,
+      projectId,
+      selectedProject?.name,
+      sortDirection,
+      sortField,
+    ],
+  );
+
+  const emptyActions = useMemo<ResourceEmptyAction[]>(
+    () => [
+      {
+        key: "new-folder",
+        label: "新建文件夹",
+        description: "先搭好目录结构，再把内容放进去。",
+        icon: FolderPlus,
+        action: () => {
+          void handleCreateFolder();
+        },
+      },
+      {
+        key: "new-document",
+        label: "新建文档",
+        description: "直接开始沉淀文字内容和结构化资料。",
+        icon: FilePlus2,
+        action: () => {
+          void handleCreateDocument();
+        },
       },
       {
         key: "upload-file",
         label: "上传文件",
+        description: "把本地图片、音频、视频或普通文件加入资源库。",
+        icon: Upload,
         action: () => {
           void handleUploadFile();
         },
       },
-      {
-        key: "upload-folder",
-        label: "上传文件夹",
-        action: () => {
-          toast.info(
-            "当前版本暂不支持文件夹上传，可先创建文件夹后逐个上传文件",
-          );
-        },
-      },
     ],
-    [handleUploadFile],
+    [handleCreateDocument, handleCreateFolder, handleUploadFile],
   );
 
   const showEmptyState = projectId && !loading && displayItems.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex items-center justify-between border-b bg-background px-6 py-3">
-        <CanvasBreadcrumbHeader label="资源" onBackHome={handleBackHome} />
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {saving && <RefreshCw className="h-4 w-4 animate-spin" />}
-          <span>{selectedProject?.name ?? "未选择资源库"}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,1)_0%,rgba(244,249,248,0.96)_52%,rgba(248,250,252,1)_100%)]">
+      <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
+        <div className="mx-auto w-full max-w-[1480px] px-4 py-3 lg:px-6">
+          <CanvasBreadcrumbHeader label="资源" onBackHome={handleBackHome} />
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="grid min-h-full rounded-xl border bg-background lg:grid-cols-[248px_1fr]">
-          <aside className="border-b bg-muted/20 p-3 lg:border-b-0 lg:border-r">
-            <div className="space-y-4">
-              <div>
-                <p className="px-2 text-xs font-medium text-muted-foreground">
-                  资源
-                </p>
-                <div className="mt-1 space-y-1">
-                  {resourceCategoryItems.map(({ key, label, icon: Icon }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted",
-                        viewCategory === key &&
-                          "bg-background text-foreground shadow-sm",
-                      )}
-                      onClick={() => setViewCategory(key)}
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 lg:px-6 lg:py-6">
+          <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(243,250,247,0.98)_0%,rgba(248,250,252,0.98)_48%,rgba(241,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
+            <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
+            <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
+
+            <div className="relative flex flex-col gap-6 p-6 lg:p-8">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-3xl space-y-4">
+                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
+                    RESOURCE LIBRARY
+                  </span>
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                      资源工作台
+                    </h1>
+                    <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                      在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="rounded-full border border-white/90 bg-white/90 px-3 py-1 text-slate-700 shadow-sm hover:bg-white">
+                      {selectedProject?.name ?? "未选择资源库"}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-600"
                     >
-                      <span className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                        {label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {categoryCounts[key]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <div className="flex items-center justify-between px-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    库
-                  </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() =>
-                      toast.info("资源库来源于项目，请在项目模块中创建")
-                    }
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-
-                <button
-                  type="button"
-                  className="mt-2 w-full rounded-lg border border-dashed bg-background px-3 py-2 text-left text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                  onClick={() =>
-                    toast.info("资源库来源于项目，请在项目模块中创建")
-                  }
-                >
-                  + 新建资源库
-                </button>
-
-                <ScrollArea className="mt-2 h-[240px] pr-1">
-                  <div className="space-y-1">
-                    {availableProjects.length === 0 ? (
-                      <div className="rounded-lg border border-dashed px-2 py-3 text-xs text-muted-foreground">
-                        暂无可用项目
-                      </div>
+                      {isFolderMode
+                        ? currentFolder
+                          ? `目录：${currentFolder.name}`
+                          : "目录浏览"
+                        : `${activeCategoryLabel}分类视图`}
+                    </Badge>
+                    {searchQuery.trim() ? (
+                      <Badge
+                        variant="outline"
+                        className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-sky-700"
+                      >
+                        搜索：{searchQuery.trim()}
+                      </Badge>
                     ) : (
-                      availableProjects.map((project) => (
-                        <button
-                          key={project.id}
-                          type="button"
-                          className={cn(
-                            "w-full rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-muted",
-                            project.id === projectId &&
-                              "bg-background text-foreground shadow-sm",
-                          )}
-                          onClick={() => setProjectId(project.id)}
-                        >
-                          <div className="truncate font-medium">
-                            {project.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {project.id.slice(0, 8)}
-                          </div>
-                        </button>
-                      ))
+                      <Badge
+                        variant="outline"
+                        className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-500"
+                      >
+                        {sortFieldLabelMap[sortField]} ·{" "}
+                        {sortDirectionLabelMap[sortDirection]}
+                      </Badge>
                     )}
                   </div>
-                </ScrollArea>
-              </div>
-            </div>
-          </aside>
-
-          <section className="flex min-h-0 flex-col">
-            <div className="border-b px-5 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-xl font-semibold tracking-tight">
-                    {currentFolder?.name ??
-                      resourceCategoryLabelMap[viewCategory]}
-                  </h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {headingDescription}
-                  </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{displayItems.length} 个条目</Badge>
+                <div className="w-full max-w-[360px] rounded-[24px] border border-white/90 bg-white/88 p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        当前入口
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        {headingDescription}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+                        saving
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-white text-slate-600",
+                      )}
+                    >
+                      {saving && <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                      {saving ? "同步中" : "已就绪"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      {displayItems.length} 个结果
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      {totalFolderCount} 个文件夹
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      {Math.max(items.length - totalFolderCount, 0)} 个内容项
+                    </span>
+                  </div>
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        className="bg-foreground text-background hover:bg-foreground/90"
+                        className="mt-5 h-11 w-full rounded-2xl bg-slate-900 text-white hover:bg-slate-800"
                         disabled={!projectId || saving}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        添加
+                        添加资源
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -804,267 +941,571 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-[1fr_140px_88px_auto_auto]">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder={
-                      isFolderMode
-                        ? "按名称、描述或标签搜索"
-                        : "搜索当前分类资源"
-                    }
-                    className="pl-8"
-                  />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryCards.map((card) => {
+                  const CardIcon = card.icon;
+                  return (
+                    <div
+                      key={card.key}
+                      className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {card.title}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            {card.description}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                            card.iconClassName,
+                          )}
+                        >
+                          <CardIcon className="h-[18px] w-[18px]" />
+                        </div>
+                      </div>
+                      <p
+                        className={cn(
+                          "mt-4 break-words font-semibold tracking-tight text-slate-900",
+                          card.valueClassName,
+                        )}
+                      >
+                        {card.value}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-[290px_minmax(0,1fr)]">
+            <aside className="space-y-4">
+              <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
+                <div className="px-1">
+                  <p className="text-sm font-semibold text-slate-900">
+                    资源分类
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。
+                  </p>
                 </div>
 
-                <Select
-                  value={sortField}
-                  onValueChange={(value) =>
-                    setSortField(value as "updatedAt" | "createdAt" | "name")
-                  }
-                >
-                  <SelectTrigger>
-                    <span>{sortFieldLabelMap[sortField]}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="updatedAt">更新时间</SelectItem>
-                    <SelectItem value="createdAt">创建时间</SelectItem>
-                    <SelectItem value="name">名称</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-                  }
-                >
-                  {sortDirection === "asc" ? "升序" : "降序"}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={refresh}
-                  disabled={!projectId || loading}
-                >
-                  <RefreshCw
-                    className={cn("mr-2 h-4 w-4", loading && "animate-spin")}
-                  />
-                  刷新
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={handleNavigateUp}
-                  disabled={!projectId || !isFolderMode || !canNavigateUp}
-                >
-                  <ArrowUp className="mr-2 h-4 w-4" />
-                  返回上级
-                </Button>
-              </div>
-
-              {isFolderMode ? (
-                <div className="mt-3 flex flex-wrap items-center gap-1 text-sm">
-                  <button
-                    className={cn(
-                      "rounded px-2 py-1 hover:bg-muted",
-                      currentFolderId === null && "bg-muted text-foreground",
-                    )}
-                    onClick={() => setCurrentFolderId(null)}
-                    type="button"
-                  >
-                    根目录
-                  </button>
-                  {breadcrumbs.map((folder) => (
+                <div className="mt-4 space-y-2">
+                  {resourceCategoryItems.map(({ key, label, icon: Icon }) => (
                     <button
-                      key={folder.id}
-                      className={cn(
-                        "rounded px-2 py-1 hover:bg-muted",
-                        currentFolderId === folder.id &&
-                          "bg-muted text-foreground",
-                      )}
-                      onClick={() => setCurrentFolderId(folder.id)}
+                      key={key}
                       type="button"
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-2xl border border-transparent px-3 py-3 text-left text-sm transition hover:border-slate-200 hover:bg-slate-50",
+                        viewCategory === key &&
+                          "border-slate-900/10 bg-slate-900 text-white shadow-sm hover:bg-slate-900",
+                      )}
+                      onClick={() => setViewCategory(key)}
                     >
-                      / {folder.name}
+                      <span className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-2xl border",
+                            viewCategory === key
+                              ? "border-white/15 bg-white/10 text-white"
+                              : "border-slate-200 bg-slate-50 text-slate-600",
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span>
+                          <span className="block font-medium">{label}</span>
+                          <span
+                            className={cn(
+                              "block text-xs",
+                              viewCategory === key
+                                ? "text-white/70"
+                                : "text-slate-500",
+                            )}
+                          >
+                            {key === "all"
+                              ? "按目录管理完整资源库"
+                              : `聚合查看${label}内容`}
+                          </span>
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-xs font-medium",
+                          viewCategory === key
+                            ? "bg-white/10 text-white"
+                            : "bg-slate-100 text-slate-600",
+                        )}
+                      >
+                        {categoryCounts[key]}
+                      </span>
                     </button>
                   ))}
                 </div>
-              ) : (
-                <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                  当前为「{resourceCategoryLabelMap[viewCategory]}
-                  」分类视图，展示整个资源库内该分类内容
-                </div>
-              )}
-              {crossProjectMediaHint && (
-                <div className="mt-2 flex items-center justify-between gap-3 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  <span className="truncate">
-                    当前资源库暂无
-                    {mediaCategoryLabelMap[crossProjectMediaHint.category]}
-                    ，检测到「
-                    {crossProjectMediaHint.projectName}」包含{" "}
-                    {crossProjectMediaHint.count} 个
-                    {mediaCategoryLabelMap[crossProjectMediaHint.category]}
-                  </span>
+              </section>
+
+              <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
+                <div className="flex items-start justify-between gap-3 px-1">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      资源库
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      资源库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。
+                    </p>
+                  </div>
                   <Button
                     type="button"
-                    size="sm"
-                    variant="outline"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                     onClick={() =>
-                      setProjectId(crossProjectMediaHint.projectId)
+                      toast.info("资源库来源于项目，请在项目模块中创建")
                     }
                   >
-                    切换查看
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-              )}
-            </div>
 
-            <div className="min-h-0 flex-1 overflow-auto p-5">
+                <button
+                  type="button"
+                  className="mt-4 flex w-full items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50"
+                  onClick={() =>
+                    toast.info("资源库来源于项目，请在项目模块中创建")
+                  }
+                >
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">
+                      新建资源库
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      跳转到项目模块创建新的资源库容器。
+                    </span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                </button>
+
+                <ScrollArea className="mt-4 h-[320px] pr-1">
+                  <div className="space-y-2">
+                    {projectsLoading ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
+                        项目加载中...
+                      </div>
+                    ) : availableProjects.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
+                        暂无可用项目
+                      </div>
+                    ) : (
+                      availableProjects.map((project) => (
+                        <button
+                          key={project.id}
+                          type="button"
+                          className={cn(
+                            "w-full rounded-2xl border border-transparent bg-white/80 px-3 py-3 text-left transition hover:border-slate-200 hover:bg-slate-50",
+                            project.id === projectId &&
+                              "border-slate-300 bg-slate-50 shadow-sm",
+                          )}
+                          onClick={() => setProjectId(project.id)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-slate-900">
+                                {project.name}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {project.id.slice(0, 8)}
+                              </div>
+                            </div>
+                            {project.id === projectId && (
+                              <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-medium text-white">
+                                当前
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </section>
+            </aside>
+
+            <section className="min-w-0 space-y-4">
+              <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-sm shadow-slate-950/5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <ActiveCategoryIcon className="h-4 w-4 text-emerald-600" />
+                      当前浏览
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                        {currentFolder?.name ?? activeCategoryLabel}
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        {contentPanelDescription}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-600"
+                    >
+                      {displayItems.length} 个条目
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      onClick={refresh}
+                      disabled={!projectId || loading}
+                    >
+                      <RefreshCw
+                        className={cn("mr-2 h-4 w-4", loading && "animate-spin")}
+                      />
+                      刷新
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      onClick={handleNavigateUp}
+                      disabled={!projectId || !isFolderMode || !canNavigateUp}
+                    >
+                      <ArrowUp className="mr-2 h-4 w-4" />
+                      返回上级
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_110px] xl:grid-cols-[minmax(0,1fr)_160px_110px_auto]">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder={
+                        isFolderMode
+                          ? "按名称、描述或标签搜索"
+                          : "搜索当前分类资源"
+                      }
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/80 pl-10 shadow-none focus-visible:ring-slate-300"
+                    />
+                  </div>
+
+                  <Select
+                    value={sortField}
+                    onValueChange={(value) =>
+                      setSortField(value as ResourceSortField)
+                    }
+                  >
+                    <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white text-slate-700 shadow-none">
+                      <span>{sortFieldLabelMap[sortField]}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="updatedAt">更新时间</SelectItem>
+                      <SelectItem value="createdAt">创建时间</SelectItem>
+                      <SelectItem value="name">名称</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    onClick={() =>
+                      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+                    }
+                  >
+                    {sortDirectionLabelMap[sortDirection]}
+                  </Button>
+
+                  <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50/70 px-4 text-sm text-slate-500">
+                    {headingDescription}
+                  </div>
+                </div>
+
+                {isFolderMode ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-sm transition hover:border-slate-300 hover:bg-slate-50",
+                        currentFolderId === null
+                          ? "border-slate-300 bg-slate-100 text-slate-900"
+                          : "border-slate-200 bg-white text-slate-600",
+                      )}
+                      onClick={() => setCurrentFolderId(null)}
+                      type="button"
+                    >
+                      根目录
+                    </button>
+                    {breadcrumbs.map((folder) => (
+                      <button
+                        key={folder.id}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-sm transition hover:border-slate-300 hover:bg-slate-50",
+                          currentFolderId === folder.id
+                            ? "border-slate-300 bg-slate-100 text-slate-900"
+                            : "border-slate-200 bg-white text-slate-600",
+                        )}
+                        onClick={() => setCurrentFolderId(folder.id)}
+                        type="button"
+                      >
+                        / {folder.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-sky-200/80 bg-sky-50/80 px-4 py-3 text-sm text-sky-900">
+                    当前为「{activeCategoryLabel}」分类视图，展示整个资源库内该分类内容。
+                  </div>
+                )}
+
+                {crossProjectMediaHint && (
+                  <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-amber-300/70 bg-amber-50/90 px-4 py-3 text-sm text-amber-900 md:flex-row md:items-center md:justify-between">
+                    <span className="leading-6">
+                      当前资源库暂无
+                      {mediaCategoryLabelMap[crossProjectMediaHint.category]}
+                      ，检测到「{crossProjectMediaHint.projectName}」包含{" "}
+                      {crossProjectMediaHint.count} 个
+                      {mediaCategoryLabelMap[crossProjectMediaHint.category]}。
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                      onClick={() =>
+                        setProjectId(crossProjectMediaHint.projectId)
+                      }
+                    >
+                      切换查看
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {(error || projectError) && (
-                <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
                   {error || projectError}
                 </div>
               )}
 
-              {!projectId ? (
-                <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-                  请先在左侧选择资源库
-                </div>
-              ) : loading ? (
-                <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-                  资源加载中...
-                </div>
-              ) : showEmptyState ? (
-                <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border bg-muted/10 px-6 py-12 text-center">
-                  <h3 className="text-3xl font-semibold tracking-tight">
-                    把文件或文件夹拖到这里
-                  </h3>
-                  <p className="mt-2 text-lg text-muted-foreground">或者</p>
-                  <div className="mt-8 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
-                    {emptyActions.map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        className="rounded-2xl border bg-background px-4 py-12 text-center transition-colors hover:border-primary/40 hover:bg-primary/5"
-                        onClick={item.action}
-                      >
-                        <div className="text-lg font-medium">{item.label}</div>
-                      </button>
-                    ))}
+              <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 shadow-sm shadow-slate-950/5">
+                <div className="border-b border-slate-200/80 px-5 py-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+                        内容列表
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        按当前目录或分类范围展示资源，支持直接打开、重命名、删除与移动内容。
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-600"
+                    >
+                      最近更新：{latestVisibleUpdateLabel}
+                    </Badge>
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>名称</TableHead>
-                        <TableHead className="w-[120px]">类型</TableHead>
-                        <TableHead className="w-[120px]">来源</TableHead>
-                        <TableHead className="w-[220px]">更新时间</TableHead>
-                        <TableHead className="w-[80px] text-right">
-                          操作
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayItems.map((item) => {
-                        const Icon = getKindIcon(item);
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <button
-                                type="button"
-                                className="flex items-center gap-2 text-left hover:text-primary"
-                                onClick={() => {
-                                  if (item.kind === "folder") {
-                                    setCurrentFolderId(item.id);
-                                    return;
-                                  }
-                                  void handleOpenResource(item);
-                                }}
+
+                <div className="p-5">
+                  {!projectId ? (
+                    <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-10 text-center text-sm text-slate-500">
+                      请先在左侧选择资源库
+                    </div>
+                  ) : loading ? (
+                    <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-10 text-center text-sm text-slate-500">
+                      资源加载中...
+                    </div>
+                  ) : showEmptyState ? (
+                    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-[linear-gradient(135deg,rgba(248,250,252,0.98)_0%,rgba(243,249,247,0.96)_100%)] px-6 py-12 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border border-white/90 bg-white/90 text-slate-700 shadow-sm">
+                        <Upload className="h-7 w-7" />
+                      </div>
+                      <h3 className="mt-6 text-3xl font-semibold tracking-tight text-slate-900">
+                        先把内容放进资源库
+                      </h3>
+                      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                        当前范围内还没有可展示的资源。可以先创建文件夹整理结构、写一份文档，或者把本地文件直接上传进来。
+                      </p>
+
+                      <div className="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-3">
+                        {emptyActions.map((item) => {
+                          const ItemIcon = item.icon;
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              className="group rounded-[22px] border border-white/90 bg-white/92 px-5 py-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                              onClick={item.action}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-700">
+                                  <ItemIcon className="h-5 w-5" />
+                                </div>
+                                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
+                              </div>
+                              <p className="mt-4 text-base font-semibold text-slate-900">
+                                {item.label}
+                              </p>
+                              <p className="mt-1 text-sm leading-6 text-slate-500">
+                                {item.description}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-[22px] border border-slate-200/80">
+                      <Table>
+                        <TableHeader className="bg-slate-50/90">
+                          <TableRow className="hover:bg-slate-50/90">
+                            <TableHead className="text-slate-500">名称</TableHead>
+                            <TableHead className="w-[120px] text-slate-500">
+                              类型
+                            </TableHead>
+                            <TableHead className="w-[120px] text-slate-500">
+                              来源
+                            </TableHead>
+                            <TableHead className="w-[220px] text-slate-500">
+                              更新时间
+                            </TableHead>
+                            <TableHead className="w-[80px] text-right text-slate-500">
+                              操作
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {displayItems.map((item) => {
+                            const Icon = getKindIcon(item);
+                            return (
+                              <TableRow
+                                key={item.id}
+                                className="hover:bg-slate-50/70"
                               >
-                                <Icon className="h-4 w-4 text-muted-foreground" />
-                                <span className="truncate">{item.name}</span>
-                              </button>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  item.kind === "folder" ? "default" : "outline"
-                                }
-                              >
-                                {kindLabelMap[item.kind]}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">
-                                {sourceLabelMap[item.sourceType]}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {formatTime(item.updatedAt)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button size="icon" variant="ghost">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
+                                <TableCell>
+                                  <button
+                                    type="button"
+                                    className="flex max-w-[580px] items-center gap-3 text-left text-slate-800 transition hover:text-slate-950"
                                     onClick={() => {
+                                      if (item.kind === "folder") {
+                                        setCurrentFolderId(item.id);
+                                        return;
+                                      }
                                       void handleOpenResource(item);
                                     }}
                                   >
-                                    {item.kind === "folder"
-                                      ? "进入文件夹"
-                                      : "打开"}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      void handleRename(item);
-                                    }}
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600">
+                                      <Icon className="h-4 w-4" />
+                                    </span>
+                                    <span className="min-w-0">
+                                      <span className="block truncate font-medium">
+                                        {item.name}
+                                      </span>
+                                      <span className="mt-0.5 block text-xs text-slate-500">
+                                        {item.kind === "folder"
+                                          ? "继续进入查看子目录与内容"
+                                          : item.description?.trim() ||
+                                            "点击打开查看详情或使用系统默认应用打开"}
+                                      </span>
+                                    </span>
+                                  </button>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      item.kind === "folder" ? "default" : "outline"
+                                    }
+                                    className={cn(
+                                      "rounded-full",
+                                      item.kind === "folder" &&
+                                        "bg-slate-900 text-white hover:bg-slate-900",
+                                    )}
                                   >
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    重命名
-                                  </DropdownMenuItem>
-                                  {item.sourceType === "content" &&
-                                    item.parentId && (
+                                    {kindLabelMap[item.kind]}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant="secondary"
+                                    className="rounded-full bg-slate-100 text-slate-700"
+                                  >
+                                    {sourceLabelMap[item.sourceType]}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-slate-500">
+                                  {formatTime(item.updatedAt)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
                                       <DropdownMenuItem
                                         onClick={() => {
-                                          void moveToRoot(item.id);
+                                          void handleOpenResource(item);
                                         }}
                                       >
-                                        <ArrowUp className="mr-2 h-4 w-4" />
-                                        移动到根目录
+                                        {item.kind === "folder"
+                                          ? "进入文件夹"
+                                          : "打开"}
                                       </DropdownMenuItem>
-                                    )}
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => {
-                                      void handleDelete(item);
-                                    }}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    删除
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          void handleRename(item);
+                                        }}
+                                      >
+                                        <Pencil className="mr-2 h-4 w-4" />
+                                        重命名
+                                      </DropdownMenuItem>
+                                      {item.sourceType === "content" &&
+                                        item.parentId && (
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              void moveToRoot(item.id);
+                                            }}
+                                          >
+                                            <ArrowUp className="mr-2 h-4 w-4" />
+                                            移动到根目录
+                                          </DropdownMenuItem>
+                                        )}
+                                      <DropdownMenuItem
+                                        className="text-destructive"
+                                        onClick={() => {
+                                          void handleDelete(item);
+                                        }}
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        删除
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </section>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
 

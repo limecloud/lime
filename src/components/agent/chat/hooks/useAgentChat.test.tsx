@@ -139,6 +139,21 @@ async function flushEffects() {
   });
 }
 
+function seedSession(
+  workspaceId: string,
+  sessionId: string,
+  messages: Array<Record<string, unknown>>,
+) {
+  sessionStorage.setItem(
+    `agent_curr_sessionId_${workspaceId}`,
+    JSON.stringify(sessionId),
+  );
+  sessionStorage.setItem(
+    `agent_messages_${workspaceId}`,
+    JSON.stringify(messages),
+  );
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -176,6 +191,70 @@ beforeEach(() => {
 afterEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+});
+
+describe("useAgentChat 权限响应", () => {
+  it("ask_user 提交应透传统一的 elicitation_context metadata", async () => {
+    const workspaceId = "ws-native-action-meta";
+    seedSession(workspaceId, "session-native-action-meta", [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "请选择执行模式",
+        timestamp: new Date().toISOString(),
+        actionRequests: [
+          {
+            requestId: "req-native-ask-1",
+            actionType: "ask_user",
+            prompt: "请选择执行模式",
+            questions: [{ question: "你希望如何执行？" }],
+            status: "pending",
+          },
+        ],
+      },
+    ]);
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().handlePermissionResponse({
+          requestId: "req-native-ask-1",
+          confirmed: true,
+          actionType: "ask_user",
+          response: '{"answer":"自动执行"}',
+        });
+      });
+
+      expect(mockSubmitAsterElicitationResponse).toHaveBeenCalledWith(
+        "session-native-action-meta",
+        "req-native-ask-1",
+        { answer: "自动执行" },
+        {
+          elicitation_context: {
+            source: "action_required",
+            mode: "runtime_protocol",
+            form_id: "req-native-ask-1",
+            action_type: "ask_user",
+            field_count: 1,
+            prompt: "请选择执行模式",
+            entries: [
+              {
+                fieldId: "req-native-ask-1_answer",
+                fieldKey: "answer",
+                label: "你希望如何执行？",
+                value: "自动执行",
+                summary: "自动执行",
+              },
+            ],
+          },
+        },
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
 });
 
 describe("useAgentChat 偏好持久化", () => {
@@ -290,6 +369,79 @@ describe("useAgentChat 会话创建", () => {
         undefined,
       );
       expect(mockCreateAgentSession.mock.calls[0]).toHaveLength(4);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("旧链路收到带 ProxyCast 元数据块的 tool_end error 时应清洗错误文本", async () => {
+    const harness = mountHook("ws-native-tool-error");
+
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+    mockSafeListen.mockImplementationOnce(async (_eventName, handler) => {
+      streamHandler = handler as (event: { payload: unknown }) => void;
+      return () => {
+        streamHandler = null;
+      };
+    });
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().sendMessage("测试旧链路", [], false, false);
+      });
+
+      act(() => {
+        streamHandler?.({
+          payload: {
+            type: "tool_start",
+            tool_id: "native-tool-1",
+            tool_name: "browser_navigate",
+            arguments: JSON.stringify({
+              url: "https://example.com",
+            }),
+          },
+        });
+      });
+
+      act(() => {
+        streamHandler?.({
+          payload: {
+            type: "tool_end",
+            tool_id: "native-tool-1",
+            result: {
+              success: true,
+              output: "",
+              error: [
+                "CDP 会话已断开，请重试",
+                "",
+                "[ProxyCast 工具元数据开始]",
+                JSON.stringify({
+                  reported_success: false,
+                  exit_code: 1,
+                }),
+                "[ProxyCast 工具元数据结束]",
+              ].join("\n"),
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      const toolCall = assistantMessage?.toolCalls?.find(
+        (item) => item.id === "native-tool-1",
+      );
+
+      expect(toolCall?.status).toBe("failed");
+      expect(toolCall?.result?.error).toBe("CDP 会话已断开，请重试");
+      expect(toolCall?.result?.error).not.toContain("ProxyCast 工具元数据");
+      expect(toolCall?.result?.metadata).toMatchObject({
+        reported_success: false,
+        exit_code: 1,
+      });
     } finally {
       harness.unmount();
     }

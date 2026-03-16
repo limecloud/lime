@@ -147,9 +147,11 @@ export function createStreamDiagnosticsReporter(componentName: string) {
         case "tool_end": {
           snapshot.toolEndCount += 1;
           snapshot.lastToolId = event.tool_id;
+          const outputText =
+            typeof event.result.output === "string" ? event.result.output : "";
           snapshot.maxToolOutputChars = Math.max(
             snapshot.maxToolOutputChars,
-            event.result.output.length,
+            outputText.length,
           );
           break;
         }

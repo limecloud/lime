@@ -19,6 +19,475 @@ const createDeprecatedCommandMock =
     );
   };
 
+type MockBrowserProfileRecord = {
+  id: string;
+  profile_key: string;
+  name: string;
+  description: string | null;
+  site_scope: string | null;
+  launch_url: string | null;
+  transport_kind: "managed_cdp" | "existing_session";
+  profile_dir: string;
+  managed_profile_dir: string | null;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+  archived_at: string | null;
+};
+
+type MockBrowserEnvironmentPresetRecord = {
+  id: string;
+  name: string;
+  description: string | null;
+  proxy_server: string | null;
+  timezone_id: string | null;
+  locale: string | null;
+  accept_language: string | null;
+  geolocation_lat: number | null;
+  geolocation_lng: number | null;
+  geolocation_accuracy_m: number | null;
+  user_agent: string | null;
+  platform: string | null;
+  viewport_width: number | null;
+  viewport_height: number | null;
+  device_scale_factor: number | null;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+  archived_at: string | null;
+};
+
+const mockBrowserProfiles: MockBrowserProfileRecord[] = [
+  {
+    id: "browser-profile-general",
+    profile_key: "general_browser_assist",
+    name: "通用浏览器资料",
+    description: "默认浏览器协助资料",
+    site_scope: "通用",
+    launch_url: "https://www.google.com/",
+    transport_kind: "managed_cdp",
+    profile_dir: "/tmp/proxycast/chrome_profiles/general_browser_assist",
+    managed_profile_dir:
+      "/tmp/proxycast/chrome_profiles/general_browser_assist",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_used_at: null,
+    archived_at: null,
+  },
+];
+
+const mockBrowserEnvironmentPresets: MockBrowserEnvironmentPresetRecord[] = [
+  {
+    id: "browser-environment-us-desktop",
+    name: "美区桌面",
+    description: "美国住宅代理 + 桌面视口",
+    proxy_server: "http://127.0.0.1:7890",
+    timezone_id: "America/Los_Angeles",
+    locale: "en-US",
+    accept_language: "en-US,en;q=0.9",
+    geolocation_lat: 37.7749,
+    geolocation_lng: -122.4194,
+    geolocation_accuracy_m: 100,
+    user_agent: "Mozilla/5.0",
+    platform: "MacIntel",
+    viewport_width: 1440,
+    viewport_height: 900,
+    device_scale_factor: 2,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_used_at: null,
+    archived_at: null,
+  },
+];
+
+const now = () => new Date().toISOString();
+const mockBrowserSessionStates = new Map<string, any>();
+let mockExistingSessionTabs = [
+  {
+    id: 101,
+    index: 0,
+    active: true,
+    title: "微博首页",
+    url: "https://weibo.com/home",
+  },
+  {
+    id: 202,
+    index: 1,
+    active: false,
+    title: "微博创作中心",
+    url: "https://weibo.com/compose",
+  },
+];
+
+function upsertMockBrowserSessionState(launchResponse: any) {
+  mockBrowserSessionStates.set(
+    launchResponse.session.session_id,
+    launchResponse.session,
+  );
+  return launchResponse;
+}
+
+function resolveMockBrowserSessionState(
+  args: any,
+  overrides?: Record<string, any>,
+) {
+  const sessionId = args?.request?.session_id ?? "mock-cdp-session";
+  const existing = mockBrowserSessionStates.get(sessionId);
+  if (existing) {
+    const next = {
+      ...existing,
+      ...overrides,
+      last_event_at: new Date().toISOString(),
+    };
+    mockBrowserSessionStates.set(sessionId, next);
+    return next;
+  }
+
+  const fallback = buildMockBrowserSessionLaunchResponse({
+    profile_key: "general_browser_assist",
+    stream_mode: "both",
+  }).session;
+  const next = {
+    ...fallback,
+    session_id: sessionId,
+    ...overrides,
+    last_event_at: new Date().toISOString(),
+  };
+  mockBrowserSessionStates.set(sessionId, next);
+  return next;
+}
+
+function buildMockBrowserSessionLaunchResponse(request: any) {
+  const profile = mockBrowserProfiles.find(
+    (item) => item.id === request?.profile_id,
+  );
+  const environmentPreset = mockBrowserEnvironmentPresets.find(
+    (item) => item.id === request?.environment_preset_id,
+  );
+  const profileKey =
+    request?.profile_key ?? profile?.profile_key ?? "general_browser_assist";
+  const url = request?.url ?? profile?.launch_url ?? "https://www.google.com/";
+  const currentTime = new Date().toISOString();
+
+  if (profile) {
+    if (profile.transport_kind === "existing_session") {
+      throw new Error(
+        "当前资料使用“附着当前 Chrome”模式，运行时附着链路尚未接入；请先改用“托管浏览器”模式启动",
+      );
+    }
+    profile.last_used_at = currentTime;
+    profile.updated_at = currentTime;
+  }
+  if (environmentPreset) {
+    environmentPreset.last_used_at = currentTime;
+    environmentPreset.updated_at = currentTime;
+  }
+
+  return upsertMockBrowserSessionState({
+    profile: {
+      success: true,
+      reused: false,
+      browser_source: "system",
+      browser_path:
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      profile_dir: `/tmp/proxycast/chrome_profiles/${profileKey}`,
+      remote_debugging_port: 13001,
+      pid: 12345,
+      devtools_http_url: "http://127.0.0.1:13001/json/version",
+    },
+    session: {
+      session_id: `mock-cdp-session-${profileKey}`,
+      profile_key: profileKey,
+      environment_preset_id:
+        environmentPreset?.id ?? request?.environment?.preset_id,
+      environment_preset_name:
+        environmentPreset?.name ?? request?.environment?.preset_name,
+      target_id: request?.target_id ?? "mock-target-1",
+      target_title: profile?.name ?? "Mock Target",
+      target_url: url,
+      remote_debugging_port: 13001,
+      ws_debugger_url: "ws://127.0.0.1:13001/devtools/page/mock-target-1",
+      devtools_frontend_url:
+        "/devtools/inspector.html?ws=127.0.0.1:13001/devtools/page/mock-target-1",
+      stream_mode: request?.stream_mode ?? "both",
+      transport_kind: "cdp_frames",
+      lifecycle_state: "live",
+      control_mode: "agent",
+      last_page_info: {
+        title: profile?.name ?? "Mock Target",
+        url,
+        markdown: `# ${profile?.name ?? "Mock Target"}\nURL: ${url}`,
+        updated_at: currentTime,
+      },
+      last_event_at: currentTime,
+      created_at: currentTime,
+      connected: true,
+    },
+  });
+}
+
+const mockAutomationJobs = [
+  {
+    id: "automation-job-daily-brief",
+    name: "每日线索巡检",
+    description: "在品牌工作区中汇总前一日线索、风险和待处理事项",
+    enabled: true,
+    workspace_id: "workspace-default",
+    execution_mode: "intelligent",
+    schedule: { kind: "every", every_secs: 1800 },
+    payload: {
+      kind: "agent_turn",
+      prompt:
+        "汇总最近 24 小时的重要线索、待回复事项和高风险异常，输出一个给运营负责人的简报。",
+      system_prompt: "优先给出结论和下一步动作。",
+      web_search: false,
+    },
+    delivery: {
+      mode: "none",
+      channel: null,
+      target: null,
+      best_effort: true,
+      output_schema: "text",
+      output_format: "text",
+    },
+    timeout_secs: 300,
+    max_retries: 3,
+    next_run_at: now(),
+    last_status: "success",
+    last_error: null,
+    last_run_at: now(),
+    last_finished_at: now(),
+    running_started_at: null,
+    consecutive_failures: 0,
+    last_retry_count: 0,
+    auto_disabled_until: null,
+    last_delivery: null,
+    created_at: now(),
+    updated_at: now(),
+  },
+  {
+    id: "automation-job-browser-check",
+    name: "店铺后台浏览器巡检",
+    description: "按固定资料和环境预设启动浏览器会话，供后续任务接管或人工排查",
+    enabled: true,
+    workspace_id: "workspace-default",
+    execution_mode: "intelligent",
+    schedule: { kind: "every", every_secs: 900 },
+    payload: {
+      kind: "browser_session",
+      profile_id: "browser-profile-general",
+      profile_key: "general_browser_assist",
+      url: "https://www.google.com/",
+      environment_preset_id: "browser-environment-us-desktop",
+      target_id: null,
+      open_window: false,
+      stream_mode: "events",
+    },
+    delivery: {
+      mode: "none",
+      channel: null,
+      target: null,
+      best_effort: true,
+      output_schema: "text",
+      output_format: "text",
+    },
+    timeout_secs: 180,
+    max_retries: 2,
+    next_run_at: now(),
+    last_status: null,
+    last_error: null,
+    last_run_at: null,
+    last_finished_at: null,
+    running_started_at: null,
+    consecutive_failures: 0,
+    last_retry_count: 0,
+    auto_disabled_until: null,
+    last_delivery: {
+      success: false,
+      message: "写入本地文件失败: permission denied",
+      channel: "local_file",
+      target: "/tmp/proxycast/browser-output.json",
+      output_kind: "json",
+      output_schema: "json",
+      output_format: "json",
+      output_preview: '{\n  "session_id": "browser-session-1"\n}',
+      attempted_at: now(),
+    },
+    created_at: now(),
+    updated_at: now(),
+  },
+];
+
+const mockAutomationRuns = [
+  {
+    id: "automation-run-1",
+    source: "automation",
+    source_ref: "automation-job-daily-brief",
+    session_id: "session-automation-1",
+    status: "success",
+    started_at: now(),
+    finished_at: now(),
+    duration_ms: 1820,
+    error_code: null,
+    error_message: null,
+    metadata: JSON.stringify({
+      job_name: "每日线索巡检",
+      workspace_id: "workspace-default",
+    }),
+    created_at: now(),
+    updated_at: now(),
+  },
+];
+
+function buildMockAutomationBrowserMetadata(
+  job: any,
+  session: any,
+  status: string,
+  durationMs?: number | null,
+) {
+  return JSON.stringify({
+    job_id: job.id,
+    job_name: job.name,
+    workspace_id: job.workspace_id,
+    schedule:
+      job.schedule?.kind === "every"
+        ? `every:${job.schedule.every_secs}`
+        : job.schedule?.kind === "cron"
+          ? `cron:${job.schedule.expr}`
+          : `at:${job.schedule?.at ?? ""}`,
+    status,
+    retry_count: job.last_retry_count ?? 0,
+    session_id: session.session_id,
+    payload_kind: job.payload?.kind ?? "agent_turn",
+    profile_key: job.payload?.profile_key ?? session.profile_key,
+    profile_id: job.payload?.profile_id ?? null,
+    environment_preset_id:
+      job.payload?.environment_preset_id ??
+      session.environment_preset_id ??
+      null,
+    target_id: job.payload?.target_id ?? session.target_id,
+    browser_lifecycle_state: session.lifecycle_state,
+    control_mode: session.control_mode,
+    human_reason: session.human_reason ?? null,
+    browser_last_error: session.last_error ?? null,
+    browser_target_id: session.target_id,
+    browser_target_url: session.target_url,
+    connected: session.connected,
+    duration_ms: durationMs ?? null,
+  });
+}
+
+function resolveMockAutomationRunBySession(sessionId: string) {
+  return mockAutomationRuns.find(
+    (run) => run.source === "automation" && run.session_id === sessionId,
+  );
+}
+
+function resolveMockAutomationJobByRun(run: any) {
+  if (!run?.source_ref) {
+    return null;
+  }
+  return mockAutomationJobs.find((job) => job.id === run.source_ref) ?? null;
+}
+
+function finishMockAutomationBrowserRun(
+  job: any,
+  run: any,
+  session: any,
+  status: "success" | "error",
+) {
+  const timestamp = now();
+  const durationMs = Math.max(
+    0,
+    new Date(timestamp).getTime() - new Date(run.started_at).getTime(),
+  );
+  run.status = status;
+  run.finished_at = timestamp;
+  run.duration_ms = durationMs;
+  run.error_code = status === "success" ? null : "browser_session_failed";
+  run.error_message =
+    status === "success"
+      ? null
+      : (session.last_error ?? session.human_reason ?? "浏览器会话执行失败");
+  run.updated_at = timestamp;
+  run.metadata = buildMockAutomationBrowserMetadata(
+    job,
+    session,
+    status,
+    durationMs,
+  );
+
+  job.last_status = status;
+  job.last_error = run.error_message;
+  job.last_run_at = run.started_at;
+  job.last_finished_at = timestamp;
+  job.running_started_at = null;
+  job.updated_at = timestamp;
+  job.last_retry_count = job.last_retry_count ?? 0;
+  if (status === "success") {
+    job.consecutive_failures = 0;
+    job.auto_disabled_until = null;
+  } else {
+    job.consecutive_failures = (job.consecutive_failures ?? 0) + 1;
+  }
+  if (job.schedule?.kind === "at") {
+    job.enabled = false;
+    job.next_run_at = null;
+  } else {
+    job.next_run_at = timestamp;
+  }
+}
+
+function syncMockAutomationBrowserSessionState(
+  session: any,
+  options?: { finalize?: boolean },
+) {
+  const run = resolveMockAutomationRunBySession(session.session_id);
+  const job = resolveMockAutomationJobByRun(run);
+  if (!run || !job) {
+    return session;
+  }
+  if (["success", "error", "canceled", "timeout"].includes(run.status)) {
+    return session;
+  }
+
+  if (options?.finalize || session.lifecycle_state === "closed") {
+    finishMockAutomationBrowserRun(job, run, session, "success");
+    return session;
+  }
+  if (session.lifecycle_state === "failed") {
+    finishMockAutomationBrowserRun(job, run, session, "error");
+    return session;
+  }
+
+  const timestamp = now();
+  const status =
+    session.lifecycle_state === "human_controlling"
+      ? "human_controlling"
+      : session.lifecycle_state === "waiting_for_human"
+        ? "waiting_for_human"
+        : session.lifecycle_state === "agent_resuming"
+          ? "agent_resuming"
+          : "running";
+
+  run.status = "running";
+  run.finished_at = null;
+  run.duration_ms = null;
+  run.error_code = null;
+  run.error_message = null;
+  run.updated_at = timestamp;
+  run.metadata = buildMockAutomationBrowserMetadata(job, session, status, null);
+
+  job.last_status = status;
+  job.last_error = null;
+  job.last_run_at = run.started_at;
+  job.last_finished_at = null;
+  job.running_started_at = job.running_started_at ?? run.started_at;
+  job.next_run_at = null;
+  job.updated_at = timestamp;
+  return session;
+}
+
 // 默认 mock 数据
 const defaultMocks: Record<string, any> = {
   // 配置相关
@@ -138,6 +607,25 @@ const defaultMocks: Record<string, any> = {
       auto_download: false,
       image_search_pexels_api_key: "",
       image_search_pixabay_api_key: "",
+    },
+    content_creator: {
+      schema_version: 1,
+      enabled_themes: ["social-media", "poster"],
+      media_defaults: {},
+    },
+    navigation: {
+      schema_version: 1,
+      enabled_items: [
+        "home-general",
+        "claw",
+        "video",
+        "image-gen",
+        "automation",
+        "openclaw",
+        "resources",
+        "style-library",
+        "memory",
+      ],
     },
     crash_reporting: {
       enabled: true,
@@ -485,44 +973,209 @@ const defaultMocks: Record<string, any> = {
     lan_ip: "192.168.1.100",
     all_ips: ["127.0.0.1", "192.168.1.100"],
   }),
-  get_chrome_profile_sessions: () => [],
+  list_browser_environment_presets_cmd: (args: any) => {
+    const includeArchived = Boolean(args?.request?.include_archived);
+    return mockBrowserEnvironmentPresets.filter(
+      (preset) => includeArchived || preset.archived_at === null,
+    );
+  },
+  save_browser_environment_preset_cmd: (args: any) => {
+    const request = args?.request ?? {};
+    const now = new Date().toISOString();
+    const existingIndex = mockBrowserEnvironmentPresets.findIndex(
+      (preset) => preset.id === request.id,
+    );
+    if (existingIndex >= 0) {
+      const existing = mockBrowserEnvironmentPresets[existingIndex];
+      const next = {
+        ...existing,
+        name: request.name ?? existing.name,
+        description: request.description ?? null,
+        proxy_server: request.proxy_server ?? null,
+        timezone_id: request.timezone_id ?? null,
+        locale: request.locale ?? null,
+        accept_language: request.accept_language ?? null,
+        geolocation_lat: request.geolocation_lat ?? null,
+        geolocation_lng: request.geolocation_lng ?? null,
+        geolocation_accuracy_m: request.geolocation_accuracy_m ?? null,
+        user_agent: request.user_agent ?? null,
+        platform: request.platform ?? null,
+        viewport_width: request.viewport_width ?? null,
+        viewport_height: request.viewport_height ?? null,
+        device_scale_factor: request.device_scale_factor ?? null,
+        updated_at: now,
+      };
+      mockBrowserEnvironmentPresets[existingIndex] = next;
+      return next;
+    }
+    const created = {
+      id: request.id ?? `browser-environment-${Date.now()}`,
+      name: request.name ?? "未命名环境",
+      description: request.description ?? null,
+      proxy_server: request.proxy_server ?? null,
+      timezone_id: request.timezone_id ?? null,
+      locale: request.locale ?? null,
+      accept_language: request.accept_language ?? null,
+      geolocation_lat: request.geolocation_lat ?? null,
+      geolocation_lng: request.geolocation_lng ?? null,
+      geolocation_accuracy_m: request.geolocation_accuracy_m ?? null,
+      user_agent: request.user_agent ?? null,
+      platform: request.platform ?? null,
+      viewport_width: request.viewport_width ?? null,
+      viewport_height: request.viewport_height ?? null,
+      device_scale_factor: request.device_scale_factor ?? null,
+      created_at: now,
+      updated_at: now,
+      last_used_at: null,
+      archived_at: null,
+    };
+    mockBrowserEnvironmentPresets.unshift(created);
+    return created;
+  },
+  archive_browser_environment_preset_cmd: (args: any) => {
+    const preset = mockBrowserEnvironmentPresets.find(
+      (item) => item.id === args?.request?.id,
+    );
+    if (!preset || preset.archived_at) {
+      return false;
+    }
+    const now = new Date().toISOString();
+    preset.archived_at = now;
+    preset.updated_at = now;
+    return true;
+  },
+  restore_browser_environment_preset_cmd: (args: any) => {
+    const preset = mockBrowserEnvironmentPresets.find(
+      (item) => item.id === args?.request?.id,
+    );
+    if (!preset || !preset.archived_at) {
+      return false;
+    }
+    preset.archived_at = null;
+    preset.updated_at = new Date().toISOString();
+    return true;
+  },
+  list_browser_profiles_cmd: (args: any) => {
+    const includeArchived = Boolean(args?.request?.include_archived);
+    return mockBrowserProfiles.filter(
+      (profile) => includeArchived || profile.archived_at === null,
+    );
+  },
+  save_browser_profile_cmd: (args: any) => {
+    const request = args?.request ?? {};
+    const now = new Date().toISOString();
+    const profileKey = request.profile_key ?? `profile_${Date.now()}`;
+    const existingIndex = mockBrowserProfiles.findIndex(
+      (profile) => profile.id === request.id,
+    );
+    if (existingIndex >= 0) {
+      const existing = mockBrowserProfiles[existingIndex];
+      const nextTransportKind =
+        request.transport_kind ?? existing.transport_kind;
+      const nextManagedProfileDir =
+        nextTransportKind === "existing_session"
+          ? null
+          : `/tmp/proxycast/chrome_profiles/${existing.profile_key}`;
+      const next = {
+        ...existing,
+        name: request.name ?? existing.name,
+        description: request.description ?? null,
+        site_scope: request.site_scope ?? null,
+        launch_url: request.launch_url ?? null,
+        transport_kind: nextTransportKind,
+        profile_dir: nextManagedProfileDir ?? "",
+        managed_profile_dir: nextManagedProfileDir,
+        updated_at: now,
+      };
+      mockBrowserProfiles[existingIndex] = next;
+      return next;
+    }
+    const transportKind = request.transport_kind ?? "managed_cdp";
+    const managedProfileDir =
+      transportKind === "existing_session"
+        ? null
+        : `/tmp/proxycast/chrome_profiles/${profileKey}`;
+    const created = {
+      id: request.id ?? `browser-profile-${Date.now()}`,
+      profile_key: profileKey,
+      name: request.name ?? "未命名资料",
+      description: request.description ?? null,
+      site_scope: request.site_scope ?? null,
+      launch_url: request.launch_url ?? null,
+      transport_kind: transportKind,
+      profile_dir: managedProfileDir ?? "",
+      managed_profile_dir: managedProfileDir,
+      created_at: now,
+      updated_at: now,
+      last_used_at: null,
+      archived_at: null,
+    };
+    mockBrowserProfiles.unshift(created);
+    return created;
+  },
+  archive_browser_profile_cmd: (args: any) => {
+    const profile = mockBrowserProfiles.find(
+      (item) => item.id === args?.request?.id,
+    );
+    if (!profile || profile.archived_at) {
+      return false;
+    }
+    const now = new Date().toISOString();
+    profile.archived_at = now;
+    profile.updated_at = now;
+    return true;
+  },
+  restore_browser_profile_cmd: (args: any) => {
+    const profile = mockBrowserProfiles.find(
+      (item) => item.id === args?.request?.id,
+    );
+    if (!profile || !profile.archived_at) {
+      return false;
+    }
+    profile.archived_at = null;
+    profile.updated_at = new Date().toISOString();
+    return true;
+  },
+  launch_browser_session: (args: any) => {
+    return buildMockBrowserSessionLaunchResponse(args?.request);
+  },
+  launch_browser_profile_runtime_assist_cmd: (args: any) =>
+    buildMockBrowserSessionLaunchResponse({
+      profile_id: args?.request?.id,
+      url: args?.request?.url,
+      environment_preset_id: args?.request?.environment_preset_id,
+      target_id: args?.request?.target_id,
+      open_window: args?.request?.open_window,
+      stream_mode: args?.request?.stream_mode,
+    }),
+  get_chrome_profile_sessions: () =>
+    mockBrowserProfiles
+      .filter((profile) => profile.archived_at === null)
+      .map((profile) => ({
+        profile_key: profile.profile_key,
+        browser_source: "system",
+        browser_path:
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        profile_dir: profile.profile_dir,
+        remote_debugging_port: 13001,
+        pid: 12345,
+        started_at: now(),
+        last_url: profile.launch_url ?? "https://www.google.com/",
+      })),
   close_chrome_profile_session: () => true,
   open_browser_runtime_debugger_window: () => ({ success: true }),
   close_browser_runtime_debugger_window: () => ({ success: true }),
-  launch_browser_runtime_assist: (args: any) => ({
-    profile: {
-      success: true,
-      reused: false,
-      browser_source: "system",
-      browser_path:
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      profile_dir: `/tmp/proxycast/chrome_profiles/${args?.request?.profile_key ?? "search_google"}`,
-      remote_debugging_port: 13001,
-      pid: 12345,
-      devtools_http_url: "http://127.0.0.1:13001/json/version",
-    },
-    session: {
-      session_id: "mock-cdp-session",
-      profile_key: args?.request?.profile_key ?? "search_google",
-      target_id: args?.request?.target_id ?? "mock-target-1",
-      target_title: "Mock Target",
-      target_url: args?.request?.url ?? "https://example.com",
-      remote_debugging_port: 13001,
-      ws_debugger_url: "ws://127.0.0.1:13001/devtools/page/mock-target-1",
-      devtools_frontend_url:
-        "/devtools/inspector.html?ws=127.0.0.1:13001/devtools/page/mock-target-1",
-      stream_mode: args?.request?.stream_mode ?? "both",
-      last_page_info: {
-        title: "Mock Target",
-        url: args?.request?.url ?? "https://example.com",
-        markdown: `# Mock Target\nURL: ${args?.request?.url ?? "https://example.com"}`,
-        updated_at: new Date().toISOString(),
-      },
-      last_event_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      connected: true,
-    },
-  }),
+  launch_browser_runtime_assist: (args: any) =>
+    buildMockBrowserSessionLaunchResponse({
+      profile_id: args?.request?.profile_id,
+      profile_key: args?.request?.profile_key,
+      url: args?.request?.url,
+      environment_preset_id: args?.request?.environment?.preset_id,
+      environment: args?.request?.environment,
+      target_id: args?.request?.target_id,
+      open_window: args?.request?.open_window,
+      stream_mode: args?.request?.stream_mode,
+    }),
   open_chrome_profile_window: () => ({
     success: true,
     reused: false,
@@ -557,6 +1210,12 @@ const defaultMocks: Record<string, any> = {
     request_id: `mock-${Date.now()}`,
     command: args?.request?.command ?? "get_page_info",
     message: "mock command result",
+    data:
+      args?.request?.command === "list_tabs"
+        ? {
+            tabs: mockExistingSessionTabs,
+          }
+        : undefined,
     page_info: {
       title: "Mock Page",
       url: "https://example.com",
@@ -591,12 +1250,24 @@ const defaultMocks: Record<string, any> = {
       {
         backend: "aster_compat",
         available: true,
-        capabilities: ["navigate", "read_page", "tabs_context_mcp"],
+        capabilities: [
+          "navigate",
+          "read_page",
+          "tabs_context_mcp",
+          "list_tabs",
+        ],
       },
       {
         backend: "proxycast_extension_bridge",
         available: true,
-        capabilities: ["open_url", "click", "type", "get_page_info"],
+        capabilities: [
+          "open_url",
+          "click",
+          "type",
+          "get_page_info",
+          "switch_tab",
+          "list_tabs",
+        ],
       },
       {
         backend: "cdp_direct",
@@ -677,65 +1348,152 @@ const defaultMocks: Record<string, any> = {
     created_at: new Date().toISOString(),
     connected: true,
   }),
-  get_browser_session_state: (args: any) => ({
-    session_id: args?.request?.session_id ?? "mock-cdp-session",
-    profile_key: "search_google",
-    target_id: "mock-target-1",
-    target_title: "Mock Target",
-    target_url: "https://example.com",
-    remote_debugging_port: 13001,
-    ws_debugger_url: "ws://127.0.0.1:13001/devtools/page/mock-target-1",
-    stream_mode: "both",
-    last_page_info: {
-      title: "Mock Target",
-      url: "https://example.com",
-      markdown: "# Mock Target\nURL: https://example.com",
-      updated_at: new Date().toISOString(),
-    },
-    last_event_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    connected: true,
-  }),
+  get_browser_session_state: (args: any) =>
+    syncMockAutomationBrowserSessionState(resolveMockBrowserSessionState(args)),
+  take_over_browser_session: (args: any) =>
+    syncMockAutomationBrowserSessionState(
+      resolveMockBrowserSessionState(args, {
+        lifecycle_state: "human_controlling",
+        control_mode: "human",
+        human_reason: args?.request?.human_reason ?? "已进入人工接管",
+      }),
+    ),
+  release_browser_session: (args: any) =>
+    syncMockAutomationBrowserSessionState(
+      resolveMockBrowserSessionState(args, {
+        lifecycle_state: "waiting_for_human",
+        control_mode: "shared",
+        human_reason: args?.request?.human_reason ?? "等待你确认是否继续执行",
+      }),
+    ),
+  resume_browser_session: (args: any) =>
+    syncMockAutomationBrowserSessionState(
+      resolveMockBrowserSessionState(args, {
+        lifecycle_state: "agent_resuming",
+        control_mode: "agent",
+        human_reason: args?.request?.human_reason ?? "人工处理完成，继续执行",
+      }),
+      { finalize: true },
+    ),
   get_browser_event_buffer: () => ({
     events: [],
     next_cursor: 0,
   }),
-  browser_execute_action: (args: any) => ({
-    success: true,
-    backend: args?.request?.backend ?? "aster_compat",
-    session_id: "mock-cdp-session",
-    target_id: "mock-target-1",
-    action: args?.request?.action ?? "navigate",
-    request_id: `browser-mock-${Date.now()}`,
-    data: {
-      message: "mock browser action executed",
-    },
-    attempts: [
-      {
-        backend: args?.request?.backend ?? "aster_compat",
+  browser_execute_action: (args: any) => {
+    const backend = args?.request?.backend ?? "aster_compat";
+    const action = args?.request?.action ?? "navigate";
+    const requestId = `browser-mock-${Date.now()}`;
+
+    if (action === "list_tabs") {
+      return {
         success: true,
-        message: "执行成功",
+        backend,
+        action,
+        request_id: requestId,
+        data: {
+          message: "mock tabs loaded",
+          data: {
+            tabs: mockExistingSessionTabs,
+          },
+        },
+        attempts: [
+          {
+            backend,
+            success: true,
+            message: "执行成功",
+          },
+        ],
+      };
+    }
+
+    if (action === "switch_tab") {
+      const target = String(args?.request?.args?.target ?? "");
+      mockExistingSessionTabs = mockExistingSessionTabs.map((tab) => ({
+        ...tab,
+        active: String(tab.id) === target,
+      }));
+      const activeTab =
+        mockExistingSessionTabs.find((tab) => tab.active) ??
+        mockExistingSessionTabs[0];
+      return {
+        success: true,
+        backend,
+        action,
+        request_id: requestId,
+        data: {
+          message: "mock tab switched",
+          page_info: activeTab
+            ? {
+                title: activeTab.title,
+                url: activeTab.url,
+                markdown: `# ${activeTab.title}\nURL: ${activeTab.url}`,
+                updated_at: now(),
+              }
+            : undefined,
+        },
+        attempts: [
+          {
+            backend,
+            success: true,
+            message: "执行成功",
+          },
+        ],
+      };
+    }
+
+    return {
+      success: true,
+      backend,
+      session_id: "mock-cdp-session",
+      target_id: "mock-target-1",
+      action,
+      request_id: requestId,
+      data: {
+        message: "mock browser action executed",
       },
-    ],
-  }),
+      attempts: [
+        {
+          backend,
+          success: true,
+          message: "执行成功",
+        },
+      ],
+    };
+  },
   get_browser_action_audit_logs: (args: any) => {
     const now = new Date().toISOString();
     const count = Math.min(Number(args?.limit ?? 20), 200);
     return Array.from({ length: Math.max(1, count) }, (_, idx) => ({
       id: `audit-mock-${idx + 1}`,
       created_at: now,
-      action: "navigate",
+      kind: idx % 2 === 0 ? "launch" : "action",
+      action: idx % 2 === 0 ? undefined : "navigate",
       profile_key: "default",
-      requested_backend: "aster_compat",
-      selected_backend: "aster_compat",
+      profile_id: idx % 2 === 0 ? "browser-profile-general" : undefined,
+      requested_backend: idx % 2 === 0 ? undefined : "aster_compat",
+      selected_backend: idx % 2 === 0 ? undefined : "aster_compat",
       success: true,
-      attempts: [
-        {
-          backend: "aster_compat",
-          success: true,
-          message: "执行成功",
-        },
-      ],
+      attempts:
+        idx % 2 === 0
+          ? []
+          : [
+              {
+                backend: "aster_compat",
+                success: true,
+                message: "执行成功",
+              },
+            ],
+      environment_preset_id:
+        idx % 2 === 0 ? "browser-environment-us-desktop" : undefined,
+      environment_preset_name: idx % 2 === 0 ? "美区桌面" : undefined,
+      target_id: idx % 2 === 0 ? "mock-target-1" : undefined,
+      session_id: idx % 2 === 0 ? "mock-cdp-session" : undefined,
+      url: idx % 2 === 0 ? "https://example.com" : undefined,
+      reused: idx % 2 === 0 ? false : undefined,
+      open_window: idx % 2 === 0 ? true : undefined,
+      stream_mode: idx % 2 === 0 ? "both" : undefined,
+      browser_source: idx % 2 === 0 ? "system" : undefined,
+      remote_debugging_port: idx % 2 === 0 ? 13001 : undefined,
     }));
   },
   read_file_preview_cmd: (args: any) => ({
@@ -1412,60 +2170,222 @@ const defaultMocks: Record<string, any> = {
   // Check Config Sync 相关
   check_config_sync_status: () => ({ status: "synced" }),
 
-  // 心跳引擎相关
-  get_heartbeat_config: () => ({
-    enabled: false,
-    interval_secs: 300,
-    task_file: "HEARTBEAT.md",
-    execution_mode: "intelligent",
+  // 自动化任务相关
+  get_automation_scheduler_config: () => ({
+    enabled: true,
+    poll_interval_secs: 30,
     enable_history: true,
-    max_retries: 3,
   }),
-  update_heartbeat_config: () => ({ success: true }),
-  get_heartbeat_status: () => ({
-    running: false,
-    last_run: null,
-    last_task_count: 0,
-    total_executions: 0,
-    current_task: null,
+  update_automation_scheduler_config: () => undefined,
+  get_automation_status: () => ({
+    running: true,
+    last_polled_at: now(),
+    next_poll_at: now(),
+    last_job_count: mockAutomationJobs.length,
+    total_executions: mockAutomationRuns.length,
+    active_job_id: null,
+    active_job_name: null,
   }),
-  get_heartbeat_tasks: () => [],
-  add_heartbeat_task: () => {},
-  delete_heartbeat_task: () => {},
-  update_heartbeat_task: () => {},
-  get_heartbeat_history: () => [],
-  get_heartbeat_execution_detail: () => null,
-  get_heartbeat_task_health: () => ({
-    totalTasks: 0,
-    pendingTasks: 0,
-    runningTasks: 0,
-    completedTasks: 0,
-    failedTasks: 0,
-    cancelledTasks: 0,
-    cooldownTasks: 0,
-    staleRunningTasks: 0,
-    failedLast24h: 0,
-    failureTrend24h: [],
+  get_automation_jobs: () => mockAutomationJobs,
+  get_automation_job: (args: any) =>
+    mockAutomationJobs.find((job) => job.id === args?.id) ?? null,
+  create_automation_job: (args: any) => {
+    const created = {
+      ...args.request,
+      id: `automation-job-${Date.now()}`,
+      enabled: args.request.enabled ?? true,
+      execution_mode: args.request.execution_mode ?? "intelligent",
+      delivery: args.request.delivery ?? {
+        mode: "none",
+        channel: null,
+        target: null,
+        best_effort: true,
+        output_schema: "text",
+        output_format: "text",
+      },
+      timeout_secs: args.request.timeout_secs ?? null,
+      max_retries: args.request.max_retries ?? 3,
+      next_run_at: now(),
+      last_status: null,
+      last_error: null,
+      last_run_at: null,
+      last_finished_at: null,
+      running_started_at: null,
+      consecutive_failures: 0,
+      last_retry_count: 0,
+      auto_disabled_until: null,
+      last_delivery: null,
+      created_at: now(),
+      updated_at: now(),
+    };
+    mockAutomationJobs.unshift(created);
+    return created;
+  },
+  update_automation_job: (args: any) => {
+    const index = mockAutomationJobs.findIndex((job) => job.id === args?.id);
+    if (index === -1) {
+      throw new Error(`automation job not found: ${args?.id}`);
+    }
+    const current = mockAutomationJobs[index];
+    const next = {
+      ...current,
+      ...args.request,
+      timeout_secs: args.request.clear_timeout_secs
+        ? null
+        : (args.request.timeout_secs ?? current.timeout_secs),
+      updated_at: now(),
+    };
+    mockAutomationJobs[index] = next;
+    return next;
+  },
+  delete_automation_job: (args: any) => {
+    const index = mockAutomationJobs.findIndex((job) => job.id === args?.id);
+    if (index === -1) {
+      return false;
+    }
+    mockAutomationJobs.splice(index, 1);
+    return true;
+  },
+  run_automation_job_now: (args: any) => {
+    const job = mockAutomationJobs.find((item) => item.id === args?.id);
+    if (!job) {
+      throw new Error(`automation job not found: ${args?.id}`);
+    }
+    const timestamp = now();
+    const browserLaunch =
+      job.payload?.kind === "browser_session"
+        ? buildMockBrowserSessionLaunchResponse({
+            profile_id: job.payload.profile_id,
+            profile_key: job.payload.profile_key,
+            url: job.payload.url,
+            environment_preset_id: job.payload.environment_preset_id,
+            target_id: job.payload.target_id,
+            open_window: job.payload.open_window,
+            stream_mode: job.payload.stream_mode,
+          })
+        : null;
+    if (job.payload?.kind === "browser_session" && browserLaunch?.session) {
+      const session = browserLaunch.session;
+      job.last_status = "running";
+      job.last_error = null;
+      job.last_run_at = timestamp;
+      job.last_finished_at = null;
+      job.running_started_at = timestamp;
+      job.next_run_at = null;
+      job.updated_at = timestamp;
+      mockAutomationRuns.unshift({
+        id: `automation-run-${Date.now()}`,
+        source: "automation",
+        source_ref: job.id,
+        session_id: session.session_id,
+        status: "running",
+        started_at: timestamp,
+        finished_at: null,
+        duration_ms: null,
+        error_code: null,
+        error_message: null,
+        metadata: buildMockAutomationBrowserMetadata(
+          job,
+          session,
+          "running",
+          null,
+        ),
+        created_at: timestamp,
+        updated_at: timestamp,
+      });
+      return {
+        job_count: 1,
+        success_count: 0,
+        failed_count: 0,
+        timeout_count: 0,
+      };
+    }
+
+    job.last_status = "success";
+    job.last_run_at = timestamp;
+    job.last_finished_at = timestamp;
+    job.running_started_at = null;
+    job.updated_at = timestamp;
+    mockAutomationRuns.unshift({
+      id: `automation-run-${Date.now()}`,
+      source: "automation",
+      source_ref: job.id,
+      session_id: browserLaunch?.session?.session_id ?? `session-${Date.now()}`,
+      status: "success",
+      started_at: timestamp,
+      finished_at: timestamp,
+      duration_ms: 1400,
+      error_code: null,
+      error_message: null,
+      metadata: JSON.stringify({
+        job_name: job.name,
+        workspace_id: job.workspace_id,
+        payload_kind: job.payload?.kind ?? "agent_turn",
+        profile_key:
+          job.payload?.kind === "browser_session"
+            ? job.payload.profile_key
+            : null,
+      }),
+      created_at: timestamp,
+      updated_at: timestamp,
+    });
+    return {
+      job_count: 1,
+      success_count: 1,
+      failed_count: 0,
+      timeout_count: 0,
+    };
+  },
+  get_automation_health: () => ({
+    total_jobs: mockAutomationJobs.length,
+    enabled_jobs: mockAutomationJobs.filter((job) => job.enabled).length,
+    pending_jobs: mockAutomationJobs.filter(
+      (job) =>
+        job.enabled && !job.running_started_at && !job.auto_disabled_until,
+    ).length,
+    running_jobs: mockAutomationJobs.filter((job) => job.running_started_at)
+      .length,
+    failed_jobs: mockAutomationJobs.filter((job) =>
+      ["error", "timeout"].includes(job.last_status ?? ""),
+    ).length,
+    cooldown_jobs: mockAutomationJobs.filter((job) => job.auto_disabled_until)
+      .length,
+    stale_running_jobs: 0,
+    failed_last_24h: mockAutomationRuns.filter((run) =>
+      ["error", "timeout"].includes(run.status),
+    ).length,
+    failure_trend_24h: [],
     alerts: [],
-    topRiskyTasks: [],
-    generatedAt: new Date().toISOString(),
+    risky_jobs: mockAutomationJobs
+      .filter(
+        (job) =>
+          job.consecutive_failures > 0 ||
+          job.auto_disabled_until ||
+          ["waiting_for_human", "human_controlling"].includes(
+            job.last_status ?? "",
+          ),
+      )
+      .map((job) => ({
+        job_id: job.id,
+        name: job.name,
+        status: job.last_status ?? "idle",
+        consecutive_failures: job.consecutive_failures,
+        retry_count: job.last_retry_count,
+        auto_disabled_until: job.auto_disabled_until,
+        updated_at: job.updated_at,
+      })),
+    generated_at: now(),
   }),
-  deliver_heartbeat_task_health_alerts: () => ({
-    delivered: false,
-    alert_count: 0,
-    message: "当前无告警，未触发投递",
+  get_automation_run_history: (args: any) =>
+    mockAutomationRuns.filter((run) => run.source_ref === args?.id),
+  preview_automation_schedule: () => now(),
+  validate_automation_schedule: () => ({
+    valid: true,
+    error: null,
   }),
-  trigger_heartbeat_now: () => ({
-    task_count: 0,
-    success_count: 0,
-    failed_count: 0,
-    timeout_count: 0,
-  }),
-  get_task_templates: () => [],
-  apply_task_template: () => ({ success: true }),
-  generate_content_creator_tasks: () => 0,
-  execution_run_list: () => [],
-  execution_run_get: () => null,
+  execution_run_list: () => mockAutomationRuns,
+  execution_run_get: (args: any) =>
+    mockAutomationRuns.find((run) => run.id === args?.runId) ?? null,
   execution_run_get_theme_workbench_state: () => ({
     run_state: "idle",
     current_gate_key: "idle",
@@ -1484,7 +2404,20 @@ const defaultMocks: Record<string, any> = {
   content_get_theme_workbench_document_state: () => null,
 
   // Workspace 相关
-  workspace_list: () => [],
+  workspace_list: () => [
+    {
+      id: "workspace-default",
+      name: "默认工作区",
+      workspace_type: "general",
+      root_path: "/tmp/proxycast/workspaces/default",
+      is_default: true,
+      is_favorite: true,
+      is_archived: false,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      tags: [],
+    },
+  ],
   workspace_get: (args: any) => ({
     id: args?.id ?? "mock-workspace",
     name: args?.id ?? "Mock Workspace",
