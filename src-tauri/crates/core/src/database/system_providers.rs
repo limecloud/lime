@@ -686,7 +686,7 @@ pub fn get_system_providers() -> Vec<SystemProviderDef> {
             id: "novita",
             name: "Novita",
             provider_type: ApiProviderType::Openai,
-            api_host: "https://api.novita.ai/v3/openai",
+            api_host: "https://api.novita.ai/openai",
             group: ProviderGroup::Aggregator,
             sort_order: 62,
             api_version: None,

@@ -5,6 +5,7 @@ pub mod codex;
 pub mod error;
 pub mod gemini;
 pub mod kiro;
+pub mod novita;
 pub mod openai_custom;
 pub mod traits;
 pub mod vertex;
@@ -34,6 +35,11 @@ pub use error::ProviderError;
 pub use gemini::{GeminiApiKeyCredential, GeminiApiKeyProvider, GeminiProvider};
 #[allow(unused_imports)]
 pub use kiro::KiroProvider;
+#[allow(unused_imports)]
+pub use novita::{
+    NovitaProvider, NOVITA_API_BASE_URL, NOVITA_DEFAULT_MODEL, NOVITA_EMBEDDING_MODEL,
+    NOVITA_SUPPORTED_MODELS,
+};
 #[allow(unused_imports)]
 pub use openai_custom::OpenAICustomProvider;
 #[allow(unused_imports)]
