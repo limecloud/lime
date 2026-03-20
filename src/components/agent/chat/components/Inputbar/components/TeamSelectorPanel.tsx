@@ -17,6 +17,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
+  BUILTIN_TEAM_PROFILE_OPTIONS,
+  BUILTIN_TEAM_SKILL_OPTIONS,
+  getBuiltinTeamProfileOption,
+  getBuiltinTeamSkillOption,
+} from "../../../utils/teamPresets";
+import {
   buildTeamDefinitionSummary,
   cloneTeamDefinitionAsCustom,
   createTeamDefinitionFromPreset,
@@ -105,6 +111,13 @@ function matchTeamQuery(team: TeamDefinition, query: string): boolean {
   );
 }
 
+function parseSkillIdsInput(value: string): string[] {
+  return value
+    .split(/[\n,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function TeamCard({
   team,
   selected,
@@ -186,6 +199,31 @@ function TeamCard({
                       {role.label}
                     </span>
                     <span> · {role.summary}</span>
+                    {role.profileId || role.roleKey || role.skillIds?.length ? (
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {role.profileId ? (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
+                            画像 ·{" "}
+                            {getBuiltinTeamProfileOption(role.profileId)?.label ||
+                              role.profileId}
+                          </span>
+                        ) : null}
+                        {role.roleKey ? (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
+                            Role · {role.roleKey}
+                          </span>
+                        ) : null}
+                        {role.skillIds?.map((skillId) => (
+                          <span
+                            key={`${team.id}-${role.id}-${skillId}`}
+                            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500"
+                          >
+                            技能 ·{" "}
+                            {getBuiltinTeamSkillOption(skillId)?.label || skillId}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -293,6 +331,36 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
   );
 
   const currentSelectionSummary = buildTeamDefinitionSummary(selectedTeam);
+
+  const updateDraftRole = (
+    roleIndex: number,
+    updater: (role: TeamRoleDefinition) => TeamRoleDefinition,
+  ) => {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            roles: current.roles.map((item, index) =>
+              index === roleIndex ? updater(item) : item,
+            ),
+          }
+        : current,
+    );
+  };
+
+  const toggleDraftRoleSkill = (roleIndex: number, skillId: string) => {
+    updateDraftRole(roleIndex, (role) => {
+      const currentSkillIds = role.skillIds || [];
+      const nextSkillIds = currentSkillIds.includes(skillId)
+        ? currentSkillIds.filter((item) => item !== skillId)
+        : [...currentSkillIds, skillId];
+
+      return {
+        ...role,
+        skillIds: nextSkillIds,
+      };
+    });
+  };
 
   const handleStartCreate = (base?: TeamDefinition | null) => {
     setDraft(base ? buildDraftFromTeam(cloneTeamDefinitionAsCustom(base)) : createBlankDraft(activeTheme));
@@ -639,6 +707,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                                   id: `role-${current.roles.length + 1}`,
                                   label: "",
                                   summary: "",
+                                  skillIds: [],
                                 },
                               ],
                             }
@@ -657,6 +726,15 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                       key={`${role.id}-${index}`}
                       className="rounded-2xl border border-slate-200 bg-white p-3"
                     >
+                      {(() => {
+                        const selectedProfile = getBuiltinTeamProfileOption(
+                          role.profileId,
+                        );
+                        const resolvedSkillIds = role.skillIds || [];
+                        const suggestedSkillIds = selectedProfile?.skillIds || [];
+
+                        return (
+                          <>
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div className="text-xs font-medium text-slate-500">
                           角色 {index + 1}
@@ -685,21 +763,10 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                         <Input
                           value={role.label}
                           onChange={(event) =>
-                            setDraft((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    roles: current.roles.map((item, roleIndex) =>
-                                      roleIndex === index
-                                        ? {
-                                            ...item,
-                                            label: event.target.value,
-                                          }
-                                        : item,
-                                    ),
-                                  }
-                                : current,
-                            )
+                            updateDraftRole(index, (item) => ({
+                              ...item,
+                              label: event.target.value,
+                            }))
                           }
                           placeholder="角色名称，例如：分析"
                           className="border-slate-200 bg-white"
@@ -707,26 +774,144 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                         <Textarea
                           value={role.summary}
                           onChange={(event) =>
-                            setDraft((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    roles: current.roles.map((item, roleIndex) =>
-                                      roleIndex === index
-                                        ? {
-                                            ...item,
-                                            summary: event.target.value,
-                                          }
-                                        : item,
-                                    ),
-                                  }
-                                : current,
-                            )
+                            updateDraftRole(index, (item) => ({
+                              ...item,
+                              summary: event.target.value,
+                            }))
                           }
                           placeholder="说明这个角色负责什么。"
                           className="min-h-[76px] border-slate-200 bg-white"
                         />
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="grid gap-2">
+                            <label className="text-xs font-medium text-slate-600">
+                              内置画像
+                            </label>
+                            <select
+                              value={role.profileId || ""}
+                              onChange={(event) => {
+                                const nextProfileId =
+                                  event.target.value.trim() || undefined;
+                                const nextProfile =
+                                  getBuiltinTeamProfileOption(nextProfileId);
+                                updateDraftRole(index, (item) => ({
+                                  ...item,
+                                  profileId: nextProfileId,
+                                  roleKey:
+                                    item.roleKey?.trim() ||
+                                    nextProfile?.roleKey ||
+                                    "",
+                                  skillIds:
+                                    item.skillIds && item.skillIds.length > 0
+                                      ? item.skillIds
+                                      : nextProfile?.skillIds
+                                        ? [...nextProfile.skillIds]
+                                        : [],
+                                }));
+                              }}
+                              data-testid={`team-role-profile-select-${index}`}
+                              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                            >
+                              <option value="">不指定内置画像</option>
+                              {BUILTIN_TEAM_PROFILE_OPTIONS.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label} · {option.id}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
+                              {selectedProfile ? (
+                                <>
+                                  <span className="font-medium text-slate-700">
+                                    {selectedProfile.label}
+                                  </span>
+                                  <span> · {selectedProfile.description}</span>
+                                </>
+                              ) : (
+                                "可选内置 subagent profile，用于对齐 Codex 风格的角色画像。"
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2">
+                            <label className="text-xs font-medium text-slate-600">
+                              roleKey
+                            </label>
+                            <Input
+                              value={role.roleKey || ""}
+                              onChange={(event) =>
+                                updateDraftRole(index, (item) => ({
+                                  ...item,
+                                  roleKey: event.target.value,
+                                }))
+                              }
+                              data-testid={`team-role-role-key-input-${index}`}
+                              placeholder="例如：explorer / executor / reviewer"
+                              className="border-slate-200 bg-white"
+                            />
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
+                              用于运行时和工作台标记角色职责；建议与所选画像保持一致。
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <label className="text-xs font-medium text-slate-600">
+                            skills
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {BUILTIN_TEAM_SKILL_OPTIONS.map((option) => {
+                              const active = resolvedSkillIds.includes(
+                                option.id,
+                              );
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  className={cn(
+                                    "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                                    active
+                                      ? "border-sky-300 bg-sky-50 text-sky-700"
+                                      : suggestedSkillIds.includes(option.id)
+                                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700",
+                                  )}
+                                  onClick={() =>
+                                    toggleDraftRoleSkill(index, option.id)
+                                  }
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <Input
+                            value={resolvedSkillIds.join(", ")}
+                            onChange={(event) =>
+                              updateDraftRole(index, (item) => ({
+                                ...item,
+                                skillIds: parseSkillIdsInput(event.target.value),
+                              }))
+                            }
+                            data-testid={`team-role-skill-ids-input-${index}`}
+                            placeholder="多个 skill id 用逗号分隔，例如：source-grounding, structured-writing"
+                            className="border-slate-200 bg-white"
+                          />
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
+                            {selectedProfile && suggestedSkillIds.length > 0 ? (
+                              <>
+                                推荐技能：
+                                {suggestedSkillIds.join("、")}
+                              </>
+                            ) : (
+                              "skillIds 会透传给运行时，用于约束子代理的技能集。"
+                            )}
+                          </div>
+                        </div>
                       </div>
+                    </>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>

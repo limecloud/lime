@@ -10,9 +10,7 @@ interface TaskFilesPanelProps {
   onFileClick?: (file: TaskFile) => void;
 }
 
-const Area = styled.div.attrs({
-  "data-testid": "task-files-panel-area",
-})`
+const Area = styled.div`
   position: relative;
   display: flex;
   justify-content: flex-end;
@@ -80,7 +78,7 @@ export function TaskFilesPanel({
   }
 
   return (
-    <Area>
+    <Area data-testid="task-files-panel-area">
       <Wrapper>
         <TaskFileList
           files={files}

@@ -91,7 +91,7 @@ function normalizeLiveActivityText(
 }
 
 function appendLiveActivityDraft(previous: string | undefined, chunk: string) {
-  return normalizeLiveActivityText(`${previous ?? ""}${chunk}`);
+  return normalizeLiveActivityText(`${previous ?? ""}${chunk}`) ?? undefined;
 }
 
 function buildActivityEntry(params: {

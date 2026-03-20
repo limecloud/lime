@@ -75,6 +75,7 @@ import {
   summarizeSearchQuerySemantics,
 } from "../utils/searchQueryGrouping";
 import type { CompatSubagentRuntimeSnapshot } from "../utils/compatSubagentRuntime";
+import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 
 interface HarnessEnvironmentSummary {
   skillsCount: number;
@@ -113,6 +114,9 @@ interface HarnessStatusPanelProps {
   description?: string;
   toggleLabel?: string;
   leadContent?: ReactNode;
+  selectedTeamLabel?: string | null;
+  selectedTeamSummary?: string | null;
+  selectedTeamRoles?: TeamRoleDefinition[] | null;
 }
 
 interface PreviewDialogState {
@@ -135,6 +139,7 @@ type FileDisplayMode = "timeline" | "grouped";
 type ToolInventoryFilterValue = "all" | "runtime" | "persisted" | "default";
 
 type HarnessSectionKey =
+  | "team_config"
   | "runtime"
   | "inventory"
   | "approvals"
@@ -1336,6 +1341,9 @@ export function HarnessStatusPanel({
   description = "展示最近文件活动、工具输出、审批与上下文装载情况。",
   toggleLabel = "详情",
   leadContent,
+  selectedTeamLabel = null,
+  selectedTeamSummary = null,
+  selectedTeamRoles = [],
 }: HarnessStatusPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const isDialogLayout = layout === "dialog";
@@ -1391,6 +1399,9 @@ export function HarnessStatusPanel({
     [childSubagentSessions],
   );
   const hasCompatSchedulerSignals = compatSubagentRuntime.hasSignals;
+  const hasSelectedTeamConfig = Boolean(selectedTeamLabel?.trim()) ||
+    Boolean(selectedTeamSummary?.trim()) ||
+    (selectedTeamRoles?.length ?? 0) > 0;
 
   const fileFilterOptions = useMemo(
     () =>
@@ -1529,6 +1540,10 @@ export function HarnessStatusPanel({
   const availableSections = useMemo(() => {
     const sections: HarnessSectionNavItem[] = [];
 
+    if (hasSelectedTeamConfig) {
+      sections.push({ key: "team_config", label: "当前 Team" });
+    }
+
     if (harnessState.runtimeStatus) {
       sections.push({ key: "runtime", label: "当前阶段" });
     }
@@ -1581,6 +1596,7 @@ export function HarnessStatusPanel({
     harnessState.plan.phase,
     harnessState.recentFileEvents.length,
     harnessState.runtimeStatus,
+    hasSelectedTeamConfig,
     hasCompatSchedulerSignals,
     realTeamSummary.total,
   ]);
@@ -1596,6 +1612,22 @@ export function HarnessStatusPanel({
         hint:
           harnessState.runtimeStatus.detail || harnessState.runtimeStatus.title,
         icon: Loader2,
+      });
+    }
+
+    if (hasSelectedTeamConfig) {
+      cards.push({
+        sectionKey: "team_config",
+        title: "当前 Team",
+        value:
+          selectedTeamLabel?.trim() ||
+          `${selectedTeamRoles?.length || 0} 个角色`,
+        hint:
+          selectedTeamSummary?.trim() ||
+          ((selectedTeamRoles?.length || 0) > 0
+            ? `已配置 ${selectedTeamRoles?.length || 0} 个角色`
+            : "当前回合已启用 Team 配置"),
+        icon: Workflow,
       });
     }
 
@@ -1695,6 +1727,7 @@ export function HarnessStatusPanel({
     environment.contextEnabled,
     environment.contextItemsCount,
     hasToolInventorySection,
+    hasSelectedTeamConfig,
     harnessState.activeFileWrites,
     harnessState.pendingApprovals.length,
     harnessState.plan.items,
@@ -1708,6 +1741,9 @@ export function HarnessStatusPanel({
     realTeamSummary.running,
     realTeamSummary.settled,
     realTeamSummary.total,
+    selectedTeamLabel,
+    selectedTeamRoles?.length,
+    selectedTeamSummary,
     toolInventory,
     toolInventoryError,
     toolInventoryLoading,
@@ -2047,6 +2083,78 @@ export function HarnessStatusPanel({
                     </button>
                   ))}
                 </div>
+              ) : null}
+              {hasSelectedTeamConfig ? (
+                <Section
+                  sectionKey="team_config"
+                  title="当前 Team 配置"
+                  badge={
+                    selectedTeamRoles && selectedTeamRoles.length > 0
+                      ? `${selectedTeamRoles.length} 个角色`
+                      : undefined
+                  }
+                  registerRef={registerSectionRef}
+                >
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-sky-200/80 bg-sky-50/50 p-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <Workflow className="h-4 w-4 text-sky-600" />
+                        <span>{selectedTeamLabel || "当前已启用 Team"}</span>
+                      </div>
+                      {selectedTeamSummary ? (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          {selectedTeamSummary}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          当前回合会优先参考所选 Team 的角色分工来决定是否委派子代理。
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedTeamRoles && selectedTeamRoles.length > 0 ? (
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        {selectedTeamRoles.map((role, index) => (
+                          <div
+                            key={`${role.id || role.label}-${index}`}
+                            className="rounded-xl border border-border bg-background p-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-medium text-foreground">
+                                {role.label}
+                              </div>
+                              {role.profileId ? (
+                                <Badge variant="outline">
+                                  画像 {role.profileId}
+                                </Badge>
+                              ) : null}
+                              {role.roleKey ? (
+                                <Badge variant="outline">
+                                  Role {role.roleKey}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <div className="mt-2 text-xs leading-5 text-muted-foreground">
+                              {role.summary}
+                            </div>
+                            {role.skillIds && role.skillIds.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {role.skillIds.map((skillId) => (
+                                  <Badge
+                                    key={`${role.id || role.label}-${skillId}`}
+                                    variant="secondary"
+                                  >
+                                    {skillId}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </Section>
               ) : null}
               {harnessState.runtimeStatus ? (
                 <Section

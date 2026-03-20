@@ -8,6 +8,31 @@ import {
 const CUSTOM_TEAM_STORAGE_KEY = "lime.chat.custom_teams.v1";
 const TEAM_SELECTION_STORAGE_KEY_PREFIX = "lime.chat.team_selection.v1";
 
+function normalizeCustomTeamList(
+  teams: Array<Partial<TeamDefinition>> | TeamDefinition[],
+): TeamDefinition[] {
+  const uniqueTeams = new Map<string, TeamDefinition>();
+
+  for (const team of teams) {
+    const normalized = normalizeTeamDefinition(team);
+    if (!normalized || normalized.source !== "custom") {
+      continue;
+    }
+
+    const existing = uniqueTeams.get(normalized.id);
+    if (
+      !existing ||
+      (normalized.updatedAt || 0) >= (existing.updatedAt || 0)
+    ) {
+      uniqueTeams.set(normalized.id, normalized);
+    }
+  }
+
+  return Array.from(uniqueTeams.values()).sort(
+    (left, right) => (right.updatedAt || 0) - (left.updatedAt || 0),
+  );
+}
+
 function normalizeThemeScope(theme?: string | null): string {
   const normalized = theme?.trim().toLowerCase();
   return normalized || "general";
@@ -24,10 +49,7 @@ export function loadCustomTeams(): TeamDefinition[] {
       return [];
     }
     const parsed = JSON.parse(raw) as Array<Partial<TeamDefinition>>;
-    return parsed
-      .map((team) => normalizeTeamDefinition(team))
-      .filter((team): team is TeamDefinition => Boolean(team))
-      .filter((team) => team.source === "custom");
+    return normalizeCustomTeamList(parsed);
   } catch {
     return [];
   }
@@ -35,7 +57,10 @@ export function loadCustomTeams(): TeamDefinition[] {
 
 export function saveCustomTeams(teams: TeamDefinition[]): void {
   try {
-    localStorage.setItem(CUSTOM_TEAM_STORAGE_KEY, JSON.stringify(teams));
+    localStorage.setItem(
+      CUSTOM_TEAM_STORAGE_KEY,
+      JSON.stringify(normalizeCustomTeamList(teams)),
+    );
   } catch {
     // ignore persistence errors
   }

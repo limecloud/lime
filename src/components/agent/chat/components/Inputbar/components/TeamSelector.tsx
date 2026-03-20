@@ -6,11 +6,7 @@ import React, {
   useState,
 } from "react";
 import { Users } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { scheduleIdleModulePreload } from "./scheduleIdleModulePreload";
 import type { TeamDefinition } from "../../../utils/teamDefinitions";
@@ -54,51 +50,57 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
     return `Team · ${selectedTeam.label.trim()}`;
   }, [selectedTeam?.label, triggerLabel]);
 
+  const selectedRoleCount = selectedTeam?.roles.length || 0;
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          data-testid="team-selector-trigger"
-          className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium shadow-none transition-colors",
-            selectedTeam
-              ? "border-sky-300 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-              : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900",
-            className,
-          )}
-        >
-          <Users className="h-3.5 w-3.5" />
-          <span className="max-w-[180px] truncate">{resolvedLabel}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-0 shadow-xl shadow-slate-950/8 opacity-100"
-        side="top"
-        align="start"
-        sideOffset={8}
+    <>
+      <button
+        type="button"
+        data-testid="team-selector-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium shadow-none transition-colors",
+          selectedTeam
+            ? "border-sky-300 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+            : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900",
+          className,
+        )}
       >
-        {open ? (
-          <Suspense
-            fallback={
-              <div className="px-4 py-7 text-center text-sm text-slate-500">
-                加载中...
-              </div>
-            }
-          >
-            <TeamSelectorPanel
-              activeTheme={activeTheme}
-              input={input}
-              selectedTeam={selectedTeam}
-              onSelectTeam={(team) => {
-                onSelectTeam(team);
-                setOpen(false);
-              }}
-              onClose={() => setOpen(false)}
-            />
-          </Suspense>
+        <Users className="h-3.5 w-3.5" />
+        <span className="max-w-[180px] truncate">{resolvedLabel}</span>
+        {selectedRoleCount > 0 ? (
+          <span className="rounded-full border border-current/15 bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold leading-none">
+            {selectedRoleCount}
+          </span>
         ) : null}
-      </PopoverContent>
-    </Popover>
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-6xl overflow-hidden border-slate-200/80 bg-white p-0">
+          {open ? (
+            <Suspense
+              fallback={
+                <div className="px-4 py-7 text-center text-sm text-slate-500">
+                  加载中...
+                </div>
+              }
+            >
+              <TeamSelectorPanel
+                activeTheme={activeTheme}
+                input={input}
+                selectedTeam={selectedTeam}
+                onSelectTeam={(team) => {
+                  onSelectTeam(team);
+                  setOpen(false);
+                }}
+                onClose={() => setOpen(false)}
+              />
+            </Suspense>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

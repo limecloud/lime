@@ -30,9 +30,7 @@ interface InputbarOverlayShellProps {
   onFileSelect: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
-const SecondaryControlsRow = styled.div.attrs({
-  "data-testid": "inputbar-secondary-controls",
-})`
+const SecondaryControlsRow = styled.div`
   position: absolute;
   right: 8px;
   bottom: calc(100% + 8px);
@@ -78,7 +76,7 @@ export const InputbarOverlayShell: React.FC<InputbarOverlayShellProps> = ({
       />
     ) : null}
     {taskFiles.length > 0 || overlayAccessory ? (
-      <SecondaryControlsRow>
+      <SecondaryControlsRow data-testid="inputbar-secondary-controls">
         <TaskFilesPanel
           files={taskFiles}
           selectedFileId={selectedFileId}

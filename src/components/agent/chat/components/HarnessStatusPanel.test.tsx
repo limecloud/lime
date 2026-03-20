@@ -144,7 +144,7 @@ function createToolInventory(): AgentRuntimeToolInventory {
       {
         name: "write",
         profiles: ["core"],
-        capabilities: ["filesystem"],
+        capabilities: ["workspace_io"],
         lifecycle: "current",
         source: "aster_builtin",
         permission_plane: "parameter_restricted",
@@ -159,7 +159,7 @@ function createToolInventory(): AgentRuntimeToolInventory {
       {
         name: "tool_search",
         profiles: ["core"],
-        capabilities: ["discovery"],
+        capabilities: ["web_search"],
         lifecycle: "current",
         source: "lime_injected",
         permission_plane: "session_allowlist",
@@ -398,6 +398,31 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("当前执行阶段");
     expect(document.body.textContent).toContain("正在建立执行回合");
     expect(document.body.textContent).toContain("等待首个模型事件");
+  });
+
+  it("存在 selectedTeam 时应在工作台展示当前 Team 配置", () => {
+    renderPanel({
+      selectedTeamLabel: "前端联调团队",
+      selectedTeamSummary: "分析、实现、验证三段式推进。",
+      selectedTeamRoles: [
+        {
+          id: "explorer",
+          label: "分析",
+          summary: "负责定位问题、澄清范围。",
+          profileId: "code-explorer",
+          roleKey: "explorer",
+          skillIds: ["repo-exploration", "source-grounding"],
+        },
+      ],
+    });
+
+    expect(document.body.textContent).toContain("当前 Team");
+    expect(document.body.textContent).toContain("当前 Team 配置");
+    expect(document.body.textContent).toContain("前端联调团队");
+    expect(document.body.textContent).toContain("分析、实现、验证三段式推进。");
+    expect(document.body.textContent).toContain("画像 code-explorer");
+    expect(document.body.textContent).toContain("Role explorer");
+    expect(document.body.textContent).toContain("repo-exploration");
   });
 
   it("存在真实 child session 时应优先展示 Team 会话摘要，并将旧 scheduler 降级为兼容轨迹", () => {

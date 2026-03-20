@@ -85,6 +85,11 @@ export async function checkAndReloadGeminiCredentials(
 export async function getQwenCredentials(): Promise<QwenCredentialStatus> {
   const credential = await safeInvoke<{
     loaded: boolean;
+    has_access_token?: boolean;
+    has_refresh_token?: boolean;
+    is_valid?: boolean;
+    expiry_info?: string | null;
+    creds_path?: string | null;
     credentials_path?: string | null;
     status_message?: string | null;
     extra?: Record<string, unknown> | null;
@@ -92,9 +97,28 @@ export async function getQwenCredentials(): Promise<QwenCredentialStatus> {
     provider: "qwen",
   });
   const extra = credential.extra ?? {};
+  const parsedExpiryDate = (() => {
+    if (!credential.expiry_info) {
+      return null;
+    }
+
+    const numericExpiry = Number(credential.expiry_info);
+    if (Number.isFinite(numericExpiry)) {
+      return numericExpiry;
+    }
+
+    const timestamp = Date.parse(credential.expiry_info);
+    return Number.isNaN(timestamp) ? null : timestamp;
+  })();
 
   return {
     loaded: credential.loaded,
+    has_access_token: credential.has_access_token ?? false,
+    has_refresh_token: credential.has_refresh_token ?? false,
+    expiry_date: parsedExpiryDate,
+    is_valid: credential.is_valid ?? false,
+    creds_path:
+      credential.creds_path ?? credential.credentials_path ?? "",
     user_id:
       typeof extra.user_id === "string"
         ? extra.user_id
@@ -107,7 +131,7 @@ export async function getQwenCredentials(): Promise<QwenCredentialStatus> {
         : typeof extra.nickName === "string"
           ? extra.nickName
           : undefined,
-    token_path: credential.credentials_path ?? undefined,
+    token_path: credential.creds_path ?? credential.credentials_path ?? undefined,
     status_message: credential.status_message ?? undefined,
   };
 }

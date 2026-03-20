@@ -19,6 +19,9 @@ interface AgentRuntimeStripProps {
   variant?: "standalone" | "embedded";
   isSending?: boolean;
   runtimeStatusTitle?: string | null;
+  selectedTeamLabel?: string | null;
+  selectedTeamSummary?: string | null;
+  selectedTeamRoleCount?: number;
 }
 
 const THEME_LABELS: Record<string, string> = {
@@ -48,9 +51,14 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
   variant = "standalone",
   isSending = false,
   runtimeStatusTitle = null,
+  selectedTeamLabel = null,
+  selectedTeamSummary = null,
+  selectedTeamRoleCount = 0,
 }) => {
   const themeLabel =
     THEME_LABELS[activeTheme?.trim().toLowerCase() || ""] || "通用对话";
+  const hasSelectedTeam =
+    Boolean(selectedTeamLabel?.trim()) || selectedTeamRoleCount > 0;
 
   const capabilities = useMemo<CapabilityItem[]>(
     () => [
@@ -190,6 +198,13 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="text-sm font-medium text-foreground">通用 Agent</div>
         <Badge variant="outline">{themeLabel}</Badge>
+        {toolPreferences.subagent ? (
+          <Badge variant={hasSelectedTeam ? "secondary" : "outline"}>
+            {hasSelectedTeam
+              ? `Team · ${selectedTeamLabel || `${selectedTeamRoleCount} 角色`}`
+              : "Team mode"}
+          </Badge>
+        ) : null}
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         {capabilities.map((item) => (
@@ -206,6 +221,19 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
           </span>
         ))}
       </div>
+      {toolPreferences.subagent ? (
+        <div className="mb-3 rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">当前 Team</span>
+          <span>
+            {" "}
+            ·{" "}
+            {selectedTeamSummary?.trim() ||
+              (hasSelectedTeam
+                ? `已配置 ${selectedTeamRoleCount} 个角色，运行时可按需委派。`
+                : "已开启 Team mode，本轮可选择或自定义 Team。")}
+          </span>
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {statusItems.map((item) => (
           <Badge key={item.key} variant={item.tone || "outline"}>

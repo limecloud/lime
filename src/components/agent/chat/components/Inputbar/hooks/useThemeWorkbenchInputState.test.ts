@@ -30,7 +30,8 @@ describe("useThemeWorkbenchInputState", () => {
       root.render(React.createElement(TestComponent));
     });
 
-    expect(state?.shouldShowA2UISubmissionNotice).toBe(false);
+    expect(state).not.toBeNull();
+    expect(state!.shouldShowA2UISubmissionNotice).toBe(false);
 
     act(() => {
       root.unmount();

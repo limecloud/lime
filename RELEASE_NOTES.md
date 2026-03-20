@@ -3,6 +3,7 @@
 ### ✨ 主要更新
 
 - **Team Workspace 正式成型**：Agent 聊天页新增 Team Workspace 主工作台、建议栏、Dock 与 Home Shell，围绕多代理协作视图重组交互结构
+- **Team 配置与发布稳定性收尾**：补齐 Team Selector 自定义 Team 配置链路、当前 Team 展示与相关测试，并修复通知、Provider Runtime 与前端类型兼容问题，确保 `v0.92.0` 可稳定构建发布
 - **运行态与工具可视化增强**：`ToolCallDisplay`、Harness 状态面板、Runtime Strip、执行日志与子代理时间线继续增强，工具调用与运行态反馈更完整
 - **Aster Agent 运行时继续收口**：Rust 侧补齐 session store、subagent control、agent tools inventory / execution、runtime queue 及命令桥接，统一现役 Agent Runtime 路径
 - **治理与测试基建升级**：新增 `pr-gate`、本地校验脚本、命令契约检查、workspace smoke 与治理报告更新，发布前自检链路更清晰

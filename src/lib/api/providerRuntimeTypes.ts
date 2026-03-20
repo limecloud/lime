@@ -106,6 +106,10 @@ export interface QwenCredentialStatus {
   expiry_date: number | null;
   is_valid: boolean;
   creds_path: string;
+  user_id?: string;
+  nick_name?: string;
+  token_path?: string;
+  status_message?: string;
 }
 
 export interface OpenAICustomStatus {

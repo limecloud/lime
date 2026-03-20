@@ -78,10 +78,7 @@ describe("legacy tool permission guard", () => {
       const files = collectRustFiles(root);
 
       for (const filePath of files) {
-        const relativePath = relative(REPO_ROOT, filePath).replaceAll(
-          "\\",
-          "/",
-        );
+        const relativePath = relative(REPO_ROOT, filePath).replace(/\\/g, "/");
         if (EXCLUDED_RUST_FILES.has(relativePath)) {
           continue;
         }

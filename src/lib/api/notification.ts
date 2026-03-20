@@ -9,5 +9,9 @@ export interface ShowNotificationRequest {
 export async function showSystemNotification(
   request: ShowNotificationRequest,
 ): Promise<void> {
-  await notificationService.show(request.title, request.body, "info");
+  await notificationService.notify({
+    title: request.title,
+    body: request.body,
+    type: "info",
+  });
 }

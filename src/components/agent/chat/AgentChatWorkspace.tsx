@@ -9267,6 +9267,9 @@ export function AgentChatWorkspace({
             compatSubagentRuntime={compatSubagentRuntime}
             environment={harnessEnvironment}
             childSubagentSessions={childSubagentSessions}
+            selectedTeamLabel={selectedTeamLabel}
+            selectedTeamSummary={selectedTeamSummary}
+            selectedTeamRoles={selectedTeam?.roles}
             toolInventory={toolInventory}
             toolInventoryLoading={toolInventoryLoading}
             toolInventoryError={toolInventoryError}
@@ -9290,6 +9293,9 @@ export function AgentChatWorkspace({
     isThemeWorkbench,
     refreshToolInventory,
     compatSubagentRuntime,
+    selectedTeam?.roles,
+    selectedTeamLabel,
+    selectedTeamSummary,
     toolInventory,
     toolInventoryError,
     toolInventoryLoading,
@@ -9789,6 +9795,9 @@ export function AgentChatWorkspace({
             compatSubagentRuntime={compatSubagentRuntime}
             environment={harnessEnvironment}
             childSubagentSessions={childSubagentSessions}
+            selectedTeamLabel={selectedTeamLabel}
+            selectedTeamSummary={selectedTeamSummary}
+            selectedTeamRoles={selectedTeam?.roles}
             toolInventory={toolInventory}
             toolInventoryLoading={toolInventoryLoading}
             toolInventoryError={toolInventoryError}
@@ -9807,6 +9816,9 @@ export function AgentChatWorkspace({
                 variant="embedded"
                 isSending={isSending}
                 runtimeStatusTitle={activeRuntimeStatusTitle}
+                selectedTeamLabel={selectedTeamLabel}
+                selectedTeamSummary={selectedTeamSummary}
+                selectedTeamRoleCount={selectedTeam?.roles.length || 0}
               />
             }
             onOpenSubagentSession={handleOpenSubagentSession}
@@ -9832,6 +9844,9 @@ export function AgentChatWorkspace({
     mappedTheme,
     refreshToolInventory,
     compatSubagentRuntime,
+    selectedTeam?.roles,
+    selectedTeamLabel,
+    selectedTeamSummary,
     toolInventory,
     toolInventoryError,
     toolInventoryLoading,
