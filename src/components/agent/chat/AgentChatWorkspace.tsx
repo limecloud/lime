@@ -42,7 +42,6 @@ import {
   useAgentChatUnified,
   useArtifactAutoPreviewSync,
   useCompatSubagentRuntime,
-  useRuntimeTeamFormation,
   useTeamWorkspaceRuntime,
   useThemeContextWorkspace,
   useTopicBranchBoard,
@@ -285,6 +284,10 @@ import { useWorkspaceProjectSelection } from "./hooks/useWorkspaceProjectSelecti
 import {
   useBootstrapDispatchPreview,
 } from "./hooks/useBootstrapDispatchPreview";
+import {
+  shouldPrepareRuntimeTeamBeforeSend,
+  useRuntimeTeamFormation,
+} from "./hooks/useRuntimeTeamFormation";
 import { useThemeWorkbenchEntryPrompt } from "./hooks/useThemeWorkbenchEntryPrompt";
 import { useThemeWorkbenchEntryPromptActions } from "./hooks/useThemeWorkbenchEntryPromptActions";
 import {
@@ -970,25 +973,92 @@ interface LayoutTransitionRenderGateProps {
   mode: LayoutMode;
   chatContent: ReactNode;
   canvasContent: ReactNode;
+  chatPanelWidth?: string;
+  chatPanelMinWidth?: string;
 }
 
 const LayoutTransitionRenderGate = memo(
-  ({ mode, chatContent, canvasContent }: LayoutTransitionRenderGateProps) => (
+  ({
+    mode,
+    chatContent,
+    canvasContent,
+    chatPanelWidth,
+    chatPanelMinWidth,
+  }: LayoutTransitionRenderGateProps) => (
     <ThemeWorkbenchCanvasHost>
       <LayoutTransition
         mode={mode}
         chatContent={chatContent}
         canvasContent={canvasContent}
         chatPanelChrome="plain"
+        chatPanelWidth={chatPanelWidth}
+        chatPanelMinWidth={chatPanelMinWidth}
       />
     </ThemeWorkbenchCanvasHost>
   ),
   (previous, next) =>
     previous.mode === next.mode &&
     previous.chatContent === next.chatContent &&
-    previous.canvasContent === next.canvasContent,
+    previous.canvasContent === next.canvasContent &&
+    previous.chatPanelWidth === next.chatPanelWidth &&
+    previous.chatPanelMinWidth === next.chatPanelMinWidth,
 );
 LayoutTransitionRenderGate.displayName = "LayoutTransitionRenderGate";
+
+const TEAM_PRIMARY_CHAT_PANEL_WIDTH = "min(100%, clamp(360px, 30%, 460px))";
+const TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH = "360px";
+
+interface RuntimeTeamDispatchPreviewSnapshot {
+  key: string;
+  prompt: string;
+  images: MessageImage[];
+  baseMessageCount: number;
+  status: "forming" | "failed";
+  failureMessage?: string | null;
+}
+
+function buildRuntimeTeamDispatchPreviewMessages(
+  snapshot: RuntimeTeamDispatchPreviewSnapshot,
+): Message[] {
+  const normalizedPrompt = snapshot.prompt.trim();
+  const timestamp = new Date();
+  const assistantRuntimeStatus =
+    snapshot.status === "failed"
+      ? {
+          phase: "failed" as const,
+          title: "Team 调度准备失败",
+          detail:
+            snapshot.failureMessage?.trim() ||
+            "本轮 Team 组建失败，已回退到普通对话发送。",
+        }
+      : {
+          phase: "routing" as const,
+          title: "正在组建 Team",
+          detail: "系统正在根据本轮任务准备成员，并切换到 Team 画布。",
+          checkpoints: ["记录本轮调度", "生成成员蓝图", "等待角色接管轨道"],
+        };
+
+  return [
+    {
+      id: `runtime-team-dispatch:${snapshot.key}:user`,
+      role: "user",
+      content: normalizedPrompt,
+      images: snapshot.images.length > 0 ? snapshot.images : undefined,
+      timestamp,
+    },
+    {
+      id: `runtime-team-dispatch:${snapshot.key}:assistant`,
+      role: "assistant",
+      content:
+        snapshot.status === "failed"
+          ? "本轮 Team 调度准备失败，已回退到普通执行。"
+          : "本轮已进入 Team 调度，正在组建成员…",
+      timestamp: new Date(timestamp.getTime() + 1),
+      isThinking: snapshot.status === "forming",
+      runtimeStatus: assistantRuntimeStatus,
+    },
+  ];
+}
 
 const ThemeWorkbenchLeftExpandButton = styled.button`
   position: absolute;
@@ -3655,25 +3725,73 @@ export function AgentChatWorkspace({
     sessionId ?? null,
   );
   const previousRealTeamGraphRef = useRef(hasRealTeamGraph);
+  const previousTeamWorkbenchLayoutModeRef = useRef<LayoutMode>(layoutMode);
+  const lastAutoActivatedRuntimeTeamRequestIdRef = useRef<string | null>(null);
+  const dismissedRuntimeTeamRequestIdRef = useRef<string | null>(null);
   const handleActivateTeamWorkbench = useCallback(() => {
     setTeamWorkbenchAutoFocusToken((current) => current + 1);
     setLayoutMode((current) => (current === "chat" ? "chat-canvas" : current));
   }, []);
   useEffect(() => {
+    const previousLayoutMode = previousTeamWorkbenchLayoutModeRef.current;
+    const activeRuntimeTeamRequestId = runtimeTeamState?.requestId ?? null;
+
+    if (
+      activeRuntimeTeamRequestId &&
+      previousLayoutMode !== "chat" &&
+      layoutMode === "chat"
+    ) {
+      dismissedRuntimeTeamRequestIdRef.current = activeRuntimeTeamRequestId;
+    }
+
+    previousTeamWorkbenchLayoutModeRef.current = layoutMode;
+  }, [layoutMode, runtimeTeamState?.requestId]);
+  useEffect(() => {
     const normalizedSessionId = sessionId ?? null;
+    const activeRuntimeTeamRequestId = runtimeTeamState?.requestId ?? null;
+    const shouldAutoActivateRuntimeTeam =
+      Boolean(activeRuntimeTeamRequestId) &&
+      runtimeTeamState?.status !== "failed" &&
+      dismissedRuntimeTeamRequestIdRef.current !== activeRuntimeTeamRequestId &&
+      lastAutoActivatedRuntimeTeamRequestIdRef.current !==
+        activeRuntimeTeamRequestId;
 
     if (previousTeamWorkbenchSessionIdRef.current !== normalizedSessionId) {
       previousTeamWorkbenchSessionIdRef.current = normalizedSessionId;
       previousRealTeamGraphRef.current = hasRealTeamGraph;
+      previousTeamWorkbenchLayoutModeRef.current = layoutMode;
+      lastAutoActivatedRuntimeTeamRequestIdRef.current = null;
+      dismissedRuntimeTeamRequestIdRef.current = null;
       return;
     }
 
-    if (hasRealTeamGraph && !previousRealTeamGraphRef.current) {
+    if (shouldAutoActivateRuntimeTeam && activeRuntimeTeamRequestId) {
+      lastAutoActivatedRuntimeTeamRequestIdRef.current =
+        activeRuntimeTeamRequestId;
+      handleActivateTeamWorkbench();
+    }
+
+    const shouldSkipGraphAutoActivate =
+      activeRuntimeTeamRequestId !== null &&
+      dismissedRuntimeTeamRequestIdRef.current === activeRuntimeTeamRequestId;
+
+    if (
+      hasRealTeamGraph &&
+      !previousRealTeamGraphRef.current &&
+      !shouldSkipGraphAutoActivate
+    ) {
       handleActivateTeamWorkbench();
     }
 
     previousRealTeamGraphRef.current = hasRealTeamGraph;
-  }, [handleActivateTeamWorkbench, hasRealTeamGraph, sessionId]);
+  }, [
+    handleActivateTeamWorkbench,
+    hasRealTeamGraph,
+    layoutMode,
+    runtimeTeamState?.requestId,
+    runtimeTeamState?.status,
+    sessionId,
+  ]);
   useEffect(() => {
     logAgentDebug(
       "AgentChatPage",
@@ -5378,6 +5496,8 @@ export function AgentChatWorkspace({
   // 用于追踪是否已触发过 AI 引导
   const hasTriggeredGuide = useRef(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
+  const [runtimeTeamDispatchPreview, setRuntimeTeamDispatchPreview] =
+    useState<RuntimeTeamDispatchPreviewSnapshot | null>(null);
   const {
     initialDispatchKey,
     isBootstrapDispatchPending,
@@ -5412,6 +5532,37 @@ export function AgentChatWorkspace({
       setInput((previous) => previous.trim() || prompt);
     }, []),
   });
+  useEffect(() => {
+    setRuntimeTeamDispatchPreview(null);
+  }, [sessionId]);
+  useEffect(() => {
+    if (!runtimeTeamDispatchPreview) {
+      return;
+    }
+
+    if (messages.length > runtimeTeamDispatchPreview.baseMessageCount) {
+      setRuntimeTeamDispatchPreview(null);
+    }
+  }, [messages.length, runtimeTeamDispatchPreview]);
+  useEffect(() => {
+    if (
+      !runtimeTeamDispatchPreview ||
+      runtimeTeamDispatchPreview.status === "failed" ||
+      runtimeTeamState?.status !== "failed"
+    ) {
+      return;
+    }
+
+    setRuntimeTeamDispatchPreview((current) =>
+      current
+        ? {
+            ...current,
+            status: "failed",
+            failureMessage: runtimeTeamState.errorMessage?.trim() || null,
+          }
+        : null,
+    );
+  }, [runtimeTeamDispatchPreview, runtimeTeamState]);
   const consumeInitialPrompt = useCallback(
     (dispatchKey: string) => {
       consumedInitialPromptRef.current = dispatchKey;
@@ -6127,6 +6278,8 @@ export function AgentChatWorkspace({
         });
       }
 
+      setRuntimeTeamDispatchPreview(null);
+
       try {
         const { selectedProvider, providerModels } =
           await resolveSendProviderContext();
@@ -6217,6 +6370,23 @@ export function AgentChatWorkspace({
             );
             return false;
           }
+        }
+
+        const shouldPrepareRuntimeTeam = shouldPrepareRuntimeTeamBeforeSend({
+          subagentEnabled: effectiveToolPreferences.subagent,
+          projectId,
+          input: sourceText,
+          purpose: sendOptions?.purpose,
+        });
+
+        if (shouldPrepareRuntimeTeam) {
+          setRuntimeTeamDispatchPreview({
+            key: crypto.randomUUID(),
+            prompt: sourceText,
+            images: images || [],
+            baseMessageCount: messages.length,
+            status: "forming",
+          });
         }
 
         const preparedRuntimeTeamState = await prepareRuntimeTeamBeforeSend({
@@ -6336,6 +6506,15 @@ export function AgentChatWorkspace({
         rollbackAfterSendFailure(sendBoundary);
         const errorMessage =
           error instanceof Error ? error.message : String(error);
+        setRuntimeTeamDispatchPreview((current) =>
+          current
+            ? {
+                ...current,
+                status: "failed",
+                failureMessage: errorMessage,
+              }
+            : null,
+        );
         sendOptions?.observer?.onError?.(errorMessage);
         console.error("[AgentChat] 发送消息失败:", error);
         toast.error(`发送失败: ${errorMessage}`);
@@ -6357,6 +6536,7 @@ export function AgentChatWorkspace({
       mappedTheme,
       activeTheme,
       executionStrategy,
+      messages.length,
       model,
       projectId,
       preferredTeamPresetId,
@@ -6986,11 +7166,18 @@ export function AgentChatWorkspace({
 
   const displayMessages = useMemo(() => {
     const collapsedMessages = collapseLegacyQuestionnaireMessages(messages);
+    const runtimeTeamDispatchPreviewMessages = runtimeTeamDispatchPreview
+      ? buildRuntimeTeamDispatchPreviewMessages(runtimeTeamDispatchPreview)
+      : [];
     if (browserTaskPreflight) {
       return [
         ...collapsedMessages,
         ...buildBrowserPreflightMessages(browserTaskPreflight),
       ];
+    }
+
+    if (runtimeTeamDispatchPreviewMessages.length > 0) {
+      return [...collapsedMessages, ...runtimeTeamDispatchPreviewMessages];
     }
 
     if (
@@ -7001,7 +7188,12 @@ export function AgentChatWorkspace({
     }
 
     return collapsedMessages;
-  }, [bootstrapDispatchPreviewMessages, browserTaskPreflight, messages]);
+  }, [
+    bootstrapDispatchPreviewMessages,
+    browserTaskPreflight,
+    messages,
+    runtimeTeamDispatchPreview,
+  ]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -10433,9 +10625,9 @@ export function AgentChatWorkspace({
             subtitle: hasRealTeamGraph
               ? "主对话保留调度记录，画布按角色分别展示执行过程与结果。"
               : runtimeTeamState?.status === "forming"
-                ? "正在根据本轮任务准备 Team，随后会在画布中展示成员编队。"
+                ? "正在为本轮任务组建成员，画布会先展示蓝图轨道，真实角色加入后自动接管。"
                 : runtimeTeamState?.status === "formed"
-                  ? "本轮 Team 已就绪，画布展示当前成员与后续真实协作轨道。"
+                  ? "本轮 Team 已就绪，主对话仅保留调度记录，执行正文继续留在各角色轨道。"
                   : runtimeTeamState?.status === "failed"
                     ? runtimeTeamState.errorMessage?.trim() ||
                       "本轮 Team 准备失败，可直接查看失败原因并继续当前对话。"
@@ -10458,6 +10650,16 @@ export function AgentChatWorkspace({
       teamWorkbenchSummaryPanel,
     ],
   );
+  const shouldUseTeamPrimaryChatPanelWidth =
+    layoutMode === "chat-canvas" &&
+    showTeamWorkspaceBoard &&
+    (hasRealTeamGraph || Boolean(runtimeTeamState));
+  const layoutTransitionChatPanelWidth = shouldUseTeamPrimaryChatPanelWidth
+    ? TEAM_PRIMARY_CHAT_PANEL_WIDTH
+    : undefined;
+  const layoutTransitionChatPanelMinWidth = shouldUseTeamPrimaryChatPanelWidth
+    ? TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH
+    : undefined;
   const themeWorkbenchLayoutBottomSpacing =
     resolveThemeWorkbenchLayoutBottomSpacing({
       contextWorkspaceEnabled: contextWorkspace.enabled,
@@ -10986,6 +11188,8 @@ export function AgentChatWorkspace({
             mode={isThemeWorkbench && canvasContent ? "canvas" : layoutMode}
             chatContent={chatContent}
             canvasContent={canvasContent}
+            chatPanelWidth={layoutTransitionChatPanelWidth}
+            chatPanelMinWidth={layoutTransitionChatPanelMinWidth}
           />
         </ThemeWorkbenchLayoutShell>
         {generalWorkbenchDialog}
@@ -11030,6 +11234,8 @@ export function AgentChatWorkspace({
       isBrowserAssistCanvasVisible,
       navbarHarnessPanelVisible,
       harnessPendingCount,
+      layoutTransitionChatPanelMinWidth,
+      layoutTransitionChatPanelWidth,
       layoutMode,
       novelChapterListCollapsed,
       onBackToProjectManagement,

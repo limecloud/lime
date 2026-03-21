@@ -27,6 +27,11 @@ export interface TransitionConfig {
   exitDelay?: number;
 }
 
+export interface LayoutTransitionOptions {
+  /** chat-canvas 模式下聊天面板宽度 */
+  chatCanvasPanelWidth?: string;
+}
+
 const DEFAULT_CONFIG: Required<TransitionConfig> = {
   enterDuration: 300,
   exitDuration: 250,
@@ -44,6 +49,7 @@ const CHAT_CANVAS_PANEL_WIDTH = "min(100%, clamp(480px, 40%, 600px))";
 export function useLayoutTransition(
   mode: LayoutMode,
   config: TransitionConfig = {},
+  options: LayoutTransitionOptions = {},
 ) {
   const mergedConfig = useMemo(
     () => ({ ...DEFAULT_CONFIG, ...config }),
@@ -125,13 +131,13 @@ export function useLayoutTransition(
         transition: `width ${duration}ms ease-out`,
         width:
           mode === "chat-canvas"
-            ? CHAT_CANVAS_PANEL_WIDTH
+            ? options.chatCanvasPanelWidth || CHAT_CANVAS_PANEL_WIDTH
             : mode === "canvas"
               ? "0%"
               : "100%",
       };
     },
-    [transitionState, mergedConfig, mode],
+    [transitionState, mergedConfig, mode, options.chatCanvasPanelWidth],
   );
 
   return {

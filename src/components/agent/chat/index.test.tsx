@@ -1564,7 +1564,7 @@ describe("AgentChatPage 通用工作台", () => {
     ).not.toBeNull();
   });
 
-  it("Team 组建中与仅完成编队时，不应自动切到 Team 画布", async () => {
+  it("Team 组建中与仅完成编队时，应立即切到 Team 画布并展示本地调度预览", async () => {
     let resolveGeneratedTeam:
       | ((value: {
           id: string;
@@ -1612,8 +1612,8 @@ describe("AgentChatPage 通用工作台", () => {
       | MockInputbarSendProps
       | undefined;
 
-    await act(async () => {
-      await latestInputbarProps?.onSend?.(
+    act(() => {
+      void latestInputbarProps?.onSend?.(
         [],
         false,
         false,
@@ -1631,18 +1631,55 @@ describe("AgentChatPage 通用工作台", () => {
         input: "请帮我拆解并推进这个修复任务",
       }),
     );
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<{
+            role: string;
+            content: string;
+            runtimeStatus?: { title?: string };
+          }>;
+        }
+      | undefined;
+
     expect(
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat");
+    ).toBe("chat-canvas");
     expect(
-      mounted.container
-        .querySelector('[data-testid="team-workspace-dock"]')
-        ?.getAttribute("data-runtime-status"),
-    ).toBe("forming");
+      latestMessageListProps?.messages?.map((message) => ({
+        role: message.role,
+        content: message.content,
+        runtimeTitle: message.runtimeStatus?.title || null,
+      })),
+    ).toEqual([
+      {
+        role: "user",
+        content: "请帮我拆解并推进这个修复任务",
+        runtimeTitle: null,
+      },
+      {
+        role: "assistant",
+        content: "本轮已进入 Team 调度，正在组建成员…",
+        runtimeTitle: "正在组建 Team",
+      },
+    ]);
+    expect(
+      mounted.container.querySelector('[data-testid="team-workspace-dock"]'),
+    ).toBeNull();
+    expect(
+      (
+        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
+          | {
+              teamView?: {
+                triggerState?: { label?: string | null };
+              } | null;
+            }
+          | undefined
+      )?.teamView?.triggerState?.label,
+    ).toBe("组建中");
 
-    await act(async () => {
+    act(() => {
       resolveGeneratedTeam?.({
         id: "ephemeral-team",
         source: "ephemeral",
@@ -1667,7 +1704,6 @@ describe("AgentChatPage 通用工作台", () => {
           },
         ],
       });
-      await Promise.resolve();
     });
     await flushEffects(10);
 
@@ -1675,20 +1711,21 @@ describe("AgentChatPage 通用工作台", () => {
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat");
+    ).toBe("chat-canvas");
     expect(
-      mounted.container
-        .querySelector('[data-testid="team-workspace-dock"]')
-        ?.getAttribute("data-runtime-status"),
-    ).toBe("formed");
-    expect(
-      mounted.container
-        .querySelector('[data-testid="team-workspace-dock"]')
-        ?.getAttribute("data-child-count"),
-    ).toBe("0");
+      (
+        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
+          | {
+              teamView?: {
+                triggerState?: { label?: string | null };
+              } | null;
+            }
+          | undefined
+      )?.teamView?.triggerState?.label,
+    ).toBe("已就绪");
   });
 
-  it("用户手动点击 Team 入口时，组建中的 Team 也应直接切到 Team 画布", async () => {
+  it("用户手动切回聊天后，同一轮 Team 组建与真实成员到达都不应再次抢焦点", async () => {
     let resolveGeneratedTeam:
       | ((value: {
           id: string;
@@ -1705,12 +1742,70 @@ describe("AgentChatPage 通用工作台", () => {
           }>;
         }) => void)
       | null = null;
+    const runtimeState = {
+      childSubagentSessions: [] as Array<{
+        id: string;
+        name: string;
+        created_at: number;
+        updated_at: number;
+        session_type: "sub_agent";
+        runtime_status: "running";
+        task_summary: string;
+        role_hint: string;
+      }>,
+    };
 
     mockGenerateEphemeralTeamWithModel.mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveGeneratedTeam = resolve;
         }),
+    );
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return {
+          providerType: "kiro",
+          setProviderType: vi.fn(),
+          model: "mock-model",
+          setModel: vi.fn(),
+          executionStrategy: "auto",
+          setExecutionStrategy: vi.fn(),
+          messages: [],
+          currentTurnId: null,
+          turns: [],
+          threadItems: [],
+          todoItems: [],
+          childSubagentSessions: runtimeState.childSubagentSessions,
+          subagentParentContext: null,
+          queuedTurns: [],
+          isSending: false,
+          sendMessage: sharedSendMessageMock,
+          stopSending: vi.fn(async () => undefined),
+          promoteQueuedTurn: vi.fn(async () => false),
+          removeQueuedTurn: vi.fn(async () => false),
+          clearMessages: vi.fn(),
+          deleteMessage: vi.fn(),
+          editMessage: vi.fn(),
+          handlePermissionResponse: vi.fn(),
+          pendingActions: [],
+          triggerAIGuide: sharedTriggerAIGuideMock,
+          topics: [
+            {
+              id: "topic-a",
+              title: "话题 A",
+              updatedAt: Date.now(),
+            },
+          ],
+          sessionId: "session-1",
+          switchTopic: sharedSwitchTopicMock,
+          deleteTopic: vi.fn(),
+          renameTopic: vi.fn(),
+          workspacePathMissing: false,
+          fixWorkspacePathAndRetry: vi.fn(),
+          dismissWorkspacePathError: vi.fn(),
+        };
+      },
     );
 
     const mounted = mountPage({
@@ -1736,8 +1831,8 @@ describe("AgentChatPage 通用工作台", () => {
       | MockInputbarSendProps
       | undefined;
 
-    await act(async () => {
-      await latestInputbarProps?.onSend?.(
+    act(() => {
+      void latestInputbarProps?.onSend?.(
         [],
         false,
         false,
@@ -1751,23 +1846,18 @@ describe("AgentChatPage 通用工作台", () => {
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat");
-    expect(
-      mounted.container
-        .querySelector('[data-testid="team-workspace-dock"]')
-        ?.getAttribute("data-runtime-status"),
-    ).toBe("forming");
+    ).toBe("chat-canvas");
 
-    clickButton(mounted.container, "team-workspace-dock-activate");
+    clickButton(mounted.container, "toggle-canvas");
     await flushEffects(8);
 
     expect(
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
+    ).toBe("chat");
 
-    await act(async () => {
+    act(() => {
       resolveGeneratedTeam?.({
         id: "ephemeral-team-manual",
         source: "ephemeral",
@@ -1792,9 +1882,35 @@ describe("AgentChatPage 通用工作台", () => {
           },
         ],
       });
-      await Promise.resolve();
     });
     await flushEffects(8);
+
+    expect(
+      mounted.container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat");
+
+    runtimeState.childSubagentSessions = [
+      {
+        id: "child-1",
+        name: "执行成员",
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        session_type: "sub_agent",
+        runtime_status: "running",
+        task_summary: "继续执行修复任务",
+        role_hint: "executor",
+      },
+    ];
+    mounted.rerender();
+    await flushEffects(8);
+
+    expect(
+      mounted.container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat");
   });
 
   it("同一会话首次出现真实 Team 成员时，应自动切到 Team 画布", async () => {
@@ -2322,8 +2438,8 @@ describe("AgentChatPage 通用工作台", () => {
         }
       | undefined;
 
-    await act(async () => {
-      await inputbarProps?.onSend?.([], false, false, prompt);
+    act(() => {
+      void inputbarProps?.onSend?.([], false, false, prompt);
     });
     await flushEffects(12);
 
@@ -2396,8 +2512,8 @@ describe("AgentChatPage 通用工作台", () => {
         }
       | undefined;
 
-    await act(async () => {
-      await inputbarProps?.onSend?.([], false, false, prompt, "auto");
+    act(() => {
+      void inputbarProps?.onSend?.([], false, false, prompt, "auto");
     });
     await flushEffects(12);
 
@@ -2459,8 +2575,8 @@ describe("AgentChatPage 通用工作台", () => {
         }
       | undefined;
 
-    await act(async () => {
-      await inputbarProps?.onSend?.([], false, false, prompt, "auto");
+    act(() => {
+      void inputbarProps?.onSend?.([], false, false, prompt, "auto");
     });
     await flushEffects(12);
 
@@ -2485,8 +2601,8 @@ describe("AgentChatPage 通用工作台", () => {
       | string
       | undefined;
 
-    await act(async () => {
-      await messageListProps?.onPermissionResponse?.({
+    act(() => {
+      void messageListProps?.onPermissionResponse?.({
         requestId: requestId || "",
         confirmed: true,
         actionType: "ask_user",

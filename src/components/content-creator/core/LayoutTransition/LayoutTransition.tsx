@@ -127,6 +127,10 @@ interface LayoutTransitionProps {
   transitionConfig?: TransitionConfig;
   /** 聊天区域是否使用额外面板壳 */
   chatPanelChrome?: "panel" | "plain";
+  /** chat-canvas 模式下聊天面板宽度 */
+  chatPanelWidth?: string;
+  /** chat-canvas 模式下聊天面板最小宽度 */
+  chatPanelMinWidth?: string;
 }
 
 /**
@@ -141,12 +145,17 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
     canvasContent,
     transitionConfig,
     chatPanelChrome = "panel",
+    chatPanelWidth,
+    chatPanelMinWidth,
   }) => {
     const hasCanvasContent = React.Children.count(canvasContent) > 0;
     const effectiveMode: LayoutMode = hasCanvasContent ? mode : "chat";
     const { isCanvasVisible, getTransitionStyles } = useLayoutTransition(
       effectiveMode,
       transitionConfig,
+      {
+        chatCanvasPanelWidth: chatPanelWidth,
+      },
     );
     const [stackedChatCanvas, setStackedChatCanvas] = useState(() =>
       shouldUseStackedChatCanvasLayout(effectiveMode),
@@ -199,7 +208,11 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
           $duration={parseInt(
             chatStyles.transition?.match(/\d+/)?.[0] || "300",
           )}
-          $minWidth={effectiveMode === "chat-canvas" ? "360px" : "0px"}
+          $minWidth={
+            effectiveMode === "chat-canvas"
+              ? chatPanelMinWidth || "360px"
+              : "0px"
+          }
           $stacked={stackedChatCanvas}
           $hidden={effectiveMode === "canvas"}
           $chrome={chatPanelChrome}
