@@ -115,7 +115,7 @@ export function UpdateNotificationPage() {
 
     try {
       await downloadUpdate();
-      // download_update 成功后会自动关闭窗口并启动安装程序
+      // download_update 成功后会自动重启应用完成升级
     } catch (error) {
       console.error("下载更新失败:", error);
       // 如果下载失败，尝试打开浏览器

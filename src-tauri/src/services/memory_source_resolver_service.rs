@@ -57,6 +57,14 @@ pub struct EffectiveMemorySourcesResponse {
 pub struct MemorySourceResolution {
     pub response: EffectiveMemorySourcesResponse,
     pub prompt_segments: Vec<String>,
+    pub prompt_sources: Vec<MemoryPromptSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryPromptSegment {
+    pub title: String,
+    pub path: String,
+    pub content: String,
 }
 
 /// 解析有效记忆来源
@@ -73,6 +81,7 @@ pub fn resolve_effective_sources(
 
     let mut sources = Vec::new();
     let mut prompt_segments = Vec::new();
+    let mut prompt_sources = Vec::new();
     let mut seen = HashSet::new();
 
     // 1. managed policy
@@ -90,6 +99,7 @@ pub fn resolve_effective_sources(
         &mut seen,
         &mut sources,
         &mut prompt_segments,
+        &mut prompt_sources,
     );
 
     // 2. user memory
@@ -107,6 +117,7 @@ pub fn resolve_effective_sources(
         &mut seen,
         &mut sources,
         &mut prompt_segments,
+        &mut prompt_sources,
     );
 
     // 3. cross-thread durable memory (`/memories/...`)
@@ -116,16 +127,13 @@ pub fn resolve_effective_sources(
         &mut seen,
         &mut sources,
         &mut prompt_segments,
+        &mut prompt_sources,
     );
 
     // 4. project hierarchy memory + rules
     let ancestors = collect_ancestor_dirs(working_dir);
-    for ancestor in &ancestors {
-        for rel in &memory.sources.project_memory_paths {
-            if rel.trim().is_empty() {
-                continue;
-            }
-            let candidate = ancestor.join(rel);
+    for rel in &memory.sources.project_memory_paths {
+        for candidate in resolve_project_relative_candidates(working_dir, &ancestors, rel) {
             resolve_file_source(
                 "project_memory",
                 &candidate,
@@ -134,17 +142,21 @@ pub fn resolve_effective_sources(
                 &mut seen,
                 &mut sources,
                 &mut prompt_segments,
+                &mut prompt_sources,
             );
         }
+    }
 
-        if let Some(project_local_rel) = memory
-            .sources
-            .project_local_memory_path
-            .as_deref()
-            .map(str::trim)
-            .filter(|v| !v.is_empty())
+    if let Some(project_local_rel) = memory
+        .sources
+        .project_local_memory_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        for candidate in
+            resolve_project_relative_candidates(working_dir, &ancestors, project_local_rel)
         {
-            let candidate = ancestor.join(project_local_rel);
             resolve_file_source(
                 "project_local",
                 &candidate,
@@ -153,9 +165,12 @@ pub fn resolve_effective_sources(
                 &mut seen,
                 &mut sources,
                 &mut prompt_segments,
+                &mut prompt_sources,
             );
         }
+    }
 
+    for ancestor in &ancestors {
         for rel in &memory.sources.project_rule_dirs {
             if rel.trim().is_empty() {
                 continue;
@@ -168,6 +183,7 @@ pub fn resolve_effective_sources(
                 &mut seen,
                 &mut sources,
                 &mut prompt_segments,
+                &mut prompt_sources,
             );
         }
     }
@@ -189,6 +205,7 @@ pub fn resolve_effective_sources(
                     &mut seen,
                     &mut sources,
                     &mut prompt_segments,
+                    &mut prompt_sources,
                 );
             }
             for rel in &memory.sources.project_rule_dirs {
@@ -203,6 +220,7 @@ pub fn resolve_effective_sources(
                     &mut seen,
                     &mut sources,
                     &mut prompt_segments,
+                    &mut prompt_sources,
                 );
             }
         }
@@ -214,6 +232,7 @@ pub fn resolve_effective_sources(
         working_dir,
         &mut sources,
         &mut prompt_segments,
+        &mut prompt_sources,
         &mut seen,
     );
 
@@ -230,6 +249,7 @@ pub fn resolve_effective_sources(
     MemorySourceResolution {
         response,
         prompt_segments,
+        prompt_sources,
     }
 }
 
@@ -240,24 +260,52 @@ pub fn build_memory_sources_prompt(
     active_relative_path: Option<&str>,
     max_chars: usize,
 ) -> Option<String> {
+    build_memory_sources_prompt_with_options(
+        config,
+        working_dir,
+        active_relative_path,
+        max_chars,
+        false,
+    )
+}
+
+pub fn build_memory_sources_prompt_with_options(
+    config: &Config,
+    working_dir: &Path,
+    active_relative_path: Option<&str>,
+    max_chars: usize,
+    skip_runtime_agents_overlap: bool,
+) -> Option<String> {
     let resolution = resolve_effective_sources(config, working_dir, active_relative_path);
-    if resolution.prompt_segments.is_empty() {
+    if resolution.prompt_sources.is_empty() {
         return None;
     }
 
     let mut output = String::from("【记忆来源补充指令】\n");
     output.push_str("以下内容来自配置化记忆来源，请优先遵循：\n");
+    let runtime_agent_paths = if skip_runtime_agents_overlap {
+        runtime_agent_overlap_paths(working_dir)
+    } else {
+        HashSet::new()
+    };
 
     let mut used = 0usize;
-    for segment in resolution.prompt_segments {
-        if segment.trim().is_empty() {
+    for segment in resolution.prompt_sources {
+        if should_skip_runtime_agent_overlap(&segment, &runtime_agent_paths) {
+            continue;
+        }
+        let rendered = format!(
+            "### {} ({})\n{}",
+            segment.title, segment.path, segment.content
+        );
+        if rendered.trim().is_empty() {
             continue;
         }
         if used >= max_chars {
             break;
         }
         let remaining = max_chars.saturating_sub(used);
-        let clipped = clip_text(&segment, remaining);
+        let clipped = clip_text(&rendered, remaining);
         if clipped.trim().is_empty() {
             continue;
         }
@@ -274,6 +322,23 @@ pub fn build_memory_sources_prompt(
     }
 }
 
+fn runtime_agent_overlap_paths(working_dir: &Path) -> HashSet<PathBuf> {
+    let mut paths = HashSet::new();
+    paths.insert(normalize_path(&app_paths::best_effort_user_memory_path()));
+    paths.insert(normalize_path(&working_dir.join(".lime").join("AGENTS.md")));
+    paths
+}
+
+fn should_skip_runtime_agent_overlap(
+    segment: &MemoryPromptSegment,
+    runtime_agent_paths: &HashSet<PathBuf>,
+) -> bool {
+    if runtime_agent_paths.is_empty() {
+        return false;
+    }
+    runtime_agent_paths.contains(&normalize_path(Path::new(&segment.path)))
+}
+
 fn resolve_file_source(
     kind: &str,
     file_path: &Path,
@@ -282,6 +347,7 @@ fn resolve_file_source(
     seen: &mut HashSet<PathBuf>,
     output: &mut Vec<EffectiveMemorySource>,
     prompt_segments: &mut Vec<String>,
+    prompt_sources: &mut Vec<MemoryPromptSegment>,
 ) {
     resolve_file_source_with_display_path(
         kind,
@@ -292,6 +358,7 @@ fn resolve_file_source(
         seen,
         output,
         prompt_segments,
+        prompt_sources,
     );
 }
 
@@ -304,6 +371,7 @@ fn resolve_file_source_with_display_path(
     seen: &mut HashSet<PathBuf>,
     output: &mut Vec<EffectiveMemorySource>,
     prompt_segments: &mut Vec<String>,
+    prompt_sources: &mut Vec<MemoryPromptSegment>,
 ) {
     let normalized = normalize_path(file_path);
     if !seen.insert(normalized.clone()) {
@@ -359,6 +427,11 @@ fn resolve_file_source_with_display_path(
 
             if loaded {
                 prompt_segments.push(format!("### {} ({})\n{}", kind, display_path, content));
+                prompt_sources.push(MemoryPromptSegment {
+                    title: kind.to_string(),
+                    path: display_path,
+                    content,
+                });
             }
         }
         Err(err) => {
@@ -382,6 +455,7 @@ fn resolve_durable_memory_sources(
     seen: &mut HashSet<PathBuf>,
     output: &mut Vec<EffectiveMemorySource>,
     prompt_segments: &mut Vec<String>,
+    prompt_sources: &mut Vec<MemoryPromptSegment>,
 ) {
     let root = match resolve_durable_memory_root() {
         Ok(path) => path,
@@ -454,6 +528,7 @@ fn resolve_durable_memory_sources(
             seen,
             output,
             prompt_segments,
+            prompt_sources,
         );
     }
 }
@@ -465,6 +540,7 @@ fn resolve_rule_sources(
     seen: &mut HashSet<PathBuf>,
     output: &mut Vec<EffectiveMemorySource>,
     prompt_segments: &mut Vec<String>,
+    prompt_sources: &mut Vec<MemoryPromptSegment>,
 ) {
     let normalized = normalize_path(rule_dir);
     let dir_key = normalized.join("__rules_dir__");
@@ -547,6 +623,11 @@ fn resolve_rule_sources(
                 normalized_rule.display(),
                 rule.content
             ));
+            prompt_sources.push(MemoryPromptSegment {
+                title: format!("规则: {}", rule.title),
+                path: normalized_rule.to_string_lossy().to_string(),
+                content: rule.content,
+            });
         }
     }
 }
@@ -556,6 +637,7 @@ fn resolve_auto_memory_source(
     working_dir: &Path,
     output: &mut Vec<EffectiveMemorySource>,
     prompt_segments: &mut Vec<String>,
+    prompt_sources: &mut Vec<MemoryPromptSegment>,
     seen: &mut HashSet<PathBuf>,
 ) {
     let auto_root = resolve_auto_memory_root(working_dir, &memory_config.auto);
@@ -599,6 +681,11 @@ fn resolve_auto_memory_source(
                     entry_path.display(),
                     idx.preview_lines.join("\n")
                 ));
+                prompt_sources.push(MemoryPromptSegment {
+                    title: "auto_memory".to_string(),
+                    path: entry_path.to_string_lossy().to_string(),
+                    content: idx.preview_lines.join("\n"),
+                });
             }
         }
         Err(err) => {
@@ -762,7 +849,7 @@ fn expand_path(path: &str, working_dir: Option<&Path>) -> PathBuf {
 
 fn default_user_memory_path() -> PathBuf {
     app_paths::resolve_user_memory_path()
-        .unwrap_or_else(|_| app_paths::best_effort_app_data_file("AGENTS.md"))
+        .unwrap_or_else(|_| app_paths::best_effort_user_memory_path())
 }
 
 fn default_managed_policy_path() -> PathBuf {
@@ -784,6 +871,31 @@ fn default_managed_policy_path() -> PathBuf {
 
 fn normalize_path(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn resolve_project_relative_candidates(
+    working_dir: &Path,
+    ancestors: &[PathBuf],
+    relative_path: &str,
+) -> Vec<PathBuf> {
+    let trimmed = relative_path.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    if is_workspace_local_instruction_path(trimmed) {
+        return vec![working_dir.join(trimmed)];
+    }
+
+    ancestors
+        .iter()
+        .map(|ancestor| ancestor.join(trimmed))
+        .collect()
+}
+
+fn is_workspace_local_instruction_path(relative_path: &str) -> bool {
+    let normalized = relative_path.trim_start_matches("./").replace('\\', "/");
+    normalized.starts_with(".lime/")
 }
 
 fn find_git_root(start: &Path) -> Option<PathBuf> {
@@ -861,12 +973,13 @@ mod tests {
         let tmp = TempDir::new().expect("create temp dir");
         let root = tmp.path();
         fs::create_dir_all(root.join(".agents/rules")).expect("create rules");
-        fs::write(root.join("AGENTS.md"), "# 项目记忆\n- use rust").expect("write agents");
+        fs::create_dir_all(root.join(".lime")).expect("create .lime dir");
+        fs::write(root.join(".lime/AGENTS.md"), "# 项目记忆\n- use rust").expect("write agents");
         fs::write(root.join(".agents/rules/general.md"), "# 规则\n- KISS").expect("write rule");
 
         let mut cfg = Config::default();
         cfg.memory.enabled = true;
-        cfg.memory.sources.project_memory_paths = vec!["AGENTS.md".to_string()];
+        cfg.memory.sources.project_memory_paths = vec![".lime/AGENTS.md".to_string()];
         cfg.memory.sources.project_rule_dirs = vec![".agents/rules".to_string()];
         cfg.memory.resolve.follow_imports = true;
         cfg.memory.resolve.import_max_depth = 3;
@@ -884,11 +997,12 @@ mod tests {
         let ext = tmp.path().join("extra");
         fs::create_dir_all(&root).expect("create main");
         fs::create_dir_all(&ext).expect("create extra");
-        fs::write(ext.join("AGENTS.md"), "extra memory").expect("write extra agents");
+        fs::create_dir_all(ext.join(".lime")).expect("create extra .lime");
+        fs::write(ext.join(".lime/AGENTS.md"), "extra memory").expect("write extra agents");
 
         let mut cfg = Config::default();
         cfg.memory.enabled = true;
-        cfg.memory.sources.project_memory_paths = vec!["AGENTS.md".to_string()];
+        cfg.memory.sources.project_memory_paths = vec![".lime/AGENTS.md".to_string()];
         cfg.memory.resolve.load_additional_dirs_memory = true;
         cfg.memory.resolve.additional_dirs = vec![ext.to_string_lossy().to_string()];
 
@@ -941,5 +1055,36 @@ mod tests {
             .prompt_segments
             .iter()
             .any(|segment| segment.contains("/memories/MEMORY.md")));
+    }
+
+    #[test]
+    fn workspace_local_instruction_path_should_not_walk_ancestors() {
+        let tmp = TempDir::new().expect("create temp dir");
+        let project_root = tmp.path().join("repo");
+        let nested = project_root.join("workspace");
+        fs::create_dir_all(project_root.join(".git")).expect("create git marker");
+        fs::create_dir_all(project_root.join(".lime")).expect("create root .lime");
+        fs::create_dir_all(nested.join(".lime")).expect("create nested .lime");
+        fs::write(project_root.join(".lime/AGENTS.md"), "root agents").expect("write root agents");
+        fs::write(nested.join(".lime/AGENTS.md"), "workspace agents")
+            .expect("write workspace agents");
+
+        let mut cfg = Config::default();
+        cfg.memory.enabled = true;
+        cfg.memory.sources.project_memory_paths = vec![".lime/AGENTS.md".to_string()];
+
+        let resolved = resolve_effective_sources(&cfg, &nested, None);
+        let loaded_sources: Vec<&EffectiveMemorySource> = resolved
+            .response
+            .sources
+            .iter()
+            .filter(|source| source.kind == "project_memory" && source.loaded)
+            .collect();
+
+        assert_eq!(loaded_sources.len(), 1);
+        assert!(loaded_sources[0].path.ends_with(".lime/AGENTS.md"));
+        assert_eq!(resolved.prompt_segments.len(), 1);
+        assert!(resolved.prompt_segments[0].contains("workspace agents"));
+        assert!(!resolved.prompt_segments[0].contains("root agents"));
     }
 }

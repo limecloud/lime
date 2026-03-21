@@ -8,6 +8,49 @@ import {
 } from "./agentChatHistory";
 
 describe("agentChatHistory", () => {
+  it("应清理仅用于内部展示的图片占位文本", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-image-placeholder",
+      created_at: 1,
+      updated_at: 2,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000200,
+          content: [
+            { type: "input_text", text: "[Image #1]" },
+            {
+              type: "input_image",
+              image_url: "data:image/png;base64,aGVsbG8=",
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000201,
+          content: [{ type: "output_text", text: "已收到图片" }],
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-image-placeholder",
+    );
+
+    expect(messages[0]).toMatchObject({
+      role: "user",
+      content: "",
+      images: [
+        {
+          mediaType: "image/png",
+          data: "aGVsbG8=",
+        },
+      ],
+    });
+    expect(messages[1]?.content).toBe("已收到图片");
+  });
+
   it("应从历史消息的 thinking 字段恢复完整思考过程", () => {
     const detail: AsterSessionDetail = {
       id: "session-1",

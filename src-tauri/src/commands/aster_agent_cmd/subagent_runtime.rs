@@ -1,0 +1,973 @@
+use super::*;
+
+const SUBAGENT_RUNTIME_EVENT_PREFIX: &str = "agent_subagent_stream";
+const SUBAGENT_STATUS_EVENT_PREFIX: &str = "agent_subagent_status";
+const SUBAGENT_CONTROL_CLOSE_REASON: &str = "close_agent";
+const DEFAULT_WAIT_AGENT_TIMEOUT_MS: i64 = 30_000;
+const MIN_WAIT_AGENT_TIMEOUT_MS: i64 = 1_000;
+const MAX_WAIT_AGENT_TIMEOUT_MS: i64 = 300_000;
+
+#[derive(Debug, Clone, Serialize)]
+struct SubagentStatusChangedEvent {
+    #[serde(rename = "type")]
+    event_type: &'static str,
+    session_id: String,
+    root_session_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent_session_id: Option<String>,
+    status: SubagentRuntimeStatusKind,
+}
+
+pub(crate) struct SubagentControlRuntime {
+    app_handle: AppHandle,
+    state: AsterAgentState,
+    pub(crate) db: DbConnection,
+    api_key_provider_service: ApiKeyProviderServiceState,
+    logs: LogState,
+    config_manager: GlobalConfigManagerState,
+    mcp_manager: McpManagerState,
+    automation_state: AutomationServiceState,
+}
+
+impl std::fmt::Debug for SubagentControlRuntime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubagentControlRuntime")
+            .field("app_handle", &"<tauri-app-handle>")
+            .field("state", &"<aster-agent-state>")
+            .field("db", &"<db-connection>")
+            .field("api_key_provider_service", &"<api-key-provider-service>")
+            .field("logs", &"<log-state>")
+            .field("config_manager", &"<global-config-manager>")
+            .field("mcp_manager", &"<mcp-manager>")
+            .field("automation_state", &"<automation-state>")
+            .finish()
+    }
+}
+
+impl Clone for SubagentControlRuntime {
+    fn clone(&self) -> Self {
+        Self {
+            app_handle: self.app_handle.clone(),
+            state: self.state.clone(),
+            db: self.db.clone(),
+            api_key_provider_service: ApiKeyProviderServiceState(
+                self.api_key_provider_service.0.clone(),
+            ),
+            logs: self.logs.clone(),
+            config_manager: GlobalConfigManagerState(self.config_manager.0.clone()),
+            mcp_manager: self.mcp_manager.clone(),
+            automation_state: self.automation_state.clone(),
+        }
+    }
+}
+
+impl SubagentControlRuntime {
+    pub(crate) fn new(
+        app_handle: AppHandle,
+        state: &AsterAgentState,
+        db: &DbConnection,
+        api_key_provider_service: &ApiKeyProviderServiceState,
+        logs: &LogState,
+        config_manager: &GlobalConfigManagerState,
+        mcp_manager: &McpManagerState,
+        automation_state: &AutomationServiceState,
+    ) -> Self {
+        Self {
+            app_handle,
+            state: state.clone(),
+            db: db.clone(),
+            api_key_provider_service: ApiKeyProviderServiceState(
+                api_key_provider_service.0.clone(),
+            ),
+            logs: logs.clone(),
+            config_manager: GlobalConfigManagerState(config_manager.0.clone()),
+            mcp_manager: mcp_manager.clone(),
+            automation_state: automation_state.clone(),
+        }
+    }
+
+    async fn ensure_initialized(&self) -> Result<(), String> {
+        self.state.init_agent_with_db(&self.db).await
+    }
+}
+
+fn normalize_required_text(value: &str, field_name: &str) -> Result<String, String> {
+    let trimmed = value.trim().to_string();
+    if trimmed.is_empty() {
+        Err(format!("{field_name} 不能为空"))
+    } else {
+        Ok(trimmed)
+    }
+}
+
+fn normalize_optional_text(value: Option<String>) -> Option<String> {
+    let trimmed = value?.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn normalize_whitespace(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn truncate_chars(value: &str, max_chars: usize) -> String {
+    let count = value.chars().count();
+    if count <= max_chars {
+        return value.to_string();
+    }
+    if max_chars <= 3 {
+        return value.chars().take(max_chars).collect();
+    }
+    let truncated = value.chars().take(max_chars - 3).collect::<String>();
+    format!("{truncated}...")
+}
+
+fn build_subagent_task_summary(message: &str) -> Option<String> {
+    let normalized = normalize_whitespace(message);
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(truncate_chars(&normalized, 120))
+    }
+}
+
+fn normalize_optional_vec(values: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for value in values {
+        let Some(item) = normalize_optional_text(Some(value.clone())) else {
+            continue;
+        };
+        if seen.insert(item.clone()) {
+            normalized.push(item);
+        }
+    }
+
+    normalized
+}
+
+fn build_subagent_session_name(
+    message: &str,
+    agent_type: Option<&str>,
+    profile_name: Option<&str>,
+) -> String {
+    normalize_optional_text(agent_type.map(ToString::to_string))
+        .or_else(|| normalize_optional_text(profile_name.map(ToString::to_string)))
+        .or_else(|| build_subagent_task_summary(message))
+        .unwrap_or_else(|| "子代理".to_string())
+}
+
+fn resolve_subagent_role_hint(
+    request: &AgentRuntimeSpawnSubagentRequest,
+    customization: Option<&SubagentCustomizationState>,
+) -> Option<String> {
+    normalize_optional_text(request.agent_type.clone())
+        .or_else(|| customization.and_then(|state| state.profile_name.clone()))
+        .or_else(|| customization.and_then(|state| state.role_key.clone()))
+}
+
+fn build_local_subagent_skill_payload(
+    directory: &str,
+) -> Result<(SubagentSkillSummary, SubagentSkillPromptBlock), String> {
+    let inspection = crate::commands::skill_cmd::inspect_local_skill_for_app(
+        "lime".to_string(),
+        directory.to_string(),
+    )
+    .map_err(|error| format!("读取本地 skill 失败 `{directory}`: {error}"))?;
+    let name = inspection
+        .metadata
+        .get("name")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .unwrap_or(directory)
+        .to_string();
+    let description = inspection
+        .metadata
+        .get("description")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let title = format!("local skill · {name} ({directory})");
+
+    Ok((
+        SubagentSkillSummary {
+            id: format!("local:{directory}"),
+            name,
+            description,
+            source: Some("local".to_string()),
+            directory: Some(directory.to_string()),
+        },
+        SubagentSkillPromptBlock {
+            title,
+            content: inspection.content,
+        },
+    ))
+}
+
+pub(crate) fn build_subagent_customization_state(
+    request: &AgentRuntimeSpawnSubagentRequest,
+) -> Result<Option<SubagentCustomizationState>, String> {
+    let profile_id = normalize_optional_text(request.profile_id.clone());
+    let profile = profile_id
+        .as_deref()
+        .and_then(builtin_profile_descriptor_by_id);
+    let team_preset_id = normalize_optional_text(request.team_preset_id.clone());
+    let team_preset = team_preset_id
+        .as_deref()
+        .and_then(builtin_team_preset_descriptor_by_id);
+    let mut skill_ids = profile
+        .map(|descriptor| {
+            descriptor
+                .skill_ids
+                .iter()
+                .map(|skill_id| (*skill_id).to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    skill_ids.extend(normalize_optional_vec(&request.skill_ids));
+    let skill_ids = normalize_optional_vec(&skill_ids);
+    let skill_directories = normalize_optional_vec(&request.skill_directories);
+
+    let mut skills = skill_ids
+        .iter()
+        .map(|skill_id| {
+            summarize_builtin_skill(skill_id).unwrap_or(SubagentSkillSummary {
+                id: skill_id.clone(),
+                name: skill_id.clone(),
+                description: None,
+                source: Some("requested".to_string()),
+                directory: None,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    for directory in &skill_directories {
+        let (summary, _) = build_local_subagent_skill_payload(directory)?;
+        skills.push(summary);
+    }
+
+    let state = SubagentCustomizationState {
+        profile_id,
+        profile_name: normalize_optional_text(request.profile_name.clone())
+            .or_else(|| profile.map(|descriptor| descriptor.name.to_string())),
+        role_key: normalize_optional_text(request.role_key.clone())
+            .or_else(|| profile.map(|descriptor| descriptor.role_key.to_string())),
+        team_preset_id,
+        theme: normalize_optional_text(request.theme.clone())
+            .or_else(|| profile.map(|descriptor| descriptor.theme.to_string()))
+            .or_else(|| team_preset.map(|descriptor| descriptor.theme.to_string())),
+        output_contract: normalize_optional_text(request.output_contract.clone())
+            .or_else(|| profile.map(|descriptor| descriptor.output_contract.to_string())),
+        system_overlay: normalize_optional_text(request.system_overlay.clone())
+            .or_else(|| profile.map(|descriptor| descriptor.system_overlay.to_string())),
+        skill_ids,
+        skills,
+    };
+
+    if state.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(state))
+    }
+}
+
+pub(crate) fn build_subagent_customization_system_prompt(
+    customization: Option<&SubagentCustomizationState>,
+) -> Result<Option<String>, String> {
+    let Some(customization) = customization else {
+        return Ok(None);
+    };
+
+    let mut local_skill_blocks = Vec::new();
+    for skill in &customization.skills {
+        let Some(directory) = skill.directory.as_deref() else {
+            continue;
+        };
+        let (_, block) = build_local_subagent_skill_payload(directory)?;
+        local_skill_blocks.push(block);
+    }
+
+    Ok(build_subagent_customization_prompt(
+        customization,
+        &local_skill_blocks,
+    ))
+}
+
+#[derive(Debug, Clone)]
+struct PreparedRuntimeSubagentSession {
+    session: aster::session::Session,
+    customization: Option<SubagentCustomizationState>,
+    system_prompt: Option<String>,
+}
+
+fn build_subagent_runtime_event_name(session_id: &str) -> String {
+    format!("{SUBAGENT_RUNTIME_EVENT_PREFIX}:{session_id}")
+}
+
+fn build_subagent_status_event_name(session_id: &str) -> String {
+    format!("{SUBAGENT_STATUS_EVENT_PREFIX}:{session_id}")
+}
+
+fn parse_subagent_runtime_event_session_id(event_name: &str) -> Option<&str> {
+    event_name
+        .strip_prefix(SUBAGENT_RUNTIME_EVENT_PREFIX)
+        .and_then(|rest| rest.strip_prefix(':'))
+}
+
+fn should_emit_subagent_status_for_runtime_event(event: &TauriAgentEvent) -> bool {
+    matches!(
+        event,
+        TauriAgentEvent::ThreadStarted { .. }
+            | TauriAgentEvent::TurnStarted { .. }
+            | TauriAgentEvent::TurnCompleted { .. }
+            | TauriAgentEvent::TurnFailed { .. }
+            | TauriAgentEvent::QueueAdded { .. }
+            | TauriAgentEvent::QueueRemoved { .. }
+            | TauriAgentEvent::QueueStarted { .. }
+            | TauriAgentEvent::QueueCleared { .. }
+    )
+}
+
+async fn list_subagent_status_scope_session_ids(session_id: &str) -> Vec<String> {
+    let mut scope_ids = Vec::new();
+    let mut seen = HashSet::new();
+    let mut current_session_id = session_id.to_string();
+
+    while seen.insert(current_session_id.clone()) {
+        scope_ids.push(current_session_id.clone());
+
+        let session = match SessionManager::get_session(&current_session_id, false).await {
+            Ok(session) => session,
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent][Subagent] 解析 team 事件 scope 失败: session_id={}, error={}",
+                    current_session_id,
+                    error
+                );
+                break;
+            }
+        };
+        let Some(metadata) = resolve_subagent_session_metadata(&session.extension_data) else {
+            break;
+        };
+        let Some(parent_session_id) = normalize_optional_text(Some(metadata.parent_session_id))
+        else {
+            break;
+        };
+        current_session_id = parent_session_id;
+    }
+
+    scope_ids
+}
+
+pub(crate) async fn emit_subagent_status_changed_events(app: &AppHandle, session_id: &str) {
+    let status = match load_subagent_runtime_status(session_id).await {
+        Ok(status) => status,
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent][Subagent] 读取 team runtime 状态失败: session_id={}, error={}",
+                session_id,
+                error
+            );
+            return;
+        }
+    };
+    let scope_ids = list_subagent_status_scope_session_ids(session_id).await;
+    let root_session_id = scope_ids
+        .last()
+        .cloned()
+        .unwrap_or_else(|| session_id.to_string());
+    let event = SubagentStatusChangedEvent {
+        event_type: "subagent_status_changed",
+        session_id: session_id.to_string(),
+        root_session_id,
+        parent_session_id: scope_ids.get(1).cloned(),
+        status: status.kind,
+    };
+
+    for scope_session_id in scope_ids {
+        if let Err(error) = app.emit(&build_subagent_status_event_name(&scope_session_id), &event) {
+            tracing::warn!(
+                "[AsterAgent][Subagent] 发送 team 状态事件失败: scope_session_id={}, session_id={}, error={}",
+                scope_session_id,
+                session_id,
+                error
+            );
+        }
+    }
+}
+
+pub(crate) async fn maybe_emit_subagent_status_for_runtime_event(
+    app: &AppHandle,
+    event_name: &str,
+    event: &TauriAgentEvent,
+) {
+    let Some(session_id) = parse_subagent_runtime_event_session_id(event_name) else {
+        return;
+    };
+    if !should_emit_subagent_status_for_runtime_event(event) {
+        return;
+    }
+    emit_subagent_status_changed_events(app, session_id).await;
+}
+
+fn resolve_action_scope_turn_id(parent_session_id: &str) -> Option<String> {
+    let scope = aster::session_context::current_action_scope()?;
+    if scope.session_id.as_deref() != Some(parent_session_id) {
+        return None;
+    }
+    normalize_optional_text(scope.turn_id)
+}
+
+fn resolve_workspace_id_for_working_dir(
+    db: &DbConnection,
+    working_dir: &Path,
+) -> Result<String, String> {
+    let manager = WorkspaceManager::new(db.clone());
+    manager
+        .get_by_path(working_dir)
+        .map_err(|error| format!("解析 workspace 失败: {error}"))?
+        .map(|workspace| workspace.id)
+        .ok_or_else(|| {
+            format!(
+                "无法根据 working_dir 解析 workspace: {}",
+                working_dir.to_string_lossy()
+            )
+        })
+}
+
+fn normalize_wait_timeout_ms(timeout_ms: Option<i64>) -> Result<i64, String> {
+    match timeout_ms.unwrap_or(DEFAULT_WAIT_AGENT_TIMEOUT_MS) {
+        value if value <= 0 => Err("timeout_ms 必须大于 0".to_string()),
+        value => Ok(value.clamp(MIN_WAIT_AGENT_TIMEOUT_MS, MAX_WAIT_AGENT_TIMEOUT_MS)),
+    }
+}
+
+async fn count_active_team_subagents(parent_session_id: &str) -> Result<usize, String> {
+    let child_sessions = list_subagent_child_sessions(parent_session_id)
+        .await
+        .map_err(|error| format!("读取 team child sessions 失败: {error}"))?;
+    let mut active_count = 0usize;
+
+    for child_session in child_sessions {
+        let status = load_subagent_runtime_status(&child_session.id).await?;
+        if subagent_counts_toward_team_limit(status.kind) {
+            active_count += 1;
+        }
+    }
+
+    Ok(active_count)
+}
+
+pub(crate) fn subagent_counts_toward_team_limit(status: SubagentRuntimeStatusKind) -> bool {
+    !matches!(
+        status,
+        SubagentRuntimeStatusKind::Closed | SubagentRuntimeStatusKind::NotFound
+    )
+}
+
+async fn enforce_team_spawn_limits(parent_session_id: &str) -> Result<(), String> {
+    let parent_session = SessionManager::get_session(parent_session_id, false)
+        .await
+        .map_err(|error| format!("读取父会话失败: {error}"))?;
+
+    if parent_session.session_type == SessionType::SubAgent {
+        return Err(
+            "当前子代理不允许继续创建新的子代理。请返回父会话，由主线程统一编排 team。".to_string(),
+        );
+    }
+
+    let active_count = count_active_team_subagents(parent_session_id).await?;
+    if active_count >= DEFAULT_TEAM_MAX_ACTIVE_SUBAGENTS {
+        return Err(format!(
+            "team 当前最多允许 {} 个活跃子代理并发执行；请先 close_agent 关闭已完成子代理，或复用已有子代理。",
+            DEFAULT_TEAM_MAX_ACTIVE_SUBAGENTS
+        ));
+    }
+
+    Ok(())
+}
+
+fn merge_stashed_queued_turns(
+    existing: Vec<aster::session::QueuedTurnRuntime>,
+    current: Vec<aster::session::QueuedTurnRuntime>,
+) -> Vec<aster::session::QueuedTurnRuntime> {
+    let mut seen = HashSet::new();
+    let mut merged = Vec::new();
+    for queued_turn in existing.into_iter().chain(current.into_iter()) {
+        if seen.insert(queued_turn.queued_turn_id.clone()) {
+            merged.push(queued_turn);
+        }
+    }
+    merged.sort_by(|left, right| {
+        left.created_at
+            .cmp(&right.created_at)
+            .then_with(|| left.queued_turn_id.cmp(&right.queued_turn_id))
+    });
+    merged
+}
+
+async fn restore_stashed_subagent_queue(
+    queued_turns: Vec<aster::session::QueuedTurnRuntime>,
+) -> Result<(), String> {
+    if queued_turns.is_empty() {
+        return Ok(());
+    }
+
+    let store = require_shared_thread_runtime_store()
+        .map_err(|error| format!("读取 shared runtime store 失败: {error}"))?;
+    for queued_turn in queued_turns {
+        store
+            .enqueue_turn(queued_turn)
+            .await
+            .map_err(|error| format!("恢复 subagent queued turn 失败: {error}"))?;
+    }
+    Ok(())
+}
+
+async fn inherit_subagent_provider(
+    runtime: &SubagentControlRuntime,
+    parent_session_id: &str,
+    child_session_id: &str,
+    model_override: Option<&str>,
+) -> Result<(), String> {
+    let parent_session = SessionManager::get_session(parent_session_id, false)
+        .await
+        .map_err(|error| format!("读取父会话 provider 信息失败: {error}"))?;
+    let parent_provider_selector = resolve_session_provider_selector(&parent_session)
+        .or_else(|| normalize_optional_text(parent_session.provider_name.clone()));
+
+    if let Some(mut provider_config) = runtime.state.get_provider_config().await {
+        if let Some(model_name) = normalize_optional_text(model_override.map(ToString::to_string)) {
+            provider_config.model_name = model_name;
+        }
+        if provider_config.provider_selector.is_none() {
+            provider_config.provider_selector = parent_provider_selector.clone();
+        }
+        runtime
+            .state
+            .configure_provider(provider_config, child_session_id, &runtime.db)
+            .await?;
+        if let Some(provider_selector) = parent_provider_selector {
+            persist_session_provider_routing(child_session_id, &provider_selector).await?;
+        }
+        return Ok(());
+    }
+
+    let provider_selector = parent_provider_selector
+        .ok_or_else(|| "当前 provider 未配置，且父会话缺少 provider_name".to_string())?;
+    let model_name = normalize_optional_text(model_override.map(ToString::to_string))
+        .or_else(|| {
+            parent_session
+                .model_config
+                .as_ref()
+                .and_then(|config| normalize_optional_text(Some(config.model_name.clone())))
+        })
+        .ok_or_else(|| "当前 provider 未配置，且父会话缺少 model_name".to_string())?;
+
+    runtime
+        .state
+        .configure_provider_from_pool(
+            &runtime.db,
+            &provider_selector,
+            &model_name,
+            child_session_id,
+        )
+        .await
+        .map(|_| ())?;
+    persist_session_provider_routing(child_session_id, &provider_selector).await?;
+    Ok(())
+}
+
+async fn create_runtime_subagent_session(
+    runtime: &SubagentControlRuntime,
+    request: &AgentRuntimeSpawnSubagentRequest,
+) -> Result<PreparedRuntimeSubagentSession, String> {
+    let parent_session_id =
+        normalize_required_text(&request.parent_session_id, "parent_session_id")?;
+    let message = normalize_required_text(&request.message, "message")?;
+    enforce_team_spawn_limits(&parent_session_id).await?;
+    let parent_session = SessionManager::get_session(&parent_session_id, false)
+        .await
+        .map_err(|error| format!("读取父会话失败: {error}"))?;
+    let customization = build_subagent_customization_state(request)?;
+    let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
+    let profile_name = customization
+        .as_ref()
+        .and_then(|state| state.profile_name.as_deref());
+    let role_hint = resolve_subagent_role_hint(request, customization.as_ref());
+
+    let session = SessionManager::create_session(
+        parent_session.working_dir.clone(),
+        build_subagent_session_name(&message, request.agent_type.as_deref(), profile_name),
+        SessionType::SubAgent,
+    )
+    .await
+    .map_err(|error| format!("创建 subagent session 失败: {error}"))?;
+
+    if let Some(parent_metadata) =
+        AsterAgentWrapper::get_persisted_session_metadata_sync(&runtime.db, &parent_session_id)?
+    {
+        if let Some(execution_strategy) =
+            normalize_optional_text(parent_metadata.execution_strategy)
+        {
+            AsterAgentWrapper::update_session_execution_strategy_sync(
+                &runtime.db,
+                &session.id,
+                &execution_strategy,
+            )?;
+        }
+    }
+
+    let mut metadata = SubagentSessionMetadata::new(parent_session_id.clone())
+        .with_task_summary(build_subagent_task_summary(&message))
+        .with_role_hint(role_hint.clone())
+        .with_created_from_turn_id(resolve_action_scope_turn_id(&parent_session_id));
+    metadata.origin_tool = "spawn_agent".to_string();
+    let mut extension_data = session.extension_data.clone();
+    metadata
+        .to_extension_data(&mut extension_data)
+        .map_err(|error| format!("持久化 subagent metadata 失败: {error}"))?;
+    if let Some(customization_state) = customization.as_ref() {
+        customization_state
+            .to_extension_data(&mut extension_data)
+            .map_err(|error| format!("持久化 subagent customization 失败: {error}"))?;
+    }
+    SessionManager::update_session(&session.id)
+        .extension_data(extension_data)
+        .apply()
+        .await
+        .map_err(|error| format!("写入 subagent session metadata 失败: {error}"))?;
+
+    inherit_subagent_provider(
+        runtime,
+        &parent_session_id,
+        &session.id,
+        request.model.as_deref(),
+    )
+    .await?;
+
+    Ok(PreparedRuntimeSubagentSession {
+        session,
+        customization,
+        system_prompt,
+    })
+}
+
+fn spawn_subagent_turn_in_background(
+    runtime: SubagentControlRuntime,
+    request: AsterChatRequest,
+) -> Result<String, String> {
+    let queued_task = build_queued_turn_task(request)?;
+    let submission_id = queued_task.queued_turn_id.clone();
+    tokio::spawn(async move {
+        if let Err(error) = submit_runtime_turn_service(
+            runtime.app_handle.clone(),
+            &runtime.state,
+            &runtime.db,
+            &runtime.api_key_provider_service,
+            &runtime.logs,
+            &runtime.config_manager,
+            &runtime.mcp_manager,
+            &runtime.automation_state,
+            queued_task,
+            false,
+            build_runtime_queue_executor(),
+        )
+        .await
+        {
+            tracing::warn!("[AsterAgent][Subagent] 后台启动子代理失败: {}", error);
+        }
+    });
+    Ok(submission_id)
+}
+
+pub(crate) async fn agent_runtime_spawn_subagent_internal(
+    runtime: &SubagentControlRuntime,
+    request: AgentRuntimeSpawnSubagentRequest,
+) -> Result<AgentRuntimeSpawnSubagentResponse, String> {
+    runtime.ensure_initialized().await?;
+    let PreparedRuntimeSubagentSession {
+        session: child_session,
+        customization,
+        system_prompt,
+    } = create_runtime_subagent_session(runtime, &request).await?;
+    let child_session_id = child_session.id.clone();
+    let workspace_id =
+        resolve_workspace_id_for_working_dir(&runtime.db, child_session.working_dir.as_path())?;
+    let _ = spawn_subagent_turn_in_background(
+        runtime.clone(),
+        AsterChatRequest {
+            message: normalize_required_text(&request.message, "message")?,
+            session_id: child_session_id.clone(),
+            event_name: build_subagent_runtime_event_name(&child_session_id),
+            images: None,
+            provider_config: None,
+            project_id: None,
+            workspace_id,
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt,
+            metadata: Some(serde_json::json!({
+                "subagent": {
+                    "parent_session_id": request.parent_session_id,
+                    "agent_type": request.agent_type,
+                    "reasoning_effort": request.reasoning_effort,
+                    "fork_context": request.fork_context,
+                    "origin_tool": "spawn_agent",
+                    "profile_id": customization.as_ref().and_then(|state| state.profile_id.clone()),
+                    "profile_name": customization.as_ref().and_then(|state| state.profile_name.clone()),
+                    "role_key": customization.as_ref().and_then(|state| state.role_key.clone()),
+                    "team_preset_id": customization.as_ref().and_then(|state| state.team_preset_id.clone()),
+                    "theme": customization.as_ref().and_then(|state| state.theme.clone()),
+                    "output_contract": customization.as_ref().and_then(|state| state.output_contract.clone()),
+                    "skill_ids": customization.as_ref().map(|state| state.skill_ids.clone()).unwrap_or_default(),
+                    "skills": customization.as_ref().map(|state| state.skills.clone()).unwrap_or_default(),
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: Some(false),
+            queued_turn_id: None,
+        },
+    )?;
+    emit_subagent_status_changed_events(&runtime.app_handle, &child_session_id).await;
+
+    Ok(AgentRuntimeSpawnSubagentResponse {
+        agent_id: child_session_id,
+        nickname: normalize_optional_text(Some(child_session.name)),
+    })
+}
+
+pub(crate) async fn agent_runtime_send_subagent_input_internal(
+    runtime: &SubagentControlRuntime,
+    request: AgentRuntimeSendSubagentInputRequest,
+) -> Result<AgentRuntimeSendSubagentInputResponse, String> {
+    runtime.ensure_initialized().await?;
+    let session_id = normalize_required_text(&request.id, "id")?;
+    let message = normalize_required_text(&request.message, "message")?;
+    let status = load_subagent_runtime_status(&session_id).await?;
+    match status.kind {
+        SubagentRuntimeStatusKind::NotFound => {
+            return Err(format!("子代理不存在: {session_id}"));
+        }
+        SubagentRuntimeStatusKind::Closed => {
+            return Err(format!("子代理已关闭，请先恢复: {session_id}"));
+        }
+        _ => {}
+    }
+
+    let (session, _) = read_subagent_control_state(&session_id).await?;
+    let customization = SubagentCustomizationState::from_session(&session);
+    let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
+    if request.interrupt {
+        let _ = runtime.state.cancel_session(&session_id).await;
+        let _ = clear_runtime_queue_service(&runtime.app_handle, &session_id).await?;
+    }
+
+    let workspace_id =
+        resolve_workspace_id_for_working_dir(&runtime.db, session.working_dir.as_path())?;
+    let queued_task = build_queued_turn_task(AsterChatRequest {
+        message,
+        session_id: session_id.clone(),
+        event_name: build_subagent_runtime_event_name(&session_id),
+        images: None,
+        provider_config: None,
+        project_id: None,
+        workspace_id,
+        web_search: None,
+        search_mode: None,
+        execution_strategy: None,
+        auto_continue: None,
+        system_prompt,
+        metadata: Some(serde_json::json!({
+            "subagent": {
+                "origin_tool": "send_input",
+                "interrupt": request.interrupt,
+                "profile_id": customization.as_ref().and_then(|state| state.profile_id.clone()),
+                "profile_name": customization.as_ref().and_then(|state| state.profile_name.clone()),
+                "role_key": customization.as_ref().and_then(|state| state.role_key.clone()),
+                "team_preset_id": customization.as_ref().and_then(|state| state.team_preset_id.clone()),
+                "theme": customization.as_ref().and_then(|state| state.theme.clone()),
+                "output_contract": customization.as_ref().and_then(|state| state.output_contract.clone()),
+                "skill_ids": customization.as_ref().map(|state| state.skill_ids.clone()).unwrap_or_default(),
+                "skills": customization.as_ref().map(|state| state.skills.clone()).unwrap_or_default(),
+            }
+        })),
+        turn_id: None,
+        queue_if_busy: Some(true),
+        queued_turn_id: None,
+    })?;
+    let submission_id = queued_task.queued_turn_id.clone();
+    submit_runtime_turn_service(
+        runtime.app_handle.clone(),
+        &runtime.state,
+        &runtime.db,
+        &runtime.api_key_provider_service,
+        &runtime.logs,
+        &runtime.config_manager,
+        &runtime.mcp_manager,
+        &runtime.automation_state,
+        queued_task,
+        true,
+        build_runtime_queue_executor(),
+    )
+    .await?;
+    emit_subagent_status_changed_events(&runtime.app_handle, &session_id).await;
+
+    Ok(AgentRuntimeSendSubagentInputResponse { submission_id })
+}
+
+pub(crate) async fn agent_runtime_wait_subagents_internal(
+    runtime: &SubagentControlRuntime,
+    request: AgentRuntimeWaitSubagentsRequest,
+) -> Result<AgentRuntimeWaitSubagentsResponse, String> {
+    runtime.ensure_initialized().await?;
+    let ids = request
+        .ids
+        .into_iter()
+        .map(|id| normalize_required_text(&id, "ids"))
+        .collect::<Result<Vec<_>, _>>()?;
+    if ids.is_empty() {
+        return Err("ids 不能为空".to_string());
+    }
+
+    let timeout_ms = normalize_wait_timeout_ms(request.timeout_ms)?;
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms as u64);
+    loop {
+        let mut final_statuses = HashMap::new();
+        for id in &ids {
+            let status = load_subagent_runtime_status(id).await?;
+            if status.kind.is_final() {
+                final_statuses.insert(id.clone(), status);
+            }
+        }
+        if !final_statuses.is_empty() {
+            return Ok(AgentRuntimeWaitSubagentsResponse {
+                status: final_statuses,
+                timed_out: false,
+            });
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Ok(AgentRuntimeWaitSubagentsResponse {
+                status: HashMap::new(),
+                timed_out: true,
+            });
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+pub(crate) async fn agent_runtime_resume_subagent_internal(
+    runtime: &SubagentControlRuntime,
+    request: AgentRuntimeResumeSubagentRequest,
+) -> Result<AgentRuntimeResumeSubagentResponse, String> {
+    runtime.ensure_initialized().await?;
+    let session_id = normalize_required_text(&request.id, "id")?;
+    let current_status = load_subagent_runtime_status(&session_id).await?;
+    if current_status.kind == SubagentRuntimeStatusKind::NotFound
+        || current_status.kind != SubagentRuntimeStatusKind::Closed
+    {
+        return Ok(AgentRuntimeResumeSubagentResponse {
+            status: current_status,
+            cascade_session_ids: Vec::new(),
+            changed_session_ids: Vec::new(),
+        });
+    }
+
+    let target_ids = list_subagent_cascade_session_ids(&session_id).await?;
+    let cascade_session_ids = target_ids.clone();
+    let mut changed_ids = Vec::new();
+    for target_id in target_ids {
+        let (session, control_state) = read_subagent_control_state(&target_id).await?;
+        if !control_state.closed {
+            continue;
+        }
+
+        let stashed_queued_turns = control_state.stashed_queued_turns.clone();
+        let mut next_state = control_state.opened();
+        next_state.stashed_queued_turns.clear();
+        write_subagent_control_state(&session, &next_state).await?;
+        restore_stashed_subagent_queue(stashed_queued_turns.clone()).await?;
+        if !stashed_queued_turns.is_empty() {
+            let _ = resume_runtime_queue_if_needed_service(
+                runtime.app_handle.clone(),
+                &runtime.state,
+                &runtime.db,
+                &runtime.api_key_provider_service,
+                &runtime.logs,
+                &runtime.config_manager,
+                &runtime.mcp_manager,
+                &runtime.automation_state,
+                target_id.clone(),
+                build_runtime_queue_executor(),
+            )
+            .await?;
+        }
+        changed_ids.push(target_id);
+    }
+
+    for changed_id in &changed_ids {
+        emit_subagent_status_changed_events(&runtime.app_handle, &changed_id).await;
+    }
+
+    Ok(AgentRuntimeResumeSubagentResponse {
+        status: load_subagent_runtime_status(&session_id).await?,
+        cascade_session_ids,
+        changed_session_ids: changed_ids,
+    })
+}
+
+pub(crate) async fn agent_runtime_close_subagent_internal(
+    runtime: &SubagentControlRuntime,
+    request: AgentRuntimeCloseSubagentRequest,
+) -> Result<AgentRuntimeCloseSubagentResponse, String> {
+    runtime.ensure_initialized().await?;
+    let session_id = normalize_required_text(&request.id, "id")?;
+    let previous_status = load_subagent_runtime_status(&session_id).await?;
+    if matches!(
+        previous_status.kind,
+        SubagentRuntimeStatusKind::NotFound | SubagentRuntimeStatusKind::Closed
+    ) {
+        return Ok(AgentRuntimeCloseSubagentResponse {
+            previous_status,
+            cascade_session_ids: Vec::new(),
+            changed_session_ids: Vec::new(),
+        });
+    }
+
+    let target_ids = list_subagent_cascade_session_ids(&session_id).await?;
+    let cascade_session_ids = target_ids.clone();
+    let mut changed_ids = Vec::new();
+    for target_id in target_ids {
+        let (session, control_state) = read_subagent_control_state(&target_id).await?;
+        if control_state.closed {
+            continue;
+        }
+
+        let _ = runtime.state.cancel_session(&target_id).await;
+        let cleared_queued_turns = clear_runtime_queue_service(&runtime.app_handle, &target_id)
+            .await
+            .unwrap_or_default();
+        let next_state = SubagentControlState::closed(
+            Some(SUBAGENT_CONTROL_CLOSE_REASON.to_string()),
+            merge_stashed_queued_turns(control_state.stashed_queued_turns, cleared_queued_turns),
+        );
+        write_subagent_control_state(&session, &next_state).await?;
+        changed_ids.push(target_id);
+    }
+
+    for changed_id in &changed_ids {
+        emit_subagent_status_changed_events(&runtime.app_handle, &changed_id).await;
+    }
+
+    Ok(AgentRuntimeCloseSubagentResponse {
+        previous_status,
+        cascade_session_ids,
+        changed_session_ids: changed_ids,
+    })
+}

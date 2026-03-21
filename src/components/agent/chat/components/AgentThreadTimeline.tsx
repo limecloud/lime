@@ -35,6 +35,7 @@ import {
   type AgentThreadSummaryChip,
 } from "../utils/agentThreadGrouping";
 import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
+import { resolveInternalImageTaskDisplayName } from "../utils/internalImagePlaceholder";
 import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
 import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
 import { TIMELINE_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
@@ -725,11 +726,13 @@ function renderGroupItemDetails(
 
   if (item.type === "subagent_activity") {
     const subagentSessionId = item.session_id?.trim();
+    const displayTitle =
+      resolveInternalImageTaskDisplayName(item.title) || "子代理协作";
 
     return (
       <SurfaceCard
         icon={Bot}
-        title={item.title || "子代理协作"}
+        title={displayTitle}
         badge={
           <Badge variant={resolveStatusBadgeVariant(item.status)}>
             {item.status_label}

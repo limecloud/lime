@@ -4,11 +4,19 @@
 //! 处理消息发送、事件流转换，并桥接会话存储服务。
 
 use crate::agent::aster_state::{AsterAgentState, SessionConfigBuilder};
+use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
+use crate::services::memory_profile_prompt_service::{
+    merge_system_prompt_with_memory_context, MemoryPromptContext,
+};
 use aster::conversation::message::Message;
 use futures::StreamExt;
-use lime_agent::{convert_agent_event, TauriAgentEvent, WriteArtifactEventEmitter};
-use tauri::{AppHandle, Emitter};
+use lime_agent::{
+    convert_agent_event, get_persisted_session_metadata_sync,
+    merge_system_prompt_with_runtime_agents, TauriAgentEvent, WriteArtifactEventEmitter,
+};
+use std::path::Path;
+use tauri::{AppHandle, Emitter, Manager};
 
 pub use lime_agent::{
     PersistedSessionMetadata, SessionDetail, SessionInfo, SessionTitlePreviewMessage,
@@ -47,9 +55,39 @@ impl AsterAgentWrapper {
         let cancel_token = state.create_cancel_token(&session_id).await;
 
         let user_message = Message::user().with_text(&message);
-        let session_config = SessionConfigBuilder::new(&session_id)
-            .include_context_trace(true)
-            .build();
+        let mut session_config_builder =
+            SessionConfigBuilder::new(&session_id).include_context_trace(true);
+        let persisted_session_metadata = get_persisted_session_metadata_sync(db, &session_id)
+            .ok()
+            .flatten();
+        let persisted_prompt = persisted_session_metadata
+            .as_ref()
+            .and_then(|session| session.system_prompt.clone());
+        let working_dir = persisted_session_metadata
+            .as_ref()
+            .and_then(|session| session.working_dir.as_deref())
+            .filter(|path| !path.trim().is_empty())
+            .map(Path::new);
+
+        let merged_prompt =
+            if let Some(config_manager) = app.try_state::<GlobalConfigManagerState>() {
+                let runtime_config = config_manager.config();
+                merge_system_prompt_with_memory_context(
+                    merge_system_prompt_with_runtime_agents(persisted_prompt, working_dir),
+                    &runtime_config,
+                    MemoryPromptContext {
+                        working_dir,
+                        active_relative_path: None,
+                    },
+                )
+            } else {
+                merge_system_prompt_with_runtime_agents(persisted_prompt, working_dir)
+            };
+
+        if let Some(prompt) = merged_prompt {
+            session_config_builder = session_config_builder.system_prompt(prompt);
+        }
+        let session_config = session_config_builder.build();
 
         let agent_arc = state.get_agent_arc();
         let guard = agent_arc.read().await;

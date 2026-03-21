@@ -865,4 +865,42 @@ describe("ChatSidebar", () => {
 
     expect(onOpenSubagentSession).toHaveBeenCalledWith("child-2");
   });
+
+  it("内部图片子代理标题应显示为用户文案", () => {
+    const container = renderSidebar({
+      topics: [
+        {
+          ...defaultTopics[0],
+          id: "child-image",
+          title: "Image #1",
+          sourceSessionId: "child-image",
+        },
+      ],
+      currentTopicId: "child-image",
+      subagentParentContext: {
+        parent_session_id: "parent-1",
+        parent_session_name: "主线程",
+        role_hint: "image_editor",
+        task_summary: "处理图片细节。",
+        created_from_turn_id: "turn-42",
+        sibling_subagent_sessions: [
+          {
+            id: "child-2",
+            name: "Image #2",
+            created_at: 1_742_288_430,
+            updated_at: 1_742_288_530,
+            session_type: "sub_agent",
+            task_summary: "检查图片导出尺寸。",
+            role_hint: "image_reviewer",
+            runtime_status: "queued",
+          },
+        ],
+      },
+    });
+
+    expect(container.textContent).toContain("图片任务 1");
+    expect(container.textContent).toContain("图片任务 2");
+    expect(container.textContent).not.toContain("Image #1");
+    expect(container.textContent).not.toContain("Image #2");
+  });
 });

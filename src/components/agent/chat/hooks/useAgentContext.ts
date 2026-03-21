@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { updateProject } from "@/lib/api/project";
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
+import { notifyProjectRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 import type {
   SendMessageFn,
   SessionModelPreference,
@@ -286,6 +287,16 @@ export function useAgentContext(options: UseAgentContextOptions) {
       setWorkspacePathMissing(null);
       try {
         await updateProject(workspaceId, { rootPath: newPath });
+        notifyProjectRuntimeAgentsGuide(
+          {
+            id: workspaceId,
+            rootPath: newPath,
+          },
+          {
+            successMessage: "工作区目录已重新关联",
+            showSuccessWhenGuideAlreadySeen: false,
+          },
+        );
         await sendMessage(retryContent, retryImages, false, false, true);
       } catch (err) {
         toast.error(

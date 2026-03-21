@@ -15,6 +15,7 @@ function HookHarness({ mode }: { mode: LayoutMode }) {
   const { transitionState, isCanvasVisible, getTransitionStyles } =
     useLayoutTransition(mode);
   const canvasStyles = getTransitionStyles("canvas");
+  const chatStyles = getTransitionStyles("chat");
 
   return (
     <div
@@ -23,6 +24,7 @@ function HookHarness({ mode }: { mode: LayoutMode }) {
       data-canvas-visible={String(isCanvasVisible)}
       data-canvas-transform={String(canvasStyles.transform)}
       data-canvas-opacity={String(canvasStyles.opacity)}
+      data-chat-width={String(chatStyles.width)}
     />
   );
 }
@@ -66,5 +68,8 @@ describe("useLayoutTransition", () => {
     expect(root?.getAttribute("data-canvas-visible")).toBe("true");
     expect(root?.getAttribute("data-canvas-transform")).toBe("translateX(0)");
     expect(root?.getAttribute("data-canvas-opacity")).toBe("1");
+    expect(root?.getAttribute("data-chat-width")).toBe(
+      "min(100%, clamp(480px, 40%, 600px))",
+    );
   });
 });

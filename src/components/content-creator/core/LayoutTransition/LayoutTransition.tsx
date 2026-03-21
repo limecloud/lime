@@ -4,36 +4,76 @@
  * @module components/content-creator/core/LayoutTransition/LayoutTransition
  */
 
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
 import styled from "styled-components";
 import { LayoutMode } from "../../types";
 import { useLayoutTransition, TransitionConfig } from "./useLayoutTransition";
 
-const Container = styled.div`
+const STACKED_CHAT_CANVAS_BREAKPOINT_WIDTH = 1320;
+const STACKED_CHAT_CANVAS_BREAKPOINT_HEIGHT = 820;
+const STACKED_CHAT_CANVAS_PANEL_HEIGHT = "clamp(260px, 36%, 360px)";
+
+function shouldUseStackedChatCanvasLayout(mode: LayoutMode): boolean {
+  if (mode !== "chat-canvas" || typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    window.innerWidth <= STACKED_CHAT_CANVAS_BREAKPOINT_WIDTH ||
+    window.innerHeight <= STACKED_CHAT_CANVAS_BREAKPOINT_HEIGHT
+  );
+}
+
+const Container = styled.div<{ $stacked: boolean }>`
   display: flex;
+  flex-direction: ${({ $stacked }) => ($stacked ? "column" : "row")};
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-  gap: 12px;
+  gap: ${({ $stacked }) => ($stacked ? "10px" : "12px")};
 `;
 
 const ChatPanel = styled.div<{
   $width: string;
   $duration: number;
   $minWidth: string;
+  $stacked: boolean;
   $hidden: boolean;
   $chrome: "panel" | "plain";
 }>`
-  height: 100%;
+  height: ${({ $stacked, $hidden }) =>
+    $hidden
+      ? "0"
+      : $stacked
+        ? STACKED_CHAT_CANVAS_PANEL_HEIGHT
+        : "100%"};
+  max-height: ${({ $stacked, $hidden }) =>
+    $hidden
+      ? "0"
+      : $stacked
+        ? STACKED_CHAT_CANVAS_PANEL_HEIGHT
+        : "100%"};
   overflow: hidden;
-  transition: width ${({ $duration }) => $duration}ms ease-out;
-  width: ${({ $width }) => $width};
-  min-width: ${({ $minWidth }) => $minWidth};
-  will-change: width;
+  transition:
+    width ${({ $duration }) => $duration}ms ease-out,
+    height ${({ $duration }) => $duration}ms ease-out;
+  width: ${({ $stacked, $width, $hidden }) =>
+    $hidden ? "0" : $stacked ? "100%" : $width};
+  min-width: ${({ $stacked, $minWidth }) => ($stacked ? "0px" : $minWidth)};
+  min-height: ${({ $stacked, $hidden }) =>
+    $hidden ? "0" : $stacked ? "220px" : "100%"};
+  flex: ${({ $stacked, $hidden }) =>
+    $hidden
+      ? "0 0 0"
+      : $stacked
+        ? `0 0 ${STACKED_CHAT_CANVAS_PANEL_HEIGHT}`
+        : "0 0 auto"};
+  will-change: width, height;
   display: ${({ $hidden }) => ($hidden ? "none" : "flex")};
   flex-direction: column;
-  padding: ${({ $chrome }) =>
-    $chrome === "plain" ? "0" : "16px 16px 16px 0"};
+  padding: ${({ $stacked, $chrome }) =>
+    $stacked || $chrome === "plain" ? "0" : "16px 16px 16px 0"};
 `;
 
 const ChatPanelInner = styled.div`
@@ -56,14 +96,16 @@ const PlainChatPanelInner = styled.div`
 
 const CanvasPanel = styled.div<{
   $visible: boolean;
+  $stacked: boolean;
   $transform: string;
   $opacity: number;
   $duration: number;
 }>`
   position: relative;
-  height: 100%;
+  height: ${({ $stacked }) => ($stacked ? "auto" : "100%")};
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   transition:
     transform ${({ $duration }) => $duration}ms ease-out,
@@ -106,19 +148,43 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
       effectiveMode,
       transitionConfig,
     );
+    const [stackedChatCanvas, setStackedChatCanvas] = useState(() =>
+      shouldUseStackedChatCanvasLayout(effectiveMode),
+    );
 
     const chatStyles = getTransitionStyles("chat");
     const canvasStyles = getTransitionStyles("canvas");
     const shouldRenderCanvas = hasCanvasContent && isCanvasVisible;
 
+    useEffect(() => {
+      const updateLayout = () => {
+        setStackedChatCanvas(
+          shouldUseStackedChatCanvasLayout(effectiveMode),
+        );
+      };
+
+      updateLayout();
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      window.addEventListener("resize", updateLayout);
+      return () => {
+        window.removeEventListener("resize", updateLayout);
+      };
+    }, [effectiveMode]);
+
     return (
       <Container
+        $stacked={stackedChatCanvas}
         data-testid="layout-transition-root"
         data-effective-mode={effectiveMode}
         data-has-canvas={shouldRenderCanvas ? "true" : "false"}
+        data-layout-axis={stackedChatCanvas ? "vertical" : "horizontal"}
       >
         <CanvasPanel
           $visible={shouldRenderCanvas}
+          $stacked={stackedChatCanvas}
           $transform={canvasStyles.transform as string}
           $opacity={canvasStyles.opacity as number}
           $duration={parseInt(
@@ -133,7 +199,8 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
           $duration={parseInt(
             chatStyles.transition?.match(/\d+/)?.[0] || "300",
           )}
-          $minWidth={effectiveMode === "canvas" ? "0px" : "460px"}
+          $minWidth={effectiveMode === "chat-canvas" ? "360px" : "0px"}
+          $stacked={stackedChatCanvas}
           $hidden={effectiveMode === "canvas"}
           $chrome={chatPanelChrome}
         >

@@ -85,7 +85,12 @@ vi.mock("./components/SkillBadge", () => ({
 }));
 
 vi.mock("./components/TeamSelector", () => ({
-  TeamSelector: () => <div data-testid="team-selector-stub" />,
+  TeamSelector: (props: { autoOpenToken?: number | null }) => (
+    <div
+      data-testid="team-selector-stub"
+      data-auto-open-token={String(props.autoOpenToken ?? "")}
+    />
+  ),
 }));
 
 vi.mock("../ChatModelSelector", () => ({
@@ -322,6 +327,9 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="team-selector-stub"]'),
     ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="team-mode-enable-button"]'),
+    ).toBeTruthy();
 
     const enabledContainer = renderInputbar({
       activeTheme: "general",
@@ -340,6 +348,103 @@ describe("Inputbar", () => {
     expect(
       enabledContainer.querySelector('[data-testid="team-selector-stub"]'),
     ).toBeTruthy();
+    expect(
+      enabledContainer.querySelector('[data-testid="team-mode-enable-button"]'),
+    ).toBeNull();
+  });
+
+  it("未开启 Team mode 时应显示显式开启按钮，并可直接启用", async () => {
+    const onToolStatesChange = vi.fn();
+    const container = renderInputbar({
+      activeTheme: "general",
+      toolStates: {
+        webSearch: false,
+        thinking: false,
+        task: false,
+        subagent: false,
+      },
+      onToolStatesChange,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const enableButton = container.querySelector(
+      '[data-testid="team-mode-enable-button"]',
+    ) as HTMLButtonElement | null;
+
+    expect(enableButton).toBeTruthy();
+    expect(enableButton?.textContent).toContain("开启 Team");
+
+    act(() => {
+      enableButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onToolStatesChange).toHaveBeenCalledWith({
+      webSearch: false,
+      thinking: false,
+      task: false,
+      subagent: true,
+    });
+  });
+
+  it("点击开启 Team 后应自动透传 Team 配置面板打开令牌", async () => {
+    const container = renderInputbar({
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const enableButton = container.querySelector(
+      '[data-testid="team-mode-enable-button"]',
+    ) as HTMLButtonElement | null;
+
+    expect(enableButton).toBeTruthy();
+
+    act(() => {
+      enableButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const teamSelector = container.querySelector(
+      '[data-testid="team-selector-stub"]',
+    ) as HTMLDivElement | null;
+
+    expect(teamSelector).toBeTruthy();
+    expect(teamSelector?.getAttribute("data-auto-open-token")).toBe("1");
+  });
+
+  it("复杂任务但未开启 Team 时，开启按钮应显示推荐态", async () => {
+    const container = renderInputbar({
+      activeTheme: "general",
+      input: "请把这个跨模块问题拆分成分析、实现、验证三个并行子任务再汇总",
+      toolStates: {
+        webSearch: false,
+        thinking: false,
+        task: false,
+        subagent: false,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const enableButton = container.querySelector(
+      '[data-testid="team-mode-enable-button"]',
+    ) as HTMLButtonElement | null;
+
+    expect(enableButton).toBeTruthy();
+    expect(enableButton?.textContent).toContain("开启 Team");
+    expect(enableButton?.textContent).toContain("推荐");
   });
 
   it("社媒主题默认应自动注入 social_post_with_cover skill", async () => {

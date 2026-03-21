@@ -5,6 +5,7 @@ import type {
 } from "@/lib/api/agentRuntime";
 import type { Message, MessageImage, WriteArtifactContext } from "../types";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
+import { sanitizeMessageTextForPreview } from "../utils/internalImagePlaceholder";
 
 export type TaskStatus = "draft" | "running" | "waiting" | "done" | "failed";
 export type TaskStatusReason =
@@ -120,8 +121,12 @@ function normalizeTaskPreviewText(value: string) {
 }
 
 function extractMessageTextContent(message: Message): string {
-  if (message.content?.trim()) {
-    return normalizeTaskPreviewText(message.content);
+  const sanitizedContent = sanitizeMessageTextForPreview(message.content || "", {
+    role: message.role,
+    hasImages: Array.isArray(message.images) && message.images.length > 0,
+  });
+  if (sanitizedContent) {
+    return normalizeTaskPreviewText(sanitizedContent);
   }
 
   const partText = message.contentParts
@@ -129,7 +134,15 @@ function extractMessageTextContent(message: Message): string {
       (part): part is Extract<(typeof message.contentParts)[number], { type: "text" | "thinking" }> =>
         part.type === "text" || part.type === "thinking",
     )
-    .map((part) => part.text)
+    .map((part) =>
+      part.type === "text"
+        ? sanitizeMessageTextForPreview(part.text, {
+            role: message.role,
+            hasImages: Array.isArray(message.images) && message.images.length > 0,
+          })
+        : part.text,
+    )
+    .filter(Boolean)
     .join(" ");
 
   return normalizeTaskPreviewText(partText || "");

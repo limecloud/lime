@@ -21,7 +21,12 @@ vi.mock("./Inputbar/components/SkillSelector", () => ({
 }));
 
 vi.mock("./Inputbar/components/TeamSelector", () => ({
-  TeamSelector: () => <div data-testid="empty-state-team-selector" />,
+  TeamSelector: (props: { autoOpenToken?: number | null }) => (
+    <div
+      data-testid="empty-state-team-selector"
+      data-auto-open-token={String(props.autoOpenToken ?? "")}
+    />
+  ),
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -129,6 +134,95 @@ function renderPanel(
   return container;
 }
 
+function renderStatefulPanel(
+  props?: Partial<React.ComponentProps<typeof EmptyStateComposerPanel>>,
+) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  const StatefulPanel = () => {
+    const [subagentEnabled, setSubagentEnabled] = React.useState(false);
+    return (
+      <EmptyStateComposerPanel
+        input=""
+        setInput={vi.fn()}
+        placeholder="输入内容"
+        onSend={vi.fn()}
+        activeTheme="general"
+        providerType="openai"
+        setProviderType={vi.fn()}
+        model="gpt-4.1"
+        setModel={vi.fn()}
+        executionStrategy="react"
+        executionStrategyLabel="ReAct"
+        setExecutionStrategy={vi.fn()}
+        onManageProviders={vi.fn()}
+        isGeneralTheme
+        isEntryTheme={false}
+        entryTaskType="direct"
+        entryTaskTypes={[]}
+        getEntryTaskTemplate={vi.fn()}
+        entryTemplate={{
+          type: "direct",
+          label: "直接写作",
+          description: "直接按需求写作",
+          pattern: "{input}",
+          slots: [],
+        }}
+        entryPreview=""
+        entrySlotValues={{}}
+        onEntryTaskTypeChange={vi.fn()}
+        onEntrySlotChange={vi.fn()}
+        characters={[]}
+        skills={[]}
+        activeSkill={null}
+        setActiveSkill={vi.fn()}
+        clearActiveSkill={vi.fn()}
+        isSkillsLoading={false}
+        onNavigateToSettings={vi.fn()}
+        onImportSkill={vi.fn()}
+        onRefreshSkills={vi.fn()}
+        showCreationModeSelector={false}
+        creationMode="guided"
+        onCreationModeChange={vi.fn()}
+        platform="xiaohongshu"
+        setPlatform={vi.fn()}
+        depth="deep"
+        setDepth={vi.fn()}
+        ratio="3:4"
+        setRatio={vi.fn()}
+        style="minimal"
+        setStyle={vi.fn()}
+        ratioPopoverOpen={false}
+        setRatioPopoverOpen={vi.fn()}
+        stylePopoverOpen={false}
+        setStylePopoverOpen={vi.fn()}
+        thinkingEnabled={false}
+        onThinkingEnabledChange={vi.fn()}
+        taskEnabled={false}
+        onTaskEnabledChange={vi.fn()}
+        subagentEnabled={subagentEnabled}
+        onSubagentEnabledChange={setSubagentEnabled}
+        webSearchEnabled={false}
+        onWebSearchEnabledChange={vi.fn()}
+        pendingImages={[]}
+        onFileSelect={vi.fn()}
+        onPaste={vi.fn()}
+        onRemoveImage={vi.fn()}
+        {...props}
+      />
+    );
+  };
+
+  act(() => {
+    root.render(<StatefulPanel />);
+  });
+
+  mountedRoots.push({ root, container });
+  return container;
+}
+
 describe("EmptyStateComposerPanel", () => {
   it("应将 onPaste 绑定到输入框", () => {
     const onPaste = vi.fn();
@@ -228,5 +322,69 @@ describe("EmptyStateComposerPanel", () => {
     expect(
       container.querySelector('[data-testid="empty-state-team-selector"]'),
     ).toBeTruthy();
+  });
+
+  it("未开启 Team mode 时应显示显式开启按钮，并可直接启用", () => {
+    const onSubagentEnabledChange = vi.fn();
+    const container = renderPanel({
+      isGeneralTheme: true,
+      subagentEnabled: false,
+      onSubagentEnabledChange,
+    });
+
+    const enableButton = container.querySelector(
+      '[data-testid="empty-state-team-mode-enable-button"]',
+    ) as HTMLButtonElement | null;
+
+    expect(enableButton).toBeTruthy();
+    expect(enableButton?.textContent).toContain("开启 Team");
+
+    act(() => {
+      enableButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
+  });
+
+  it("点击开启 Team 后应自动透传 Team 配置面板打开令牌", async () => {
+    const container = renderStatefulPanel();
+
+    const enableButton = container.querySelector(
+      '[data-testid="empty-state-team-mode-enable-button"]',
+    ) as HTMLButtonElement | null;
+
+    expect(enableButton).toBeTruthy();
+
+    act(() => {
+      enableButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const teamSelector = container.querySelector(
+      '[data-testid="empty-state-team-selector"]',
+    ) as HTMLDivElement | null;
+
+    expect(teamSelector).toBeTruthy();
+    expect(teamSelector?.getAttribute("data-auto-open-token")).toBe("1");
+  });
+
+  it("复杂任务但未开启 Team 时，首页开启按钮应显示推荐态", () => {
+    const container = renderPanel({
+      isGeneralTheme: true,
+      subagentEnabled: false,
+      input: "请拆成多个子任务分别分析、实现、验证，并最终统一回归验收",
+    });
+
+    const enableButton = container.querySelector(
+      '[data-testid="empty-state-team-mode-enable-button"]',
+    ) as HTMLButtonElement | null;
+
+    expect(enableButton).toBeTruthy();
+    expect(enableButton?.textContent).toContain("开启 Team");
+    expect(enableButton?.textContent).toContain("推荐");
   });
 });

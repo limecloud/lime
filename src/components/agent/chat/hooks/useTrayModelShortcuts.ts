@@ -6,26 +6,21 @@ import {
   type TrayModelSelectedPayload,
   type TrayQuickModelGroup,
 } from "@/lib/api/tray";
-import {
-  apiKeyProviderApi,
-  type ProviderWithKeysDisplay,
-} from "@/lib/api/apiKeyProvider";
-import {
-  providerPoolApi,
-  type ProviderPoolOverview,
-} from "@/lib/api/providerPool";
 import { modelRegistryApi } from "@/lib/api/modelRegistry";
 import { trayApi } from "@/lib/api/tray";
 import {
   getAliasConfigKey,
   getProviderLabel,
-  getRegistryIdFromType,
-  isAliasProvider,
 } from "@/lib/constants/providerMappings";
 import type {
   EnhancedModelMetadata,
   ProviderAliasConfig,
 } from "@/lib/types/modelRegistry";
+import {
+  loadConfiguredProviders,
+  type ConfiguredProvider,
+} from "@/hooks/useConfiguredProviders";
+import { buildProviderModelsFromRegistry } from "@/hooks/useProviderModels";
 import { filterModelsByTheme } from "../utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "../utils/providerModelCompatibility";
 
@@ -36,16 +31,6 @@ interface UseTrayModelShortcutsOptions {
   setModel: (model: string) => void;
   activeTheme?: string;
   deferInitialSync?: boolean;
-}
-
-interface ConfiguredProvider {
-  key: string;
-  label: string;
-  registryId: string;
-  fallbackRegistryId?: string;
-  type: string;
-  providerId?: string;
-  customModels?: string[];
 }
 
 const MAX_TRAY_MODELS_PER_PROVIDER = 8;
@@ -79,172 +64,6 @@ const THEME_LABEL_MAP: Record<string, string> = {
   music: "歌词曲谱",
   novel: "小说创作",
 };
-
-function sortModels(models: EnhancedModelMetadata[]): EnhancedModelMetadata[] {
-  return [...models].sort((a, b) => {
-    if (a.is_latest && !b.is_latest) return -1;
-    if (!a.is_latest && b.is_latest) return 1;
-
-    if (a.release_date && b.release_date) {
-      return b.release_date.localeCompare(a.release_date);
-    }
-    if (a.release_date && !b.release_date) return -1;
-    if (!a.release_date && b.release_date) return 1;
-
-    return a.display_name.localeCompare(b.display_name);
-  });
-}
-
-function convertCustomModelsToMetadata(
-  models: string[],
-  providerId: string,
-  providerName: string,
-): EnhancedModelMetadata[] {
-  const now = Date.now() / 1000;
-  return models.map((modelName) => ({
-    id: modelName,
-    display_name: modelName,
-    provider_id: providerId,
-    provider_name: providerName,
-    family: null,
-    tier: "pro",
-    capabilities: {
-      vision: false,
-      tools: true,
-      streaming: true,
-      json_mode: true,
-      function_calling: true,
-      reasoning: modelName.includes("thinking"),
-    },
-    pricing: null,
-    limits: {
-      context_length: null,
-      max_output_tokens: null,
-      requests_per_minute: null,
-      tokens_per_minute: null,
-    },
-    status: "active",
-    release_date: null,
-    is_latest: false,
-    description: `自定义模型: ${modelName}`,
-    source: "custom",
-    created_at: now,
-    updated_at: now,
-  }));
-}
-
-function convertAliasModelsToMetadata(
-  models: string[],
-  aliasConfig: ProviderAliasConfig,
-  providerId: string,
-  providerName: string,
-): EnhancedModelMetadata[] {
-  const now = Date.now() / 1000;
-  return models.map((modelName) => {
-    const aliasInfo = aliasConfig.aliases[modelName];
-    return {
-      id: modelName,
-      display_name: modelName,
-      provider_id: providerId,
-      provider_name: providerName,
-      family: aliasInfo?.provider || null,
-      tier: "pro" as const,
-      capabilities: {
-        vision: false,
-        tools: true,
-        streaming: true,
-        json_mode: true,
-        function_calling: true,
-        reasoning: modelName.includes("thinking"),
-      },
-      pricing: null,
-      limits: {
-        context_length: null,
-        max_output_tokens: null,
-        requests_per_minute: null,
-        tokens_per_minute: null,
-      },
-      status: "active" as const,
-      release_date: null,
-      is_latest: false,
-      description: aliasInfo?.description || aliasInfo?.actual || modelName,
-      source: "custom" as const,
-      created_at: now,
-      updated_at: now,
-    };
-  });
-}
-
-function buildConfiguredProviders(
-  oauthCredentials: ProviderPoolOverview[],
-  apiKeyProviders: ProviderWithKeysDisplay[],
-): ConfiguredProvider[] {
-  const providerMap = new Map<string, ConfiguredProvider>();
-
-  oauthCredentials.forEach((overview) => {
-    if (overview.credentials.length === 0) {
-      return;
-    }
-
-    const key = overview.provider_type;
-    if (providerMap.has(key)) {
-      return;
-    }
-
-    providerMap.set(key, {
-      key,
-      label: getProviderLabel(key),
-      registryId: getRegistryIdFromType(key),
-      type: key,
-    });
-  });
-
-  apiKeyProviders
-    .filter((provider) => provider.api_key_count > 0 && provider.enabled)
-    .forEach((provider) => {
-      let key = provider.id;
-      let label = provider.name;
-
-      if (providerMap.has(key)) {
-        key = `${provider.id}_api_key`;
-        label = `${provider.name} API Key`;
-      }
-
-      if (providerMap.has(key)) {
-        return;
-      }
-
-      providerMap.set(key, {
-        key,
-        label,
-        registryId: provider.id,
-        fallbackRegistryId: getRegistryIdFromType(provider.type),
-        type: provider.type,
-        providerId: provider.id,
-        customModels: provider.custom_models,
-      });
-    });
-
-  return Array.from(providerMap.values());
-}
-
-function dedupeModels(
-  models: EnhancedModelMetadata[],
-): EnhancedModelMetadata[] {
-  const seen = new Set<string>();
-  const result: EnhancedModelMetadata[] = [];
-
-  models.forEach((model) => {
-    const normalized = model.id.trim().toLowerCase();
-    if (!normalized || seen.has(normalized)) {
-      return;
-    }
-    seen.add(normalized);
-    result.push(model);
-  });
-
-  return result;
-}
 
 function getTrayPayloadSignature(
   providerType: string,
@@ -292,55 +111,14 @@ function scheduleTrayModelSync(task: () => void): () => void {
 
 function resolveProviderModels(
   provider: ConfiguredProvider,
-  registryModels: EnhancedModelMetadata[],
+  registryModels: Parameters<typeof buildProviderModelsFromRegistry>[1],
   aliasConfigs: Record<string, ProviderAliasConfig>,
-): EnhancedModelMetadata[] {
-  const combined: EnhancedModelMetadata[] = [];
-
-  if (provider.customModels?.length) {
-    combined.push(
-      ...convertCustomModelsToMetadata(
-        provider.customModels,
-        provider.key,
-        provider.label,
-      ),
-    );
-  }
-
-  if (isAliasProvider(provider.key)) {
-    const aliasConfig = aliasConfigs[getAliasConfigKey(provider.key)];
-    if (aliasConfig) {
-      combined.push(
-        ...convertAliasModelsToMetadata(
-          aliasConfig.models,
-          aliasConfig,
-          provider.key,
-          provider.label,
-        ),
-      );
-    }
-    return dedupeModels(combined);
-  }
-
-  const registryMatches = sortModels(
-    registryModels.filter((item) => item.provider_id === provider.registryId),
-  );
-  if (registryMatches.length > 0) {
-    combined.push(...registryMatches);
-    return dedupeModels(combined);
-  }
-
-  if (provider.fallbackRegistryId) {
-    combined.push(
-      ...sortModels(
-        registryModels.filter(
-          (item) => item.provider_id === provider.fallbackRegistryId,
-        ),
-      ),
-    );
-  }
-
-  return dedupeModels(combined);
+) {
+  return buildProviderModelsFromRegistry(
+    provider,
+    registryModels,
+    aliasConfigs[getAliasConfigKey(provider.key)] ?? null,
+  ).models;
 }
 
 function resolveThemeLabel(theme?: string): string {
@@ -476,34 +254,23 @@ export async function buildTrayPayload(
 
   const payloadPromise = (async () => {
     const sourceOptions = forceRefresh ? { forceRefresh: true } : undefined;
-    const [oauthCredentials, apiKeyProviders, registryModels, aliasConfigs] =
-      await Promise.all([
-        loadTraySource(
-          () => providerPoolApi.getOverview(sourceOptions),
-          [] as ProviderPoolOverview[],
-          "OAuth Provider 概览",
-        ),
-        loadTraySource(
-          () => apiKeyProviderApi.getProviders(sourceOptions),
-          [] as ProviderWithKeysDisplay[],
-          "API Key Provider 列表",
-        ),
-        loadTraySource(
-          () => modelRegistryApi.getModelRegistry(sourceOptions),
-          [] as EnhancedModelMetadata[],
-          "模型注册表",
-        ),
-        loadTraySource(
-          () => modelRegistryApi.getAllAliasConfigs(sourceOptions),
-          {} as Record<string, ProviderAliasConfig>,
-          "别名模型配置",
-        ),
-      ]);
-
-    const providers = buildConfiguredProviders(
-      oauthCredentials,
-      apiKeyProviders,
-    );
+    const [providers, registryModels, aliasConfigs] = await Promise.all([
+      loadTraySource(
+        () => loadConfiguredProviders({ forceRefresh }),
+        [] as ConfiguredProvider[],
+        "已配置 Provider 列表",
+      ),
+      loadTraySource(
+        () => modelRegistryApi.getModelRegistry(sourceOptions),
+        [] as EnhancedModelMetadata[],
+        "模型注册表",
+      ),
+      loadTraySource(
+        () => modelRegistryApi.getAllAliasConfigs(sourceOptions),
+        {} as Record<string, ProviderAliasConfig>,
+        "别名模型配置",
+      ),
+    ]);
     const currentProvider =
       providers.find((item) => item.key === providerType) || null;
 
@@ -585,6 +352,25 @@ export function useTrayModelShortcuts({
 }: UseTrayModelShortcutsOptions) {
   const lastSyncedSignatureRef = useRef<string>("");
   const initialSyncHandledRef = useRef(false);
+  const latestSelectionRef = useRef({
+    providerType,
+    model,
+  });
+  const latestMutatorsRef = useRef({
+    setProviderType,
+    setModel,
+  });
+
+  useEffect(() => {
+    latestSelectionRef.current = {
+      providerType,
+      model,
+    };
+    latestMutatorsRef.current = {
+      setProviderType,
+      setModel,
+    };
+  }, [model, providerType, setModel, setProviderType]);
 
   useEffect(() => {
     const normalizedProviderType = providerType.trim();
@@ -648,17 +434,22 @@ export function useTrayModelShortcuts({
 
       const nextProviderType = event.payload?.providerType?.trim() || "";
       const nextModel = event.payload?.model?.trim() || "";
+      const currentSelection = latestSelectionRef.current;
+      const currentMutators = latestMutatorsRef.current;
 
       if (!nextModel) {
         return;
       }
 
-      if (nextProviderType && nextProviderType !== providerType) {
-        setProviderType(nextProviderType);
+      if (
+        nextProviderType &&
+        nextProviderType !== currentSelection.providerType
+      ) {
+        currentMutators.setProviderType(nextProviderType);
       }
 
-      if (nextModel !== model) {
-        setModel(nextModel);
+      if (nextModel !== currentSelection.model) {
+        currentMutators.setModel(nextModel);
       }
     })
       .then((unlisten) => {
@@ -678,5 +469,5 @@ export function useTrayModelShortcuts({
         dispose();
       }
     };
-  }, [model, providerType, setModel, setProviderType]);
+  }, []);
 }

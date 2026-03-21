@@ -23,6 +23,8 @@ import {
   getContextMemoryAutoIndex,
   getContextMemoryEffectiveSources,
   getContextMemoryOverview,
+  ensureWorkspaceLocalAgentsGitignore,
+  scaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto,
   updateContextMemoryAutoNote,
   type AutoMemoryIndexResponse,
@@ -32,6 +34,7 @@ import {
   type MemoryProfileConfig,
   type MemoryResolveConfig,
   type MemorySourcesConfig,
+  type RuntimeAgentsTemplateTarget,
 } from "@/lib/api/memoryRuntime";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { getUnifiedMemoryStats } from "@/lib/api/unifiedMemory";
@@ -95,7 +98,7 @@ function normalizeSources(sources?: MemorySourcesConfig): MemorySourcesConfig {
       sources?.project_memory_paths?.length &&
       sources.project_memory_paths.filter((item) => item.trim().length > 0)
         ? sources.project_memory_paths
-        : ["AGENTS.md", ".agents/AGENTS.md"],
+        : [".lime/AGENTS.md"],
     project_rule_dirs:
       sources?.project_rule_dirs?.length &&
       sources.project_rule_dirs.filter((item) => item.trim().length > 0)
@@ -103,7 +106,7 @@ function normalizeSources(sources?: MemorySourcesConfig): MemorySourcesConfig {
         : [".agents/rules"],
     user_memory_path: sources?.user_memory_path ?? undefined,
     project_local_memory_path:
-      sources?.project_local_memory_path ?? "AGENTS.local.md",
+      sources?.project_local_memory_path ?? ".lime/AGENTS.local.md",
   };
 }
 
@@ -340,6 +343,9 @@ export function MemorySettings() {
   const [loadingLayerMetrics, setLoadingLayerMetrics] = useState(false);
   const [loadingSourceState, setLoadingSourceState] = useState(false);
   const [savingAutoNote, setSavingAutoNote] = useState(false);
+  const [scaffoldingTarget, setScaffoldingTarget] =
+    useState<RuntimeAgentsTemplateTarget | null>(null);
+  const [ensuringGitignore, setEnsuringGitignore] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(() =>
     getStoredResourceProjectId({ includeLegacy: true }),
   );
@@ -548,6 +554,65 @@ export function MemorySettings() {
       setTimeout(() => setMessage(null), 2500);
     } finally {
       setSavingAutoNote(false);
+    }
+  };
+
+  const handleScaffoldRuntimeAgentsTemplate = async (
+    target: RuntimeAgentsTemplateTarget,
+  ) => {
+    const workingDir = effectiveSources?.working_dir?.trim() || undefined;
+    const targetLabelMap: Record<RuntimeAgentsTemplateTarget, string> = {
+      global: "全局",
+      workspace: "Workspace",
+      workspace_local: "本机私有",
+    };
+
+    if (target !== "global" && !workingDir) {
+      setMessage(`当前未获取到 workspace 路径，暂无法生成${targetLabelMap[target]}模板`);
+      setTimeout(() => setMessage(null), 2500);
+      return;
+    }
+
+    setScaffoldingTarget(target);
+    try {
+      const result = await scaffoldRuntimeAgentsTemplate(target, workingDir, false);
+      if (result.status === "exists") {
+        setMessage(`${targetLabelMap[target]}模板已存在，未覆盖：${result.path}`);
+      } else {
+        setMessage(`已生成${targetLabelMap[target]}模板：${result.path}`);
+      }
+      setTimeout(() => setMessage(null), 3000);
+      await Promise.all([loadSourceState(), loadLayerMetrics()]);
+    } catch (error) {
+      console.error("生成运行时 AGENTS 模板失败:", error);
+      setMessage(`生成${targetLabelMap[target]}模板失败`);
+      setTimeout(() => setMessage(null), 2500);
+    } finally {
+      setScaffoldingTarget(null);
+    }
+  };
+
+  const handleEnsureWorkspaceLocalGitignore = async () => {
+    const workingDir = effectiveSources?.working_dir?.trim() || undefined;
+    if (!workingDir) {
+      setMessage("当前未获取到 workspace 路径，暂无法更新 .gitignore");
+      setTimeout(() => setMessage(null), 2500);
+      return;
+    }
+
+    setEnsuringGitignore(true);
+    try {
+      const result = await ensureWorkspaceLocalAgentsGitignore(workingDir);
+      const actionText =
+        result.status === "exists" ? "已存在，无需重复添加" : "已写入";
+      setMessage(`${actionText} .gitignore：${result.path}`);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error("更新 .gitignore 失败:", error);
+      setMessage("更新 .gitignore 失败");
+      setTimeout(() => setMessage(null), 2500);
+    } finally {
+      setEnsuringGitignore(false);
     }
   };
 
@@ -916,7 +981,7 @@ export function MemorySettings() {
                       }))
                     }
                     className={INPUT_CLASS_NAME}
-                    placeholder="例如 /Library/Application Support/Lime/AGENTS.md"
+                    placeholder="例如 ~/.lime/AGENTS.md"
                   />
                 </label>
 
@@ -937,7 +1002,7 @@ export function MemorySettings() {
                       }))
                     }
                     className={INPUT_CLASS_NAME}
-                    placeholder="留空时使用应用默认 AGENTS.md 路径"
+                    placeholder="留空时使用应用默认 ~/.lime/AGENTS.md 路径"
                   />
                 </label>
 
@@ -959,9 +1024,80 @@ export function MemorySettings() {
                       }))
                     }
                     className={INPUT_CLASS_NAME}
-                    placeholder="例如 AGENTS.local.md"
+                    placeholder="例如 .lime/AGENTS.local.md"
                   />
                 </label>
+              </div>
+
+              <div className="mt-4 rounded-[20px] border border-slate-200/80 bg-white/80 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      显式生成模板
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      只在你点击时创建模板文件，不会静默生成，也不会默认覆盖已有内容。
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500">
+                    当前 Workspace：{effectiveSources?.working_dir || "未解析"}
+                  </span>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleScaffoldRuntimeAgentsTemplate("global")
+                    }
+                    disabled={scaffoldingTarget !== null}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+                  >
+                    {scaffoldingTarget === "global"
+                      ? "生成中..."
+                      : "生成全局模板"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleScaffoldRuntimeAgentsTemplate("workspace")
+                    }
+                    disabled={
+                      scaffoldingTarget !== null || !effectiveSources?.working_dir
+                    }
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+                  >
+                    {scaffoldingTarget === "workspace"
+                      ? "生成中..."
+                      : "生成 Workspace 模板"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleScaffoldRuntimeAgentsTemplate(
+                        "workspace_local",
+                      )
+                    }
+                    disabled={
+                      scaffoldingTarget !== null || !effectiveSources?.working_dir
+                    }
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+                  >
+                    {scaffoldingTarget === "workspace_local"
+                      ? "生成中..."
+                      : "生成本机模板"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleEnsureWorkspaceLocalGitignore()}
+                    disabled={ensuringGitignore || !effectiveSources?.working_dir}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+                  >
+                    {ensuringGitignore
+                      ? "写入中..."
+                      : "将本机模板加入 .gitignore"}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1047,7 +1183,7 @@ export function MemorySettings() {
                 项目记忆文件
               </span>
               <span className="text-xs leading-5 text-slate-500">
-                每行一个相对路径，例如 `AGENTS.md`。
+                每行一个相对路径，例如 `.lime/AGENTS.md`。
               </span>
               <textarea
                 value={(sourcesConfig.project_memory_paths || []).join("\n")}

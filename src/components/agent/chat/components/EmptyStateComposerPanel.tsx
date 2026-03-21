@@ -35,6 +35,8 @@ import { CharacterMention } from "./Inputbar/components/CharacterMention";
 import { SkillBadge } from "./Inputbar/components/SkillBadge";
 import { SkillSelector } from "./Inputbar/components/SkillSelector";
 import { TeamSelector } from "./Inputbar/components/TeamSelector";
+import { TeamModeEntryButton } from "./Inputbar/components/TeamModeEntryButton";
+import type { WorkspaceSettings } from "@/types/workspace";
 import { CREATION_MODE_CONFIG } from "./constants";
 import type {
   CreationMode,
@@ -478,6 +480,7 @@ interface EmptyStateComposerPanelProps {
   setProviderType: (type: string) => void;
   model: string;
   setModel: (model: string) => void;
+  workspaceId?: string | null;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   executionStrategyLabel: string;
   setExecutionStrategy?: (
@@ -527,6 +530,8 @@ interface EmptyStateComposerPanelProps {
   onSubagentEnabledChange?: (enabled: boolean) => void;
   selectedTeam?: TeamDefinition | null;
   onSelectTeam?: (team: TeamDefinition | null) => void;
+  teamWorkspaceSettings?: WorkspaceSettings | null;
+  onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange?: (enabled: boolean) => void;
@@ -546,6 +551,7 @@ export function EmptyStateComposerPanel({
   setProviderType,
   model,
   setModel,
+  workspaceId,
   executionStrategy = "react",
   executionStrategyLabel,
   setExecutionStrategy,
@@ -593,6 +599,8 @@ export function EmptyStateComposerPanel({
   onSubagentEnabledChange,
   selectedTeam,
   onSelectTeam,
+  teamWorkspaceSettings,
+  onPersistCustomTeams,
   onEnableSuggestedTeam,
   webSearchEnabled,
   onWebSearchEnabledChange,
@@ -605,6 +613,9 @@ export function EmptyStateComposerPanel({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState<
     string | null
+  >(null);
+  const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
+    number | null
   >(null);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -641,6 +652,20 @@ export function EmptyStateComposerPanel({
 
   const handleContinueSingleAgent = () => {
     setDismissedSuggestionKey(suggestionKey);
+  };
+
+  const handleEnableTeamMode = () => {
+    if (!subagentEnabled && !selectedTeam) {
+      setTeamSelectorAutoOpenToken((current) => (current ?? 0) + 1);
+    }
+    onSubagentEnabledChange?.(true);
+  };
+
+  const handleToggleSubagentMode = () => {
+    if (!subagentEnabled && !selectedTeam) {
+      setTeamSelectorAutoOpenToken((current) => (current ?? 0) + 1);
+    }
+    onSubagentEnabledChange?.(!subagentEnabled);
   };
 
   return (
@@ -784,8 +809,23 @@ export function EmptyStateComposerPanel({
             <TeamSelector
               activeTheme={activeTheme}
               input={input}
+              workspaceId={workspaceId}
+              providerType={providerType}
+              model={model}
+              executionStrategy={executionStrategy}
+              autoOpenToken={teamSelectorAutoOpenToken}
               selectedTeam={selectedTeam}
+              workspaceSettings={teamWorkspaceSettings}
+              onPersistCustomTeams={onPersistCustomTeams}
               onSelectTeam={(team) => onSelectTeam?.(team)}
+            />
+          ) : isGeneralTheme && onSubagentEnabledChange ? (
+            <TeamModeEntryButton
+              selectedTeamLabel={selectedTeam?.label}
+              dataTestId="empty-state-team-mode-enable-button"
+              recommended={teamSuggestion.shouldSuggest}
+              hint={teamSuggestion.reasons[0]}
+              onClick={handleEnableTeamMode}
             />
           ) : null}
 
@@ -1058,7 +1098,7 @@ export function EmptyStateComposerPanel({
                   subagentEnabled,
                   "slate",
                 )}
-                onClick={() => onSubagentEnabledChange?.(!subagentEnabled)}
+                onClick={handleToggleSubagentMode}
                 aria-pressed={subagentEnabled}
                 title={subagentEnabled ? "关闭多代理偏好" : "开启多代理偏好"}
               >

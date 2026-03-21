@@ -17,6 +17,11 @@ use crate::services::chat_history_service::{load_memory_source_candidates, Memor
 use crate::services::memory_source_resolver_service::{
     resolve_effective_sources, EffectiveMemorySourcesResponse,
 };
+use crate::services::runtime_agents_template_service::{
+    ensure_workspace_local_agents_gitignore, scaffold_runtime_agents_template,
+    RuntimeAgentsTemplateScaffoldResult, RuntimeAgentsTemplateTarget,
+    WorkspaceGitignoreEnsureResult,
+};
 use chrono::{Local, NaiveDateTime, TimeZone};
 use lime_core::app_paths;
 use lime_services::context_memory_service::{MemoryEntry, MemoryFileType};
@@ -410,6 +415,36 @@ pub async fn memory_update_auto_note(
         &note,
         topic.as_deref(),
     )
+}
+
+/// 显式生成运行时 AGENTS 模板
+#[tauri::command]
+pub async fn memory_scaffold_runtime_agents_template(
+    target: RuntimeAgentsTemplateTarget,
+    working_dir: Option<String>,
+    overwrite: Option<bool>,
+) -> Result<RuntimeAgentsTemplateScaffoldResult, String> {
+    let resolved_working_dir = match target {
+        RuntimeAgentsTemplateTarget::Global => None,
+        RuntimeAgentsTemplateTarget::Workspace | RuntimeAgentsTemplateTarget::WorkspaceLocal => {
+            Some(resolve_working_dir(working_dir)?)
+        }
+    };
+
+    scaffold_runtime_agents_template(
+        target,
+        resolved_working_dir.as_deref(),
+        overwrite.unwrap_or(false),
+    )
+}
+
+/// 确保 Workspace `.gitignore` 忽略 `.lime/AGENTS.local.md`
+#[tauri::command]
+pub async fn memory_ensure_workspace_local_agents_gitignore(
+    working_dir: Option<String>,
+) -> Result<WorkspaceGitignoreEnsureResult, String> {
+    let resolved_working_dir = resolve_working_dir(working_dir)?;
+    ensure_workspace_local_agents_gitignore(&resolved_working_dir)
 }
 
 fn resolve_memory_dir() -> PathBuf {

@@ -49,6 +49,7 @@ import {
   resolveCreateConfirmationDecision,
   upsertPendingCreateConfirmationMap,
 } from "@/components/workspace/services/createConfirmationService";
+import { notifyProjectCreatedWithRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 import { reportFrontendError } from "@/lib/crashReporting";
 
 type CreateContentDialogStep = "mode" | "intent";
@@ -605,7 +606,7 @@ export function useCreationDialogs({
       });
       setCreateProjectDialogOpen(false);
       onProjectCreated(createdProject.id);
-      toast.success("已创建新项目");
+      notifyProjectCreatedWithRuntimeAgentsGuide(createdProject, "已创建新项目");
       await loadProjects();
       await loadContents(createdProject.id);
       upsertPendingCreateConfirmation(createdProject.id, "project_created", {
@@ -657,6 +658,7 @@ export function useCreationDialogs({
         });
 
         onProjectCreated(createdProject.id);
+        notifyProjectCreatedWithRuntimeAgentsGuide(createdProject, "项目创建成功");
         await loadProjects();
 
         await loadContents(createdProject.id);

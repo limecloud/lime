@@ -103,6 +103,13 @@ export interface EmptyStateQuickActionItem {
   description: string;
   badge: string;
   prompt: string;
+  actionLabel?: string;
+  outputHint?: string;
+  statusLabel?: string;
+  statusTone?: "slate" | "sky" | "emerald" | "amber";
+  statusDescription?: string;
+  testId?: string;
+  solutionId?: string;
 }
 
 export interface EmptyStateQuickPresetItem {
@@ -119,9 +126,17 @@ interface EmptyStateQuickActionsProps {
   presets?: EmptyStateQuickPresetItem[];
   items: EmptyStateQuickActionItem[];
   embedded?: boolean;
+  loading?: boolean;
   onPresetAction?: (item: EmptyStateQuickPresetItem) => void;
   onAction: (item: EmptyStateQuickActionItem) => void;
 }
+
+const STATUS_TONE_CLASSNAMES = {
+  slate: "border-slate-200 bg-slate-50 text-slate-600",
+  sky: "border-sky-200 bg-sky-50 text-sky-700",
+  emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  amber: "border-amber-200 bg-amber-50 text-amber-700",
+} as const;
 
 export function EmptyStateQuickActions({
   title,
@@ -130,10 +145,11 @@ export function EmptyStateQuickActions({
   presets = [],
   items,
   embedded = false,
+  loading = false,
   onPresetAction,
   onAction,
 }: EmptyStateQuickActionsProps) {
-  if (items.length === 0 && presets.length === 0) {
+  if (!loading && items.length === 0 && presets.length === 0) {
     return null;
   }
 
@@ -141,7 +157,9 @@ export function EmptyStateQuickActions({
     <QuickActionsPanel
       $embedded={embedded}
       className={
-        embedded ? EMPTY_STATE_PANEL_EMBEDDED_CLASSNAME : EMPTY_STATE_PANEL_CLASSNAME
+        embedded
+          ? EMPTY_STATE_PANEL_EMBEDDED_CLASSNAME
+          : EMPTY_STATE_PANEL_CLASSNAME
       }
     >
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
@@ -182,33 +200,55 @@ export function EmptyStateQuickActions({
         </div>
       ) : null}
 
-      <div className="mt-2.5 grid gap-2 md:grid-cols-2">
-        {items.map((item, index) => (
-          <RecommendationCard
-            key={item.key}
-            $index={index}
-            type="button"
-            onClick={() => onAction(item)}
-          >
-            <div className="flex w-full items-start justify-between gap-3">
-              <span className={EMPTY_STATE_META_PILL_CLASSNAME}>
-                {item.badge}
-              </span>
-              <span className="text-[11px] font-medium text-slate-400 transition-colors group-hover:text-slate-500">
-                立即开始
-              </span>
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900">
-                {item.title}
+      {loading && items.length === 0 ? (
+        <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-500">
+          正在加载推荐方案…
+        </div>
+      ) : (
+        <div className="mt-2.5 grid gap-2 md:grid-cols-2">
+          {items.map((item, index) => (
+            <RecommendationCard
+              key={item.key}
+              $index={index}
+              type="button"
+              data-testid={item.testId}
+              onClick={() => onAction(item)}
+            >
+              <div className="flex w-full items-start justify-between gap-3">
+                <span className={EMPTY_STATE_META_PILL_CLASSNAME}>
+                  {item.badge}
+                </span>
+                <span className="text-[11px] font-medium text-slate-400 transition-colors group-hover:text-slate-500">
+                  {item.actionLabel || "立即开始"}
+                </span>
               </div>
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                {item.description}
-              </p>
-            </div>
-          </RecommendationCard>
-        ))}
-      </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900">
+                  {item.title}
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {item.description}
+                </p>
+                {item.outputHint ? (
+                  <p className="mt-2 text-[11px] leading-5 text-slate-400">
+                    产出：{item.outputHint}
+                  </p>
+                ) : null}
+                {item.statusLabel ? (
+                  <div className="mt-2 flex items-center justify-start">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium ${STATUS_TONE_CLASSNAMES[item.statusTone ?? "slate"]}`}
+                      title={item.statusDescription}
+                    >
+                      {item.statusLabel}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </RecommendationCard>
+          ))}
+        </div>
+      )}
     </QuickActionsPanel>
   );
 }

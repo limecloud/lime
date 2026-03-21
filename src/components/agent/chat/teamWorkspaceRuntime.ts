@@ -1,5 +1,13 @@
 import type { AgentThreadItem } from "@/lib/api/agentStream";
-import type { AsterSubagentSessionInfo } from "@/lib/api/agentRuntime";
+import type {
+  AsterSubagentParentContext,
+  AsterSubagentSessionInfo,
+} from "@/lib/api/agentRuntime";
+import {
+  buildTeamDefinitionSummary,
+  type TeamDefinition,
+  type TeamRoleDefinition,
+} from "./utils/teamDefinitions";
 
 export type TeamWorkspaceRuntimeStatus =
   AsterSubagentSessionInfo["runtime_status"];
@@ -18,6 +26,7 @@ export interface TeamWorkspaceActivityEntry {
 export interface TeamWorkspaceLiveRuntimeState {
   runtimeStatus: TeamWorkspaceRuntimeStatus;
   latestTurnStatus: TeamWorkspaceRuntimeStatus;
+  queuedTurnCount?: number;
   baseFingerprint: string;
 }
 
@@ -33,6 +42,16 @@ export interface TeamWorkspaceRuntimeCard {
   id: string;
   runtimeStatus?: TeamWorkspaceRuntimeStatus;
   latestTurnStatus?: TeamWorkspaceRuntimeStatus;
+  queuedTurnCount?: number;
+}
+
+export interface TeamWorkspaceExecutionSummary {
+  totalSessionCount: number;
+  runningSessionCount: number;
+  queuedSessionCount: number;
+  activeSessionCount: number;
+  hasActiveRuntime: boolean;
+  statusTitle: string | null;
 }
 
 export interface TeamWorkspaceWaitSummary {
@@ -50,6 +69,106 @@ export interface TeamWorkspaceControlSummary {
   affectedSessionIds: string[];
   updatedAt: number;
 }
+
+export type TeamWorkspaceRuntimeFormationStatus =
+  | "forming"
+  | "formed"
+  | "failed";
+
+export type TeamWorkspaceRuntimeMemberStatus =
+  | "planned"
+  | "spawning"
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed";
+
+export interface TeamWorkspaceBlueprintSnapshot {
+  label?: string | null;
+  summary?: string | null;
+  roles: TeamRoleDefinition[];
+}
+
+export interface TeamWorkspaceRuntimeMember {
+  id: string;
+  label: string;
+  summary: string;
+  profileId?: string;
+  roleKey?: string;
+  skillIds: string[];
+  status: TeamWorkspaceRuntimeMemberStatus;
+  sessionId?: string;
+  latestSnippet?: string | null;
+}
+
+export interface TeamWorkspaceRuntimeFormationState {
+  requestId: string;
+  status: TeamWorkspaceRuntimeFormationStatus;
+  label?: string | null;
+  summary?: string | null;
+  members: TeamWorkspaceRuntimeMember[];
+  blueprint?: TeamWorkspaceBlueprintSnapshot | null;
+  errorMessage?: string | null;
+  updatedAt: number;
+}
+
+const FORMATION_STATUS_META = {
+  forming: {
+    label: "组建中",
+    title: "正在准备本轮 Team",
+    badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
+  },
+  formed: {
+    label: "已形成",
+    title: "本轮 Team 已就绪",
+    badgeClassName: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  failed: {
+    label: "失败",
+    title: "Team 生成失败",
+    badgeClassName: "border border-rose-200 bg-rose-50 text-rose-700",
+  },
+} satisfies Record<
+  TeamWorkspaceRuntimeFormationStatus,
+  {
+    label: string;
+    title: string;
+    badgeClassName: string;
+  }
+>;
+
+const MEMBER_STATUS_META = {
+  planned: {
+    label: "计划中",
+    badgeClassName: "border border-slate-200 bg-slate-50 text-slate-600",
+  },
+  spawning: {
+    label: "拉起中",
+    badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
+  },
+  running: {
+    label: "运行中",
+    badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
+  },
+  waiting: {
+    label: "等待中",
+    badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
+  },
+  completed: {
+    label: "已完成",
+    badgeClassName: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  failed: {
+    label: "失败",
+    badgeClassName: "border border-rose-200 bg-rose-50 text-rose-700",
+  },
+} satisfies Record<
+  TeamWorkspaceRuntimeMemberStatus,
+  {
+    label: string;
+    badgeClassName: string;
+  }
+>;
 
 const STATUS_META = {
   idle: {
@@ -77,7 +196,7 @@ const STATUS_META = {
     badgeClassName: "border border-rose-200 bg-rose-50 text-rose-700",
   },
   closed: {
-    label: "已关闭",
+    label: "已停止",
     badgeClassName: "border border-slate-200 bg-slate-100 text-slate-600",
   },
 } satisfies Record<
@@ -145,7 +264,8 @@ function resolveActivityEntryStatusMeta(
     case "completed":
       return {
         label: "完成",
-        badgeClassName: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+        badgeClassName:
+          "border border-emerald-200 bg-emerald-50 text-emerald-700",
       };
     default:
       return {
@@ -198,7 +318,8 @@ function resolveItemActivityDescriptor(item: AgentThreadItem): {
       return {
         title: item.output ? "检索结果" : "检索查询",
         detail:
-          normalizeActivityText(item.output) || normalizeActivityText(item.query),
+          normalizeActivityText(item.output) ||
+          normalizeActivityText(item.query),
       };
     case "warning":
       return {
@@ -237,7 +358,7 @@ export function resolveTeamWorkspaceRuntimeStatusLabel(
     case "aborted":
       return "已中止";
     case "closed":
-      return "已关闭";
+      return "已停止";
     case "not_found":
       return "未找到";
     default:
@@ -261,6 +382,147 @@ export function normalizeTeamWorkspaceRuntimeStatus(
   status: TeamWorkspaceResolvedRuntimeStatus,
 ): TeamWorkspaceRuntimeStatus {
   return status === "not_found" ? "closed" : status;
+}
+
+export function isTeamWorkspaceActiveStatus(
+  status?: TeamWorkspaceResolvedRuntimeStatus,
+): boolean {
+  return status === "running" || status === "queued";
+}
+
+function resolveExecutionSummaryStatusTitle(params: {
+  totalSessionCount: number;
+  runningSessionCount: number;
+  queuedSessionCount: number;
+}) {
+  const { totalSessionCount, runningSessionCount, queuedSessionCount } = params;
+  if (runningSessionCount > 0) {
+    if (queuedSessionCount > 0) {
+      return totalSessionCount > 1
+        ? `Team 运行中 · ${runningSessionCount} 运行 / ${queuedSessionCount} 排队`
+        : "Team 运行中";
+    }
+    return totalSessionCount > 1
+      ? `Team 运行中 · ${runningSessionCount}/${totalSessionCount}`
+      : "Team 运行中";
+  }
+
+  if (queuedSessionCount > 0) {
+    return totalSessionCount > 1
+      ? `Team 排队中 · ${queuedSessionCount}/${totalSessionCount}`
+      : "Team 排队中";
+  }
+
+  return null;
+}
+
+function buildExecutionSummarySnapshots(params: {
+  currentSessionId?: string | null;
+  currentSessionRuntimeStatus?: TeamWorkspaceRuntimeStatus;
+  currentSessionLatestTurnStatus?: TeamWorkspaceRuntimeStatus;
+  currentSessionQueuedTurnCount?: number;
+  childSubagentSessions?: AsterSubagentSessionInfo[];
+  subagentParentContext?: AsterSubagentParentContext | null;
+}) {
+  const snapshots = new Map<string, TeamWorkspaceRuntimeSessionSnapshot>();
+  const currentSessionId = params.currentSessionId?.trim();
+
+  if (params.subagentParentContext && currentSessionId) {
+    snapshots.set(currentSessionId, {
+      id: currentSessionId,
+      runtimeStatus: params.currentSessionRuntimeStatus,
+      latestTurnStatus: params.currentSessionLatestTurnStatus,
+      queuedTurnCount: params.currentSessionQueuedTurnCount,
+    });
+  }
+
+  const relatedSessions = params.subagentParentContext
+    ? (params.subagentParentContext.sibling_subagent_sessions ?? [])
+    : (params.childSubagentSessions ?? []);
+
+  relatedSessions.forEach((session) => {
+    if (snapshots.has(session.id)) {
+      return;
+    }
+    snapshots.set(session.id, {
+      id: session.id,
+      runtimeStatus: session.runtime_status,
+      latestTurnStatus: session.latest_turn_status,
+      queuedTurnCount: session.queued_turn_count,
+      updatedAt: session.updated_at,
+    });
+  });
+
+  return Array.from(snapshots.values());
+}
+
+function resolveExecutionSummarySessionStatus(params: {
+  session: TeamWorkspaceRuntimeSessionSnapshot;
+  liveState?: TeamWorkspaceLiveRuntimeState;
+}): TeamWorkspaceRuntimeStatus | undefined {
+  if (params.liveState?.runtimeStatus) {
+    return params.liveState.runtimeStatus;
+  }
+
+  if (params.session.runtimeStatus) {
+    return params.session.runtimeStatus;
+  }
+
+  if (params.session.latestTurnStatus) {
+    return params.session.latestTurnStatus;
+  }
+
+  if ((params.session.queuedTurnCount ?? 0) > 0) {
+    return "queued";
+  }
+
+  return undefined;
+}
+
+export function summarizeTeamWorkspaceExecution(params: {
+  currentSessionId?: string | null;
+  currentSessionRuntimeStatus?: TeamWorkspaceRuntimeStatus;
+  currentSessionLatestTurnStatus?: TeamWorkspaceRuntimeStatus;
+  currentSessionQueuedTurnCount?: number;
+  childSubagentSessions?: AsterSubagentSessionInfo[];
+  subagentParentContext?: AsterSubagentParentContext | null;
+  liveRuntimeBySessionId?: Record<string, TeamWorkspaceLiveRuntimeState>;
+}): TeamWorkspaceExecutionSummary {
+  const snapshots = buildExecutionSummarySnapshots(params);
+  let runningSessionCount = 0;
+  let queuedSessionCount = 0;
+
+  snapshots.forEach((session) => {
+    const status = resolveExecutionSummarySessionStatus({
+      session,
+      liveState: params.liveRuntimeBySessionId?.[session.id],
+    });
+
+    if (status === "running") {
+      runningSessionCount += 1;
+      return;
+    }
+
+    if (status === "queued") {
+      queuedSessionCount += 1;
+    }
+  });
+
+  const activeSessionCount = runningSessionCount + queuedSessionCount;
+  const totalSessionCount = snapshots.length;
+
+  return {
+    totalSessionCount,
+    runningSessionCount,
+    queuedSessionCount,
+    activeSessionCount,
+    hasActiveRuntime: activeSessionCount > 0,
+    statusTitle: resolveExecutionSummaryStatusTitle({
+      totalSessionCount,
+      runningSessionCount,
+      queuedSessionCount,
+    }),
+  };
 }
 
 export function buildTeamWorkspaceSessionFingerprint(
@@ -347,5 +609,67 @@ export function applyLiveRuntimeState<T extends TeamWorkspaceRuntimeCard>(
     ...session,
     runtimeStatus: liveState.runtimeStatus,
     latestTurnStatus: liveState.latestTurnStatus,
+    queuedTurnCount: liveState.queuedTurnCount ?? session.queuedTurnCount,
   };
+}
+
+export function createTeamWorkspaceBlueprintSnapshot(
+  team?: TeamDefinition | null,
+): TeamWorkspaceBlueprintSnapshot | null {
+  if (!team) {
+    return null;
+  }
+
+  return {
+    label: team.label?.trim() || null,
+    summary: buildTeamDefinitionSummary(team) || null,
+    roles: team.roles.map((role) => ({
+      ...role,
+      skillIds: role.skillIds ? [...role.skillIds] : [],
+    })),
+  };
+}
+
+export function createRuntimeFormationStateFromTeam(params: {
+  requestId: string;
+  status: TeamWorkspaceRuntimeFormationStatus;
+  runtimeTeam?: TeamDefinition | null;
+  blueprintTeam?: TeamDefinition | null;
+  errorMessage?: string | null;
+  updatedAt?: number;
+}): TeamWorkspaceRuntimeFormationState {
+  const runtimeTeam = params.runtimeTeam || null;
+
+  return {
+    requestId: params.requestId,
+    status: params.status,
+    label: runtimeTeam?.label?.trim() || null,
+    summary: runtimeTeam ? buildTeamDefinitionSummary(runtimeTeam) || null : null,
+    members: (runtimeTeam?.roles ?? []).map((role, index) => ({
+      id: role.id?.trim() || `runtime-member-${index + 1}`,
+      label: role.label?.trim() || `角色 ${index + 1}`,
+      summary: role.summary?.trim() || `${role.label || `角色 ${index + 1}`}负责当前子任务。`,
+      profileId: role.profileId?.trim() || undefined,
+      roleKey: role.roleKey?.trim() || undefined,
+      skillIds: role.skillIds ? [...role.skillIds] : [],
+      status: "planned",
+      sessionId: undefined,
+      latestSnippet: null,
+    })),
+    blueprint: createTeamWorkspaceBlueprintSnapshot(params.blueprintTeam),
+    errorMessage: params.errorMessage?.trim() || null,
+    updatedAt: params.updatedAt ?? Date.now(),
+  };
+}
+
+export function resolveRuntimeFormationStatusMeta(
+  status: TeamWorkspaceRuntimeFormationStatus,
+) {
+  return FORMATION_STATUS_META[status];
+}
+
+export function resolveRuntimeMemberStatusMeta(
+  status: TeamWorkspaceRuntimeMemberStatus,
+) {
+  return MEMBER_STATUS_META[status];
 }

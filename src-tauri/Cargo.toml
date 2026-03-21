@@ -3,7 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.92.0"
+version = "0.93.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -127,8 +127,8 @@ enigo = "0.3"
 # 如需联调本地 aster-rust，请运行：
 #   npm run setup:local-aster -- /path/to/aster-rust
 # 脚本会在仓库根 .cargo/config.toml 写入本地 patch 覆盖；该文件已被 .gitignore 忽略。
-aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.20.0" }
-aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.20.0" }
+aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.20.1" }
+aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.20.1" }
 
 # MCP (Model Context Protocol)
 rmcp = { version = "0.12.0", features = ["client", "transport-io", "transport-child-process"] }
@@ -143,6 +143,7 @@ tauri-plugin-autostart = "2.3"
 tauri-plugin-dialog = "2.5.0"
 tauri-plugin-single-instance = "2.3"
 tauri-plugin-global-shortcut = "2.3"
+tauri-plugin-updater = "2"
 
 # 测试
 proptest = "1"
@@ -191,7 +192,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "0.92.0"
+version = "0.93.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -235,6 +236,7 @@ tauri-plugin-autostart.workspace = true
 tauri-plugin-dialog.workspace = true
 tauri-plugin-single-instance.workspace = true
 tauri-plugin-global-shortcut.workspace = true
+tauri-plugin-updater.workspace = true
 
 # 序列化
 serde.workspace = true

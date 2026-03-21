@@ -9,11 +9,16 @@
 
 pub mod builder;
 pub mod instruction_discovery;
+pub mod runtime_agents;
 pub mod templates;
 
 pub use builder::SystemPromptBuilder;
 pub use instruction_discovery::{
     clear_instruction_cache, discover_instructions, discover_instructions_cached,
     merge_instructions, InstructionLayer, InstructionSource,
+};
+pub use runtime_agents::{
+    build_runtime_agents_prompt, merge_system_prompt_with_runtime_agents,
+    RUNTIME_AGENTS_PROMPT_MARKER,
 };
 pub use templates::*;

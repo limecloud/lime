@@ -33,6 +33,7 @@ Lime 是创作类 AI Agent 平台。
 
 - [首页与工作台](/user-guide/dashboard)
 - [资源库](/user-guide/resources)
+- [运行时 AGENTS 规则](/user-guide/runtime-agents)
 - [图片生成与编辑](/user-guide/image-generation)
 - [设置](/user-guide/settings)
 - [插件中心](/user-guide/plugins)

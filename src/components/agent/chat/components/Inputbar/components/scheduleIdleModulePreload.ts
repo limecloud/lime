@@ -1,7 +1,15 @@
 const IDLE_PRELOAD_TIMEOUT_MS = 1_500;
 const IDLE_PRELOAD_FALLBACK_DELAY_MS = 180;
 
+function shouldSkipIdleModulePreload(): boolean {
+  return Boolean(import.meta.env?.MODE === "test" || import.meta.env?.VITEST);
+}
+
 export function scheduleIdleModulePreload(task: () => void): () => void {
+  if (shouldSkipIdleModulePreload()) {
+    return () => {};
+  }
+
   if (typeof window === "undefined") {
     task();
     return () => {};

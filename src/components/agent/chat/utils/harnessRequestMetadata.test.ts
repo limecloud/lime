@@ -57,6 +57,7 @@ describe("harnessRequestMetadata", () => {
         expect.objectContaining({
           id: "explorer",
           label: "分析",
+          role_key: undefined,
         }),
         expect.objectContaining({
           id: "executor",
@@ -84,6 +85,40 @@ describe("harnessRequestMetadata", () => {
     });
 
     expect(metadata.gate_key).toBeUndefined();
+  });
+
+  it("应保留 Team 角色的 profileId、roleKey 与 skillIds", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      creationMode: "guided",
+      chatMode: "agent",
+      webSearchEnabled: false,
+      thinkingEnabled: true,
+      taskModeEnabled: true,
+      subagentModeEnabled: true,
+      sessionMode: "default",
+      selectedTeamRoles: [
+        {
+          id: "explorer",
+          label: "分析",
+          summary: "负责定位问题。",
+          profileId: "code-explorer",
+          roleKey: "explorer",
+          skillIds: ["repo-exploration", "source-grounding"],
+        },
+      ],
+    });
+
+    expect(metadata.selected_team_roles).toEqual([
+      {
+        id: "explorer",
+        label: "分析",
+        summary: "负责定位问题。",
+        profile_id: "code-explorer",
+        role_key: "explorer",
+        skill_ids: ["repo-exploration", "source-grounding"],
+      },
+    ]);
   });
 
   it("需要人工确认的浏览器任务应标记 user step", () => {

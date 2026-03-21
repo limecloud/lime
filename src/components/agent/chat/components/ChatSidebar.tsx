@@ -37,6 +37,7 @@ import {
   type TaskStatusReason,
 } from "../hooks/agentChatShared";
 import type { Message } from "../types";
+import { resolveInternalImageTaskDisplayName } from "../utils/internalImagePlaceholder";
 
 const RECENT_TASK_WINDOW_MS = 1000 * 60 * 60 * 24 * 3;
 const OLDER_TASKS_INITIAL_COUNT = 8;
@@ -167,6 +168,13 @@ function formatRelativeTime(date: Date) {
 
 function normalizePreviewText(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, 72);
+}
+
+function resolveSidebarDisplayTitle(
+  value: string | null | undefined,
+  fallback: string,
+) {
+  return resolveInternalImageTaskDisplayName(value) || fallback;
 }
 
 function resolveCurrentTaskPreview(messages: Message[]) {
@@ -540,7 +548,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       return {
         id: topic.id,
-        title: topic.title || "未命名任务",
+        title: resolveSidebarDisplayTitle(topic.title, "未命名任务"),
         updatedAt: topic.updatedAt || topic.createdAt,
         messagesCount: topic.messagesCount,
         status,
@@ -834,7 +842,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {session.name || "未命名子代理"}
+                {resolveSidebarDisplayTitle(session.name, "未命名子代理")}
               </div>
               <Badge className={statusMeta.badgeClassName}>
                 {statusMeta.label}
@@ -1086,7 +1094,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     <div className="rounded-[20px] border border-slate-200/80 bg-white/86 px-3.5 py-3 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {currentTaskItem?.title || "当前子代理"}
+                          {resolveSidebarDisplayTitle(
+                            currentTaskItem?.title,
+                            "当前子代理",
+                          )}
                         </div>
                         <Badge className="border border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900">
                           当前子代理

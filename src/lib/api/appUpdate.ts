@@ -5,6 +5,8 @@ export interface VersionInfo {
   latest?: string;
   hasUpdate: boolean;
   downloadUrl?: string;
+  releaseNotes?: string;
+  pubDate?: string;
   error?: string;
 }
 

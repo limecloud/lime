@@ -49,6 +49,7 @@ import {
 import { useActiveSkill } from "./Inputbar/hooks/useActiveSkill";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { WorkspaceSettings } from "@/types/workspace";
 import type { MessageImage } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import { isGeneralResearchTheme } from "../utils/generalAgentPrompt";
@@ -202,6 +203,8 @@ interface EmptyStateProps {
   selectedTeam?: TeamDefinition | null;
   onSelectTeam?: (team: TeamDefinition | null) => void;
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
+  teamWorkspaceSettings?: WorkspaceSettings | null;
+  onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
   hasCanvasContent?: boolean;
   hasContentId?: boolean;
   selectedText?: string;
@@ -235,6 +238,8 @@ interface EmptyStateProps {
   modelSelectorBackgroundPreload?: ModelSelectorProps["backgroundPreload"];
   /** 配置读取策略 */
   configLoadStrategy?: "immediate" | "idle";
+  /** 覆盖默认支持面板 */
+  supportingSlotOverride?: React.ReactNode;
 }
 
 const ENTRY_THEME_ID = "social-media";
@@ -390,6 +395,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   selectedTeam = null,
   onSelectTeam,
   onEnableSuggestedTeam,
+  teamWorkspaceSettings,
+  onPersistCustomTeams,
   hasCanvasContent = false,
   hasContentId = false,
   selectedText = "",
@@ -408,6 +415,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   deferProjectSelectorListLoad = false,
   modelSelectorBackgroundPreload = "immediate",
   configLoadStrategy = "immediate",
+  supportingSlotOverride,
 }) => {
   const { activeSkill, setActiveSkill, clearActiveSkill, wrapTextWithSkill } =
     useActiveSkill();
@@ -1101,6 +1109,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       setProviderType={setProviderType}
       model={model}
       setModel={setModel}
+      workspaceId={projectId}
       executionStrategy={executionStrategy}
       executionStrategyLabel={executionStrategyLabel}
       setExecutionStrategy={setExecutionStrategy}
@@ -1148,6 +1157,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       onSubagentEnabledChange={onSubagentEnabledChange}
       selectedTeam={selectedTeam}
       onSelectTeam={onSelectTeam}
+      teamWorkspaceSettings={teamWorkspaceSettings}
+      onPersistCustomTeams={onPersistCustomTeams}
       onEnableSuggestedTeam={onEnableSuggestedTeam}
       webSearchEnabled={webSearchEnabled}
       onWebSearchEnabledChange={onWebSearchEnabledChange}
@@ -1158,7 +1169,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     />
   );
 
-  const quickActionsPanel = (
+  const defaultQuickActionsPanel = (
     <EmptyStateQuickActions
       title="快速启动"
       description="先选一个任务模板，再在当前会话里继续补充和追问。"
@@ -1233,7 +1244,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           cards={workspaceCards}
           features={workspaceFeatures}
           prioritySlot={composerPanel}
-          supportingSlot={quickActionsPanel}
+          supportingSlot={supportingSlotOverride ?? defaultQuickActionsPanel}
           themeTabs={themeTabs}
           headerControls={headerControls}
         />

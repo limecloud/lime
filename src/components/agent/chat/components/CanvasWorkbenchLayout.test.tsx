@@ -48,6 +48,7 @@ vi.mock("@/lib/api/fileBrowser", () => ({
 interface MountedHarness {
   container: HTMLDivElement;
   root: Root;
+  rerender: (props: React.ComponentProps<typeof CanvasWorkbenchLayout>) => void;
 }
 
 const mountedRoots: MountedHarness[] = [];
@@ -95,16 +96,34 @@ function createTaskFile(
 function mount(
   props: React.ComponentProps<typeof CanvasWorkbenchLayout>,
 ): HTMLDivElement {
+  return mountHarness(props).container;
+}
+
+function mountHarness(
+  props: React.ComponentProps<typeof CanvasWorkbenchLayout>,
+): MountedHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
+  let currentProps = props;
 
   act(() => {
-    root.render(<CanvasWorkbenchLayout {...props} />);
+    root.render(<CanvasWorkbenchLayout {...currentProps} />);
   });
 
-  mountedRoots.push({ container, root });
-  return container;
+  const harness: MountedHarness = {
+    container,
+    root,
+    rerender: (nextProps) => {
+      currentProps = nextProps;
+      act(() => {
+        root.render(<CanvasWorkbenchLayout {...currentProps} />);
+      });
+    },
+  };
+
+  mountedRoots.push(harness);
+  return harness;
 }
 
 async function flushEffects(times = 6) {
@@ -115,7 +134,7 @@ async function flushEffects(times = 6) {
   }
 }
 
-async function resizeWorkbench(width: number) {
+async function resizeWorkbench(width: number, height = 720) {
   resizeObserverState.width = width;
   await act(async () => {
     resizeObserverState.observers.forEach((observer) => {
@@ -128,7 +147,7 @@ async function resizeWorkbench(width: number) {
             target: observer.target,
             contentRect: {
               width,
-              height: 720,
+              height,
             },
           },
         ],
@@ -445,7 +464,187 @@ describe("CanvasWorkbenchLayout", () => {
     expect(container.textContent).toContain("该文件为二进制内容");
   });
 
-  it("容器变窄时应切换为右侧抽屉布局并保持工作台可展开收起", async () => {
+  it("启用 teamView 且没有默认预览时应优先展示 Team Workbench", async () => {
+    const renderPreview = vi.fn((_target: CanvasWorkbenchPreviewTarget) => (
+      <div data-testid="fallback-preview">fallback</div>
+    ));
+    const renderTeamPreview = vi.fn(
+      (_options?: { stackedWorkbenchTrigger?: React.ReactNode }) => (
+        <div data-testid="team-preview">team-preview</div>
+      ),
+    );
+    const renderTeamPanel = vi.fn(() => (
+      <div data-testid="team-panel">team-panel</div>
+    ));
+
+    const container = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "",
+        isBinary: false,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview,
+      teamView: {
+        enabled: true,
+        title: "Team Workbench",
+        subtitle: "多 agent 实时协作",
+        renderPreview: renderTeamPreview,
+        renderPanel: renderTeamPanel,
+      },
+    });
+
+    await flushEffects();
+
+    expect(container.querySelector('[data-testid="team-preview"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="team-panel"]')).not.toBeNull();
+    expect(container.textContent).toContain("多 agent 实时协作");
+    expect(renderTeamPreview).toHaveBeenCalled();
+    expect(renderTeamPanel).toHaveBeenCalled();
+    expect(renderPreview).not.toHaveBeenCalled();
+  });
+
+  it("teamView 的 autoFocusToken 变化时应切到 Team Workbench", async () => {
+    const renderPreview = vi.fn((target: CanvasWorkbenchPreviewTarget) => (
+      <div data-testid="fallback-preview">
+        fallback:{target.kind}
+      </div>
+    ));
+    const renderTeamPreview = vi.fn(
+      (_options?: { stackedWorkbenchTrigger?: React.ReactNode }) => (
+        <div data-testid="team-preview">team-preview</div>
+      ),
+    );
+    const renderTeamPanel = vi.fn(() => (
+      <div data-testid="team-panel">team-panel</div>
+    ));
+
+    const baseProps: React.ComponentProps<typeof CanvasWorkbenchLayout> = {
+      artifacts: [
+        createArtifact("artifact-1", "draft.md", "标题\n当前内容", 20),
+      ],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: {
+        selectionKey: "artifact:artifact-1",
+        title: "draft.md",
+        content: "标题\n当前内容",
+        filePath: "draft.md",
+        absolutePath: "/workspace/draft.md",
+        previousContent: null,
+      },
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "",
+        isBinary: false,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview,
+      teamView: {
+        enabled: true,
+        title: "Team Workbench",
+        subtitle: "多成员实时协作",
+        autoFocusToken: 1,
+        renderPreview: renderTeamPreview,
+        renderPanel: renderTeamPanel,
+      },
+    };
+
+    const harness = mountHarness(baseProps);
+    await flushEffects();
+
+    expect(harness.container.querySelector('[data-testid="team-preview"]')).toBeNull();
+    expect(harness.container.querySelector('[data-testid="team-panel"]')).toBeNull();
+    expect(harness.container.querySelector('[data-testid="fallback-preview"]')).not.toBeNull();
+
+    harness.rerender({
+      ...baseProps,
+      teamView: {
+        ...baseProps.teamView!,
+        autoFocusToken: 2,
+      },
+    });
+    await flushEffects();
+
+    expect(harness.container.querySelector('[data-testid="team-preview"]')).not.toBeNull();
+    expect(harness.container.querySelector('[data-testid="team-panel"]')).not.toBeNull();
+    expect(harness.container.textContent).toContain("多成员实时协作");
+  });
+
+  it("teamView 存在活动态提示时，应在窄屏悬浮入口显示状态标签", async () => {
+    const container = mount({
+      artifacts: [
+        createArtifact("artifact-1", "draft.md", "标题\n当前内容", 20),
+      ],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: {
+        selectionKey: "artifact:artifact-1",
+        title: "draft.md",
+        content: "标题\n当前内容",
+        filePath: "draft.md",
+        absolutePath: "/workspace/draft.md",
+        previousContent: null,
+      },
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "",
+        isBinary: false,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target, options) => (
+        <div data-testid="preview-panel">
+          {options?.stackedWorkbenchTrigger}
+          {target.kind}:{target.title}
+        </div>
+      ),
+      teamView: {
+        enabled: true,
+        title: "Team Workbench",
+        subtitle: "多成员实时协作",
+        triggerState: {
+          tone: "active",
+          label: "组建中",
+        },
+        renderPreview: () => <div data-testid="team-preview">team-preview</div>,
+        renderPanel: () => <div data-testid="team-panel">team-panel</div>,
+      },
+    });
+
+    await flushEffects();
+    await resizeWorkbench(820);
+    await flushEffects();
+
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-testid="canvas-workbench-trigger"]',
+    );
+
+    expect(trigger).toBeTruthy();
+    expect(trigger?.textContent).toContain("工作台");
+    expect(trigger?.textContent).toContain("组建中");
+    expect(trigger?.className).toContain("bg-sky-50");
+  });
+
+  it("容器变窄时应切换为底部工作台布局并保持工作台可展开收起", async () => {
     const container = mount({
       artifacts: [
         createArtifact("artifact-new", "draft.md", "标题\n产物版本", 20),
@@ -506,13 +705,17 @@ describe("CanvasWorkbenchLayout", () => {
     expect(
       container.querySelector('button[aria-label="展开画布工作台"]'),
     ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-trigger"]')
+        ?.textContent,
+    ).toContain("工作台");
 
     clickButtonByLabel(container, "展开画布工作台");
     expect(
       container
         .querySelector('[data-testid="canvas-workbench-layout"]')
         ?.getAttribute("data-panel-placement"),
-    ).toBe("overlay-right");
+    ).toBe("overlay-bottom");
     expect(
       container.querySelector('button[aria-label="折叠画布工作台"]'),
     ).not.toBeNull();
@@ -525,5 +728,111 @@ describe("CanvasWorkbenchLayout", () => {
     clickButtonByLabel(container, "展开画布工作台");
     clickButtonByLabel(container, "切换画布标签-预览");
     expect(container.textContent).toContain("当前画布正文");
+  });
+
+  it("窄屏底部工作台应支持拖拽调整高度", async () => {
+    const container = mount({
+      artifacts: [
+        createArtifact("artifact-new", "draft.md", "标题\n产物版本", 20),
+      ],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: {
+        selectionKey: "artifact:artifact-new",
+        title: "draft.md",
+        content: "标题\n产物版本",
+        filePath: "draft.md",
+        absolutePath: "/workspace/draft.md",
+        previousContent: "标题\n上一版本",
+      } satisfies CanvasWorkbenchDefaultPreview,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "README 内容",
+        isBinary: false,
+        size: 12,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target, options) => (
+        <div data-testid="preview-panel">
+          {options?.stackedWorkbenchTrigger}
+          {target.kind}:{target.title}
+        </div>
+      ),
+    });
+
+    await flushEffects();
+    await resizeWorkbench(820, 640);
+    await flushEffects();
+
+    clickButtonByLabel(container, "展开画布工作台");
+    await flushEffects();
+
+    const layout = container.querySelector<HTMLElement>(
+      '[data-testid="canvas-workbench-layout"]',
+    );
+    const resizeHandle = container.querySelector<HTMLElement>(
+      '[data-testid="canvas-workbench-resize-handle"]',
+    );
+
+    expect(layout).toBeTruthy();
+    expect(resizeHandle).toBeTruthy();
+
+    const initialHeight = Number.parseFloat(layout?.style.height || "0");
+    expect(initialHeight).toBeGreaterThan(0);
+
+    await act(async () => {
+      resizeHandle?.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          clientY: 520,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientY: 420,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mouseup", {
+          bubbles: true,
+          clientY: 420,
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    const expandedHeight = Number.parseFloat(layout?.style.height || "0");
+    expect(expandedHeight).toBeGreaterThan(initialHeight);
+
+    await act(async () => {
+      resizeHandle?.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          clientY: 420,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientY: 560,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mouseup", {
+          bubbles: true,
+          clientY: 560,
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    const reducedHeight = Number.parseFloat(layout?.style.height || "0");
+    expect(reducedHeight).toBeLessThan(expandedHeight);
+    expect(reducedHeight).toBeGreaterThanOrEqual(220);
   });
 });

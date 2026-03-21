@@ -174,8 +174,8 @@ describe("TeamWorkspaceDock", () => {
       toggleButton?.click();
     });
 
-    expect(document.body.textContent).toContain("等待真实子代理");
-    expect(document.body.textContent).toContain("spawn_agent");
+    expect(document.body.textContent).toContain("等待团队成员加入");
+    expect(document.body.textContent).toContain("分派团队成员");
     expect(document.body.textContent).toContain("不遮挡画布");
     expect(document.body.textContent).toContain("当前 Team：前端联调团队");
     expect(document.body.textContent).toContain("分析、实现、验证三段式推进。");
@@ -260,6 +260,95 @@ describe("TeamWorkspaceDock", () => {
     expect(document.body.textContent).toContain("研究员");
   });
 
+  it("仅处于 Team 组建中时，不应自动展开面板，但应显示提醒", async () => {
+    const { container } = await renderDock({
+      runtimeTeamState: {
+        requestId: "runtime-forming-1",
+        status: "forming",
+        label: "修复 Team",
+        summary: "正在根据任务准备协作成员。",
+        members: [],
+        blueprint: {
+          label: "代码排障团队",
+          summary: "分析、执行、验证三段式推进。",
+          roles: [],
+        },
+        updatedAt: Date.now(),
+      },
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("查看 Team · 组建中");
+    expect(
+      container.querySelector('[data-testid="team-workspace-dock-signal"]'),
+    ).toBeTruthy();
+  });
+
+  it("Team 已就绪但真实成员未出现时，不应自动展开面板", async () => {
+    const { container } = await renderDock({
+      runtimeTeamState: {
+        requestId: "runtime-formed-2",
+        status: "formed",
+        label: "修复 Team",
+        summary: "分析、执行、验证协作闭环。",
+        members: [
+          {
+            id: "runtime-explorer",
+            label: "分析",
+            summary: "负责定位问题边界。",
+            roleKey: "explorer",
+            profileId: "code-explorer",
+            skillIds: ["repo-exploration"],
+            status: "planned",
+          },
+        ],
+        blueprint: {
+          label: "代码排障团队",
+          summary: "分析、执行、验证三段式推进。",
+          roles: [],
+        },
+        updatedAt: Date.now(),
+      },
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("查看 Team · 1");
+    expect(
+      container.querySelector('[data-testid="team-workspace-dock-signal"]'),
+    ).toBeTruthy();
+  });
+
+  it("Team 准备失败时，不应自动展开面板，但应保留提醒入口", async () => {
+    const { container } = await renderDock({
+      runtimeTeamState: {
+        requestId: "runtime-failed-1",
+        status: "failed",
+        label: "修复 Team",
+        summary: "分析、执行、验证协作闭环。",
+        members: [],
+        blueprint: {
+          label: "代码排障团队",
+          summary: "分析、执行、验证三段式推进。",
+          roles: [],
+        },
+        errorMessage: "Team 生成失败",
+        updatedAt: Date.now(),
+      },
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("查看 Team · 失败");
+    expect(
+      container.querySelector('[data-testid="team-workspace-dock-signal"]'),
+    ).toBeTruthy();
+  });
+
   it("真实 team 图谱折叠时，应显示查看入口和动态提示", async () => {
     const { container } = await renderDock({
       childSubagentSessions: [
@@ -331,5 +420,184 @@ describe("TeamWorkspaceDock", () => {
     expect(getComputedStyle(dock as HTMLElement).zIndex).toBe("120");
     expect(getComputedStyle(panelInBody as HTMLElement).position).toBe("fixed");
     expect(getComputedStyle(panelInBody as HTMLElement).zIndex).toBe("10010");
+  });
+
+  it("用户手动收起后，同一轮不应再次自动展开", async () => {
+    const { container, render } = await renderDock({
+      placement: "inline",
+    });
+
+    await render({
+      placement: "inline",
+      childSubagentSessions: [
+        {
+          id: "child-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          task_summary: "整理竞品与数据来源",
+          role_hint: "explorer",
+        },
+      ],
+    });
+
+    const toggleButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="team-workspace-dock-toggle"]',
+    );
+    expect(toggleButton?.textContent).toContain("收起 Team");
+
+    act(() => {
+      toggleButton?.click();
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeNull();
+
+    await render({
+      placement: "inline",
+      childSubagentSessions: [
+        {
+          id: "child-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          task_summary: "整理竞品与数据来源",
+          role_hint: "explorer",
+        },
+        {
+          id: "child-2",
+          name: "执行者",
+          created_at: 1_710_000_010,
+          updated_at: 1_710_000_120,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          task_summary: "提交修复方案",
+          role_hint: "executor",
+        },
+      ],
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeNull();
+    expect(toggleButton?.textContent).toContain("查看 Team · 2");
+  });
+
+  it("切换会话后，新的真实成员出现应再次自动展开", async () => {
+    const { container, render } = await renderDock({
+      placement: "inline",
+    });
+
+    await render({
+      placement: "inline",
+      childSubagentSessions: [
+        {
+          id: "child-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          task_summary: "整理竞品与数据来源",
+          role_hint: "explorer",
+        },
+      ],
+    });
+
+    const toggleButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="team-workspace-dock-toggle"]',
+    );
+
+    act(() => {
+      toggleButton?.click();
+    });
+
+    await render({
+      placement: "inline",
+      currentSessionId: "parent-2",
+      childSubagentSessions: [],
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeNull();
+
+    await render({
+      placement: "inline",
+      currentSessionId: "parent-2",
+      childSubagentSessions: [
+        {
+          id: "child-2",
+          name: "执行者",
+          created_at: 1_710_000_010,
+          updated_at: 1_710_000_120,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          task_summary: "提交修复方案",
+          role_hint: "executor",
+        },
+      ],
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="team-workspace-dock-panel"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("收起 Team");
+  });
+
+  it("本轮 Team 已就绪时，应在空态 Dock 展示成员摘要", async () => {
+    const { container } = await renderDock({
+      runtimeTeamState: {
+        requestId: "runtime-formed-1",
+        status: "formed",
+        label: "修复 Team",
+        summary: "分析、执行、验证协作闭环。",
+        members: [
+          {
+            id: "runtime-explorer",
+            label: "分析",
+            summary: "负责定位问题边界。",
+            roleKey: "explorer",
+            profileId: "code-explorer",
+            skillIds: ["repo-exploration"],
+            status: "planned",
+          },
+        ],
+        blueprint: {
+          label: "代码排障团队",
+          summary: "分析、执行、验证三段式推进。",
+          roles: [],
+        },
+        updatedAt: Date.now(),
+      },
+    });
+
+    const toggleButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="team-workspace-dock-toggle"]',
+    );
+    expect(toggleButton?.textContent).toContain("查看 Team · 1");
+
+    act(() => {
+      toggleButton?.click();
+    });
+
+    const detailToggle = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="team-workspace-selected-team-toggle"]',
+    );
+    expect(detailToggle).toBeTruthy();
+
+    act(() => {
+      detailToggle?.click();
+    });
+
+    expect(document.body.textContent).toContain("本轮 Team 已就绪");
+    expect(document.body.textContent).toContain("修复 Team");
+    expect(document.body.textContent).toContain("分析");
+    expect(document.body.textContent).toContain("repo-exploration");
   });
 });

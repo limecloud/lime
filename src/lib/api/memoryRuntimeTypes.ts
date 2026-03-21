@@ -119,3 +119,28 @@ export interface AutoMemoryIndexResponse {
 export interface MemoryAutoToggleResponse {
   enabled: boolean;
 }
+
+export type RuntimeAgentsTemplateTarget =
+  | "global"
+  | "workspace"
+  | "workspace_local";
+
+export type RuntimeAgentsTemplateScaffoldStatus =
+  | "created"
+  | "exists"
+  | "overwritten";
+
+export interface RuntimeAgentsTemplateScaffoldResult {
+  target: RuntimeAgentsTemplateTarget;
+  path: string;
+  status: RuntimeAgentsTemplateScaffoldStatus;
+  createdParentDir: boolean;
+}
+
+export type WorkspaceGitignoreEnsureStatus = "created" | "added" | "exists";
+
+export interface WorkspaceGitignoreEnsureResult {
+  path: string;
+  entry: string;
+  status: WorkspaceGitignoreEnsureStatus;
+}

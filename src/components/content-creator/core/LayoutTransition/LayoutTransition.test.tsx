@@ -1,5 +1,5 @@
 import React from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { LayoutMode } from "../../types";
 import { LayoutTransition } from "./LayoutTransition";
 import {
@@ -54,9 +54,34 @@ function PlainChatLayoutHarness({ mode }: { mode: LayoutMode }) {
 
 describe("LayoutTransition", () => {
   const mountedRoots: MountedRoot[] = [];
+  const originalInnerWidth = window.innerWidth;
+  const originalInnerHeight = window.innerHeight;
+
+  beforeEach(() => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: 1440,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      writable: true,
+      value: 900,
+    });
+  });
 
   afterEach(() => {
     cleanupMountedRoots(mountedRoots);
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: originalInnerWidth,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      writable: true,
+      value: originalInnerHeight,
+    });
   });
 
   it("chat-canvas 模式应为画布与对话保留分栏间距", () => {
@@ -80,6 +105,38 @@ describe("LayoutTransition", () => {
     );
 
     expect(hasGapRule).toBe(true);
+    expect(root?.getAttribute("data-layout-axis")).toBe("horizontal");
+  });
+
+  it("小屏 chat-canvas 模式应改为上下堆叠，避免右侧区域挤压不可见", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: 1080,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      writable: true,
+      value: 720,
+    });
+
+    const { container } = mountHarness(
+      LayoutHarness,
+      { mode: "chat-canvas" },
+      mountedRoots,
+    );
+
+    const root = container.querySelector<HTMLElement>(
+      '[data-testid="layout-transition-root"]',
+    );
+
+    expect(root?.getAttribute("data-layout-axis")).toBe("vertical");
+    expect(
+      container.querySelector('[data-testid="layout-chat-content"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="layout-canvas-content"]'),
+    ).not.toBeNull();
   });
 
   it("画布内容为空时应退回聊天布局，避免保留空白画布列", () => {

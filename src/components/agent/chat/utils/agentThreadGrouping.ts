@@ -1,5 +1,6 @@
 import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
 import type { AgentThreadItem, AgentThreadItemStatus } from "../types";
+import { resolveInternalImageTaskDisplayName } from "./internalImagePlaceholder";
 
 export type AgentThreadGroupKind =
   | "thinking"
@@ -445,7 +446,11 @@ function summarizeSubagentItem(item: AgentThreadItem): string | null {
   if (item.type !== "subagent_activity") {
     return null;
   }
-  return shortenText(item.title || item.summary || item.status_label);
+  return shortenText(
+    resolveInternalImageTaskDisplayName(item.title) ||
+      item.summary ||
+      item.status_label,
+  );
 }
 
 function summarizeAlertItem(item: AgentThreadItem): string | null {

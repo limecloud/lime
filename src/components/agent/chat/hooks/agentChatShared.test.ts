@@ -134,6 +134,40 @@ describe("agentChatShared", () => {
     );
   });
 
+  it("图片占位符不应直接出现在任务摘要里", () => {
+    const now = new Date("2026-03-19T00:00:00.000Z");
+    const messages: Message[] = [
+      {
+        id: "msg-user-image",
+        role: "user",
+        content: "[Image #1]",
+        images: [
+          {
+            mediaType: "image/png",
+            data: "aGVsbG8=",
+          },
+        ],
+        timestamp: now,
+      },
+    ];
+
+    expect(extractTaskPreviewFromMessages(messages)).toBe("已附加图片");
+  });
+
+  it("助手内部图片标签应转换为自然语言摘要", () => {
+    const now = new Date("2026-03-19T00:00:00.000Z");
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image",
+        role: "assistant",
+        content: "[Image #1]",
+        timestamp: now,
+      },
+    ];
+
+    expect(extractTaskPreviewFromMessages(messages)).toBe("图片处理中");
+  });
+
   it("应按浏览器预检阶段映射不同状态原因", () => {
     expect(
       deriveTaskLiveState({

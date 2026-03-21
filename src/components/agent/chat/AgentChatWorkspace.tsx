@@ -42,6 +42,7 @@ import {
   useAgentChatUnified,
   useArtifactAutoPreviewSync,
   useCompatSubagentRuntime,
+  useRuntimeTeamFormation,
   useTeamWorkspaceRuntime,
   useThemeContextWorkspace,
   useTopicBranchBoard,
@@ -63,9 +64,11 @@ import { useTrayModelShortcuts } from "./hooks/useTrayModelShortcuts";
 import {
   isTeamWorkspaceTerminalStatus,
   resolveTeamWorkspaceRuntimeStatusLabel,
+  summarizeTeamWorkspaceExecution,
   type TeamWorkspaceControlSummary,
   type TeamWorkspaceWaitSummary,
 } from "./teamWorkspaceRuntime";
+import { notifyProjectRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 import { ChatNavbar } from "./components/ChatNavbar";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { ThemeWorkbenchSidebar } from "./components/ThemeWorkbenchSidebar";
@@ -74,6 +77,9 @@ import { AgentRuntimeStrip } from "./components/AgentRuntimeStrip";
 import { HarnessStatusPanel } from "./components/HarnessStatusPanel";
 import { SocialMediaHarnessCard } from "./components/SocialMediaHarnessCard";
 import { TeamWorkspaceDock } from "./components/TeamWorkspaceDock";
+import { TeamWorkspaceBoard } from "./components/TeamWorkspaceBoard";
+import { TeamWorkbenchSummaryPanel } from "./components/TeamWorkbenchSummaryPanel";
+import { ThemeWorkbenchEntryPromptAccessory } from "./components/ThemeWorkbenchEntryPromptAccessory";
 import { MessageList } from "./components/MessageList";
 import { Inputbar } from "./components/Inputbar";
 import { RuntimeStyleControlBar } from "./components/RuntimeStyleControlBar";
@@ -169,7 +175,6 @@ import { logAgentDebug } from "@/lib/agentDebug";
 import { browserExecuteAction, launchBrowserSession } from "@/lib/webview-api";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
-import { skillsApi, type Skill } from "@/lib/api/skills";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { loadConfiguredProviders } from "@/hooks/useConfiguredProviders";
 import {
@@ -181,6 +186,9 @@ import {
   type ThemeWorkbenchRunTerminalItem,
   type ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
 } from "@/lib/api/executionRun";
+import {
+  contentWorkflowApi,
+} from "@/lib/api/content-workflow";
 import { setActiveContentTarget } from "@/lib/activeContentTarget";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { listMaterials, uploadMaterial } from "@/lib/api/materials";
@@ -216,9 +224,7 @@ import {
 } from "@/lib/api/skill-execution";
 
 import type {
-  BrowserPreflightState,
   BrowserAssistSessionState,
-  BrowserTaskRequirement,
   Message,
   MessageImage,
   WriteArtifactContext,
@@ -244,9 +250,7 @@ import {
 } from "./utils/styleRuntime";
 import { resolveTopicSwitchProject } from "./utils/topicProjectSwitch";
 import {
-  loadChatToolPreferences,
   saveChatToolPreferences,
-  type ChatToolPreferences,
 } from "./utils/chatToolPreferences";
 import {
   buildHarnessRequestMetadata,
@@ -273,7 +277,23 @@ import {
   buildGeneralAgentSystemPrompt,
   resolveAgentChatMode,
 } from "./utils/generalAgentPrompt";
+import { loadPersistedProjectId } from "./hooks/agentProjectStorage";
 import { useSelectedTeamPreference } from "./hooks/useSelectedTeamPreference";
+import { useThemeScopedChatToolPreferences } from "./hooks/useThemeScopedChatToolPreferences";
+import { useLimeSkills } from "./hooks/useLimeSkills";
+import { useWorkspaceProjectSelection } from "./hooks/useWorkspaceProjectSelection";
+import {
+  useBootstrapDispatchPreview,
+} from "./hooks/useBootstrapDispatchPreview";
+import { useThemeWorkbenchEntryPrompt } from "./hooks/useThemeWorkbenchEntryPrompt";
+import { useThemeWorkbenchEntryPromptActions } from "./hooks/useThemeWorkbenchEntryPromptActions";
+import {
+  useThemeWorkbenchSendBoundary,
+} from "./hooks/useThemeWorkbenchSendBoundary";
+import type {
+  BrowserTaskPreflight,
+  HandleSendOptions,
+} from "./hooks/handleSendTypes";
 import {
   areBrowserAssistSessionStatesEqual,
   clearBrowserAssistSessionState,
@@ -290,7 +310,6 @@ import {
   resolveBrowserAssistLaunchUrl,
 } from "./utils/browserAssistIntent";
 import { preheatBrowserAssistInBackground } from "./utils/browserAssistPreheat";
-import { detectBrowserTaskRequirement } from "./utils/browserTaskRequirement";
 import { mergeThreadItems } from "./utils/threadTimelineView";
 import { subscribeDocumentEditorFocus } from "@/lib/documentEditorFocusEvents";
 import {
@@ -652,7 +671,7 @@ function wrapPreviewWithWorkbenchTrigger(
   return (
     <div className="relative h-full">
       {preview}
-      <div className="pointer-events-none absolute right-3 top-3 z-10">
+      <div className="pointer-events-none absolute bottom-4 right-4 z-20">
         <div className="pointer-events-auto">{stackedWorkbenchTrigger}</div>
       </div>
     </div>
@@ -971,38 +990,6 @@ const LayoutTransitionRenderGate = memo(
 );
 LayoutTransitionRenderGate.displayName = "LayoutTransitionRenderGate";
 
-interface HandleSendObserver {
-  onComplete?: (content: string) => void;
-  onError?: (message: string) => void;
-}
-
-interface HandleSendOptions {
-  skipThemeSkillPrefix?: boolean;
-  purpose?: "content_review" | "text_stylize" | "style_rewrite" | "style_audit";
-  observer?: HandleSendObserver;
-  requestMetadata?: Record<string, unknown>;
-  browserPreflightConfirmed?: boolean;
-  toolPreferencesOverride?: ChatToolPreferences;
-}
-
-interface BrowserTaskPreflight {
-  requestId: string;
-  createdAt: number;
-  sourceText: string;
-  images: MessageImage[];
-  webSearch?: boolean;
-  thinking?: boolean;
-  sendExecutionStrategy?: "react" | "code_orchestrated" | "auto";
-  autoContinuePayload?: AutoContinueRequestPayload;
-  sendOptions?: HandleSendOptions;
-  requirement: BrowserTaskRequirement;
-  reason: string;
-  phase: BrowserPreflightState;
-  launchUrl: string;
-  platformLabel?: string;
-  detail?: string;
-}
-
 const ThemeWorkbenchLeftExpandButton = styled.button`
   position: absolute;
   left: 10px;
@@ -1075,7 +1062,6 @@ function projectTypeToTheme(projectType: ProjectType): ThemeType {
   return projectType as ThemeType;
 }
 
-const LAST_PROJECT_ID_KEY = "agent_last_project_id";
 const TOPIC_PROJECT_KEY_PREFIX = "agent_session_workspace_";
 const THEME_WORKBENCH_DOCUMENT_META_KEY = "theme_workbench_document_v1";
 const MAX_PERSISTED_DOCUMENT_VERSIONS = 40;
@@ -1083,7 +1069,6 @@ const SOCIAL_ARTICLE_SKILL_KEY = "social_post_with_cover";
 const THEME_WORKBENCH_CREATION_TASK_EVENT_NAME =
   "lime://creation_task_submitted";
 const MAX_THEME_WORKBENCH_CREATION_TASK_EVENTS = 120;
-const BROWSER_PREFLIGHT_REQUEST_PREFIX = "browser-preflight:";
 
 interface CreationTaskSubmittedPayload {
   task_id?: string;
@@ -1162,44 +1147,6 @@ function buildBrowserPreflightMessages(
       contentParts: [{ type: "action_required", actionRequired }],
     },
   ];
-}
-
-function buildInitialDispatchPreviewMessages(
-  dispatchKey: string,
-  prompt?: string,
-  images?: MessageImage[],
-): Message[] {
-  const normalizedPrompt = (prompt || "").trim();
-  const normalizedImages = images || [];
-
-  if (!normalizedPrompt && normalizedImages.length === 0) {
-    return [];
-  }
-
-  const timestamp = new Date();
-
-  return [
-    {
-      id: `initial-dispatch:${dispatchKey}:user`,
-      role: "user",
-      content: normalizedPrompt,
-      images: normalizedImages.length > 0 ? normalizedImages : undefined,
-      timestamp,
-    },
-    {
-      id: `initial-dispatch:${dispatchKey}:assistant`,
-      role: "assistant",
-      content: "正在开始处理任务…",
-      timestamp: new Date(timestamp.getTime() + 1),
-      isThinking: true,
-    },
-  ];
-}
-
-interface InitialDispatchPreviewSnapshot {
-  key: string;
-  prompt?: string;
-  images: MessageImage[];
 }
 
 function isLegacyQuestionnaireSummaryMessage(message?: Message): boolean {
@@ -2236,37 +2183,6 @@ function buildThemeWorkbenchWorkflowSteps(
   return [];
 }
 
-function loadPersistedProjectId(key: string): string | null {
-  try {
-    const stored = localStorage.getItem(key);
-    if (!stored) {
-      return null;
-    }
-
-    try {
-      const parsed = JSON.parse(stored);
-      return normalizeProjectId(typeof parsed === "string" ? parsed : stored);
-    } catch {
-      return normalizeProjectId(stored);
-    }
-  } catch {
-    return null;
-  }
-}
-
-function savePersistedProjectId(key: string, projectId: string) {
-  const normalized = normalizeProjectId(projectId);
-  if (!normalized) {
-    return;
-  }
-
-  try {
-    localStorage.setItem(key, JSON.stringify(normalized));
-  } catch {
-    // ignore write errors
-  }
-}
-
 function loadPersistedBoolean(key: string, fallback = false): boolean {
   try {
     const stored = localStorage.getItem(key);
@@ -2291,27 +2207,6 @@ function savePersistedBoolean(key: string, value: boolean) {
   } catch {
     // ignore write errors
   }
-}
-
-function buildInitialDispatchKey(
-  prompt?: string,
-  images?: MessageImage[],
-): string | null {
-  const normalizedPrompt = (prompt || "").trim();
-  const normalizedImages = images || [];
-
-  if (!normalizedPrompt && normalizedImages.length === 0) {
-    return null;
-  }
-
-  const imageSignature = normalizedImages
-    .map(
-      (image, index) =>
-        `${index}:${image.mediaType}:${image.data.length}:${image.data.slice(0, 16)}`,
-    )
-    .join("|");
-
-  return `${normalizedPrompt}::${imageSignature}`;
 }
 
 export interface WorkflowProgressSnapshot {
@@ -2547,26 +2442,34 @@ export function AgentChatWorkspace({
   const [entryBannerVisible, setEntryBannerVisible] = useState(
     Boolean(entryBannerMessage),
   );
-  const [chatToolPreferences, setChatToolPreferences] =
-    useState<ChatToolPreferences>(() =>
-      loadChatToolPreferences(normalizedEntryTheme),
-    );
-  const [chatToolPreferencesTheme, setChatToolPreferencesTheme] =
-    useState<string>(normalizedEntryTheme);
   const shouldBootstrapCanvasOnEntry =
     Boolean(contentId) && isContentCreationTheme(normalizedEntryTheme);
-  const initialDispatchKey = useMemo(
-    () => buildInitialDispatchKey(initialUserPrompt, initialUserImages),
-    [initialUserImages, initialUserPrompt],
-  );
-  const [bootstrapDispatchSnapshot, setBootstrapDispatchSnapshot] =
-    useState<InitialDispatchPreviewSnapshot | null>(null);
 
   // 内容创作相关状态
   const [activeTheme, setActiveTheme] = useState<string>(normalizedEntryTheme);
   const [creationMode, setCreationMode] = useState<CreationMode>(
     initialCreationMode ?? "guided",
   );
+  const { chatToolPreferences, setChatToolPreferences } =
+    useThemeScopedChatToolPreferences(activeTheme);
+  const {
+    projectId,
+    shouldDisableSessionRestore,
+    hasHandledNewChatRequest,
+    markNewChatRequestHandled,
+    rememberProjectId,
+    getRememberedProjectId,
+    applyProjectSelection,
+    resetProjectSelection,
+    clearProjectSelectionRuntime,
+    startTopicProjectResolution,
+    finishTopicProjectResolution,
+    deferTopicSwitch,
+    consumePendingTopicSwitch,
+  } = useWorkspaceProjectSelection({
+    externalProjectId,
+    newChatAt,
+  });
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(
     shouldBootstrapCanvasOnEntry ? "canvas" : "chat",
   );
@@ -2591,43 +2494,7 @@ export function AgentChatWorkspace({
     setEntryBannerVisible(Boolean(entryBannerMessage));
   }, [entryBannerMessage]);
 
-  useEffect(() => {
-    if (chatToolPreferencesTheme === activeTheme) {
-      return;
-    }
-
-    setChatToolPreferences(loadChatToolPreferences(activeTheme));
-    setChatToolPreferencesTheme(activeTheme);
-  }, [activeTheme, chatToolPreferencesTheme]);
-
-  useEffect(() => {
-    if (chatToolPreferencesTheme !== activeTheme) {
-      return;
-    }
-
-    saveChatToolPreferences(chatToolPreferences, activeTheme);
-  }, [activeTheme, chatToolPreferences, chatToolPreferencesTheme]);
-
-  // 内部 projectId 状态（当外部未提供时使用）
-  const [internalProjectId, setInternalProjectId] = useState<string | null>(
-    null,
-  );
-  const handledNewChatRequestRef = useRef<string | null>(null);
   const openBrowserAssistOnMountHandledRef = useRef(false);
-
-  const incomingNewChatRequestKey =
-    typeof newChatAt === "number" ? String(newChatAt) : null;
-  const shouldDisableSessionRestore = incomingNewChatRequestKey !== null;
-  const shouldResetToFreshHomeContext =
-    !externalProjectId &&
-    incomingNewChatRequestKey !== null &&
-    handledNewChatRequestRef.current !== incomingNewChatRequestKey;
-
-  // 使用外部或内部的 projectId
-  const projectId =
-    externalProjectId ??
-    (shouldResetToFreshHomeContext ? undefined : internalProjectId) ??
-    undefined;
   const pageMountedAtRef = useRef(Date.now());
 
   useEffect(() => {
@@ -2796,8 +2663,17 @@ export function AgentChatWorkspace({
   );
 
   // 技能列表（用于 @ 引用）
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [skillsLoading, setSkillsLoading] = useState(false);
+  const {
+    skills,
+    skillsLoading,
+    refreshSkills: loadSkills,
+  } = useLimeSkills({
+    autoLoad: "immediate",
+    logScope: "AgentChatPage",
+    onError: (error) => {
+      console.warn("[AgentChatPage] 加载 skills 失败:", error);
+    },
+  });
 
   // Workbench Store（用于主题工作台右侧面板状态同步）
   const pendingSkillKey = useWorkbenchStore((state) => state.pendingSkillKey);
@@ -2810,12 +2686,6 @@ export function AgentChatWorkspace({
 
   // 用于追踪已处理的消息 ID，避免重复处理
   const processedMessageIds = useRef<Set<string>>(new Set());
-  const pendingTopicSwitchRef = useRef<{
-    topicId: string;
-    targetProjectId: string;
-  } | null>(null);
-  const isResolvingTopicProjectRef = useRef(false);
-
   // 文件写入回调 ref（用于传递给统一聊天主链 Hook）
   const handleWriteFileRef =
     useRef<
@@ -2882,6 +2752,8 @@ export function AgentChatWorkspace({
   const browserAssistLaunchRequestIdRef = useRef(0);
   const browserTaskPreflightLaunchIdRef = useRef("");
   const autoCollapsedTopicSidebarRef = useRef(false);
+  const browserAssistAutoOpenDismissedScopeRef = useRef<string | null>(null);
+  const browserAssistScopeTrackerRef = useRef<string | null>(null);
 
   // 当有新的 artifact 时，自动打开画布
   useEffect(() => {
@@ -2895,6 +2767,13 @@ export function AgentChatWorkspace({
       browserAssistSessionState?.profileKey,
     );
     if (!hasNonBrowserAssistArtifact && !hasBoundBrowserAssistSession) {
+      return;
+    }
+
+    if (
+      !hasNonBrowserAssistArtifact &&
+      browserAssistAutoOpenDismissedScopeRef.current
+    ) {
       return;
     }
 
@@ -2949,6 +2828,39 @@ export function AgentChatWorkspace({
     return "idle" as const;
   }, [browserAssistLaunching, browserTaskPreflight?.phase]);
 
+  const openBrowserAssistCanvas = useCallback(
+    (artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
+      browserAssistAutoOpenDismissedScopeRef.current = null;
+      setSelectedArtifactId(artifactId);
+      setLayoutMode("chat-canvas");
+    },
+    [setSelectedArtifactId],
+  );
+
+  const autoOpenBrowserAssistCanvas = useCallback(
+    (artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
+      if (
+        activeTheme === "general" &&
+        browserAssistAutoOpenDismissedScopeRef.current
+      ) {
+        return false;
+      }
+
+      setSelectedArtifactId(artifactId);
+      setLayoutMode("chat-canvas");
+      return true;
+    },
+    [activeTheme, setSelectedArtifactId],
+  );
+
+  const suppressBrowserAssistCanvasAutoOpen = useCallback(() => {
+    if (activeTheme !== "general") {
+      return;
+    }
+
+    browserAssistAutoOpenDismissedScopeRef.current = "__dismissed__";
+  }, [activeTheme]);
+
   useEffect(() => {
     if (activeTheme === "general") {
       return;
@@ -2960,45 +2872,6 @@ export function AgentChatWorkspace({
   const handleNavigateToSkillSettings = useCallback(() => {
     _onNavigate?.("settings", { tab: SettingsTabs.Skills });
   }, [_onNavigate]);
-
-  const loadSkills = useCallback(
-    async (includeRemote = false): Promise<Skill[]> => {
-      const startedAt = Date.now();
-      logAgentDebug("AgentChatPage", "loadSkills.start", {
-        includeRemote,
-      });
-      setSkillsLoading(true);
-      try {
-        const loadedSkills = includeRemote
-          ? await skillsApi.getAll("lime")
-          : await skillsApi.getLocal("lime");
-        logAgentDebug("AgentChatPage", "loadSkills.success", {
-          durationMs: Date.now() - startedAt,
-          includeRemote,
-          skillsCount: loadedSkills.length,
-        });
-        setSkills(loadedSkills);
-        return loadedSkills;
-      } catch (error) {
-        console.warn("[AgentChatPage] 加载 skills 失败:", error);
-        logAgentDebug(
-          "AgentChatPage",
-          "loadSkills.error",
-          {
-            durationMs: Date.now() - startedAt,
-            error,
-            includeRemote,
-          },
-          { level: "warn" },
-        );
-        setSkills([]);
-        return [];
-      } finally {
-        setSkillsLoading(false);
-      }
-    },
-    [],
-  );
 
   const handleRefreshSkills = useCallback(async () => {
     await loadSkills(true);
@@ -3326,7 +3199,7 @@ export function AgentChatWorkspace({
     }
 
     if (project && project.id === normalizedProjectId && !project.isArchived) {
-      savePersistedProjectId(LAST_PROJECT_ID_KEY, normalizedProjectId);
+      rememberProjectId(normalizedProjectId);
       return;
     }
 
@@ -3335,12 +3208,12 @@ export function AgentChatWorkspace({
         if (!resolvedProject || resolvedProject.isArchived) {
           return;
         }
-        savePersistedProjectId(LAST_PROJECT_ID_KEY, resolvedProject.id);
+        rememberProjectId(resolvedProject.id);
       })
       .catch((error) => {
         console.warn("[AgentChatPage] 记录最近项目失败:", error);
       });
-  }, [project, projectId]);
+  }, [project, projectId, rememberProjectId]);
 
   const runtimeStylePrompt = useMemo(
     () =>
@@ -3468,10 +3341,24 @@ export function AgentChatWorkspace({
     }
     void originalSwitchTopic(parentSessionId);
   }, [originalSwitchTopic, subagentParentContext?.parent_session_id]);
+  const hasRealTeamGraph =
+    childSubagentSessions.length > 0 || Boolean(subagentParentContext);
   const [teamWaitSummary, setTeamWaitSummary] =
     useState<TeamWorkspaceWaitSummary | null>(null);
   const [teamControlSummary, setTeamControlSummary] =
     useState<TeamWorkspaceControlSummary | null>(null);
+  const {
+    runtimeTeamState,
+    clearRuntimeTeamState,
+    handleRuntimeTeamAfterSend,
+  } = useRuntimeTeamFormation({
+    activeTheme,
+    projectId,
+    sessionId,
+    selectedTeam,
+    subagentEnabled: chatToolPreferences.subagent,
+    hasRealTeamGraph,
+  });
   const handleCloseSubagentSession = useCallback(
     async (subagentSessionId: string) => {
       try {
@@ -3490,18 +3377,18 @@ export function AgentChatWorkspace({
 
         if (summary.affectedSessionIds.length > 1) {
           toast.success(
-            `子代理已级联关闭 ${summary.affectedSessionIds.length} 个会话`,
+            `已级联关闭 ${summary.affectedSessionIds.length} 位协作成员`,
           );
         } else if (summary.affectedSessionIds.length === 1) {
-          toast.success("子代理已关闭");
+          toast.success("协作成员已关闭");
         } else {
           toast.info(
-            `子代理当前状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.previous_status.kind)}，未发生新的关闭变更`,
+            `当前成员状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.previous_status.kind)}，未发生新的关闭变更`,
           );
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "关闭子代理失败";
+          error instanceof Error ? error.message : "关闭协作成员失败";
         toast.error(message);
         throw error;
       }
@@ -3526,18 +3413,18 @@ export function AgentChatWorkspace({
 
         if (summary.affectedSessionIds.length > 1) {
           toast.success(
-            `子代理已级联恢复 ${summary.affectedSessionIds.length} 个会话`,
+            `已级联恢复 ${summary.affectedSessionIds.length} 位协作成员`,
           );
         } else if (summary.affectedSessionIds.length === 1) {
-          toast.success("子代理已恢复");
+          toast.success("协作成员已恢复");
         } else {
           toast.info(
-            `子代理当前状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.status.kind)}，未发生新的恢复变更`,
+            `当前成员状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.status.kind)}，未发生新的恢复变更`,
           );
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "恢复子代理失败";
+          error instanceof Error ? error.message : "恢复协作成员失败";
         toast.error(message);
         throw error;
       }
@@ -3552,17 +3439,17 @@ export function AgentChatWorkspace({
           timeout_ms: timeoutMs,
         });
         if (response.timed_out) {
-          toast.info("等待超时，子代理仍未进入最终状态");
+          toast.info("等待超时，该成员仍未进入最终状态");
           return;
         }
 
         const status = response.status[subagentSessionId];
         toast.success(
-          `子代理已进入${resolveTeamWorkspaceRuntimeStatusLabel(status?.kind)}状态`,
+          `该成员已进入${resolveTeamWorkspaceRuntimeStatusLabel(status?.kind)}状态`,
         );
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "等待子代理失败";
+          error instanceof Error ? error.message : "等待成员失败";
         toast.error(message);
         throw error;
       }
@@ -3575,7 +3462,7 @@ export function AgentChatWorkspace({
         normalizeUniqueSessionIds(subagentSessionIds);
 
       if (normalizedSessionIds.length === 0) {
-        const error = new Error("没有可等待的活跃子代理");
+        const error = new Error("没有可等待的活跃成员");
         toast.error(error.message);
         throw error;
       }
@@ -3591,7 +3478,7 @@ export function AgentChatWorkspace({
             timedOut: true,
             updatedAt: Date.now(),
           });
-          toast.info("等待超时，团队内活跃子代理仍未进入最终状态");
+          toast.info("等待超时，团队内活跃成员仍未进入最终状态");
           return;
         }
 
@@ -3611,11 +3498,11 @@ export function AgentChatWorkspace({
           updatedAt: Date.now(),
         });
         toast.success(
-          `团队内 agent 已进入${resolveTeamWorkspaceRuntimeStatusLabel(resolvedStatus)}状态`,
+          `团队成员已进入${resolveTeamWorkspaceRuntimeStatusLabel(resolvedStatus)}状态`,
         );
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "等待团队内子代理失败";
+          error instanceof Error ? error.message : "等待团队成员失败";
         toast.error(message);
         throw error;
       }
@@ -3628,7 +3515,7 @@ export function AgentChatWorkspace({
         normalizeUniqueSessionIds(subagentSessionIds);
 
       if (normalizedSessionIds.length === 0) {
-        const error = new Error("没有可关闭的已完成子代理");
+        const error = new Error("没有可关闭的已完成成员");
         toast.error(error.message);
         throw error;
       }
@@ -3676,7 +3563,7 @@ export function AgentChatWorkspace({
         toast.success(
           affectedSessionIds.length > 0
             ? `已级联关闭 ${affectedSessionIds.length} 个会话`
-            : `已关闭 ${succeededCount} 个已完成 agent`,
+            : `已关闭 ${succeededCount} 位已完成成员`,
         );
       }
 
@@ -3685,7 +3572,7 @@ export function AgentChatWorkspace({
         const message =
           firstFailure instanceof Error
             ? firstFailure.message
-            : "部分已完成 agent 关闭失败";
+            : "部分已完成成员关闭失败";
         toast.error(message);
         if (succeededCount === 0) {
           throw firstFailure instanceof Error
@@ -3704,7 +3591,7 @@ export function AgentChatWorkspace({
     ) => {
       const normalizedMessage = message.trim();
       if (!normalizedMessage) {
-        const error = new Error("请输入要发给子代理的内容");
+        const error = new Error("请输入要发送给成员的内容");
         toast.error(error.message);
         throw error;
       }
@@ -3717,12 +3604,12 @@ export function AgentChatWorkspace({
         });
         toast.success(
           options?.interrupt === true
-            ? "已中断当前执行并发送新任务"
-            : "已向子代理发送补充任务",
+            ? "已中断当前执行并发送新说明"
+            : "已向成员发送补充说明",
         );
       } catch (error) {
         const messageText =
-          error instanceof Error ? error.message : "发送子代理输入失败";
+          error instanceof Error ? error.message : "发送成员说明失败";
         toast.error(messageText);
         throw error;
       }
@@ -3735,8 +3622,8 @@ export function AgentChatWorkspace({
   );
   const showTeamWorkspaceBoard =
     chatToolPreferences.subagent ||
-    childSubagentSessions.length > 0 ||
-    Boolean(subagentParentContext);
+    hasRealTeamGraph ||
+    Boolean(runtimeTeamState);
   const currentSessionRuntimeStatus = useMemo(
     () =>
       deriveCurrentSessionRuntimeStatus({
@@ -3762,6 +3649,31 @@ export function AgentChatWorkspace({
     childSubagentSessions,
     subagentParentContext,
   });
+  const [teamWorkbenchAutoFocusToken, setTeamWorkbenchAutoFocusToken] =
+    useState(0);
+  const previousTeamWorkbenchSessionIdRef = useRef<string | null>(
+    sessionId ?? null,
+  );
+  const previousRealTeamGraphRef = useRef(hasRealTeamGraph);
+  const handleActivateTeamWorkbench = useCallback(() => {
+    setTeamWorkbenchAutoFocusToken((current) => current + 1);
+    setLayoutMode((current) => (current === "chat" ? "chat-canvas" : current));
+  }, []);
+  useEffect(() => {
+    const normalizedSessionId = sessionId ?? null;
+
+    if (previousTeamWorkbenchSessionIdRef.current !== normalizedSessionId) {
+      previousTeamWorkbenchSessionIdRef.current = normalizedSessionId;
+      previousRealTeamGraphRef.current = hasRealTeamGraph;
+      return;
+    }
+
+    if (hasRealTeamGraph && !previousRealTeamGraphRef.current) {
+      handleActivateTeamWorkbench();
+    }
+
+    previousRealTeamGraphRef.current = hasRealTeamGraph;
+  }, [handleActivateTeamWorkbench, hasRealTeamGraph, sessionId]);
   useEffect(() => {
     logAgentDebug(
       "AgentChatPage",
@@ -3882,6 +3794,28 @@ export function AgentChatWorkspace({
     activeTheme === "general" &&
     layoutMode !== "chat" &&
     currentCanvasArtifact?.type === "browser_assist";
+
+  useEffect(() => {
+    if (activeTheme !== "general") {
+      browserAssistScopeTrackerRef.current = null;
+      browserAssistAutoOpenDismissedScopeRef.current = null;
+      return;
+    }
+
+    if (!currentBrowserAssistScopeKey) {
+      return;
+    }
+
+    if (
+      browserAssistScopeTrackerRef.current &&
+      browserAssistScopeTrackerRef.current !== currentBrowserAssistScopeKey
+    ) {
+      browserAssistAutoOpenDismissedScopeRef.current = null;
+    }
+
+    browserAssistScopeTrackerRef.current = currentBrowserAssistScopeKey;
+  }, [activeTheme, currentBrowserAssistScopeKey]);
+
   const compatSubagentRuntime = useCompatSubagentRuntime(sessionId);
   const realSubagentTimelineItems = useMemo(
     () =>
@@ -4102,10 +4036,6 @@ export function AgentChatWorkspace({
   const handleToggleHarnessPanel = useCallback(() => {
     setHarnessPanelVisible((current) => !current);
   }, []);
-
-  useEffect(() => {
-    void loadSkills(false);
-  }, [loadSkills]);
 
   // 主题工作台模式：同步 skills 状态到 store
   // 注意：不再设置 themeSkillsRailState，避免"操作面板"覆盖默认 Skills Rail
@@ -5448,6 +5378,79 @@ export function AgentChatWorkspace({
   // 用于追踪是否已触发过 AI 引导
   const hasTriggeredGuide = useRef(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
+  const {
+    initialDispatchKey,
+    isBootstrapDispatchPending,
+    bootstrapDispatchPreviewMessages,
+  } = useBootstrapDispatchPreview({
+    initialUserPrompt,
+    initialUserImages,
+    messagesCount: messages.length,
+    isSending,
+    queuedTurnCount: queuedTurns.length,
+    consumedInitialPromptKey: consumedInitialPromptRef.current,
+    shouldUseCompactThemeWorkbench,
+  });
+  const {
+    themeWorkbenchEntryPrompt,
+    themeWorkbenchEntryCheckPending,
+    clearThemeWorkbenchEntryPrompt,
+    dismissThemeWorkbenchEntryPrompt,
+  } = useThemeWorkbenchEntryPrompt({
+    activeTheme,
+    contentId,
+    sessionId,
+    isThemeWorkbench,
+    shouldUseCompactThemeWorkbench,
+    messagesCount: messages.length,
+    initialDispatchKey,
+    initialUserPrompt,
+    initialUserImages,
+    consumedInitialPromptKey: consumedInitialPromptRef.current,
+    onHydrateInitialPrompt: useCallback((prompt: string) => {
+      hasTriggeredGuide.current = true;
+      setInput((previous) => previous.trim() || prompt);
+    }, []),
+  });
+  const consumeInitialPrompt = useCallback(
+    (dispatchKey: string) => {
+      consumedInitialPromptRef.current = dispatchKey;
+      onInitialUserPromptConsumed?.();
+    },
+    [onInitialUserPromptConsumed],
+  );
+  const resetConsumedInitialPrompt = useCallback(() => {
+    consumedInitialPromptRef.current = null;
+  }, []);
+  const prepareBrowserTaskPreflight = useCallback(
+    (preflight: BrowserTaskPreflight) => {
+      setInput("");
+      setMentionedCharacters([]);
+      setBrowserTaskPreflight(preflight);
+    },
+    [],
+  );
+  const {
+    resolveSendBoundary,
+    isBlockedByBrowserPreflight,
+    maybeStartBrowserTaskPreflight,
+    finalizeAfterSendSuccess,
+    rollbackAfterSendFailure,
+  } = useThemeWorkbenchSendBoundary({
+    isThemeWorkbench,
+    contentId,
+    initialDispatchKey,
+    consumedInitialPromptKey: consumedInitialPromptRef.current,
+    initialUserImages,
+    mappedTheme,
+    socialArticleSkillKey: SOCIAL_ARTICLE_SKILL_KEY,
+    isBrowserAssistReady,
+    browserTaskPreflight,
+    onConsumeInitialPrompt: consumeInitialPrompt,
+    onResetConsumedInitialPrompt: resetConsumedInitialPrompt,
+    onClearEntryPrompt: clearThemeWorkbenchEntryPrompt,
+    onPrepareBrowserTaskPreflight: prepareBrowserTaskPreflight,
+  });
 
   // 当 sessionMeta 加载完成时，恢复主题和创建模式
   useEffect(() => {
@@ -5563,6 +5566,7 @@ export function AgentChatWorkspace({
     setCanvasState(null);
     setGeneralCanvasState(DEFAULT_CANVAS_STATE);
     setTaskFiles([]);
+    clearRuntimeTeamState();
     setBrowserTaskPreflight(null);
     setSelectedFileId(undefined);
     processedMessageIds.current.clear();
@@ -5570,7 +5574,7 @@ export function AgentChatWorkspace({
     restoredFilesSessionId.current = null;
     hasTriggeredGuide.current = false;
     consumedInitialPromptRef.current = null;
-  }, []);
+  }, [clearRuntimeTeamState]);
 
   const runTopicSwitch = useCallback(
     async (topicId: string) => {
@@ -5605,7 +5609,7 @@ export function AgentChatWorkspace({
 
   const switchTopic = useCallback(
     async (topicId: string) => {
-      if (isResolvingTopicProjectRef.current) {
+      if (!startTopicProjectResolution()) {
         logAgentDebug(
           "AgentChatPage",
           "switchTopic.skipWhileResolving",
@@ -5615,7 +5619,6 @@ export function AgentChatWorkspace({
         return;
       }
 
-      isResolvingTopicProjectRef.current = true;
       try {
         logAgentDebug("AgentChatPage", "switchTopic.start", {
           currentProjectId: projectId ?? null,
@@ -5627,7 +5630,7 @@ export function AgentChatWorkspace({
           topicBoundProjectId: loadPersistedProjectId(
             `${TOPIC_PROJECT_KEY_PREFIX}${topicId}`,
           ),
-          lastProjectId: loadPersistedProjectId(LAST_PROJECT_ID_KEY),
+          lastProjectId: getRememberedProjectId(),
           loadProjectById: async (candidateProjectId) => {
             const project = await getProject(candidateProjectId);
             return project
@@ -5670,20 +5673,18 @@ export function AgentChatWorkspace({
           toast.info("未找到可用项目，已自动创建默认项目");
         }
 
-        savePersistedProjectId(LAST_PROJECT_ID_KEY, targetProjectId);
-
         const currentProjectId = normalizeProjectId(projectId);
         if (currentProjectId !== targetProjectId) {
-          pendingTopicSwitchRef.current = { topicId, targetProjectId };
+          deferTopicSwitch(topicId, targetProjectId);
           logAgentDebug("AgentChatPage", "switchTopic.deferUntilProjectReady", {
             currentProjectId,
             targetProjectId,
             topicId,
           });
-          setInternalProjectId(targetProjectId);
           return;
         }
 
+        rememberProjectId(targetProjectId);
         await runTopicSwitch(topicId);
       } catch (error) {
         console.error("[AgentChatPage] 解析任务项目失败:", error);
@@ -5699,10 +5700,19 @@ export function AgentChatWorkspace({
         );
         toast.error("切换任务失败，请稍后重试");
       } finally {
-        isResolvingTopicProjectRef.current = false;
+        finishTopicProjectResolution();
       }
     },
-    [externalProjectId, projectId, runTopicSwitch],
+    [
+      deferTopicSwitch,
+      externalProjectId,
+      finishTopicProjectResolution,
+      getRememberedProjectId,
+      projectId,
+      rememberProjectId,
+      runTopicSwitch,
+      startTopicProjectResolution,
+    ],
   );
 
   useTrayModelShortcuts({
@@ -5715,17 +5725,12 @@ export function AgentChatWorkspace({
   });
 
   useEffect(() => {
-    const pending = pendingTopicSwitchRef.current;
+    const pending = consumePendingTopicSwitch(projectId);
     if (!pending) {
       return;
     }
 
     const currentProjectId = normalizeProjectId(projectId);
-    if (currentProjectId !== pending.targetProjectId) {
-      return;
-    }
-
-    pendingTopicSwitchRef.current = null;
     logAgentDebug("AgentChatPage", "switchTopic.resumePending", {
       projectId: currentProjectId,
       topicId: pending.topicId,
@@ -5744,7 +5749,7 @@ export function AgentChatWorkspace({
       );
       toast.error("加载任务失败，请重试");
     });
-  }, [projectId, runTopicSwitch]);
+  }, [consumePendingTopicSwitch, projectId, runTopicSwitch]);
 
   /**
    * 从 AI 响应中提取文档内容
@@ -6010,17 +6015,19 @@ export function AgentChatWorkspace({
     ) => {
       let sourceText = textOverride ?? input;
       if (!sourceText.trim() && (!images || images.length === 0)) return false;
-      if (browserTaskPreflight && !sendOptions?.browserPreflightConfirmed) {
+      const sendBoundary = resolveSendBoundary({
+        sourceText,
+        sendOptions,
+      });
+      sourceText = sendBoundary.sourceText;
+      if (isBlockedByBrowserPreflight(sendOptions)) {
         toast.info("请先完成当前浏览器准备后，再继续发送新的任务");
         return false;
       }
       const effectiveToolPreferences =
         sendOptions?.toolPreferencesOverride ?? chatToolPreferences;
 
-      const browserRequirementMatch =
-        mappedTheme === "general" && !sendOptions?.purpose
-          ? detectBrowserTaskRequirement(sourceText)
-          : null;
+      const { browserRequirementMatch } = sendBoundary;
       const requestedWebSearch =
         webSearch ?? effectiveToolPreferences.webSearch;
       const effectiveWebSearch =
@@ -6037,42 +6044,17 @@ export function AgentChatWorkspace({
       }
 
       if (
-        browserRequirementMatch &&
-        !sendOptions?.browserPreflightConfirmed &&
-        !isBrowserAssistReady
-      ) {
-        const preflight: BrowserTaskPreflight = {
-          requestId: `${BROWSER_PREFLIGHT_REQUEST_PREFIX}${crypto.randomUUID()}`,
-          createdAt: Date.now(),
-          sourceText,
-          images: images || [],
+        maybeStartBrowserTaskPreflight({
+          boundary: sendBoundary,
+          images,
           webSearch,
           thinking,
           sendExecutionStrategy,
           autoContinuePayload,
           sendOptions,
-          requirement: browserRequirementMatch.requirement,
-          reason: browserRequirementMatch.reason,
-          phase: "launching",
-          launchUrl: browserRequirementMatch.launchUrl,
-          platformLabel: browserRequirementMatch.platformLabel,
-          detail: "正在尝试建立浏览器会话，请稍候...",
-        };
-
-        setInput("");
-        setMentionedCharacters([]);
-        setBrowserTaskPreflight(preflight);
-        return true;
-      }
-
-      if (
-        isThemeWorkbench &&
-        mappedTheme === "social-media" &&
-        sourceText.trim() &&
-        !sourceText.trimStart().startsWith("/") &&
-        !sendOptions?.skipThemeSkillPrefix
+        })
       ) {
-        sourceText = `/${SOCIAL_ARTICLE_SKILL_KEY} ${sourceText}`.trim();
+        return true;
       }
 
       let text = sourceText;
@@ -6304,8 +6286,19 @@ export function AgentChatWorkspace({
           );
         }
 
+        finalizeAfterSendSuccess(sendBoundary);
+
+        handleRuntimeTeamAfterSend({
+          input: sourceText,
+          providerType,
+          model: effectiveModel,
+          executionStrategy: sendExecutionStrategy ?? executionStrategy,
+          purpose: sendOptions?.purpose,
+        });
+
         return true;
       } catch (error) {
+        rollbackAfterSendFailure(sendBoundary);
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         sendOptions?.observer?.onError?.(errorMessage);
@@ -6318,8 +6311,6 @@ export function AgentChatWorkspace({
     },
     [
       chatToolPreferences,
-      browserTaskPreflight,
-      isBrowserAssistReady,
       contextWorkspace,
       input,
       creationMode,
@@ -6330,6 +6321,7 @@ export function AgentChatWorkspace({
       mentionedCharacters,
       mappedTheme,
       activeTheme,
+      executionStrategy,
       model,
       projectId,
       preferredTeamPresetId,
@@ -6339,7 +6331,13 @@ export function AgentChatWorkspace({
       selectedTeamLabel,
       selectedTeamSummary,
       providerType,
+      finalizeAfterSendSuccess,
+      handleRuntimeTeamAfterSend,
+      isBlockedByBrowserPreflight,
+      maybeStartBrowserTaskPreflight,
+      resolveSendBoundary,
       resolveSendProviderContext,
+      rollbackAfterSendFailure,
       runtimeStyleMessagePrompt,
       sendMessage,
       sessionId,
@@ -6401,6 +6399,47 @@ export function AgentChatWorkspace({
   useEffect(() => {
     webSearchPreferenceRef.current = chatToolPreferences.webSearch;
   }, [chatToolPreferences.webSearch]);
+
+  const { handleContinueThemeWorkbenchEntryPrompt,
+    handleRestartThemeWorkbenchEntryPrompt } =
+    useThemeWorkbenchEntryPromptActions({
+      themeWorkbenchEntryPrompt,
+      input,
+      initialDispatchKey,
+      onContinuePrompt: async (promptToSend) => {
+        await handleSendRef.current(
+          [],
+          webSearchPreferenceRef.current,
+          chatToolPreferences.thinking,
+          promptToSend,
+        );
+      },
+      dismissThemeWorkbenchEntryPrompt,
+      onConsumeInitialPrompt: (dispatchKey) => {
+        consumedInitialPromptRef.current = dispatchKey;
+        onInitialUserPromptConsumed?.();
+      },
+      onInputChange: setInput,
+      onRequirePrompt: () => {
+        toast.info("请先补充要继续执行的内容");
+      },
+    });
+
+  const themeWorkbenchEntryPromptAccessory = useMemo(
+    () =>
+      themeWorkbenchEntryPrompt ? (
+        <ThemeWorkbenchEntryPromptAccessory
+          prompt={themeWorkbenchEntryPrompt}
+          onRestart={handleRestartThemeWorkbenchEntryPrompt}
+          onContinue={handleContinueThemeWorkbenchEntryPrompt}
+        />
+      ) : null,
+    [
+      handleContinueThemeWorkbenchEntryPrompt,
+      handleRestartThemeWorkbenchEntryPrompt,
+      themeWorkbenchEntryPrompt,
+    ],
+  );
 
   useEffect(() => {
     if (!browserTaskPreflight) {
@@ -6527,7 +6566,7 @@ export function AgentChatWorkspace({
             },
       );
     },
-    [],
+    [setChatToolPreferences],
   );
 
   const handleDocumentAutoContinueRun = useCallback(
@@ -6636,9 +6675,8 @@ export function AgentChatWorkspace({
     setTaskFiles([]);
     setSelectedFileId(undefined);
     processedMessageIds.current.clear();
-    pendingTopicSwitchRef.current = null;
-    isResolvingTopicProjectRef.current = false;
-  }, [clearMessages, defaultTopicSidebarVisible]);
+    clearProjectSelectionRuntime();
+  }, [clearMessages, clearProjectSelectionRuntime, defaultTopicSidebarVisible]);
 
   const handleSwitchBranchVersion = useCallback(
     (versionId: string) => {
@@ -6818,10 +6856,10 @@ export function AgentChatWorkspace({
     }
 
     const requestKey = String(newChatAt);
-    if (handledNewChatRequestRef.current === requestKey) {
+    if (hasHandledNewChatRequest(requestKey)) {
       return;
     }
-    handledNewChatRequestRef.current = requestKey;
+    markNewChatRequestHandled(requestKey);
 
     clearMessages({
       showToast: false,
@@ -6838,15 +6876,14 @@ export function AgentChatWorkspace({
     setSelectedFileId(undefined);
     setMentionedCharacters([]);
     processedMessageIds.current.clear();
-    pendingTopicSwitchRef.current = null;
-    isResolvingTopicProjectRef.current = false;
+    clearProjectSelectionRuntime();
     restoredMetaSessionId.current = null;
     restoredFilesSessionId.current = null;
     hasTriggeredGuide.current = false;
     consumedInitialPromptRef.current = null;
 
     if (!externalProjectId) {
-      setInternalProjectId(null);
+      resetProjectSelection();
       setProject(null);
       setProjectMemory(null);
       setActiveTheme(normalizeInitialTheme(initialTheme));
@@ -6882,9 +6919,13 @@ export function AgentChatWorkspace({
     clearMessages,
     defaultTopicSidebarVisible,
     externalProjectId,
+    hasHandledNewChatRequest,
     initialTheme,
     initialCreationMode,
+    markNewChatRequestHandled,
     projectId,
+    clearProjectSelectionRuntime,
+    resetProjectSelection,
   ]);
 
   const handleBackHome = useCallback(() => {
@@ -6900,77 +6941,13 @@ export function AgentChatWorkspace({
     setTaskFiles([]);
     setSelectedFileId(undefined);
     processedMessageIds.current.clear();
-    pendingTopicSwitchRef.current = null;
-    isResolvingTopicProjectRef.current = false;
-    setInternalProjectId(null);
+    resetProjectSelection();
     setProject(null);
     setProjectMemory(null);
     setActiveTheme("general");
     setCreationMode("guided");
     _onNavigate?.("agent", buildHomeAgentParams());
-  }, [clearMessages, _onNavigate]);
-
-  useEffect(() => {
-    if (!initialDispatchKey) {
-      return;
-    }
-
-    setBootstrapDispatchSnapshot({
-      key: initialDispatchKey,
-      prompt: initialUserPrompt,
-      images: initialUserImages || [],
-    });
-  }, [initialDispatchKey, initialUserImages, initialUserPrompt]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setBootstrapDispatchSnapshot(null);
-      return;
-    }
-
-    if (!initialDispatchKey && !isSending && queuedTurns.length === 0) {
-      setBootstrapDispatchSnapshot(null);
-    }
-  }, [initialDispatchKey, isSending, messages.length, queuedTurns.length]);
-
-  const activeBootstrapDispatch = useMemo(() => {
-    if (
-      initialDispatchKey &&
-      ((initialUserPrompt || "").trim() || (initialUserImages || []).length > 0)
-    ) {
-      return {
-        key: initialDispatchKey,
-        prompt: initialUserPrompt,
-        images: initialUserImages || [],
-      };
-    }
-
-    return bootstrapDispatchSnapshot;
-  }, [
-    bootstrapDispatchSnapshot,
-    initialDispatchKey,
-    initialUserImages,
-    initialUserPrompt,
-  ]);
-  const isBootstrapDispatchPending =
-    activeBootstrapDispatch !== null &&
-    consumedInitialPromptRef.current !== activeBootstrapDispatch.key;
-  const shouldShowBootstrapDispatchPreview =
-    !shouldUseCompactThemeWorkbench &&
-    Boolean(activeBootstrapDispatch) &&
-    messages.length === 0 &&
-    (isSending || queuedTurns.length > 0);
-  const bootstrapDispatchPreviewMessages = useMemo(() => {
-    if (!shouldShowBootstrapDispatchPreview || !activeBootstrapDispatch) {
-      return [] as Message[];
-    }
-
-    return buildInitialDispatchPreviewMessages(
-      activeBootstrapDispatch.key,
-      activeBootstrapDispatch.prompt,
-      activeBootstrapDispatch.images,
-    );
-  }, [activeBootstrapDispatch, shouldShowBootstrapDispatchPreview]);
+  }, [clearMessages, _onNavigate, resetProjectSelection]);
 
   const displayMessages = useMemo(() => {
     const collapsedMessages = collapseLegacyQuestionnaireMessages(messages);
@@ -7243,6 +7220,9 @@ export function AgentChatWorkspace({
   const handleToggleCanvas = useCallback(() => {
     // General 主题使用专门的画布
     if (activeTheme === "general") {
+      if (layoutMode !== "chat" && isBrowserAssistCanvasVisible) {
+        suppressBrowserAssistCanvasAutoOpen();
+      }
       setGeneralCanvasState((prev) => ({
         ...prev,
         isOpen: !prev.isOpen,
@@ -7270,17 +7250,34 @@ export function AgentChatWorkspace({
       }
       return "chat";
     });
-  }, [canvasState, mappedTheme, activeTheme]);
+  }, [
+    activeTheme,
+    canvasState,
+    isBrowserAssistCanvasVisible,
+    layoutMode,
+    mappedTheme,
+    suppressBrowserAssistCanvasAutoOpen,
+  ]);
 
   // 关闭画布
   const handleCloseCanvas = useCallback(() => {
+    if (
+      activeTheme === "general" &&
+      currentCanvasArtifact?.type === "browser_assist"
+    ) {
+      suppressBrowserAssistCanvasAutoOpen();
+    }
     setLayoutMode("chat");
     setNovelChapterListCollapsed(false);
     // General 主题关闭画布状态
     if (activeTheme === "general") {
       setGeneralCanvasState((prev) => ({ ...prev, isOpen: false }));
     }
-  }, [activeTheme]);
+  }, [
+    activeTheme,
+    currentCanvasArtifact?.type,
+    suppressBrowserAssistCanvasAutoOpen,
+  ]);
 
   const resolvedCanvasState = useMemo<CanvasStateUnion | null>(() => {
     if (canvasState) {
@@ -7437,8 +7434,7 @@ export function AgentChatWorkspace({
         "浏览器协助";
 
       if (currentUrl === url) {
-        setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-        setLayoutMode("chat-canvas");
+        openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
         return true;
       }
 
@@ -7495,8 +7491,7 @@ export function AgentChatWorkspace({
             updatedAt: Date.now(),
           }),
         );
-        setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-        setLayoutMode("chat-canvas");
+        openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
 
         if (!options?.silent) {
           toast.success(`已切换浏览器页面：${nextTitle}`);
@@ -7520,7 +7515,7 @@ export function AgentChatWorkspace({
       browserAssistArtifact,
       browserAssistSessionState,
       commitBrowserAssistSessionState,
-      setSelectedArtifactId,
+      openBrowserAssistCanvas,
     ],
   );
 
@@ -7557,8 +7552,7 @@ export function AgentChatWorkspace({
       );
 
       if (hasSessionContext) {
-        setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-        setLayoutMode("chat-canvas");
+        openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
         if (!targetUrl) {
           return true;
         }
@@ -7574,8 +7568,7 @@ export function AgentChatWorkspace({
         resolveBrowserAssistSessionScopeKey(projectId, sessionId);
       const launchKey = `${GENERAL_BROWSER_ASSIST_PROFILE_KEY}:${targetUrl}`;
       if (autoLaunchingBrowserAssistKeyRef.current === launchKey) {
-        setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-        setLayoutMode("chat-canvas");
+        openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
         return true;
       }
       autoLaunchingBrowserAssistKeyRef.current = launchKey;
@@ -7587,8 +7580,7 @@ export function AgentChatWorkspace({
           title: "浏览器协助",
         }),
       );
-      setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-      setLayoutMode("chat-canvas");
+      openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
       setBrowserAssistLaunching(true);
 
       try {
@@ -7619,8 +7611,7 @@ export function AgentChatWorkspace({
             updatedAt: Date.now(),
           }),
         );
-        setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-        setLayoutMode("chat-canvas");
+        openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
 
         if (!options?.silent) {
           toast.success(
@@ -7663,9 +7654,9 @@ export function AgentChatWorkspace({
       commitBrowserAssistSessionState,
       navigateBrowserAssistCanvasToUrl,
       currentBrowserAssistScopeKey,
+      openBrowserAssistCanvas,
       projectId,
       sessionId,
-      setSelectedArtifactId,
       upsertGeneralArtifact,
     ],
   );
@@ -7849,17 +7840,16 @@ export function AgentChatWorkspace({
       }:${browserAssistSessionState.url || currentUrl || "pending"}`;
     if (autoOpenedBrowserAssistSessionIdRef.current !== autoOpenKey) {
       autoOpenedBrowserAssistSessionIdRef.current = autoOpenKey;
-      setSelectedArtifactId(nextArtifact.id);
-      setLayoutMode("chat-canvas");
+      autoOpenBrowserAssistCanvas(nextArtifact.id);
     }
   }, [
     activeTheme,
+    autoOpenBrowserAssistCanvas,
     browserAssistArtifact,
     currentBrowserAssistScopeKey,
     browserAssistSessionState,
     projectId,
     sessionId,
-    setSelectedArtifactId,
     upsertGeneralArtifact,
   ]);
 
@@ -7904,8 +7894,7 @@ export function AgentChatWorkspace({
         title: nextTitle,
       }),
     );
-    setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-    setLayoutMode("chat-canvas");
+    autoOpenBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
     const launchRequestId = browserAssistLaunchRequestIdRef.current + 1;
     browserAssistLaunchRequestIdRef.current = launchRequestId;
     void (async () => {
@@ -7941,8 +7930,7 @@ export function AgentChatWorkspace({
             updatedAt: Date.now(),
           }),
         );
-        setSelectedArtifactId(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
-        setLayoutMode("chat-canvas");
+        autoOpenBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
       } catch (error) {
         upsertGeneralArtifact(
           buildFailedBrowserAssistArtifact({
@@ -7963,12 +7951,12 @@ export function AgentChatWorkspace({
     })();
   }, [
     activeTheme,
+    autoOpenBrowserAssistCanvas,
     browserAssistSessionState,
     commitBrowserAssistSessionState,
     currentBrowserAssistScopeKey,
     projectId,
     sessionId,
-    setSelectedArtifactId,
     upsertGeneralArtifact,
   ]);
 
@@ -8924,7 +8912,14 @@ export function AgentChatWorkspace({
       !isSending &&
       canvasEmpty
     ) {
+      if (!initialDispatchKey && themeWorkbenchEntryCheckPending) {
+        return;
+      }
+
       if (initialDispatchKey) {
+        if (isThemeWorkbench && pendingInitialImages.length === 0) {
+          return;
+        }
         if (consumedInitialPromptRef.current === initialDispatchKey) {
           return;
         }
@@ -8951,6 +8946,10 @@ export function AgentChatWorkspace({
         return;
       }
 
+      if (themeWorkbenchEntryPrompt?.kind === "resume") {
+        return;
+      }
+
       if (defaultGuidePrompt) {
         hasTriggeredGuide.current = true;
         setInput((previous) => previous.trim() || defaultGuidePrompt);
@@ -8966,12 +8965,11 @@ export function AgentChatWorkspace({
         // 同步创建后端工作流（不阻塞触发）
         void (async () => {
           try {
-            const { contentWorkflowApi } =
-              await import("@/lib/api/content-workflow");
-            const themeForApi =
-              mappedTheme as import("@/lib/api/content-workflow").ThemeType;
+            const themeForApi = mappedTheme as Parameters<
+              typeof contentWorkflowApi.create
+            >[1];
             const modeForApi =
-              (creationMode as import("@/lib/api/content-workflow").CreationMode) ??
+              (creationMode as Parameters<typeof contentWorkflowApi.create>[2]) ??
               "guided";
             await contentWorkflowApi.create(
               contentId!,
@@ -9014,6 +9012,8 @@ export function AgentChatWorkspace({
     onInitialUserPromptConsumed,
     shouldUseCompactThemeWorkbench,
     shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
+    themeWorkbenchEntryCheckPending,
+    themeWorkbenchEntryPrompt,
   ]);
 
   // 通用聊天场景：若带有 initialUserPrompt，则自动新建并发送首条消息
@@ -9075,8 +9075,6 @@ export function AgentChatWorkspace({
 
     void (async () => {
       try {
-        const { contentWorkflowApi } =
-          await import("@/lib/api/content-workflow");
         const workflow = await contentWorkflowApi.getByContent(contentId);
         if (workflow) {
           const completedCount = workflow.steps.filter(
@@ -9384,15 +9382,9 @@ export function AgentChatWorkspace({
 
   const handleProjectChange = useCallback(
     (newProjectId: string) => {
-      if (externalProjectId) {
-        return;
-      }
-      pendingTopicSwitchRef.current = null;
-      isResolvingTopicProjectRef.current = false;
-      savePersistedProjectId(LAST_PROJECT_ID_KEY, newProjectId);
-      setInternalProjectId(newProjectId);
+      applyProjectSelection(newProjectId);
     },
-    [externalProjectId],
+    [applyProjectSelection],
   );
 
   const handleSelectWorkspaceDirectory = useCallback(async () => {
@@ -9406,7 +9398,15 @@ export function AgentChatWorkspace({
       try {
         await updateProjectById(projectId, { rootPath: newPath });
         setWorkspaceHealthError(false);
-        toast.success("工作区目录已更新");
+        notifyProjectRuntimeAgentsGuide(
+          {
+            id: projectId,
+            rootPath: newPath,
+          },
+          {
+            successMessage: "工作区目录已更新",
+          },
+        );
       } catch (err) {
         toast.error(
           `更新路径失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -9576,6 +9576,7 @@ export function AgentChatWorkspace({
         setProviderType={setProviderType}
         model={model}
         setModel={setModel}
+        workspaceId={projectId ?? null}
         executionStrategy={executionStrategy}
         setExecutionStrategy={setExecutionStrategy}
         activeTheme={activeTheme}
@@ -9593,38 +9594,44 @@ export function AgentChatWorkspace({
         onToggleTaskFiles={handleToggleTaskFiles}
         onTaskFileClick={handleTaskFileClick}
         overlayAccessory={
-          shouldShowThemeWorkbenchFloatingInputOverlay &&
-          showTeamWorkspaceBoard ? (
-            <TeamWorkspaceDock
-              placement="inline"
-              shellVisible={chatToolPreferences.subagent}
-              currentSessionId={sessionId}
-              currentSessionName={currentSessionTitle}
-              currentSessionRuntimeStatus={currentSessionRuntimeStatus}
-              currentSessionLatestTurnStatus={currentSessionLatestTurnStatus}
-              currentSessionQueuedTurnCount={queuedTurns.length}
-              childSubagentSessions={childSubagentSessions}
-              subagentParentContext={subagentParentContext}
-              liveRuntimeBySessionId={teamLiveRuntimeBySessionId}
-              liveActivityBySessionId={teamLiveActivityBySessionId}
-              activityRefreshVersionBySessionId={
-                teamActivityRefreshVersionBySessionId
-              }
-              onSendSubagentInput={handleSendSubagentInput}
-              onWaitSubagentSession={handleWaitSubagentSession}
-              onWaitActiveTeamSessions={handleWaitActiveTeamSessions}
-              onCloseCompletedTeamSessions={handleCloseCompletedTeamSessions}
-              onCloseSubagentSession={handleCloseSubagentSession}
-              onResumeSubagentSession={handleResumeSubagentSession}
-              onOpenSubagentSession={handleOpenSubagentSession}
-              onReturnToParentSession={handleReturnToParentSession}
-              teamWaitSummary={teamWaitSummary}
-              teamControlSummary={teamControlSummary}
-              selectedTeamLabel={selectedTeamLabel}
-              selectedTeamSummary={selectedTeamSummary}
-              selectedTeamRoles={selectedTeam?.roles}
-            />
-          ) : null
+          <>
+            {themeWorkbenchEntryPromptAccessory}
+            {shouldShowThemeWorkbenchFloatingInputOverlay &&
+            showTeamWorkspaceBoard &&
+            layoutMode === "chat" ? (
+              <TeamWorkspaceDock
+                placement="inline"
+                shellVisible={chatToolPreferences.subagent}
+                onActivateWorkbench={handleActivateTeamWorkbench}
+                currentSessionId={sessionId}
+                currentSessionName={currentSessionTitle}
+                currentSessionRuntimeStatus={currentSessionRuntimeStatus}
+                currentSessionLatestTurnStatus={currentSessionLatestTurnStatus}
+                currentSessionQueuedTurnCount={queuedTurns.length}
+                childSubagentSessions={childSubagentSessions}
+                subagentParentContext={subagentParentContext}
+                liveRuntimeBySessionId={teamLiveRuntimeBySessionId}
+                liveActivityBySessionId={teamLiveActivityBySessionId}
+                activityRefreshVersionBySessionId={
+                  teamActivityRefreshVersionBySessionId
+                }
+                onSendSubagentInput={handleSendSubagentInput}
+                onWaitSubagentSession={handleWaitSubagentSession}
+                onWaitActiveTeamSessions={handleWaitActiveTeamSessions}
+                onCloseCompletedTeamSessions={handleCloseCompletedTeamSessions}
+                onCloseSubagentSession={handleCloseSubagentSession}
+                onResumeSubagentSession={handleResumeSubagentSession}
+                onOpenSubagentSession={handleOpenSubagentSession}
+                onReturnToParentSession={handleReturnToParentSession}
+                teamWaitSummary={teamWaitSummary}
+                teamControlSummary={teamControlSummary}
+                selectedTeamLabel={selectedTeamLabel}
+                selectedTeamSummary={selectedTeamSummary}
+                selectedTeamRoles={selectedTeam?.roles}
+                runtimeTeamState={runtimeTeamState}
+              />
+            ) : null}
+          </>
         }
         characters={projectMemory?.characters || []}
         skills={skills}
@@ -9645,6 +9652,7 @@ export function AgentChatWorkspace({
       currentGate,
       executionStrategy,
       handleClearMessages,
+      handleActivateTeamWorkbench,
       handleManageProviders,
       handleNavigateToSkillSettings,
       handleRefreshSkills,
@@ -9666,6 +9674,7 @@ export function AgentChatWorkspace({
       removeQueuedTurn,
       setExecutionStrategy,
       setInput,
+      setChatToolPreferences,
       setModel,
       setProviderType,
       selectedTeam,
@@ -9681,6 +9690,7 @@ export function AgentChatWorkspace({
       visibleTaskFiles,
       taskFilesExpanded,
       themeWorkbenchRunState,
+      themeWorkbenchEntryPromptAccessory,
       themeWorkbenchWorkflowSteps,
       handleInputbarA2UISubmit,
       childSubagentSessions,
@@ -9705,6 +9715,7 @@ export function AgentChatWorkspace({
       teamActivityRefreshVersionBySessionId,
       teamLiveActivityBySessionId,
       teamLiveRuntimeBySessionId,
+      runtimeTeamState,
       a2uiSubmissionNotice,
     ],
   );
@@ -9736,7 +9747,7 @@ export function AgentChatWorkspace({
             onRefreshToolInventory={refreshToolInventory}
             layout="dialog"
             title="Agent 工作台"
-            description="集中查看计划、审批、子代理、文件活动与工具产物。"
+            description="集中查看计划、审批、协作成员、文件活动与工具产物。"
             toggleLabel="工作台详情"
             leadContent={
               <AgentRuntimeStrip
@@ -9944,7 +9955,7 @@ export function AgentChatWorkspace({
       }
 
       return (
-        <div className="flex h-full flex-col rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] shadow-sm shadow-slate-950/5">
+        <div className="flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ArtifactToolbar
               artifact={toolbarArtifact}
@@ -9966,7 +9977,7 @@ export function AgentChatWorkspace({
               }
               actionsSlot={stackedWorkbenchTrigger}
             />
-            <div className="relative flex-1 overflow-auto bg-white/72">
+            <div className="relative flex-1 overflow-auto bg-white">
               <ArtifactRenderer
                 artifact={previewArtifact}
                 isStreaming={Boolean(
@@ -10036,7 +10047,7 @@ export function AgentChatWorkspace({
         return wrapPreviewWithWorkbenchTrigger(
           <div
             data-testid="canvas-loading-state"
-            className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200/90 bg-slate-50/82 text-sm text-slate-500"
+            className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500"
           >
             {isInitialContentLoading
               ? "正在加载文稿内容..."
@@ -10124,6 +10135,193 @@ export function AgentChatWorkspace({
     ],
   );
 
+  const renderTeamWorkbenchPreview = useCallback(
+    (stackedWorkbenchTrigger?: ReactNode) =>
+      wrapPreviewWithWorkbenchTrigger(
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <TeamWorkspaceBoard
+              embedded={true}
+              shellVisible={chatToolPreferences.subagent}
+              defaultShellExpanded={true}
+              currentSessionId={sessionId}
+              currentSessionName={currentSessionTitle}
+              currentSessionRuntimeStatus={currentSessionRuntimeStatus}
+              currentSessionLatestTurnStatus={currentSessionLatestTurnStatus}
+              currentSessionQueuedTurnCount={queuedTurns.length}
+              childSubagentSessions={childSubagentSessions}
+              subagentParentContext={subagentParentContext}
+              liveRuntimeBySessionId={teamLiveRuntimeBySessionId}
+              liveActivityBySessionId={teamLiveActivityBySessionId}
+              activityRefreshVersionBySessionId={
+                teamActivityRefreshVersionBySessionId
+              }
+              onSendSubagentInput={handleSendSubagentInput}
+              onWaitSubagentSession={handleWaitSubagentSession}
+              onWaitActiveTeamSessions={handleWaitActiveTeamSessions}
+              onCloseCompletedTeamSessions={handleCloseCompletedTeamSessions}
+              onCloseSubagentSession={handleCloseSubagentSession}
+              onResumeSubagentSession={handleResumeSubagentSession}
+              onOpenSubagentSession={handleOpenSubagentSession}
+              onReturnToParentSession={handleReturnToParentSession}
+              teamWaitSummary={teamWaitSummary}
+              teamControlSummary={teamControlSummary}
+              selectedTeamLabel={selectedTeamLabel}
+              selectedTeamSummary={selectedTeamSummary}
+              selectedTeamRoles={selectedTeam?.roles}
+              runtimeTeamState={runtimeTeamState}
+            />
+          </div>
+        </div>,
+        stackedWorkbenchTrigger,
+      ),
+    [
+      chatToolPreferences.subagent,
+      childSubagentSessions,
+      currentSessionLatestTurnStatus,
+      currentSessionRuntimeStatus,
+      currentSessionTitle,
+      handleCloseCompletedTeamSessions,
+      handleCloseSubagentSession,
+      handleOpenSubagentSession,
+      handleResumeSubagentSession,
+      handleReturnToParentSession,
+      handleSendSubagentInput,
+      handleWaitActiveTeamSessions,
+      handleWaitSubagentSession,
+      queuedTurns.length,
+      sessionId,
+      subagentParentContext,
+      teamActivityRefreshVersionBySessionId,
+      teamControlSummary,
+      teamLiveActivityBySessionId,
+      teamLiveRuntimeBySessionId,
+      teamWaitSummary,
+      runtimeTeamState,
+      selectedTeam?.roles,
+      selectedTeamLabel,
+      selectedTeamSummary,
+    ],
+  );
+
+  const teamWorkbenchSummaryPanel = useMemo(
+    () => (
+      <TeamWorkbenchSummaryPanel
+        currentSessionId={sessionId}
+        currentSessionRuntimeStatus={currentSessionRuntimeStatus}
+        currentSessionLatestTurnStatus={currentSessionLatestTurnStatus}
+        currentSessionQueuedTurnCount={queuedTurns.length}
+        childSubagentSessions={childSubagentSessions}
+        subagentParentContext={subagentParentContext}
+        liveRuntimeBySessionId={teamLiveRuntimeBySessionId}
+        liveActivityBySessionId={teamLiveActivityBySessionId}
+        teamWaitSummary={teamWaitSummary}
+        teamControlSummary={teamControlSummary}
+        selectedTeamLabel={selectedTeamLabel}
+        selectedTeamSummary={selectedTeamSummary}
+        selectedTeamRoles={selectedTeam?.roles}
+        runtimeTeamState={runtimeTeamState}
+      />
+    ),
+    [
+      childSubagentSessions,
+      currentSessionLatestTurnStatus,
+      currentSessionRuntimeStatus,
+      queuedTurns.length,
+      selectedTeam?.roles,
+      selectedTeamLabel,
+      selectedTeamSummary,
+      sessionId,
+      subagentParentContext,
+      teamControlSummary,
+      teamLiveActivityBySessionId,
+      teamLiveRuntimeBySessionId,
+      teamWaitSummary,
+      runtimeTeamState,
+    ],
+  );
+
+  const teamWorkbenchExecutionSummary = useMemo(
+    () =>
+      summarizeTeamWorkspaceExecution({
+        currentSessionId: sessionId,
+        currentSessionRuntimeStatus,
+        currentSessionLatestTurnStatus,
+        currentSessionQueuedTurnCount: queuedTurns.length,
+        childSubagentSessions,
+        subagentParentContext,
+        liveRuntimeBySessionId: teamLiveRuntimeBySessionId,
+      }),
+    [
+      childSubagentSessions,
+      currentSessionLatestTurnStatus,
+      currentSessionRuntimeStatus,
+      queuedTurns.length,
+      sessionId,
+      subagentParentContext,
+      teamLiveRuntimeBySessionId,
+    ],
+  );
+
+  const teamWorkbenchTriggerState = useMemo(() => {
+    if (!showTeamWorkspaceBoard) {
+      return null;
+    }
+
+    if (runtimeTeamState?.status === "failed") {
+      return { tone: "error" as const, label: "失败" };
+    }
+
+    if (runtimeTeamState?.status === "forming") {
+      return { tone: "active" as const, label: "组建中" };
+    }
+
+    if (teamWorkbenchExecutionSummary.runningSessionCount > 0) {
+      return {
+        tone: "active" as const,
+        label:
+          teamWorkbenchExecutionSummary.runningSessionCount > 1
+            ? `${teamWorkbenchExecutionSummary.runningSessionCount} 运行中`
+            : "运行中",
+      };
+    }
+
+    if (teamWorkbenchExecutionSummary.queuedSessionCount > 0) {
+      return {
+        tone: "active" as const,
+        label:
+          teamWorkbenchExecutionSummary.queuedSessionCount > 1
+            ? `${teamWorkbenchExecutionSummary.queuedSessionCount} 排队`
+            : "排队中",
+      };
+    }
+
+    if (runtimeTeamState?.status === "formed" && !hasRealTeamGraph) {
+      return { tone: "active" as const, label: "已就绪" };
+    }
+
+    if (
+      Object.values(teamLiveActivityBySessionId).some(
+        (entries) => (entries?.length ?? 0) > 0,
+      ) ||
+      Boolean(teamWaitSummary) ||
+      Boolean(teamControlSummary)
+    ) {
+      return { tone: "active" as const, label: "有更新" };
+    }
+
+    return { tone: "idle" as const, label: null };
+  }, [
+    hasRealTeamGraph,
+    runtimeTeamState,
+    showTeamWorkspaceBoard,
+    teamControlSummary,
+    teamLiveActivityBySessionId,
+    teamWaitSummary,
+    teamWorkbenchExecutionSummary.queuedSessionCount,
+    teamWorkbenchExecutionSummary.runningSessionCount,
+  ]);
+
   const renderCanvasWorkbenchPreview = useCallback(
     (
       target: CanvasWorkbenchPreviewTarget,
@@ -10144,7 +10342,7 @@ export function AgentChatWorkspace({
           return wrapPreviewWithWorkbenchTrigger(
             <div
               data-testid="canvas-workbench-preview-loading"
-              className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200/90 bg-slate-50/82 text-sm text-slate-500"
+              className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500"
             >
               正在准备预览...
             </div>,
@@ -10154,7 +10352,7 @@ export function AgentChatWorkspace({
           return wrapPreviewWithWorkbenchTrigger(
             <div
               data-testid="canvas-workbench-preview-unsupported"
-              className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200/90 bg-slate-50/82 px-6 text-sm text-slate-500"
+              className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-sm text-slate-500"
             >
               {target.reason}
             </div>,
@@ -10164,23 +10362,67 @@ export function AgentChatWorkspace({
           return wrapPreviewWithWorkbenchTrigger(
             <div
               data-testid="canvas-workbench-preview-empty"
-              className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200/90 bg-slate-50/82 text-sm text-slate-500"
+              className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500"
             >
               暂无可预览内容
             </div>,
             options?.stackedWorkbenchTrigger,
           );
+        case "team-workbench":
+          return renderTeamWorkbenchPreview(options?.stackedWorkbenchTrigger);
         default:
           return null;
       }
     },
-    [renderArtifactWorkbenchPreview, renderLiveCanvasPreview],
+    [
+      renderArtifactWorkbenchPreview,
+      renderLiveCanvasPreview,
+      renderTeamWorkbenchPreview,
+    ],
   );
 
   const shouldRenderInlineA2UI = isContentCreationMode;
   const isWorkspaceCompactChrome = topBarChrome === "workspace-compact";
   const shouldRenderBrandedEmptyState = !showChatLayout;
   const shouldRenderTopBar = !hideTopBar && !shouldRenderBrandedEmptyState;
+  const teamWorkbenchView = useMemo(
+    () =>
+      showTeamWorkspaceBoard
+        ? {
+            enabled: true,
+            title:
+              runtimeTeamState?.label?.trim() ||
+              runtimeTeamState?.blueprint?.label?.trim() ||
+              selectedTeamLabel ||
+              "Team Workbench",
+            subtitle: hasRealTeamGraph
+              ? "画布展示多成员实时协作，右侧侧栏展示总览与角色结构。"
+              : runtimeTeamState?.status === "forming"
+                ? "正在根据本轮任务准备 Team，随后会在画布中展示成员编队。"
+                : runtimeTeamState?.status === "formed"
+                  ? "本轮 Team 已就绪，画布展示当前成员与后续真实协作轨道。"
+                  : runtimeTeamState?.status === "failed"
+                    ? runtimeTeamState.errorMessage?.trim() ||
+                      "本轮 Team 准备失败，可直接查看失败原因并继续当前对话。"
+                    : "Team 模式已启用，等待系统创建真实团队成员。",
+            autoFocusToken: teamWorkbenchAutoFocusToken,
+            triggerState: teamWorkbenchTriggerState,
+            renderPreview: (options?: { stackedWorkbenchTrigger?: ReactNode }) =>
+              renderTeamWorkbenchPreview(options?.stackedWorkbenchTrigger),
+            renderPanel: () => teamWorkbenchSummaryPanel,
+          }
+        : null,
+    [
+      hasRealTeamGraph,
+      renderTeamWorkbenchPreview,
+      runtimeTeamState,
+      selectedTeamLabel,
+      showTeamWorkspaceBoard,
+      teamWorkbenchTriggerState,
+      teamWorkbenchAutoFocusToken,
+      teamWorkbenchSummaryPanel,
+    ],
+  );
   const themeWorkbenchLayoutBottomSpacing =
     resolveThemeWorkbenchLayoutBottomSpacing({
       contextWorkspaceEnabled: contextWorkspace.enabled,
@@ -10290,9 +10532,11 @@ export function AgentChatWorkspace({
                   />
                 )}
                 {showTeamWorkspaceBoard &&
-                !shouldShowThemeWorkbenchFloatingInputOverlay ? (
+                !shouldShowThemeWorkbenchFloatingInputOverlay &&
+                layoutMode === "chat" ? (
                   <TeamWorkspaceDock
                     shellVisible={chatToolPreferences.subagent}
+                    onActivateWorkbench={handleActivateTeamWorkbench}
                     withBottomOverlay={
                       isThemeWorkbench &&
                       showChatLayout &&
@@ -10327,6 +10571,7 @@ export function AgentChatWorkspace({
                     selectedTeamLabel={selectedTeamLabel}
                     selectedTeamSummary={selectedTeamSummary}
                     selectedTeamRoles={selectedTeam?.roles}
+                    runtimeTeamState={runtimeTeamState}
                   />
                 ) : null}
               </>
@@ -10473,6 +10718,7 @@ export function AgentChatWorkspace({
       generalCanvasState.content,
       goToStep,
       handleA2UISubmit,
+      handleActivateTeamWorkbench,
       handleArtifactClick,
       handleCloseCompletedTeamSessions,
       handleCloseSubagentSession,
@@ -10502,6 +10748,7 @@ export function AgentChatWorkspace({
       isContentCreationMode,
       isThemeWorkbench,
       isWorkspaceCompactChrome,
+      layoutMode,
       lockTheme,
       displayMessages,
       model,
@@ -10513,6 +10760,7 @@ export function AgentChatWorkspace({
       pendingPromotedA2UIActionRequest,
       setCreationMode,
       setExecutionStrategy,
+      setChatToolPreferences,
       setInput,
       setModel,
       setProviderType,
@@ -10546,6 +10794,7 @@ export function AgentChatWorkspace({
       subagentParentContext,
       teamControlSummary,
       teamWaitSummary,
+      runtimeTeamState,
       workspaceHealthError,
       workspacePathMissing,
       resolvedCanvasState,
@@ -10561,11 +10810,14 @@ export function AgentChatWorkspace({
   // 画布区域内容
   const canvasContent = useMemo(() => {
     const liveCanvasPreview = renderLiveCanvasPreview();
-    if (!liveCanvasPreview) {
+    if (!liveCanvasPreview && !teamWorkbenchView) {
       return null;
     }
 
-    if (shouldShowCanvasLoadingState || isBrowserAssistCanvasVisible) {
+    if (
+      !teamWorkbenchView &&
+      (shouldShowCanvasLoadingState || isBrowserAssistCanvasVisible)
+    ) {
       return liveCanvasPreview;
     }
 
@@ -10585,6 +10837,7 @@ export function AgentChatWorkspace({
         onRevealPath={handleRevealCanvasWorkbenchPath}
         renderPreview={renderCanvasWorkbenchPreview}
         onLayoutModeChange={setCanvasWorkbenchLayoutMode}
+        teamView={teamWorkbenchView}
       />
     );
   }, [
@@ -10602,6 +10855,7 @@ export function AgentChatWorkspace({
     isBrowserAssistCanvasVisible,
     setCanvasWorkbenchLayoutMode,
     taskFiles,
+    teamWorkbenchView,
     workspaceHealthError,
     workspacePathMissing,
   ]);

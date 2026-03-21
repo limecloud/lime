@@ -244,6 +244,148 @@ describe("useTeamWorkspaceRuntime", () => {
     ).toBe(1);
   });
 
+  it("收到 turn_completed 后，应立即把 live runtime 从 running 回落到 completed", async () => {
+    const listeners = new Map<
+      string,
+      (event: { payload: unknown }) => void
+    >();
+    mockSafeListen.mockImplementation(
+      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+        listeners.set(eventName, handler);
+        return () => {
+          listeners.delete(eventName);
+        };
+      },
+    );
+
+    await renderHookProbe({
+      childSubagentSessions: [
+        {
+          id: "child-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          latest_turn_status: "running",
+          task_summary: "整理竞品与数据来源",
+          role_hint: "explorer",
+        },
+      ],
+    });
+
+    await act(async () => {
+      listeners.get("agent_subagent_stream:child-1")?.({
+        payload: {
+          type: "turn_completed",
+          turn: {
+            id: "turn-1",
+          },
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(latestValue?.liveRuntimeBySessionId["child-1"]?.runtimeStatus).toBe(
+      "completed",
+    );
+    expect(
+      latestValue?.liveRuntimeBySessionId["child-1"]?.latestTurnStatus,
+    ).toBe("completed");
+  });
+
+  it("收到 final_done 且没有后续状态事件时，也应结束 running 状态", async () => {
+    const listeners = new Map<
+      string,
+      (event: { payload: unknown }) => void
+    >();
+    mockSafeListen.mockImplementation(
+      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+        listeners.set(eventName, handler);
+        return () => {
+          listeners.delete(eventName);
+        };
+      },
+    );
+
+    await renderHookProbe({
+      childSubagentSessions: [
+        {
+          id: "child-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          latest_turn_status: "running",
+          task_summary: "整理竞品与数据来源",
+          role_hint: "explorer",
+        },
+      ],
+    });
+
+    await act(async () => {
+      listeners.get("agent_subagent_stream:child-1")?.({
+        payload: {
+          type: "final_done",
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(latestValue?.liveRuntimeBySessionId["child-1"]?.runtimeStatus).toBe(
+      "completed",
+    );
+  });
+
+  it("收到 error 后，应立即把 live runtime 从 running 回落到 failed", async () => {
+    const listeners = new Map<
+      string,
+      (event: { payload: unknown }) => void
+    >();
+    mockSafeListen.mockImplementation(
+      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+        listeners.set(eventName, handler);
+        return () => {
+          listeners.delete(eventName);
+        };
+      },
+    );
+
+    await renderHookProbe({
+      childSubagentSessions: [
+        {
+          id: "child-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          latest_turn_status: "running",
+          task_summary: "整理竞品与数据来源",
+          role_hint: "explorer",
+        },
+      ],
+    });
+
+    await act(async () => {
+      listeners.get("agent_subagent_stream:child-1")?.({
+        payload: {
+          type: "error",
+          message: "工具调用失败",
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(latestValue?.liveRuntimeBySessionId["child-1"]?.runtimeStatus).toBe(
+      "failed",
+    );
+    expect(
+      latestValue?.liveRuntimeBySessionId["child-1"]?.latestTurnStatus,
+    ).toBe("failed");
+  });
+
   it("base snapshot 追平或 session 移除后，应自动清理过期 live 状态", async () => {
     const listeners = new Map<
       string,

@@ -26,6 +26,8 @@ rusqlite.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
 regex.workspace = true
+anyhow.workspace = true
+async-stream.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

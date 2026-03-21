@@ -3,10 +3,11 @@
 //! 将设置页中的记忆画像与配置化记忆来源统一装配为可注入到 system prompt
 //! 的单一记忆指令片段，避免调用方继续各自决定拼装顺序。
 
+use lime_agent::RUNTIME_AGENTS_PROMPT_MARKER;
 use lime_core::config::Config;
 use std::path::Path;
 
-use crate::services::memory_source_resolver_service::build_memory_sources_prompt;
+use crate::services::memory_source_resolver_service::build_memory_sources_prompt_with_options;
 
 const MEMORY_PROFILE_PROMPT_MARKER: &str = "【用户记忆画像偏好】";
 const MEMORY_SOURCE_PROMPT_MARKER: &str = "【记忆来源补充指令】";
@@ -106,13 +107,20 @@ fn build_memory_profile_prompt(config: &Config) -> Option<String> {
 fn build_memory_sources_prompt_for_context(
     config: &Config,
     context: MemoryPromptContext<'_>,
+    skip_runtime_agents_overlap: bool,
 ) -> Option<String> {
     let working_dir = context.working_dir?;
     if !config.memory.enabled {
         return None;
     }
 
-    build_memory_sources_prompt(config, working_dir, context.active_relative_path, 4000)
+    build_memory_sources_prompt_with_options(
+        config,
+        working_dir,
+        context.active_relative_path,
+        4000,
+        skip_runtime_agents_overlap,
+    )
 }
 
 fn merge_prompt_section(
@@ -145,7 +153,7 @@ pub fn build_memory_prompt(config: &Config, context: MemoryPromptContext<'_>) ->
 
     merge_prompt_section(
         with_profile,
-        build_memory_sources_prompt_for_context(config, context),
+        build_memory_sources_prompt_for_context(config, context, false),
         MEMORY_SOURCE_PROMPT_MARKER,
     )
 }
@@ -159,6 +167,9 @@ pub fn merge_system_prompt_with_memory_context(
     config: &Config,
     context: MemoryPromptContext<'_>,
 ) -> Option<String> {
+    let skip_runtime_agents_overlap = base_prompt
+        .as_deref()
+        .is_some_and(|prompt| prompt.contains(RUNTIME_AGENTS_PROMPT_MARKER));
     let with_profile = merge_prompt_section(
         base_prompt,
         build_memory_profile_prompt(config),
@@ -167,7 +178,7 @@ pub fn merge_system_prompt_with_memory_context(
 
     merge_prompt_section(
         with_profile,
-        build_memory_sources_prompt_for_context(config, context),
+        build_memory_sources_prompt_for_context(config, context, skip_runtime_agents_overlap),
         MEMORY_SOURCE_PROMPT_MARKER,
     )
 }
@@ -175,6 +186,7 @@ pub fn merge_system_prompt_with_memory_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lime_agent::RUNTIME_AGENTS_PROMPT_MARKER;
     use lime_core::config::Config;
     use std::fs;
     use tempfile::TempDir;
@@ -237,15 +249,19 @@ mod tests {
     #[test]
     fn should_merge_memory_sources_without_profile_data() {
         let tmp = TempDir::new().expect("create temp dir");
-        fs::write(tmp.path().join("AGENTS.md"), "# 项目记忆\n- 偏好简洁输出")
-            .expect("write memory file");
+        fs::create_dir_all(tmp.path().join(".lime")).expect("create .lime dir");
+        fs::write(
+            tmp.path().join(".lime/AGENTS.md"),
+            "# 项目记忆\n- 偏好简洁输出",
+        )
+        .expect("write memory file");
 
         let mut config = Config::default();
         config.memory.enabled = true;
         config.memory.profile = Some(Default::default());
         config.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
         config.memory.sources.user_memory_path = Some("missing-user.md".to_string());
-        config.memory.sources.project_memory_paths = vec!["AGENTS.md".to_string()];
+        config.memory.sources.project_memory_paths = vec![".lime/AGENTS.md".to_string()];
         config.memory.sources.project_rule_dirs = Vec::new();
 
         let merged = merge_system_prompt_with_memory_context(
@@ -262,7 +278,8 @@ mod tests {
     #[test]
     fn should_build_combined_memory_prompt() {
         let tmp = TempDir::new().expect("create temp dir");
-        fs::write(tmp.path().join("AGENTS.md"), "# 项目记忆\n- 保持简洁")
+        fs::create_dir_all(tmp.path().join(".lime")).expect("create .lime dir");
+        fs::write(tmp.path().join(".lime/AGENTS.md"), "# 项目记忆\n- 保持简洁")
             .expect("write memory file");
 
         let mut config = Config::default();
@@ -270,7 +287,7 @@ mod tests {
         let mut profile = config.memory.profile.clone().unwrap_or_default();
         profile.current_status = Some("高级开发者".to_string());
         config.memory.profile = Some(profile);
-        config.memory.sources.project_memory_paths = vec!["AGENTS.md".to_string()];
+        config.memory.sources.project_memory_paths = vec![".lime/AGENTS.md".to_string()];
         config.memory.sources.project_rule_dirs = Vec::new();
         config.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
         config.memory.sources.user_memory_path = Some("missing-user.md".to_string());
@@ -283,5 +300,41 @@ mod tests {
         assert!(prompt.contains("高级开发者"));
         assert!(prompt.contains("【记忆来源补充指令】"));
         assert!(prompt.contains("保持简洁"));
+    }
+
+    #[test]
+    fn should_skip_runtime_agent_overlap_sources_but_keep_local_memory() {
+        let tmp = TempDir::new().expect("create temp dir");
+        fs::create_dir_all(tmp.path().join(".lime")).expect("create .lime dir");
+        fs::write(tmp.path().join(".lime/AGENTS.md"), "# 项目记忆\n- 保持简洁")
+            .expect("write workspace agents");
+        fs::write(
+            tmp.path().join(".lime/AGENTS.local.md"),
+            "# 本机补充\n- 优先使用当前机器已安装工具",
+        )
+        .expect("write local agents");
+
+        let mut config = Config::default();
+        config.memory.enabled = true;
+        config.memory.profile = Some(Default::default());
+        config.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
+        config.memory.sources.user_memory_path = Some("missing-user.md".to_string());
+        config.memory.sources.project_memory_paths = vec![".lime/AGENTS.md".to_string()];
+        config.memory.sources.project_local_memory_path = Some(".lime/AGENTS.local.md".to_string());
+        config.memory.sources.project_rule_dirs = Vec::new();
+
+        let base = Some(format!(
+            "{RUNTIME_AGENTS_PROMPT_MARKER}\n### Workspace 运行时指令 (/tmp/workspace/.lime/AGENTS.md)\n# 项目记忆\n- 保持简洁"
+        ));
+        let merged = merge_system_prompt_with_memory_context(
+            base,
+            &config,
+            MemoryPromptContext::with_working_dir(tmp.path()),
+        )
+        .expect("should merge prompt");
+
+        assert_eq!(merged.matches("保持简洁").count(), 1);
+        assert!(merged.contains("【记忆来源补充指令】"));
+        assert!(merged.contains("优先使用当前机器已安装工具"));
     }
 }

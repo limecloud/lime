@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { WorkspaceSettings } from "@/types/workspace";
 import { toast } from "sonner";
 import {
   BUILTIN_TEAM_PROFILE_OPTIONS,
@@ -32,13 +33,22 @@ import {
   type TeamRoleDefinition,
 } from "../../../utils/teamDefinitions";
 import { getTeamSuggestion } from "../../../utils/teamSuggestion";
-import { loadCustomTeams, saveCustomTeams } from "../../../utils/teamStorage";
+import {
+  resolveCustomTeams,
+  saveCustomTeams,
+} from "../../../utils/teamStorage";
 
 interface TeamSelectorPanelProps {
   activeTheme?: string;
   input?: string;
+  workspaceId?: string | null;
+  providerType?: string;
+  model?: string;
+  executionStrategy?: "react" | "code_orchestrated" | "auto";
   selectedTeam?: TeamDefinition | null;
   onSelectTeam: (team: TeamDefinition | null) => void;
+  workspaceSettings?: WorkspaceSettings | null;
+  onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
   onClose?: () => void;
 }
 
@@ -288,18 +298,27 @@ function TeamCard({
 export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
   activeTheme,
   input,
+  workspaceId: _workspaceId,
+  providerType: _providerType,
+  model: _model,
+  executionStrategy: _executionStrategy,
   selectedTeam = null,
   onSelectTeam,
+  workspaceSettings,
+  onPersistCustomTeams,
   onClose,
 }) => {
   const [query, setQuery] = useState("");
   const [customTeams, setCustomTeams] = useState<TeamDefinition[]>([]);
   const [draft, setDraft] = useState<TeamDraft | null>(null);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const isProjectScopedCustomTeam = Boolean(
+    workspaceSettings && onPersistCustomTeams,
+  );
 
   useEffect(() => {
-    setCustomTeams(loadCustomTeams());
-  }, []);
+    setCustomTeams(resolveCustomTeams(workspaceSettings));
+  }, [workspaceSettings]);
 
   const suggestion = useMemo(
     () =>
@@ -370,7 +389,16 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
     setDraft(buildDraftFromTeam(team));
   };
 
-  const handleSaveDraft = () => {
+  const persistCustomTeams = async (nextCustomTeams: TeamDefinition[]) => {
+    if (onPersistCustomTeams) {
+      await Promise.resolve(onPersistCustomTeams(nextCustomTeams));
+      return;
+    }
+
+    saveCustomTeams(nextCustomTeams);
+  };
+
+  const handleSaveDraft = async () => {
     const normalized = normalizeTeamDefinition({
       id: draft?.id,
       source: "custom",
@@ -400,23 +428,46 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
     const nextCustomTeams = [...customTeams.filter((team) => team.id !== nextTeam.id), nextTeam].sort(
       (left, right) => (right.updatedAt || 0) - (left.updatedAt || 0),
     );
-    setCustomTeams(nextCustomTeams);
-    saveCustomTeams(nextCustomTeams);
-    setDraft(null);
-    onSelectTeam(nextTeam);
-    onClose?.();
-    toast.success(`已保存 Team「${nextTeam.label}」`);
+    try {
+      await persistCustomTeams(nextCustomTeams);
+      setCustomTeams(nextCustomTeams);
+      setDraft(null);
+      onSelectTeam(nextTeam);
+      onClose?.();
+      toast.success(
+        isProjectScopedCustomTeam
+          ? `已将 Team「${nextTeam.label}」保存到当前项目`
+          : `已保存 Team「${nextTeam.label}」`,
+      );
+    } catch (error) {
+      toast.error(
+        `保存 Team 失败：${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   };
 
-  const handleDeleteCustom = (team: TeamDefinition) => {
+  const handleDeleteCustom = async (team: TeamDefinition) => {
     const nextCustomTeams = customTeams.filter((item) => item.id !== team.id);
-    setCustomTeams(nextCustomTeams);
-    saveCustomTeams(nextCustomTeams);
-    setDraft((currentDraft) => (currentDraft?.id === team.id ? null : currentDraft));
-    if (selectedTeam?.id === team.id) {
-      onSelectTeam(null);
+
+    try {
+      await persistCustomTeams(nextCustomTeams);
+      setCustomTeams(nextCustomTeams);
+      setDraft((currentDraft) =>
+        currentDraft?.id === team.id ? null : currentDraft,
+      );
+      if (selectedTeam?.id === team.id) {
+        onSelectTeam(null);
+      }
+      toast.success(
+        isProjectScopedCustomTeam
+          ? `已从当前项目删除 Team「${team.label}」`
+          : `已删除 Team「${team.label}」`,
+      );
+    } catch (error) {
+      toast.error(
+        `删除 Team 失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
-    toast.success(`已删除 Team「${team.label}」`);
   };
 
   const handleClearSelection = () => {
@@ -606,7 +657,9 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               type="button"
               variant="outline"
               className="border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
-              onClick={() => handleDeleteCustom(inspectorTeam)}
+              onClick={() => {
+                void handleDeleteCustom(inspectorTeam);
+              }}
             >
               <Trash2 className="mr-1.5 h-4 w-4" />
               删除这个 Team
@@ -930,7 +983,9 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
           <Button
             type="button"
             className="bg-slate-900 text-white hover:bg-slate-800"
-            onClick={handleSaveDraft}
+            onClick={() => {
+              void handleSaveDraft();
+            }}
           >
             保存 Team
           </Button>
@@ -952,6 +1007,11 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             </div>
             <div className="mt-1 text-sm text-slate-700">
               只在当前任务适合拆分协作时，为主代理提供团队结构参考。
+            </div>
+            <div className="mt-2 text-xs text-slate-500">
+              {isProjectScopedCustomTeam
+                ? "自定义 Team 会保存到当前项目，便于项目级复用与评审。"
+                : "自定义 Team 当前保存在本地设备，用于快速测试与个人偏好。"}
             </div>
           </div>
           {selectedTeam ? (
@@ -1002,7 +1062,10 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                 className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={() =>
                   handleStartCreate(
-                    selectedTeam || recommendedTeam || builtinTeams[0] || null,
+                    selectedTeam ||
+                      recommendedTeam ||
+                      builtinTeams[0] ||
+                      null,
                   )
                 }
               >
@@ -1049,7 +1112,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             <section className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-                  我的 Team
+                  {isProjectScopedCustomTeam ? "当前项目 Team" : "我的 Team"}
                 </div>
                 <Button
                   type="button"
@@ -1058,7 +1121,10 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                   className="h-8 border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                   onClick={() =>
                     handleStartCreate(
-                      selectedTeam || recommendedTeam || builtinTeams[0] || null,
+                      selectedTeam ||
+                        recommendedTeam ||
+                        builtinTeams[0] ||
+                        null,
                     )
                   }
                 >
@@ -1083,14 +1149,18 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                       }
                       onCopy={() => handleStartCreate(team)}
                       onEdit={() => handleStartEdit(team)}
-                      onDelete={() => handleDeleteCustom(team)}
+                      onDelete={() => {
+                        void handleDeleteCustom(team);
+                      }}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
                   <div>
-                    还没有自定义 Team。可以从推荐方案或系统模板复制一份后再改。
+                    {isProjectScopedCustomTeam
+                      ? "当前项目还没有自定义 Team。可以从推荐方案或系统模板复制一份后再改。"
+                      : "还没有自定义 Team。可以从推荐方案或系统模板复制一份后再改。"}
                   </div>
                   <Button
                     type="button"
@@ -1099,7 +1169,10 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                     className="mt-3 border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                     onClick={() =>
                       handleStartCreate(
-                        selectedTeam || recommendedTeam || builtinTeams[0] || null,
+                        selectedTeam ||
+                          recommendedTeam ||
+                          builtinTeams[0] ||
+                          null,
                       )
                     }
                   >

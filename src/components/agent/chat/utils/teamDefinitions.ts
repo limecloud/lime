@@ -4,7 +4,11 @@ import {
   type TeamPresetOption,
 } from "./teamPresets";
 
-export type TeamDefinitionSource = "builtin" | "custom";
+export type TeamDefinitionSource = "builtin" | "custom" | "ephemeral";
+export type PersistableTeamDefinitionSource = Exclude<
+  TeamDefinitionSource,
+  "ephemeral"
+>;
 
 export interface TeamRoleDefinition {
   id: string;
@@ -29,7 +33,7 @@ export interface TeamDefinition {
 
 export interface TeamSelectionReference {
   id: string;
-  source: TeamDefinitionSource;
+  source: PersistableTeamDefinitionSource;
 }
 
 function normalizeText(value?: string | null): string {
@@ -148,7 +152,12 @@ export function normalizeTeamDefinition(
 
   return {
     id: normalizeText(value.id) || createTeamDefinitionId("custom-team"),
-    source: value.source === "builtin" ? "builtin" : "custom",
+    source:
+      value.source === "builtin"
+        ? "builtin"
+        : value.source === "ephemeral"
+          ? "ephemeral"
+          : "custom",
     label,
     description: normalizeText(value.description),
     theme: normalizeText(value.theme) || undefined,
@@ -185,7 +194,7 @@ export function buildTeamDefinitionLabel(team?: TeamDefinition | null): string {
 export function buildTeamSelectionReference(
   team?: TeamDefinition | null,
 ): TeamSelectionReference | null {
-  if (!team) {
+  if (!team || team.source === "ephemeral") {
     return null;
   }
 

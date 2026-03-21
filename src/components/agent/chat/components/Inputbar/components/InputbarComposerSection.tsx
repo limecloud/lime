@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
@@ -8,12 +8,15 @@ import { CharacterMention } from "./CharacterMention";
 import { InputbarCore } from "./InputbarCore";
 import { SkillSelector } from "./SkillSelector";
 import { TeamSelector } from "./TeamSelector";
+import { TeamModeEntryButton } from "./TeamModeEntryButton";
 import { ThemeWorkbenchStatusPanel } from "./ThemeWorkbenchStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
 import { InputbarVisionCapabilityNotice } from "./InputbarVisionCapabilityNotice";
 import { InputbarExecutionStrategySelect } from "./InputbarExecutionStrategySelect";
 import { isGeneralResearchTheme } from "../../../utils/generalAgentPrompt";
 import type { TeamDefinition } from "../../../utils/teamDefinitions";
+import { getTeamSuggestion } from "../../../utils/teamSuggestion";
+import type { WorkspaceSettings } from "@/types/workspace";
 import type {
   ThemeWorkbenchGateState,
   ThemeWorkbenchQuickAction,
@@ -40,6 +43,11 @@ interface InputbarComposerSectionProps {
   onRefreshSkills?: () => void | Promise<void>;
   selectedTeam?: TeamDefinition | null;
   onSelectTeam?: (team: TeamDefinition | null) => void;
+  teamWorkspaceSettings?: WorkspaceSettings | null;
+  onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
+  workspaceId?: string | null;
+  providerType?: string;
+  model?: string;
   onSend: () => void;
   onToolClick: (tool: string) => void;
   activeTools: Record<string, boolean>;
@@ -83,6 +91,11 @@ export const InputbarComposerSection: React.FC<
   onRefreshSkills,
   selectedTeam,
   onSelectTeam,
+  teamWorkspaceSettings,
+  onPersistCustomTeams,
+  workspaceId,
+  providerType,
+  model,
   onSend,
   onToolClick,
   activeTools,
@@ -101,11 +114,29 @@ export const InputbarComposerSection: React.FC<
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
 }) => {
+  const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
+    number | null
+  >(null);
   const showSkillSelector =
     !isThemeWorkbenchVariant && isGeneralResearchTheme(activeTheme);
+  const teamSuggestion =
+    !activeTools["subagent_mode"] && isGeneralResearchTheme(activeTheme)
+      ? getTeamSuggestion({
+          input,
+          activeTheme,
+          subagentEnabled: false,
+        })
+      : null;
+  const shouldRecommendTeamEntry = Boolean(teamSuggestion?.shouldSuggest);
   const currentPendingImages =
     (inputAdapter.state.attachments as MessageImage[] | undefined) ||
     pendingImages;
+  const handleEnableTeamMode = () => {
+    if (!selectedTeam) {
+      setTeamSelectorAutoOpenToken((current) => (current ?? 0) + 1);
+    }
+    onToolClick("subagent_mode");
+  };
 
   if (renderThemeWorkbenchGeneratingPanel) {
     return (
@@ -198,13 +229,30 @@ export const InputbarComposerSection: React.FC<
                 onRefreshSkills={onRefreshSkills}
               />
             ) : null}
-            {activeTools["subagent_mode"] ? (
-              <TeamSelector
-                activeTheme={activeTheme}
-                input={input}
-                selectedTeam={selectedTeam}
-                onSelectTeam={(team) => onSelectTeam?.(team)}
-              />
+            {isGeneralResearchTheme(activeTheme) ? (
+              activeTools["subagent_mode"] ? (
+                <TeamSelector
+                  activeTheme={activeTheme}
+                  input={input}
+                  workspaceId={workspaceId}
+                  providerType={providerType}
+                  model={model}
+                  executionStrategy={executionStrategy}
+                  autoOpenToken={teamSelectorAutoOpenToken}
+                  selectedTeam={selectedTeam}
+                  workspaceSettings={teamWorkspaceSettings}
+                  onPersistCustomTeams={onPersistCustomTeams}
+                  onSelectTeam={(team) => onSelectTeam?.(team)}
+                />
+              ) : (
+                <TeamModeEntryButton
+                  selectedTeamLabel={selectedTeam?.label}
+                  dataTestId="team-mode-enable-button"
+                  recommended={shouldRecommendTeamEntry}
+                  hint={teamSuggestion?.reasons?.[0]}
+                  onClick={handleEnableTeamMode}
+                />
+              )
             ) : null}
             <InputbarModelExtra
               isFullscreen={isFullscreen}

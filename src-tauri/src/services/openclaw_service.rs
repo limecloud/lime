@@ -10,6 +10,7 @@ use lime_core::openclaw_install::{
     select_best_semver_candidate as core_select_best_semver_candidate,
     select_preferred_path_candidate as core_select_preferred_path_candidate,
     shell_command_escape_for as core_shell_command_escape_for,
+    shell_command_invocation_prefix_for as core_shell_command_invocation_prefix_for,
     shell_npm_prefix_assignment_for as core_shell_npm_prefix_assignment_for,
     shell_path_assignment_for as core_shell_path_assignment_for,
     windows_manual_install_message as core_windows_manual_install_message,
@@ -231,7 +232,11 @@ enum ResolvedOpenClawCommand {
 }
 
 impl ResolvedOpenClawCommand {
-    fn build_command(&self) -> Command {
+    fn build_command_with_args<I, S>(&self, args: I) -> Command
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
         let command_path = self.command_path();
         let command_path_string = command_path.to_string_lossy().to_string();
         let mut command = Command::new(command_path);
@@ -240,6 +245,8 @@ impl ResolvedOpenClawCommand {
         if let Self::NodeCli { cli_path, .. } = self {
             command.arg(cli_path);
         }
+
+        command.args(args);
 
         command
     }
@@ -1106,10 +1113,9 @@ impl OpenClawService {
                 "info",
             );
         }
-        let mut command = openclaw_command.build_command();
         let start_args = gateway_start_args(self.gateway_port, &self.gateway_auth_token);
+        let mut command = openclaw_command.build_command_with_args(&start_args);
         command
-            .args(&start_args)
             .env(OPENCLAW_CONFIG_ENV, &config_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -1536,14 +1542,11 @@ impl OpenClawService {
             );
         }
 
-        let mut command = openclaw_command.build_command();
+        let mut command = openclaw_command.build_command_with_args(["update", "--yes", "--json"]);
         if let Some(root) = update_context.root.as_ref().filter(|root| root.is_dir()) {
             command.current_dir(root);
         }
         let output = command
-            .arg("update")
-            .arg("--yes")
-            .arg("--json")
             .env(OPENCLAW_CONFIG_ENV, openclaw_lime_config_path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -1826,16 +1829,18 @@ impl OpenClawService {
             );
         }
 
-        let mut command = command_spec.build_command();
+        let stop_args = vec![
+            "gateway".to_string(),
+            "stop".to_string(),
+            "--url".to_string(),
+            self.gateway_ws_url(),
+            "--token".to_string(),
+            self.gateway_auth_token.clone(),
+        ];
+        let mut command = command_spec.build_command_with_args(&stop_args);
         let output = timeout(
             Duration::from_secs(8),
             command
-                .arg("gateway")
-                .arg("stop")
-                .arg("--url")
-                .arg(self.gateway_ws_url())
-                .arg("--token")
-                .arg(&self.gateway_auth_token)
                 .env(OPENCLAW_CONFIG_ENV, openclaw_lime_config_path())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -1996,14 +2001,16 @@ impl OpenClawService {
             return Ok(false);
         };
 
-        let mut command = command_spec.build_command();
+        let status_args = vec![
+            "gateway".to_string(),
+            "status".to_string(),
+            "--url".to_string(),
+            self.gateway_ws_url(),
+            "--token".to_string(),
+            self.gateway_auth_token.clone(),
+        ];
+        let mut command = command_spec.build_command_with_args(&status_args);
         let output = command
-            .arg("gateway")
-            .arg("status")
-            .arg("--url")
-            .arg(self.gateway_ws_url())
-            .arg("--token")
-            .arg(&self.gateway_auth_token)
             .env(OPENCLAW_CONFIG_ENV, openclaw_lime_config_path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -2065,15 +2072,17 @@ impl OpenClawService {
             return None;
         };
 
-        let mut command = command_spec.build_command();
+        let health_args = vec![
+            "gateway".to_string(),
+            "health".to_string(),
+            "--url".to_string(),
+            self.gateway_ws_url(),
+            "--token".to_string(),
+            self.gateway_auth_token.clone(),
+            "--json".to_string(),
+        ];
+        let mut command = command_spec.build_command_with_args(&health_args);
         let output = command
-            .arg("gateway")
-            .arg("health")
-            .arg("--url")
-            .arg(self.gateway_ws_url())
-            .arg("--token")
-            .arg(&self.gateway_auth_token)
-            .arg("--json")
             .env(OPENCLAW_CONFIG_ENV, openclaw_lime_config_path())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -3269,11 +3278,8 @@ fn parse_openclaw_release_version(value: &str) -> Option<String> {
 async fn read_openclaw_update_status_payload(
     command_spec: &ResolvedOpenClawCommand,
 ) -> Result<Value, String> {
-    let mut command = command_spec.build_command();
+    let mut command = command_spec.build_command_with_args(["update", "status", "--json"]);
     let output = command
-        .arg("update")
-        .arg("status")
-        .arg("--json")
         .env(OPENCLAW_CONFIG_ENV, openclaw_lime_config_path())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -3954,6 +3960,10 @@ fn shell_command_escape_for(platform: ShellPlatform, value: &str) -> String {
     core_shell_command_escape_for(platform, value)
 }
 
+fn shell_command_invocation_prefix_for(platform: ShellPlatform, binary_path: &str) -> String {
+    core_shell_command_invocation_prefix_for(platform, binary_path)
+}
+
 #[cfg_attr(target_os = "windows", allow(dead_code))]
 fn shell_command_escape(value: &str) -> String {
     shell_command_escape_for(current_shell_platform(), value)
@@ -3998,8 +4008,9 @@ fn build_openclaw_pnpm_install_command(
     registry: Option<&str>,
 ) -> String {
     let mut command = format!(
-        "{}{} add -g {}",
+        "{}{}{} add -g {}",
         shell_path_assignment_for(platform, pnpm_path),
+        shell_command_invocation_prefix_for(platform, pnpm_path),
         shell_command_escape_for(platform, pnpm_path),
         shell_command_escape_for(platform, package),
     );
@@ -4592,36 +4603,78 @@ fn resolve_openclaw_cli_entry_from_package_manifest(manifest_path: &Path) -> Opt
     candidates.into_iter().find(|path| path.is_file())
 }
 
-fn resolve_openclaw_command_from_runtime_candidate(
+fn prefers_node_cli_for_openclaw_path(platform: ShellPlatform, openclaw_path: &Path) -> bool {
+    matches!(platform, ShellPlatform::Windows)
+        && openclaw_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "cmd" | "bat"))
+            .unwrap_or(false)
+}
+
+fn resolve_openclaw_command_from_runtime_candidate_for(
+    platform: ShellPlatform,
     candidate: &OpenClawRuntimeCandidate,
 ) -> Option<ResolvedOpenClawCommand> {
-    if let Some(openclaw_path) = candidate
+    let openclaw_path = candidate
         .openclaw_path
         .as_deref()
         .map(PathBuf::from)
-        .filter(|path| path.is_file())
-    {
-        return Some(ResolvedOpenClawCommand::Binary {
-            binary_path: openclaw_path,
-        });
+        .filter(|path| path.is_file());
+
+    if let Some(openclaw_path) = openclaw_path.as_ref() {
+        if !prefers_node_cli_for_openclaw_path(platform, openclaw_path) {
+            return Some(ResolvedOpenClawCommand::Binary {
+                binary_path: openclaw_path.clone(),
+            });
+        }
     }
 
     let node_path = PathBuf::from(candidate.node_path.as_str());
-    if !node_path.is_file() {
-        return None;
-    }
-
     let manifest_path = candidate
         .openclaw_package_path
         .as_deref()
-        .map(PathBuf::from)?;
-    let cli_path = resolve_openclaw_cli_entry_from_package_manifest(&manifest_path)?;
+        .map(PathBuf::from);
 
-    Some(ResolvedOpenClawCommand::NodeCli {
-        node_path,
-        cli_path,
-        package_version: read_package_version(&manifest_path),
-    })
+    if node_path.is_file() {
+        if let Some(manifest_path) = manifest_path {
+            if let Some(cli_path) = resolve_openclaw_cli_entry_from_package_manifest(&manifest_path)
+            {
+                return Some(ResolvedOpenClawCommand::NodeCli {
+                    node_path,
+                    cli_path,
+                    package_version: read_package_version(&manifest_path),
+                });
+            }
+        }
+    }
+
+    openclaw_path.map(|binary_path| ResolvedOpenClawCommand::Binary { binary_path })
+}
+
+fn resolve_openclaw_command_from_runtime_candidate(
+    candidate: &OpenClawRuntimeCandidate,
+) -> Option<ResolvedOpenClawCommand> {
+    resolve_openclaw_command_from_runtime_candidate_for(current_shell_platform(), candidate)
+}
+
+fn runtime_candidate_matches_openclaw_path(
+    candidate: &OpenClawRuntimeCandidate,
+    openclaw_path: &Path,
+) -> bool {
+    candidate
+        .openclaw_path
+        .as_deref()
+        .map(Path::new)
+        .is_some_and(|candidate_path| candidate_path == openclaw_path)
+        || openclaw_path
+            .parent()
+            .is_some_and(|parent| Path::new(&candidate.bin_dir) == parent)
+        || candidate
+            .npm_global_prefix
+            .as_deref()
+            .map(Path::new)
+            .is_some_and(|prefix| openclaw_path.starts_with(prefix))
 }
 
 fn dedupe_openclaw_commands(
@@ -4649,17 +4702,36 @@ fn dedupe_paths(candidates: Vec<PathBuf>) -> Vec<PathBuf> {
 }
 
 async fn resolve_openclaw_command() -> Result<Option<ResolvedOpenClawCommand>, String> {
-    if let Some(binary) = find_command_in_shell("openclaw").await? {
-        return Ok(Some(ResolvedOpenClawCommand::Binary {
-            binary_path: PathBuf::from(binary),
-        }));
-    }
-
+    let shell_platform = current_shell_platform();
+    let shell_binary = find_command_in_shell("openclaw").await?.map(PathBuf::from);
     let mut runtime_candidates = list_openclaw_runtime_candidates().await?;
     runtime_candidates.sort_by(compare_openclaw_runtime_candidates);
-    Ok(runtime_candidates
-        .iter()
-        .find_map(resolve_openclaw_command_from_runtime_candidate))
+
+    if let Some(shell_binary) = shell_binary.as_ref() {
+        if !prefers_node_cli_for_openclaw_path(shell_platform, shell_binary) {
+            return Ok(Some(ResolvedOpenClawCommand::Binary {
+                binary_path: shell_binary.clone(),
+            }));
+        }
+
+        if let Some(command) = runtime_candidates
+            .iter()
+            .filter(|candidate| runtime_candidate_matches_openclaw_path(candidate, shell_binary))
+            .find_map(|candidate| {
+                resolve_openclaw_command_from_runtime_candidate_for(shell_platform, candidate)
+            })
+        {
+            return Ok(Some(command));
+        }
+    }
+
+    if let Some(command) = runtime_candidates.iter().find_map(|candidate| {
+        resolve_openclaw_command_from_runtime_candidate_for(shell_platform, candidate)
+    }) {
+        return Ok(Some(command));
+    }
+
+    Ok(shell_binary.map(|binary_path| ResolvedOpenClawCommand::Binary { binary_path }))
 }
 
 async fn read_openclaw_version_from_command(
@@ -4670,8 +4742,7 @@ async fn read_openclaw_version_from_command(
     }
 
     let output = command_spec
-        .build_command()
-        .arg("--version")
+        .build_command_with_args(["--version"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
@@ -5345,16 +5416,19 @@ mod tests {
         infer_openclaw_package_name_from_path, npm_global_command_dirs_for,
         npm_global_node_modules_dirs_for, package_registry_for_package_spec,
         parse_semver_from_text, resolve_openclaw_cli_entry_from_package_manifest,
-        resolve_openclaw_command_from_runtime_candidate, resolve_windows_dependency_install_plan,
-        runtime_candidate_matches_install_root, sanitize_runtime_config, select_best_git_candidate,
-        select_best_semver_candidate, select_gateway_start_failure_detail,
-        select_openclaw_update_failure_detail, select_preferred_path_candidate,
-        shell_command_escape_for, shell_npm_prefix_assignment_for, shell_path_assignment_for,
-        trim_trailing_slash, windows_dependency_action_result, windows_dependency_setup_message,
-        windows_git_install_dir_variants, windows_install_block_result,
-        windows_manual_install_message, DependencyKind, DependencyStatus, EnvironmentDiagnostics,
-        OpenClawRuntimeCandidate, ResolvedOpenClawCommand, ShellPlatform,
-        WindowsDependencyInstallPlan, NPM_MIRROR_CN, OPENCLAW_CN_PACKAGE, OPENCLAW_DEFAULT_PACKAGE,
+        resolve_openclaw_command_from_runtime_candidate,
+        resolve_openclaw_command_from_runtime_candidate_for,
+        resolve_windows_dependency_install_plan, runtime_candidate_matches_install_root,
+        sanitize_runtime_config, select_best_git_candidate, select_best_semver_candidate,
+        select_gateway_start_failure_detail, select_openclaw_update_failure_detail,
+        select_preferred_path_candidate, shell_command_escape_for,
+        shell_command_invocation_prefix_for, shell_npm_prefix_assignment_for,
+        shell_path_assignment_for, trim_trailing_slash, windows_dependency_action_result,
+        windows_dependency_setup_message, windows_git_install_dir_variants,
+        windows_install_block_result, windows_manual_install_message, DependencyKind,
+        DependencyStatus, EnvironmentDiagnostics, OpenClawRuntimeCandidate,
+        ResolvedOpenClawCommand, ShellPlatform, WindowsDependencyInstallPlan, NPM_MIRROR_CN,
+        OPENCLAW_CN_PACKAGE, OPENCLAW_DEFAULT_PACKAGE,
     };
     use crate::database::dao::api_key_provider::{ApiKeyProvider, ApiProviderType, ProviderGroup};
     use chrono::Utc;
@@ -5855,6 +5929,22 @@ mod tests {
     }
 
     #[test]
+    fn windows_cmd_scripts_use_call_invocation_prefix() {
+        assert_eq!(
+            shell_command_invocation_prefix_for(
+                ShellPlatform::Windows,
+                r"C:\Program Files\nodejs\npm.cmd"
+            ),
+            "call "
+        );
+        assert!(shell_command_invocation_prefix_for(
+            ShellPlatform::Windows,
+            r"C:\Users\demo\AppData\Local\Microsoft\WindowsApps\winget.exe"
+        )
+        .is_empty());
+    }
+
+    #[test]
     fn windows_cleanup_command_uses_cmd_compatible_syntax_without_true_fallback() {
         let command = build_openclaw_cleanup_command(
             ShellPlatform::Windows,
@@ -5867,7 +5957,7 @@ mod tests {
             concat!(
                 "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
                 "set \"NPM_CONFIG_PREFIX=C:\\Users\\demo\\AppData\\Roaming\\npm\" && ",
-                "\"C:\\Program Files\\nodejs\\npm.cmd\" uninstall -g openclaw @qingchencloud/openclaw-zh"
+                "call \"C:\\Program Files\\nodejs\\npm.cmd\" uninstall -g openclaw @qingchencloud/openclaw-zh"
             )
         );
         assert!(!command.contains("|| true"));
@@ -5888,7 +5978,7 @@ mod tests {
             concat!(
                 "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
                 "set \"NPM_CONFIG_PREFIX=C:\\Users\\demo\\AppData\\Roaming\\npm\" && ",
-                "\"C:\\Program Files\\nodejs\\npm.cmd\" install -g @qingchencloud/openclaw-zh@latest ",
+                "call \"C:\\Program Files\\nodejs\\npm.cmd\" install -g @qingchencloud/openclaw-zh@latest ",
                 "--registry=https://registry.npmmirror.com"
             )
         );
@@ -5908,7 +5998,7 @@ mod tests {
             command,
             concat!(
                 "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
-                "\"C:\\Program Files\\nodejs\\npm.cmd\" install -g openclaw@latest"
+                "call \"C:\\Program Files\\nodejs\\npm.cmd\" install -g openclaw@latest"
             )
         );
         assert!(!command.contains("--registry="));
@@ -5927,7 +6017,7 @@ mod tests {
             command,
             concat!(
                 "set \"PATH=C:\\Users\\demo\\AppData\\Local\\pnpm;%PATH%\" && ",
-                "\"C:\\Users\\demo\\AppData\\Local\\pnpm\\pnpm.cmd\" add -g \"@qingchencloud/openclaw-zh@latest\" ",
+                "call \"C:\\Users\\demo\\AppData\\Local\\pnpm\\pnpm.cmd\" add -g \"@qingchencloud/openclaw-zh@latest\" ",
                 "--registry=\"https://registry.npmmirror.com\""
             )
         );
@@ -6163,6 +6253,63 @@ mod tests {
         };
 
         let resolved = resolve_openclaw_command_from_runtime_candidate(&candidate);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+
+        assert_eq!(
+            resolved,
+            Some(ResolvedOpenClawCommand::NodeCli {
+                node_path,
+                cli_path: package_dir.join("dist").join("index.js"),
+                package_version: Some("2026.3.13-zh.1".to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn windows_runtime_candidate_prefers_node_cli_over_cmd_shim() {
+        let temp_dir = build_unique_temp_dir("runtime-candidate-windows-shim");
+        let node_bin_dir = temp_dir.join("nodejs");
+        let package_dir = temp_dir
+            .join("node_modules")
+            .join("@qingchencloud")
+            .join("openclaw-zh");
+        let dist_dir = package_dir.join("dist");
+        fs::create_dir_all(&node_bin_dir).unwrap();
+        fs::create_dir_all(&dist_dir).unwrap();
+
+        let node_path = node_bin_dir.join("node.exe");
+        let openclaw_cmd = node_bin_dir.join("openclaw.cmd");
+        fs::write(&node_path, "").unwrap();
+        fs::write(&openclaw_cmd, "@echo off").unwrap();
+        fs::write(
+            package_dir.join("package.json"),
+            r#"{
+                "name":"@qingchencloud/openclaw-zh",
+                "version":"2026.3.13-zh.1",
+                "bin":{"openclaw":"openclaw.mjs"}
+            }"#,
+        )
+        .unwrap();
+        fs::write(dist_dir.join("index.js"), "console.log('openclaw');").unwrap();
+
+        let candidate = OpenClawRuntimeCandidate {
+            id: temp_dir.display().to_string(),
+            source: "system".to_string(),
+            bin_dir: node_bin_dir.display().to_string(),
+            node_path: node_path.display().to_string(),
+            node_version: Some("23.4.0".to_string()),
+            npm_path: Some(node_bin_dir.join("npm.cmd").display().to_string()),
+            npm_global_prefix: Some(temp_dir.display().to_string()),
+            openclaw_path: Some(openclaw_cmd.display().to_string()),
+            openclaw_version: Some("2026.3.13-zh.1".to_string()),
+            openclaw_package_path: Some(package_dir.join("package.json").display().to_string()),
+            is_active: true,
+            is_preferred: true,
+        };
+
+        let resolved =
+            resolve_openclaw_command_from_runtime_candidate_for(ShellPlatform::Windows, &candidate);
 
         let _ = fs::remove_dir_all(&temp_dir);
 

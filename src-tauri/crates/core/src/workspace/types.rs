@@ -182,6 +182,62 @@ impl Default for WorkspaceImageGenerationSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceTeamSelectionSource {
+    Builtin,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTeamSelectionReference {
+    pub id: String,
+    pub source: WorkspaceTeamSelectionSource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAgentTeamRoleSettings {
+    pub id: String,
+    pub label: String,
+    pub summary: String,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "profile_id")]
+    pub profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "role_key")]
+    pub role_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "skill_ids")]
+    pub skill_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAgentCustomTeamSettings {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "preset_id")]
+    pub preset_id: Option<String>,
+    pub roles: Vec<WorkspaceAgentTeamRoleSettings>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "created_at")]
+    pub created_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "updated_at")]
+    pub updated_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAgentTeamSettings {
+    #[serde(skip_serializing_if = "Option::is_none", alias = "selected_team")]
+    pub selected_team: Option<WorkspaceTeamSelectionReference>,
+    #[serde(default)]
+    pub disabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none", alias = "custom_teams")]
+    pub custom_teams: Option<Vec<WorkspaceAgentCustomTeamSettings>>,
+}
+
 /// Workspace 级别设置
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -204,6 +260,9 @@ pub struct WorkspaceSettings {
     /// 语音生成偏好
     #[serde(skip_serializing_if = "Option::is_none", alias = "voice_generation")]
     pub voice_generation: Option<WorkspaceVoiceGenerationSettings>,
+    /// Team 运行时偏好
+    #[serde(skip_serializing_if = "Option::is_none", alias = "agent_team")]
+    pub agent_team: Option<WorkspaceAgentTeamSettings>,
 }
 
 /// 项目统计信息
@@ -452,6 +511,30 @@ mod tests {
                     "preferred_provider_id": "openai-tts",
                     "preferred_model_id": "gpt-4o-mini-tts",
                     "allow_fallback": false
+                },
+                "agent_team": {
+                    "selected_team": {
+                        "id": "code-triage-team",
+                        "source": "builtin"
+                    },
+                    "custom_teams": [
+                        {
+                            "id": "custom-team-1",
+                            "label": "项目联调 Team",
+                            "description": "用于当前项目的前端联调。",
+                            "roles": [
+                                {
+                                    "id": "planner",
+                                    "label": "分析",
+                                    "summary": "先确认边界再安排执行",
+                                    "profile_id": "code-explorer",
+                                    "role_key": "explorer",
+                                    "skill_ids": ["source-grounding"]
+                                }
+                            ]
+                        }
+                    ],
+                    "disabled": false
                 }
             }"#,
         )
@@ -489,6 +572,26 @@ mod tests {
             Some("gpt-4o-mini-tts")
         );
         assert!(!voice_generation.allow_fallback);
+        let agent_team = settings.agent_team.expect("应解析 Team 配置");
+        let selected_team = agent_team.selected_team.expect("应解析 Team 选择");
+        assert_eq!(selected_team.id, "code-triage-team");
+        assert!(matches!(
+            selected_team.source,
+            WorkspaceTeamSelectionSource::Builtin
+        ));
+        assert!(!agent_team.disabled);
+        let custom_teams = agent_team.custom_teams.expect("应解析自定义 Team 列表");
+        assert_eq!(custom_teams.len(), 1);
+        assert_eq!(custom_teams[0].label, "项目联调 Team");
+        assert_eq!(custom_teams[0].roles.len(), 1);
+        assert_eq!(
+            custom_teams[0].roles[0].profile_id.as_deref(),
+            Some("code-explorer")
+        );
+        assert_eq!(
+            custom_teams[0].roles[0].role_key.as_deref(),
+            Some("explorer")
+        );
     }
 
     #[test]
@@ -508,6 +611,30 @@ mod tests {
                 preferred_provider_id: Some("openai-tts".to_string()),
                 preferred_model_id: Some("gpt-4o-mini-tts".to_string()),
                 allow_fallback: false,
+            }),
+            agent_team: Some(WorkspaceAgentTeamSettings {
+                selected_team: Some(WorkspaceTeamSelectionReference {
+                    id: "code-triage-team".to_string(),
+                    source: WorkspaceTeamSelectionSource::Builtin,
+                }),
+                custom_teams: Some(vec![WorkspaceAgentCustomTeamSettings {
+                    id: "custom-team-1".to_string(),
+                    label: "项目联调 Team".to_string(),
+                    description: "用于当前项目的前端联调。".to_string(),
+                    theme: Some("general".to_string()),
+                    preset_id: Some("code-triage-team".to_string()),
+                    roles: vec![WorkspaceAgentTeamRoleSettings {
+                        id: "planner".to_string(),
+                        label: "分析".to_string(),
+                        summary: "先确认边界再安排执行".to_string(),
+                        profile_id: Some("code-explorer".to_string()),
+                        role_key: Some("explorer".to_string()),
+                        skill_ids: Some(vec!["source-grounding".to_string()]),
+                    }],
+                    created_at: Some(1),
+                    updated_at: Some(2),
+                }]),
+                disabled: false,
             }),
             ..WorkspaceSettings::default()
         };
@@ -547,6 +674,41 @@ mod tests {
                 .and_then(|item| item.get("preferredModelId"))
                 .and_then(|item| item.as_str()),
             Some("gpt-4o-mini-tts")
+        );
+        assert_eq!(
+            value
+                .get("agentTeam")
+                .and_then(|item| item.get("selectedTeam"))
+                .and_then(|item| item.get("id"))
+                .and_then(|item| item.as_str()),
+            Some("code-triage-team")
+        );
+        assert_eq!(
+            value
+                .get("agentTeam")
+                .and_then(|item| item.get("disabled"))
+                .and_then(|item| item.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            value
+                .get("agentTeam")
+                .and_then(|item| item.get("customTeams"))
+                .and_then(|item| item.get(0))
+                .and_then(|item| item.get("label"))
+                .and_then(|item| item.as_str()),
+            Some("项目联调 Team")
+        );
+        assert_eq!(
+            value
+                .get("agentTeam")
+                .and_then(|item| item.get("customTeams"))
+                .and_then(|item| item.get(0))
+                .and_then(|item| item.get("roles"))
+                .and_then(|item| item.get(0))
+                .and_then(|item| item.get("profileId"))
+                .and_then(|item| item.as_str()),
+            Some("code-explorer")
         );
     }
 }

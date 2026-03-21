@@ -8,6 +8,7 @@ import React, {
 import { Users } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { WorkspaceSettings } from "@/types/workspace";
 import { scheduleIdleModulePreload } from "./scheduleIdleModulePreload";
 import type { TeamDefinition } from "../../../utils/teamDefinitions";
 
@@ -21,8 +22,15 @@ const TeamSelectorPanel = lazy(async () => {
 interface TeamSelectorProps {
   activeTheme?: string;
   input?: string;
+  workspaceId?: string | null;
+  providerType?: string;
+  model?: string;
+  executionStrategy?: "react" | "code_orchestrated" | "auto";
+  autoOpenToken?: number | null;
   selectedTeam?: TeamDefinition | null;
   onSelectTeam: (team: TeamDefinition | null) => void;
+  workspaceSettings?: WorkspaceSettings | null;
+  onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
   triggerLabel?: string;
   className?: string;
 }
@@ -30,9 +38,16 @@ interface TeamSelectorProps {
 export const TeamSelector: React.FC<TeamSelectorProps> = ({
   activeTheme,
   input,
+  workspaceId,
+  providerType,
+  model,
+  executionStrategy,
+  autoOpenToken = null,
   selectedTeam = null,
   onSelectTeam,
-  triggerLabel = "Team",
+  workspaceSettings,
+  onPersistCustomTeams,
+  triggerLabel = "配置 Team",
   className,
 }) => {
   const [open, setOpen] = useState(false);
@@ -42,6 +57,13 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
       void preloadTeamSelectorPanel();
     });
   }, []);
+
+  useEffect(() => {
+    if (autoOpenToken === null || autoOpenToken === undefined) {
+      return;
+    }
+    setOpen(true);
+  }, [autoOpenToken]);
 
   const resolvedLabel = useMemo(() => {
     if (!selectedTeam?.label?.trim()) {
@@ -90,7 +112,13 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
               <TeamSelectorPanel
                 activeTheme={activeTheme}
                 input={input}
+                workspaceId={workspaceId}
+                providerType={providerType}
+                model={model}
+                executionStrategy={executionStrategy}
                 selectedTeam={selectedTeam}
+                workspaceSettings={workspaceSettings}
+                onPersistCustomTeams={onPersistCustomTeams}
                 onSelectTeam={(team) => {
                   onSelectTeam(team);
                   setOpen(false);

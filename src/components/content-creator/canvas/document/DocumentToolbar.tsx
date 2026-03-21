@@ -187,6 +187,12 @@ const PanelSection = styled.div`
   gap: 10px;
 `;
 
+const SectionHint = styled.span`
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+`;
+
 const PanelDivider = styled.div`
   height: 1px;
   background: hsl(var(--border));
@@ -576,6 +582,9 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = memo(
                     <Bot size={14} />
                     模型切换
                   </SectionTitle>
+                  <SectionHint>
+                    这里沿用当前 Claw 会话的 Provider、模型与思考过程设置。
+                  </SectionHint>
                   <ModelSelector
                     className="w-full"
                     providerType={autoContinueProviderType}

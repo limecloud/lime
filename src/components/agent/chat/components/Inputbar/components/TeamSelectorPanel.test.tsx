@@ -1,5 +1,6 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import type { WorkspaceSettings } from "@/types/workspace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamSelectorPanel } from "./TeamSelectorPanel";
 import {
@@ -93,6 +94,14 @@ describe("TeamSelectorPanel", () => {
     vi.clearAllMocks();
   });
 
+  it("不应再展示模型生成 Team 入口", async () => {
+    const { container } = renderPanel();
+
+    await flushEffects();
+
+    expect(container.textContent).not.toContain("模型生成 Team");
+  });
+
   it("应保存自定义 Team 的 profileId、roleKey 与 skillIds", async () => {
     const onSelectTeam = vi.fn();
     const selectedTeam = createTeamDefinitionFromPreset(
@@ -146,6 +155,8 @@ describe("TeamSelectorPanel", () => {
       saveButton?.click();
     });
 
+    await flushEffects();
+
     const savedTeam = onSelectTeam.mock.calls[0]?.[0] as TeamDefinition | undefined;
 
     expect(savedTeam).toBeTruthy();
@@ -156,6 +167,52 @@ describe("TeamSelectorPanel", () => {
       "source-grounding",
       "structured-writing",
     ]);
+    expect(mockToast.success).toHaveBeenCalled();
+  });
+
+  it("项目级自定义 Team 应通过回调持久化", async () => {
+    const onPersistCustomTeams = vi.fn().mockResolvedValue(undefined);
+    const workspaceSettings: WorkspaceSettings = {
+      agentTeam: {
+        customTeams: [
+          {
+            id: "custom-team-project-1",
+            label: "项目联调 Team",
+            description: "面向当前项目的联调与修复。",
+            roles: [
+              {
+                id: "planner",
+                label: "分析",
+                summary: "先定位问题再拆解实施。",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const { container } = renderPanel({
+      workspaceSettings,
+      onPersistCustomTeams,
+    });
+
+    await flushEffects();
+
+    expect(container.textContent).toContain("项目联调 Team");
+    expect(container.textContent).toContain("当前项目 Team");
+
+    const deleteButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("删除这个 Team"),
+    );
+
+    expect(deleteButton).toBeTruthy();
+
+    act(() => {
+      deleteButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(onPersistCustomTeams).toHaveBeenCalledWith([]);
     expect(mockToast.success).toHaveBeenCalled();
   });
 });

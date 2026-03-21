@@ -8,6 +8,8 @@ const {
   mockGetMemoryOverview,
   mockGetMemoryEffectiveSources,
   mockGetMemoryAutoIndex,
+  mockEnsureWorkspaceLocalAgentsGitignore,
+  mockScaffoldRuntimeAgentsTemplate,
   mockToggleMemoryAuto,
   mockUpdateMemoryAutoNote,
   mockGetUnifiedMemoryStats,
@@ -18,6 +20,8 @@ const {
   mockGetMemoryOverview: vi.fn(),
   mockGetMemoryEffectiveSources: vi.fn(),
   mockGetMemoryAutoIndex: vi.fn(),
+  mockEnsureWorkspaceLocalAgentsGitignore: vi.fn(),
+  mockScaffoldRuntimeAgentsTemplate: vi.fn(),
   mockToggleMemoryAuto: vi.fn(),
   mockUpdateMemoryAutoNote: vi.fn(),
   mockGetUnifiedMemoryStats: vi.fn(),
@@ -33,6 +37,8 @@ vi.mock("@/lib/api/memoryRuntime", () => ({
   getContextMemoryOverview: mockGetMemoryOverview,
   getContextMemoryEffectiveSources: mockGetMemoryEffectiveSources,
   getContextMemoryAutoIndex: mockGetMemoryAutoIndex,
+  ensureWorkspaceLocalAgentsGitignore: mockEnsureWorkspaceLocalAgentsGitignore,
+  scaffoldRuntimeAgentsTemplate: mockScaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto: mockToggleMemoryAuto,
   updateContextMemoryAutoNote: mockUpdateMemoryAutoNote,
 }));
@@ -183,6 +189,17 @@ beforeEach(() => {
     items: [],
   });
   mockToggleMemoryAuto.mockResolvedValue({ enabled: false });
+  mockScaffoldRuntimeAgentsTemplate.mockResolvedValue({
+    target: "workspace",
+    path: "/tmp/.lime/AGENTS.md",
+    status: "created",
+    createdParentDir: true,
+  });
+  mockEnsureWorkspaceLocalAgentsGitignore.mockResolvedValue({
+    path: "/tmp/.gitignore",
+    entry: ".lime/AGENTS.local.md",
+    status: "added",
+  });
   mockUpdateMemoryAutoNote.mockResolvedValue({
     enabled: true,
     root_dir: "/tmp/memory",
@@ -254,5 +271,35 @@ describe("MemorySettings", () => {
 
     expect(mockUpdateMemoryAutoNote).not.toHaveBeenCalled();
     expect(container.textContent).toContain("请先输入要保存的自动记忆内容");
+  });
+
+  it("点击生成 Workspace 模板应调用模板生成 API", async () => {
+    const container = renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    await act(async () => {
+      findButton(container, "生成 Workspace 模板").click();
+    });
+
+    expect(mockScaffoldRuntimeAgentsTemplate).toHaveBeenCalledWith(
+      "workspace",
+      "/tmp",
+      false,
+    );
+  });
+
+  it("点击加入 .gitignore 应调用 gitignore API", async () => {
+    const container = renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    await act(async () => {
+      findButton(container, "将本机模板加入 .gitignore").click();
+    });
+
+    expect(mockEnsureWorkspaceLocalAgentsGitignore).toHaveBeenCalledWith(
+      "/tmp",
+    );
   });
 });

@@ -440,6 +440,7 @@ impl ModelService {
     ) -> Result<HashMap<String, Vec<String>>, String> {
         let conn = db.lock().map_err(|e| e.to_string())?;
         let credentials = ProviderPoolDao::get_all(&conn).map_err(|e| e.to_string())?;
+        drop(conn);
 
         let mut models_by_provider: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -448,13 +449,12 @@ impl ModelService {
                 continue;
             }
 
-            let models = self.get_credential_models(db, &cred.uuid)?;
             let provider_key = cred.provider_type.to_string();
 
             models_by_provider
                 .entry(provider_key)
                 .or_default()
-                .extend(models);
+                .extend(cred.supported_models);
         }
 
         // 去重
@@ -482,6 +482,17 @@ impl ModelService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lime_core::database::dao::provider_pool::ProviderPoolDao;
+    use lime_core::database::schema;
+    use lime_core::models::provider_pool_model::{CredentialData, PoolProviderType};
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    fn setup_test_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        schema::create_tables(&conn).expect("create schema");
+        Arc::new(Mutex::new(conn))
+    }
 
     #[test]
     fn test_get_default_models_for_provider() {
@@ -494,5 +505,47 @@ mod tests {
         let gemini_models = service.get_default_models_for_provider(&PoolProviderType::Gemini);
         assert!(!gemini_models.is_empty());
         assert!(gemini_models.contains(&"gemini-2.5-flash".to_string()));
+    }
+
+    #[test]
+    fn test_get_all_available_models_uses_loaded_supported_models_without_relocking_db() {
+        let db = setup_test_db();
+        let mut openai = ProviderCredential::new(
+            PoolProviderType::OpenAI,
+            CredentialData::OpenAIKey {
+                api_key: "sk-test".to_string(),
+                base_url: None,
+            },
+        );
+        openai.supported_models = vec!["gpt-4o".to_string(), "gpt-4.1".to_string()];
+
+        let mut gemini = ProviderCredential::new(
+            PoolProviderType::GeminiApiKey,
+            CredentialData::GeminiApiKey {
+                api_key: "gm-test".to_string(),
+                base_url: None,
+                excluded_models: Vec::new(),
+            },
+        );
+        gemini.supported_models = vec!["gemini-2.5-flash".to_string(), "gpt-4o".to_string()];
+
+        {
+            let conn = db.lock().expect("lock db for seed");
+            ProviderPoolDao::insert(&conn, &openai).expect("insert openai credential");
+            ProviderPoolDao::insert(&conn, &gemini).expect("insert gemini credential");
+        }
+
+        let models = ModelService::new()
+            .get_all_available_models(&db)
+            .expect("list available models");
+
+        assert_eq!(
+            models,
+            vec![
+                "gemini-2.5-flash".to_string(),
+                "gpt-4.1".to_string(),
+                "gpt-4o".to_string(),
+            ]
+        );
     }
 }

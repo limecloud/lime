@@ -7,6 +7,9 @@ import type {
   MemoryAutoToggleResponse,
   MemoryStatsResponse,
   MemoryOverviewResponse,
+  RuntimeAgentsTemplateScaffoldResult,
+  RuntimeAgentsTemplateTarget,
+  WorkspaceGitignoreEnsureResult,
 } from "./memoryRuntimeTypes";
 
 export type {
@@ -26,6 +29,11 @@ export type {
   MemoryResolveConfig,
   MemorySourcesConfig,
   MemoryStatsResponse,
+  RuntimeAgentsTemplateScaffoldResult,
+  RuntimeAgentsTemplateScaffoldStatus,
+  RuntimeAgentsTemplateTarget,
+  WorkspaceGitignoreEnsureResult,
+  WorkspaceGitignoreEnsureStatus,
 } from "./memoryRuntimeTypes";
 
 export async function getContextMemoryOverview(
@@ -80,4 +88,24 @@ export async function updateContextMemoryAutoNote(
   workingDir?: string,
 ): Promise<AutoMemoryIndexResponse> {
   return safeInvoke("memory_update_auto_note", { note, topic, workingDir });
+}
+
+export async function scaffoldRuntimeAgentsTemplate(
+  target: RuntimeAgentsTemplateTarget,
+  workingDir?: string,
+  overwrite?: boolean,
+): Promise<RuntimeAgentsTemplateScaffoldResult> {
+  return safeInvoke("memory_scaffold_runtime_agents_template", {
+    target,
+    workingDir,
+    overwrite,
+  });
+}
+
+export async function ensureWorkspaceLocalAgentsGitignore(
+  workingDir?: string,
+): Promise<WorkspaceGitignoreEnsureResult> {
+  return safeInvoke("memory_ensure_workspace_local_agents_gitignore", {
+    workingDir,
+  });
 }

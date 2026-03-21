@@ -9,6 +9,7 @@ pub mod browser_environment_cmd;
 pub mod browser_profile_cmd;
 pub mod browser_runtime_cmd;
 pub mod channels_cmd;
+pub mod claw_solution_cmd;
 pub mod config_cmd;
 pub mod connect_cmd;
 pub mod connection_cmd;

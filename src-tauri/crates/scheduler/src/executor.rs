@@ -11,7 +11,7 @@ use lime_agent::request_tool_policy::{
     merge_system_prompt_with_request_tool_policy, resolve_request_tool_policy,
     stream_reply_with_policy,
 };
-use lime_agent::{AsterAgentState, SessionConfigBuilder};
+use lime_agent::{merge_system_prompt_with_runtime_agents, AsterAgentState, SessionConfigBuilder};
 use lime_core::database::DbConnection;
 use serde_json::Value;
 use std::sync::Arc;
@@ -175,7 +175,7 @@ impl AgentExecutor {
         let request_tool_policy =
             resolve_request_tool_policy(Self::resolve_bool_param(task, "web_search"), false);
         let merged_system_prompt = merge_system_prompt_with_request_tool_policy(
-            Self::resolve_system_prompt(task),
+            merge_system_prompt_with_runtime_agents(Self::resolve_system_prompt(task), None),
             &request_tool_policy,
         );
         // 对齐主对话入口：执行前刷新一次 Skills 注册，避免运行期安装/更新后不可见。

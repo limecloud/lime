@@ -994,7 +994,9 @@ pub fn convert_item_runtime(item: ItemRuntime) -> AgentThreadItem {
 
 /// 将 Aster Message 转换为 TauriAgentEvent 列表
 fn convert_message(message: Message) -> Vec<TauriAgentEvent> {
-    let mut events = Vec::new();
+    let mut events = vec![TauriAgentEvent::Message {
+        message: convert_to_tauri_message(&message),
+    }];
 
     for content in &message.content {
         match content {
@@ -1282,13 +1284,12 @@ mod tests {
         let message = Message::assistant().with_text("Hello, world!");
         let events = convert_message(message);
 
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            TauriAgentEvent::TextDelta { text } => {
-                assert_eq!(text, "Hello, world!");
-            }
-            _ => panic!("Expected TextDelta event"),
-        }
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[0], TauriAgentEvent::Message { .. }));
+        assert!(matches!(
+            &events[1],
+            TauriAgentEvent::TextDelta { text } if text == "Hello, world!"
+        ));
     }
 
     #[test]
@@ -1766,5 +1767,19 @@ mod tests {
             metadata.get("output_file"),
             Some(&serde_json::json!("/tmp/aster_tasks/task-1.log"))
         );
+    }
+
+    #[test]
+    fn test_convert_message_emits_full_message_event_with_id() {
+        let message = Message::assistant().with_id("resp-1").with_text("hello");
+
+        let events = convert_agent_event(AgentEvent::Message(message));
+
+        assert!(events.iter().any(
+            |event| matches!(event, TauriAgentEvent::Message { message } if message.id.as_deref() == Some("resp-1"))
+        ));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, TauriAgentEvent::TextDelta { text } if text == "hello")));
     }
 }

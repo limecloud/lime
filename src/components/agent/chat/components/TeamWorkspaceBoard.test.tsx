@@ -125,7 +125,7 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     expect(container.textContent).toContain("Team Workspace");
-    expect(container.textContent).toContain("尚未创建真实 child session");
+    expect(container.textContent).toContain("尚未出现真实团队成员");
     expect(container.textContent).toContain("查看详情");
     expect(container.textContent).not.toContain("spawn_agent");
     expect(container.textContent).not.toContain("Explorer 槽位");
@@ -147,12 +147,58 @@ describe("TeamWorkspaceBoard", () => {
       expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("等待真实子代理");
-    expect(container.textContent).toContain("spawn_agent");
+    expect(container.textContent).toContain("等待团队成员加入");
+    expect(container.textContent).toContain("分派成员");
     expect(container.textContent).toContain("收起");
   });
 
-  it("父线程视角应展示 child session、最近过程并支持打开焦点会话", async () => {
+  it("已选 Team 但尚无真实子会话时，应在主画布展示计划角色", async () => {
+    const container = await renderBoard({
+      shellVisible: true,
+      childSubagentSessions: [],
+      selectedTeamLabel: "临时修复 Team",
+      selectedTeamSummary: "分析、执行、验证三段式推进。",
+      selectedTeamRoles: [
+        {
+          id: "explorer",
+          label: "分析",
+          summary: "负责定位问题与影响范围。",
+          profileId: "code-explorer",
+          roleKey: "explorer",
+          skillIds: ["repo-exploration"],
+        },
+        {
+          id: "executor",
+          label: "执行",
+          summary: "负责完成改动并给出结果。",
+          profileId: "code-executor",
+          roleKey: "executor",
+          skillIds: ["bounded-implementation"],
+        },
+      ],
+    });
+
+    expect(container.textContent).toContain("临时修复 Team");
+    expect(container.textContent).toContain("2 个计划角色");
+
+    const expandButton = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("查看详情"),
+    );
+    expect(expandButton).toBeTruthy();
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("计划中的 Team 角色");
+    expect(container.textContent).toContain("分析");
+    expect(container.textContent).toContain("执行");
+    expect(container.textContent).toContain("Role · explorer");
+    expect(container.textContent).toContain("Profile · code-explorer");
+    expect(container.textContent).toContain("Skill · repo-exploration");
+  });
+
+  it("主会话视角应展示团队成员、最近过程并支持打开焦点会话", async () => {
     const onOpenSubagentSession = vi.fn();
     mockGetAgentRuntimeSession.mockImplementation(async (sessionId: string) => {
       if (sessionId === "child-2") {
@@ -249,7 +295,7 @@ describe("TeamWorkspaceBoard", () => {
     expect(container.textContent).toContain("Team Workspace");
     expect(container.textContent).toContain("研究员");
     expect(container.textContent).toContain("执行器");
-    expect(container.textContent).toContain("2 个 child session 已加入");
+    expect(container.textContent).toContain("2 位成员已加入");
     expect(container.textContent).toContain("代码分析员");
     expect(container.textContent).toContain("代码排障团队");
     expect(container.textContent).toContain("仓库探索");
@@ -268,7 +314,7 @@ describe("TeamWorkspaceBoard", () => {
     expect(container.textContent).toContain("已对 3 个来源完成去重校验。");
 
     const openButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("打开会话"),
+      (element) => element.textContent?.includes("查看对话"),
     );
     expect(openButton).toBeTruthy();
 
@@ -480,6 +526,60 @@ describe("TeamWorkspaceBoard", () => {
     expect(summary?.textContent).toContain("整理竞品与数据来源");
   });
 
+  it("嵌入态真实 team 应支持收起并重新展开详情", async () => {
+    const container = await renderBoard({
+      embedded: true,
+      childSubagentSessions: [
+        {
+          id: "child-collapse-1",
+          name: "研究员",
+          created_at: 1_710_000_000,
+          updated_at: 1_710_000_100,
+          session_type: "sub_agent",
+          runtime_status: "running",
+          latest_turn_status: "running",
+          task_summary: "整理竞品与数据来源，补齐关键差异点与证据链。",
+          role_hint: "explorer",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="team-workspace-detail-section"]'),
+    ).toBeTruthy();
+
+    const collapseButton = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("收起详情"),
+    );
+    expect(collapseButton).toBeTruthy();
+
+    act(() => {
+      collapseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="team-workspace-detail-section"]'),
+    ).toBeFalsy();
+    expect(
+      container.querySelector('[data-testid="team-workspace-compact-summary"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("紧凑视图");
+    expect(container.textContent).toContain("展开详情");
+
+    const expandButton = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("展开详情"),
+    );
+    expect(expandButton).toBeTruthy();
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="team-workspace-detail-section"]'),
+    ).toBeTruthy();
+  });
+
   it("注入 live runtime props 后应立即投影状态与最近轨迹", async () => {
     mockGetAgentRuntimeSession.mockImplementation(async (sessionId: string) =>
       createSessionDetail(sessionId),
@@ -600,7 +700,7 @@ describe("TeamWorkspaceBoard", () => {
     expect(container.textContent).toContain("页面结构差异已提取完成。");
   });
 
-  it("选中运行中的子代理时应展示关闭操作，关闭后触发回调", async () => {
+  it("选中运行中的子代理时应展示停止操作，停止后触发回调", async () => {
     const onCloseSubagentSession = vi.fn();
     const container = await renderBoard({
       childSubagentSessions: [
@@ -619,8 +719,12 @@ describe("TeamWorkspaceBoard", () => {
       onCloseSubagentSession,
     });
 
+    expect(container.textContent).toContain(
+      "停止会中断当前执行并保留会话，可稍后恢复。",
+    );
+
     const closeButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("关闭子代理"),
+      (element) => element.textContent?.includes("停止成员"),
     );
     expect(closeButton).toBeTruthy();
 
@@ -652,9 +756,12 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     const resumeButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("恢复子代理"),
+      (element) => element.textContent?.includes("恢复成员"),
     );
     expect(resumeButton).toBeTruthy();
+    expect(container.textContent).toContain(
+      "停止会中断当前执行并保留会话，可稍后恢复。",
+    );
 
     await act(async () => {
       resumeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -684,7 +791,7 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     const waitButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("等待 30 秒"),
+      (element) => element.textContent?.includes("等待结果 30 秒"),
     );
     expect(waitButton).toBeTruthy();
 
@@ -737,11 +844,11 @@ describe("TeamWorkspaceBoard", () => {
       onWaitActiveTeamSessions,
     });
 
-    expect(container.textContent).toContain("等待任一活跃 agent");
-    expect(container.textContent).toContain("2 个活跃 agent 可聚合 wait");
+    expect(container.textContent).toContain("等待任一活跃成员");
+    expect(container.textContent).toContain("2 位活跃成员可统一等待");
 
     const waitAnyButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("等待任一活跃 agent"),
+      (element) => element.textContent?.includes("等待任一活跃成员"),
     );
     expect(waitAnyButton).toBeTruthy();
 
@@ -796,8 +903,8 @@ describe("TeamWorkspaceBoard", () => {
     );
 
     expect(operations).toBeTruthy();
-    expect(operations?.textContent).toContain("Team wait 命中");
-    expect(operations?.textContent).toContain("最近一次 team wait 命中 执行器");
+    expect(operations?.textContent).toContain("等待命中");
+    expect(operations?.textContent).toContain("最近一次统一等待命中 执行器");
     expect(operations?.textContent).toContain("已进入已完成状态");
     expect(container.textContent).toContain("输出落地方案");
   });
@@ -885,9 +992,9 @@ describe("TeamWorkspaceBoard", () => {
     );
 
     expect(operations).toBeTruthy();
-    expect(operations?.textContent).toContain("级联关闭");
+    expect(operations?.textContent).toContain("级联停止");
     expect(operations?.textContent).toContain(
-      "最近一次 close_agent 已级联关闭 2 个会话",
+      "最近一次停止操作已级联停止 2 位成员",
     );
   });
 
@@ -940,7 +1047,7 @@ describe("TeamWorkspaceBoard", () => {
     expect(summary?.textContent).toContain("输出落地方案");
 
     const controlEntry = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("级联关闭"),
+      (element) => element.textContent?.includes("级联停止"),
     );
     expect(controlEntry).toBeTruthy();
 
@@ -997,12 +1104,12 @@ describe("TeamWorkspaceBoard", () => {
       onCloseCompletedTeamSessions,
     });
 
-    expect(container.textContent).toContain("关闭已完成 agent");
-    expect(container.textContent).toContain("2 个已完成 agent 可释放 slot");
+    expect(container.textContent).toContain("清理已完成成员");
+    expect(container.textContent).toContain("2 位已完成成员可清理");
 
     const closeCompletedButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("关闭已完成 agent"));
+    ).find((element) => element.textContent?.includes("清理已完成成员"));
     expect(closeCompletedButton).toBeTruthy();
 
     await act(async () => {
@@ -1058,11 +1165,11 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     const sendButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("发送补充任务"),
+      (element) => element.textContent?.includes("发送补充说明"),
     );
     const interruptButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("中断后发送"));
+    ).find((element) => element.textContent?.includes("中断并发送"));
     expect(sendButton).toBeTruthy();
     expect(interruptButton).toBeTruthy();
 
@@ -1126,5 +1233,108 @@ describe("TeamWorkspaceBoard", () => {
     expect(header).toBeTruthy();
     expect(header?.className).toContain("sticky");
     expect(header?.className).toContain("top-0");
+  });
+
+  it("本轮 Team 准备中时，应在空 shell 展示组建状态", async () => {
+    const container = await renderBoard({
+      shellVisible: true,
+      runtimeTeamState: {
+        requestId: "runtime-forming-1",
+        status: "forming",
+        label: "排障 Team",
+        summary: "围绕当前任务组织最轻量可用的运行时团队。",
+        members: [],
+        blueprint: {
+          label: "代码排障团队",
+          summary: "分析、执行、验证三段式推进。",
+          roles: [],
+        },
+        updatedAt: Date.now(),
+      },
+    });
+
+    expect(container.textContent).toContain("正在准备本轮 Team");
+    expect(container.textContent).toContain("组建中");
+    expect(container.textContent).toContain("Team · 排障 Team");
+    expect(container.textContent).toContain("参考蓝图 · 代码排障团队");
+  });
+
+  it("本轮 Team 已就绪时，应在无真实子会话下展示当前成员", async () => {
+    const container = await renderBoard({
+      shellVisible: true,
+      defaultShellExpanded: true,
+      runtimeTeamState: {
+        requestId: "runtime-formed-1",
+        status: "formed",
+        label: "修复 Team",
+        summary: "分析、执行、验证协作闭环。",
+        members: [
+          {
+            id: "runtime-explorer",
+            label: "分析",
+            summary: "收敛问题边界并整理影响范围。",
+            roleKey: "explorer",
+            profileId: "code-explorer",
+            skillIds: ["repo-exploration"],
+            status: "planned",
+          },
+          {
+            id: "runtime-executor",
+            label: "执行",
+            summary: "在边界内落地修复并汇报结果。",
+            roleKey: "executor",
+            profileId: "code-executor",
+            skillIds: ["bounded-implementation"],
+            status: "planned",
+          },
+        ],
+        blueprint: {
+          label: "代码排障团队",
+          summary: "分析、执行、验证三段式推进。",
+          roles: [
+            {
+              id: "explorer",
+              label: "分析",
+              summary: "先定位问题与影响面。",
+            },
+          ],
+        },
+        updatedAt: Date.now(),
+      },
+    });
+
+    expect(
+      container.querySelector('[data-testid="team-workspace-runtime-formation"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="team-workspace-runtime-members"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("本轮 Team 已就绪");
+    expect(container.textContent).toContain("分析");
+    expect(container.textContent).toContain("执行");
+    expect(container.textContent).toContain("Skill · repo-exploration");
+    expect(container.textContent).toContain("参考蓝图角色");
+  });
+
+  it("本轮 Team 准备失败时，应展示失败原因", async () => {
+    const container = await renderBoard({
+      shellVisible: true,
+      defaultShellExpanded: true,
+      runtimeTeamState: {
+        requestId: "runtime-failed-1",
+        status: "failed",
+        label: "失败的 Team",
+        summary: null,
+        members: [],
+        blueprint: null,
+        errorMessage: "Provider 认证失败，无法生成 Team。",
+        updatedAt: Date.now(),
+      },
+    });
+
+    expect(container.textContent).toContain("Team 生成失败");
+    expect(container.textContent).toContain(
+      "Provider 认证失败，无法生成 Team。",
+    );
   });
 });

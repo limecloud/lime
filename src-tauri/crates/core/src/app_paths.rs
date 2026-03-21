@@ -98,7 +98,24 @@ pub fn resolve_lime_skill_roots() -> Result<Vec<PathBuf>, String> {
 }
 
 pub fn resolve_user_memory_path() -> Result<PathBuf, String> {
-    with_app_roots(resolve_user_memory_path_from_source_roots)
+    let preferred_root = compat_home_dir()?;
+    let mut legacy_roots = Vec::new();
+
+    for root in [
+        preferred_data_dir()?,
+        legacy_app_data_dir()?,
+        legacy_home_dir()?,
+    ] {
+        if !legacy_roots.iter().any(|existing| existing == &root) {
+            legacy_roots.push(root);
+        }
+    }
+
+    resolve_user_memory_path_from_source_roots(&preferred_root, &legacy_roots)
+}
+
+pub fn best_effort_user_memory_path() -> PathBuf {
+    resolve_user_memory_path().unwrap_or_else(|_| fallback_user_memory_path())
 }
 
 pub fn resolve_default_project_dir() -> Result<PathBuf, String> {
@@ -165,6 +182,13 @@ fn resolve_runtime_subdir(subdir: &str) -> Result<PathBuf, String> {
 
 fn fallback_runtime_subdir(subdir: &str) -> PathBuf {
     fallback_app_data_dir().join(subdir)
+}
+
+fn fallback_user_memory_path() -> PathBuf {
+    dirs::home_dir()
+        .map(|home| home.join(COMPAT_HOME_DIR_NAME))
+        .unwrap_or_else(|| fallback_app_data_dir().join(COMPAT_HOME_DIR_NAME))
+        .join("AGENTS.md")
 }
 
 fn resolve_project_skills_dir_from_cwd(cwd: &Path) -> PathBuf {
@@ -782,8 +806,8 @@ mod tests {
     #[test]
     fn resolve_user_memory_path_copies_legacy_agents_file() {
         let temp = tempdir().unwrap();
-        let preferred_root = temp.path().join("appdata").join("lime");
-        let legacy_root = temp.path().join("home").join(".lime");
+        let preferred_root = temp.path().join("home").join(".lime");
+        let legacy_root = temp.path().join("appdata").join("lime");
         fs::create_dir_all(&legacy_root).unwrap();
         fs::write(legacy_root.join("AGENTS.md"), "legacy agents").unwrap();
 
@@ -797,8 +821,8 @@ mod tests {
     #[test]
     fn resolve_user_memory_path_copies_legacy_agent_file() {
         let temp = tempdir().unwrap();
-        let preferred_root = temp.path().join("appdata").join("lime");
-        let legacy_root = temp.path().join("home").join(".lime");
+        let preferred_root = temp.path().join("home").join(".lime");
+        let legacy_root = temp.path().join("appdata").join("lime");
         fs::create_dir_all(&legacy_root).unwrap();
         fs::write(legacy_root.join("AGENT.md"), "legacy agent").unwrap();
 

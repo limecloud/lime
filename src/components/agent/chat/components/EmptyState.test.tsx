@@ -529,4 +529,20 @@ describe("EmptyState", () => {
 
     expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
   });
+
+  it("应允许外部覆盖 supportingSlot", async () => {
+    const container = renderEmptyState({
+      supportingSlotOverride: (
+        <div data-testid="custom-supporting-slot">自定义入口层</div>
+      ),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="custom-supporting-slot"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("自定义入口层");
+  });
 });

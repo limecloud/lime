@@ -69,6 +69,21 @@ pub fn shell_path_assignment_for(platform: ShellPlatform, binary_path: &str) -> 
     }
 }
 
+pub fn shell_command_invocation_prefix_for(platform: ShellPlatform, binary_path: &str) -> String {
+    match platform {
+        ShellPlatform::Windows if windows_shell_requires_call(binary_path) => "call ".to_string(),
+        _ => String::new(),
+    }
+}
+
+fn windows_shell_requires_call(binary_path: &str) -> bool {
+    Path::new(binary_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "cmd" | "bat"))
+        .unwrap_or(false)
+}
+
 fn shell_environment_prefix(
     platform: ShellPlatform,
     binary_path: &str,
@@ -89,8 +104,9 @@ pub fn build_openclaw_cleanup_command(
     npm_prefix: Option<&str>,
 ) -> String {
     format!(
-        "{}{} uninstall -g openclaw @qingchencloud/openclaw-zh",
+        "{}{}{} uninstall -g openclaw @qingchencloud/openclaw-zh",
         shell_environment_prefix(platform, npm_path, npm_prefix),
+        shell_command_invocation_prefix_for(platform, npm_path),
         shell_command_escape_for(platform, npm_path)
     )
 }
@@ -106,8 +122,9 @@ pub fn build_openclaw_install_command(
         .map(|value| format!(" --registry={value}"))
         .unwrap_or_default();
     format!(
-        "{}{} install -g {}{}",
+        "{}{}{} install -g {}{}",
         shell_environment_prefix(platform, npm_path, npm_prefix),
+        shell_command_invocation_prefix_for(platform, npm_path),
         shell_command_escape_for(platform, npm_path),
         package,
         registry_suffix
@@ -225,8 +242,9 @@ mod tests {
         build_openclaw_cleanup_command, build_openclaw_install_command,
         build_winget_install_command, command_bin_dir_for, resolve_windows_dependency_install_plan,
         select_best_semver_candidate, select_preferred_path_candidate, shell_command_escape_for,
-        shell_npm_prefix_assignment_for, shell_path_assignment_for, windows_manual_install_message,
-        OpenClawInstallDependencyKind, ShellPlatform, WindowsDependencyInstallPlan,
+        shell_command_invocation_prefix_for, shell_npm_prefix_assignment_for,
+        shell_path_assignment_for, windows_manual_install_message, OpenClawInstallDependencyKind,
+        ShellPlatform, WindowsDependencyInstallPlan,
     };
     use std::path::PathBuf;
 
@@ -274,6 +292,22 @@ mod tests {
     }
 
     #[test]
+    fn windows_cmd_scripts_use_call_invocation_prefix() {
+        assert_eq!(
+            shell_command_invocation_prefix_for(
+                ShellPlatform::Windows,
+                r"C:\Program Files\nodejs\npm.cmd"
+            ),
+            "call "
+        );
+        assert!(shell_command_invocation_prefix_for(
+            ShellPlatform::Windows,
+            r"C:\Users\demo\AppData\Local\Microsoft\WindowsApps\winget.exe"
+        )
+        .is_empty());
+    }
+
+    #[test]
     fn windows_cleanup_command_uses_cmd_compatible_syntax_without_true_fallback() {
         let command = build_openclaw_cleanup_command(
             ShellPlatform::Windows,
@@ -286,7 +320,7 @@ mod tests {
             concat!(
                 "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
                 "set \"NPM_CONFIG_PREFIX=C:\\Users\\demo\\AppData\\Roaming\\npm\" && ",
-                "\"C:\\Program Files\\nodejs\\npm.cmd\" uninstall -g openclaw @qingchencloud/openclaw-zh"
+                "call \"C:\\Program Files\\nodejs\\npm.cmd\" uninstall -g openclaw @qingchencloud/openclaw-zh"
             )
         );
         assert!(!command.contains("|| true"));
@@ -307,7 +341,7 @@ mod tests {
             concat!(
                 "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
                 "set \"NPM_CONFIG_PREFIX=C:\\Users\\demo\\AppData\\Roaming\\npm\" && ",
-                "\"C:\\Program Files\\nodejs\\npm.cmd\" install -g @qingchencloud/openclaw-zh@latest ",
+                "call \"C:\\Program Files\\nodejs\\npm.cmd\" install -g @qingchencloud/openclaw-zh@latest ",
                 "--registry=https://registry.npmmirror.com"
             )
         );
@@ -327,7 +361,7 @@ mod tests {
             command,
             concat!(
                 "set \"PATH=C:\\Program Files\\nodejs;%PATH%\" && ",
-                "\"C:\\Program Files\\nodejs\\npm.cmd\" install -g openclaw@latest"
+                "call \"C:\\Program Files\\nodejs\\npm.cmd\" install -g openclaw@latest"
             )
         );
         assert!(!command.contains("--registry="));

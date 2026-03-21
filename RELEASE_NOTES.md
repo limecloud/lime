@@ -1,35 +1,34 @@
-## Lime v0.92.0
+## Lime v0.93.0
 
 ### ✨ 主要更新
 
-- **Team Workspace 正式成型**：Agent 聊天页新增 Team Workspace 主工作台、建议栏、Dock 与 Home Shell，围绕多代理协作视图重组交互结构
-- **Team 配置与发布稳定性收尾**：补齐 Team Selector 自定义 Team 配置链路、当前 Team 展示与相关测试，并修复通知、Provider Runtime 与前端类型兼容问题，确保 `v0.92.0` 可稳定构建发布
-- **Team Selector 交互继续打磨**：扩展 Team 选择弹窗宽度，重构为模板列表 + 详情检查器布局，并补充执行会话失效后的恢复测试，减少工作台切换与继续执行时的状态错乱
-- **运行态与工具可视化增强**：`ToolCallDisplay`、Harness 状态面板、Runtime Strip、执行日志与子代理时间线继续增强，工具调用与运行态反馈更完整
-- **Aster Agent 运行时继续收口**：Rust 侧补齐 session store、subagent control、agent tools inventory / execution、runtime queue 及命令桥接，统一现役 Agent Runtime 路径
-- **治理与测试基建升级**：本地校验脚本、命令契约检查、workspace smoke 与治理报告继续完善，发布前自检链路更清晰
-- **Provider / 模型兼容性继续补强**：补充 Novita 与多种 OpenAI/Claude 兼容 provider 细节，推理内容与工具调用适配继续完善
+- **运行时 AGENTS 规则正式切换到 `.lime/` 体系**：新增全局、Workspace、本机私有模板生成能力，补齐设置入口、首次初始化提示与使用文档，仓库级 `AGENTS.md` 与应用运行时规则边界彻底分离
+- **Home Shell 与 Team Workbench 继续收口**：Agent 聊天页补齐 Home Shell 进入工作区链路、项目记忆读取、主题继续提示、团队摘要面板和 Team Runtime 偏好存储，围绕多代理主工作台进一步统一入口与状态反馈
+- **Claw Solutions 与浏览器协助入口落地**：新增网页研究、社媒起稿、前端概念、演示提纲、浏览器协助、多代理拆解等快捷方案，并根据模型可用性、浏览器能力和 Team 偏好给出准备状态
+- **更新检查与版本分发链路重构**：更新逻辑切到静态 `latest.json` 清单 + 本地缓存，About 页与独立更新提醒窗口补齐检查、下载、跳过和稍后提醒交互，发布工作流同步按 tag 注入版本并加载 release note
+- **记忆、OpenClaw 与运行时底座继续补强**：补充记忆运行时 API 与设置页能力，强化 OpenClaw 安装/探测细节，并继续收口 Aster Agent 命令桥接、runtime state 与 workspace 类型
 
 ### ⚠️ 兼容性说明
 
-- Agent 聊天页结构继续向 Team Workspace 与现役 Runtime API 收口，旧 compat 会话 / 子代理展示路径不再建议扩展
-- 工具面板、Harness 状态与时间线展示依赖新的事件元数据与运行时映射，历史 UI 分支需要逐步跟进
+- Lime 运行时会话默认读取 `~/.lime/AGENTS.md`、`<workspace>/.lime/AGENTS.md` 与可选的 `.lime/AGENTS.local.md`，不再把仓库根 `AGENTS.md` 作为运行时规则来源
+- 更新检查依赖 GitHub Releases 的 `latest.json`、签名公钥与对应 release 资源；自托管或镜像发布时需要保持清单地址与下载链接一致
+- Agent 聊天页继续向 Team Workbench 与现役 Runtime API 收口，旧 compat 会话 / 子代理展示路径不再建议扩展
 
 ### 🔗 依赖同步
 
-- `src-tauri/Cargo.toml` 中的 `aster-rust` 依赖固定到 `v0.20.0`
-- 应用版本同步提升到 `v0.92.0`，覆盖 `package.json`、Tauri 配置与 Rust workspace 版本入口
+- `src-tauri/Cargo.toml` 中的 `aster-rust` 依赖固定到 `v0.20.1`
+- 应用版本同步提升到 `v0.93.0`，覆盖 `package.json`、Tauri 配置与 Rust workspace 版本入口
 
 ### 🧪 测试
 
 - 发布前执行：`cd src-tauri && cargo test`
-- 发布前执行：`cd src-tauri && cargo fmt --all --check`
+- 发布前执行：`cd src-tauri && cargo fmt --all`
 - 发布前执行：`cd src-tauri && cargo clippy`
 - 发布前执行：`npm run lint`
 
 ### 📝 文档
 
-- 更新治理、测试、工具体系与 Aster 集成相关文档，补充当前现役架构与发布说明
+- 新增运行时 AGENTS 使用文档，补充构建 / 发布流程与当前现役架构说明
 
 ### 📦 Windows 下载说明
 
@@ -39,4 +38,4 @@
 
 ---
 
-**完整变更**: v0.91.0...v0.92.0
+**完整变更**: v0.92.0...v0.93.0

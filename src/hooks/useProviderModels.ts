@@ -64,6 +64,12 @@ interface LoadProviderModelsOptions {
   forceRefresh?: boolean;
 }
 
+export interface BuiltProviderModelsResult {
+  modelIds: string[];
+  models: EnhancedModelMetadata[];
+  hasLocalModels: boolean;
+}
+
 // ============================================================================
 // 工具函数
 // ============================================================================
@@ -175,11 +181,7 @@ function buildLocalProviderModels(
   selectedProvider: ConfiguredProvider | undefined | null,
   registryModels: EnhancedModelMetadata[],
   aliasConfig: ProviderAliasConfig | null,
-): {
-  modelIds: string[];
-  models: EnhancedModelMetadata[];
-  hasLocalModels: boolean;
-} {
+): BuiltProviderModelsResult {
   if (!selectedProvider) {
     return { modelIds: [], models: [], hasLocalModels: false };
   }
@@ -247,6 +249,46 @@ function buildLocalProviderModels(
     modelIds: allModelIds,
     models: allModels,
     hasLocalModels,
+  };
+}
+
+export function buildProviderModelsFromRegistry(
+  selectedProvider: ConfiguredProvider | undefined | null,
+  registryModels: EnhancedModelMetadata[],
+  aliasConfig: ProviderAliasConfig | null,
+): BuiltProviderModelsResult {
+  const localResult = buildLocalProviderModels(
+    selectedProvider,
+    registryModels,
+    aliasConfig,
+  );
+
+  if (!selectedProvider) {
+    return localResult;
+  }
+
+  if (localResult.hasLocalModels || localResult.models.length > 0) {
+    return localResult;
+  }
+
+  if (!selectedProvider.fallbackRegistryId) {
+    return localResult;
+  }
+
+  const fallbackModels = sortModels(
+    registryModels.filter(
+      (model) => model.provider_id === selectedProvider.fallbackRegistryId,
+    ),
+  );
+
+  if (fallbackModels.length === 0) {
+    return localResult;
+  }
+
+  return {
+    modelIds: fallbackModels.map((model) => model.id),
+    models: fallbackModels,
+    hasLocalModels: false,
   };
 }
 

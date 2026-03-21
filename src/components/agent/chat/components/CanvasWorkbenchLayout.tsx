@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -43,7 +44,12 @@ import {
   type CanvasWorkbenchDiffLine,
 } from "../utils/canvasWorkbenchDiff";
 
-type CanvasWorkbenchTab = "artifacts" | "files" | "changes" | "preview";
+type CanvasWorkbenchTab =
+  | "artifacts"
+  | "files"
+  | "changes"
+  | "preview"
+  | "team";
 export type CanvasWorkbenchLayoutMode = "split" | "stacked";
 
 interface CanvasWorkbenchEntryBase {
@@ -126,7 +132,25 @@ export type CanvasWorkbenchPreviewTarget =
   | {
       kind: "empty";
       title: string;
+    }
+  | {
+      kind: "team-workbench";
+      title: string;
     };
+
+export interface CanvasWorkbenchTeamView {
+  enabled: boolean;
+  title?: string;
+  subtitle?: string;
+  autoFocusToken?: string | number | null;
+  triggerState?: {
+    tone: "idle" | "active" | "error";
+    label?: string | null;
+  } | null;
+  renderPreview: (options?: { stackedWorkbenchTrigger?: ReactNode }) => ReactNode;
+  renderPanel?: () => ReactNode;
+  renderFooter?: () => ReactNode;
+}
 
 interface WorkspaceFileSelection {
   path: string;
@@ -155,20 +179,14 @@ export interface CanvasWorkbenchLayoutProps {
     },
   ) => ReactNode;
   onLayoutModeChange?: (mode: CanvasWorkbenchLayoutMode) => void;
+  teamView?: CanvasWorkbenchTeamView | null;
 }
 
-const TAB_META: Array<{ key: CanvasWorkbenchTab; label: string }> = [
-  { key: "artifacts", label: "产物" },
-  { key: "files", label: "全部文件" },
-  { key: "changes", label: "变更" },
-  { key: "preview", label: "预览" },
-];
-
 const WORKBENCH_PANEL_CLASSNAME =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] shadow-sm shadow-slate-950/5";
+  "rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5";
 
 const WORKBENCH_MUTED_PANEL_CLASSNAME =
-  "rounded-[24px] border border-dashed border-slate-200/90 bg-slate-50/82 px-4 py-6 text-sm text-slate-500";
+  "rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500";
 
 const WORKBENCH_BUTTON_CLASSNAME =
   "border-slate-200/80 bg-white/90 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900";
@@ -180,6 +198,47 @@ const WORKBENCH_GHOST_BUTTON_CLASSNAME =
   "border-slate-200/80 text-slate-500 hover:bg-slate-50 hover:text-slate-900";
 
 const STACKED_LAYOUT_BREAKPOINT = 1040;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function resolveStackedWorkbenchMetrics(shellHeight: number): {
+  minHeight: number;
+  maxHeight: number;
+  defaultHeight: number;
+} {
+  const safeShellHeight = shellHeight > 0 ? shellHeight : 720;
+  const minHeight = Math.max(220, Math.min(300, Math.round(safeShellHeight * 0.32)));
+  const maxHeight = Math.max(
+    minHeight + 80,
+    Math.min(560, safeShellHeight - 56),
+  );
+  const defaultHeight = clamp(
+    Math.round(safeShellHeight * 0.48),
+    minHeight,
+    maxHeight,
+  );
+  return {
+    minHeight,
+    maxHeight,
+    defaultHeight,
+  };
+}
+
+function resolveStackedTriggerClassName(
+  tone: "idle" | "active" | "error",
+): string {
+  switch (tone) {
+    case "active":
+      return "border-sky-200 bg-sky-50 text-sky-700 shadow-sky-950/10 hover:bg-sky-100 hover:text-sky-800";
+    case "error":
+      return "border-rose-200 bg-rose-50 text-rose-700 shadow-rose-950/10 hover:bg-rose-100 hover:text-rose-800";
+    case "idle":
+    default:
+      return "border-slate-200 bg-white text-slate-600 shadow-slate-950/10 hover:bg-slate-50 hover:text-slate-900";
+  }
+}
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, "/");
@@ -469,12 +528,20 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   onRevealPath,
   renderPreview,
   onLayoutModeChange,
+  teamView = null,
 }: CanvasWorkbenchLayoutProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
-  const [activeTab, setActiveTab] = useState<CanvasWorkbenchTab>("artifacts");
+  const stackedResizeCleanupRef = useRef<(() => void) | null>(null);
+  const [activeTab, setActiveTab] = useState<CanvasWorkbenchTab>(() =>
+    teamView?.enabled && !defaultPreview ? "team" : "artifacts",
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [isStackedLayout, setIsStackedLayout] = useState(false);
   const [stackedWorkbenchOpen, setStackedWorkbenchOpen] = useState(false);
+  const [shellHeight, setShellHeight] = useState(720);
+  const [stackedWorkbenchHeight, setStackedWorkbenchHeight] = useState<number | null>(
+    null,
+  );
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [directoryCache, setDirectoryCache] = useState<Record<string, DirectoryListing>>(
     {},
@@ -488,6 +555,16 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   const [workspaceFileSelections, setWorkspaceFileSelections] = useState<
     Record<string, WorkspaceFileSelection>
   >({});
+  const availableTabs = useMemo<Array<{ key: CanvasWorkbenchTab; label: string }>>(
+    () => [
+      ...(teamView?.enabled ? [{ key: "team" as const, label: "Team" }] : []),
+      { key: "artifacts" as const, label: "产物" },
+      { key: "files" as const, label: "全部文件" },
+      { key: "changes" as const, label: "变更" },
+      { key: "preview" as const, label: "预览" },
+    ],
+    [teamView?.enabled],
+  );
 
   const entries = useMemo(
     () => buildEntries(artifacts, canvasState, taskFiles, workspaceRoot),
@@ -568,27 +645,37 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       return;
     }
 
-    const updateLayout = (width: number) => {
+    const updateLayout = (width: number, height: number) => {
       if (width <= 0) {
         return;
       }
       setIsStackedLayout(width < STACKED_LAYOUT_BREAKPOINT);
+      if (height > 0) {
+        setShellHeight(height);
+      }
     };
 
     const fallbackWidth =
       node.getBoundingClientRect().width || node.clientWidth || window.innerWidth;
-    updateLayout(fallbackWidth);
+    const fallbackHeight =
+      node.getBoundingClientRect().height || node.clientHeight || window.innerHeight;
+    updateLayout(fallbackWidth, fallbackHeight);
 
     if (typeof ResizeObserver === "undefined") {
       return;
     }
 
     const observer = new ResizeObserver((entries) => {
+      const contentRect = entries[0]?.contentRect;
       const nextWidth =
-        entries[0]?.contentRect.width ||
+        contentRect?.width ||
         node.getBoundingClientRect().width ||
         node.clientWidth;
-      updateLayout(nextWidth);
+      const nextHeight =
+        contentRect?.height ||
+        node.getBoundingClientRect().height ||
+        node.clientHeight;
+      updateLayout(nextWidth, nextHeight);
     });
 
     observer.observe(node);
@@ -606,6 +693,57 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       setStackedWorkbenchOpen(false);
     }
   }, [isStackedLayout]);
+
+  const stackedWorkbenchMetrics = useMemo(
+    () => resolveStackedWorkbenchMetrics(shellHeight),
+    [shellHeight],
+  );
+
+  useEffect(() => {
+    setStackedWorkbenchHeight((previous) =>
+      previous == null
+        ? stackedWorkbenchMetrics.defaultHeight
+        : clamp(
+            previous,
+            stackedWorkbenchMetrics.minHeight,
+            stackedWorkbenchMetrics.maxHeight,
+          ),
+    );
+  }, [stackedWorkbenchMetrics]);
+
+  useEffect(() => {
+    return () => {
+      stackedResizeCleanupRef.current?.();
+      stackedResizeCleanupRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!availableTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(availableTabs[0]?.key || "artifacts");
+    }
+  }, [activeTab, availableTabs]);
+
+  const teamAutoFocusTokenRef = useRef<string | number | null | undefined>(
+    teamView?.autoFocusToken,
+  );
+
+  useEffect(() => {
+    if (!teamView?.enabled || teamView.autoFocusToken == null) {
+      return;
+    }
+
+    if (teamAutoFocusTokenRef.current === teamView.autoFocusToken) {
+      return;
+    }
+
+    teamAutoFocusTokenRef.current = teamView.autoFocusToken;
+    setActiveTab("team");
+    setCollapsed(false);
+    if (isStackedLayout) {
+      setStackedWorkbenchOpen(true);
+    }
+  }, [isStackedLayout, teamView?.autoFocusToken, teamView?.enabled]);
 
   const handleToggleDirectory = useCallback(
     (path: string) => {
@@ -687,6 +825,13 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     : null;
 
   const currentTarget = useMemo<CanvasWorkbenchPreviewTarget>(() => {
+    if (activeTab === "team" && teamView?.enabled) {
+      return {
+        kind: "team-workbench",
+        title: teamView.title || "Team Workbench",
+      };
+    }
+
     if (selectedWorkspaceFile) {
       if (selectedWorkspaceFile.status === "loading") {
         return {
@@ -796,7 +941,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       kind: "empty",
       title: "暂无可预览内容",
     };
-  }, [defaultPreview, selectedEntry, selectedWorkspaceFile]);
+  }, [activeTab, defaultPreview, selectedEntry, selectedWorkspaceFile, teamView]);
 
   const currentContent = useMemo(() => {
     if (currentTarget.kind === "default-canvas") {
@@ -1146,30 +1291,72 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     );
   };
 
+  const renderTeamTab = () => {
+    if (!teamView?.enabled) {
+      return (
+        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+          当前没有可展示的 Team 工作台。
+        </div>
+      );
+    }
+
+    return teamView.renderPanel ? (
+      teamView.renderPanel()
+    ) : (
+      <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+        Team 工作台已启用。
+      </div>
+    );
+  };
+
   const renderTabButtons = (stacked: boolean) => (
-    <div
-      className={cn(
-        "mt-4 grid gap-2",
-        stacked ? "grid-cols-2" : "grid-cols-4",
-      )}
-    >
-      {TAB_META.map((tab) => (
-        <button
-          key={tab.key}
-          type="button"
-          aria-label={`切换画布标签-${tab.label}`}
-          onClick={() => setActiveTab(tab.key)}
-          className={cn(
-            "rounded-2xl border px-2 py-2 text-xs font-medium transition-colors",
-            activeTab === tab.key
-              ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
-              : WORKBENCH_BUTTON_CLASSNAME,
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    stacked ? (
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {availableTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            aria-label={`切换画布标签-${tab.label}`}
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              activeTab === tab.key
+                ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
+                : WORKBENCH_BUTTON_CLASSNAME,
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    ) : (
+      <div
+        className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+        style={{
+          gridTemplateColumns: `repeat(${Math.min(
+            Math.max(availableTabs.length, 1),
+            5,
+          )}, minmax(0, 1fr))`,
+        }}
+      >
+        {availableTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            aria-label={`切换画布标签-${tab.label}`}
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              "rounded-2xl border px-2 py-2 text-xs font-medium transition-colors",
+              activeTab === tab.key
+                ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
+                : WORKBENCH_BUTTON_CLASSNAME,
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    )
   );
 
   const renderWorkbenchHeader = (
@@ -1184,33 +1371,62 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
         stacked ? "px-3 py-3" : "px-4 py-4",
       )}
     >
+      {stacked ? (
+        <div className="mb-3 flex justify-center">
+          <span className="h-1.5 w-10 rounded-full bg-slate-200" />
+        </div>
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-            Canvas Workbench
+            {activeTab === "team" ? "Team Workbench" : "Canvas Workbench"}
           </div>
-          <div className="mt-1 truncate text-sm font-semibold text-foreground">
-            {currentTarget.title}
+          <div
+            className={cn(
+              "mt-1 text-sm font-semibold text-foreground",
+              stacked ? "line-clamp-2" : "truncate",
+            )}
+          >
+            {activeTab === "team"
+              ? teamView?.title || currentTarget.title
+              : currentTarget.title}
           </div>
-          {selectionPath ? (
-            <div className="mt-1 truncate text-xs text-slate-500">
+          {activeTab === "team" && teamView?.subtitle ? (
+            <div
+              className={cn(
+                "mt-1 text-xs text-slate-500",
+                stacked ? "line-clamp-2" : "truncate",
+              )}
+            >
+              {teamView.subtitle}
+            </div>
+          ) : null}
+          {activeTab !== "team" && selectionPath ? (
+            <div
+              className={cn(
+                "mt-1 text-xs text-slate-500",
+                stacked ? "line-clamp-2 break-all" : "truncate",
+              )}
+            >
               {selectionPath}
             </div>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label="下载当前画布项"
-            disabled={!currentContent.trim()}
-            onClick={handleDownload}
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              WORKBENCH_GHOST_BUTTON_CLASSNAME,
-            )}
-          >
-            <Download className="h-4 w-4" />
-          </button>
+          {activeTab !== "team" ? (
+            <button
+              type="button"
+              aria-label="下载当前画布项"
+              disabled={!currentContent.trim()}
+              onClick={handleDownload}
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                WORKBENCH_GHOST_BUTTON_CLASSNAME,
+              )}
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          ) : null}
           {stacked || options?.showCollapseButton ? (
             <button
               type="button"
@@ -1237,6 +1453,16 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   );
 
   const renderWorkbenchFooter = (stacked: boolean) => (
+    activeTab === "team" && teamView?.renderFooter ? (
+      <div
+        className={cn(
+          "border-t border-slate-200/80",
+          stacked ? "px-3 py-3" : "px-4 py-3",
+        )}
+      >
+        {teamView.renderFooter()}
+      </div>
+    ) : (
     <div
       className={cn(
         "border-t border-slate-200/80",
@@ -1301,16 +1527,65 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
         </div>
       ) : null}
     </div>
+    )
   );
 
   const renderActiveTab = () =>
-    activeTab === "artifacts"
+    activeTab === "team"
+      ? renderTeamTab()
+      : activeTab === "artifacts"
       ? renderEntriesTab()
       : activeTab === "files"
         ? renderFilesTab()
         : activeTab === "changes"
           ? renderChangesTab()
           : renderPreviewTab();
+
+  const handleStartStackedResize = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!isStackedLayout || !stackedWorkbenchOpen) {
+        return;
+      }
+
+      event.preventDefault();
+      stackedResizeCleanupRef.current?.();
+
+      const startY = event.clientY;
+      const startHeight =
+        stackedWorkbenchHeight ?? stackedWorkbenchMetrics.defaultHeight;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const nextHeight = clamp(
+          startHeight + (startY - moveEvent.clientY),
+          stackedWorkbenchMetrics.minHeight,
+          stackedWorkbenchMetrics.maxHeight,
+        );
+        setStackedWorkbenchHeight(nextHeight);
+      };
+
+      const handleMouseUp = () => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+        stackedResizeCleanupRef.current = null;
+      };
+
+      stackedResizeCleanupRef.current = () => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    },
+    [
+      isStackedLayout,
+      stackedWorkbenchHeight,
+      stackedWorkbenchMetrics.defaultHeight,
+      stackedWorkbenchMetrics.maxHeight,
+      stackedWorkbenchMetrics.minHeight,
+      stackedWorkbenchOpen,
+    ],
+  );
 
   const stackedWorkbenchTrigger =
     isStackedLayout && !stackedWorkbenchOpen ? (
@@ -1319,9 +1594,28 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
         aria-label="展开画布工作台"
         title="工作台"
         onClick={() => setStackedWorkbenchOpen(true)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200/80 bg-white/88 text-slate-500 shadow-sm shadow-slate-950/5 transition-all hover:bg-white hover:text-slate-900"
+        data-testid="canvas-workbench-trigger"
+        className={cn(
+          "inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-medium shadow-lg transition-all hover:-translate-y-0.5",
+          resolveStackedTriggerClassName(teamView?.triggerState?.tone || "idle"),
+        )}
       >
         <PanelRightOpen className="h-4 w-4" />
+        <span>{activeTab === "team" ? "Team 工作台" : "工作台"}</span>
+        {teamView?.triggerState?.label ? (
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none",
+              teamView.triggerState.tone === "error"
+                ? "border-rose-200 bg-white/90 text-rose-700"
+                : teamView.triggerState.tone === "active"
+                  ? "border-sky-200 bg-white/90 text-sky-700"
+                  : "border-slate-200 bg-white/90 text-slate-600",
+            )}
+          >
+            {teamView.triggerState.label}
+          </span>
+        ) : null}
       </button>
     ) : undefined;
 
@@ -1331,7 +1625,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       data-testid="canvas-workbench-shell"
       data-layout-mode={isStackedLayout ? "stacked" : "split"}
       className={cn(
-        "relative h-full min-h-0 overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] shadow-sm shadow-slate-950/5",
+        "relative h-full min-h-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5",
         isStackedLayout ? "block" : "flex flex-row",
       )}
     >
@@ -1341,29 +1635,58 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
           isStackedLayout ? "h-full" : "flex-1",
         )}
       >
-        {renderPreview(currentTarget, {
-          stackedWorkbenchTrigger,
-        })}
+      {activeTab === "team" && teamView?.enabled
+        ? teamView.renderPreview({
+            stackedWorkbenchTrigger,
+          })
+        : renderPreview(currentTarget, {
+            stackedWorkbenchTrigger,
+          })}
       </div>
 
       {isStackedLayout ? (
         stackedWorkbenchOpen ? (
-          <section
-            data-testid="canvas-workbench-layout"
-            data-panel-placement="overlay-right"
-            className="absolute inset-y-3 right-3 z-10 flex w-[min(25rem,calc(100%-1.5rem))] max-w-full flex-col overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/95 shadow-[0_24px_80px_rgba(15,23,42,0.14)] backdrop-blur-md"
-          >
-            {renderWorkbenchHeader(true)}
-            <div className="flex-1 overflow-auto px-3 py-3">{renderActiveTab()}</div>
-            {renderWorkbenchFooter(true)}
-          </section>
+          <>
+            <button
+              type="button"
+              aria-label="折叠画布工作台遮罩"
+              onClick={() => setStackedWorkbenchOpen(false)}
+              className="absolute inset-0 z-10 bg-slate-950/5"
+            />
+            <section
+              data-testid="canvas-workbench-layout"
+              data-panel-placement="overlay-bottom"
+              className="absolute inset-x-3 bottom-3 z-20 flex max-w-full flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
+              style={{
+                height: `${stackedWorkbenchHeight ?? stackedWorkbenchMetrics.defaultHeight}px`,
+                minHeight: `${stackedWorkbenchMetrics.minHeight}px`,
+                maxHeight: `${stackedWorkbenchMetrics.maxHeight}px`,
+              }}
+            >
+              <div
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="调整画布工作台高度"
+                data-testid="canvas-workbench-resize-handle"
+                onMouseDown={handleStartStackedResize}
+                className="flex h-5 shrink-0 cursor-row-resize items-center justify-center border-b border-slate-200/80 bg-white"
+              >
+                <span className="h-1.5 w-10 rounded-full bg-slate-200" />
+              </div>
+              {renderWorkbenchHeader(true)}
+              <div className="flex-1 overflow-auto px-3 py-3">
+                {renderActiveTab()}
+              </div>
+              {renderWorkbenchFooter(true)}
+            </section>
+          </>
         ) : null
       ) : (
         <aside
           data-testid="canvas-workbench-layout"
           data-panel-placement="side"
           className={cn(
-            "relative flex h-full flex-col border-l border-slate-200/80 bg-white/82 backdrop-blur-sm transition-[width] duration-200",
+            "relative flex h-full flex-col border-l border-slate-200/80 bg-white transition-[width] duration-200",
             collapsed ? "w-12" : "w-[360px]",
           )}
         >
@@ -1380,7 +1703,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
               >
                 <PanelRightOpen className="h-4 w-4" />
               </button>
-              {TAB_META.map((tab) => (
+              {availableTabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"

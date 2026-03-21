@@ -50,6 +50,7 @@ interface TeamWorkspaceRuntimeStreamProjection {
   forgetToolId?: string;
   runtimeStatus?: TeamWorkspaceRuntimeStatus;
   latestTurnStatus?: TeamWorkspaceRuntimeStatus;
+  queuedTurnCount?: number;
   refreshPreview?: boolean;
 }
 
@@ -272,7 +273,12 @@ function buildLiveRuntimeState(
   session: TeamWorkspaceRuntimeSessionSnapshot,
   baseFingerprint: string,
   current: TeamWorkspaceLiveRuntimeState | undefined,
-  patch: Pick<TeamWorkspaceLiveRuntimeState, "runtimeStatus" | "latestTurnStatus">,
+  patch: Partial<
+    Pick<
+      TeamWorkspaceLiveRuntimeState,
+      "runtimeStatus" | "latestTurnStatus" | "queuedTurnCount"
+    >
+  >,
 ): TeamWorkspaceLiveRuntimeState {
   return {
     runtimeStatus:
@@ -285,17 +291,71 @@ function buildLiveRuntimeState(
       current?.latestTurnStatus ??
       session.latestTurnStatus ??
       session.runtimeStatus,
+    queuedTurnCount:
+      patch.queuedTurnCount ??
+      current?.queuedTurnCount ??
+      session.queuedTurnCount,
     baseFingerprint,
   };
 }
 
+function getQueuedTurnCount(
+  session: TeamWorkspaceRuntimeSessionSnapshot,
+  current?: TeamWorkspaceLiveRuntimeState,
+): number {
+  return current?.queuedTurnCount ?? session.queuedTurnCount ?? 0;
+}
+
+function resolveQueueDrainedRuntimeStatus(
+  session: TeamWorkspaceRuntimeSessionSnapshot,
+  current?: TeamWorkspaceLiveRuntimeState,
+): TeamWorkspaceRuntimeStatus {
+  const candidate = [
+    current?.latestTurnStatus,
+    session.latestTurnStatus,
+    current?.runtimeStatus,
+    session.runtimeStatus,
+  ].find((status) => status && status !== "queued" && status !== "running");
+
+  return candidate ?? "idle";
+}
+
+function resolveFinalRuntimeStatus(params: {
+  session: TeamWorkspaceRuntimeSessionSnapshot;
+  current?: TeamWorkspaceLiveRuntimeState;
+  terminalStatus?: Extract<TeamWorkspaceRuntimeStatus, "completed" | "failed">;
+  queuedTurnCount?: number;
+}): TeamWorkspaceRuntimeStatus {
+  const queuedTurnCount =
+    params.queuedTurnCount ?? getQueuedTurnCount(params.session, params.current);
+  if (queuedTurnCount > 0) {
+    return "queued";
+  }
+
+  if (params.terminalStatus) {
+    return params.terminalStatus;
+  }
+
+  const candidate = [
+    params.current?.latestTurnStatus,
+    params.session.latestTurnStatus,
+    params.current?.runtimeStatus,
+    params.session.runtimeStatus,
+  ].find((status) => status && status !== "queued" && status !== "running");
+
+  return candidate ?? "completed";
+}
+
 function projectRuntimeStreamEvent(params: {
   sessionId: string;
+  session: TeamWorkspaceRuntimeSessionSnapshot;
   event: StreamEvent;
+  currentRuntime?: TeamWorkspaceLiveRuntimeState;
   streamState?: SessionLiveStreamState;
   toolNameById?: Record<string, string>;
 }): TeamWorkspaceRuntimeStreamProjection | null {
-  const { sessionId, event, streamState, toolNameById } = params;
+  const { sessionId, session, event, currentRuntime, streamState, toolNameById } =
+    params;
 
   switch (event.type) {
     case "item_started":
@@ -385,6 +445,7 @@ function projectRuntimeStreamEvent(params: {
         }),
         runtimeStatus: "queued",
         latestTurnStatus: "queued",
+        queuedTurnCount: getQueuedTurnCount(session, currentRuntime) + 1,
       };
     case "queue_started":
       return {
@@ -398,10 +459,29 @@ function projectRuntimeStreamEvent(params: {
         }),
         runtimeStatus: "running",
         latestTurnStatus: "running",
+        queuedTurnCount: Math.max(getQueuedTurnCount(session, currentRuntime) - 1, 0),
       };
-    case "queue_removed":
+    case "queue_removed": {
+      const queuedTurnCount = Math.max(
+        getQueuedTurnCount(session, currentRuntime) - 1,
+        0,
+      );
+      return {
+        queuedTurnCount,
+        runtimeStatus:
+          queuedTurnCount === 0 && currentRuntime?.runtimeStatus === "queued"
+            ? resolveQueueDrainedRuntimeStatus(session, currentRuntime)
+            : undefined,
+        refreshPreview: true,
+      };
+    }
     case "queue_cleared":
       return {
+        queuedTurnCount: 0,
+        runtimeStatus:
+          currentRuntime?.runtimeStatus === "queued"
+            ? resolveQueueDrainedRuntimeStatus(session, currentRuntime)
+            : undefined,
         refreshPreview: true,
       };
     case "turn_started":
@@ -418,26 +498,37 @@ function projectRuntimeStreamEvent(params: {
         latestTurnStatus: "running",
       };
     case "turn_completed":
-      return {
-        entry: buildLifecycleActivityEntry({
-          sessionId,
-          key: "turn",
-          title: "回合完成",
-          detail: "当前回合已完成，正在等待快照同步。",
-          statusLabel: "完成",
-          badgeClassName: COMPLETED_BADGE_CLASS_NAME,
-        }),
-        latestTurnStatus: "completed",
-        clearEntryIds: [
-          `stream-text:${sessionId}`,
-          `stream-thinking:${sessionId}`,
-          `runtime-status:${sessionId}`,
-        ],
-        clearTextDraft: true,
-        clearThinkingDraft: true,
-        refreshPreview: true,
-      };
-    case "turn_failed":
+      {
+        const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
+        return {
+          entry: buildLifecycleActivityEntry({
+            sessionId,
+            key: "turn",
+            title: "回合完成",
+            detail: "当前回合已完成，正在等待快照同步。",
+            statusLabel: "完成",
+            badgeClassName: COMPLETED_BADGE_CLASS_NAME,
+          }),
+          runtimeStatus: resolveFinalRuntimeStatus({
+            session,
+            current: currentRuntime,
+            terminalStatus: "completed",
+            queuedTurnCount,
+          }),
+          latestTurnStatus: "completed",
+          queuedTurnCount,
+          clearEntryIds: [
+            `stream-text:${sessionId}`,
+            `stream-thinking:${sessionId}`,
+            `runtime-status:${sessionId}`,
+          ],
+          clearTextDraft: true,
+          clearThinkingDraft: true,
+          refreshPreview: true,
+        };
+      }
+    case "turn_failed": {
+      const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
       return {
         entry: buildLifecycleActivityEntry({
           sessionId,
@@ -448,7 +539,14 @@ function projectRuntimeStreamEvent(params: {
           statusLabel: "失败",
           badgeClassName: FAILED_BADGE_CLASS_NAME,
         }),
+        runtimeStatus: resolveFinalRuntimeStatus({
+          session,
+          current: currentRuntime,
+          terminalStatus: "failed",
+          queuedTurnCount,
+        }),
         latestTurnStatus: "failed",
+        queuedTurnCount,
         clearEntryIds: [
           `stream-text:${sessionId}`,
           `stream-thinking:${sessionId}`,
@@ -458,15 +556,24 @@ function projectRuntimeStreamEvent(params: {
         clearThinkingDraft: true,
         refreshPreview: true,
       };
+    }
     case "warning":
       return {
         entry: buildWarningActivityEntry(sessionId, event.message, event.code),
         refreshPreview: true,
       };
-    case "error":
+    case "error": {
+      const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
       return {
         entry: buildErrorActivityEntry(sessionId, event.message),
+        runtimeStatus: resolveFinalRuntimeStatus({
+          session,
+          current: currentRuntime,
+          terminalStatus: "failed",
+          queuedTurnCount,
+        }),
         latestTurnStatus: "failed",
+        queuedTurnCount,
         clearEntryIds: [
           `stream-text:${sessionId}`,
           `stream-thinking:${sessionId}`,
@@ -476,10 +583,18 @@ function projectRuntimeStreamEvent(params: {
         clearThinkingDraft: true,
         refreshPreview: true,
       };
+    }
     case "done":
       return null;
-    case "final_done":
+    case "final_done": {
+      const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
       return {
+        runtimeStatus: resolveFinalRuntimeStatus({
+          session,
+          current: currentRuntime,
+          queuedTurnCount,
+        }),
+        queuedTurnCount,
         clearEntryIds: [
           `stream-text:${sessionId}`,
           `stream-thinking:${sessionId}`,
@@ -489,6 +604,7 @@ function projectRuntimeStreamEvent(params: {
         clearThinkingDraft: true,
         refreshPreview: true,
       };
+    }
     default:
       return null;
   }
@@ -549,6 +665,9 @@ export function useTeamWorkspaceRuntime(
     subagentParentContext = null,
   } = options;
   const [liveRuntimeBySessionId, setLiveRuntimeBySessionId] = useState<
+    Record<string, TeamWorkspaceLiveRuntimeState>
+  >({});
+  const liveRuntimeBySessionIdRef = useRef<
     Record<string, TeamWorkspaceLiveRuntimeState>
   >({});
   const [liveActivityBySessionId, setLiveActivityBySessionId] = useState<
@@ -613,6 +732,10 @@ export function useTeamWorkspaceRuntime(
     activeSnapshotByIdRef.current = activeSnapshotById;
     baseFingerprintByIdRef.current = baseFingerprintById;
   }, [activeSnapshotById, baseFingerprintById]);
+
+  useEffect(() => {
+    liveRuntimeBySessionIdRef.current = liveRuntimeBySessionId;
+  }, [liveRuntimeBySessionId]);
 
   const scheduleActivityRefresh = useCallback((sessionId: string) => {
     if (refreshTimersRef.current[sessionId] !== undefined) {
@@ -742,9 +865,18 @@ export function useTeamWorkspaceRuntime(
 
           setLiveRuntimeBySessionId((previous) => {
             const current = previous[data.session_id];
+            const nextQueuedTurnCount =
+              normalizedStatus === "completed" ||
+              normalizedStatus === "failed" ||
+              normalizedStatus === "aborted" ||
+              normalizedStatus === "closed" ||
+              normalizedStatus === "idle"
+                ? 0
+                : current?.queuedTurnCount ?? matchingSession.queuedTurnCount;
             if (
               current?.runtimeStatus === normalizedStatus &&
               current.latestTurnStatus === normalizedStatus &&
+              current.queuedTurnCount === nextQueuedTurnCount &&
               current.baseFingerprint === baseFingerprint
             ) {
               return previous;
@@ -752,11 +884,16 @@ export function useTeamWorkspaceRuntime(
 
             return {
               ...previous,
-              [data.session_id]: {
-                runtimeStatus: normalizedStatus,
-                latestTurnStatus: normalizedStatus,
+              [data.session_id]: buildLiveRuntimeState(
+                matchingSession,
                 baseFingerprint,
-              },
+                current,
+                {
+                  runtimeStatus: normalizedStatus,
+                  latestTurnStatus: normalizedStatus,
+                  queuedTurnCount: nextQueuedTurnCount,
+                },
+              ),
             };
           });
 
@@ -830,7 +967,9 @@ export function useTeamWorkspaceRuntime(
 
           const projection = projectRuntimeStreamEvent({
             sessionId,
+            session: matchingSession,
             event: data,
+            currentRuntime: liveRuntimeBySessionIdRef.current[sessionId],
             streamState: liveStreamStateBySessionIdRef.current[sessionId],
             toolNameById: toolNameBySessionIdRef.current[sessionId],
           });
@@ -891,7 +1030,8 @@ export function useTeamWorkspaceRuntime(
 
           if (
             projection.runtimeStatus !== undefined ||
-            projection.latestTurnStatus !== undefined
+            projection.latestTurnStatus !== undefined ||
+            projection.queuedTurnCount !== undefined
           ) {
             setLiveRuntimeBySessionId((previous) => {
               const current = previous[sessionId];
@@ -902,6 +1042,7 @@ export function useTeamWorkspaceRuntime(
                 {
                   runtimeStatus: projection.runtimeStatus,
                   latestTurnStatus: projection.latestTurnStatus,
+                  queuedTurnCount: projection.queuedTurnCount,
                 },
               );
 
@@ -909,6 +1050,7 @@ export function useTeamWorkspaceRuntime(
                 current &&
                 current.runtimeStatus === nextState.runtimeStatus &&
                 current.latestTurnStatus === nextState.latestTurnStatus &&
+                current.queuedTurnCount === nextState.queuedTurnCount &&
                 current.baseFingerprint === nextState.baseFingerprint
               ) {
                 return previous;

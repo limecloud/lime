@@ -1,0 +1,59 @@
+use super::*;
+use crate::commands::aster_agent_cmd::runtime_turn::build_runtime_queue_executor;
+use crate::commands::aster_agent_cmd::session_runtime::{
+    create_runtime_session_internal, list_runtime_sessions_internal,
+    rename_runtime_session_internal, update_runtime_session_execution_strategy_internal,
+};
+use crate::commands::aster_agent_cmd::subagent_runtime::{
+    agent_runtime_close_subagent_internal, agent_runtime_resume_subagent_internal,
+    agent_runtime_send_subagent_input_internal, agent_runtime_spawn_subagent_internal,
+    agent_runtime_wait_subagents_internal, SubagentControlRuntime,
+};
+use crate::commands::aster_agent_cmd::tool_runtime::ensure_tool_search_tool_registered;
+
+#[path = "command_api/provider_api.rs"]
+pub(crate) mod provider_api;
+#[path = "command_api/runtime_api.rs"]
+pub(crate) mod runtime_api;
+#[path = "command_api/session_api.rs"]
+pub(crate) mod session_api;
+#[path = "command_api/subagent_api.rs"]
+pub(crate) mod subagent_api;
+
+fn build_subagent_control_runtime(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+) -> SubagentControlRuntime {
+    SubagentControlRuntime::new(
+        app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+    )
+}
+
+pub(crate) use provider_api::{
+    aster_agent_configure_from_pool, aster_agent_configure_provider, aster_agent_init,
+    aster_agent_reset, aster_agent_status,
+};
+pub(crate) use runtime_api::{
+    agent_runtime_get_session, agent_runtime_get_tool_inventory, agent_runtime_interrupt_turn,
+    agent_runtime_promote_queued_turn, agent_runtime_remove_queued_turn, agent_runtime_submit_turn,
+};
+pub(crate) use session_api::{
+    agent_runtime_create_session, agent_runtime_list_sessions, agent_runtime_update_session,
+};
+pub(crate) use subagent_api::{
+    agent_runtime_close_subagent, agent_runtime_resume_subagent, agent_runtime_send_subagent_input,
+    agent_runtime_spawn_subagent, agent_runtime_wait_subagents,
+};

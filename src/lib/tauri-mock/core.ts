@@ -503,6 +503,112 @@ function syncMockAutomationBrowserSessionState(
   return session;
 }
 
+type MockClawSolutionSummary = {
+  id: string;
+  title: string;
+  summary: string;
+  outputHint: string;
+  recommendedCapabilities: string[];
+  readiness: "ready" | "needs_setup" | "needs_capability";
+  readinessMessage: string;
+  reasonCode?: string;
+};
+
+const mockClawSolutionCatalog: MockClawSolutionSummary[] = [
+  {
+    id: "web-research-brief",
+    title: "网页研究简报",
+    summary: "快速整理研究目标、关键来源与结论框架。",
+    outputHint: "研究提纲 + 结论简报",
+    recommendedCapabilities: ["模型", "研究"],
+    readiness: "ready",
+    readinessMessage: "可直接开始",
+  },
+  {
+    id: "social-post-starter",
+    title: "社媒主稿生成",
+    summary: "进入社媒专项工作台并生成一版首稿。",
+    outputHint: "社媒首稿 + 平台结构",
+    recommendedCapabilities: ["模型", "社媒主题"],
+    readiness: "ready",
+    readinessMessage: "可直接开始",
+  },
+  {
+    id: "frontend-concept",
+    title: "前端概念方案",
+    summary: "输出信息架构、核心模块与页面关系。",
+    outputHint: "IA + 模块方案",
+    recommendedCapabilities: ["模型", "结构化输出"],
+    readiness: "ready",
+    readinessMessage: "可直接开始",
+  },
+  {
+    id: "slide-outline",
+    title: "演示提纲草案",
+    summary: "生成一版可讲述的演示结构。",
+    outputHint: "PPT 大纲 + 讲述线",
+    recommendedCapabilities: ["模型", "结构化输出"],
+    readiness: "ready",
+    readinessMessage: "可直接开始",
+  },
+  {
+    id: "browser-assist-task",
+    title: "浏览器协助办事",
+    summary: "进入工作区后直接打开浏览器协助。",
+    outputHint: "浏览器任务执行",
+    recommendedCapabilities: ["模型", "浏览器协助"],
+    readiness: "ready",
+    readinessMessage: "可直接开始",
+  },
+  {
+    id: "team-breakdown",
+    title: "多代理拆任务",
+    summary: "默认启用多代理偏好，按 team runtime 方式展开任务。",
+    outputHint: "任务拆解 + 分工执行",
+    recommendedCapabilities: ["模型", "多代理"],
+    readiness: "ready",
+    readinessMessage: "可直接开始，进入后会启用多代理偏好",
+    reasonCode: "team_recommended",
+  },
+] as const;
+
+function getMockClawSolution(solutionId: string) {
+  const solution = mockClawSolutionCatalog.find(
+    (item) => item.id === solutionId,
+  );
+  if (!solution) {
+    throw new Error(`Unknown mock claw solution: ${solutionId}`);
+  }
+  return solution;
+}
+
+function buildMockClawSolutionPrompt(
+  solutionId: string,
+  context?: { userInput?: string },
+) {
+  const prompts: Record<string, string> = {
+    "web-research-brief":
+      "请围绕这个主题先给我做一版网页研究简报：明确研究目标、关键信息来源、核心发现、风险点，以及接下来最值得继续追踪的问题。",
+    "social-post-starter":
+      "请先帮我起草一版社媒内容首稿：明确目标受众、平台语境、标题方向、正文结构和可继续扩写的角度。",
+    "frontend-concept":
+      "请帮我先整理一版前端概念方案：输出信息架构、核心页面、关键模块、交互流程和第一轮组件拆分建议。",
+    "slide-outline":
+      "请基于这个目标先生成一版演示提纲：包含封面定位、目录、核心论点、案例支撑、结论和下一步行动。",
+    "browser-assist-task":
+      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，再进入执行。",
+    "team-breakdown":
+      "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
+  };
+
+  const basePrompt = prompts[solutionId] ?? "";
+  const userInput = context?.userInput?.trim();
+  if (!userInput) {
+    return basePrompt;
+  }
+  return `${basePrompt}\n\n补充上下文：${userInput}`;
+}
+
 // 默认 mock 数据
 const defaultMocks: Record<string, any> = {
   // 配置相关
@@ -1711,6 +1817,61 @@ const defaultMocks: Record<string, any> = {
   // API Key Provider 相关
   get_api_key_providers: () => [],
   get_api_key_provider: () => null,
+  claw_solution_list: () => mockClawSolutionCatalog,
+  claw_solution_detail: (args: any) => {
+    const solution = getMockClawSolution(args?.solutionId ?? "");
+    return {
+      ...solution,
+      starterPrompt: buildMockClawSolutionPrompt(solution.id),
+      themeTarget:
+        solution.id === "social-post-starter" ? "social-media" : undefined,
+      followupMode:
+        solution.id === "browser-assist-task"
+          ? "browser_assist"
+          : solution.id === "team-breakdown"
+            ? "team_runtime"
+            : "iterative",
+      capabilityTags:
+        solution.id === "browser-assist-task"
+          ? ["browser", "automation"]
+          : solution.id === "team-breakdown"
+            ? ["team", "decomposition"]
+            : solution.id === "social-post-starter"
+              ? ["social-media", "draft"]
+              : ["general"],
+    };
+  },
+  claw_solution_check_readiness: (args: any) => {
+    const solution = getMockClawSolution(args?.solutionId ?? "");
+    return {
+      solutionId: solution.id,
+      readiness: solution.readiness,
+      readinessMessage: solution.readinessMessage,
+      reasonCode: solution.reasonCode,
+    };
+  },
+  claw_solution_prepare: (args: any) => {
+    const solution = getMockClawSolution(args?.solutionId ?? "");
+    return {
+      solutionId: solution.id,
+      actionType:
+        solution.id === "social-post-starter"
+          ? "navigate_theme"
+          : solution.id === "browser-assist-task"
+            ? "launch_browser_assist"
+            : solution.id === "team-breakdown"
+              ? "enable_team_mode"
+              : "fill_input",
+      prompt: buildMockClawSolutionPrompt(solution.id, args?.context),
+      themeTarget:
+        solution.id === "social-post-starter" ? "social-media" : undefined,
+      shouldLaunchBrowserAssist: solution.id === "browser-assist-task",
+      shouldEnableTeamMode: solution.id === "team-breakdown",
+      readiness: solution.readiness,
+      readinessMessage: solution.readinessMessage,
+      reasonCode: solution.reasonCode,
+    };
+  },
   add_custom_api_key_provider: () => ({ success: true }),
   update_api_key_provider: () => ({ success: true }),
   delete_custom_api_key_provider: () => ({ success: true }),
@@ -1790,6 +1951,57 @@ const defaultMocks: Record<string, any> = {
   memory_runtime_cleanup: () => ({
     cleaned_entries: 0,
     freed_space: 0,
+  }),
+  memory_get_effective_sources: () => ({
+    working_dir: "/mock/workspace",
+    total_sources: 2,
+    loaded_sources: 1,
+    follow_imports: true,
+    import_max_depth: 5,
+    sources: [],
+  }),
+  memory_get_auto_index: () => ({
+    enabled: true,
+    root_dir: "/mock/workspace/memory",
+    entrypoint: "MEMORY.md",
+    max_loaded_lines: 200,
+    entry_exists: false,
+    total_lines: 0,
+    preview_lines: [],
+    items: [],
+  }),
+  memory_toggle_auto: (args: any) => ({
+    enabled: Boolean(args?.enabled),
+  }),
+  memory_update_auto_note: () => ({
+    enabled: true,
+    root_dir: "/mock/workspace/memory",
+    entrypoint: "MEMORY.md",
+    max_loaded_lines: 200,
+    entry_exists: true,
+    total_lines: 1,
+    preview_lines: ["- mock note"],
+    items: [],
+  }),
+  memory_scaffold_runtime_agents_template: (args: any) => {
+    const target = args?.target ?? "workspace";
+    const workingDir = args?.workingDir ?? "/mock/workspace";
+    const pathByTarget: Record<string, string> = {
+      global: "/mock/home/.lime/AGENTS.md",
+      workspace: `${workingDir}/.lime/AGENTS.md`,
+      workspace_local: `${workingDir}/.lime/AGENTS.local.md`,
+    };
+    return {
+      target,
+      path: pathByTarget[target] ?? `${workingDir}/.lime/AGENTS.md`,
+      status: "created",
+      createdParentDir: true,
+    };
+  },
+  memory_ensure_workspace_local_agents_gitignore: (args: any) => ({
+    path: `${args?.workingDir ?? "/mock/workspace"}/.gitignore`,
+    entry: ".lime/AGENTS.local.md",
+    status: "added",
   }),
 
   session_files_get_or_create: (args: any) => ({

@@ -14,8 +14,8 @@ use crate::services::web_search_runtime_service::apply_web_search_runtime_env;
 use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_relocate;
 use crate::workspace::WorkspaceManager;
 use lime_agent::{
-    resolve_request_tool_policy_with_mode, stream_reply_with_policy, RequestToolPolicyMode,
-    SessionConfigBuilder,
+    merge_system_prompt_with_runtime_agents, resolve_request_tool_policy_with_mode,
+    stream_reply_with_policy, RequestToolPolicyMode, SessionConfigBuilder,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -389,7 +389,10 @@ pub async fn aster_agent_theme_context_search(
     let system_prompt = lime_agent::merge_system_prompt_with_request_tool_policy(
         merge_system_prompt_with_web_search(
             merge_system_prompt_with_memory_context(
-                project_prompt,
+                merge_system_prompt_with_runtime_agents(
+                    project_prompt,
+                    Some(Path::new(&workspace_root)),
+                ),
                 &runtime_config,
                 MemoryPromptContext::with_working_dir(Path::new(&workspace_root)),
             ),

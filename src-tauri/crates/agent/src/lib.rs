@@ -19,12 +19,17 @@ pub mod credential_bridge;
 pub mod durable_memory_fs;
 pub mod event_converter;
 pub mod hooks;
+mod kiro_provider_adapter;
 pub mod lsp_bridge;
 pub mod mcp_bridge;
 pub mod prompt;
+pub mod provider_continuation_state;
+mod provider_safety;
 pub mod queued_turn;
 pub mod request_tool_policy;
+pub mod runtime_projection_snapshot;
 pub mod runtime_queue;
+pub mod session_state_snapshot;
 mod session_store;
 pub mod skill_execution;
 pub mod subagent_control;
@@ -32,6 +37,8 @@ pub mod subagent_profiles;
 pub mod subagent_scheduler;
 pub mod tool_io_offload;
 pub mod tools;
+pub mod turn_input_envelope;
+pub mod turn_state;
 mod write_artifact_events;
 
 pub use ask_bridge::{create_ask_callback, extract_response as extract_ask_response};
@@ -56,6 +63,13 @@ pub use event_converter::{
 pub use lime_mcp as mcp;
 pub use lsp_bridge::create_lsp_callback;
 pub use prompt::SystemPromptBuilder;
+pub use prompt::{
+    build_runtime_agents_prompt, merge_system_prompt_with_runtime_agents,
+    RUNTIME_AGENTS_PROMPT_MARKER,
+};
+pub use provider_continuation_state::{
+    ProviderContinuationCapability, ProviderContinuationCapable, ProviderContinuationState,
+};
 pub use queued_turn::QueuedTurnSnapshot;
 pub use request_tool_policy::{
     execute_web_search_preflight_if_needed, merge_system_prompt_with_request_tool_policy,
@@ -64,12 +78,14 @@ pub use request_tool_policy::{
     ReplyAttemptError, RequestToolPolicy, RequestToolPolicyMode, StreamReplyExecution,
     WebSearchExecutionTracker, REQUEST_TOOL_POLICY_MARKER,
 };
+pub use runtime_projection_snapshot::RuntimeProjectionSnapshot;
 pub use runtime_queue::{
     clear_runtime_queue, list_runtime_queue_snapshots, promote_runtime_queued_turn,
     remove_runtime_queued_turn, resume_persisted_runtime_queues_on_startup,
     resume_runtime_queue_if_needed, submit_runtime_turn, RuntimeQueueEventEmitter,
     RuntimeQueueExecutor,
 };
+pub use session_state_snapshot::SessionStateSnapshot;
 pub use session_store::{
     create_session_sync, delete_session, get_persisted_session_metadata_sync,
     get_runtime_session_detail, get_session_sync, list_sessions_sync,
@@ -101,4 +117,10 @@ pub use subagent_scheduler::{
     LimeScheduler, LimeSubAgentExecutor, SchedulerEventEmitter, SubAgentProgressEvent, SubAgentRole,
 };
 pub use tools::{BrowserAction, BrowserTool, BrowserToolError, BrowserToolResult};
+pub use turn_input_envelope::{
+    TurnDiagnosticsSnapshot, TurnInputEnvelope, TurnInputEnvelopeBuilder, TurnMessageHistorySource,
+    TurnPromptAugmentationStage, TurnPromptAugmentationStageKind, TurnProviderRoutingSnapshot,
+    TurnRequestToolPolicySnapshot, TurnSystemPromptSource,
+};
+pub use turn_state::TurnState;
 pub use write_artifact_events::WriteArtifactEventEmitter;

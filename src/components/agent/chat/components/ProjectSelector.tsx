@@ -23,6 +23,7 @@ import {
 } from "@/lib/api/project";
 import { toast } from "sonner";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { notifyProjectCreatedWithRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 
 interface ProjectSelectorProps {
   /** 当前激活的主题（用于过滤项目） */
@@ -110,7 +111,7 @@ export function ProjectSelector({
         workspaceType: type,
       });
 
-      toast.success("项目创建成功");
+      notifyProjectCreatedWithRuntimeAgentsGuide(newProject, "项目创建成功");
       await loadProjects();
       onSelectProject(newProject.id);
     } catch (error) {

@@ -26,6 +26,7 @@ use crate::models::project_model::{
     CreatePersonaRequest, Persona, PersonaTemplate, PersonaUpdate, UpdateBrandExtensionRequest,
 };
 use crate::services::memory_profile_prompt_service::{build_memory_prompt, MemoryPromptContext};
+use lime_agent::merge_system_prompt_with_runtime_agents;
 use lime_services::persona_service::PersonaService;
 
 // ============================================================================
@@ -361,10 +362,19 @@ pub async fn generate_persona(
     let mut session_config_builder =
         crate::agent::aster_state::SessionConfigBuilder::new(&session_id)
             .include_context_trace(true);
-    if let Some(memory_prompt) =
+    let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
+    let merged_prompt = if let Some(memory_prompt) =
         build_memory_prompt(&config_manager.config(), MemoryPromptContext::default())
     {
-        session_config_builder = session_config_builder.system_prompt(memory_prompt);
+        match base_runtime_prompt {
+            Some(base) => Some(format!("{base}\n\n{memory_prompt}")),
+            None => Some(memory_prompt),
+        }
+    } else {
+        base_runtime_prompt
+    };
+    if let Some(prompt) = merged_prompt {
+        session_config_builder = session_config_builder.system_prompt(prompt);
     }
     let session_config = session_config_builder.build();
 

@@ -19,6 +19,7 @@ import type {
 import { type InputbarToolStates } from "./hooks/useInputbarToolState";
 import { useInputbarController } from "./hooks/useInputbarController";
 import type { TeamDefinition } from "../../utils/teamDefinitions";
+import type { WorkspaceSettings } from "@/types/workspace";
 
 interface InputbarProps {
   input: string;
@@ -69,6 +70,7 @@ interface InputbarProps {
   setProviderType?: (type: string) => void;
   model?: string;
   setModel?: (model: string) => void;
+  workspaceId?: string | null;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   setExecutionStrategy?: (
     strategy: "react" | "code_orchestrated" | "auto",
@@ -93,6 +95,8 @@ interface InputbarProps {
   selectedTeam?: TeamDefinition | null;
   onSelectTeam?: (team: TeamDefinition | null) => void;
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
+  teamWorkspaceSettings?: WorkspaceSettings | null;
+  onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
 }
 
 export const Inputbar: React.FC<InputbarProps> = ({
@@ -122,6 +126,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
   setProviderType,
   model,
   setModel,
+  workspaceId,
   executionStrategy,
   setExecutionStrategy,
   toolStates,
@@ -141,6 +146,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
   selectedTeam,
   onSelectTeam,
   onEnableSuggestedTeam,
+  teamWorkspaceSettings,
+  onPersistCustomTeams,
 }) => {
   const {
     textareaRef,
@@ -245,6 +252,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onRefreshSkills={onRefreshSkills}
         selectedTeam={selectedTeam}
         onSelectTeam={onSelectTeam}
+        teamWorkspaceSettings={teamWorkspaceSettings}
+        onPersistCustomTeams={onPersistCustomTeams}
+        workspaceId={workspaceId}
         onSend={handleSend}
         onToolClick={handleToolClick}
         activeTools={activeTools}
@@ -256,6 +266,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
         isCanvasOpen={isCanvasOpen}
         isThemeWorkbenchVariant={isThemeWorkbenchVariant}
         activeTheme={activeTheme}
+        providerType={providerType}
+        model={model}
         onManageProviders={onManageProviders}
         setExecutionStrategy={setExecutionStrategy}
         topExtra={topExtra}

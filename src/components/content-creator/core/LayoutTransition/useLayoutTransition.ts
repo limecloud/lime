@@ -34,6 +34,8 @@ const DEFAULT_CONFIG: Required<TransitionConfig> = {
   exitDelay: 0,
 };
 
+const CHAT_CANVAS_PANEL_WIDTH = "min(100%, clamp(480px, 40%, 600px))";
+
 /**
  * 布局过渡 Hook
  *
@@ -122,7 +124,11 @@ export function useLayoutTransition(
       return {
         transition: `width ${duration}ms ease-out`,
         width:
-          mode === "chat-canvas" ? "35%" : mode === "canvas" ? "0%" : "100%",
+          mode === "chat-canvas"
+            ? CHAT_CANVAS_PANEL_WIDTH
+            : mode === "canvas"
+              ? "0%"
+              : "100%",
       };
     },
     [transitionState, mergedConfig, mode],

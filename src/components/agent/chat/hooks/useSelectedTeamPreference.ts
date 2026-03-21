@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { WorkspaceSettings } from "@/types/workspace";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import {
   buildTeamDefinitionLabel,
@@ -7,24 +8,55 @@ import {
 } from "../utils/teamDefinitions";
 import {
   persistSelectedTeam,
-  resolvePersistedSelectedTeam,
+  resolveSelectedTeamPreference,
 } from "../utils/teamStorage";
 
-export function useSelectedTeamPreference(theme?: string | null) {
+interface UseSelectedTeamPreferenceOptions {
+  projectSettings?: WorkspaceSettings | null;
+  onPersistSelectedTeam?: (team: TeamDefinition | null) => void | Promise<void>;
+}
+
+export function useSelectedTeamPreference(
+  theme?: string | null,
+  options: UseSelectedTeamPreferenceOptions = {},
+) {
+  const { projectSettings, onPersistSelectedTeam } = options;
+  const resolveCurrentSelection = useCallback(
+    () =>
+      resolveSelectedTeamPreference({
+        theme,
+        workspaceSettings: projectSettings,
+      }),
+    [projectSettings, theme],
+  );
   const [selectedTeam, setSelectedTeamState] = useState<TeamDefinition | null>(
-    () => resolvePersistedSelectedTeam(theme),
+    () => resolveCurrentSelection(),
   );
 
   useEffect(() => {
-    setSelectedTeamState(resolvePersistedSelectedTeam(theme));
-  }, [theme]);
+    setSelectedTeamState(resolveCurrentSelection());
+  }, [resolveCurrentSelection]);
 
   const setSelectedTeam = useCallback(
     (team: TeamDefinition | null) => {
-      persistSelectedTeam(team, theme);
       setSelectedTeamState(team);
+
+      if (onPersistSelectedTeam && team?.source !== "ephemeral") {
+        const fallbackTeam = resolveCurrentSelection();
+        void Promise.resolve(onPersistSelectedTeam(team)).catch((error) => {
+          console.warn("[Team] 持久化项目级 Team 偏好失败:", error);
+          setSelectedTeamState(fallbackTeam);
+        });
+        return;
+      }
+
+      if (onPersistSelectedTeam && team?.source === "ephemeral") {
+        return;
+      }
+
+      persistSelectedTeam(team, theme);
     },
-    [theme],
+    [onPersistSelectedTeam, resolveCurrentSelection, theme],
   );
 
   const enableSuggestedTeam = useCallback(

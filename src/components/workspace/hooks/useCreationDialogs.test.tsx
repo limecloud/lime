@@ -25,6 +25,7 @@ const {
   mockGetProjectTypeLabel,
   mockGetWorkspaceProjectsRoot,
   mockListContents,
+  mockNotifyProjectCreatedWithRuntimeAgentsGuide,
   mockResolveProjectRootPath,
   mockToastError,
   mockToastSuccess,
@@ -40,6 +41,7 @@ const {
   mockGetProjectTypeLabel: vi.fn(),
   mockGetWorkspaceProjectsRoot: vi.fn(),
   mockListContents: vi.fn(),
+  mockNotifyProjectCreatedWithRuntimeAgentsGuide: vi.fn(),
   mockResolveProjectRootPath: vi.fn(),
   mockToastError: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -65,6 +67,11 @@ vi.mock("@/lib/api/project", () => ({
   getWorkspaceProjectsRoot: mockGetWorkspaceProjectsRoot,
   listContents: mockListContents,
   resolveProjectRootPath: mockResolveProjectRootPath,
+}));
+
+vi.mock("@/components/workspace/services/runtimeAgentsGuideService", () => ({
+  notifyProjectCreatedWithRuntimeAgentsGuide:
+    mockNotifyProjectCreatedWithRuntimeAgentsGuide,
 }));
 
 type HarnessProps = UseCreationDialogsParams;
@@ -253,6 +260,7 @@ beforeEach(() => {
   mockCreateProject.mockResolvedValue({
     id: "project-new",
     name: "新项目A",
+    rootPath: "/tmp/workspace/新项目A",
   });
   mockExtractErrorMessage.mockReturnValue("mock-error");
   mockGetCreateProjectErrorMessage.mockReturnValue("mock-friendly-error");
@@ -338,7 +346,13 @@ describe("useCreationDialogs", () => {
     expect(onProjectCreated).toHaveBeenCalledWith("project-new");
     expect(loadProjects).toHaveBeenCalledTimes(1);
     expect(mockCreateContent).not.toHaveBeenCalled();
-    expect(mockToastSuccess).toHaveBeenCalledWith("已创建新项目");
+    expect(mockNotifyProjectCreatedWithRuntimeAgentsGuide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "project-new",
+        rootPath: "/tmp/workspace/新项目A",
+      }),
+      "已创建新项目",
+    );
 
     const root = getRootElement(container);
     expect(root?.dataset.createProjectOpen).toBe("false");

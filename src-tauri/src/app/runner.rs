@@ -17,6 +17,12 @@ use super::types::{AppState, TrayManagerState};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 
+fn compiled_updater_public_key() -> Option<&'static str> {
+    option_env!("LIME_UPDATER_PUBLIC_KEY")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
 fn should_minimize_to_tray(window_label: &str, minimize_to_tray: bool) -> bool {
     minimize_to_tray && window_label == MAIN_WINDOW_LABEL
 }
@@ -127,7 +133,7 @@ pub fn run() {
     let shared_stats_clone = shared_stats.clone();
     let shared_tokens_clone = shared_tokens.clone();
     let shared_logger_clone = shared_logger.clone();
-    let update_check_service_clone = update_check_service_state.0.clone();
+    let update_check_service_clone = update_check_service_state.clone();
     let gateway_tunnel_state = lime_gateway::tunnel::GatewayTunnelState::default();
     let gateway_tunnel_state_for_setup = gateway_tunnel_state.clone();
     let global_config_manager_for_setup = global_config_manager_state.clone();
@@ -226,6 +232,17 @@ pub fn run() {
             }
         })
         .setup(move |app| {
+            #[cfg(desktop)]
+            if let Some(public_key) = compiled_updater_public_key() {
+                app.handle().plugin(
+                    tauri_plugin_updater::Builder::new()
+                        .pubkey(public_key)
+                        .build(),
+                )?;
+            } else {
+                tracing::info!("[启动] 未注入 updater 公钥，跳过注册 updater 插件");
+            }
+
             // 启动时先最大化再显示，避免用户看到“先小窗后展开”的过程。
             if let Some(main_window) = app.get_webview_window("main") {
                 reveal_main_window(&main_window);
@@ -1085,14 +1102,16 @@ pub fn run() {
             // Path utility commands
             commands::config_cmd::expand_path,
             commands::config_cmd::open_auth_dir,
-            commands::config_cmd::check_for_updates,
-            commands::config_cmd::download_update,
             // OpenClaw commands
             commands::openclaw_cmd::openclaw_check_installed,
             commands::openclaw_cmd::openclaw_get_environment_status,
             commands::openclaw_cmd::openclaw_check_node_version,
             commands::openclaw_cmd::openclaw_check_git_available,
             commands::openclaw_cmd::openclaw_get_node_download_url,
+            commands::claw_solution_cmd::claw_solution_list,
+            commands::claw_solution_cmd::claw_solution_detail,
+            commands::claw_solution_cmd::claw_solution_check_readiness,
+            commands::claw_solution_cmd::claw_solution_prepare,
             commands::openclaw_cmd::openclaw_get_git_download_url,
             commands::openclaw_cmd::openclaw_get_command_preview,
             commands::openclaw_cmd::openclaw_get_progress_logs,
@@ -1384,28 +1403,28 @@ pub fn run() {
             commands::agent_cmd::agent_get_process_status,
             commands::agent_cmd::agent_generate_title,
             // Aster Agent commands
-            commands::aster_agent_cmd::aster_agent_init,
-            commands::aster_agent_cmd::aster_agent_status,
-            commands::aster_agent_cmd::aster_agent_reset,
-            commands::aster_agent_cmd::aster_agent_configure_provider,
-            commands::aster_agent_cmd::aster_agent_configure_from_pool,
-            commands::aster_agent_cmd::agent_runtime_submit_turn,
-            commands::aster_agent_cmd::agent_runtime_interrupt_turn,
-            commands::aster_agent_cmd::agent_runtime_promote_queued_turn,
-            commands::aster_agent_cmd::agent_runtime_remove_queued_turn,
-            commands::aster_agent_cmd::agent_runtime_create_session,
-            commands::aster_agent_cmd::agent_runtime_list_sessions,
-            commands::aster_agent_cmd::agent_runtime_get_session,
-            commands::aster_agent_cmd::agent_runtime_get_tool_inventory,
-            commands::aster_agent_cmd::agent_runtime_spawn_subagent,
-            commands::aster_agent_cmd::agent_runtime_send_subagent_input,
-            commands::aster_agent_cmd::agent_runtime_wait_subagents,
-            commands::aster_agent_cmd::agent_runtime_resume_subagent,
-            commands::aster_agent_cmd::agent_runtime_close_subagent,
-            commands::aster_agent_cmd::agent_runtime_update_session,
-            commands::aster_agent_cmd::agent_runtime_delete_session,
-            commands::aster_agent_cmd::agent_runtime_respond_action,
-            commands::aster_agent_cmd::social_generate_cover_image_cmd,
+            commands::aster_agent_cmd::command_api::provider_api::aster_agent_init,
+            commands::aster_agent_cmd::command_api::provider_api::aster_agent_status,
+            commands::aster_agent_cmd::command_api::provider_api::aster_agent_reset,
+            commands::aster_agent_cmd::command_api::provider_api::aster_agent_configure_provider,
+            commands::aster_agent_cmd::command_api::provider_api::aster_agent_configure_from_pool,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_submit_turn,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_interrupt_turn,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_promote_queued_turn,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_remove_queued_turn,
+            commands::aster_agent_cmd::command_api::session_api::agent_runtime_create_session,
+            commands::aster_agent_cmd::command_api::session_api::agent_runtime_list_sessions,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_session,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_tool_inventory,
+            commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_spawn_subagent,
+            commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_send_subagent_input,
+            commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_wait_subagents,
+            commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_resume_subagent,
+            commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_close_subagent,
+            commands::aster_agent_cmd::command_api::session_api::agent_runtime_update_session,
+            commands::aster_agent_cmd::action_runtime::agent_runtime_delete_session,
+            commands::aster_agent_cmd::action_runtime::agent_runtime_respond_action,
+            commands::aster_agent_cmd::tool_runtime::social_tools::social_generate_cover_image_cmd,
             commands::theme_context_cmd::aster_agent_theme_context_search,
             // Models config commands
             commands::models_cmd::get_models_config,
@@ -1564,6 +1583,8 @@ pub fn run() {
             commands::screenshot_cmd::send_screenshot_chat,
             // Update Check commands
             commands::update_cmd::check_update,
+            commands::update_cmd::check_for_updates,
+            commands::update_cmd::download_update,
             commands::update_cmd::get_update_check_settings,
             commands::update_cmd::set_update_check_settings,
             commands::update_cmd::get_update_notification_metrics,
@@ -1736,6 +1757,8 @@ pub fn run() {
             commands::memory_management_cmd::memory_get_auto_index,
             commands::memory_management_cmd::memory_toggle_auto,
             commands::memory_management_cmd::memory_update_auto_note,
+            commands::memory_management_cmd::memory_scaffold_runtime_agents_template,
+            commands::memory_management_cmd::memory_ensure_workspace_local_agents_gitignore,
             // Unified Memory commands
             commands::unified_memory_cmd::unified_memory_list,
             commands::unified_memory_cmd::unified_memory_get,

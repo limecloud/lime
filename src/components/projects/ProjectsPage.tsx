@@ -31,6 +31,7 @@ import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { ContentListPage } from "./ContentListPage";
 import { toast } from "sonner";
 import { Page, PageParams } from "@/types/page";
+import { notifyProjectCreatedWithRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 
 interface ProjectsPageProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
@@ -166,13 +167,13 @@ export function ProjectsPage({ onNavigate }: ProjectsPageProps) {
     try {
       const projectPath = await resolveProjectRootPath(name);
 
-      await createProject({
+      const createdProject = await createProject({
         name,
         rootPath: projectPath,
         workspaceType: type,
       });
 
-      toast.success("项目创建成功");
+      notifyProjectCreatedWithRuntimeAgentsGuide(createdProject, "项目创建成功");
       loadProjects();
     } catch (error) {
       console.error("创建项目失败:", error);

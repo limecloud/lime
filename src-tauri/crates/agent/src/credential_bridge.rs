@@ -22,6 +22,9 @@ use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::provider_pool_service::ProviderPoolService;
 use std::sync::Arc;
 
+use crate::kiro_provider_adapter::LimeKiroProvider;
+use crate::provider_safety::wrap_provider_with_message_safety;
+
 /// 凭证桥接错误
 #[derive(Debug, Clone)]
 pub enum CredentialBridgeError {
@@ -66,6 +69,8 @@ pub struct AsterProviderConfig {
     pub credential_uuid: String,
     /// 是否强制 OpenAI provider 使用 Responses API（用于 Codex 等兼容链路）
     pub force_responses_api: bool,
+    /// OAuth/本地 Provider 需要的凭证文件路径
+    pub credential_path: Option<String>,
 }
 
 /// 凭证池桥接器
@@ -212,8 +217,7 @@ impl CredentialBridge {
                 let token = self
                     .get_kiro_token(creds_file_path, db, &credential.uuid)
                     .await?;
-                // Kiro 使用 CodeWhisperer API，映射到 bedrock provider
-                ("bedrock".to_string(), Some(token), None, false)
+                ("kiro".to_string(), Some(token), None, false)
             }
 
             // Gemini OAuth
@@ -281,6 +285,10 @@ impl CredentialBridge {
             base_url,
             credential_uuid: credential.uuid.clone(),
             force_responses_api,
+            credential_path: match &credential.credential {
+                CredentialData::KiroOAuth { creds_file_path } => Some(creds_file_path.clone()),
+                _ => None,
+            },
         })
     }
 
@@ -395,6 +403,27 @@ impl CredentialBridge {
 pub async fn create_aster_provider(
     config: &AsterProviderConfig,
 ) -> Result<Arc<dyn Provider>, CredentialBridgeError> {
+    if config.provider_name == "kiro" {
+        let model_config = ModelConfig::new(&config.model_name).map_err(|e| {
+            CredentialBridgeError::ProviderCreationFailed(format!("创建 ModelConfig 失败: {e}"))
+        })?;
+
+        let credential_path = config.credential_path.clone().ok_or_else(|| {
+            CredentialBridgeError::ProviderCreationFailed(
+                "Kiro provider 缺少 credential_path".to_string(),
+            )
+        })?;
+
+        let provider = LimeKiroProvider::new(credential_path, model_config).map_err(|error| {
+            CredentialBridgeError::ProviderCreationFailed(format!(
+                "创建 Kiro Provider 失败: {}",
+                error
+            ))
+        })?;
+
+        return Ok(wrap_provider_with_message_safety(Arc::new(provider)));
+    }
+
     // 设置环境变量
     set_provider_env_vars(config);
 
@@ -406,6 +435,7 @@ pub async fn create_aster_provider(
     // 创建 Provider
     aster::providers::create(&config.provider_name, model_config)
         .await
+        .map(wrap_provider_with_message_safety)
         .map_err(|e| {
             CredentialBridgeError::ProviderCreationFailed(format!("创建 Provider 失败: {e}"))
         })
@@ -544,7 +574,7 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
 /// 将 Lime PoolProviderType 映射到 Aster Provider 名称
 pub fn map_pool_type_to_aster(pool_type: &PoolProviderType) -> &'static str {
     match pool_type {
-        PoolProviderType::Kiro => "bedrock",
+        PoolProviderType::Kiro => "kiro",
         PoolProviderType::Gemini => "google",
         PoolProviderType::Antigravity => "google",
         PoolProviderType::OpenAI => "openai",
@@ -574,7 +604,8 @@ fn map_provider_type_to_aster(provider_type: &str) -> &'static str {
         "openai" => "openai",
         "anthropic" | "claude" => "anthropic",
         "google" | "gemini" => "google",
-        "bedrock" | "kiro" => "bedrock",
+        "bedrock" => "bedrock",
+        "kiro" | "codewhisperer" => "kiro",
         "gcpvertexai" | "vertex" => "gcpvertexai",
         "codex" => "codex",
         "azure" | "azure-openai" => "azure",
@@ -621,7 +652,7 @@ mod tests {
             "anthropic"
         );
         assert_eq!(map_pool_type_to_aster(&PoolProviderType::Gemini), "google");
-        assert_eq!(map_pool_type_to_aster(&PoolProviderType::Kiro), "bedrock");
+        assert_eq!(map_pool_type_to_aster(&PoolProviderType::Kiro), "kiro");
     }
 
     #[test]
@@ -659,6 +690,7 @@ mod tests {
             base_url: Some("https://example.com/openai".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
+            credential_path: None,
         };
 
         set_provider_env_vars(&config);
@@ -717,6 +749,7 @@ mod tests {
             base_url: Some("https://open.bigmodel.cn/api/anthropic".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
+            credential_path: None,
         };
 
         set_provider_env_vars(&config);

@@ -7,6 +7,8 @@ import {
   getContextMemoryEffectiveSources,
   getContextMemoryOverview,
   getContextMemoryStats,
+  ensureWorkspaceLocalAgentsGitignore,
+  scaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto,
   updateContextMemoryAutoNote,
 } from "./memoryRuntime";
@@ -39,6 +41,10 @@ describe("memoryRuntime API", () => {
           return { sources: [] };
         case "memory_get_auto_index":
           return { items: [] };
+        case "memory_scaffold_runtime_agents_template":
+          return { status: "created", path: "/tmp/.lime/AGENTS.md" };
+        case "memory_ensure_workspace_local_agents_gitignore":
+          return { status: "added", path: "/tmp/.gitignore" };
         default:
           return null;
       }
@@ -62,6 +68,12 @@ describe("memoryRuntime API", () => {
     await expect(getContextMemoryAutoIndex()).resolves.toEqual(
       expect.objectContaining({ items: [] }),
     );
+    await expect(scaffoldRuntimeAgentsTemplate("workspace", "/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ status: "created" }),
+    );
+    await expect(ensureWorkspaceLocalAgentsGitignore("/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ status: "added" }),
+    );
 
     expect(safeInvoke).toHaveBeenNthCalledWith(1, "memory_runtime_get_stats");
     expect(safeInvoke).toHaveBeenNthCalledWith(2, "memory_runtime_request_analysis", {
@@ -79,6 +91,22 @@ describe("memoryRuntime API", () => {
     expect(safeInvoke).toHaveBeenNthCalledWith(6, "memory_get_auto_index", {
       workingDir: undefined,
     });
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      7,
+      "memory_scaffold_runtime_agents_template",
+      {
+        overwrite: undefined,
+        target: "workspace",
+        workingDir: "/tmp/workspace",
+      },
+    );
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      8,
+      "memory_ensure_workspace_local_agents_gitignore",
+      {
+        workingDir: "/tmp/workspace",
+      },
+    );
   });
 
   it("应暴露清晰的 context memory 命名", async () => {
@@ -100,6 +128,10 @@ describe("memoryRuntime API", () => {
           return { enabled: true };
         case "memory_update_auto_note":
           return { items: [] };
+        case "memory_scaffold_runtime_agents_template":
+          return { status: "exists", path: "/tmp/.lime/AGENTS.md" };
+        case "memory_ensure_workspace_local_agents_gitignore":
+          return { status: "exists", path: "/tmp/.gitignore" };
         default:
           return null;
       }
@@ -128,6 +160,12 @@ describe("memoryRuntime API", () => {
     );
     await expect(updateContextMemoryAutoNote("note")).resolves.toEqual(
       expect.objectContaining({ items: [] }),
+    );
+    await expect(scaffoldRuntimeAgentsTemplate("global")).resolves.toEqual(
+      expect.objectContaining({ status: "exists" }),
+    );
+    await expect(ensureWorkspaceLocalAgentsGitignore("/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ status: "exists" }),
     );
   });
 

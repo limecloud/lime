@@ -32,6 +32,10 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 use crate::credential_bridge::{create_aster_provider, AsterProviderConfig, CredentialBridge};
+use crate::provider_continuation_state::{
+    resolve_provider_continuation_capability, ProviderContinuationCapability,
+    ProviderContinuationCapable, ProviderContinuationState,
+};
 #[cfg(test)]
 use crate::queued_turn::QueuedTurnSnapshot;
 use lime_core::database::DbConnection;
@@ -95,6 +99,23 @@ pub struct ProviderConfig {
     pub credential_uuid: Option<String>,
     /// 是否强制 OpenAI provider 使用 Responses API
     pub force_responses_api: bool,
+    /// OAuth/本地 Provider 需要的凭证文件路径
+    pub credential_path: Option<String>,
+}
+
+impl ProviderContinuationCapable for ProviderConfig {
+    fn provider_continuation_capability(&self) -> ProviderContinuationCapability {
+        resolve_provider_continuation_capability(
+            &self.provider_name,
+            self.provider_selector.as_deref(),
+            &self.model_name,
+            self.force_responses_api,
+        )
+    }
+
+    fn provider_continuation_state(&self) -> ProviderContinuationState {
+        ProviderContinuationState::history_replay_only()
+    }
 }
 
 /// Aster Agent 全局状态
@@ -247,6 +268,7 @@ impl AsterAgentState {
                 .clone()
                 .unwrap_or_else(|| format!("manual:{session_id}")),
             force_responses_api: config.force_responses_api,
+            credential_path: config.credential_path.clone(),
         })
         .await
         .map_err(|e| format!("创建 Provider 失败: {e}"))?;
@@ -326,6 +348,7 @@ impl AsterAgentState {
             base_url: aster_config.base_url.clone(),
             credential_uuid: Some(aster_config.credential_uuid.clone()),
             force_responses_api: aster_config.force_responses_api,
+            credential_path: aster_config.credential_path.clone(),
         };
         let mut config_guard = self.current_provider_config.write().await;
         *config_guard = Some(config);
@@ -611,6 +634,75 @@ mod tests {
         assert_eq!(snapshot.queued_turn_id, "turn-restore-1");
         assert_eq!(snapshot.position, 2);
         assert_eq!(snapshot.message_text, "restore body 1");
+    }
+
+    #[test]
+    fn test_provider_config_detects_previous_response_id_capability_for_codex_responses() {
+        let config = ProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("openai".to_string()),
+            model_name: "gpt-5-codex".to_string(),
+            api_key: None,
+            base_url: None,
+            credential_uuid: None,
+            force_responses_api: false,
+            credential_path: None,
+        };
+
+        assert_eq!(
+            config.provider_continuation_capability(),
+            ProviderContinuationCapability::PreviousResponseId
+        );
+        assert_eq!(
+            config.provider_continuation_state(),
+            ProviderContinuationState::HistoryReplayOnly
+        );
+    }
+
+    #[test]
+    fn test_provider_config_detects_previous_response_id_capability_when_forced() {
+        let config = ProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("openai".to_string()),
+            model_name: "gpt-4o".to_string(),
+            api_key: None,
+            base_url: None,
+            credential_uuid: None,
+            force_responses_api: true,
+            credential_path: None,
+        };
+
+        assert_eq!(
+            config.provider_continuation_capability(),
+            ProviderContinuationCapability::PreviousResponseId
+        );
+        assert_eq!(
+            config.provider_continuation_state(),
+            ProviderContinuationState::HistoryReplayOnly
+        );
+    }
+
+    #[test]
+    fn test_provider_config_detects_kiro_provider_session_token_capability() {
+        let config = ProviderConfig {
+            provider_name: "kiro".to_string(),
+            provider_selector: Some("kiro".to_string()),
+            model_name: "claude-3.7-sonnet".to_string(),
+            api_key: None,
+            base_url: None,
+            credential_uuid: None,
+            force_responses_api: false,
+            credential_path: None,
+        };
+
+        assert_eq!(
+            config.provider_continuation_capability(),
+            ProviderContinuationCapability::ProviderSessionToken
+        );
+        assert_eq!(
+            config.provider_continuation_state(),
+            ProviderContinuationState::HistoryReplayOnly
+        );
     }
 
     // =========================================================================

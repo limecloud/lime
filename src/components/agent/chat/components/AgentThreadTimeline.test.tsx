@@ -758,6 +758,9 @@ describe("AgentThreadTimeline", () => {
 
     clickTimelineToggle(container);
 
+    expect(container.textContent).toContain("图片任务 1");
+    expect(container.textContent).not.toContain("Image #1");
+
     const button = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),
     ).find((element) => element.textContent?.includes("打开子会话"));

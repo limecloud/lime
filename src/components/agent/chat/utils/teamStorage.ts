@@ -1,3 +1,8 @@
+import type {
+  WorkspaceAgentCustomTeamSettings,
+  WorkspaceSettings,
+  WorkspaceTeamSelectionReference,
+} from "@/types/workspace";
 import type { TeamDefinition } from "./teamDefinitions";
 import {
   createTeamDefinitionFromPreset,
@@ -8,6 +13,18 @@ import {
 
 const CUSTOM_TEAM_STORAGE_KEY = "lime.chat.custom_teams.v1";
 const TEAM_SELECTION_STORAGE_KEY_PREFIX = "lime.chat.team_selection.v1";
+
+type TeamSelectionLike = Pick<TeamSelectionReference, "id" | "source">;
+
+interface ResolveSelectedTeamPreferenceOptions {
+  theme?: string | null;
+  workspaceSettings?: WorkspaceSettings | null;
+}
+
+type WorkspaceTeamPreferenceState =
+  | { kind: "unset" }
+  | { kind: "disabled" }
+  | { kind: "selected"; selection: TeamSelectionReference };
 
 function normalizeCustomTeamList(
   teams: Array<Partial<TeamDefinition>> | TeamDefinition[],
@@ -43,6 +60,62 @@ function getTeamSelectionStorageKey(theme?: string | null): string {
   return `${TEAM_SELECTION_STORAGE_KEY_PREFIX}.${normalizeThemeScope(theme)}`;
 }
 
+function normalizeWorkspaceTeamSelectionReference(
+  value?: Partial<WorkspaceTeamSelectionReference> | null,
+): TeamSelectionReference | null {
+  if (
+    typeof value?.id !== "string" ||
+    !value.id.trim() ||
+    (value.source !== "builtin" && value.source !== "custom")
+  ) {
+    return null;
+  }
+
+  return {
+    id: value.id.trim(),
+    source: value.source,
+  };
+}
+
+function resolveTeamFromSelection(
+  selection?: TeamSelectionReference | null,
+  customTeams?: TeamDefinition[],
+): TeamDefinition | null {
+  if (!selection) {
+    return null;
+  }
+
+  if (selection.source === "builtin") {
+    return createTeamDefinitionFromPreset(selection.id);
+  }
+
+  return (
+    (customTeams || loadCustomTeams()).find((team) => team.id === selection.id) ||
+    null
+  );
+}
+
+function normalizeWorkspaceCustomTeamList(
+  teams?: Array<Partial<WorkspaceAgentCustomTeamSettings>> | null,
+): TeamDefinition[] | null {
+  if (!Array.isArray(teams)) {
+    return null;
+  }
+
+  return normalizeCustomTeamList(
+    teams.map((team) => ({
+      ...team,
+      source: "custom" as const,
+      roles: Array.isArray(team.roles)
+        ? team.roles.map((role) => ({
+            ...role,
+            skillIds: Array.isArray(role.skillIds) ? [...role.skillIds] : [],
+          }))
+        : [],
+    })),
+  );
+}
+
 export function loadCustomTeams(): TeamDefinition[] {
   try {
     const raw = localStorage.getItem(CUSTOM_TEAM_STORAGE_KEY);
@@ -73,14 +146,12 @@ export function persistSelectedTeam(
 ): void {
   try {
     const key = getTeamSelectionStorageKey(theme);
-    if (!team) {
+    const selection = buildTeamSelectionReference(team);
+    if (!team || !selection) {
       localStorage.removeItem(key);
       return;
     }
-    localStorage.setItem(
-      key,
-      JSON.stringify(buildTeamSelectionReference(team)),
-    );
+    localStorage.setItem(key, JSON.stringify(selection));
   } catch {
     // ignore persistence errors
   }
@@ -111,17 +182,135 @@ export function loadSelectedTeamReference(
   }
 }
 
+export function resolveWorkspaceTeamPreferenceState(
+  settings?: WorkspaceSettings | null,
+): WorkspaceTeamPreferenceState {
+  const agentTeam = settings?.agentTeam;
+  if (!agentTeam) {
+    return { kind: "unset" };
+  }
+
+  if (agentTeam.disabled) {
+    return { kind: "disabled" };
+  }
+
+  const selection = normalizeWorkspaceTeamSelectionReference(
+    agentTeam.selectedTeam,
+  );
+  return selection ? { kind: "selected", selection } : { kind: "unset" };
+}
+
+export function loadCustomTeamsFromWorkspaceSettings(
+  settings?: WorkspaceSettings | null,
+): TeamDefinition[] | null {
+  return normalizeWorkspaceCustomTeamList(settings?.agentTeam?.customTeams);
+}
+
+export function resolveCustomTeams(
+  workspaceSettings?: WorkspaceSettings | null,
+): TeamDefinition[] {
+  return loadCustomTeamsFromWorkspaceSettings(workspaceSettings) || loadCustomTeams();
+}
+
+export function loadSelectedTeamReferenceFromWorkspaceSettings(
+  settings?: WorkspaceSettings | null,
+): TeamSelectionReference | null {
+  const state = resolveWorkspaceTeamPreferenceState(settings);
+  return state.kind === "selected" ? state.selection : null;
+}
+
+export function buildWorkspaceSettingsWithSelectedTeam(
+  currentSettings: WorkspaceSettings | null | undefined,
+  team: TeamDefinition | null,
+): WorkspaceSettings {
+  const selection = buildTeamSelectionReference(team);
+  if (team?.source === "ephemeral") {
+    return {
+      ...(currentSettings || {}),
+      agentTeam: {
+        ...(currentSettings?.agentTeam || {}),
+        disabled: false,
+        selectedTeam: undefined,
+      },
+    };
+  }
+
+  return {
+    ...(currentSettings || {}),
+    agentTeam: selection
+      ? {
+          ...(currentSettings?.agentTeam || {}),
+          disabled: false,
+          selectedTeam: selection,
+        }
+      : {
+          ...(currentSettings?.agentTeam || {}),
+          disabled: true,
+        },
+  };
+}
+
+export function buildWorkspaceSettingsWithCustomTeams(
+  currentSettings: WorkspaceSettings | null | undefined,
+  teams: TeamDefinition[],
+): WorkspaceSettings {
+  return {
+    ...(currentSettings || {}),
+    agentTeam: {
+      ...(currentSettings?.agentTeam || {}),
+      customTeams: normalizeCustomTeamList(teams).map((team) => ({
+        id: team.id,
+        label: team.label,
+        description: team.description,
+        theme: team.theme,
+        presetId: team.presetId,
+        roles: team.roles.map((role) => ({
+          id: role.id,
+          label: role.label,
+          summary: role.summary,
+          profileId: role.profileId,
+          roleKey: role.roleKey,
+          skillIds: role.skillIds ? [...role.skillIds] : [],
+        })),
+        createdAt: team.createdAt,
+        updatedAt: team.updatedAt,
+      })),
+    },
+  };
+}
+
+export function isSameTeamSelectionReference(
+  left?: TeamSelectionLike | null,
+  right?: TeamSelectionLike | null,
+): boolean {
+  return (
+    (left?.id || "") === (right?.id || "") &&
+    (left?.source || "") === (right?.source || "")
+  );
+}
+
 export function resolvePersistedSelectedTeam(
   theme?: string | null,
 ): TeamDefinition | null {
-  const selection = loadSelectedTeamReference(theme);
-  if (!selection) {
+  return resolveTeamFromSelection(loadSelectedTeamReference(theme));
+}
+
+export function resolveSelectedTeamPreference({
+  theme,
+  workspaceSettings,
+}: ResolveSelectedTeamPreferenceOptions): TeamDefinition | null {
+  const workspaceState = resolveWorkspaceTeamPreferenceState(workspaceSettings);
+  const workspaceCustomTeams = loadCustomTeamsFromWorkspaceSettings(workspaceSettings);
+  if (workspaceState.kind === "disabled") {
     return null;
   }
 
-  if (selection.source === "builtin") {
-    return createTeamDefinitionFromPreset(selection.id);
+  if (workspaceState.kind === "selected") {
+    return resolveTeamFromSelection(
+      workspaceState.selection,
+      workspaceCustomTeams || undefined,
+    );
   }
 
-  return loadCustomTeams().find((team) => team.id === selection.id) || null;
+  return resolvePersistedSelectedTeam(theme);
 }

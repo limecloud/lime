@@ -22,8 +22,7 @@ import {
 } from "@/lib/api/appUpdate";
 import { cn } from "@/lib/utils";
 
-const FALLBACK_RELEASES_URL =
-  "https://github.com/aiclientproxy/lime/releases";
+const FALLBACK_RELEASES_URL = "https://github.com/aiclientproxy/lime/releases";
 
 const CREATIVE_THEMES = [
   "通用对话",
@@ -73,6 +72,23 @@ const RELATED_LINKS = [
     description: "提交 bug、改进建议和排障信息。",
   },
 ] as const;
+
+function formatUpdateDate(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
 
 interface AboutPanelProps {
   icon: LucideIcon;
@@ -150,11 +166,10 @@ export function AboutSection() {
     const loadCurrentVersion = async () => {
       try {
         const result = await checkForUpdates();
-        setVersionInfo((prev) => ({
-          ...prev,
-          current: result.current,
+        setVersionInfo({
+          ...result,
           downloadUrl: result.downloadUrl || FALLBACK_RELEASES_URL,
-        }));
+        });
       } catch (error) {
         console.error("Failed to load version:", error);
         setVersionInfo((prev) => ({
@@ -200,8 +215,8 @@ export function AboutSection() {
           setDownloadResult({
             ...result,
             message: t(
-              "安装程序已启动，应用将自动关闭以完成更新",
-              "安装程序已启动，应用将自动关闭以完成更新",
+              "更新已安装，应用将自动重启以完成升级",
+              "更新已安装，应用将自动重启以完成升级",
             ),
           });
         }, 1000);
@@ -251,6 +266,20 @@ export function AboutSection() {
     };
   }, [t, versionInfo.error, versionInfo.hasUpdate, versionInfo.latest]);
 
+  const releaseNotesPreview = useMemo(() => {
+    const notes = versionInfo.releaseNotes?.trim();
+    if (!notes) {
+      return null;
+    }
+
+    return notes.length > 220 ? `${notes.slice(0, 220)}...` : notes;
+  }, [versionInfo.releaseNotes]);
+
+  const updatePublishedAt = useMemo(
+    () => formatUpdateDate(versionInfo.pubDate),
+    [versionInfo.pubDate],
+  );
+
   return (
     <div className="space-y-6 pb-8">
       <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(245,250,248,0.98)_0%,rgba(255,255,255,0.98)_52%,rgba(242,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
@@ -278,13 +307,22 @@ export function AboutSection() {
 
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  {t("一句话：从“想到”直接走到“可发布”", "一句话：从“想到”直接走到“可发布”")}
+                  {t(
+                    "一句话：从“想到”直接走到“可发布”",
+                    "一句话：从“想到”直接走到“可发布”",
+                  )}
                 </span>
                 <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  {t("支持多主题创作与跨媒介工作流", "支持多主题创作与跨媒介工作流")}
+                  {t(
+                    "支持多主题创作与跨媒介工作流",
+                    "支持多主题创作与跨媒介工作流",
+                  )}
                 </span>
                 <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  {t("适合个人创作者与小团队长期沉淀资产", "适合个人创作者与小团队长期沉淀资产")}
+                  {t(
+                    "适合个人创作者与小团队长期沉淀资产",
+                    "适合个人创作者与小团队长期沉淀资产",
+                  )}
                 </span>
               </div>
             </div>
@@ -317,8 +355,7 @@ export function AboutSection() {
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
                     {t("当前版本 {{version}}", {
-                      version:
-                        versionInfo.current || t("读取中", "读取中"),
+                      version: versionInfo.current || t("读取中", "读取中"),
                       defaultValue: "当前版本 {{version}}",
                     })}
                   </p>
@@ -375,6 +412,29 @@ export function AboutSection() {
                 </p>
               ) : null}
 
+              {versionInfo.hasUpdate &&
+              (releaseNotesPreview || updatePublishedAt) ? (
+                <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/85 p-4 text-sm text-slate-600 shadow-sm shadow-slate-950/5">
+                  <p className="font-medium text-slate-700">
+                    {t("最新版本 {{version}}", {
+                      version: versionInfo.latest ?? "",
+                      defaultValue: "最新版本 {{version}}",
+                    })}
+                    {updatePublishedAt
+                      ? ` · ${t("发布时间 {{date}}", {
+                          date: updatePublishedAt,
+                          defaultValue: "发布时间 {{date}}",
+                        })}`
+                      : ""}
+                  </p>
+                  {releaseNotesPreview ? (
+                    <p className="mt-2 text-xs leading-6 text-slate-500">
+                      {releaseNotesPreview}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               {downloadResult ? (
                 <div
                   className={cn(
@@ -410,22 +470,34 @@ export function AboutSection() {
             <AboutStat
               label={t("创作主题", "创作主题")}
               value={CREATIVE_THEMES.length.toString()}
-              description={t("覆盖对话、海报、短视频、小说等常见创作场景。", "覆盖对话、海报、短视频、小说等常见创作场景。")}
+              description={t(
+                "覆盖对话、海报、短视频、小说等常见创作场景。",
+                "覆盖对话、海报、短视频、小说等常见创作场景。",
+              )}
             />
             <AboutStat
               label={t("起步步骤", "起步步骤")}
               value={QUICK_START_STEPS.length.toString()}
-              description={t("从选主题到持续迭代，压缩成清晰的三步流程。", "从选主题到持续迭代，压缩成清晰的三步流程。")}
+              description={t(
+                "从选主题到持续迭代，压缩成清晰的三步流程。",
+                "从选主题到持续迭代，压缩成清晰的三步流程。",
+              )}
             />
             <AboutStat
               label={t("目标人群", "目标人群")}
               value={TARGET_USERS.length.toString()}
-              description={t("既适合单人创作，也适合需要共用策略的小团队。", "既适合单人创作，也适合需要共用策略的小团队。")}
+              description={t(
+                "既适合单人创作，也适合需要共用策略的小团队。",
+                "既适合单人创作，也适合需要共用策略的小团队。",
+              )}
             />
             <AboutStat
               label={t("官方入口", "官方入口")}
               value={RELATED_LINKS.length.toString()}
-              description={t("源码、文档和 issue 入口集中保留，方便反馈和跟进。", "源码、文档和 issue 入口集中保留，方便反馈和跟进。")}
+              description={t(
+                "源码、文档和 issue 入口集中保留，方便反馈和跟进。",
+                "源码、文档和 issue 入口集中保留，方便反馈和跟进。",
+              )}
             />
           </div>
         </div>
@@ -436,7 +508,10 @@ export function AboutSection() {
           <AboutPanel
             icon={Compass}
             title={t("产品定位", "产品定位")}
-            description={t("先说明产品解决什么问题，再说明为什么它和传统聊天工具不同。", "先说明产品解决什么问题，再说明为什么它和传统聊天工具不同。")}
+            description={t(
+              "先说明产品解决什么问题，再说明为什么它和传统聊天工具不同。",
+              "先说明产品解决什么问题，再说明为什么它和传统聊天工具不同。",
+            )}
           >
             <div className="space-y-4">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-7 text-slate-600">
@@ -450,7 +525,10 @@ export function AboutSection() {
                   {t("一句话总结", "一句话总结")}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {t("从“想到”直接走到“可发布”。", "从“想到”直接走到“可发布”。")}
+                  {t(
+                    "从“想到”直接走到“可发布”。",
+                    "从“想到”直接走到“可发布”。",
+                  )}
                 </p>
               </div>
             </div>
@@ -459,7 +537,10 @@ export function AboutSection() {
           <AboutPanel
             icon={Rocket}
             title={t("3 步开始创作", "3 步开始创作")}
-            description={t("把首次上手流程压缩成三步，避免用户在设置里迷路。", "把首次上手流程压缩成三步，避免用户在设置里迷路。")}
+            description={t(
+              "把首次上手流程压缩成三步，避免用户在设置里迷路。",
+              "把首次上手流程压缩成三步，避免用户在设置里迷路。",
+            )}
           >
             <div className="grid gap-3 lg:grid-cols-3">
               {QUICK_START_STEPS.map((step, index) => (
@@ -481,7 +562,10 @@ export function AboutSection() {
           <AboutPanel
             icon={Users}
             title={t("适合谁", "适合谁")}
-            description={t("更像是创作工作台而不是纯聊天窗口，因此目标人群也更明确。", "更像是创作工作台而不是纯聊天窗口，因此目标人群也更明确。")}
+            description={t(
+              "更像是创作工作台而不是纯聊天窗口，因此目标人群也更明确。",
+              "更像是创作工作台而不是纯聊天窗口，因此目标人群也更明确。",
+            )}
           >
             <div className="grid gap-3 sm:grid-cols-2">
               {TARGET_USERS.map((user) => (
@@ -505,7 +589,10 @@ export function AboutSection() {
           <AboutPanel
             icon={Layers3}
             title={t("支持的创作主题", "支持的创作主题")}
-            description={t("主题不是简单分类，而是预设好的工作上下文与内容目标。", "主题不是简单分类，而是预设好的工作上下文与内容目标。")}
+            description={t(
+              "主题不是简单分类，而是预设好的工作上下文与内容目标。",
+              "主题不是简单分类，而是预设好的工作上下文与内容目标。",
+            )}
             aside={
               <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                 {CREATIVE_THEMES.length} {t("项", "项")}
@@ -527,7 +614,10 @@ export function AboutSection() {
           <AboutPanel
             icon={BookOpen}
             title={t("相关链接", "相关链接")}
-            description={t("源码、文档和问题反馈保持直达，减少寻找成本。", "源码、文档和问题反馈保持直达，减少寻找成本。")}
+            description={t(
+              "源码、文档和问题反馈保持直达，减少寻找成本。",
+              "源码、文档和问题反馈保持直达，减少寻找成本。",
+            )}
           >
             <div className="space-y-3">
               {RELATED_LINKS.map((link) => (
@@ -555,7 +645,10 @@ export function AboutSection() {
           <AboutPanel
             icon={Wand2}
             title={t("可选能力", "可选能力")}
-            description={t("这两类说明更偏进阶使用场景，不应和主叙事混在一起。", "这两类说明更偏进阶使用场景，不应和主叙事混在一起。")}
+            description={t(
+              "这两类说明更偏进阶使用场景，不应和主叙事混在一起。",
+              "这两类说明更偏进阶使用场景，不应和主叙事混在一起。",
+            )}
           >
             <div className="space-y-3">
               {PRODUCT_CAPABILITIES.map((item) => (
@@ -576,9 +669,7 @@ export function AboutSection() {
           <Sparkles className="h-4 w-4 text-emerald-600" />
           {t("Made for creators & builders", "Made for creators & builders")}
         </div>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
-          2025-2026 Lime
-        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">2025-2026 Lime</p>
       </section>
     </div>
   );

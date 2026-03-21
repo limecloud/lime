@@ -1,29 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  getOverview,
-  getProviders,
+  loadConfiguredProviders,
   getModelRegistry,
   getAllAliasConfigs,
   syncTrayModelShortcuts,
 } = vi.hoisted(() => ({
-  getOverview: vi.fn(),
-  getProviders: vi.fn(),
+  loadConfiguredProviders: vi.fn(),
   getModelRegistry: vi.fn(),
   getAllAliasConfigs: vi.fn(),
   syncTrayModelShortcuts: vi.fn(),
 }));
 
-vi.mock("@/lib/api/providerPool", () => ({
-  providerPoolApi: {
-    getOverview,
-  },
-}));
-
-vi.mock("@/lib/api/apiKeyProvider", () => ({
-  apiKeyProviderApi: {
-    getProviders,
-  },
+vi.mock("@/hooks/useConfiguredProviders", () => ({
+  loadConfiguredProviders,
 }));
 
 vi.mock("@/lib/api/modelRegistry", () => ({
@@ -68,20 +58,12 @@ describe("buildTrayPayload", () => {
     vi.clearAllMocks();
     invalidateTrayPayloadCache();
 
-    getOverview.mockResolvedValue([
+    loadConfiguredProviders.mockResolvedValue([
       {
-        provider_type: "deepseek",
-        credentials: [{ credential_type: "deepseek" }],
-      },
-    ]);
-    getProviders.mockResolvedValue([
-      {
-        id: "deepseek",
-        name: "DeepSeek",
+        key: "deepseek",
+        label: "DeepSeek",
+        registryId: "deepseek",
         type: "deepseek",
-        enabled: true,
-        api_key_count: 1,
-        custom_models: [],
       },
     ]);
     getModelRegistry.mockResolvedValue([
@@ -107,8 +89,7 @@ describe("buildTrayPayload", () => {
     );
 
     expect(second).toEqual(first);
-    expect(getOverview).toHaveBeenCalledTimes(1);
-    expect(getProviders).toHaveBeenCalledTimes(1);
+    expect(loadConfiguredProviders).toHaveBeenCalledTimes(1);
     expect(getModelRegistry).toHaveBeenCalledTimes(1);
     expect(getAllAliasConfigs).toHaveBeenCalledTimes(1);
   });
@@ -119,8 +100,7 @@ describe("buildTrayPayload", () => {
       forceRefresh: true,
     });
 
-    expect(getOverview).toHaveBeenCalledTimes(2);
-    expect(getProviders).toHaveBeenCalledTimes(2);
+    expect(loadConfiguredProviders).toHaveBeenCalledTimes(2);
     expect(getModelRegistry).toHaveBeenCalledTimes(2);
     expect(getAllAliasConfigs).toHaveBeenCalledTimes(2);
   });
@@ -130,6 +110,49 @@ describe("buildTrayPayload", () => {
     await syncTrayModelShortcutsState("deepseek", "deepseek-chat", "general");
 
     expect(syncTrayModelShortcuts).toHaveBeenCalledTimes(1);
+  });
+
+  it("当 provider 仅命中 fallbackRegistryId 时仍应保留托盘候选模型", async () => {
+    loadConfiguredProviders.mockResolvedValueOnce([
+      {
+        key: "custom-openai",
+        label: "Custom OpenAI",
+        registryId: "custom-openai",
+        fallbackRegistryId: "openai",
+        type: "openai",
+      },
+    ]);
+    getModelRegistry.mockResolvedValueOnce([
+      {
+        id: "gpt-4.1",
+        display_name: "GPT-4.1",
+        provider_id: "openai",
+        provider_name: "OpenAI",
+        is_latest: true,
+        release_date: "2026-02-01",
+      },
+    ]);
+
+    const payload = await buildTrayPayload(
+      "custom-openai",
+      "gpt-4.1",
+      "general",
+      { forceRefresh: true },
+    );
+
+    expect(payload.quick_model_groups).toEqual([
+      {
+        provider_type: "custom-openai",
+        provider_label: "Custom OpenAI",
+        models: [
+          {
+            provider_type: "custom-openai",
+            provider_label: "Custom OpenAI",
+            model: "gpt-4.1",
+          },
+        ],
+      },
+    ]);
   });
 
   it("首次同步失败时不应缓存成功指纹，后续重试仍应继续同步", async () => {

@@ -2463,7 +2463,10 @@ pub struct MemorySourcesConfig {
     /// 组织级策略文件（可选）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub managed_policy_path: Option<String>,
-    /// 项目级记忆文件相对路径列表（会按目录层级向上查找）
+    /// 项目级记忆文件相对路径列表
+    ///
+    /// 默认使用 `.lime/AGENTS.md`，仅解析当前 workspace 根目录；
+    /// 非 `.lime/` 路径仍兼容按目录层级向上查找。
     #[serde(default)]
     pub project_memory_paths: Vec<String>,
     /// 项目规则目录相对路径列表（会按目录层级向上查找）
@@ -2473,6 +2476,8 @@ pub struct MemorySourcesConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_memory_path: Option<String>,
     /// 项目本地私有记忆文件（可选）
+    ///
+    /// 默认使用 `.lime/AGENTS.local.md`，仅解析当前 workspace 根目录。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_local_memory_path: Option<String>,
 }
@@ -2481,10 +2486,10 @@ impl Default for MemorySourcesConfig {
     fn default() -> Self {
         Self {
             managed_policy_path: None,
-            project_memory_paths: vec!["AGENTS.md".to_string(), ".agents/AGENTS.md".to_string()],
+            project_memory_paths: vec![".lime/AGENTS.md".to_string()],
             project_rule_dirs: vec![".agents/rules".to_string()],
             user_memory_path: None,
-            project_local_memory_path: Some("AGENTS.local.md".to_string()),
+            project_local_memory_path: Some(".lime/AGENTS.local.md".to_string()),
         }
     }
 }

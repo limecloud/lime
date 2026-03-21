@@ -1,36 +1,40 @@
 import { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 import { toast } from "sonner";
-import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
-import { getProjectMemory, type ProjectMemory } from "@/lib/api/memory";
-import { logAgentDebug } from "@/lib/agentDebug";
-import { skillsApi, type Skill } from "@/lib/api/skills";
+import { prepareClawSolution } from "@/lib/api/clawSolutions";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import type { ThemeType } from "@/components/content-creator/types";
 import { EmptyState } from "./components/EmptyState";
 import type { CreationMode } from "./components/types";
-import { buildClawAgentParams } from "@/lib/workspace/navigation";
 import {
-  DEFAULT_AGENT_MODEL,
-  DEFAULT_AGENT_PROVIDER,
-  GLOBAL_MODEL_PREF_KEY,
-  GLOBAL_PROVIDER_PREF_KEY,
-  getAgentPreferenceKeys,
-  loadPersisted,
-  loadPersistedString,
-  savePersisted,
-} from "./hooks/agentChatStorage";
-import { normalizeExecutionStrategy } from "./hooks/agentChatCoreUtils";
-import type { MessageImage } from "./types";
-import {
-  loadChatToolPreferences,
   saveChatToolPreferences,
-  type ChatToolPreferences,
 } from "./utils/chatToolPreferences";
 import { isTeamRuntimeRecommendation } from "./utils/contextualRecommendations";
+import { resolveClawWorkspaceProviderSelection } from "./utils/clawWorkspaceProviderSelection";
 import { normalizeProjectId } from "./utils/topicProjectResolution";
+import {
+  LAST_PROJECT_ID_KEY,
+  usePersistedProjectId,
+} from "./hooks/agentProjectStorage";
+import { useHomeShellAgentPreferences } from "./hooks/useHomeShellAgentPreferences";
+import { useHomeShellProjectMemory } from "./hooks/useHomeShellProjectMemory";
+import { useHomeShellSkills } from "./hooks/useHomeShellSkills";
+import { useThemeScopedChatToolPreferences } from "./hooks/useThemeScopedChatToolPreferences";
 import { useSelectedTeamPreference } from "./hooks/useSelectedTeamPreference";
+import {
+  enableSubagentPreference,
+  resolveClawSolutionLaunch,
+  resolveClawSolutionSetupTarget,
+} from "./claw-solutions/actionDispatcher";
+import { useClawSolutions } from "./claw-solutions/useClawSolutions";
+import { ClawHomeSolutionsPanel } from "./claw-solutions/ClawHomeSolutionsPanel";
+import type { ClawSolutionHomeItem } from "./claw-solutions/types";
+import {
+  type AgentChatWorkspaceBootstrap,
+  resolveHomeShellWorkspaceEntry,
+  type HomeShellEnterWorkspacePayload,
+} from "./homeShellEntry";
 
 const SUPPORTED_ENTRY_THEMES: ThemeType[] = [
   "general",
@@ -43,10 +47,6 @@ const SUPPORTED_ENTRY_THEMES: ThemeType[] = [
   "video",
   "novel",
 ];
-
-const HOME_ENHANCEMENT_IDLE_TIMEOUT_MS = 1_500;
-const HOME_ENHANCEMENT_FALLBACK_DELAY_MS = 180;
-const LAST_PROJECT_ID_KEY = "agent_last_project_id";
 
 const PageContainer = styled.div<{ $compact?: boolean }>`
   display: flex;
@@ -152,107 +152,17 @@ function normalizeInitialTheme(value?: string): ThemeType {
   return "general";
 }
 
-function scheduleDeferredHomeEnhancement(task: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
   }
-
-  if (typeof window.requestIdleCallback === "function") {
-    const idleId = window.requestIdleCallback(() => task(), {
-      timeout: HOME_ENHANCEMENT_IDLE_TIMEOUT_MS,
-    });
-    return () => {
-      if (typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
-      }
-    };
+  if (typeof error === "string") {
+    return error;
   }
-
-  const timeoutId = window.setTimeout(task, HOME_ENHANCEMENT_FALLBACK_DELAY_MS);
-  return () => {
-    window.clearTimeout(timeoutId);
-  };
+  return "请稍后重试";
 }
 
-function loadPersistedProjectId(key: string): string | null {
-  try {
-    const stored = localStorage.getItem(key);
-    if (!stored) {
-      return null;
-    }
-
-    try {
-      const parsed = JSON.parse(stored);
-      return normalizeProjectId(typeof parsed === "string" ? parsed : stored);
-    } catch {
-      return normalizeProjectId(stored);
-    }
-  } catch {
-    return null;
-  }
-}
-
-function savePersistedProjectId(key: string, projectId: string) {
-  const normalized = normalizeProjectId(projectId);
-  if (!normalized) {
-    return;
-  }
-
-  try {
-    localStorage.setItem(key, JSON.stringify(normalized));
-  } catch {
-    // ignore write errors
-  }
-}
-
-function resolveExecutionStrategyStorageKey(
-  projectId?: string | null,
-): string | null {
-  const normalizedProjectId = normalizeProjectId(projectId);
-  if (!normalizedProjectId) {
-    return null;
-  }
-
-  return `aster_execution_strategy_${normalizedProjectId}`;
-}
-
-function resolvePersistedProviderModel(projectId?: string | null): {
-  providerType: string;
-  model: string;
-} {
-  const { providerKey, modelKey } = getAgentPreferenceKeys(projectId);
-  return {
-    providerType:
-      loadPersistedString(providerKey) ||
-      loadPersistedString(GLOBAL_PROVIDER_PREF_KEY) ||
-      DEFAULT_AGENT_PROVIDER,
-    model:
-      loadPersistedString(modelKey) ||
-      loadPersistedString(GLOBAL_MODEL_PREF_KEY) ||
-      DEFAULT_AGENT_MODEL,
-  };
-}
-
-function resolvePersistedExecutionStrategy(
-  projectId?: string | null,
-): AsterExecutionStrategy {
-  const storageKey = resolveExecutionStrategyStorageKey(projectId);
-  if (!storageKey) {
-    return "react";
-  }
-
-  return normalizeExecutionStrategy(loadPersisted<string | null>(storageKey, "react"));
-}
-
-export interface AgentChatWorkspaceBootstrap {
-  projectId?: string;
-  initialUserPrompt?: string;
-  initialUserImages?: MessageImage[];
-  theme?: string;
-  initialCreationMode?: CreationMode;
-  openBrowserAssistOnMount?: boolean;
-  newChatAt?: number;
-}
+export type { AgentChatWorkspaceBootstrap } from "./homeShellEntry";
 
 interface AgentChatHomeShellProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
@@ -277,35 +187,35 @@ export function AgentChatHomeShell({
   const [creationMode, setCreationMode] = useState<CreationMode>(
     initialCreationMode ?? "guided",
   );
-  const [chatToolPreferences, setChatToolPreferences] =
-    useState<ChatToolPreferences>(() =>
-      loadChatToolPreferences(normalizedEntryTheme),
-    );
-  const [chatToolPreferencesTheme, setChatToolPreferencesTheme] =
-    useState<string>(normalizedEntryTheme);
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(
-    () =>
-      normalizeProjectId(externalProjectId) ??
-      loadPersistedProjectId(LAST_PROJECT_ID_KEY),
-  );
-  const initialProviderModel = resolvePersistedProviderModel(currentProjectId);
-  const [providerType, setProviderTypeState] = useState(
-    initialProviderModel.providerType,
-  );
-  const [model, setModelState] = useState(initialProviderModel.model);
-  const [executionStrategy, setExecutionStrategyState] =
-    useState<AsterExecutionStrategy>(() =>
-      resolvePersistedExecutionStrategy(currentProjectId),
-    );
-  const [projectMemory, setProjectMemory] = useState<ProjectMemory | null>(null);
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [skillsLoading, setSkillsLoading] = useState(false);
+  const { chatToolPreferences, setChatToolPreferences } =
+    useThemeScopedChatToolPreferences(activeTheme);
+  const {
+    projectId: currentProjectId,
+    setProjectId: setCurrentProjectId,
+    rememberProjectId,
+  } = usePersistedProjectId(externalProjectId, LAST_PROJECT_ID_KEY);
+  const {
+    providerType,
+    setProviderType,
+    model,
+    setModel,
+    executionStrategy,
+    setExecutionStrategy,
+  } = useHomeShellAgentPreferences(currentProjectId);
+  const projectMemory = useHomeShellProjectMemory(currentProjectId);
+  const { skills, skillsLoading, refreshSkills } = useHomeShellSkills();
   const [browserAssistLoading, setBrowserAssistLoading] = useState(false);
   const {
     selectedTeam,
     setSelectedTeam: handleSelectTeam,
     enableSuggestedTeam: handleEnableSuggestedTeam,
   } = useSelectedTeamPreference(activeTheme);
+  const {
+    solutions: clawSolutions,
+    isLoading: clawSolutionsLoading,
+    error: clawSolutionsError,
+    recordUsage: recordClawSolutionUsage,
+  } = useClawSolutions(activeTheme === "general");
 
   useEffect(() => {
     setActiveTheme(normalizeInitialTheme(initialTheme));
@@ -319,161 +229,16 @@ export function AgentChatHomeShell({
   }, [initialCreationMode]);
 
   useEffect(() => {
-    setCurrentProjectId(
-      normalizeProjectId(externalProjectId) ??
-        loadPersistedProjectId(LAST_PROJECT_ID_KEY),
-    );
-  }, [externalProjectId]);
-
-  useEffect(() => {
-    if (chatToolPreferencesTheme === activeTheme) {
+    if (activeTheme !== "general" || !clawSolutionsError) {
       return;
     }
 
-    setChatToolPreferences(loadChatToolPreferences(activeTheme));
-    setChatToolPreferencesTheme(activeTheme);
-  }, [activeTheme, chatToolPreferencesTheme]);
-
-  useEffect(() => {
-    if (chatToolPreferencesTheme !== activeTheme) {
-      return;
-    }
-
-    saveChatToolPreferences(chatToolPreferences, activeTheme);
-  }, [activeTheme, chatToolPreferences, chatToolPreferencesTheme]);
-
-  useEffect(() => {
-    const nextPreferences = resolvePersistedProviderModel(currentProjectId);
-    setProviderTypeState(nextPreferences.providerType);
-    setModelState(nextPreferences.model);
-    setExecutionStrategyState(resolvePersistedExecutionStrategy(currentProjectId));
-  }, [currentProjectId]);
-
-  useEffect(() => {
-    const normalizedProjectId = normalizeProjectId(currentProjectId);
-    if (!normalizedProjectId) {
-      setProjectMemory(null);
-      return;
-    }
-
-    let cancelled = false;
-    const startedAt = Date.now();
-    logAgentDebug("AgentChatHomeShell", "loadProjectMemory.start", {
-      projectId: normalizedProjectId,
-    });
-
-    void getProjectMemory(normalizedProjectId)
-      .then((memory) => {
-        if (cancelled) {
-          return;
-        }
-        setProjectMemory(memory);
-        logAgentDebug("AgentChatHomeShell", "loadProjectMemory.success", {
-          durationMs: Date.now() - startedAt,
-          projectId: normalizedProjectId,
-          charactersCount: memory.characters.length,
-        });
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-        setProjectMemory(null);
-        logAgentDebug(
-          "AgentChatHomeShell",
-          "loadProjectMemory.error",
-          {
-            durationMs: Date.now() - startedAt,
-            error,
-            projectId: normalizedProjectId,
-          },
-          { level: "warn" },
-        );
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentProjectId]);
-
-  const loadSkills = useCallback(
-    async (includeRemote = false): Promise<Skill[]> => {
-      const startedAt = Date.now();
-      logAgentDebug("AgentChatHomeShell", "loadSkills.start", {
-        includeRemote,
-      });
-      setSkillsLoading(true);
-      try {
-        const loadedSkills = includeRemote
-          ? await skillsApi.getAll("lime")
-          : await skillsApi.getLocal("lime");
-        setSkills(loadedSkills);
-        logAgentDebug("AgentChatHomeShell", "loadSkills.success", {
-          durationMs: Date.now() - startedAt,
-          includeRemote,
-          skillsCount: loadedSkills.length,
-        });
-        return loadedSkills;
-      } catch (error) {
-        setSkills([]);
-        logAgentDebug(
-          "AgentChatHomeShell",
-          "loadSkills.error",
-          {
-            durationMs: Date.now() - startedAt,
-            error,
-            includeRemote,
-          },
-          { level: "warn" },
-        );
-        return [];
-      } finally {
-        setSkillsLoading(false);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    return scheduleDeferredHomeEnhancement(() => {
-      void loadSkills(false);
-    });
-  }, [loadSkills]);
-
-  const setProviderType = useCallback(
-    (nextProviderType: string) => {
-      setProviderTypeState(nextProviderType);
-      const { providerKey } = getAgentPreferenceKeys(currentProjectId);
-      savePersisted(providerKey, nextProviderType);
-    },
-    [currentProjectId],
-  );
-
-  const setModel = useCallback(
-    (nextModel: string) => {
-      setModelState(nextModel);
-      const { modelKey } = getAgentPreferenceKeys(currentProjectId);
-      savePersisted(modelKey, nextModel);
-    },
-    [currentProjectId],
-  );
-
-  const setExecutionStrategy = useCallback(
-    (nextExecutionStrategy: AsterExecutionStrategy) => {
-      const normalized = normalizeExecutionStrategy(nextExecutionStrategy);
-      setExecutionStrategyState(normalized);
-      const storageKey = resolveExecutionStrategyStorageKey(currentProjectId);
-      if (!storageKey) {
-        return;
-      }
-      savePersisted(storageKey, normalized);
-    },
-    [currentProjectId],
-  );
+    toast.error(`加载 Claw 方案失败：${clawSolutionsError}`);
+  }, [activeTheme, clawSolutionsError]);
 
   const handleRefreshSkills = useCallback(async () => {
-    await loadSkills(true);
-  }, [loadSkills]);
+    await refreshSkills(true);
+  }, [refreshSkills]);
 
   const handleProjectChange = useCallback(
     (nextProjectId: string) => {
@@ -484,73 +249,140 @@ export function AgentChatHomeShell({
       const normalizedProjectId = normalizeProjectId(nextProjectId);
       setCurrentProjectId(normalizedProjectId);
       if (normalizedProjectId) {
-        savePersistedProjectId(LAST_PROJECT_ID_KEY, normalizedProjectId);
+        rememberProjectId(normalizedProjectId);
       }
     },
-    [externalProjectId],
+    [externalProjectId, rememberProjectId, setCurrentProjectId],
   );
 
   const handleEnterWorkspace = useCallback(
-    (payload: {
-      prompt?: string;
-      images?: MessageImage[];
-      openBrowserAssistOnMount?: boolean;
-      toolPreferences?: ChatToolPreferences;
-    }) => {
+    (payload: HomeShellEnterWorkspacePayload) => {
       const normalizedProjectId = normalizeProjectId(currentProjectId);
-      const hasPrompt = Boolean(payload.prompt?.trim());
-      const hasImages = Boolean(payload.images?.length);
-      const effectiveToolPreferences =
-        payload.toolPreferences ?? chatToolPreferences;
+      const resolved = resolveHomeShellWorkspaceEntry({
+        projectId: normalizedProjectId,
+        activeTheme,
+        creationMode,
+        defaultToolPreferences: chatToolPreferences,
+        payload,
+      });
 
-      if (!payload.openBrowserAssistOnMount && !normalizedProjectId) {
-        toast.error("缺少项目工作区，请先选择项目后再使用 Agent");
-        return;
-      }
-
-      if (!payload.openBrowserAssistOnMount && !hasPrompt && !hasImages) {
-        return;
+      if (!resolved.ok) {
+        if (resolved.reason === "missing_project") {
+          toast.error("缺少项目工作区，请先选择项目后再使用 Agent");
+        }
+        return false;
       }
 
       if (normalizedProjectId) {
-        savePersistedProjectId(LAST_PROJECT_ID_KEY, normalizedProjectId);
+        rememberProjectId(normalizedProjectId);
       }
-      saveChatToolPreferences(effectiveToolPreferences, activeTheme);
-      const nextNewChatAt = Date.now();
+      saveChatToolPreferences(resolved.toolPreferences, resolved.targetTheme);
 
       if (onNavigate) {
-        onNavigate(
-          "agent",
-          buildClawAgentParams({
-            projectId: normalizedProjectId ?? undefined,
-            theme: activeTheme,
-            initialCreationMode: creationMode,
-            initialUserPrompt: payload.prompt,
-            initialUserImages: payload.images,
-            openBrowserAssistOnMount: payload.openBrowserAssistOnMount,
-            newChatAt: nextNewChatAt,
-          }),
-        );
-        return;
+        onNavigate("agent", resolved.navigationParams);
+        return true;
       }
 
-      onEnterWorkspace({
-        projectId: normalizedProjectId ?? undefined,
-        initialUserPrompt: payload.prompt,
-        initialUserImages: payload.images,
-        theme: activeTheme,
-        initialCreationMode: creationMode,
-        openBrowserAssistOnMount: payload.openBrowserAssistOnMount,
-        newChatAt: nextNewChatAt,
-      });
+      onEnterWorkspace(resolved.workspaceBootstrap);
+      return true;
     },
     [
       activeTheme,
       chatToolPreferences,
       creationMode,
       currentProjectId,
+      rememberProjectId,
       onEnterWorkspace,
       onNavigate,
+    ],
+  );
+
+  const handleClawSolutionSelect = useCallback(
+    async (solution: ClawSolutionHomeItem) => {
+      try {
+        const preparation = await prepareClawSolution(solution.id, {
+          projectId: normalizeProjectId(currentProjectId) ?? undefined,
+          userInput: input.trim() || undefined,
+        });
+
+        if (preparation.readiness !== "ready") {
+          const setupTab = resolveClawSolutionSetupTarget(
+            preparation.readiness,
+            preparation.reasonCode,
+          );
+          if (setupTab && onNavigate) {
+            onNavigate("settings", { tab: setupTab });
+            return;
+          }
+          toast.error(preparation.readinessMessage);
+          return;
+        }
+
+        const launch = resolveClawSolutionLaunch(
+          preparation,
+          chatToolPreferences,
+        );
+        const targetTheme =
+          launch.enterWorkspacePayload.themeOverride ?? activeTheme;
+
+        try {
+          const providerSelection = await resolveClawWorkspaceProviderSelection({
+            currentProviderType: providerType,
+            currentModel: model,
+            theme: targetTheme,
+          });
+
+          if (providerSelection) {
+            if (providerSelection.providerType !== providerType) {
+              setProviderType(providerSelection.providerType);
+            }
+            if (providerSelection.model !== model) {
+              setModel(providerSelection.model);
+            }
+          }
+        } catch (selectionError) {
+          console.warn(
+            "[AgentChatHomeShell] 解析 Claw 工作区默认 provider/model 失败，继续沿用当前选择:",
+            selectionError,
+          );
+        }
+
+        if (launch.preferencesChanged) {
+          setChatToolPreferences(launch.nextToolPreferences);
+        }
+
+        if (launch.shouldStartBrowserAssistLoading) {
+          setBrowserAssistLoading(true);
+        }
+
+        const entered = handleEnterWorkspace(launch.enterWorkspacePayload);
+
+        if (!entered) {
+          if (launch.shouldStartBrowserAssistLoading) {
+            setBrowserAssistLoading(false);
+          }
+          return;
+        }
+
+        recordClawSolutionUsage(launch.usageRecord);
+      } catch (error) {
+        setBrowserAssistLoading(false);
+        toast.error(`启动方案失败：${getErrorMessage(error)}`);
+      }
+    },
+    [
+      chatToolPreferences,
+      currentProjectId,
+      handleEnterWorkspace,
+      input,
+      model,
+      onNavigate,
+      providerType,
+      recordClawSolutionUsage,
+      setChatToolPreferences,
+      setModel,
+      setProviderType,
+      activeTheme,
     ],
   );
 
@@ -565,14 +397,10 @@ export function AgentChatHomeShell({
         return;
       }
 
-      const nextToolPreferences = chatToolPreferences.subagent
-        ? chatToolPreferences
-        : {
-            ...chatToolPreferences,
-            subagent: true,
-          };
+      const { nextToolPreferences, changed } =
+        enableSubagentPreference(chatToolPreferences);
 
-      if (!chatToolPreferences.subagent) {
+      if (changed) {
         setChatToolPreferences(nextToolPreferences);
       }
       saveChatToolPreferences(nextToolPreferences, activeTheme);
@@ -581,7 +409,12 @@ export function AgentChatHomeShell({
         toolPreferences: nextToolPreferences,
       });
     },
-    [activeTheme, chatToolPreferences, handleEnterWorkspace],
+    [
+      activeTheme,
+      chatToolPreferences,
+      handleEnterWorkspace,
+      setChatToolPreferences,
+    ],
   );
 
   return (
@@ -658,6 +491,15 @@ export function AgentChatHomeShell({
                 hasContentId={false}
                 selectedText=""
                 onRecommendationClick={handleRecommendationClick}
+                supportingSlotOverride={
+                  activeTheme === "general" ? (
+                    <ClawHomeSolutionsPanel
+                      solutions={clawSolutions}
+                      loading={clawSolutionsLoading}
+                      onSelect={handleClawSolutionSelect}
+                    />
+                  ) : undefined
+                }
                 characters={projectMemory?.characters || []}
                 skills={skills}
                 isSkillsLoading={skillsLoading}

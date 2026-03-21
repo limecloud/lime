@@ -24,6 +24,7 @@ import { getProjectByRootPath, updateProject } from "@/lib/api/project";
 import { cn } from "@/lib/utils";
 import { ClipboardPermissionGuideCard } from "@/components/settings-v2/system/shared/ClipboardPermissionGuideCard";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { notifyProjectRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 
 interface CrashRecoveryPanelProps {
   error: Error | null;
@@ -207,6 +208,16 @@ export function CrashRecoveryPanel({
         return;
       }
       await updateProject(workspace.id, { rootPath: newPath });
+      notifyProjectRuntimeAgentsGuide(
+        {
+          id: workspace.id,
+          rootPath: newPath,
+        },
+        {
+          successMessage: "Workspace 路径已更新",
+          showSuccessWhenGuideAlreadySeen: false,
+        },
+      );
       setMessage({
         type: "success",
         text: `Workspace 路径已更新为：${newPath}`,

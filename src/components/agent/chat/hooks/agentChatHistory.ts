@@ -11,6 +11,10 @@ import {
   resolveHistoryUserDataText,
   stringifyToolArguments,
 } from "./agentChatToolResult";
+import {
+  sanitizeContentPartsForDisplay,
+  sanitizeMessageTextForDisplay,
+} from "../utils/internalImagePlaceholder";
 
 export const normalizeHistoryPartType = (value: unknown): string => {
   if (typeof value !== "string") return "";
@@ -569,12 +573,21 @@ export const hydrateSessionDetailMessages = (
         contentParts.push({ type: "text", text: resolved });
       }
 
-      const content = textParts.join("\n").trim();
+      const rawContent = textParts.join("\n").trim();
       let normalizedRole =
         msg.role === "tool" ? "assistant" : (msg.role as "user" | "assistant");
+      const content = sanitizeMessageTextForDisplay(rawContent, {
+        role: normalizedRole,
+        hasImages: images.length > 0,
+      });
+      const sanitizedContentParts =
+        sanitizeContentPartsForDisplay(contentParts, {
+          role: normalizedRole,
+          hasImages: images.length > 0,
+        }) || [];
       const hasToolMetadata =
         toolCalls.length > 0 ||
-        contentParts.some((part) => part.type === "tool_use");
+        sanitizedContentParts.some((part) => part.type === "tool_use");
 
       if (normalizedRole === "user" && !content && images.length === 0) {
         if (hasToolMetadata) {
@@ -587,7 +600,7 @@ export const hydrateSessionDetailMessages = (
       if (
         !content &&
         images.length === 0 &&
-        contentParts.length === 0 &&
+        sanitizedContentParts.length === 0 &&
         toolCalls.length === 0
       ) {
         return [];
@@ -599,11 +612,16 @@ export const hydrateSessionDetailMessages = (
           role: normalizedRole,
           content,
           images: images.length > 0 ? images : undefined,
-          contentParts: contentParts.length > 0 ? contentParts : undefined,
+          contentParts:
+            sanitizedContentParts.length > 0
+              ? sanitizedContentParts
+              : undefined,
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
           timestamp: messageTimestamp,
           isThinking: false,
-          thinkingContent: extractThinkingContentFromParts(contentParts),
+          thinkingContent: extractThinkingContentFromParts(
+            sanitizedContentParts,
+          ),
         },
       ];
     });

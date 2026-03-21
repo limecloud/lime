@@ -1,0 +1,100 @@
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  LAST_PROJECT_ID_KEY,
+  loadPersistedProjectId,
+  savePersistedProjectId,
+  usePersistedProjectId,
+} from "./agentProjectStorage";
+
+interface HookHarness {
+  getValue: () => ReturnType<typeof usePersistedProjectId>;
+  rerender: (externalProjectId?: string | null) => void;
+  unmount: () => void;
+}
+
+function mountHook(initialExternalProjectId?: string | null): HookHarness {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  let hookValue: ReturnType<typeof usePersistedProjectId> | null = null;
+
+  function TestComponent({
+    externalProjectId,
+  }: {
+    externalProjectId?: string | null;
+  }) {
+    hookValue = usePersistedProjectId(externalProjectId);
+    return null;
+  }
+
+  const render = (externalProjectId?: string | null) => {
+    act(() => {
+      root.render(<TestComponent externalProjectId={externalProjectId} />);
+    });
+  };
+
+  render(initialExternalProjectId);
+
+  return {
+    getValue: () => {
+      if (!hookValue) {
+        throw new Error("hook 尚未初始化");
+      }
+      return hookValue;
+    },
+    rerender: render,
+    unmount: () => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+    },
+  };
+}
+
+describe("agentProjectStorage", () => {
+  beforeEach(() => {
+    (
+      globalThis as typeof globalThis & {
+        IS_REACT_ACT_ENVIRONMENT?: boolean;
+      }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it("应保存并读取最近项目偏好", () => {
+    savePersistedProjectId(LAST_PROJECT_ID_KEY, "project-a");
+
+    expect(loadPersistedProjectId(LAST_PROJECT_ID_KEY)).toBe("project-a");
+  });
+
+  it("hook 应优先使用 externalProjectId，否则回退最近项目", () => {
+    savePersistedProjectId(LAST_PROJECT_ID_KEY, "project-local");
+
+    const harness = mountHook();
+
+    try {
+      expect(harness.getValue().projectId).toBe("project-local");
+
+      harness.rerender("project-external");
+      expect(harness.getValue().projectId).toBe("project-external");
+
+      act(() => {
+        harness.getValue().setProjectId("project-updated");
+        harness.getValue().rememberProjectId("project-updated");
+      });
+
+      expect(harness.getValue().projectId).toBe("project-updated");
+      expect(loadPersistedProjectId(LAST_PROJECT_ID_KEY)).toBe("project-updated");
+    } finally {
+      harness.unmount();
+    }
+  });
+});

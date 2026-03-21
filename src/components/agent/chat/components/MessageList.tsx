@@ -34,6 +34,11 @@ import {
   resolveArtifactWritePhase,
 } from "../utils/messageArtifacts";
 import {
+  sanitizeContentPartsForDisplay,
+  sanitizeMessageTextForDisplay,
+  sanitizeMessageTextForPreview,
+} from "../utils/internalImagePlaceholder";
+import {
   Message,
   type AgentThreadItem,
   type AgentThreadTurn,
@@ -255,6 +260,18 @@ const MessageListInner: React.FC<MessageListProps> = ({
       showIdentity?: boolean;
     },
   ) => {
+    const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
+    const displayContent = sanitizeMessageTextForDisplay(msg.content || "", {
+      role: msg.role,
+      hasImages,
+    });
+    const displayContentParts = sanitizeContentPartsForDisplay(
+      msg.contentParts,
+      {
+        role: msg.role,
+        hasImages,
+      },
+    );
     const mappedTimeline = timelineByMessageId.get(msg.id);
     const timeline =
       msg.role !== "assistant"
@@ -330,13 +347,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
               </div>
             ) : msg.role === "assistant" ? (
               <StreamingRenderer
-                content={msg.content}
+                content={displayContent}
                 isStreaming={msg.isThinking}
                 toolCalls={msg.toolCalls}
-                showCursor={msg.isThinking && !msg.content}
+                showCursor={msg.isThinking && !displayContent}
                 thinkingContent={msg.thinkingContent}
                 runtimeStatus={msg.runtimeStatus}
-                contentParts={msg.contentParts}
+                contentParts={displayContentParts}
                 actionRequests={msg.actionRequests}
                 onA2UISubmit={
                   onA2UISubmit
@@ -366,15 +383,17 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 renderProposedPlanBlocks={!timeline}
               />
             ) : (
-              <MarkdownRenderer
-                content={msg.content}
-                onA2UISubmit={
-                  onA2UISubmit
-                    ? (formData) => onA2UISubmit(formData, msg.id)
-                    : undefined
-                }
-                renderA2UIInline={renderA2UIInline}
-              />
+              displayContent ? (
+                <MarkdownRenderer
+                  content={displayContent}
+                  onA2UISubmit={
+                    onA2UISubmit
+                      ? (formData) => onA2UISubmit(formData, msg.id)
+                      : undefined
+                  }
+                  renderA2UIInline={renderA2UIInline}
+                />
+              ) : null
             )}
 
             {msg.images && msg.images.length > 0 && (
@@ -549,10 +568,24 @@ const MessageListInner: React.FC<MessageListProps> = ({
         )}
 
         {messageGroups.map((group, groupIndex) => {
-          const previewSource =
-            group.userMessage?.content ||
-            group.assistantMessages[0]?.content ||
-            "继续当前任务";
+          const previewSource = group.userMessage
+            ? sanitizeMessageTextForPreview(group.userMessage.content || "", {
+                role: group.userMessage.role,
+                hasImages:
+                  Array.isArray(group.userMessage.images) &&
+                  group.userMessage.images.length > 0,
+              }) || "继续当前任务"
+            : group.assistantMessages[0]
+              ? sanitizeMessageTextForPreview(
+                  group.assistantMessages[0].content || "",
+                  {
+                    role: group.assistantMessages[0].role,
+                    hasImages:
+                      Array.isArray(group.assistantMessages[0].images) &&
+                      group.assistantMessages[0].images.length > 0,
+                  },
+                ) || "继续当前任务"
+              : "继续当前任务";
           const hasTimeline = group.messages.some((message) =>
             timelineByMessageId.has(message.id),
           );

@@ -131,13 +131,25 @@ pub fn convert_openai_to_codewhisperer(
     request: &ChatCompletionRequest,
     profile_arn: Option<String>,
 ) -> CodeWhispererRequest {
+    convert_openai_to_codewhisperer_with_conversation_id(request, profile_arn, None)
+}
+
+pub fn convert_openai_to_codewhisperer_with_conversation_id(
+    request: &ChatCompletionRequest,
+    profile_arn: Option<String>,
+    conversation_id: Option<&str>,
+) -> CodeWhispererRequest {
     let model_map = get_model_map();
     let cw_model = model_map
         .get(request.model.as_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| DEFAULT_MODEL.to_string());
 
-    let conversation_id = Uuid::new_v4().to_string();
+    let conversation_id = conversation_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     // 提取 system prompt 和消息
     let mut system_prompt = String::new();

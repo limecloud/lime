@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Clock3,
   Loader2,
+  PanelTop,
   Workflow,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -23,17 +24,22 @@ import type {
 import { formatRelativeTime } from "@/lib/api/project";
 import { cn } from "@/lib/utils";
 import { getTeamPresetOption } from "../utils/teamPresets";
+import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import {
   applyLiveRuntimeState,
   buildTeamWorkspaceActivityEntryFromThreadItem,
   buildTeamWorkspaceSessionFingerprint,
+  isTeamWorkspaceActiveStatus,
   isTeamWorkspaceTerminalStatus,
   mergeSessionActivityEntries,
   normalizeTeamWorkspaceRuntimeStatus,
+  resolveRuntimeFormationStatusMeta,
+  resolveRuntimeMemberStatusMeta,
   resolveTeamWorkspaceRuntimeStatusLabel,
   type TeamWorkspaceActivityEntry,
   type TeamWorkspaceControlSummary,
   type TeamWorkspaceLiveRuntimeState,
+  type TeamWorkspaceRuntimeFormationState,
   type TeamWorkspaceWaitSummary,
 } from "../teamWorkspaceRuntime";
 
@@ -76,6 +82,10 @@ interface TeamWorkspaceBoardProps {
   onReturnToParentSession?: () => void | Promise<void>;
   teamWaitSummary?: TeamWorkspaceWaitSummary | null;
   teamControlSummary?: TeamWorkspaceControlSummary | null;
+  selectedTeamLabel?: string | null;
+  selectedTeamSummary?: string | null;
+  selectedTeamRoles?: TeamRoleDefinition[] | null;
+  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
 }
 
 interface TeamSessionCard {
@@ -176,7 +186,7 @@ const STATUS_META: Record<
     dotClassName: "bg-rose-500",
   },
   closed: {
-    label: "已关闭",
+    label: "已停止",
     badgeClassName: "border border-slate-200 bg-slate-100 text-slate-600",
     cardClassName: "border-slate-200 bg-slate-50",
     dotClassName: "bg-slate-400",
@@ -190,7 +200,7 @@ function resolveStatusMeta(status?: RuntimeStatus) {
 function resolveSessionTypeLabel(value?: string) {
   switch (value) {
     case "sub_agent":
-      return "子代理";
+      return "协作成员";
     case "fork":
       return "分支会话";
     case "user":
@@ -443,21 +453,21 @@ function buildTeamWaitSummaryDisplay(
 } {
   if (summary.timedOut) {
     return {
-      text: `最近一次 team wait 已超时，${summary.awaitedSessionIds.length} 个活跃 agent 仍在推进。`,
+      text: `最近一次统一等待已超时，${summary.awaitedSessionIds.length} 位活跃成员仍在推进。`,
       badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
     };
   }
 
   const resolvedName = summary.resolvedSessionId
     ? sessionNameById.get(summary.resolvedSessionId) ?? summary.resolvedSessionId
-    : "子代理";
+    : "成员";
   const normalizedStatus = summary.resolvedStatus
     ? normalizeTeamWorkspaceRuntimeStatus(summary.resolvedStatus)
     : undefined;
   const statusMeta = resolveStatusMeta(normalizedStatus);
 
   return {
-    text: `最近一次 team wait 命中 ${resolvedName}，已进入${resolveTeamWorkspaceRuntimeStatusLabel(summary.resolvedStatus)}状态。`,
+    text: `最近一次统一等待命中 ${resolvedName}，已进入${resolveTeamWorkspaceRuntimeStatusLabel(summary.resolvedStatus)}状态。`,
     badgeClassName: statusMeta.badgeClassName,
   };
 }
@@ -473,20 +483,20 @@ function buildTeamControlSummaryDisplay(
   const firstAffectedId = summary.affectedSessionIds[0];
   const firstAffectedName = firstAffectedId
     ? sessionNameById.get(firstAffectedId) ?? firstAffectedId
-    : "子代理";
+    : "成员";
 
   switch (summary.action) {
     case "resume":
       return {
         text:
           affectedCount > 1
-            ? `最近一次 resume_agent 已级联恢复 ${affectedCount} 个会话。`
-            : `最近一次 resume_agent 已恢复 ${firstAffectedName}。`,
+            ? `最近一次恢复操作已级联恢复 ${affectedCount} 位成员。`
+            : `最近一次恢复操作已恢复 ${firstAffectedName}。`,
         badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
       };
     case "close_completed":
       return {
-        text: `最近一次批量 close_agent 已关闭 ${affectedCount} 个会话。`,
+        text: `最近一次批量清理已关闭 ${affectedCount} 位成员。`,
         badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
       };
     case "close":
@@ -494,8 +504,8 @@ function buildTeamControlSummaryDisplay(
       return {
         text:
           affectedCount > 1
-            ? `最近一次 close_agent 已级联关闭 ${affectedCount} 个会话。`
-            : `最近一次 close_agent 已关闭 ${firstAffectedName}。`,
+            ? `最近一次停止操作已级联停止 ${affectedCount} 位成员。`
+            : `最近一次停止操作已停止 ${firstAffectedName}。`,
         badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
       };
   }
@@ -515,7 +525,7 @@ function buildTeamOperationDisplayEntries(params: {
     );
     entries.push({
       id: `wait-${params.teamWaitSummary.updatedAt}`,
-      title: params.teamWaitSummary.timedOut ? "Team wait 超时" : "Team wait 命中",
+      title: params.teamWaitSummary.timedOut ? "等待超时" : "等待命中",
       detail: display.text,
       badgeClassName: display.badgeClassName,
       updatedAt: params.teamWaitSummary.updatedAt,
@@ -538,7 +548,7 @@ function buildTeamOperationDisplayEntries(params: {
           return "批量关闭";
         case "close":
         default:
-          return "级联关闭";
+          return "级联停止";
       }
     })();
 
@@ -571,7 +581,7 @@ function buildCurrentChildSession(
 
   return {
     id: currentSessionId,
-    name: currentSessionName?.trim() || "当前子代理",
+    name: currentSessionName?.trim() || "当前成员",
     runtimeStatus: currentSessionRuntimeStatus,
     taskSummary: subagentParentContext.task_summary,
     roleHint: subagentParentContext.role_hint,
@@ -603,10 +613,10 @@ function buildOrchestratorSession(
 
   return {
     id: currentSessionId,
-    name: currentSessionName?.trim() || "主线程编排器",
+    name: currentSessionName?.trim() || "主会话编排器",
     runtimeStatus: currentSessionRuntimeStatus,
     taskSummary:
-      "当前主线程负责拆分任务、启动子代理、等待结果并在同一团队面板中汇总结论。",
+      "当前主会话负责拆分任务、启动成员协作、等待结果并在同一团队面板中汇总结论。",
     roleHint: "orchestrator",
     sessionType: "user",
     isCurrent: true,
@@ -647,9 +657,9 @@ function buildBoardHeadline(params: {
     return subagentParentContext?.parent_session_name?.trim() || "父会话团队";
   }
   if (!hasRealTeamGraph) {
-    return "等待真实子代理";
+    return "等待团队成员加入";
   }
-  return totalTeamSessions > 0 ? `团队中有 ${totalTeamSessions} 个 agent` : "团队协作";
+  return totalTeamSessions > 0 ? `团队中有 ${totalTeamSessions} 位成员` : "团队协作";
 }
 
 function buildBoardHint(params: {
@@ -660,10 +670,10 @@ function buildBoardHint(params: {
   const { hasRealTeamGraph, isChildSession, siblingCount } = params;
 
   if (isChildSession) {
-    return siblingCount > 0 ? `当前与 ${siblingCount} 个 sibling 同组协作` : "当前为唯一子代理";
+    return siblingCount > 0 ? `当前与 ${siblingCount} 位同组成员协作` : "当前为唯一成员";
   }
   if (!hasRealTeamGraph) {
-    return "只有出现真实 child session 才会展开团队视图";
+    return "只有出现真实团队成员时才会展开团队视图";
   }
   return "仅在任务需要拆分时进入 team，不默认使用多代理";
 }
@@ -676,15 +686,48 @@ function buildFallbackSummary(params: {
   const { hasRealTeamGraph, isChildSession, selectedSession } = params;
 
   if (!hasRealTeamGraph) {
-    return "尚未创建真实 child session。下一次 spawn_agent 成功后，这里会展示团队成员与最新状态。";
+    return "尚未出现真实团队成员。开始分派成员后，这里会展示团队成员与最新状态。";
   }
   if (selectedSession?.sessionType === "user") {
-    return "主线程负责拆分任务、分派团队成员，并在必要时等待结果后汇总。";
+    return "主会话负责拆分任务、分派团队成员，并在必要时等待结果后汇总。";
   }
   if (isChildSession) {
-    return "当前 agent 正在执行父线程分派的子任务，可在这里快速切换到 siblings 或返回父会话。";
+    return "当前成员正在执行主会话分派的子任务，可在这里快速切换到同组成员或返回主会话。";
   }
-  return "选择一位 team agent 后，这里会展示它的任务摘要、运行状态与模型信息。";
+  return "选择一位团队成员后，这里会展示它的任务摘要、运行状态与模型信息。";
+}
+
+function buildRuntimeFormationHint(
+  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null,
+) {
+  switch (runtimeTeamState?.status) {
+    case "forming":
+      return "先准备本轮 Team，再等待真实团队成员接入实时轨道。";
+    case "formed":
+      return "本轮 Team 已就绪，真实团队成员加入后会自动接管实时协作。";
+    case "failed":
+      return "Team 准备失败，但主会话仍可继续执行或稍后重试。";
+    default:
+      return "只有出现真实团队成员时才会展开团队视图";
+  }
+}
+
+function buildRuntimeFormationEmptyDetail(
+  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null,
+) {
+  switch (runtimeTeamState?.status) {
+    case "forming":
+      return "当前正在根据本轮任务准备 Team。完成后，这里会先展示本轮成员卡片，随后等待真实团队成员接入。";
+    case "formed":
+      return "本轮 Team 已就绪。当前画布先展示本轮成员蓝图，待系统真正分派成员并开始协作后，会自动切换到真实协作轨道。";
+    case "failed":
+      return (
+        runtimeTeamState.errorMessage?.trim() ||
+        "本轮 Team 准备失败，暂时无法展示本轮成员。"
+      );
+    default:
+      return "当前还没有真实团队成员。系统开始分派成员后，详情区会切换为选中成员的摘要视图。";
+  }
 }
 
 export function TeamWorkspaceBoard({
@@ -712,6 +755,10 @@ export function TeamWorkspaceBoard({
   onReturnToParentSession,
   teamWaitSummary = null,
   teamControlSummary = null,
+  selectedTeamLabel = null,
+  selectedTeamSummary = null,
+  selectedTeamRoles = [],
+  runtimeTeamState = null,
 }: TeamWorkspaceBoardProps) {
   const isChildSession = Boolean(subagentParentContext);
   const [shellExpanded, setShellExpanded] = useState(defaultShellExpanded);
@@ -857,6 +904,260 @@ export function TeamWorkspaceBoard({
   const hasRealTeamGraph = isChildSession || visibleSessions.length > 0;
   const isEmptyShellState =
     !isChildSession && shellVisible && visibleSessions.length === 0;
+  const normalizedSelectedTeamLabel = selectedTeamLabel?.trim() || null;
+  const normalizedSelectedTeamSummary = selectedTeamSummary?.trim() || null;
+  const normalizedSelectedTeamRoles = (selectedTeamRoles ?? []).filter((role) =>
+    role.label.trim(),
+  );
+  const runtimeFormationMeta = runtimeTeamState
+    ? resolveRuntimeFormationStatusMeta(runtimeTeamState.status)
+    : null;
+  const runtimeFormationLabel =
+    runtimeTeamState?.label?.trim() ||
+    runtimeTeamState?.blueprint?.label?.trim() ||
+    normalizedSelectedTeamLabel;
+  const runtimeFormationSummary =
+    runtimeTeamState?.summary?.trim() ||
+    runtimeTeamState?.blueprint?.summary?.trim() ||
+    normalizedSelectedTeamSummary;
+  const runtimeMembers = runtimeTeamState?.members ?? [];
+  const runtimeBlueprintRoles = runtimeTeamState?.blueprint?.roles ?? [];
+  const hasRuntimeFormation = Boolean(runtimeTeamState);
+  const hasSelectedTeamPlan =
+    Boolean(normalizedSelectedTeamLabel) ||
+    Boolean(normalizedSelectedTeamSummary) ||
+    normalizedSelectedTeamRoles.length > 0;
+
+  const renderSelectedTeamPlanSummary = () => {
+    if (!hasSelectedTeamPlan) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+        {normalizedSelectedTeamLabel ? (
+          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">
+            Team · {normalizedSelectedTeamLabel}
+          </span>
+        ) : null}
+        {normalizedSelectedTeamRoles.length > 0 ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+            {normalizedSelectedTeamRoles.length} 个计划角色
+          </span>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderSelectedTeamPlanPanel = () => {
+    if (!hasSelectedTeamPlan) {
+      return null;
+    }
+
+    return (
+      <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <Bot className="h-3.5 w-3.5" />
+          <span>计划中的 Team 角色</span>
+          {normalizedSelectedTeamLabel ? (
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
+              {normalizedSelectedTeamLabel}
+            </span>
+          ) : null}
+        </div>
+        {normalizedSelectedTeamSummary ? (
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            {normalizedSelectedTeamSummary}
+          </p>
+        ) : null}
+        {normalizedSelectedTeamRoles.length > 0 ? (
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            {normalizedSelectedTeamRoles.map((role) => (
+              <div
+                key={`planned-team-role-${role.id}`}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-900">
+                    {role.label}
+                  </span>
+                  {role.roleKey ? (
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500">
+                      Role · {role.roleKey}
+                    </span>
+                  ) : null}
+                  {role.profileId ? (
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500">
+                      Profile · {role.profileId}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {role.summary}
+                </p>
+                {role.skillIds?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {role.skillIds.map((skillId) => (
+                      <span
+                        key={`${role.id}-${skillId}`}
+                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500"
+                      >
+                        Skill · {skillId}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderRuntimeFormationSummary = () => {
+    if (!hasRuntimeFormation) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+        {runtimeFormationLabel ? (
+          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">
+            Team · {runtimeFormationLabel}
+          </span>
+        ) : null}
+        {runtimeFormationMeta ? (
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 font-medium",
+              runtimeFormationMeta.badgeClassName,
+            )}
+          >
+            {runtimeFormationMeta.label}
+          </span>
+        ) : null}
+        {runtimeMembers.length > 0 ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+            {runtimeMembers.length} 个当前成员
+          </span>
+        ) : null}
+        {runtimeTeamState?.blueprint?.label ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+            参考蓝图 · {runtimeTeamState.blueprint.label}
+          </span>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderRuntimeFormationPanel = () => {
+    if (!runtimeTeamState || !runtimeFormationMeta) {
+      return null;
+    }
+
+    return (
+      <div
+        data-testid="team-workspace-runtime-formation"
+        className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5"
+      >
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <Workflow className="h-3.5 w-3.5" />
+          <span>本轮编队</span>
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-medium tracking-normal",
+              runtimeFormationMeta.badgeClassName,
+            )}
+          >
+            {runtimeFormationMeta.label}
+          </span>
+          {runtimeFormationLabel ? (
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
+              {runtimeFormationLabel}
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-2 text-sm font-semibold text-slate-900">
+          {runtimeFormationMeta.title}
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {runtimeTeamState.status === "failed"
+            ? runtimeTeamState.errorMessage?.trim() ||
+              "本轮 Team 准备失败，暂时无法展示更多内容。"
+            : runtimeFormationSummary ||
+              "这里展示本轮 Team 规划结果，真实成员加入后会接管实时协作视图。"}
+        </p>
+        {runtimeTeamState.blueprint?.label ? (
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+            参考蓝图 Team：{runtimeTeamState.blueprint.label}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderRuntimeMemberPanel = () => {
+    if (runtimeMembers.length === 0) {
+      return null;
+    }
+
+    return (
+      <div
+        className="mt-3 grid gap-3 xl:grid-cols-2"
+        data-testid="team-workspace-runtime-members"
+      >
+        {runtimeMembers.map((member) => {
+          const memberMeta = resolveRuntimeMemberStatusMeta(member.status);
+          return (
+            <div
+              key={`runtime-team-member-${member.id}`}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-900">
+                  {member.label}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                    memberMeta.badgeClassName,
+                  )}
+                >
+                  {memberMeta.label}
+                </span>
+                {member.roleKey ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500">
+                    Role · {member.roleKey}
+                  </span>
+                ) : null}
+                {member.profileId ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500">
+                    Profile · {member.profileId}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {member.summary}
+              </p>
+              {member.skillIds.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {member.skillIds.map((skillId) => (
+                    <span
+                      key={`${member.id}-${skillId}`}
+                      className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500"
+                    >
+                      Skill · {skillId}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const railSessions = useMemo(
     () =>
@@ -1258,10 +1559,12 @@ export function TeamWorkspaceBoard({
       onSendSubagentInput &&
       selectedSession.id !== currentSessionId,
   );
-  const canCloseSelectedSession = Boolean(
+  const canStopSelectedSession = Boolean(
     selectedSession &&
       selectedSession.sessionType !== "user" &&
-      selectedSession.runtimeStatus !== "closed" &&
+      isTeamWorkspaceActiveStatus(
+        selectedSession.runtimeStatus ?? selectedSession.latestTurnStatus,
+      ) &&
       onCloseSubagentSession,
   );
   const canResumeSelectedSession = Boolean(
@@ -1456,15 +1759,20 @@ export function TeamWorkspaceBoard({
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-slate-900">
-                Team 运行时已就绪
+                {runtimeFormationMeta?.title || "Team 运行时已就绪"}
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
-                尚未创建真实 child session
+                {runtimeFormationMeta?.label || "尚未出现真实团队成员"}
               </span>
             </div>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              这里先保持轻量状态条，避免遮挡消息区。只有真正创建子代理后，团队面板才需要展开。
+              {hasRuntimeFormation
+                ? buildRuntimeFormationHint(runtimeTeamState)
+                : "这里先保持轻量状态条，避免遮挡消息区。只有真正出现团队成员后，团队面板才需要展开。"}
             </p>
+            {hasRuntimeFormation
+              ? renderRuntimeFormationSummary()
+              : renderSelectedTeamPlanSummary()}
           </div>
           <Button
             type="button"
@@ -1482,17 +1790,30 @@ export function TeamWorkspaceBoard({
 
   const selectedStatusMeta = resolveStatusMeta(selectedSession?.runtimeStatus);
   const detailVisible = isEmptyShellState ? shellExpanded : detailExpanded;
-  const boardHeadline = buildBoardHeadline({
-    hasRealTeamGraph,
-    isChildSession,
-    subagentParentContext,
-    totalTeamSessions,
-  });
-  const boardHint = buildBoardHint({
-    hasRealTeamGraph,
-    isChildSession,
-    siblingCount,
-  });
+  const detailToggleLabel = isEmptyShellState
+    ? detailVisible
+      ? "收起面板"
+      : "展开详情"
+    : detailVisible
+      ? "收起详情"
+      : "展开详情";
+  const boardHeadline =
+    !hasRealTeamGraph && runtimeFormationMeta
+      ? runtimeFormationMeta.title
+      : buildBoardHeadline({
+          hasRealTeamGraph,
+          isChildSession,
+          subagentParentContext,
+          totalTeamSessions,
+        });
+  const boardHint =
+    !hasRealTeamGraph && hasRuntimeFormation
+      ? buildRuntimeFormationHint(runtimeTeamState)
+      : buildBoardHint({
+          hasRealTeamGraph,
+          isChildSession,
+          siblingCount,
+        });
   const detailSummary =
     selectedSession?.taskSummary ||
     buildFallbackSummary({
@@ -1528,7 +1849,7 @@ export function TeamWorkspaceBoard({
   const stackedRail = embedded;
   const boardShellClassName = cn(
     embedded
-      ? "pointer-events-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_18px_64px_-36px_rgba(15,23,42,0.18)]"
+      ? "pointer-events-auto flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_18px_64px_-36px_rgba(15,23,42,0.18)]"
       : "overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_18px_64px_-42px_rgba(15,23,42,0.24)]",
     embedded ? "mx-0 mt-0" : "mx-3 mt-2",
     className,
@@ -1540,7 +1861,7 @@ export function TeamWorkspaceBoard({
       : "border-b border-slate-200 bg-slate-50",
   );
   const boardBodyClassName = embedded
-    ? "min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-3"
+    ? "min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3"
     : "p-3 sm:p-4";
   const railCardClassName = embedded
     ? "pointer-events-auto space-y-4"
@@ -1563,14 +1884,20 @@ export function TeamWorkspaceBoard({
   const timelineEntryClassName = embedded
     ? "border-l-2 border-slate-200 pl-3"
     : "rounded-[14px] border border-slate-200 bg-white p-3";
-  const railTitle = isChildSession ? "同组 Agent 轨道" : "Team Agent 轨道";
+  const railTitle = isChildSession ? "同组成员轨道" : "团队成员轨道";
   const railSubtitle = isChildSession
     ? siblingCount > 0
-      ? `当前 agent 与 ${siblingCount} 个 sibling 同组`
-      : "当前只有一个真实子线程"
+      ? `当前成员与 ${siblingCount} 位同组成员协作`
+      : "当前只有一位成员"
     : hasRealTeamGraph
-      ? `${visibleSessions.length} 个 child session 已加入`
-      : "等待真实 child session";
+      ? `${visibleSessions.length} 位成员已加入`
+      : runtimeTeamState?.status === "forming"
+        ? "正在准备本轮成员"
+        : runtimeTeamState?.status === "formed"
+          ? `${runtimeMembers.length} 个成员待启动`
+          : runtimeTeamState?.status === "failed"
+            ? "Team 准备失败"
+            : "等待成员加入";
 
   return (
     <section
@@ -1602,7 +1929,7 @@ export function TeamWorkspaceBoard({
             ) : null}
             {!isChildSession && totalTeamSessions > 0 ? (
               <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
-                {totalTeamSessions} 个活跃 agent
+                {totalTeamSessions} 位活跃成员
               </span>
             ) : null}
           </div>
@@ -1629,13 +1956,13 @@ export function TeamWorkspaceBoard({
               ) : (
                 <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
               )}
-              {detailVisible ? "收起" : "展开详情"}
+              {detailToggleLabel}
             </Button>
           )}
           {isEmptyShellState
             ? (
                 <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-                  尚未创建真实 child session
+                  {runtimeFormationMeta?.label || "尚未出现真实团队成员"}
                 </span>
               )
             : Object.entries(statusSummary)
@@ -1712,14 +2039,14 @@ export function TeamWorkspaceBoard({
                   {pendingTeamAction === "wait_any" ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : null}
-                  {pendingTeamAction === "wait_any"
-                    ? "等待中..."
-                    : "等待任一活跃 agent"}
+                    {pendingTeamAction === "wait_any"
+                      ? "等待中..."
+                      : "等待任一活跃成员"}
                 </Button>
               ) : null}
               {canWaitAnyActiveTeamSession ? (
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500">
-                  {waitableTeamSessionIds.length} 个活跃 agent 可聚合 wait
+                  {waitableTeamSessionIds.length} 位活跃成员可统一等待
                 </span>
               ) : null}
               {canCloseCompletedTeamSessions ? (
@@ -1734,14 +2061,14 @@ export function TeamWorkspaceBoard({
                   {pendingTeamAction === "close_completed" ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : null}
-                  {pendingTeamAction === "close_completed"
-                    ? "关闭中..."
-                    : "关闭已完成 agent"}
+                    {pendingTeamAction === "close_completed"
+                      ? "关闭中..."
+                      : "清理已完成成员"}
                 </Button>
               ) : null}
               {canCloseCompletedTeamSessions ? (
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500">
-                  {completedTeamSessionIds.length} 个已完成 agent 可释放 slot
+                  {completedTeamSessionIds.length} 位已完成成员可清理
                 </span>
               ) : null}
             </div>
@@ -1959,15 +2286,39 @@ export function TeamWorkspaceBoard({
               })}
             </div>
           ) : (
-            <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-500">
-              还没有真实 child session。下一次{" "}
-              <span className="font-mono text-slate-700">spawn_agent</span>{" "}
-              成功后，这里会生成可纵向浏览的 team 轨道。
-            </div>
+            <>
+              {hasRuntimeFormation ? (
+                <>
+                  {renderRuntimeFormationPanel()}
+                  {renderRuntimeMemberPanel()}
+                </>
+              ) : (
+                renderSelectedTeamPlanPanel()
+              )}
+              <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-500">
+                {runtimeTeamState?.status === "forming" ? (
+                  "模型正在准备本轮 Team，完成后这里会先展示本轮成员；后续真实成员加入时，再切换为可纵向浏览的团队轨道。"
+                ) : runtimeTeamState?.status === "formed" ? (
+                  <>
+                    本轮 Team 已就绪。系统开始分派成员后，这里会从当前编队过渡到真实团队轨道。
+                  </>
+                ) : runtimeTeamState?.status === "failed" ? (
+                  runtimeTeamState.errorMessage?.trim() ||
+                  "Team 准备失败，暂时还没有真实团队成员。"
+                ) : (
+                  <>
+                    还没有真实团队成员。系统开始分派成员后，这里会生成可纵向浏览的团队轨道。
+                  </>
+                )}
+              </div>
+            </>
           )}
 
           {detailVisible ? (
-            <div className={cn("mt-3", detailCardClassName)}>
+            <div
+              className={cn("mt-3", detailCardClassName)}
+              data-testid="team-workspace-detail-section"
+            >
               {selectedSession ? (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2014,10 +2365,10 @@ export function TeamWorkspaceBoard({
                           {selectedActionPending &&
                           pendingSessionAction?.action === "resume"
                             ? "恢复中..."
-                            : "恢复子代理"}
+                            : "恢复成员"}
                         </Button>
                       ) : null}
-                      {canCloseSelectedSession ? (
+                      {canStopSelectedSession ? (
                         <Button
                           type="button"
                           size="sm"
@@ -2033,9 +2384,14 @@ export function TeamWorkspaceBoard({
                           ) : null}
                           {selectedActionPending &&
                           pendingSessionAction?.action === "close"
-                            ? "关闭中..."
-                            : "关闭子代理"}
+                            ? "停止中..."
+                            : "停止成员"}
                         </Button>
+                      ) : null}
+                      {canStopSelectedSession || canResumeSelectedSession ? (
+                        <span className="text-xs leading-5 text-slate-500">
+                          停止会中断当前执行并保留会话，可稍后恢复。
+                        </span>
                       ) : null}
                       {canOpenSelectedSession ? (
                         <Button
@@ -2046,7 +2402,7 @@ export function TeamWorkspaceBoard({
                             void onOpenSubagentSession?.(selectedSession.id)
                           }
                         >
-                          {isChildSession ? "切换" : "打开会话"}
+                          {isChildSession ? "切换" : "查看对话"}
                         </Button>
                       ) : null}
                     </div>
@@ -2125,10 +2481,10 @@ export function TeamWorkspaceBoard({
                     <div className={secondarySectionClassName}>
                       <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                         <Clock3 className="h-3.5 w-3.5" />
-                        <span>Team 控制</span>
+                        <span>协作控制</span>
                         {canWaitSelectedSession ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                            可直接 wait_agent
+                            可直接等待结果
                           </span>
                         ) : null}
                       </div>
@@ -2150,10 +2506,10 @@ export function TeamWorkspaceBoard({
                             {selectedActionPending &&
                             pendingSessionAction?.action === "wait"
                               ? "等待中..."
-                              : "等待 30 秒"}
+                              : "等待结果 30 秒"}
                           </Button>
                           <span className="text-xs leading-5 text-slate-500">
-                            仅在主线程确实被该子代理结果阻塞时使用。
+                            仅在当前对话确实依赖该成员结果时使用。
                           </span>
                         </div>
                       ) : null}
@@ -2166,7 +2522,7 @@ export function TeamWorkspaceBoard({
                                 event.target.value,
                               )
                             }
-                            placeholder="向该子代理补充新的指令、澄清约束，或要求它继续推进下一步。"
+                            placeholder="给该成员补充新的说明、澄清约束，或要求它继续推进下一步。"
                             className="min-h-[96px] resize-y border-slate-200 bg-white text-sm text-slate-700 placeholder:text-slate-400"
                             data-testid="team-workspace-send-input-textarea"
                           />
@@ -2189,7 +2545,7 @@ export function TeamWorkspaceBoard({
                               {selectedActionPending &&
                               pendingSessionAction?.action === "send"
                                 ? "发送中..."
-                                : "发送补充任务"}
+                                : "发送补充说明"}
                             </Button>
                             <Button
                               type="button"
@@ -2212,10 +2568,10 @@ export function TeamWorkspaceBoard({
                               pendingSessionAction?.action ===
                                 "interrupt_send"
                                 ? "中断中..."
-                                : "中断后发送"}
+                                : "中断并发送"}
                             </Button>
                             <span className="text-xs leading-5 text-slate-500">
-                              `send_input` 只针对该子代理，不影响其他团队成员。
+                              这条补充说明只会发送给当前成员，不影响其他团队成员。
                             </span>
                           </div>
                         </div>
@@ -2246,11 +2602,11 @@ export function TeamWorkspaceBoard({
                         </p>
                       ) : selectedSessionActivityPreview?.status === "ready" ? (
                         <p className="mt-2 text-sm leading-6 text-slate-500">
-                          该子代理暂未产出可展示的最近过程。
+                          该成员暂未产出可展示的最近过程。
                         </p>
                       ) : (
                         <p className="mt-2 text-sm leading-6 text-slate-500">
-                          正在同步该子代理的最近过程...
+                          正在同步该成员的最近过程...
                         </p>
                       )}
 
@@ -2317,20 +2673,70 @@ export function TeamWorkspaceBoard({
                     <span>焦点详情</span>
                   </div>
                   <div className="mt-2 text-base font-semibold text-slate-900">
-                    等待真实子代理加入
+                    {runtimeFormationMeta?.title || "等待团队成员加入"}
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-600">
-                    现在只有 team shell，没有真实 child session。主线程下一步应显式调用{" "}
-                    <span className="font-mono text-slate-700">spawn_agent</span>{" "}
-                    创建团队成员；创建成功后，详情区会切换为选中 agent 的摘要视图。
+                    {buildRuntimeFormationEmptyDetail(runtimeTeamState)}
                   </p>
+                  {hasRuntimeFormation ? (
+                    <div className="mt-4 space-y-4">
+                      {renderRuntimeFormationPanel()}
+                      {renderRuntimeMemberPanel()}
+                      {runtimeBlueprintRoles.length > 0 ? (
+                        <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            参考蓝图角色
+                          </div>
+                          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                            {runtimeBlueprintRoles.map((role) => (
+                              <div
+                                key={`runtime-blueprint-role-${role.id}`}
+                                className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3"
+                              >
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {role.label}
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-slate-600">
+                                  {role.summary}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : hasSelectedTeamPlan ? (
+                    <div className="mt-4">{renderSelectedTeamPlanPanel()}</div>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                     <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                      推荐链路：spawn_agent → wait_agent → send_input
+                      推荐流程：分派成员 → 等待结果 → 补充说明
                     </span>
                   </div>
                 </>
               )}
+            </div>
+          ) : railSessions.length > 0 ? (
+            <div
+              className={cn(
+                "mt-3 rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-500",
+                embedded ? "shadow-none" : "shadow-sm shadow-slate-950/5",
+              )}
+              data-testid="team-workspace-compact-summary"
+            >
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <PanelTop className="h-3.5 w-3.5" />
+                <span>紧凑视图</span>
+                {selectedSession ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
+                    焦点成员 · {selectedSession.name}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2">
+                已收起焦点详情、执行配置、协作控制与最近过程，当前仅保留团队轨道与 Team
+                轨迹，便于在小屏幕下先浏览整体进度。
+              </p>
             </div>
           ) : null}
         </div>

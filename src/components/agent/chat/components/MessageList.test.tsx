@@ -204,6 +204,51 @@ describe("MessageList", () => {
     expect(groups[1]?.textContent).toContain("已继续执行发布流程。");
   });
 
+  it("用户图片消息不应渲染内部图片占位文本", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-image",
+        role: "user",
+        content: "[Image #1]",
+        images: [
+          {
+            mediaType: "image/png",
+            data: "aGVsbG8=",
+          },
+        ],
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages);
+
+    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+    const image = container.querySelector('img[alt="attachment"]');
+    expect(image).toBeTruthy();
+    expect(container.textContent).not.toContain("[Image #1]");
+  });
+
+  it("助手内部图片标签应在主消息里隐藏", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image",
+        role: "assistant",
+        content: "[Image #1]",
+        timestamp: now,
+      },
+    ];
+
+    render(messages);
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: "",
+      }),
+    );
+  });
+
   it("助手消息包含 artifacts 时应渲染产物卡片并响应点击", () => {
     const now = new Date();
     const onArtifactClick = vi.fn();
