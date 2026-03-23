@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { WorkspaceShellScene } from "./WorkspaceShellScene";
 import { useWorkspaceConversationSceneRuntime } from "./useWorkspaceConversationSceneRuntime";
 import { useWorkspaceThemeWorkbenchShellRuntime } from "./useWorkspaceThemeWorkbenchShellRuntime";
@@ -8,6 +9,7 @@ type ThemeWorkbenchShellRuntime = ReturnType<
 type ConversationSceneRuntime = ReturnType<
   typeof useWorkspaceConversationSceneRuntime
 >;
+type WorkspaceShellSceneProps = ComponentProps<typeof WorkspaceShellScene>;
 
 interface UseWorkspaceShellSceneRuntimeParams {
   compactChrome: boolean;
@@ -16,21 +18,21 @@ interface UseWorkspaceShellSceneRuntimeParams {
   showSidebar: boolean;
   themeWorkbenchShellRuntime: ThemeWorkbenchShellRuntime;
   conversationSceneRuntime: ConversationSceneRuntime;
-  sessionId?: string;
-  topics: Array<{ id: string; title: string }>;
-  handleBackHome: () => void;
-  switchTopic: (topicId: string) => Promise<void> | void;
-  handleResumeSidebarTask: (taskId: string) => void;
-  deleteTopic: (topicId: string) => Promise<void> | void;
-  renameTopic: (topicId: string, title: string) => Promise<void> | void;
-  displayMessages: Array<unknown>;
-  isSending: boolean;
+  sessionId?: WorkspaceShellSceneProps["currentTopicId"];
+  topics: WorkspaceShellSceneProps["topics"];
+  handleBackHome: WorkspaceShellSceneProps["onNewChat"];
+  switchTopic: WorkspaceShellSceneProps["onSwitchTopic"];
+  handleResumeSidebarTask: WorkspaceShellSceneProps["onResumeTask"];
+  deleteTopic: WorkspaceShellSceneProps["onDeleteTopic"];
+  renameTopic: WorkspaceShellSceneProps["onRenameTopic"];
+  displayMessages: WorkspaceShellSceneProps["currentMessages"];
+  isSending: WorkspaceShellSceneProps["isSending"];
   pendingActionCount: number;
   queuedTurnCount: number;
-  childSubagentSessions: Array<unknown>;
-  subagentParentContext: unknown;
-  handleOpenSubagentSession: (sessionId: string) => void;
-  handleReturnToParentSession: () => void;
+  childSubagentSessions: WorkspaceShellSceneProps["childSubagentSessions"];
+  subagentParentContext: WorkspaceShellSceneProps["subagentParentContext"];
+  handleOpenSubagentSession: WorkspaceShellSceneProps["onOpenSubagentSession"];
+  handleReturnToParentSession: WorkspaceShellSceneProps["onReturnToParentSession"];
 }
 
 export function useWorkspaceShellSceneRuntime({
@@ -71,7 +73,7 @@ export function useWorkspaceShellSceneRuntime({
           themeWorkbenchShellRuntime.onExpandThemeWorkbenchSidebar
         }
         mainAreaNode={conversationSceneRuntime.mainAreaNode}
-        currentTopicId={sessionId}
+        currentTopicId={sessionId ?? null}
         topics={topics}
         onNewChat={handleBackHome}
         onSwitchTopic={switchTopic}

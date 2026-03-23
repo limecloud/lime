@@ -24,6 +24,8 @@ type HarnessPanelBaseProps = Pick<
   | "onResumeThread"
   | "onReplayPendingRequest"
   | "onPromoteQueuedTurn"
+  | "messages"
+  | "diagnosticRuntimeContext"
   | "toolInventory"
   | "toolInventoryLoading"
   | "toolInventoryError"

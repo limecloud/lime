@@ -170,7 +170,7 @@ interface UseWorkspaceCanvasPreviewPresentationParams {
 }
 
 interface WorkspaceCanvasPreviewPresentationResult {
-  canvasWorkbenchDefaultPreview: CanvasWorkbenchDefaultPreview;
+  canvasWorkbenchDefaultPreview: CanvasWorkbenchDefaultPreview | null;
   handleOpenCanvasWorkbenchPath: (path: string) => Promise<void>;
   handleRevealCanvasWorkbenchPath: (path: string) => Promise<void>;
   liveCanvasPreview: ReactNode;

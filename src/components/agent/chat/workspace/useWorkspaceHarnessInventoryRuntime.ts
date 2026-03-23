@@ -3,21 +3,11 @@ import {
   getAgentRuntimeToolInventory,
   type AgentRuntimeToolInventory,
 } from "@/lib/api/agentRuntime";
-
-interface HarnessRunSummary {
-  title?: string | null;
-  started_at?: number | null;
-  artifact_paths?: string[] | null;
-}
-
-interface HarnessTerminalSummary extends HarnessRunSummary {
-  finished_at?: number | null;
-}
-
-interface HarnessBackendRunStateSummary {
-  updated_at?: number | null;
-  latest_terminal?: HarnessTerminalSummary | null;
-}
+import type {
+  ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
+  ThemeWorkbenchRunTerminalItem,
+  ThemeWorkbenchRunTodoItem,
+} from "@/lib/api/executionRun";
 
 interface UseWorkspaceHarnessInventoryRuntimeParams {
   chatMode: "agent" | "general" | "creator";
@@ -30,8 +20,8 @@ interface UseWorkspaceHarnessInventoryRuntimeParams {
     title: string;
     description: string;
   };
-  themeWorkbenchBackendRunState: HarnessBackendRunStateSummary | null;
-  themeWorkbenchActiveQueueItem: HarnessRunSummary | null | undefined;
+  themeWorkbenchBackendRunState: BackendThemeWorkbenchRunState | null;
+  themeWorkbenchActiveQueueItem: ThemeWorkbenchRunTodoItem | null | undefined;
   harnessPendingCount: number;
 }
 
@@ -104,7 +94,7 @@ export function useWorkspaceHarnessInventoryRuntime({
       return null;
     }
 
-    const latestTerminal =
+    const latestTerminal: ThemeWorkbenchRunTerminalItem | null =
       themeWorkbenchBackendRunState?.latest_terminal ?? null;
     const activeRun = themeWorkbenchActiveQueueItem ?? latestTerminal;
     const artifactPaths =

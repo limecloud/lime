@@ -5,7 +5,7 @@ import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
 interface UseWorkspaceRuntimeTeamDispatchPreviewRuntimeParams {
   messagesLength: number;
   runtimeTeamState: TeamWorkspaceRuntimeFormationState | null;
-  sessionId?: string;
+  sessionId?: string | null;
 }
 
 export function useWorkspaceRuntimeTeamDispatchPreviewRuntime({

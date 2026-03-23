@@ -41,6 +41,11 @@ pub async fn agent_runtime_interrupt_turn(
 ) -> Result<bool, String> {
     let session_id = request.session_id;
     let cancelled = state.cancel_session(&session_id).await;
+    if cancelled {
+        let _ = state
+            .record_interrupt_request(&session_id, "user", "用户主动停止当前执行")
+            .await;
+    }
     let cleared = clear_runtime_queue_service(&app, &session_id).await?;
     Ok(cancelled || !cleared.is_empty())
 }
@@ -133,12 +138,14 @@ pub async fn agent_runtime_get_session(
     let detail = AsterAgentWrapper::get_runtime_session_detail(db.inner(), &session_id).await?;
     let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
     let projection = sync_thread_reliability_projection(db.inner(), &detail)?;
+    let interrupt_marker = state.get_interrupt_marker(&session_id).await;
     let thread_read = AgentRuntimeThreadReadModel::from_parts(
         &detail,
         &queued_turns,
         projection.pending_requests,
         projection.last_outcome,
         projection.incidents,
+        interrupt_marker.as_ref(),
     );
     Ok(
         AgentRuntimeSessionDetail::from_session_detail_with_thread_read(
@@ -187,12 +194,14 @@ pub async fn agent_runtime_get_thread_read(
     let detail = AsterAgentWrapper::get_runtime_session_detail(db.inner(), &session_id).await?;
     let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
     let projection = sync_thread_reliability_projection(db.inner(), &detail)?;
+    let interrupt_marker = state.get_interrupt_marker(&session_id).await;
     Ok(AgentRuntimeThreadReadModel::from_parts(
         &detail,
         &queued_turns,
         projection.pending_requests,
         projection.last_outcome,
         projection.incidents,
+        interrupt_marker.as_ref(),
     ))
 }
 

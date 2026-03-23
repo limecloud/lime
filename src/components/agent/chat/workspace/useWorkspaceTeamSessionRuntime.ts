@@ -15,7 +15,7 @@ interface WorkspaceSessionTopicSummary {
 }
 
 interface UseWorkspaceTeamSessionRuntimeParams {
-  sessionId?: string;
+  sessionId?: string | null;
   topics: WorkspaceSessionTopicSummary[];
   turns: Array<{ status: string }>;
   queuedTurnCount: number;

@@ -11,7 +11,7 @@ import type { WorkspaceHandleSend } from "./useWorkspaceSendActions";
 
 interface UseWorkspaceAutoGuideRuntimeParams {
   contentId?: string | null;
-  sessionId?: string;
+  sessionId?: string | null;
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
   initialDispatchKey: string | null;

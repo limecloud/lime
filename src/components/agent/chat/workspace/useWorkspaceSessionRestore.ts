@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { TaskFile } from "../components/TaskFiles";
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode, ThemeType } from "@/components/content-creator/types";
 import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
+import { normalizeInitialTheme } from "../agentChatWorkspaceShared";
 import { normalizeSessionTaskFileType } from "./themeWorkbenchHelpers";
 
 interface SessionFileSummary {
@@ -18,14 +19,14 @@ interface SessionMetaSummary {
 }
 
 interface UseWorkspaceSessionRestoreParams {
-  sessionId?: string;
+  sessionId?: string | null;
   sessionMeta?: SessionMetaSummary | null;
   lockTheme: boolean;
   initialTheme?: string;
   sessionFiles: SessionFileSummary[];
   readSessionFile: (name: string) => Promise<string | null | undefined>;
   taskFilesLength: number;
-  setActiveTheme: (theme: string) => void;
+  setActiveTheme: (theme: ThemeType) => void;
   setCreationMode: (mode: CreationMode) => void;
   setTaskFiles: (files: TaskFile[]) => void;
 }
@@ -75,7 +76,7 @@ export function useWorkspaceSessionRestore({
         );
       } else {
         console.log("[AgentChatPage] 恢复主题:", sessionMeta.theme);
-        setActiveTheme(sessionMeta.theme);
+        setActiveTheme(normalizeInitialTheme(sessionMeta.theme));
       }
     }
 
@@ -126,14 +127,14 @@ export function useWorkspaceSessionRestore({
               id: crypto.randomUUID(),
               name: file.name,
               type: normalizeSessionTaskFileType(
-                file.fileType,
+                file.fileType ?? "other",
                 file.name,
                 content,
               ),
               content,
               version: 1,
-              createdAt: file.createdAt,
-              updatedAt: file.updatedAt,
+              createdAt: file.createdAt ?? Date.now(),
+              updatedAt: file.updatedAt ?? file.createdAt ?? Date.now(),
             });
           }
         } catch (err) {

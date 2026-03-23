@@ -18,13 +18,29 @@ import type {
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import type { ActionRequired, AgentThreadItem, AgentThreadTurn } from "../types";
+import type {
+  ActionRequired,
+  AgentThreadItem,
+  AgentThreadTurn,
+  Message,
+} from "../types";
+import type { HarnessSessionState } from "../utils/harnessState";
 import {
   buildThreadReliabilityView,
   type ThreadReliabilityTone,
 } from "../utils/threadReliabilityView";
 import { AgentIncidentPanel } from "./AgentIncidentPanel";
 import { AgentThreadOutcomeSummary } from "./AgentThreadOutcomeSummary";
+
+interface AgentThreadReliabilityDiagnosticContext {
+  sessionId?: string | null;
+  workspaceId?: string | null;
+  providerType?: string | null;
+  model?: string | null;
+  executionStrategy?: string | null;
+  activeTheme?: string | null;
+  selectedTeamLabel?: string | null;
+}
 
 interface AgentThreadReliabilityPanelProps {
   threadRead?: AgentRuntimeThreadReadModel | null;
@@ -43,6 +59,9 @@ interface AgentThreadReliabilityPanelProps {
     queuedTurnId: string,
   ) => boolean | Promise<boolean>;
   className?: string;
+  harnessState?: HarnessSessionState | null;
+  messages?: Message[];
+  diagnosticRuntimeContext?: AgentThreadReliabilityDiagnosticContext | null;
 }
 
 function serializeClipboardPayload(value: unknown): string {
@@ -51,6 +70,168 @@ function serializeClipboardPayload(value: unknown): string {
     (_key, item) => (item instanceof Date ? item.toISOString() : item),
     2,
   );
+}
+
+function normalizeDiagnosticText(value?: string | null): string {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+function truncateDiagnosticText(value?: string | null, maxLength = 240): string {
+  const normalized = normalizeDiagnosticText(value);
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function summarizeThreadItemSignals(threadItems: AgentThreadItem[]) {
+  const warningItems = threadItems.filter((item) => item.type === "warning");
+  const contextCompactionItems = threadItems.filter(
+    (item) => item.type === "context_compaction",
+  );
+  const failedToolCalls = threadItems.filter(
+    (item): item is Extract<AgentThreadItem, { type: "tool_call" }> =>
+      item.type === "tool_call" &&
+      (item.status === "failed" || item.success === false),
+  );
+
+  return {
+    warningCount: warningItems.length,
+    contextCompactionCount: contextCompactionItems.length,
+    failedToolCallCount: failedToolCalls.length,
+    latestWarnings: warningItems.slice(-3).map((item) => ({
+      id: item.id,
+      code: item.code || null,
+      message: truncateDiagnosticText(item.message, 180),
+      status: item.status,
+      updated_at: item.updated_at,
+    })),
+    latestCompactions: contextCompactionItems.slice(-3).map((item) => ({
+      id: item.id,
+      stage: item.stage,
+      trigger: item.trigger || null,
+      detail: truncateDiagnosticText(item.detail, 180),
+      status: item.status,
+      updated_at: item.updated_at,
+    })),
+    latestFailedTools: failedToolCalls.slice(-3).map((item) => ({
+      id: item.id,
+      tool_name: item.tool_name,
+      error: truncateDiagnosticText(item.error, 180),
+      updated_at: item.updated_at,
+    })),
+  };
+}
+
+function summarizeRecentMessages(messages: Message[]) {
+  return messages.slice(-6).map((message) => ({
+    id: message.id,
+    role: message.role,
+    timestamp:
+      message.timestamp instanceof Date
+        ? message.timestamp.toISOString()
+        : String(message.timestamp),
+    content_preview: truncateDiagnosticText(message.content, 320),
+    runtime_status: message.runtimeStatus
+      ? {
+          phase: message.runtimeStatus.phase,
+          title: message.runtimeStatus.title,
+          detail: truncateDiagnosticText(message.runtimeStatus.detail, 180),
+          checkpoints: message.runtimeStatus.checkpoints?.slice(0, 4) || [],
+        }
+      : null,
+    action_request_count: message.actionRequests?.length || 0,
+    action_request_titles:
+      message.actionRequests?.slice(0, 3).map((request) =>
+        truncateDiagnosticText(request.prompt || request.toolName || request.requestId, 120),
+      ) || [],
+    tool_calls:
+      message.toolCalls?.slice(0, 4).map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.name,
+        status: toolCall.status,
+        error: truncateDiagnosticText(toolCall.result?.error, 120),
+      })) || [],
+    context_trace:
+      message.contextTrace?.slice(-3).map((step) => ({
+        stage: step.stage,
+        detail: truncateDiagnosticText(step.detail, 120),
+      })) || [],
+    artifact_titles:
+      message.artifacts?.slice(0, 4).map((artifact) => artifact.title) || [],
+  }));
+}
+
+function summarizeHarnessState(harnessState?: HarnessSessionState | null) {
+  if (!harnessState) {
+    return null;
+  }
+
+  return {
+    runtime_status: harnessState.runtimeStatus
+      ? {
+          phase: harnessState.runtimeStatus.phase,
+          title: harnessState.runtimeStatus.title,
+          detail: truncateDiagnosticText(harnessState.runtimeStatus.detail, 220),
+          checkpoints: harnessState.runtimeStatus.checkpoints?.slice(0, 6) || [],
+          metadata: harnessState.runtimeStatus.metadata || null,
+        }
+      : null,
+    plan: {
+      phase: harnessState.plan.phase,
+      summary_text: truncateDiagnosticText(harnessState.plan.summaryText, 220),
+      items: harnessState.plan.items.slice(0, 6),
+    },
+    activity: harnessState.activity,
+    pending_approvals_count: harnessState.pendingApprovals.length,
+    latest_context_trace:
+      harnessState.latestContextTrace.slice(-5).map((step) => ({
+        stage: step.stage,
+        detail: truncateDiagnosticText(step.detail, 160),
+      })) || [],
+    delegated_tasks: harnessState.delegatedTasks.slice(0, 6).map((task) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      task_type: task.taskType || null,
+      role: task.role || null,
+      model: task.model || null,
+      summary: truncateDiagnosticText(task.summary, 160),
+    })),
+    output_signals: harnessState.outputSignals.slice(0, 8).map((signal) => ({
+      id: signal.id,
+      tool_name: signal.toolName,
+      title: signal.title,
+      summary: truncateDiagnosticText(signal.summary, 180),
+      preview: truncateDiagnosticText(signal.preview, 180),
+      output_file: signal.outputFile || null,
+      offload_file: signal.offloadFile || null,
+      artifact_path: signal.artifactPath || null,
+      exit_code: signal.exitCode,
+      truncated: signal.truncated || false,
+      offloaded: signal.offloaded || false,
+    })),
+    active_file_writes: harnessState.activeFileWrites.slice(0, 6).map((write) => ({
+      id: write.id,
+      path: write.path,
+      display_name: write.displayName,
+      phase: write.phase,
+      status: write.status,
+      preview: truncateDiagnosticText(write.preview || write.latestChunk, 160),
+    })),
+    recent_file_events: harnessState.recentFileEvents.slice(0, 8).map((event) => ({
+      id: event.id,
+      path: event.path,
+      display_name: event.displayName,
+      kind: event.kind,
+      action: event.action,
+      source_tool_name: event.sourceToolName,
+      preview: truncateDiagnosticText(event.preview, 140),
+    })),
+  };
 }
 
 function resolveToneClassName(tone: ThreadReliabilityTone) {
@@ -88,15 +269,33 @@ function resolveStatShellClassName(tone: ThreadReliabilityTone) {
 }
 
 function buildReliabilityDiagnosticText(params: {
+  threadRead?: AgentRuntimeThreadReadModel | null;
   statusLabel: string;
   summary: string;
   view: ReturnType<typeof buildThreadReliabilityView>;
+  threadItems: AgentThreadItem[];
+  messages: Message[];
+  harnessState?: HarnessSessionState | null;
+  diagnosticRuntimeContext?: AgentThreadReliabilityDiagnosticContext | null;
 }): string {
-  const { statusLabel, summary, view } = params;
+  const {
+    threadRead,
+    statusLabel,
+    summary,
+    view,
+    threadItems,
+    messages,
+    harnessState,
+    diagnosticRuntimeContext,
+  } = params;
+  const threadItemSignals = summarizeThreadItemSignals(threadItems);
+  const recentMessages = summarizeRecentMessages(messages);
   const sections: string[] = [
     "# Lime 线程可靠性诊断任务",
     "",
     "你现在是一名 AI 任务可靠性分析助手。请基于下面的线程可靠性数据，判断这次任务执行得好不好；如果执行不好，请找出根因，并给出可落地的修复建议。",
+    "",
+    "如果“后端诊断聚合”与前端界面信号存在冲突，请优先以后端诊断聚合作为高可信事实源，再结合其他上下文判断。",
     "",
     "请重点回答以下问题：",
     "1. 这次任务整体表现属于：好 / 一般 / 差？请先给结论。",
@@ -117,6 +316,15 @@ function buildReliabilityDiagnosticText(params: {
     "",
     "## 诊断数据",
     "",
+    "### 运行环境",
+    `- 会话 ID：${diagnosticRuntimeContext?.sessionId || "未知"}`,
+    `- 工作区 ID：${diagnosticRuntimeContext?.workspaceId || "未知"}`,
+    `- Provider：${diagnosticRuntimeContext?.providerType || "未知"}`,
+    `- 模型：${diagnosticRuntimeContext?.model || "未知"}`,
+    `- 执行策略：${diagnosticRuntimeContext?.executionStrategy || "未知"}`,
+    `- 主题：${diagnosticRuntimeContext?.activeTheme || "未知"}`,
+    `- 协作方案：${diagnosticRuntimeContext?.selectedTeamLabel || "未设置"}`,
+    "",
     "### 当前状态",
     `- 状态：${statusLabel}`,
     `- 当前回合：${view.activeTurnLabel || "未知"}`,
@@ -128,6 +336,21 @@ function buildReliabilityDiagnosticText(params: {
     `- 待处理请求：${view.pendingRequestCount}`,
     `- 活跃 Incident：${view.activeIncidentCount}`,
     `- 排队回合：${view.queuedTurnCount}`,
+    "",
+    "### 线程项信号",
+    `- warning 数量：${threadItemSignals.warningCount}`,
+    `- context compaction 数量：${threadItemSignals.contextCompactionCount}`,
+    `- 失败工具调用数量：${threadItemSignals.failedToolCallCount}`,
+    "",
+    "### Harness 过程信号",
+    `- runtimeStatus：${harnessState?.runtimeStatus?.title || "无"}`,
+    `- plan phase：${harnessState?.plan.phase || "无"}`,
+    `- plan items：${harnessState?.plan.items.length || 0}`,
+    `- output signals：${harnessState?.outputSignals.length || 0}`,
+    `- active file writes：${harnessState?.activeFileWrites.length || 0}`,
+    `- recent file events：${harnessState?.recentFileEvents.length || 0}`,
+    `- delegated tasks：${harnessState?.delegatedTasks.length || 0}`,
+    `- context trace steps：${harnessState?.latestContextTrace.length || 0}`,
     "",
     "### 待处理请求",
   ];
@@ -193,6 +416,122 @@ function buildReliabilityDiagnosticText(params: {
     sections.push("- 暂无额外建议");
   }
 
+  sections.push("", "### 最近 warning");
+  if (threadItemSignals.latestWarnings.length > 0) {
+    for (const warning of threadItemSignals.latestWarnings) {
+      sections.push(
+        `- ${warning.code || "warning"}｜${warning.message || "无消息"}｜${warning.status}`,
+      );
+    }
+  } else {
+    sections.push("- 无");
+  }
+
+  sections.push("", "### 最近 context compaction");
+  if (threadItemSignals.latestCompactions.length > 0) {
+    for (const compaction of threadItemSignals.latestCompactions) {
+      sections.push(
+        `- ${compaction.stage}｜${compaction.trigger || "未知触发"}｜${compaction.detail || "无详情"}`,
+      );
+    }
+  } else {
+    sections.push("- 无");
+  }
+
+  sections.push("", "### 后端诊断聚合");
+  if (threadRead?.diagnostics) {
+    const diagnostics = threadRead.diagnostics;
+    sections.push(`- 最新回合状态：${diagnostics.latest_turn_status || "未知"}`);
+    sections.push(
+      `- 最新回合开始时间：${diagnostics.latest_turn_started_at || "未知"}`,
+    );
+    sections.push(
+      `- 最新回合结束时间：${diagnostics.latest_turn_completed_at || "未知"}`,
+    );
+    sections.push(
+      `- 最新回合更新时间：${diagnostics.latest_turn_updated_at || "未知"}`,
+    );
+    sections.push(
+      `- 最新回合累计耗时（秒）：${diagnostics.latest_turn_elapsed_seconds ?? "未知"}`,
+    );
+    sections.push(
+      `- 最新回合停滞时长（秒）：${diagnostics.latest_turn_stalled_seconds ?? "无"}`,
+    );
+    sections.push(
+      `- 最新回合错误：${diagnostics.latest_turn_error_message || "无"}`,
+    );
+    sections.push(`- 中断原因：${diagnostics.interrupt_reason || "未知"}`);
+    sections.push(`- 中断来源：${diagnostics.runtime_interrupt_source || "未知"}`);
+    sections.push(
+      `- 中断请求时间：${diagnostics.runtime_interrupt_requested_at || "未知"}`,
+    );
+    sections.push(
+      `- 中断请求后等待时长（秒）：${diagnostics.runtime_interrupt_wait_seconds ?? "无"}`,
+    );
+    sections.push(`- 后端 warning 数量：${diagnostics.warning_count}`);
+    sections.push(
+      `- 后端 context compaction 数量：${diagnostics.context_compaction_count}`,
+    );
+    sections.push(
+      `- 后端失败工具调用数量：${diagnostics.failed_tool_call_count}`,
+    );
+    sections.push(`- 后端失败命令数量：${diagnostics.failed_command_count}`);
+    sections.push(`- 后端待处理请求数量：${diagnostics.pending_request_count}`);
+    sections.push(
+      `- 最老待处理请求等待时长（秒）：${diagnostics.oldest_pending_request_wait_seconds ?? "无"}`,
+    );
+    sections.push(`- 主阻塞类型：${diagnostics.primary_blocking_kind || "未知"}`);
+    sections.push(`- 主阻塞摘要：${diagnostics.primary_blocking_summary || "未知"}`);
+    sections.push(
+      `- 最近 warning：${
+        diagnostics.latest_warning
+          ? `${diagnostics.latest_warning.code || "warning"}｜${diagnostics.latest_warning.message}`
+          : "无"
+      }`,
+    );
+    sections.push(
+      `- 最近 context compaction：${
+        diagnostics.latest_context_compaction
+          ? `${diagnostics.latest_context_compaction.stage}｜${diagnostics.latest_context_compaction.trigger || "未知触发"}｜${diagnostics.latest_context_compaction.detail || "无详情"}`
+          : "无"
+      }`,
+    );
+    sections.push(
+      `- 最近失败工具：${
+        diagnostics.latest_failed_tool
+          ? `${diagnostics.latest_failed_tool.tool_name}｜${diagnostics.latest_failed_tool.error || "无错误详情"}`
+          : "无"
+      }`,
+    );
+    sections.push(
+      `- 最近失败命令：${
+        diagnostics.latest_failed_command
+          ? `${diagnostics.latest_failed_command.command}｜exit=${diagnostics.latest_failed_command.exit_code ?? "未知"}｜${diagnostics.latest_failed_command.error || "无错误详情"}`
+          : "无"
+      }`,
+    );
+    sections.push(
+      `- 最近待处理请求：${
+        diagnostics.latest_pending_request
+          ? `${diagnostics.latest_pending_request.request_type}｜${diagnostics.latest_pending_request.title || diagnostics.latest_pending_request.request_id}｜等待 ${diagnostics.latest_pending_request.waited_seconds ?? "未知"} 秒`
+          : "无"
+      }`,
+    );
+  } else {
+    sections.push("- 无");
+  }
+
+  sections.push("", "### 最近消息片段");
+  if (recentMessages.length > 0) {
+    for (const message of recentMessages) {
+      sections.push(
+        `- ${message.role}｜${message.timestamp}｜${message.content_preview || "<空>"}`,
+      );
+    }
+  } else {
+    sections.push("- 无");
+  }
+
   return sections.join("\n");
 }
 
@@ -205,9 +544,14 @@ function buildReliabilityRawPayload(params: {
   submittedActionsInFlight: ActionRequired[];
   queuedTurns: QueuedTurnSnapshot[];
   view: ReturnType<typeof buildThreadReliabilityView>;
+  harnessState?: HarnessSessionState | null;
+  messages: Message[];
+  diagnosticRuntimeContext?: AgentThreadReliabilityDiagnosticContext | null;
 }): Record<string, unknown> {
   return {
     exported_at: new Date().toISOString(),
+    runtime_context: params.diagnosticRuntimeContext || null,
+    backend_diagnostics: params.threadRead?.diagnostics || null,
     current_turn_id: params.currentTurnId || null,
     thread_read: params.threadRead || null,
     turns: params.turns,
@@ -215,6 +559,9 @@ function buildReliabilityRawPayload(params: {
     pending_actions: params.pendingActions,
     submitted_actions_in_flight: params.submittedActionsInFlight,
     queued_turns: params.queuedTurns,
+    harness_state: summarizeHarnessState(params.harnessState),
+    recent_messages: summarizeRecentMessages(params.messages),
+    thread_item_signals: summarizeThreadItemSignals(params.threadItems),
     reliability_view: params.view,
   };
 }
@@ -236,6 +583,9 @@ export const AgentThreadReliabilityPanel: React.FC<
   onLocatePendingRequest,
   onPromoteQueuedTurn,
   className,
+  harnessState = null,
+  messages = [],
+  diagnosticRuntimeContext = null,
 }) => {
   const [isInterrupting, setIsInterrupting] = useState(false);
   const [isResumingThread, setIsResumingThread] = useState(false);
@@ -343,9 +693,14 @@ export const AgentThreadReliabilityPanel: React.FC<
     try {
       await navigator.clipboard.writeText(
         buildReliabilityDiagnosticText({
+          threadRead,
           statusLabel,
           summary,
           view,
+          threadItems,
+          messages,
+          harnessState,
+          diagnosticRuntimeContext,
         }),
       );
       toast.success("AI 诊断内容已复制");
@@ -374,6 +729,9 @@ export const AgentThreadReliabilityPanel: React.FC<
             submittedActionsInFlight,
             queuedTurns,
             view,
+            harnessState,
+            messages,
+            diagnosticRuntimeContext,
           }),
         ),
       );
@@ -447,7 +805,7 @@ export const AgentThreadReliabilityPanel: React.FC<
         </div>
       </div>
       <div className="mt-2 text-[11px] leading-5 text-muted-foreground">
-        “复制给 AI” 会附带诊断任务说明；“复制原始 JSON” 适合程序化分析、存档或二次处理。
+        “复制给 AI” 会附带诊断任务说明、运行环境、过程信号与最近消息；“复制原始 JSON” 适合程序化分析、存档或二次处理。
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-3">

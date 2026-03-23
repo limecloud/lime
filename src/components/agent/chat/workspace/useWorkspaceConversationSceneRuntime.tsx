@@ -8,10 +8,11 @@ import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CreationMode } from "../components/types";
 import type { WriteArtifactContext } from "../types";
-import type { ThemeType } from "@/components/content-creator/types";
+import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
 import type { Artifact } from "@/lib/artifact/types";
 import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
+import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
 
 type NavigationActions = ReturnType<typeof useWorkspaceNavigationActions>;
 type InputbarScene = ReturnType<typeof useWorkspaceInputbarSceneRuntime>;
@@ -82,7 +83,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleToggleHarnessPanel: ConversationScenePresentationParams["scene"]["onToggleHarnessPanel"];
   harnessPendingCount: ConversationScenePresentationParams["scene"]["harnessPendingCount"];
   harnessAttentionLevel: ConversationScenePresentationParams["scene"]["harnessAttentionLevel"];
-  sessionId: string | undefined;
+  sessionId: string | null | undefined;
   syncStatus: ConversationScenePresentationParams["scene"]["syncStatus"];
   pendingA2UIForm: unknown;
   handleToggleCanvas: ConversationScenePresentationParams["scene"]["onToggleCanvas"];
@@ -123,7 +124,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   shouldCollapseCodeBlockInChat: ConversationScenePresentationParams["messageList"]["shouldCollapseCodeBlock"];
   handleCodeBlockClick: ConversationScenePresentationParams["messageList"]["onCodeBlockClick"];
   showTeamWorkspaceBoard: ConversationScenePresentationParams["teamWorkspaceDock"]["enabled"];
-  layoutMode: ConversationScenePresentationParams["teamWorkspaceDock"]["layoutMode"];
+  layoutMode: LayoutMode;
   handleActivateTeamWorkbench: ConversationScenePresentationParams["teamWorkspaceDock"]["onActivateWorkbench"];
   isThemeWorkbench: boolean;
   showNovelNavbarControls: ConversationScenePresentationParams["novelCanvas"]["visible"];
@@ -137,7 +138,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   projectRootPath: string | null;
   handleHarnessLoadFilePreview: ConversationScenePresentationParams["canvasWorkbenchLayout"]["loadFilePreview"];
   setCanvasWorkbenchLayoutMode: ConversationScenePresentationParams["canvasWorkbenchLayout"]["onLayoutModeChange"];
-  workspacePathMissing: boolean;
+  workspacePathMissing: WorkspacePathMissingState | boolean | null;
   workspaceHealthError: boolean;
 }
 
@@ -253,6 +254,9 @@ export function useWorkspaceConversationSceneRuntime({
   workspacePathMissing,
   workspaceHealthError,
 }: UseWorkspaceConversationSceneRuntimeParams) {
+  const teamWorkspaceDockLayoutMode =
+    layoutMode === "chat" ? "chat" : "chat-canvas";
+
   return useWorkspaceConversationScenePresentation({
     scene: {
       entryBannerVisible,
@@ -392,7 +396,7 @@ export function useWorkspaceConversationSceneRuntime({
       enabled: showTeamWorkspaceBoard,
       shouldShowFloatingInputOverlay:
         shellChromeRuntime.shouldShowThemeWorkbenchFloatingInputOverlay,
-      layoutMode,
+      layoutMode: teamWorkspaceDockLayoutMode,
       onActivateWorkbench: handleActivateTeamWorkbench,
       withBottomOverlay:
         isThemeWorkbench &&
@@ -401,7 +405,7 @@ export function useWorkspaceConversationSceneRuntime({
       surfaceProps: inputbarScene.teamWorkbenchSurfaceProps,
     },
     workspaceAlert: {
-      workspacePathMissing,
+      workspacePathMissing: Boolean(workspacePathMissing),
       workspaceHealthError,
     },
     novelCanvas: {

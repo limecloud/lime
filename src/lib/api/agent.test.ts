@@ -290,6 +290,21 @@ describe("Agent API 治理护栏", () => {
     mockSafeInvoke.mockResolvedValueOnce({
       thread_id: "thread-runtime",
       status: "waiting_request",
+      diagnostics: {
+        latest_turn_status: "aborted",
+        warning_count: 2,
+        context_compaction_count: 1,
+        failed_tool_call_count: 1,
+        failed_command_count: 0,
+        pending_request_count: 0,
+        primary_blocking_kind: "context_risk",
+        latest_warning: {
+          item_id: "warning-1",
+          code: "context_compaction_accuracy",
+          message: "长对话和多次上下文压缩会降低模型准确性",
+          updated_at: "2026-03-23T10:00:00Z",
+        },
+      },
       queued_turns: [
         {
           queued_turn_id: "queued-turn-1",
@@ -303,6 +318,18 @@ describe("Agent API 治理护栏", () => {
     await expect(getAgentRuntimeThreadRead("session-runtime")).resolves.toMatchObject({
       thread_id: "thread-runtime",
       status: "waiting_request",
+      diagnostics: {
+        latest_turn_status: "aborted",
+        warning_count: 2,
+        context_compaction_count: 1,
+        failed_tool_call_count: 1,
+        failed_command_count: 0,
+        pending_request_count: 0,
+        primary_blocking_kind: "context_risk",
+        latest_warning: {
+          code: "context_compaction_accuracy",
+        },
+      },
       queued_turns: [
         expect.objectContaining({
           queued_turn_id: "queued-turn-1",

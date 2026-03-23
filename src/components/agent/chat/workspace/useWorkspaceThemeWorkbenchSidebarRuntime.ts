@@ -27,7 +27,7 @@ import {
 
 interface UseWorkspaceThemeWorkbenchSidebarRuntimeParams {
   isThemeWorkbench: boolean;
-  sessionId?: string;
+  sessionId?: string | null;
   messages: Message[];
   isSending: boolean;
   themeWorkbenchBackendRunState: BackendThemeWorkbenchRunState | null;

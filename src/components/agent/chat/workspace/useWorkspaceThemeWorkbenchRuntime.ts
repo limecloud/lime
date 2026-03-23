@@ -27,7 +27,7 @@ type ThemeWorkbenchRuntimeState =
 
 interface UseWorkspaceThemeWorkbenchRuntimeParams {
   isThemeWorkbench: boolean;
-  sessionId?: string;
+  sessionId?: string | null;
   isSending: boolean;
   pendingActionRequest: ActionRequired | null;
 }

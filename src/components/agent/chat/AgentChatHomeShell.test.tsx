@@ -9,9 +9,11 @@ import { SettingsTabs } from "@/types/settings";
 
 const {
   mockBuildClawAgentParams,
+  mockCreateAutomationJob,
   mockHomeShellExecutionStrategy,
   mockHomeShellModel,
   mockHomeShellProviderType,
+  mockListProjects,
   mockSetExecutionStrategy,
   mockSetModel,
   mockSetProviderType,
@@ -23,6 +25,9 @@ const {
   mockUseClawSolutions,
   mockRecordClawSolutionUsage,
   mockClawSolutions,
+  mockUseServiceSkills,
+  mockRecordServiceSkillUsage,
+  mockServiceSkills,
 } = vi.hoisted(() => {
   const mockClawSolutions = [
     {
@@ -56,16 +61,113 @@ const {
     },
   ];
 
+  const mockServiceSkills = [
+    {
+      id: "short-video-script-replication",
+      title: "复制短视频脚本",
+      summary: "围绕参考视频的结构和节奏，输出一版可继续加工的脚本。",
+      category: "视频创作",
+      outputHint: "脚本大纲 + 镜头节奏",
+      source: "cloud_catalog",
+      runnerType: "instant",
+      defaultExecutorBinding: "agent_turn",
+      executionLocation: "client_default",
+      themeTarget: "video",
+      version: "seed-v1",
+      slotSchema: [
+        {
+          key: "reference_video",
+          label: "参考视频链接/素材",
+          type: "url",
+          required: true,
+          placeholder: "输入视频链接",
+        },
+      ],
+      badge: "云目录",
+      recentUsedAt: null,
+      isRecent: false,
+      runnerLabel: "本地即时执行",
+      runnerTone: "emerald",
+      runnerDescription: "客户端起步版可直接进入工作区执行。",
+      actionLabel: "填写参数",
+    },
+    {
+      id: "daily-trend-briefing",
+      title: "每日趋势摘要",
+      summary: "围绕指定平台与关键词输出趋势摘要。",
+      category: "社媒运营",
+      outputHint: "趋势摘要 + 调度建议",
+      source: "cloud_catalog",
+      runnerType: "scheduled",
+      defaultExecutorBinding: "automation_job",
+      executionLocation: "client_default",
+      themeTarget: "social-media",
+      version: "seed-v1",
+      slotSchema: [
+        {
+          key: "platform",
+          label: "监测平台",
+          type: "platform",
+          required: true,
+          placeholder: "选择平台",
+          defaultValue: "x",
+          options: [{ value: "x", label: "X / Twitter" }],
+        },
+        {
+          key: "industry_keywords",
+          label: "行业关键词",
+          type: "textarea",
+          required: true,
+          placeholder: "输入关键词",
+        },
+        {
+          key: "schedule_time",
+          label: "推送时间",
+          type: "schedule_time",
+          required: false,
+          placeholder: "例如 每天 09:00",
+          defaultValue: "每天 09:00",
+        },
+      ],
+      badge: "云目录",
+      recentUsedAt: null,
+      isRecent: false,
+      runnerLabel: "本地计划任务",
+      runnerTone: "sky",
+      runnerDescription: "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
+      actionLabel: "先做方案",
+    },
+  ];
+
   const mockRecordClawSolutionUsage = vi.fn();
+  const mockRecordServiceSkillUsage = vi.fn();
 
   return {
     mockBuildClawAgentParams: vi.fn((overrides?: Record<string, unknown>) => ({
       agentEntry: "claw",
       ...(overrides || {}),
     })),
+    mockCreateAutomationJob: vi.fn(async (request: Record<string, unknown>) => ({
+      id: "automation-job-1",
+      ...request,
+    })),
     mockHomeShellProviderType: { current: "mock-provider" },
     mockHomeShellModel: { current: "mock-model" },
     mockHomeShellExecutionStrategy: { current: "react" },
+    mockListProjects: vi.fn(async () => [
+      {
+        id: "project-1",
+        name: "项目一",
+        workspaceType: "general",
+        rootPath: "/tmp/project-1",
+        isDefault: false,
+        createdAt: 0,
+        updatedAt: 0,
+        isFavorite: false,
+        isArchived: false,
+        tags: [],
+      },
+    ]),
     mockSetProviderType: vi.fn(),
     mockSetModel: vi.fn(),
     mockSetExecutionStrategy: vi.fn(),
@@ -94,6 +196,15 @@ const {
     })),
     mockRecordClawSolutionUsage,
     mockClawSolutions,
+    mockUseServiceSkills: vi.fn(() => ({
+      skills: mockServiceSkills,
+      isLoading: false,
+      error: null,
+      refresh: vi.fn(),
+      recordUsage: mockRecordServiceSkillUsage,
+    })),
+    mockRecordServiceSkillUsage,
+    mockServiceSkills,
   };
 });
 
@@ -200,6 +311,14 @@ vi.mock("@/lib/api/clawSolutions", () => ({
   prepareClawSolution: mockPrepareClawSolution,
 }));
 
+vi.mock("@/lib/api/automation", () => ({
+  createAutomationJob: mockCreateAutomationJob,
+}));
+
+vi.mock("@/lib/api/project", () => ({
+  listProjects: mockListProjects,
+}));
+
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   loadConfiguredProviders: mockLoadConfiguredProviders,
 }));
@@ -239,6 +358,192 @@ vi.mock("./claw-solutions/ClawHomeSolutionsPanel", () => ({
   ),
 }));
 
+vi.mock("./service-skills/useServiceSkills", () => ({
+  useServiceSkills: mockUseServiceSkills,
+}));
+
+vi.mock("./service-skills/ServiceSkillHomePanel", () => ({
+  ServiceSkillHomePanel: ({
+    skills,
+    onSelect,
+  }: {
+    skills: Array<{ id: string; title: string }>;
+    onSelect: (skill: { id: string; title: string }) => void;
+  }) => (
+    <>
+      {skills.map((skill) => (
+        <button
+          key={skill.id}
+          type="button"
+          data-testid={`home-shell-service-skill-${skill.id}`}
+          onClick={() => onSelect(skill)}
+        >
+          {skill.title}
+        </button>
+      ))}
+    </>
+  ),
+}));
+
+vi.mock("./service-skills/ServiceSkillLaunchDialog", () => ({
+  ServiceSkillLaunchDialog: ({
+    skill,
+    open,
+    onLaunch,
+    onCreateAutomation,
+  }: {
+    skill: { id: string; title: string; runnerType?: string } | null;
+    open: boolean;
+    onLaunch: (
+      skill: { id: string; title: string; runnerType?: string },
+      slotValues: Record<string, string>,
+    ) => void;
+    onCreateAutomation?: (
+      skill: { id: string; title: string; runnerType?: string },
+      slotValues: Record<string, string>,
+    ) => void;
+  }) =>
+    open && skill ? (
+      <>
+        <button
+          type="button"
+          data-testid="home-shell-service-skill-launch"
+          onClick={() =>
+            onLaunch(
+              skill,
+              skill.id === "daily-trend-briefing"
+                ? {
+                    platform: "x",
+                    industry_keywords: "AI Agent，创作者工具",
+                    schedule_time: "每天 09:00",
+                  }
+                : {
+                    reference_video: "https://example.com/video",
+                  },
+            )
+          }
+        >
+          启动服务型技能
+        </button>
+        {skill.runnerType === "scheduled" && onCreateAutomation ? (
+          <button
+            type="button"
+            data-testid="home-shell-service-skill-create-automation"
+            onClick={() =>
+              onCreateAutomation(skill, {
+                platform: "x",
+                industry_keywords: "AI Agent，创作者工具",
+                schedule_time: "每天 09:00",
+              })
+            }
+          >
+            创建自动化任务
+          </button>
+        ) : null}
+      </>
+    ) : null,
+}));
+
+vi.mock("@/components/settings-v2/system/automation/AutomationJobDialog", () => ({
+  AutomationJobDialog: ({
+    open,
+    mode,
+    initialValues,
+    onSubmit,
+  }: {
+    open: boolean;
+    mode: "create" | "edit";
+    initialValues?: Record<string, unknown> | null;
+    onSubmit: (payload: {
+      mode: "create";
+      request: Record<string, unknown>;
+    }) => Promise<void>;
+  }) =>
+    open ? (
+      <div data-testid="home-shell-automation-dialog">
+        <span data-testid="home-shell-automation-dialog-mode">{mode}</span>
+        <span data-testid="home-shell-automation-dialog-schedule">
+          {typeof initialValues?.schedule_kind === "string"
+            ? initialValues.schedule_kind
+            : "-"}
+        </span>
+        <span data-testid="home-shell-automation-dialog-name">
+          {typeof initialValues?.name === "string" ? initialValues.name : "-"}
+        </span>
+        <button
+          type="button"
+          data-testid="home-shell-automation-submit"
+          onClick={() =>
+            void onSubmit({
+              mode: "create",
+              request: {
+                name:
+                  typeof initialValues?.name === "string"
+                    ? initialValues.name
+                    : "自动化任务",
+                description:
+                  typeof initialValues?.description === "string"
+                    ? initialValues.description
+                    : null,
+                workspace_id:
+                  typeof initialValues?.workspace_id === "string"
+                    ? initialValues.workspace_id
+                    : "project-1",
+                execution_mode:
+                  typeof initialValues?.execution_mode === "string"
+                    ? initialValues.execution_mode
+                    : "skill",
+                schedule:
+                  initialValues?.schedule_kind === "cron"
+                    ? {
+                        kind: "cron",
+                        expr:
+                          typeof initialValues?.cron_expr === "string"
+                            ? initialValues.cron_expr
+                            : "0 9 * * *",
+                        tz:
+                          typeof initialValues?.cron_tz === "string"
+                            ? initialValues.cron_tz
+                            : "Asia/Shanghai",
+                      }
+                    : {
+                        kind: "every",
+                        every_secs: Number(initialValues?.every_secs ?? 86400),
+                      },
+                payload: {
+                  kind: "agent_turn",
+                  prompt:
+                    typeof initialValues?.prompt === "string"
+                      ? initialValues.prompt
+                      : "",
+                  system_prompt:
+                    typeof initialValues?.system_prompt === "string"
+                      ? initialValues.system_prompt
+                      : null,
+                  web_search:
+                    typeof initialValues?.web_search === "boolean"
+                      ? initialValues.web_search
+                      : false,
+                },
+                delivery: {
+                  mode: "none",
+                  channel: null,
+                  target: null,
+                  best_effort: true,
+                  output_schema: "text",
+                  output_format: "text",
+                },
+                max_retries: Number(initialValues?.max_retries ?? 2),
+              },
+            })
+          }
+        >
+          提交自动化
+        </button>
+      </div>
+    ) : null,
+}));
+
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 beforeEach(() => {
@@ -257,8 +562,29 @@ beforeEach(() => {
     refresh: vi.fn(),
     recordUsage: mockRecordClawSolutionUsage,
   }));
+  mockUseServiceSkills.mockImplementation(() => ({
+    skills: mockServiceSkills,
+    isLoading: false,
+    error: null,
+    refresh: vi.fn(),
+    recordUsage: mockRecordServiceSkillUsage,
+  }));
   mockLoadConfiguredProviders.mockResolvedValue([]);
   mockLoadProviderModels.mockResolvedValue([]);
+  mockListProjects.mockResolvedValue([
+    {
+      id: "project-1",
+      name: "项目一",
+      workspaceType: "general",
+      rootPath: "/tmp/project-1",
+      isDefault: false,
+      createdAt: 0,
+      updatedAt: 0,
+      isFavorite: false,
+      isArchived: false,
+      tags: [],
+    },
+  ]);
   mockFilterModelsByTheme.mockImplementation(
     (_theme: string | undefined, models: unknown[]) => ({
       models,
@@ -664,6 +990,143 @@ describe("AgentChatHomeShell", () => {
       solutionId: "team-breakdown",
       actionType: "enable_team_mode",
       themeTarget: null,
+    });
+  });
+
+  it("点击服务型技能后应完成补参并进入对应工作区", async () => {
+    const onEnterWorkspace = vi.fn();
+    const { container } = renderShell({
+      onNavigate: undefined,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const serviceSkillButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-short-video-script-replication"]',
+    ) as HTMLButtonElement | null;
+
+    expect(serviceSkillButton).toBeTruthy();
+
+    act(() => {
+      serviceSkillButton?.click();
+    });
+
+    await flushEffects();
+
+    const launchButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-launch"]',
+    ) as HTMLButtonElement | null;
+
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(onEnterWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        theme: "video",
+        initialCreationMode: "guided",
+        initialUserPrompt: expect.stringContaining(
+          "[服务型技能] 复制短视频脚本",
+        ),
+      }),
+    );
+    expect(onEnterWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialUserPrompt: expect.stringContaining(
+          "- 参考视频链接/素材: https://example.com/video",
+        ),
+      }),
+    );
+    expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
+      skillId: "short-video-script-replication",
+      runnerType: "instant",
+    });
+  });
+
+  it("点击定时服务型技能创建任务后应先建本地 automation 再进入工作区", async () => {
+    const onEnterWorkspace = vi.fn();
+    const { container } = renderShell({
+      onNavigate: undefined,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const serviceSkillButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+
+    expect(serviceSkillButton).toBeTruthy();
+
+    act(() => {
+      serviceSkillButton?.click();
+    });
+
+    await flushEffects();
+
+    const createAutomationButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-create-automation"]',
+    ) as HTMLButtonElement | null;
+
+    expect(createAutomationButton).toBeTruthy();
+
+    act(() => {
+      createAutomationButton?.click();
+    });
+
+    await flushEffects();
+
+    const automationDialog = container.querySelector(
+      '[data-testid="home-shell-automation-dialog"]',
+    ) as HTMLDivElement | null;
+    const automationSubmitButton = container.querySelector(
+      '[data-testid="home-shell-automation-submit"]',
+    ) as HTMLButtonElement | null;
+
+    expect(automationDialog).toBeTruthy();
+    expect(container.textContent).toContain("create");
+    expect(container.textContent).toContain("cron");
+    expect(container.textContent).toContain("每日趋势摘要");
+    expect(automationSubmitButton).toBeTruthy();
+
+    act(() => {
+      automationSubmitButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(mockCreateAutomationJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspace_id: "project-1",
+        execution_mode: "skill",
+        schedule: {
+          kind: "cron",
+          expr: "00 09 * * *",
+          tz: expect.any(String),
+        },
+        payload: expect.objectContaining({
+          kind: "agent_turn",
+          prompt: expect.stringContaining("[服务型技能] 每日趋势摘要"),
+        }),
+      }),
+    );
+    expect(onEnterWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        theme: "social-media",
+        initialCreationMode: "guided",
+        initialUserPrompt: expect.stringContaining("[服务型技能] 每日趋势摘要"),
+      }),
+    );
+    expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
+      skillId: "daily-trend-briefing",
+      runnerType: "scheduled",
     });
   });
 

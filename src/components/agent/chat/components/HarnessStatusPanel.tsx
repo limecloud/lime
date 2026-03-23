@@ -63,6 +63,7 @@ import type {
   ActionRequired,
   AgentThreadItem,
   AgentThreadTurn,
+  Message,
 } from "../types";
 import type {
   HarnessFileAction,
@@ -144,6 +145,16 @@ interface HarnessStatusPanelProps {
   onPromoteQueuedTurn?: (
     queuedTurnId: string,
   ) => boolean | Promise<boolean>;
+  messages?: Message[];
+  diagnosticRuntimeContext?: {
+    sessionId?: string | null;
+    workspaceId?: string | null;
+    providerType?: string | null;
+    model?: string | null;
+    executionStrategy?: string | null;
+    activeTheme?: string | null;
+    selectedTeamLabel?: string | null;
+  } | null;
 }
 
 interface PreviewDialogState {
@@ -1409,6 +1420,8 @@ export function HarnessStatusPanel({
   onResumeThread,
   onReplayPendingRequest,
   onPromoteQueuedTurn,
+  messages = [],
+  diagnosticRuntimeContext = null,
 }: HarnessStatusPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const isDialogLayout = layout === "dialog";
@@ -2327,6 +2340,9 @@ export function HarnessStatusPanel({
                     onResumeThread={onResumeThread}
                     onReplayPendingRequest={onReplayPendingRequest}
                     onPromoteQueuedTurn={onPromoteQueuedTurn}
+                    harnessState={harnessState}
+                    messages={messages}
+                    diagnosticRuntimeContext={diagnosticRuntimeContext}
                   />
                 </Section>
               ) : null}

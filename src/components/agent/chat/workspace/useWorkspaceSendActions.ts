@@ -45,7 +45,7 @@ const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 
 type ExecutionStrategy = "react" | "code_orchestrated" | "auto";
 type ChatMode = "agent" | "general" | "creator";
-type SetStringState = Dispatch<SetStateAction<string>>;
+type SetStringState = (value: string) => void;
 
 interface ContextWorkspaceSummary {
   enabled: boolean;
@@ -71,16 +71,16 @@ interface UseWorkspaceSendActionsParams {
   isThemeWorkbench: boolean;
   contextWorkspace: ContextWorkspaceSummary;
   runtimeStyleMessagePrompt: string;
-  projectId?: string;
-  sessionId?: string;
+  projectId?: string | null;
+  sessionId?: string | null;
   providerType: string;
   model: string;
   setModel: SetStringState;
   executionStrategy: ExecutionStrategy;
   preferredTeamPresetId?: string | null;
   selectedTeam?: TeamDefinition | null;
-  selectedTeamLabel: string;
-  selectedTeamSummary: string;
+  selectedTeamLabel?: string;
+  selectedTeamSummary?: string;
   currentGateKey: string;
   themeWorkbenchActiveQueueTitle?: string;
   contentId?: string | null;
@@ -109,7 +109,7 @@ interface UseWorkspaceSendActionsParams {
   ensureBrowserAssistCanvas: (
     target: string,
     options?: EnsureBrowserAssistCanvasOptions,
-  ) => Promise<unknown>;
+  ) => Promise<boolean>;
   handleImageWorkbenchCommand: (input: {
     rawText: string;
     parsedCommand: NonNullable<ReturnType<typeof parseImageWorkbenchCommand>>;

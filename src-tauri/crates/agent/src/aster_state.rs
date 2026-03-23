@@ -30,6 +30,7 @@ use aster::permission::{Permission, PermissionConfirmation, PrincipalType};
 #[cfg(test)]
 use aster::skills::{global_registry, load_skills_from_directory, SkillSource};
 use aster::tools::{create_shared_history, EditTool, WriteTool};
+use chrono::Utc;
 use futures::StreamExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -103,6 +104,13 @@ impl<T> QueuedTurnTask<T> {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct RuntimeInterruptMarker {
+    pub source: String,
+    pub reason: String,
+    pub requested_at: String,
+}
+
 /// Provider 配置信息
 #[derive(Debug, Clone)]
 pub struct ProviderConfig {
@@ -147,6 +155,8 @@ pub struct AsterAgentState {
     agent: Arc<RwLock<Option<Agent>>>,
     /// 当前活跃的取消令牌（用于中止正在进行的对话）
     cancel_tokens: Arc<RwLock<std::collections::HashMap<String, CancellationToken>>>,
+    /// 最近一次显式中断请求（用于 runtime 诊断）
+    interrupt_markers: Arc<RwLock<std::collections::HashMap<String, RuntimeInterruptMarker>>>,
     /// 当前 Provider 配置
     current_provider_config: Arc<RwLock<Option<ProviderConfig>>>,
     /// 凭证桥接器
@@ -162,6 +172,7 @@ impl Clone for AsterAgentState {
         Self {
             agent: self.agent.clone(),
             cancel_tokens: self.cancel_tokens.clone(),
+            interrupt_markers: self.interrupt_markers.clone(),
             current_provider_config: self.current_provider_config.clone(),
             credential_bridge: CredentialBridge::new(),
             initialized_cache: self.initialized_cache.clone(),
@@ -182,6 +193,7 @@ impl AsterAgentState {
         Self {
             agent: Arc::new(RwLock::new(None)),
             cancel_tokens: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            interrupt_markers: Arc::new(RwLock::new(std::collections::HashMap::new())),
             current_provider_config: Arc::new(RwLock::new(None)),
             credential_bridge: CredentialBridge::new(),
             initialized_cache: Arc::new(AtomicBool::new(false)),
@@ -489,6 +501,9 @@ impl AsterAgentState {
     /// 创建新的取消令牌
     pub async fn create_cancel_token(&self, session_id: &str) -> CancellationToken {
         let token = CancellationToken::new();
+        let mut markers = self.interrupt_markers.write().await;
+        markers.remove(session_id);
+        drop(markers);
         let mut tokens = self.cancel_tokens.write().await;
         tokens.insert(session_id.to_string(), token.clone());
         token
@@ -509,6 +524,49 @@ impl AsterAgentState {
     pub async fn remove_cancel_token(&self, session_id: &str) {
         let mut tokens = self.cancel_tokens.write().await;
         tokens.remove(session_id);
+    }
+
+    pub async fn record_interrupt_request(
+        &self,
+        session_id: &str,
+        source: &str,
+        reason: &str,
+    ) -> Option<RuntimeInterruptMarker> {
+        let trimmed_session_id = session_id.trim();
+        let trimmed_source = source.trim();
+        let trimmed_reason = reason.trim();
+        if trimmed_session_id.is_empty() || trimmed_source.is_empty() || trimmed_reason.is_empty() {
+            return None;
+        }
+
+        let marker = RuntimeInterruptMarker {
+            source: trimmed_source.to_string(),
+            reason: trimmed_reason.to_string(),
+            requested_at: Utc::now().to_rfc3339(),
+        };
+        let mut markers = self.interrupt_markers.write().await;
+        markers.insert(trimmed_session_id.to_string(), marker.clone());
+        Some(marker)
+    }
+
+    pub async fn get_interrupt_marker(&self, session_id: &str) -> Option<RuntimeInterruptMarker> {
+        let trimmed_session_id = session_id.trim();
+        if trimmed_session_id.is_empty() {
+            return None;
+        }
+
+        let markers = self.interrupt_markers.read().await;
+        markers.get(trimmed_session_id).cloned()
+    }
+
+    pub async fn clear_interrupt_marker(&self, session_id: &str) {
+        let trimmed_session_id = session_id.trim();
+        if trimmed_session_id.is_empty() {
+            return;
+        }
+
+        let mut markers = self.interrupt_markers.write().await;
+        markers.remove(trimmed_session_id);
     }
 
     /// 提交用户补充信息，恢复等待中的 ask_user / elicitation。
@@ -724,6 +782,37 @@ mod tests {
 
         state.remove_cancel_token(session_id).await;
         assert!(!state.cancel_session(session_id).await);
+    }
+
+    #[tokio::test]
+    async fn test_interrupt_marker_lifecycle() {
+        let state = AsterAgentState::new();
+        let session_id = "session-interrupt";
+
+        let marker = state
+            .record_interrupt_request(session_id, "user", "用户主动停止当前执行")
+            .await
+            .expect("应记录中断标记");
+        assert_eq!(marker.source, "user");
+        assert_eq!(marker.reason, "用户主动停止当前执行");
+        assert_eq!(
+            state
+                .get_interrupt_marker(session_id)
+                .await
+                .as_ref()
+                .map(|value| value.reason.as_str()),
+            Some("用户主动停止当前执行")
+        );
+
+        let _token = state.create_cancel_token(session_id).await;
+        assert!(state.get_interrupt_marker(session_id).await.is_none());
+
+        state
+            .record_interrupt_request(session_id, "user", "第二次停止")
+            .await
+            .expect("应重新记录中断标记");
+        state.clear_interrupt_marker(session_id).await;
+        assert!(state.get_interrupt_marker(session_id).await.is_none());
     }
 
     #[test]

@@ -6,6 +6,12 @@ import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime
 import { useWorkspaceTeamSessionControlRuntime } from "./useWorkspaceTeamSessionControlRuntime";
 import { useWorkspaceTeamSessionRuntime } from "./useWorkspaceTeamSessionRuntime";
 import { useWorkspaceThemeWorkbenchSidebarRuntime } from "./useWorkspaceThemeWorkbenchSidebarRuntime";
+import type { Message } from "../types";
+import type { LayoutMode } from "@/components/content-creator/types";
+import {
+  DEFAULT_CHAT_TOOL_PREFERENCES,
+  type ChatToolPreferences,
+} from "../utils/chatToolPreferences";
 
 type InputbarScenePresentationParams = Parameters<
   typeof useWorkspaceInputbarScenePresentation
@@ -74,7 +80,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   handleEnableSuggestedTeam: InputbarParams["onEnableSuggestedTeam"];
   handleClearMessages: InputbarParams["onClearMessages"];
   handleToggleCanvas: InputbarParams["onToggleCanvas"];
-  layoutMode: FloatingTeamWorkspaceDockParams["layoutMode"];
+  layoutMode: LayoutMode;
   handleTaskFileClick: InputbarParams["onTaskFileClick"];
   characters: InputbarParams["characters"];
   skills: InputbarParams["skills"];
@@ -88,15 +94,17 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   threadRead: GeneralWorkbenchDialogParams["threadRead"];
   pendingActions: GeneralWorkbenchDialogParams["pendingActions"];
   submittedActionsInFlight: GeneralWorkbenchDialogParams["submittedActionsInFlight"];
+  messages: Message[];
   queuedTurns: InputbarParams["queuedTurns"];
   resumeThread: GeneralWorkbenchDialogParams["onResumeThread"];
   replayPendingAction?: (
     requestId: string,
     assistantMessageId: string,
   ) => boolean | Promise<boolean>;
-  promoteQueuedTurn: InputbarParams["onPromoteQueuedTurn"];
+  promoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
   removeQueuedTurn: InputbarParams["onRemoveQueuedTurn"];
   latestAssistantMessageId: string | null;
+  sessionIdForDiagnostics: string | null;
   themeWorkbenchEntryPrompt: InputbarPresentationParams["themeWorkbenchEntryPrompt"];
   handleRestartThemeWorkbenchEntryPrompt: InputbarPresentationParams["onRestartThemeWorkbenchEntryPrompt"];
   handleContinueThemeWorkbenchEntryPrompt: InputbarPresentationParams["onContinueThemeWorkbenchEntryPrompt"];
@@ -110,7 +118,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   handleFileClick: GeneralWorkbenchDialogParams["onOpenFile"];
   shellChromeRuntime: ShellChromeRuntime;
   handleActivateTeamWorkbench: FloatingTeamWorkspaceDockParams["onActivateWorkbench"];
-  chatToolPreferences: InputbarParams["toolStates"];
+  chatToolPreferences?: ChatToolPreferences;
 }
 
 export function useWorkspaceInputbarSceneRuntime({
@@ -169,12 +177,14 @@ export function useWorkspaceInputbarSceneRuntime({
   threadRead,
   pendingActions,
   submittedActionsInFlight,
+  messages,
   queuedTurns,
   resumeThread,
   replayPendingAction,
   promoteQueuedTurn,
   removeQueuedTurn,
   latestAssistantMessageId,
+  sessionIdForDiagnostics,
   themeWorkbenchEntryPrompt,
   handleRestartThemeWorkbenchEntryPrompt,
   handleContinueThemeWorkbenchEntryPrompt,
@@ -190,6 +200,11 @@ export function useWorkspaceInputbarSceneRuntime({
   handleActivateTeamWorkbench,
   chatToolPreferences,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
+  const resolvedQueuedTurns = queuedTurns ?? [];
+  const resolvedChatToolPreferences =
+    chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
+  const dockLayoutMode = layoutMode === "chat" ? "chat" : "chat-canvas";
+
   return useWorkspaceInputbarScenePresentation({
     setMentionedCharacters,
     taskFiles,
@@ -199,14 +214,14 @@ export function useWorkspaceInputbarSceneRuntime({
     isThemeWorkbench,
     inputbarPresentation: {
       teamWorkbench: {
-        shellVisible: chatToolPreferences.subagent,
+        shellVisible: resolvedChatToolPreferences.subagent,
         currentSessionId: sessionId,
         currentSessionName: teamSessionRuntime.currentSessionTitle,
         currentSessionRuntimeStatus:
           teamSessionRuntime.currentSessionRuntimeStatus,
         currentSessionLatestTurnStatus:
           teamSessionRuntime.currentSessionLatestTurnStatus,
-        currentSessionQueuedTurnCount: queuedTurns.length,
+        currentSessionQueuedTurnCount: resolvedQueuedTurns.length,
         childSubagentSessions,
         subagentParentContext,
         liveRuntimeBySessionId: teamSessionRuntime.liveRuntimeBySessionId,
@@ -247,7 +262,7 @@ export function useWorkspaceInputbarSceneRuntime({
         themeWorkbenchRunState,
         onSend: handleSend,
         onStop: teamSessionControlRuntime.handleStopSending,
-        isLoading: isSending || queuedTurns.length > 0,
+        isLoading: isSending || resolvedQueuedTurns.length > 0,
         providerType,
         setProviderType,
         model,
@@ -268,17 +283,21 @@ export function useWorkspaceInputbarSceneRuntime({
         characters,
         skills,
         isSkillsLoading: skillsLoading,
-        toolStates: chatToolPreferences,
+        toolStates: resolvedChatToolPreferences,
         onToolStatesChange: setChatToolPreferences,
         onNavigateToSettings: handleNavigateToSkillSettings,
         onRefreshSkills: handleRefreshSkills,
-        queuedTurns,
-        onPromoteQueuedTurn: promoteQueuedTurn,
+        queuedTurns: resolvedQueuedTurns,
+        onPromoteQueuedTurn: promoteQueuedTurn
+          ? async (queuedTurnId: string) => {
+              return Boolean(await promoteQueuedTurn(queuedTurnId));
+            }
+          : undefined,
         onRemoveQueuedTurn: removeQueuedTurn,
       },
       floatingTeamWorkspaceDock: {
         enabled: teamSessionRuntime.showTeamWorkspaceBoard,
-        layoutMode,
+        layoutMode: dockLayoutMode,
         showFloatingInputOverlay:
           shellChromeRuntime.shouldShowThemeWorkbenchFloatingInputOverlay,
         onActivateWorkbench: handleActivateTeamWorkbench,
@@ -305,7 +324,8 @@ export function useWorkspaceInputbarSceneRuntime({
         currentTurnId,
         pendingActions,
         submittedActionsInFlight,
-        queuedTurns,
+        messages,
+        queuedTurns: resolvedQueuedTurns,
         canInterrupt: isSending,
         onInterruptCurrentTurn: teamSessionControlRuntime.handleStopSending,
         onResumeThread: resumeThread,
@@ -315,12 +335,21 @@ export function useWorkspaceInputbarSceneRuntime({
                 replayPendingAction(requestId, latestAssistantMessageId)
             : undefined,
         onPromoteQueuedTurn: promoteQueuedTurn,
+        diagnosticRuntimeContext: {
+          sessionId: sessionIdForDiagnostics,
+          workspaceId: projectId,
+          providerType: providerType || null,
+          model: model || null,
+          executionStrategy: executionStrategy || null,
+          activeTheme: activeTheme || null,
+          selectedTeamLabel: selectedTeamLabel || null,
+        },
         toolInventory: harnessInventoryRuntime.toolInventory,
         toolInventoryLoading: harnessInventoryRuntime.toolInventoryLoading,
         toolInventoryError: harnessInventoryRuntime.toolInventoryError,
         onRefreshToolInventory: harnessInventoryRuntime.refreshToolInventory,
         activeTheme: mappedTheme,
-        toolPreferences: chatToolPreferences,
+        toolPreferences: resolvedChatToolPreferences,
         isSending,
         runtimeStatusTitle: contextHarnessRuntime.activeRuntimeStatusTitle,
         selectedTeamRoleCount: selectedTeam?.roles.length || 0,

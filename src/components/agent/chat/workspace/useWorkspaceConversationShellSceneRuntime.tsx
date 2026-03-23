@@ -141,6 +141,14 @@ export function useWorkspaceConversationShellSceneRuntime({
     projectRootPath: project?.rootPath || null,
   });
 
+  const pendingActions = conversationScene.pendingActions ?? [];
+  const queuedTurns = conversationScene.queuedTurns ?? [];
+  const handleBackHome = conversationScene.handleBackHome ?? (() => undefined);
+  const handleOpenSubagentSession =
+    conversationScene.handleOpenSubagentSession ?? (() => undefined);
+  const displayMessages = conversationScene.displayMessages ?? [];
+  const isSending = conversationScene.isSending ?? false;
+
   return useWorkspaceShellSceneRuntime({
     compactChrome: shellChromeRuntime.isWorkspaceCompactChrome,
     isThemeWorkbench: conversationScene.isThemeWorkbench,
@@ -150,18 +158,18 @@ export function useWorkspaceConversationShellSceneRuntime({
     conversationSceneRuntime,
     sessionId: conversationScene.sessionId,
     topics,
-    handleBackHome: conversationScene.handleBackHome,
+    handleBackHome,
     switchTopic,
     handleResumeSidebarTask,
     deleteTopic,
     renameTopic,
-    displayMessages: conversationScene.displayMessages,
-    isSending: conversationScene.isSending,
-    pendingActionCount: conversationScene.pendingActions.length,
-    queuedTurnCount: conversationScene.queuedTurns.length,
+    displayMessages,
+    isSending,
+    pendingActionCount: pendingActions.length,
+    queuedTurnCount: queuedTurns.length,
     childSubagentSessions,
     subagentParentContext,
-    handleOpenSubagentSession: conversationScene.handleOpenSubagentSession,
+    handleOpenSubagentSession,
     handleReturnToParentSession,
   });
 }

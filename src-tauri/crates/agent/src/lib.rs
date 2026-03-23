@@ -47,7 +47,7 @@ mod write_artifact_events;
 
 pub use ask_bridge::{create_ask_callback, extract_response as extract_ask_response};
 pub use aster_runtime_support::{initialize_aster_runtime, restore_aster_runtime_queued_turns};
-pub use aster_state::{AsterAgentState, ProviderConfig, QueuedTurnTask};
+pub use aster_state::{AsterAgentState, ProviderConfig, QueuedTurnTask, RuntimeInterruptMarker};
 pub use aster_state_support::{
     build_project_system_prompt, create_lime_identity, create_lime_tool_config, message_helpers,
     reload_lime_skills, SessionConfigBuilder,

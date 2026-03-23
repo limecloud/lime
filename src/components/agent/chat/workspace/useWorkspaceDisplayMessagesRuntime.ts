@@ -15,7 +15,7 @@ interface UseWorkspaceDisplayMessagesRuntimeParams {
   pendingActionCount: number;
   queuedTurnCount: number;
   runtimeTeamDispatchPreview: RuntimeTeamDispatchPreviewSnapshot | null;
-  sessionId?: string;
+  sessionId?: string | null;
   updateTopicSnapshot: (
     sessionId: string,
     snapshot: ReturnType<typeof buildLiveTaskSnapshot>,

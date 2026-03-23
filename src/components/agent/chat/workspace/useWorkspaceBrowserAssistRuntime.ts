@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
+import type { LayoutMode } from "@/components/content-creator/types";
 import { browserExecuteAction, launchBrowserSession } from "@/lib/webview-api";
 import type { Artifact } from "@/lib/artifact/types";
 import type {
@@ -64,7 +64,7 @@ type EnsureBrowserAssistCanvasHandler = (
 ) => Promise<boolean>;
 
 interface UseWorkspaceBrowserAssistRuntimeParams {
-  activeTheme: ThemeType;
+  activeTheme: string;
   projectId?: string | null;
   sessionId?: string | null;
   input: string;

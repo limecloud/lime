@@ -68,7 +68,7 @@ function buildCanvasStateFromContent(params: {
 }
 
 interface UseWorkspaceArtifactPreviewActionsParams {
-  activeTheme: ThemeType;
+  activeTheme: string;
   mappedTheme: ThemeType;
   layoutMode: LayoutMode;
   isThemeWorkbench: boolean;
@@ -83,7 +83,7 @@ interface UseWorkspaceArtifactPreviewActionsParams {
   setArtifactViewMode: Dispatch<SetStateAction<"source" | "preview">>;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
-  setSelectedFileId: Dispatch<SetStateAction<string | null>>;
+  setSelectedFileId: (fileId: string) => void;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   upsertNovelCanvasState: (
     previous: CanvasStateUnion | null,

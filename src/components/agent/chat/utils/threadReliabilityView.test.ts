@@ -58,6 +58,7 @@ describe("buildThreadReliabilityView", () => {
           prompt_text: "继续执行发布流程",
           status: "failed",
           error_message: "Provider 429",
+          started_at: "2026-03-23T09:00:00Z",
           created_at: "2026-03-23T09:00:00Z",
           updated_at: "2026-03-23T09:00:10Z",
           completed_at: "2026-03-23T09:00:12Z",
@@ -175,5 +176,40 @@ describe("buildThreadReliabilityView", () => {
     expect(view.pendingRequests[0]?.waitingLabel).toBe("已等待 10 分钟");
     expect(view.recommendations).toContain("优先响应当前待处理请求");
     expect(view.recommendations).toContain("审批等待过久，建议尽快处理或停止当前执行");
+  });
+
+  it("应把 runtime 中断请求展示为中断中而非普通运行中", () => {
+    const threadRead: AgentRuntimeThreadReadModel = {
+      thread_id: "thread-1",
+      status: "interrupting",
+      active_turn_id: "turn-4",
+      pending_requests: [],
+      incidents: [],
+      interrupt_state: "interrupting",
+      updated_at: "2026-03-23T09:59:58Z",
+    };
+
+    const view = buildThreadReliabilityView({
+      threadRead,
+      turns: [
+        {
+          id: "turn-4",
+          thread_id: "thread-1",
+          prompt_text: "继续停止当前执行",
+          status: "running",
+          created_at: "2026-03-23T09:59:00Z",
+          started_at: "2026-03-23T09:59:00Z",
+          updated_at: "2026-03-23T09:59:58Z",
+        },
+      ],
+      currentTurnId: "turn-4",
+    });
+
+    expect(view.statusLabel).toBe("中断中");
+    expect(view.interruptStateLabel).toBe("运行时正在处理中断");
+    expect(view.summary).toContain("请等待运行时回填最终状态");
+    expect(view.recommendations).toContain(
+      "正在停止当前执行，请等待运行时回填最终状态",
+    );
   });
 });

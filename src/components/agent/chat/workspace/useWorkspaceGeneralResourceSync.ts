@@ -17,8 +17,8 @@ import {
 
 interface UseWorkspaceGeneralResourceSyncParams {
   activeTheme: string;
-  projectId?: string;
-  sessionId?: string;
+  projectId?: string | null;
+  sessionId?: string | null;
   projectRootPath?: string | null;
 }
 

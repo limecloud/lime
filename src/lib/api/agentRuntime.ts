@@ -139,6 +139,76 @@ export interface AgentRuntimeIncidentView {
   cleared_at?: string | number;
 }
 
+export interface AgentRuntimeDiagnosticWarningSample {
+  item_id: string;
+  turn_id?: string;
+  code?: string;
+  message: string;
+  updated_at: string | number;
+}
+
+export interface AgentRuntimeDiagnosticContextCompactionSample {
+  item_id: string;
+  turn_id?: string;
+  stage: string;
+  trigger?: string;
+  detail?: string;
+  updated_at: string | number;
+}
+
+export interface AgentRuntimeDiagnosticFailedToolSample {
+  item_id: string;
+  turn_id?: string;
+  tool_name: string;
+  error?: string;
+  updated_at: string | number;
+}
+
+export interface AgentRuntimeDiagnosticFailedCommandSample {
+  item_id: string;
+  turn_id?: string;
+  command: string;
+  exit_code?: number;
+  error?: string;
+  updated_at: string | number;
+}
+
+export interface AgentRuntimeDiagnosticPendingRequestSample {
+  request_id: string;
+  turn_id?: string;
+  request_type: string;
+  title?: string;
+  waited_seconds?: number;
+  created_at?: string | number;
+}
+
+export interface AgentRuntimeThreadDiagnostics {
+  latest_turn_status?: string;
+  latest_turn_started_at?: string | number;
+  latest_turn_completed_at?: string | number;
+  latest_turn_updated_at?: string | number;
+  latest_turn_elapsed_seconds?: number;
+  latest_turn_stalled_seconds?: number;
+  latest_turn_error_message?: string;
+  interrupt_reason?: string;
+  runtime_interrupt_source?: string;
+  runtime_interrupt_requested_at?: string | number;
+  runtime_interrupt_wait_seconds?: number;
+  warning_count: number;
+  context_compaction_count: number;
+  failed_tool_call_count: number;
+  failed_command_count: number;
+  pending_request_count: number;
+  oldest_pending_request_wait_seconds?: number;
+  primary_blocking_kind?: string;
+  primary_blocking_summary?: string;
+  latest_warning?: AgentRuntimeDiagnosticWarningSample | null;
+  latest_context_compaction?: AgentRuntimeDiagnosticContextCompactionSample | null;
+  latest_failed_tool?: AgentRuntimeDiagnosticFailedToolSample | null;
+  latest_failed_command?: AgentRuntimeDiagnosticFailedCommandSample | null;
+  latest_pending_request?: AgentRuntimeDiagnosticPendingRequestSample | null;
+}
+
 export interface AgentRuntimeThreadReadModel {
   thread_id: string;
   status?: string;
@@ -149,6 +219,7 @@ export interface AgentRuntimeThreadReadModel {
   queued_turns?: QueuedTurnSnapshot[];
   interrupt_state?: string;
   updated_at?: string | number;
+  diagnostics?: AgentRuntimeThreadDiagnostics | null;
 }
 
 export interface AsterSubagentSessionInfo {

@@ -59,6 +59,7 @@ describe("AgentIncidentPanel", () => {
     const container = renderPanel([
       {
         id: "incident-1",
+        incidentType: "approval_timeout",
         title: "审批等待超过阈值",
         detail: "当前线程等待工具确认时间过长",
         statusLabel: "进行中",
@@ -67,6 +68,7 @@ describe("AgentIncidentPanel", () => {
       },
       {
         id: "incident-2",
+        incidentType: "waiting_user_input",
         title: "线程正在等待人工处理",
         detail: "等待你确认是否继续发布",
         statusLabel: "进行中",

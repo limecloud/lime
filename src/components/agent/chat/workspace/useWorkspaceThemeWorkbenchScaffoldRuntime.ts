@@ -53,8 +53,8 @@ function normalizeThemeWorkbenchCreationTaskEvent(
 interface UseWorkspaceThemeWorkbenchScaffoldRuntimeParams {
   isThemeWorkbench: boolean;
   mappedTheme: ThemeType;
-  sessionId?: string;
-  projectId?: string;
+  sessionId?: string | null;
+  projectId?: string | null;
   canvasState: CanvasStateUnion | null;
   documentVersionStatusMap: Record<string, TopicBranchStatus>;
   setDocumentVersionStatusMap: Dispatch<
@@ -205,7 +205,7 @@ export function useWorkspaceThemeWorkbenchScaffoldRuntime({
 
   const { branchItems, setTopicStatus } = useTopicBranchBoard({
     enabled: isThemeWorkbench && canvasState?.type === "document",
-    projectId,
+    projectId: projectId ?? undefined,
     currentTopicId: currentVersionId,
     topics: versionTopics,
     externalStatusMap: documentVersionStatusMap,

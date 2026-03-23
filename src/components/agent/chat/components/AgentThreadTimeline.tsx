@@ -175,7 +175,7 @@ function buildCompactReliabilityBadges(
         if (nextTone === "failed") {
           return nextTone;
         }
-        if (nextTone === "waiting" && currentTone !== "failed") {
+        if (nextTone === "waiting") {
           return nextTone;
         }
         return currentTone;

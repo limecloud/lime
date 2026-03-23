@@ -12,7 +12,7 @@ interface UseWorkspaceTeamWorkbenchAutoOpenRuntimeParams {
   hasRealTeamGraph: boolean;
   layoutMode: LayoutMode;
   runtimeTeamRequestId: string | null;
-  sessionId?: string;
+  sessionId?: string | null;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
 }
 

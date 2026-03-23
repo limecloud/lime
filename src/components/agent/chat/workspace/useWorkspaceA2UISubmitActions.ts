@@ -3,24 +3,18 @@ import { toast } from "sonner";
 import type { A2UIFormData, A2UIResponse } from "@/components/content-creator/a2ui/types";
 import type { ConfirmResponse } from "../types";
 import type { SendMessageFn } from "../hooks/agentChatShared";
+import type { ActionRequired } from "../types";
 import {
   buildActionRequestSubmissionPayload,
 } from "../utils/actionRequestA2UI";
 import { buildLegacyQuestionnaireSubmissionPayload } from "../utils/legacyQuestionnaireA2UI";
-
-interface PendingPromotedActionRequest {
-  requestId: string;
-  actionType: ConfirmResponse["actionType"];
-}
 
 interface UseWorkspaceA2UISubmitActionsParams {
   handlePermissionResponseWithBrowserPreflight: (
     response: ConfirmResponse,
   ) => Promise<void>;
   pendingLegacyQuestionnaireA2UIForm: A2UIResponse | null;
-  pendingPromotedA2UIActionRequest:
-    | (PendingPromotedActionRequest & Record<string, unknown>)
-    | null;
+  pendingPromotedA2UIActionRequest: ActionRequired | null;
   sendMessage: SendMessageFn;
 }
 
@@ -52,9 +46,7 @@ export function useWorkspaceA2UISubmitActions({
     (formData: A2UIFormData) => {
       if (pendingPromotedA2UIActionRequest) {
         const payload = buildActionRequestSubmissionPayload(
-          pendingPromotedA2UIActionRequest as Parameters<
-            typeof buildActionRequestSubmissionPayload
-          >[0],
+          pendingPromotedA2UIActionRequest,
           formData,
         );
 

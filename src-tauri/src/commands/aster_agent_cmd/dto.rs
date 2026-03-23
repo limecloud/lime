@@ -299,6 +299,115 @@ pub struct AgentRuntimeIncidentView {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeDiagnosticWarningSample {
+    pub item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    pub message: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeDiagnosticContextCompactionSample {
+    pub item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    pub stage: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeDiagnosticFailedToolSample {
+    pub item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    pub tool_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeDiagnosticFailedCommandSample {
+    pub item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeDiagnosticPendingRequestSample {
+    pub request_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    pub request_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub waited_seconds: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeThreadDiagnostics {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_started_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_completed_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_elapsed_seconds: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_stalled_seconds: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_turn_error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupt_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_interrupt_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_interrupt_requested_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_interrupt_wait_seconds: Option<i64>,
+    pub warning_count: usize,
+    pub context_compaction_count: usize,
+    pub failed_tool_call_count: usize,
+    pub failed_command_count: usize,
+    pub pending_request_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oldest_pending_request_wait_seconds: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_blocking_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_blocking_summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_warning: Option<AgentRuntimeDiagnosticWarningSample>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_context_compaction: Option<AgentRuntimeDiagnosticContextCompactionSample>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_failed_tool: Option<AgentRuntimeDiagnosticFailedToolSample>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_failed_command: Option<AgentRuntimeDiagnosticFailedCommandSample>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_pending_request: Option<AgentRuntimeDiagnosticPendingRequestSample>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRuntimeThreadReadModel {
     pub thread_id: String,
     pub status: String,
@@ -316,6 +425,8 @@ pub struct AgentRuntimeThreadReadModel {
     pub interrupt_state: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<AgentRuntimeThreadDiagnostics>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -443,6 +554,7 @@ impl AgentRuntimeThreadReadModel {
             pending_requests,
             last_outcome,
             incidents,
+            None,
         )
     }
 
@@ -452,8 +564,18 @@ impl AgentRuntimeThreadReadModel {
         pending_requests: Vec<AgentRuntimeRequestView>,
         last_outcome: Option<AgentRuntimeOutcomeView>,
         incidents: Vec<AgentRuntimeIncidentView>,
+        runtime_interrupt_marker: Option<&lime_agent::RuntimeInterruptMarker>,
     ) -> Self {
         let latest_turn = detail.turns.last();
+        let diagnostics = build_thread_diagnostics(
+            detail,
+            latest_turn,
+            queued_turns,
+            &pending_requests,
+            last_outcome.as_ref(),
+            &incidents,
+            runtime_interrupt_marker,
+        );
         let active_turn = detail
             .turns
             .iter()
@@ -465,17 +587,20 @@ impl AgentRuntimeThreadReadModel {
                 )
             })
             .or(latest_turn);
-        let status = if !pending_requests.is_empty() {
-            "waiting_request".to_string()
-        } else if active_turn
+        let active_turn_running = active_turn
             .map(|turn| {
                 matches!(
                     turn.status,
                     lime_core::database::dao::agent_timeline::AgentThreadTurnStatus::Running
                 )
             })
-            .unwrap_or(false)
-        {
+            .unwrap_or(false);
+        let interrupting = runtime_interrupt_marker.is_some() && active_turn_running;
+        let status = if interrupting {
+            "interrupting".to_string()
+        } else if !pending_requests.is_empty() {
+            "waiting_request".to_string()
+        } else if active_turn_running {
             "running".to_string()
         } else if let Some(turn) = latest_turn {
             turn.status.as_str().to_string()
@@ -494,6 +619,13 @@ impl AgentRuntimeThreadReadModel {
                 None
             }
         });
+        let interrupt_state = interrupt_state.or_else(|| {
+            if interrupting {
+                Some("interrupting".to_string())
+            } else {
+                None
+            }
+        });
 
         Self {
             thread_id: detail.thread_id.clone(),
@@ -507,6 +639,7 @@ impl AgentRuntimeThreadReadModel {
             updated_at: latest_turn
                 .map(|turn| turn.updated_at.clone())
                 .or_else(|| Some(detail.updated_at.to_string())),
+            diagnostics,
         }
     }
 }
@@ -524,6 +657,359 @@ fn parse_rfc3339_utc(raw: &str) -> Option<DateTime<Utc>> {
 fn elapsed_seconds_since(raw: Option<&str>, now: &DateTime<Utc>) -> Option<i64> {
     let parsed = parse_rfc3339_utc(raw?)?;
     Some(now.signed_duration_since(parsed).num_seconds().max(0))
+}
+
+fn elapsed_seconds_between(start_raw: Option<&str>, end_raw: Option<&str>) -> Option<i64> {
+    let start = parse_rfc3339_utc(start_raw?)?;
+    let end = parse_rfc3339_utc(end_raw?)?;
+    Some(end.signed_duration_since(start).num_seconds().max(0))
+}
+
+fn warning_sample_from_item(
+    item: &lime_core::database::dao::agent_timeline::AgentThreadItem,
+) -> Option<AgentRuntimeDiagnosticWarningSample> {
+    match &item.payload {
+        lime_core::database::dao::agent_timeline::AgentThreadItemPayload::Warning {
+            message,
+            code,
+        } => Some(AgentRuntimeDiagnosticWarningSample {
+            item_id: item.id.clone(),
+            turn_id: Some(item.turn_id.clone()),
+            code: code.clone(),
+            message: message.clone(),
+            updated_at: item.updated_at.clone(),
+        }),
+        _ => None,
+    }
+}
+
+fn context_compaction_sample_from_item(
+    item: &lime_core::database::dao::agent_timeline::AgentThreadItem,
+) -> Option<AgentRuntimeDiagnosticContextCompactionSample> {
+    match &item.payload {
+        lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ContextCompaction {
+            stage,
+            trigger,
+            detail,
+        } => Some(AgentRuntimeDiagnosticContextCompactionSample {
+            item_id: item.id.clone(),
+            turn_id: Some(item.turn_id.clone()),
+            stage: stage.clone(),
+            trigger: trigger.clone(),
+            detail: detail.clone(),
+            updated_at: item.updated_at.clone(),
+        }),
+        _ => None,
+    }
+}
+
+fn failed_tool_sample_from_item(
+    item: &lime_core::database::dao::agent_timeline::AgentThreadItem,
+) -> Option<AgentRuntimeDiagnosticFailedToolSample> {
+    match &item.payload {
+        lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ToolCall {
+            tool_name,
+            error,
+            success,
+            ..
+        } if matches!(
+            item.status,
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Failed
+        ) || success == &Some(false) =>
+        {
+            Some(AgentRuntimeDiagnosticFailedToolSample {
+                item_id: item.id.clone(),
+                turn_id: Some(item.turn_id.clone()),
+                tool_name: tool_name.clone(),
+                error: error.clone(),
+                updated_at: item.updated_at.clone(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn failed_command_sample_from_item(
+    item: &lime_core::database::dao::agent_timeline::AgentThreadItem,
+) -> Option<AgentRuntimeDiagnosticFailedCommandSample> {
+    match &item.payload {
+        lime_core::database::dao::agent_timeline::AgentThreadItemPayload::CommandExecution {
+            command,
+            exit_code,
+            error,
+            ..
+        } if matches!(
+            item.status,
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Failed
+        ) || exit_code.unwrap_or(0) != 0
+            || error.as_ref().is_some() =>
+        {
+            Some(AgentRuntimeDiagnosticFailedCommandSample {
+                item_id: item.id.clone(),
+                turn_id: Some(item.turn_id.clone()),
+                command: command.clone(),
+                exit_code: *exit_code,
+                error: error.clone(),
+                updated_at: item.updated_at.clone(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn pending_request_sample_from_view(
+    request: &AgentRuntimeRequestView,
+    now: &DateTime<Utc>,
+) -> AgentRuntimeDiagnosticPendingRequestSample {
+    AgentRuntimeDiagnosticPendingRequestSample {
+        request_id: request.id.clone(),
+        turn_id: request.turn_id.clone(),
+        request_type: request.request_type.clone(),
+        title: request.title.clone(),
+        waited_seconds: elapsed_seconds_since(request.created_at.as_deref(), now),
+        created_at: request.created_at.clone(),
+    }
+}
+
+fn build_thread_diagnostics(
+    detail: &SessionDetail,
+    latest_turn: Option<&lime_core::database::dao::agent_timeline::AgentThreadTurn>,
+    queued_turns: &[QueuedTurnSnapshot],
+    pending_requests: &[AgentRuntimeRequestView],
+    last_outcome: Option<&AgentRuntimeOutcomeView>,
+    incidents: &[AgentRuntimeIncidentView],
+    runtime_interrupt_marker: Option<&lime_agent::RuntimeInterruptMarker>,
+) -> Option<AgentRuntimeThreadDiagnostics> {
+    let warning_count = detail
+        .items
+        .iter()
+        .filter(|item| warning_sample_from_item(item).is_some())
+        .count();
+    let context_compaction_count = detail
+        .items
+        .iter()
+        .filter(|item| context_compaction_sample_from_item(item).is_some())
+        .count();
+    let failed_tool_call_count = detail
+        .items
+        .iter()
+        .filter(|item| failed_tool_sample_from_item(item).is_some())
+        .count();
+    let failed_command_count = detail
+        .items
+        .iter()
+        .filter(|item| failed_command_sample_from_item(item).is_some())
+        .count();
+
+    let latest_warning = detail.items.iter().rev().find_map(warning_sample_from_item);
+    let latest_context_compaction = detail
+        .items
+        .iter()
+        .rev()
+        .find_map(context_compaction_sample_from_item);
+    let latest_failed_tool = detail
+        .items
+        .iter()
+        .rev()
+        .find_map(failed_tool_sample_from_item);
+    let latest_failed_command = detail
+        .items
+        .iter()
+        .rev()
+        .find_map(failed_command_sample_from_item);
+
+    if latest_turn.is_none()
+        && warning_count == 0
+        && context_compaction_count == 0
+        && failed_tool_call_count == 0
+        && failed_command_count == 0
+        && pending_requests.is_empty()
+        && queued_turns.is_empty()
+    {
+        return None;
+    }
+
+    let now = Utc::now();
+    let latest_pending_request = pending_requests
+        .first()
+        .map(|request| pending_request_sample_from_view(request, &now));
+    let oldest_pending_request_wait_seconds = pending_requests
+        .iter()
+        .filter_map(|request| elapsed_seconds_since(request.created_at.as_deref(), &now))
+        .max();
+    let latest_turn_status = latest_turn.map(|turn| turn.status.as_str().to_string());
+    let latest_turn_started_at = latest_turn.map(|turn| turn.started_at.clone());
+    let latest_turn_completed_at = latest_turn.and_then(|turn| turn.completed_at.clone());
+    let latest_turn_updated_at = latest_turn.map(|turn| turn.updated_at.clone());
+    let latest_turn_elapsed_seconds = latest_turn.and_then(|turn| {
+        if turn.completed_at.is_some() {
+            elapsed_seconds_between(Some(turn.started_at.as_str()), turn.completed_at.as_deref())
+        } else {
+            elapsed_seconds_since(Some(turn.started_at.as_str()), &now)
+        }
+    });
+    let latest_turn_stalled_seconds = latest_turn.and_then(|turn| {
+        if matches!(
+            turn.status,
+            lime_core::database::dao::agent_timeline::AgentThreadTurnStatus::Running
+        ) {
+            elapsed_seconds_since(Some(turn.updated_at.as_str()), &now)
+        } else {
+            None
+        }
+    });
+    let latest_turn_error_message = latest_turn.and_then(|turn| turn.error_message.clone());
+    let runtime_interrupt_source = runtime_interrupt_marker.map(|marker| marker.source.clone());
+    let runtime_interrupt_requested_at =
+        runtime_interrupt_marker.map(|marker| marker.requested_at.clone());
+    let runtime_interrupt_wait_seconds = runtime_interrupt_marker
+        .and_then(|marker| elapsed_seconds_since(Some(marker.requested_at.as_str()), &now));
+    let interrupt_reason = latest_turn.and_then(|turn| {
+        if matches!(
+            turn.status,
+            lime_core::database::dao::agent_timeline::AgentThreadTurnStatus::Aborted
+        ) {
+            runtime_interrupt_marker
+                .map(|marker| marker.reason.clone())
+                .or_else(|| turn.error_message.clone())
+                .or_else(|| {
+                    latest_warning
+                        .as_ref()
+                        .map(|sample| sample.message.clone())
+                        .filter(|message| !message.trim().is_empty())
+                })
+        } else {
+            runtime_interrupt_marker.map(|marker| marker.reason.clone())
+        }
+    });
+    let latest_turn_running = latest_turn
+        .map(|turn| {
+            matches!(
+                turn.status,
+                lime_core::database::dao::agent_timeline::AgentThreadTurnStatus::Running
+            )
+        })
+        .unwrap_or(false);
+    let latest_turn_aborted = latest_turn
+        .map(|turn| {
+            matches!(
+                turn.status,
+                lime_core::database::dao::agent_timeline::AgentThreadTurnStatus::Aborted
+            )
+        })
+        .unwrap_or(false);
+    let primary_blocking_kind = if runtime_interrupt_marker.is_some() && latest_turn_running {
+        Some("interrupting".to_string())
+    } else if let Some(request) = pending_requests.first() {
+        if is_tool_confirmation_request(&request.request_type) {
+            Some("waiting_approval".to_string())
+        } else if is_user_input_request(&request.request_type) {
+            Some("waiting_user_input".to_string())
+        } else {
+            Some("waiting_request".to_string())
+        }
+    } else if latest_turn_aborted {
+        Some("interrupted".to_string())
+    } else if let Some(incident) = incidents.first() {
+        match incident.incident_type.as_str() {
+            "turn_stuck" => Some("turn_stuck".to_string()),
+            "approval_timeout" => Some("approval_timeout".to_string()),
+            "user_input_timeout" => Some("user_input_timeout".to_string()),
+            "tool_failed" => Some("tool_failed".to_string()),
+            "provider_error" => Some("provider_error".to_string()),
+            "runtime_warning" => Some("runtime_warning".to_string()),
+            "runtime_error" => Some("runtime_error".to_string()),
+            other => Some(other.to_string()),
+        }
+    } else if let Some(outcome) = last_outcome {
+        match outcome.outcome_type.as_str() {
+            "interrupted" => Some("interrupted".to_string()),
+            "failed_tool" => Some("failed_tool".to_string()),
+            "failed_provider" => Some("failed_provider".to_string()),
+            "failed_model" => Some("failed_model".to_string()),
+            other => Some(other.to_string()),
+        }
+    } else if latest_failed_command.is_some() {
+        Some("failed_command".to_string())
+    } else if latest_context_compaction.is_some() || latest_warning.is_some() {
+        Some("context_risk".to_string())
+    } else if !queued_turns.is_empty() {
+        Some("queued_wait".to_string())
+    } else {
+        None
+    };
+    let primary_blocking_summary = if runtime_interrupt_marker.is_some() && latest_turn_running {
+        runtime_interrupt_marker.map(|marker| marker.reason.clone())
+    } else if let Some(request) = pending_requests.first() {
+        request.title.clone().or_else(|| {
+            Some(format!(
+                "线程正在等待{}",
+                if is_tool_confirmation_request(&request.request_type) {
+                    "工具确认"
+                } else if is_user_input_request(&request.request_type) {
+                    "人工输入"
+                } else {
+                    "外部请求响应"
+                }
+            ))
+        })
+    } else if latest_turn_aborted {
+        last_outcome
+            .and_then(|outcome| outcome.summary.clone().or_else(|| outcome.primary_cause.clone()))
+            .or_else(|| Some("最近一次回合已被中断".to_string()))
+    } else if let Some(incident) = incidents.first() {
+        incident
+            .details
+            .as_ref()
+            .map(|value| match value {
+                serde_json::Value::String(text) => text.clone(),
+                other => other.to_string(),
+            })
+            .or_else(|| Some(incident.title.clone()))
+    } else if let Some(outcome) = last_outcome {
+        outcome
+            .summary
+            .clone()
+            .or_else(|| outcome.primary_cause.clone())
+    } else if let Some(sample) = latest_failed_command.as_ref() {
+        sample
+            .error
+            .clone()
+            .or_else(|| Some(format!("命令执行失败：{}", sample.command)))
+    } else if let Some(sample) = latest_warning.as_ref() {
+        Some(sample.message.clone())
+    } else if !queued_turns.is_empty() {
+        Some("当前没有活跃回合，线程里仍有排队任务等待执行".to_string())
+    } else {
+        None
+    };
+
+    Some(AgentRuntimeThreadDiagnostics {
+        latest_turn_status,
+        latest_turn_started_at,
+        latest_turn_completed_at,
+        latest_turn_updated_at,
+        latest_turn_elapsed_seconds,
+        latest_turn_stalled_seconds,
+        latest_turn_error_message,
+        interrupt_reason,
+        runtime_interrupt_source,
+        runtime_interrupt_requested_at,
+        runtime_interrupt_wait_seconds,
+        warning_count,
+        context_compaction_count,
+        failed_tool_call_count,
+        failed_command_count,
+        pending_request_count: pending_requests.len(),
+        oldest_pending_request_wait_seconds,
+        primary_blocking_kind,
+        primary_blocking_summary,
+        latest_warning,
+        latest_context_compaction,
+        latest_failed_tool,
+        latest_failed_command,
+        latest_pending_request,
+    })
 }
 
 fn is_tool_confirmation_request(request_type: &str) -> bool {
@@ -1206,6 +1692,20 @@ mod tests {
         assert_eq!(thread_read.pending_requests[0].id, "req-1");
         assert_eq!(thread_read.incidents.len(), 1);
         assert_eq!(thread_read.incidents[0].incident_type, "waiting_user_input");
+        assert_eq!(
+            thread_read
+                .diagnostics
+                .as_ref()
+                .and_then(|diagnostics| diagnostics.primary_blocking_kind.as_deref()),
+            Some("waiting_user_input")
+        );
+        assert_eq!(
+            thread_read
+                .diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.pending_request_count),
+            Some(1)
+        );
     }
 
     #[test]
@@ -1313,6 +1813,227 @@ mod tests {
         assert_eq!(thread_read.incidents.len(), 1);
         assert_eq!(thread_read.incidents[0].incident_type, "turn_stuck");
         assert_eq!(thread_read.incidents[0].severity, "high");
+    }
+
+    #[test]
+    fn thread_read_should_collect_backend_diagnostics() {
+        let detail = build_session_detail(
+            vec![AgentThreadTurn {
+                id: "turn-diag".to_string(),
+                thread_id: "thread-1".to_string(),
+                prompt_text: "生成研究简报".to_string(),
+                status: AgentThreadTurnStatus::Aborted,
+                started_at: "2026-03-23T09:10:00Z".to_string(),
+                completed_at: Some("2026-03-23T09:10:30Z".to_string()),
+                error_message: Some("用户主动中断".to_string()),
+                created_at: "2026-03-23T09:10:00Z".to_string(),
+                updated_at: "2026-03-23T09:10:30Z".to_string(),
+            }],
+            vec![
+                AgentThreadItem {
+                    id: "item-warning".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-diag".to_string(),
+                    sequence: 1,
+                    status: AgentThreadItemStatus::Completed,
+                    started_at: "2026-03-23T09:10:10Z".to_string(),
+                    completed_at: Some("2026-03-23T09:10:10Z".to_string()),
+                    updated_at: "2026-03-23T09:10:10Z".to_string(),
+                    payload: AgentThreadItemPayload::Warning {
+                        message: "长对话和多次上下文压缩会降低模型准确性".to_string(),
+                        code: Some("context_compaction_accuracy".to_string()),
+                    },
+                },
+                AgentThreadItem {
+                    id: "item-compaction".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-diag".to_string(),
+                    sequence: 2,
+                    status: AgentThreadItemStatus::Completed,
+                    started_at: "2026-03-23T09:10:20Z".to_string(),
+                    completed_at: Some("2026-03-23T09:10:20Z".to_string()),
+                    updated_at: "2026-03-23T09:10:20Z".to_string(),
+                    payload: AgentThreadItemPayload::ContextCompaction {
+                        stage: "runtime".to_string(),
+                        trigger: Some("token_budget".to_string()),
+                        detail: Some("保留研究目标与来源摘要".to_string()),
+                    },
+                },
+                AgentThreadItem {
+                    id: "item-tool".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-diag".to_string(),
+                    sequence: 3,
+                    status: AgentThreadItemStatus::Failed,
+                    started_at: "2026-03-23T09:10:25Z".to_string(),
+                    completed_at: Some("2026-03-23T09:10:25Z".to_string()),
+                    updated_at: "2026-03-23T09:10:25Z".to_string(),
+                    payload: AgentThreadItemPayload::ToolCall {
+                        tool_name: "web_search".to_string(),
+                        arguments: None,
+                        output: None,
+                        success: Some(false),
+                        error: Some("429 rate limit".to_string()),
+                        metadata: None,
+                    },
+                },
+                AgentThreadItem {
+                    id: "item-command".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-diag".to_string(),
+                    sequence: 4,
+                    status: AgentThreadItemStatus::Failed,
+                    started_at: "2026-03-23T09:10:26Z".to_string(),
+                    completed_at: Some("2026-03-23T09:10:26Z".to_string()),
+                    updated_at: "2026-03-23T09:10:26Z".to_string(),
+                    payload: AgentThreadItemPayload::CommandExecution {
+                        command: "npm run build".to_string(),
+                        cwd: "/tmp/workspace".to_string(),
+                        aggregated_output: None,
+                        exit_code: Some(1),
+                        error: Some("Command failed with exit code 1".to_string()),
+                    },
+                },
+            ],
+        );
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+        let diagnostics = thread_read.diagnostics.expect("应生成 diagnostics");
+
+        assert_eq!(diagnostics.latest_turn_status.as_deref(), Some("aborted"));
+        assert_eq!(
+            diagnostics.latest_turn_started_at.as_deref(),
+            Some("2026-03-23T09:10:00Z")
+        );
+        assert_eq!(
+            diagnostics.latest_turn_completed_at.as_deref(),
+            Some("2026-03-23T09:10:30Z")
+        );
+        assert_eq!(
+            diagnostics.latest_turn_updated_at.as_deref(),
+            Some("2026-03-23T09:10:30Z")
+        );
+        assert_eq!(diagnostics.latest_turn_elapsed_seconds, Some(30));
+        assert_eq!(diagnostics.latest_turn_stalled_seconds, None);
+        assert_eq!(
+            diagnostics.latest_turn_error_message.as_deref(),
+            Some("用户主动中断")
+        );
+        assert_eq!(
+            diagnostics.interrupt_reason.as_deref(),
+            Some("用户主动中断")
+        );
+        assert_eq!(diagnostics.warning_count, 1);
+        assert_eq!(diagnostics.context_compaction_count, 1);
+        assert_eq!(diagnostics.failed_tool_call_count, 1);
+        assert_eq!(diagnostics.failed_command_count, 1);
+        assert_eq!(diagnostics.pending_request_count, 0);
+        assert_eq!(
+            diagnostics.primary_blocking_kind.as_deref(),
+            Some("interrupted")
+        );
+        assert_eq!(
+            diagnostics.primary_blocking_summary.as_deref(),
+            Some("最近一次回合已被中断")
+        );
+        assert_eq!(
+            diagnostics
+                .latest_warning
+                .as_ref()
+                .and_then(|sample| sample.code.as_deref()),
+            Some("context_compaction_accuracy")
+        );
+        assert_eq!(
+            diagnostics
+                .latest_context_compaction
+                .as_ref()
+                .map(|sample| sample.stage.as_str()),
+            Some("runtime")
+        );
+        assert_eq!(
+            diagnostics
+                .latest_failed_tool
+                .as_ref()
+                .map(|sample| sample.tool_name.as_str()),
+            Some("web_search")
+        );
+        assert_eq!(
+            diagnostics
+                .latest_failed_tool
+                .as_ref()
+                .and_then(|sample| sample.error.as_deref()),
+            Some("429 rate limit")
+        );
+        assert_eq!(
+            diagnostics
+                .latest_failed_command
+                .as_ref()
+                .map(|sample| sample.command.as_str()),
+            Some("npm run build")
+        );
+        assert_eq!(
+            diagnostics
+                .latest_failed_command
+                .as_ref()
+                .and_then(|sample| sample.exit_code),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn thread_read_should_surface_runtime_interrupt_marker_while_running() {
+        let detail = build_session_detail(
+            vec![AgentThreadTurn {
+                id: "turn-running".to_string(),
+                thread_id: "thread-1".to_string(),
+                prompt_text: "继续生成研究简报".to_string(),
+                status: AgentThreadTurnStatus::Running,
+                started_at: "2026-03-23T09:10:00Z".to_string(),
+                completed_at: None,
+                error_message: None,
+                created_at: "2026-03-23T09:10:00Z".to_string(),
+                updated_at: "2026-03-23T09:10:28Z".to_string(),
+            }],
+            Vec::new(),
+        );
+        let marker = lime_agent::RuntimeInterruptMarker {
+            source: "user".to_string(),
+            reason: "用户主动停止当前执行".to_string(),
+            requested_at: "2026-03-23T09:10:29Z".to_string(),
+        };
+
+        let thread_read = AgentRuntimeThreadReadModel::from_parts(
+            &detail,
+            &[],
+            Vec::new(),
+            None,
+            Vec::new(),
+            Some(&marker),
+        );
+        let diagnostics = thread_read.diagnostics.expect("应生成 diagnostics");
+
+        assert_eq!(thread_read.status, "interrupting");
+        assert_eq!(thread_read.interrupt_state.as_deref(), Some("interrupting"));
+        assert_eq!(
+            diagnostics.interrupt_reason.as_deref(),
+            Some("用户主动停止当前执行")
+        );
+        assert_eq!(
+            diagnostics.runtime_interrupt_source.as_deref(),
+            Some("user")
+        );
+        assert_eq!(
+            diagnostics.runtime_interrupt_requested_at.as_deref(),
+            Some("2026-03-23T09:10:29Z")
+        );
+        assert_eq!(
+            diagnostics.primary_blocking_kind.as_deref(),
+            Some("interrupting")
+        );
+        assert_eq!(
+            diagnostics.primary_blocking_summary.as_deref(),
+            Some("用户主动停止当前执行")
+        );
     }
 
     #[test]

@@ -35,7 +35,7 @@ interface ThemeWorkbenchActiveQueueSummary {
 }
 
 interface UseWorkspaceWriteFileActionParams {
-  activeTheme: ThemeType;
+  activeTheme: string;
   artifacts: Artifact[];
   contentId?: string | null;
   currentGateKey: string;
@@ -51,7 +51,7 @@ interface UseWorkspaceWriteFileActionParams {
   setDocumentVersionStatusMap: Dispatch<
     SetStateAction<Record<string, TopicBranchStatus>>
   >;
-  saveSessionFile: (fileName: string, content: string) => Promise<void>;
+  saveSessionFile: (fileName: string, content: string) => Promise<unknown>;
   syncGeneralArtifactToResource: (input: {
     rawFilePath: string;
     preferredName?: string;
@@ -64,7 +64,7 @@ interface UseWorkspaceWriteFileActionParams {
     aiOutput: { fileName: string; preview: string };
   }) => void;
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
-  setSelectedFileId: Dispatch<SetStateAction<string | null>>;
+  setSelectedFileId: (fileId: string) => void;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   upsertNovelCanvasState: (
     previous: CanvasStateUnion | null,

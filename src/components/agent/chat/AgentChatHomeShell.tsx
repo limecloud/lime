@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 import { toast } from "sonner";
+import { createAutomationJob } from "@/lib/api/automation";
 import { prepareClawSolution } from "@/lib/api/clawSolutions";
+import { listProjects, type Project } from "@/lib/api/project";
+import {
+  AutomationJobDialog,
+  type AutomationJobDialogInitialValues,
+  type AutomationJobDialogSubmit,
+} from "@/components/settings-v2/system/automation/AutomationJobDialog";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import { EmptyState } from "./components/EmptyState";
@@ -35,6 +42,18 @@ import {
   resolveHomeShellWorkspaceEntry,
   type HomeShellEnterWorkspacePayload,
 } from "./homeShellEntry";
+import { useServiceSkills } from "./service-skills/useServiceSkills";
+import { ServiceSkillHomePanel } from "./service-skills/ServiceSkillHomePanel";
+import { ServiceSkillLaunchDialog } from "./service-skills/ServiceSkillLaunchDialog";
+import { composeServiceSkillPrompt } from "./service-skills/promptComposer";
+import {
+  buildServiceSkillAutomationInitialValues,
+  supportsServiceSkillLocalAutomation,
+} from "./service-skills/automationDraft";
+import type {
+  ServiceSkillHomeItem,
+  ServiceSkillSlotValues,
+} from "./service-skills/types";
 
 const PageContainer = styled.div<{ $compact?: boolean }>`
   display: flex;
@@ -142,6 +161,67 @@ function getErrorMessage(error: unknown): string {
   return "请稍后重试";
 }
 
+function resolveFallbackProjectType(theme?: string): Project["workspaceType"] {
+  switch (theme) {
+    case "social-media":
+    case "poster":
+    case "music":
+    case "knowledge":
+    case "planning":
+    case "document":
+    case "video":
+    case "novel":
+    case "general":
+      return theme;
+    default:
+      return "general";
+  }
+}
+
+function buildFallbackAutomationWorkspace(
+  projectId: string,
+  theme?: string,
+): Project {
+  return {
+    id: projectId,
+    name: projectId,
+    workspaceType: resolveFallbackProjectType(theme),
+    rootPath: "",
+    isDefault: false,
+    createdAt: 0,
+    updatedAt: 0,
+    isFavorite: false,
+    isArchived: false,
+    tags: [],
+  };
+}
+
+function prioritizeAutomationWorkspaces(
+  workspaces: Project[],
+  projectId?: string | null,
+  theme?: string,
+): Project[] {
+  const normalizedProjectId = normalizeProjectId(projectId);
+  if (!normalizedProjectId) {
+    return workspaces;
+  }
+
+  const matched = workspaces.find((workspace) => workspace.id === normalizedProjectId);
+  const fallbackWorkspace =
+    matched ?? buildFallbackAutomationWorkspace(normalizedProjectId, theme);
+  const remaining = workspaces.filter((workspace) => workspace.id !== normalizedProjectId);
+
+  return [fallbackWorkspace, ...remaining];
+}
+
+interface PendingServiceSkillAutomationLaunch {
+  enterWorkspacePayload: HomeShellEnterWorkspacePayload;
+  usage: {
+    skillId: string;
+    runnerType: ServiceSkillHomeItem["runnerType"];
+  };
+}
+
 export type { AgentChatWorkspaceBootstrap } from "./homeShellEntry";
 
 interface AgentChatHomeShellProps {
@@ -196,6 +276,22 @@ export function AgentChatHomeShell({
     error: clawSolutionsError,
     recordUsage: recordClawSolutionUsage,
   } = useClawSolutions(activeTheme === "general");
+  const {
+    skills: serviceSkills,
+    isLoading: serviceSkillsLoading,
+    error: serviceSkillsError,
+    recordUsage: recordServiceSkillUsage,
+  } = useServiceSkills(activeTheme === "general");
+  const [selectedServiceSkill, setSelectedServiceSkill] =
+    useState<ServiceSkillHomeItem | null>(null);
+  const [serviceSkillDialogOpen, setServiceSkillDialogOpen] = useState(false);
+  const [automationDialogOpen, setAutomationDialogOpen] = useState(false);
+  const [automationDialogInitialValues, setAutomationDialogInitialValues] =
+    useState<AutomationJobDialogInitialValues | null>(null);
+  const [automationWorkspaces, setAutomationWorkspaces] = useState<Project[]>([]);
+  const [automationJobSaving, setAutomationJobSaving] = useState(false);
+  const [pendingServiceSkillAutomation, setPendingServiceSkillAutomation] =
+    useState<PendingServiceSkillAutomationLaunch | null>(null);
 
   useEffect(() => {
     setActiveTheme(normalizeInitialTheme(initialTheme));
@@ -215,6 +311,14 @@ export function AgentChatHomeShell({
 
     toast.error(`加载 Claw 方案失败：${clawSolutionsError}`);
   }, [activeTheme, clawSolutionsError]);
+
+  useEffect(() => {
+    if (activeTheme !== "general" || !serviceSkillsError) {
+      return;
+    }
+
+    toast.error(`加载服务型技能失败：${serviceSkillsError}`);
+  }, [activeTheme, serviceSkillsError]);
 
   const handleRefreshSkills = useCallback(async () => {
     await refreshSkills(true);
@@ -366,6 +470,156 @@ export function AgentChatHomeShell({
     ],
   );
 
+  const handleServiceSkillSelect = useCallback((skill: ServiceSkillHomeItem) => {
+    setSelectedServiceSkill(skill);
+    setServiceSkillDialogOpen(true);
+  }, []);
+
+  const handleServiceSkillLaunch = useCallback(
+    async (
+      skill: ServiceSkillHomeItem,
+      slotValues: ServiceSkillSlotValues,
+    ) => {
+      const prompt = composeServiceSkillPrompt({
+        skill,
+        slotValues,
+        userInput: input.trim() || undefined,
+      });
+
+      if (skill.runnerType !== "instant") {
+        toast.info("当前先进入工作区生成首版方案，下一阶段再接本地自动化任务。");
+      }
+
+      const entered = handleEnterWorkspace({
+        prompt,
+        themeOverride: skill.themeTarget,
+      });
+
+      if (!entered) {
+        return;
+      }
+
+      recordServiceSkillUsage({
+        skillId: skill.id,
+        runnerType: skill.runnerType,
+      });
+      setServiceSkillDialogOpen(false);
+      setSelectedServiceSkill(null);
+    },
+    [handleEnterWorkspace, input, recordServiceSkillUsage],
+  );
+
+  const handleServiceSkillAutomationSetup = useCallback(
+    async (
+      skill: ServiceSkillHomeItem,
+      slotValues: ServiceSkillSlotValues,
+    ) => {
+      if (!supportsServiceSkillLocalAutomation(skill)) {
+        await handleServiceSkillLaunch(skill, slotValues);
+        return;
+      }
+
+      const normalizedProjectId = normalizeProjectId(currentProjectId);
+      if (!normalizedProjectId) {
+        toast.error("缺少项目工作区，请先选择项目后再创建本地自动化任务。");
+        return;
+      }
+
+      const prompt = composeServiceSkillPrompt({
+        skill,
+        slotValues,
+        userInput: input.trim() || undefined,
+      });
+
+      try {
+        let workspaces: Project[];
+        try {
+          workspaces = prioritizeAutomationWorkspaces(
+            await listProjects(),
+            normalizedProjectId,
+            skill.themeTarget ?? activeTheme,
+          );
+        } catch {
+          workspaces = [
+            buildFallbackAutomationWorkspace(
+              normalizedProjectId,
+              skill.themeTarget ?? activeTheme,
+            ),
+          ];
+        }
+
+        setAutomationWorkspaces(workspaces);
+        setAutomationDialogInitialValues(
+          buildServiceSkillAutomationInitialValues({
+            skill,
+            slotValues,
+            userInput: input.trim() || undefined,
+            workspaceId: normalizedProjectId,
+          }),
+        );
+        setPendingServiceSkillAutomation({
+          enterWorkspacePayload: {
+            prompt,
+            themeOverride: skill.themeTarget,
+          },
+          usage: {
+            skillId: skill.id,
+            runnerType: skill.runnerType,
+          },
+        });
+        setServiceSkillDialogOpen(false);
+        setSelectedServiceSkill(null);
+        setAutomationDialogOpen(true);
+      } catch (error) {
+        toast.error(`准备本地自动化任务失败：${getErrorMessage(error)}`);
+      }
+    },
+    [activeTheme, currentProjectId, handleServiceSkillLaunch, input],
+  );
+
+  const handleAutomationDialogOpenChange = useCallback((open: boolean) => {
+    setAutomationDialogOpen(open);
+    if (!open) {
+      setAutomationDialogInitialValues(null);
+      setPendingServiceSkillAutomation(null);
+    }
+  }, []);
+
+  const handleAutomationDialogSubmit = useCallback(
+    async (payload: AutomationJobDialogSubmit) => {
+      if (payload.mode !== "create") {
+        throw new Error("服务型技能入口当前只支持创建新的本地自动化任务");
+      }
+
+      setAutomationJobSaving(true);
+      try {
+        const createdJob = await createAutomationJob(payload.request);
+        toast.success(`本地自动化任务已创建：${createdJob.name}`);
+
+        const pendingLaunch = pendingServiceSkillAutomation;
+        setAutomationDialogOpen(false);
+        setAutomationDialogInitialValues(null);
+        setPendingServiceSkillAutomation(null);
+
+        if (!pendingLaunch) {
+          return;
+        }
+
+        recordServiceSkillUsage(pendingLaunch.usage);
+        const entered = handleEnterWorkspace(pendingLaunch.enterWorkspacePayload);
+        if (!entered) {
+          toast.error("自动化任务已创建，但进入工作区失败，请稍后手动打开。");
+        }
+      } catch (error) {
+        toast.error(`创建本地自动化任务失败：${getErrorMessage(error)}`);
+        throw error;
+      } finally {
+        setAutomationJobSaving(false);
+      }
+    },
+    [handleEnterWorkspace, pendingServiceSkillAutomation, recordServiceSkillUsage],
+  );
+
   const handleRecommendationClick = useCallback(
     (shortLabel: string, fullPrompt: string) => {
       setInput(fullPrompt);
@@ -473,11 +727,18 @@ export function AgentChatHomeShell({
                 onRecommendationClick={handleRecommendationClick}
                 supportingSlotOverride={
                   activeTheme === "general" ? (
-                    <ClawHomeSolutionsPanel
-                      solutions={clawSolutions}
-                      loading={clawSolutionsLoading}
-                      onSelect={handleClawSolutionSelect}
-                    />
+                    <>
+                      <ServiceSkillHomePanel
+                        skills={serviceSkills}
+                        loading={serviceSkillsLoading}
+                        onSelect={handleServiceSkillSelect}
+                      />
+                      <ClawHomeSolutionsPanel
+                        solutions={clawSolutions}
+                        loading={clawSolutionsLoading}
+                        onSelect={handleClawSolutionSelect}
+                      />
+                    </>
                   ) : undefined
                 }
                 characters={projectMemory?.characters || []}
@@ -510,6 +771,27 @@ export function AgentChatHomeShell({
                     tab: SettingsTabs.Appearance,
                   });
                 }}
+              />
+              <ServiceSkillLaunchDialog
+                skill={selectedServiceSkill}
+                open={serviceSkillDialogOpen}
+                onOpenChange={(open) => {
+                  setServiceSkillDialogOpen(open);
+                  if (!open) {
+                    setSelectedServiceSkill(null);
+                  }
+                }}
+                onLaunch={handleServiceSkillLaunch}
+                onCreateAutomation={handleServiceSkillAutomationSetup}
+              />
+              <AutomationJobDialog
+                open={automationDialogOpen}
+                mode="create"
+                workspaces={automationWorkspaces}
+                initialValues={automationDialogInitialValues}
+                saving={automationJobSaving}
+                onOpenChange={handleAutomationDialogOpenChange}
+                onSubmit={handleAutomationDialogSubmit}
               />
             </ChatContainerInner>
           </ChatContainer>

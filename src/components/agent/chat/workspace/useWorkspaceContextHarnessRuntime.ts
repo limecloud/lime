@@ -76,7 +76,7 @@ export function useWorkspaceContextHarnessRuntime({
     shouldAlwaysShowHarnessToggle ||
     shouldAlwaysShowGeneralWorkbenchToggle ||
     hasHarnessActivity;
-  const harnessAttentionLevel =
+  const harnessAttentionLevel: "idle" | "active" | "warning" =
     harnessPendingCount > 0
       ? "warning"
       : hasHarnessActivity

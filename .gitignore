@@ -34,7 +34,8 @@ docs/prd/*
 !docs/prd/tools/*.md
 
 # Internal roadmap&gongzonghao (private)
-docs/roadmap/
+docs/roadmap/*
+!docs/roadmap/lime-service-skill-cloud-config-prd.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/

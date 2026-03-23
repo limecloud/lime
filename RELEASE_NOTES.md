@@ -5,6 +5,7 @@
 - **Agent 线程可靠性面板上线**：会话线程新增 pending request、active incident、最近 outcome 与排队 turn 的统一读模型，前端可直接展示“卡在哪里、为什么卡、下一步怎么恢复”
 - **恢复动作从诊断面板直达执行**：支持在线中断当前 turn、恢复线程、重放待处理请求、提升排队 turn，减少遇到等待确认、工具失败或队列阻塞时的手工排障成本
 - **Agent 工作区继续收口**：`AgentChatWorkspace` 大体量逻辑拆分到共享 contract、命令解析/执行层与多个面板组件，消息列表、决策面板、提及面板、队列面板与工作台布局的职责更清晰
+- **发布构建链路补齐稳定性修复**：补齐 Agent 工作区与线程可靠性面板的 TypeScript 合同边界，修正中断态诊断优先级，`npm run build` / `npm run lint` 与 Rust 测试链路恢复可用
 - **Codex slash command 基础接入**：新增 `/compact`、`/clear`、`/new`、`/review`、`/init`、`/diff`、`/status`、`/model`、`/help` 等命令目录与格式化/执行链路，为后续命令扩展提供统一入口
 - **项目热力图与治理图再生成能力补齐**：新增仓库热力图脚本、治理图谱脚本和操作文档，可直接生成热点模块与治理候选报告，方便后续收口 legacy/compat 路径
 
@@ -21,10 +22,11 @@
 
 ### 🧪 测试
 
+- 发布前执行：`npm run build`
+- 发布前执行：`npm run lint`
 - 发布前执行：`cargo fmt --all --manifest-path src-tauri/Cargo.toml`
 - 发布前执行：`cargo test --manifest-path src-tauri/Cargo.toml`
 - 发布前执行：`cargo clippy --manifest-path src-tauri/Cargo.toml`
-- 发布前执行：`npm run lint`
 
 ### 📝 文档
 

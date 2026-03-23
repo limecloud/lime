@@ -5,6 +5,7 @@ import { updateProject as updateProjectById } from "@/lib/api/project";
 import { notifyProjectRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
+import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
 
 interface UseWorkspaceNavigationActionsParams {
   applyProjectSelection: (projectId: string) => void;
@@ -15,7 +16,7 @@ interface UseWorkspaceNavigationActionsParams {
   projectId?: string;
   setEntryBannerVisible: Dispatch<SetStateAction<boolean>>;
   setWorkspaceHealthError: Dispatch<SetStateAction<boolean>>;
-  workspacePathMissing: boolean;
+  workspacePathMissing: WorkspacePathMissingState | boolean | null;
 }
 
 export function useWorkspaceNavigationActions({

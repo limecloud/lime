@@ -2015,7 +2015,9 @@ export function AgentChatWorkspace({
     taskFilesRef,
     socialStageLogRef,
     setDocumentVersionStatusMap,
-    saveSessionFile,
+    saveSessionFile: async (fileName, content) => {
+      await saveSessionFile(fileName, content);
+    },
     syncGeneralArtifactToResource,
     upsertGeneralArtifact,
     setSelectedArtifactId,
@@ -2222,12 +2224,14 @@ export function AgentChatWorkspace({
     threadRead,
     pendingActions,
     submittedActionsInFlight,
+    messages: displayMessages,
     queuedTurns,
     resumeThread,
     replayPendingAction,
     promoteQueuedTurn,
     removeQueuedTurn,
     latestAssistantMessageId,
+    sessionIdForDiagnostics: sessionId || null,
     themeWorkbenchEntryPrompt,
     handleRestartThemeWorkbenchEntryPrompt,
     handleContinueThemeWorkbenchEntryPrompt,
@@ -2419,7 +2423,7 @@ export function AgentChatWorkspace({
       selectedFileId,
       handleHarnessLoadFilePreview,
       setCanvasWorkbenchLayoutMode,
-      workspacePathMissing,
+      workspacePathMissing: Boolean(workspacePathMissing),
       workspaceHealthError,
     });
 

@@ -26,6 +26,7 @@
 - `develop/execution-tracker-p1-p2-roadmap.md`：统一执行追踪后续路线（P1/P2）
 - `develop/scheduler-task-governance-p1.md`：调度任务治理 P1（连续失败、自动停用、冷却恢复）
 - `roadmap/lime-skills-standardization-roadmap.md`：Skills 标准化与产品化路线图
+- `roadmap/lime-service-skill-cloud-config-prd.md`：服务型技能的端优先执行与云配置同步 PRD
 - `ops.md`：运维与发布说明
 - `app.config.ts` / `nuxt.config.ts` / `package.json`：文档站配置
 

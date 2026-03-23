@@ -601,6 +601,9 @@ function normalizeInterruptStateLabel(
   if (!normalized) {
     return null;
   }
+  if (normalized.includes("interrupting")) {
+    return "运行时正在处理中断";
+  }
   if (normalized.includes("interrupt")) {
     return "运行时已确认中断";
   }
@@ -705,6 +708,7 @@ function buildSummary(params: {
   incidents: ThreadReliabilityIncidentDisplay[];
   outcome: ThreadReliabilityOutcomeDisplay | null;
   queuedTurnCount: number;
+  interruptState?: string | null;
   interruptStateLabel?: string | null;
   nextQueuedTurn: ThreadReliabilityQueuedTurnDisplay | null;
 }): string {
@@ -723,6 +727,9 @@ function buildSummary(params: {
   }
 
   if (params.interruptStateLabel) {
+    if ((params.interruptState || "").toLowerCase().includes("interrupting")) {
+      return `${params.interruptStateLabel}，请等待运行时回填最终状态。`;
+    }
     if (params.nextQueuedTurn) {
       return `${params.interruptStateLabel}，可继续 ${params.nextQueuedTurn.title}`;
     }
@@ -750,6 +757,7 @@ function buildRecommendations(params: {
   incidents: ThreadReliabilityIncidentDisplay[];
   outcome: ThreadReliabilityOutcomeDisplay | null;
   nextQueuedTurn: ThreadReliabilityQueuedTurnDisplay | null;
+  interruptState?: string | null;
   interruptStateLabel?: string | null;
 }): string[] {
   const recommendations = new Set<string>();
@@ -782,9 +790,13 @@ function buildRecommendations(params: {
     recommendations.add("请先检查失败工具的参数或环境，再尝试重试");
   }
   if (params.interruptStateLabel) {
-    recommendations.add("当前执行已被运行时确认中断");
+    if ((params.interruptState || "").toLowerCase().includes("interrupting")) {
+      recommendations.add("正在停止当前执行，请等待运行时回填最终状态");
+    } else {
+      recommendations.add("当前执行已被运行时确认中断");
+    }
   }
-  if (params.nextQueuedTurn) {
+  if (params.nextQueuedTurn && !((params.interruptState || "").toLowerCase().includes("interrupting"))) {
     recommendations.add(`可继续排队回合：${params.nextQueuedTurn.title}`);
   }
   if (params.outcome?.retryable) {
@@ -858,6 +870,7 @@ export function buildThreadReliabilityView(
       incidents,
       outcome,
       queuedTurnCount,
+      interruptState: params.threadRead?.interrupt_state,
       interruptStateLabel,
       nextQueuedTurn,
     }),
@@ -882,6 +895,7 @@ export function buildThreadReliabilityView(
       incidents,
       outcome,
       nextQueuedTurn,
+      interruptState: params.threadRead?.interrupt_state,
       interruptStateLabel,
     }),
   };

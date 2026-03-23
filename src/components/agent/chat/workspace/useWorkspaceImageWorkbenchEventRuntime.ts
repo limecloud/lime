@@ -42,9 +42,9 @@ interface UseWorkspaceImageWorkbenchEventRuntimeParams {
   projectId?: string;
   contentId?: string | null;
   imageWorkbenchProviders: ImageWorkbenchProviderSummary[];
-  setImageWorkbenchSelectedProviderId: Dispatch<SetStateAction<string>>;
-  setImageWorkbenchSelectedModelId: Dispatch<SetStateAction<string>>;
-  setImageWorkbenchSelectedSize: Dispatch<SetStateAction<string>>;
+  setImageWorkbenchSelectedProviderId: (providerId: string) => void;
+  setImageWorkbenchSelectedModelId: (modelId: string) => void;
+  setImageWorkbenchSelectedSize: (size: string) => void;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   updateCurrentImageWorkbenchState: (
