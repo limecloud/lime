@@ -24,6 +24,9 @@ import {
   subscribeProviderDataChanged,
 } from "@/lib/providerDataEvents";
 import { isDebugFlagEnabled } from "@/lib/perfDebug";
+import {
+  isOemManagedHubProvider,
+} from "@/lib/oemLimeHubProvider";
 
 // ============================================================================
 // Hook 返回类型
@@ -510,7 +513,9 @@ export function useApiKeyProvider(
       providerDebugLog("[useApiKeyProvider] selectedProvider: 没有选中的 Provider");
       return null;
     }
-    const found = providers.find((p) => p.id === selectedProviderId);
+    const found = providers.find(
+      (p) => p.id === selectedProviderId && !isOemManagedHubProvider(p),
+    );
     if (found) {
       providerDebugLog(
         `[useApiKeyProvider] selectedProvider: ${found.name}, api_keys: ${found.api_keys?.length || 0}`,
@@ -523,11 +528,31 @@ export function useApiKeyProvider(
     return found ?? null;
   }, [providers, selectedProviderId]);
 
+  useEffect(() => {
+    if (!selectedProviderId) {
+      return;
+    }
+
+    const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+    if (!selectedProvider || !isOemManagedHubProvider(selectedProvider)) {
+      return;
+    }
+
+    const nextVisibleProvider =
+      providers.find((provider) => !isOemManagedHubProvider(provider)) ?? null;
+    const nextProviderId = nextVisibleProvider?.id ?? null;
+    setSelectedProviderId(nextProviderId);
+    void saveSelectedProvider(nextProviderId);
+  }, [providers, saveSelectedProvider, selectedProviderId]);
+
   /** 按搜索过滤后的 Provider 列表 */
   const filteredProviders = useMemo(() => {
-    if (!searchQuery.trim()) return providers;
+    const visibleProviders = providers.filter(
+      (provider) => !isOemManagedHubProvider(provider),
+    );
+    if (!searchQuery.trim()) return visibleProviders;
     const query = searchQuery.toLowerCase();
-    return providers.filter(
+    return visibleProviders.filter(
       (p) =>
         p.name.toLowerCase().includes(query) ||
         p.id.toLowerCase().includes(query),

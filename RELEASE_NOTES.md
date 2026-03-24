@@ -1,38 +1,38 @@
-## Lime v0.95.0
+## Lime v0.95.1
 
 ### ✨ 主要更新
 
-- **Agent 线程可靠性面板上线**：会话线程新增 pending request、active incident、最近 outcome 与排队 turn 的统一读模型，前端可直接展示“卡在哪里、为什么卡、下一步怎么恢复”
-- **恢复动作从诊断面板直达执行**：支持在线中断当前 turn、恢复线程、重放待处理请求、提升排队 turn，减少遇到等待确认、工具失败或队列阻塞时的手工排障成本
-- **Agent 工作区继续收口**：`AgentChatWorkspace` 大体量逻辑拆分到共享 contract、命令解析/执行层与多个面板组件，消息列表、决策面板、提及面板、队列面板与工作台布局的职责更清晰
-- **发布构建链路补齐稳定性修复**：补齐 Agent 工作区与线程可靠性面板的 TypeScript 合同边界，修正中断态诊断优先级，`npm run build` / `npm run lint` 与 Rust 测试链路恢复可用
-- **Codex slash command 基础接入**：新增 `/compact`、`/clear`、`/new`、`/review`、`/init`、`/diff`、`/status`、`/model`、`/help` 等命令目录与格式化/执行链路，为后续命令扩展提供统一入口
-- **项目热力图与治理图再生成能力补齐**：新增仓库热力图脚本、治理图谱脚本和操作文档，可直接生成热点模块与治理候选报告，方便后续收口 legacy/compat 路径
+- **云端账户闭环接入收口**：个人中心统一承接登录、会话刷新和退出，Providers 页改成只消费这份云端会话，不再额外维护独立登录表单
+- **Google 一键登录回流桌面端**：桌面 OAuth 回调支持拿到 session token 后立即补拉 bootstrap、写回本地会话，并把登录成功后的跳转路径带回客户端
+- **云端 Provider 最终态改为服务端驱动**：客户端不再猜测接入模式、配置模式、模型来源和开发者入口，而是直接消费 control-plane 返回的最终态字段
+- **模型目录与默认来源同步治理**：默认来源切到云端时，内部 compat `lime-hub` Provider 会自动同步网关地址、品牌名和服务端模型目录；切回本地时会清空云端模型目录，避免旧配置残留
+- **本地 / 第三方 Provider 面板重新分层**：设置页把“云端入口”和“本地 / 第三方开发者配置”拆开，云端消费态、套餐状态和模型目录单独展示，避免与 API Key 管理混在一起
+- **服务技能目录接入云端 bootstrap**：启动时与 OAuth 登录完成后都会同步服务技能目录，保障客户端在登录后即可直接拿到云端下发的技能目录
+- **OEM 运行时配置继续去硬编码**：默认桌面客户端标识改成中性 `desktop-client`，品牌、域名与登录入口继续由运行时配置文件注入，方便后续打包替换
 
 ### ⚠️ 兼容性说明
 
-- Agent 线程可靠性依赖新的本地数据库表 `agent_turn_outcomes` 与 `agent_thread_incidents`；升级后首次打开相关会话会自动补齐表结构
-- 线程恢复与 pending request 诊断依赖新的 Aster 线程读模型；如果本地还在用 `setup:local-aster` 覆盖，请确认联调仓库已同步到 `aster-rust v0.21.0`
-- release workflow 仍由 `v*` tag 触发，`RELEASE_NOTES.md` 会直接作为 GitHub Release 正文；只推 `main` 不会自动出包
+- 现网包发布仍由 `v*` tag 触发，`RELEASE_NOTES.md` 会直接作为 GitHub Release 正文；只推 `main` 不会自动出包
+- 云端登录、模型目录和服务技能目录都依赖运行时注入的控制面 / Gateway 域名与租户配置；打包前请确认 `public/oem-runtime-config.js` 已替换为目标环境值
+- 云端默认来源与开发者 API Key 模式现在由服务端治理；如果后台关闭开发者入口，客户端仍会保留本地 / 第三方 Provider 管理，但不会再把云端入口误当作普通 API Key Provider 展示
 
 ### 🔗 依赖同步
 
-- `aster-core` / `aster-models` 远程 tag 固定到 `v0.21.0`
-- 应用版本同步提升到 `v0.95.0`，覆盖 `package.json`、Tauri 配置与 Rust workspace/package 入口
+- 应用版本同步提升到 `v0.95.1`，覆盖 `package.json`、Tauri 配置与 Rust workspace/package 入口
+- 云端运行时默认客户端标识调整为 `desktop-client`，供不同品牌包在打包阶段覆写
 
 ### 🧪 测试
 
-- 发布前执行：`npm run build`
-- 发布前执行：`npm run lint`
-- 发布前执行：`cargo fmt --all --manifest-path src-tauri/Cargo.toml`
-- 发布前执行：`cargo test --manifest-path src-tauri/Cargo.toml`
-- 发布前执行：`cargo clippy --manifest-path src-tauri/Cargo.toml`
+- 发布前执行：`npm run verify:app-version`
+- 发布前执行：`npm test -- src/hooks/useOemLimeHubProviderSync.test.tsx src/lib/oemCloudSession.test.ts src/hooks/useOemCloudAccess.test.tsx src/components/settings-v2/agent/providers/index.test.tsx src/components/settings-v2/account/user-center-session/index.test.tsx src/lib/api/oemCloudControlPlane.test.ts src/lib/api/oemCloudRuntime.test.ts`
+- 发布前执行：`npm run governance:legacy-report`
+- 发布前执行：`npm run test:contracts`
 
 ### 📝 文档
 
-- 补充 `docs/aiprompts/project-heatmap.md`，明确仓库热力图、治理图与 legacy-report 的配套使用方式
 - 发布说明随 `RELEASE_NOTES.md` 更新，供 GitHub Release 工作流直接读取
+- 运行时配置示例随 `public/oem-runtime-config.js` 一并更新，避免桌面 OAuth 客户端标识继续写死旧品牌值
 
 ---
 
-**完整变更**: v0.94.0...v0.95.0
+**完整变更**: v0.95.0...v0.95.1

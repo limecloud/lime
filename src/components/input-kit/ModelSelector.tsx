@@ -22,6 +22,8 @@ import { filterModelsByTheme } from "@/components/agent/chat/utils/modelThemePol
 import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
 import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges";
+import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
+import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 
 const compactTriggerClassName =
   "h-8 min-w-[104px] max-w-[168px] justify-start gap-1.5 rounded-full border-slate-200/80 bg-white/92 px-2.5 text-slate-600 shadow-none transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-800";
@@ -244,14 +246,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     setOpen(false);
   }, [disabled, open]);
 
-  const selectedProviderLabel =
-    selectedProvider?.label || getProviderLabel(providerType || "lime-hub");
+  const defaultHubProviderLabel = resolveOemLimeHubProviderName(
+    resolveOemCloudRuntimeContext(),
+  );
   const compactProviderType =
     selectedProvider?.key || providerType || "lime-hub";
+  const fallbackProviderLabel =
+    compactProviderType.toLowerCase() === "lime-hub"
+      ? defaultHubProviderLabel
+      : getProviderLabel(compactProviderType);
+  const selectedProviderLabel =
+    selectedProvider?.label || fallbackProviderLabel;
   const compactProviderLabel =
-    selectedProvider?.label ||
-    getProviderLabel(providerType || "lime-hub") ||
-    "Lime Hub";
+    selectedProvider?.label || fallbackProviderLabel;
   const compactModelLabel = model || "切换模型";
   const normalizedTheme = (activeTheme || "").toLowerCase();
   const activeThemeLabel =

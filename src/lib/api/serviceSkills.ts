@@ -1,3 +1,8 @@
+import {
+  hasOemCloudSession,
+  resolveOemCloudRuntimeContext,
+} from "./oemCloudRuntime";
+
 export type ServiceSkillSource = "cloud_catalog" | "local_custom";
 
 export type ServiceSkillRunnerType = "instant" | "scheduled" | "managed";
@@ -47,6 +52,7 @@ export interface ServiceSkillReadinessRequirements {
 
 export interface ServiceSkillItem {
   id: string;
+  skillKey?: string;
   title: string;
   summary: string;
   category: string;
@@ -68,7 +74,21 @@ export interface ServiceSkillCatalog {
   items: ServiceSkillItem[];
 }
 
+export type ServiceSkillCatalogChangeSource =
+  | "seeded_fallback"
+  | "bootstrap_sync"
+  | "manual_override"
+  | "cache_clear";
+
+interface ServiceSkillCatalogResponseEnvelope {
+  code?: number;
+  message?: string;
+  data?: unknown;
+}
+
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
+export const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
+  "lime:service-skill-catalog-changed";
 const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-03-24";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
@@ -86,6 +106,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
   items: [
     {
       id: "carousel-post-replication",
+      skillKey: "carousel-post-replication",
       title: "复制轮播帖",
       summary: "拆解参考轮播帖的结构、文风和卖点，再输出一版可继续改写的轮播内容。",
       category: "社媒内容",
@@ -140,6 +161,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
     },
     {
       id: "short-video-script-replication",
+      skillKey: "short-video-script-replication",
       title: "复制短视频脚本",
       summary: "围绕参考视频的结构和节奏，输出一版可直接继续加工的脚本。",
       category: "视频创作",
@@ -194,6 +216,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
     },
     {
       id: "article-to-slide-video-outline",
+      skillKey: "article-to-slide-video-outline",
       title: "文章转 Slide 视频提纲",
       summary: "把文章拆成镜头化结构，先生成一版适合做 Slide 视频的提纲。",
       category: "知识转化",
@@ -237,6 +260,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
     },
     {
       id: "video-dubbing-language",
+      skillKey: "video-dubbing-language",
       title: "视频配音成其他语言",
       summary: "先整理配音脚本和语言要求，输出一版可继续进入配音流程的执行稿。",
       category: "视频创作",
@@ -284,6 +308,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
     },
     {
       id: "daily-trend-briefing",
+      skillKey: "daily-trend-briefing",
       title: "每日趋势摘要",
       summary: "围绕指定平台、行业和地区，先产出一版趋势摘要和后续本地定时任务建议。",
       category: "社媒运营",
@@ -343,6 +368,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
     },
     {
       id: "account-performance-tracking",
+      skillKey: "account-performance-tracking",
       title: "跟踪账号表现",
       summary: "围绕指定账号先做一版表现分析，并整理后续本地跟踪任务需要的指标和告警条件。",
       category: "社媒运营",
@@ -435,6 +461,7 @@ function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
   const item = value as Partial<ServiceSkillItem>;
   return (
     typeof item.id === "string" &&
+    (item.skillKey === undefined || typeof item.skillKey === "string") &&
     typeof item.title === "string" &&
     typeof item.summary === "string" &&
     typeof item.category === "string" &&
@@ -464,6 +491,49 @@ function isServiceSkillCatalog(value: unknown): value is ServiceSkillCatalog {
   );
 }
 
+function cloneServiceSkillCatalog(catalog: ServiceSkillCatalog): ServiceSkillCatalog {
+  return {
+    ...catalog,
+    items: catalog.items.map((item) => ({
+      ...item,
+      slotSchema: item.slotSchema.map((slot) => ({
+        ...slot,
+        options: slot.options ? [...slot.options] : undefined,
+      })),
+      readinessRequirements: item.readinessRequirements
+        ? { ...item.readinessRequirements }
+        : undefined,
+    })),
+  };
+}
+
+function isSameServiceSkillCatalog(
+  left: ServiceSkillCatalog,
+  right: ServiceSkillCatalog,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function emitServiceSkillCatalogChanged(
+  source: ServiceSkillCatalogChangeSource,
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<{
+      source: ServiceSkillCatalogChangeSource;
+      timestamp: number;
+    }>(SERVICE_SKILL_CATALOG_CHANGED_EVENT, {
+      detail: {
+        source,
+        timestamp: Date.now(),
+      },
+    }),
+  );
+}
+
 function readCachedServiceSkillCatalog(): ServiceSkillCatalog | null {
   if (typeof window === "undefined") {
     return null;
@@ -478,10 +548,20 @@ function readCachedServiceSkillCatalog(): ServiceSkillCatalog | null {
     if (!isServiceSkillCatalog(parsed)) {
       return null;
     }
-    return parsed;
+    return cloneServiceSkillCatalog(parsed);
   } catch {
     return null;
   }
+}
+
+export function parseServiceSkillCatalog(
+  value: unknown,
+): ServiceSkillCatalog | null {
+  if (!isServiceSkillCatalog(value)) {
+    return null;
+  }
+
+  return cloneServiceSkillCatalog(value);
 }
 
 function persistServiceSkillCatalog(catalog: ServiceSkillCatalog): void {
@@ -499,31 +579,146 @@ function persistServiceSkillCatalog(catalog: ServiceSkillCatalog): void {
   }
 }
 
+async function requestRemoteServiceSkillCatalog(): Promise<ServiceSkillCatalog> {
+  const runtime = resolveOemCloudRuntimeContext();
+  if (!runtime) {
+    throw new Error("缺少 OEM 云端配置，请先注入 base_url 与 tenant_id。");
+  }
+  if (!hasOemCloudSession(runtime)) {
+    throw new Error("缺少 OEM 云端 Session Token，请先完成登录或注入会话。");
+  }
+
+  const response = await fetch(
+    `${runtime.controlPlaneBaseUrl}/v1/public/tenants/${encodeURIComponent(runtime.tenantId)}/client/service-skills`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${runtime.sessionToken}`,
+      },
+    },
+  );
+
+  let payload: ServiceSkillCatalogResponseEnvelope | null = null;
+  try {
+    payload = (await response.json()) as ServiceSkillCatalogResponseEnvelope;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.message?.trim() || `请求失败 (${response.status})`);
+  }
+
+  const catalog = parseServiceSkillCatalog(payload?.data);
+  if (!catalog) {
+    throw new Error(payload?.message?.trim() || "服务端返回的目录格式非法");
+  }
+
+  return catalog;
+}
+
 export function getSeededServiceSkillCatalog(): ServiceSkillCatalog {
-  return {
-    ...SEEDED_SERVICE_SKILL_CATALOG,
-    items: SEEDED_SERVICE_SKILL_CATALOG.items.map((item) => ({
-      ...item,
-      slotSchema: item.slotSchema.map((slot) => ({
-        ...slot,
-        options: slot.options ? [...slot.options] : undefined,
-      })),
-      readinessRequirements: item.readinessRequirements
-        ? { ...item.readinessRequirements }
-        : undefined,
-    })),
+  return cloneServiceSkillCatalog(SEEDED_SERVICE_SKILL_CATALOG);
+}
+
+export function isSeededServiceSkillCatalog(
+  catalog: ServiceSkillCatalog,
+): boolean {
+  return (
+    catalog.tenantId === SEEDED_SERVICE_SKILL_CATALOG.tenantId &&
+    catalog.version === SEEDED_SERVICE_SKILL_CATALOG.version
+  );
+}
+
+export function saveServiceSkillCatalog(
+  catalog: ServiceSkillCatalog,
+  source: Exclude<ServiceSkillCatalogChangeSource, "seeded_fallback" | "cache_clear"> = "manual_override",
+): ServiceSkillCatalog {
+  const normalized = parseServiceSkillCatalog(catalog);
+  if (!normalized) {
+    throw new Error("invalid service skill catalog");
+  }
+  const current = readCachedServiceSkillCatalog();
+  if (current && isSameServiceSkillCatalog(current, normalized)) {
+    persistServiceSkillCatalog(normalized);
+    return normalized;
+  }
+  persistServiceSkillCatalog(normalized);
+  emitServiceSkillCatalogChanged(source);
+  return normalized;
+}
+
+export function clearServiceSkillCatalogCache(): void {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(SERVICE_SKILL_CATALOG_STORAGE_KEY);
+    } catch {
+      // ignore local cache errors
+    }
+  }
+
+  emitServiceSkillCatalogChanged("cache_clear");
+}
+
+export function subscribeServiceSkillCatalogChanged(
+  callback: (source: ServiceSkillCatalogChangeSource) => void,
+): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const customEventHandler = (event: Event) => {
+    const customEvent = event as CustomEvent<{
+      source?: ServiceSkillCatalogChangeSource;
+    }>;
+    const source = customEvent.detail?.source;
+    if (source) {
+      callback(source);
+    }
+  };
+
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key !== SERVICE_SKILL_CATALOG_STORAGE_KEY) {
+      return;
+    }
+    callback(event.newValue ? "manual_override" : "cache_clear");
+  };
+
+  window.addEventListener(
+    SERVICE_SKILL_CATALOG_CHANGED_EVENT,
+    customEventHandler,
+  );
+  window.addEventListener("storage", storageHandler);
+
+  return () => {
+    window.removeEventListener(
+      SERVICE_SKILL_CATALOG_CHANGED_EVENT,
+      customEventHandler,
+    );
+    window.removeEventListener("storage", storageHandler);
   };
 }
 
 export async function getServiceSkillCatalog(): Promise<ServiceSkillCatalog> {
   const cached = readCachedServiceSkillCatalog();
-  if (cached && cached.version === SEEDED_SERVICE_SKILL_CATALOG_VERSION) {
+  if (cached) {
     return cached;
   }
 
   const seeded = getSeededServiceSkillCatalog();
   persistServiceSkillCatalog(seeded);
   return seeded;
+}
+
+export async function refreshServiceSkillCatalogFromRemote(): Promise<ServiceSkillCatalog | null> {
+  const runtime = resolveOemCloudRuntimeContext();
+  if (!runtime || !hasOemCloudSession(runtime)) {
+    return null;
+  }
+
+  const catalog = await requestRemoteServiceSkillCatalog();
+  return saveServiceSkillCatalog(catalog, "bootstrap_sync");
 }
 
 export async function listServiceSkills(): Promise<ServiceSkillItem[]> {

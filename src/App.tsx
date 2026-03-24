@@ -25,7 +25,9 @@ import { useOnboardingState } from "./components/onboarding";
 import { showRegistryLoadError } from "./lib/utils/connectError";
 import { useDeepLink } from "./hooks/useDeepLink";
 import { useRelayRegistry } from "./hooks/useRelayRegistry";
+import { useServiceSkillCatalogBootstrap } from "./hooks/useServiceSkillCatalogBootstrap";
 import { useGlobalTrayModelSync } from "./hooks/useGlobalTrayModelSync";
+import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
 import { SoundProvider } from "./contexts/SoundProvider";
 import { ComponentDebugOverlay } from "./components/dev";
@@ -243,6 +245,8 @@ function AppContent() {
     projectName: string;
   } | null>(null);
 
+  useServiceSkillCatalogBootstrap();
+  useOemLimeHubProviderSync();
   useGlobalTrayModelSync({
     currentPage,
     pageParams,

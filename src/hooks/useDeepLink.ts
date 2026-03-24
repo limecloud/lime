@@ -10,9 +10,16 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
+  completeOemCloudDesktopOAuthLogin,
+  parseOemCloudDesktopOAuthCallbackUrl,
+} from "@/lib/oemCloudDesktopAuth";
+import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
+import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
+import {
   showDeepLinkError,
   showApiKeySaveError,
 } from "@/lib/utils/connectError";
+import { toast } from "sonner";
 import { useConnectCallback } from "./useConnectCallback";
 
 /**
@@ -268,6 +275,40 @@ export function useDeepLink(): UseDeepLinkReturn {
     setIsDialogOpen(true);
   }, []);
 
+  const handleOauthCallbackUrl = useCallback(async (url: string) => {
+    const payload = parseOemCloudDesktopOAuthCallbackUrl(url);
+    if (!payload) {
+      return false;
+    }
+
+    if (payload.error) {
+      toast.error("Google 登录未完成", {
+        description: payload.error,
+      });
+      return true;
+    }
+
+    try {
+      await completeOemCloudDesktopOAuthLogin(payload);
+      const providerName = resolveOemLimeHubProviderName(
+        resolveOemCloudRuntimeContext(),
+      );
+      toast.success("Google 登录成功", {
+        description: `个人中心会话、${providerName} 云端目录与服务技能目录已同步。`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : "同步桌面端登录结果失败";
+      toast.error("Google 登录失败", {
+        description: message,
+      });
+    }
+
+    return true;
+  }, []);
+
   /**
    * 确认添加 API Key
    * _Requirements: 5.4, 5.3 (统计回调)_
@@ -385,6 +426,10 @@ export function useDeepLink(): UseDeepLinkReturn {
             console.log("[useDeepLink] 收到 Deep Link URL:", urls);
 
             for (const url of urls) {
+              if (await handleOauthCallbackUrl(url)) {
+                continue;
+              }
+
               if (!url.startsWith("lime://connect")) {
                 continue;
               }
@@ -462,7 +507,7 @@ export function useDeepLink(): UseDeepLinkReturn {
       }
       console.log("[useDeepLink] 已取消 Deep Link 监听器");
     };
-  }, [handleDeepLinkEvent, handleDeepLinkError]);
+  }, [handleDeepLinkEvent, handleDeepLinkError, handleOauthCallbackUrl]);
 
   return {
     connectPayload,
