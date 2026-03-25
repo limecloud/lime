@@ -74,6 +74,10 @@ pub enum AutomationPayload {
         system_prompt: Option<String>,
         #[serde(default)]
         web_search: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        request_metadata: Option<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        content_id: Option<String>,
     },
     BrowserSession {
         profile_id: String,
@@ -749,9 +753,24 @@ fn validate_job(conn: &Connection, job: &AutomationJobRecord) -> Result<(), Stri
 
 fn validate_payload(payload: &AutomationPayload) -> Result<(), String> {
     match payload {
-        AutomationPayload::AgentTurn { prompt, .. } => {
+        AutomationPayload::AgentTurn {
+            prompt,
+            request_metadata,
+            content_id,
+            ..
+        } => {
             if prompt.trim().is_empty() {
                 return Err("自动化任务内容不能为空".to_string());
+            }
+            if let Some(content_id) = content_id {
+                if content_id.trim().is_empty() {
+                    return Err("自动化任务 content_id 不能为空字符串".to_string());
+                }
+            }
+            if let Some(request_metadata) = request_metadata {
+                if !request_metadata.is_object() {
+                    return Err("自动化任务 request_metadata 必须为对象".to_string());
+                }
             }
         }
         AutomationPayload::BrowserSession { profile_id, .. } => {
@@ -1354,5 +1373,41 @@ mod tests {
         assert_eq!(context.attempt_id, repeated.attempt_id);
         assert!(context.attempt_id.starts_with("dlv-"));
         assert_eq!(context.execution_retry_count, 2);
+    }
+
+    #[test]
+    fn validate_payload_should_reject_blank_agent_turn_content_id() {
+        let payload = AutomationPayload::AgentTurn {
+            prompt: "汇总今日异常".to_string(),
+            system_prompt: None,
+            web_search: false,
+            request_metadata: Some(json!({
+                "harness": {
+                    "theme": "social-media",
+                }
+            })),
+            content_id: Some("   ".to_string()),
+        };
+
+        assert_eq!(
+            validate_payload(&payload),
+            Err("自动化任务 content_id 不能为空字符串".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_payload_should_reject_non_object_request_metadata() {
+        let payload = AutomationPayload::AgentTurn {
+            prompt: "汇总今日异常".to_string(),
+            system_prompt: None,
+            web_search: false,
+            request_metadata: Some(json!(["invalid"])),
+            content_id: Some("content-1".to_string()),
+        };
+
+        assert_eq!(
+            validate_payload(&payload),
+            Err("自动化任务 request_metadata 必须为对象".to_string())
+        );
     }
 }

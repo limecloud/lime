@@ -10,6 +10,7 @@ import { SettingsTabs } from "@/types/settings";
 const {
   mockBuildClawAgentParams,
   mockCreateAutomationJob,
+  mockCreateContent,
   mockHomeShellExecutionStrategy,
   mockHomeShellModel,
   mockHomeShellProviderType,
@@ -82,6 +83,7 @@ const {
       runnerType: "instant",
       defaultExecutorBinding: "agent_turn",
       executionLocation: "client_default",
+      defaultArtifactKind: "brief",
       themeTarget: "video",
       version: "seed-v1",
       slotSchema: [
@@ -112,6 +114,7 @@ const {
       runnerType: "scheduled",
       defaultExecutorBinding: "automation_job",
       executionLocation: "client_default",
+      defaultArtifactKind: "analysis",
       themeTarget: "social-media",
       version: "seed-v1",
       slotSchema: [
@@ -180,6 +183,22 @@ const {
         ...request,
       }),
     ),
+    mockCreateContent: vi.fn(async (request: Record<string, unknown>) => ({
+      id: "content-service-skill-1",
+      project_id: request.project_id,
+      title: request.title,
+      content_type: request.content_type,
+      status: "draft",
+      order: 0,
+      word_count: 0,
+      body: typeof request.body === "string" ? request.body : "",
+      metadata:
+        request.metadata && typeof request.metadata === "object"
+          ? request.metadata
+          : undefined,
+      created_at: 1,
+      updated_at: 1,
+    })),
     mockHomeShellProviderType: { current: "mock-provider" },
     mockHomeShellModel: { current: "mock-model" },
     mockHomeShellExecutionStrategy: { current: "react" },
@@ -366,6 +385,17 @@ vi.mock("@/lib/api/serviceSkillRuns", () => ({
 }));
 
 vi.mock("@/lib/api/project", () => ({
+  createContent: mockCreateContent,
+  getDefaultContentTypeForProject: vi.fn((projectType: string) => {
+    switch (projectType) {
+      case "video":
+        return "episode";
+      case "social-media":
+        return "post";
+      default:
+        return "document";
+    }
+  }),
   listProjects: mockListProjects,
 }));
 
@@ -1138,11 +1168,27 @@ describe("AgentChatHomeShell", () => {
 
     await flushEffects();
 
+    expect(mockCreateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: "project-1",
+        title: "复制短视频脚本",
+        content_type: "episode",
+        body: "",
+      }),
+    );
     expect(onEnterWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "project-1",
+        contentId: "content-service-skill-1",
         theme: "video",
         initialCreationMode: "guided",
+        initialRequestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+            artifact_kind: "brief",
+            workbench_surface: "right_panel",
+          },
+        },
         initialUserPrompt:
           expect.stringContaining("[服务型技能] 复制短视频脚本"),
       }),
@@ -1302,14 +1348,46 @@ describe("AgentChatHomeShell", () => {
         payload: expect.objectContaining({
           kind: "agent_turn",
           prompt: expect.stringContaining("[服务型技能] 每日趋势摘要"),
+          content_id: "content-service-skill-1",
+          request_metadata: expect.objectContaining({
+            artifact: expect.objectContaining({
+              artifact_mode: "draft",
+              artifact_kind: "analysis",
+            }),
+            harness: expect.objectContaining({
+              theme: "social-media",
+              session_mode: "theme_workbench",
+              content_id: "content-service-skill-1",
+            }),
+          }),
         }),
       }),
+    );
+    expect(mockCreateContent).toHaveBeenCalledTimes(1);
+    expect(mockCreateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: "project-1",
+        title: "每日趋势摘要",
+        content_type: "post",
+        body: "",
+      }),
+    );
+    expect(mockCreateContent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCreateAutomationJob.mock.invocationCallOrder[0],
     );
     expect(onEnterWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "project-1",
+        contentId: "content-service-skill-1",
         theme: "social-media",
         initialCreationMode: "guided",
+        initialRequestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+            artifact_kind: "analysis",
+            workbench_surface: "right_panel",
+          },
+        },
         initialUserPrompt: expect.stringContaining("[服务型技能] 每日趋势摘要"),
       }),
     );

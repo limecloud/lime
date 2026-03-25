@@ -510,22 +510,22 @@ export function TeamWorkspaceDock({
   selectedTeamRoles = [],
   teamDispatchPreviewState = null,
 }: TeamWorkspaceDockProps) {
-  const runtimeTeamState = teamDispatchPreviewState;
+  const dispatchPreviewState = teamDispatchPreviewState;
   const launcherOnly = typeof onActivateWorkbench === "function";
   const hasRealTeamGraph =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
-  const hasRuntimeFormation = Boolean(runtimeTeamState);
-  const runtimeFormationMeta = runtimeTeamState
-    ? resolveRuntimeFormationStatusMeta(runtimeTeamState.status)
+  const hasRuntimeFormation = Boolean(dispatchPreviewState);
+  const runtimeFormationMeta = dispatchPreviewState
+    ? resolveRuntimeFormationStatusMeta(dispatchPreviewState.status)
     : null;
   const runtimeTeamLabel =
-    runtimeTeamState?.label?.trim() ||
-    runtimeTeamState?.blueprint?.label?.trim() ||
+    dispatchPreviewState?.label?.trim() ||
+    dispatchPreviewState?.blueprint?.label?.trim() ||
     selectedTeamLabel?.trim() ||
     null;
   const runtimeTeamSummary =
-    runtimeTeamState?.summary?.trim() ||
-    runtimeTeamState?.blueprint?.summary?.trim() ||
+    dispatchPreviewState?.summary?.trim() ||
+    dispatchPreviewState?.blueprint?.summary?.trim() ||
     selectedTeamSummary?.trim() ||
     null;
   const [expanded, setExpanded] = useState(false);
@@ -540,9 +540,9 @@ export function TeamWorkspaceDock({
   const showAttentionCue =
     !expanded &&
     (hasRealTeamGraph ||
-      runtimeTeamState?.status === "forming" ||
-      runtimeTeamState?.status === "formed" ||
-      runtimeTeamState?.status === "failed");
+      dispatchPreviewState?.status === "forming" ||
+      dispatchPreviewState?.status === "formed" ||
+      dispatchPreviewState?.status === "failed");
   const dockCount = subagentParentContext
     ? (subagentParentContext.sibling_subagent_sessions?.length ?? 0) + 1
     : childSubagentSessions.length;
@@ -550,9 +550,9 @@ export function TeamWorkspaceDock({
   const [teamDetailExpanded, setTeamDetailExpanded] = useState(false);
   const hasSelectedTeamDetails =
     Boolean(runtimeTeamSummary) ||
-    (runtimeTeamState?.members.length ?? 0) > 0 ||
-    Boolean(runtimeTeamState?.blueprint?.summary?.trim()) ||
-    (runtimeTeamState?.blueprint?.roles.length ?? 0) > 0 ||
+    (dispatchPreviewState?.members.length ?? 0) > 0 ||
+    Boolean(dispatchPreviewState?.blueprint?.summary?.trim()) ||
+    (dispatchPreviewState?.blueprint?.roles.length ?? 0) > 0 ||
     Boolean(selectedTeamSummary?.trim()) ||
     (selectedTeamRoles?.length ?? 0) > 0;
   const activeRuntimeSessionCount = childSubagentSessions.filter(
@@ -592,11 +592,11 @@ export function TeamWorkspaceDock({
       return null;
     }
 
-    if (runtimeTeamState?.status === "forming") {
+    if (dispatchPreviewState?.status === "forming") {
       return { label: "准备中", tone: "active" };
     }
 
-    if (runtimeTeamState?.status === "failed") {
+    if (dispatchPreviewState?.status === "failed") {
       return { label: "失败", tone: "error" };
     }
 
@@ -616,9 +616,12 @@ export function TeamWorkspaceDock({
       };
     }
 
-    if (runtimeTeamState?.status === "formed") {
-      return runtimeTeamState.members.length > 0
-        ? { label: `${runtimeTeamState.members.length} 名成员`, tone: "success" }
+    if (dispatchPreviewState?.status === "formed") {
+      return dispatchPreviewState.members.length > 0
+        ? {
+            label: `${dispatchPreviewState.members.length} 名成员`,
+            tone: "success",
+          }
         : { label: "已就绪", tone: "success" };
     }
 
@@ -634,7 +637,7 @@ export function TeamWorkspaceDock({
     launcherOnly,
     teamConcurrencyBadgeText,
     runtimeTeamLabel,
-    runtimeTeamState,
+    dispatchPreviewState,
   ]);
   const toggleLabel = useMemo(() => {
     if (expanded) {
@@ -652,13 +655,13 @@ export function TeamWorkspaceDock({
       }
       return `查看任务进展 · ${dockCount}`;
     }
-    if (runtimeTeamState?.status === "forming") {
+    if (dispatchPreviewState?.status === "forming") {
       return "查看任务进展 · 准备中";
     }
-    if (runtimeTeamState?.status === "formed") {
-      return `查看任务进展 · ${runtimeTeamState.members.length}`;
+    if (dispatchPreviewState?.status === "formed") {
+      return `查看任务进展 · ${dispatchPreviewState.members.length}`;
     }
-    if (runtimeTeamState?.status === "failed") {
+    if (dispatchPreviewState?.status === "failed") {
       return "查看任务进展 · 失败";
     }
     return TEAM_WORKSPACE_SURFACE_TITLE;
@@ -666,7 +669,7 @@ export function TeamWorkspaceDock({
     dockCount,
     expanded,
     hasRealTeamGraph,
-    runtimeTeamState,
+    dispatchPreviewState,
     teamConcurrencyBadgeText,
     teamQueueBadgeText,
   ]);
@@ -787,7 +790,7 @@ export function TeamWorkspaceDock({
       selectedTeamLabel={selectedTeamLabel}
       selectedTeamSummary={selectedTeamSummary}
       selectedTeamRoles={selectedTeamRoles}
-      teamDispatchPreviewState={runtimeTeamState}
+      teamDispatchPreviewState={dispatchPreviewState}
     />
   ) : (
     <EmptyStateCard data-testid="team-workspace-empty-card" role="status">
@@ -808,12 +811,12 @@ export function TeamWorkspaceDock({
           {runtimeFormationMeta?.title || "等待协作成员加入"}
         </EmptyStateTitle>
         <EmptyStateDescription>
-          {runtimeTeamState?.status === "forming"
+          {dispatchPreviewState?.status === "forming"
             ? "系统正在按当前任务准备协作分工，成员接入后会自动展开完整协作面板。"
-            : runtimeTeamState?.status === "formed"
-              ? `已准备 ${runtimeTeamState.members.length} 位协作成员，后续会自动接入并继续处理。`
-            : runtimeTeamState?.status === "failed"
-                ? runtimeTeamState.errorMessage?.trim() ||
+            : dispatchPreviewState?.status === "formed"
+              ? `已准备 ${dispatchPreviewState.members.length} 位协作成员，后续会自动接入并继续处理。`
+            : dispatchPreviewState?.status === "failed"
+                ? dispatchPreviewState.errorMessage?.trim() ||
                   "这次协作准备失败，你仍然可以继续在当前对话中处理。"
                 : (
                     <>
@@ -835,7 +838,7 @@ export function TeamWorkspaceDock({
               <div>
                 <EmptyStateDetailTitle>{runtimeTeamLabel}</EmptyStateDetailTitle>
                 <EmptyStateDetailHint>
-                  {runtimeTeamState
+                  {dispatchPreviewState
                     ? "查看当前协作分工与参考方案"
                     : "查看当前协作方案与分工"}
                 </EmptyStateDetailHint>
@@ -851,12 +854,12 @@ export function TeamWorkspaceDock({
                 {runtimeTeamSummary ? (
                   <EmptyStateRoleItem>
                     <EmptyStateRoleName>
-                      {runtimeTeamState ? "当前摘要" : "方案摘要"}
+                      {dispatchPreviewState ? "当前摘要" : "方案摘要"}
                     </EmptyStateRoleName>
                     <EmptyStateRoleSummary>{runtimeTeamSummary}</EmptyStateRoleSummary>
                   </EmptyStateRoleItem>
                 ) : null}
-                {runtimeTeamState?.members.map((member) => {
+                {dispatchPreviewState?.members.map((member) => {
                   const memberStatusMeta = resolveRuntimeMemberStatusMeta(
                     member.status,
                   );
@@ -896,7 +899,7 @@ export function TeamWorkspaceDock({
                     </EmptyStateRoleItem>
                   );
                 })}
-                {!runtimeTeamState
+                {!dispatchPreviewState
                   ? selectedTeamRoles?.map((role) => (
                       <EmptyStateRoleItem key={`dock-role-${role.id}`}>
                         <EmptyStateRoleName>{role.label}</EmptyStateRoleName>
@@ -904,13 +907,13 @@ export function TeamWorkspaceDock({
                       </EmptyStateRoleItem>
                     ))
                   : null}
-                {runtimeTeamState?.blueprint?.label ? (
+                {dispatchPreviewState?.blueprint?.label ? (
                   <EmptyStateRoleItem>
                     <EmptyStateRoleName>
-                      参考方案 · {runtimeTeamState.blueprint.label}
+                      参考方案 · {dispatchPreviewState.blueprint.label}
                     </EmptyStateRoleName>
                     <EmptyStateRoleSummary>
-                      {runtimeTeamState.blueprint.summary ||
+                      {dispatchPreviewState.blueprint.summary ||
                         "当前协作参考了当前方案里的分工偏好。"}
                     </EmptyStateRoleSummary>
                   </EmptyStateRoleItem>
@@ -928,8 +931,8 @@ export function TeamWorkspaceDock({
           {runtimeTeamSummary ? (
             <EmptyStateBadge>{runtimeTeamSummary}</EmptyStateBadge>
           ) : null}
-          {runtimeTeamState?.members.length ? (
-            <EmptyStateBadge>{runtimeTeamState.members.length} 个成员</EmptyStateBadge>
+          {dispatchPreviewState?.members.length ? (
+            <EmptyStateBadge>{dispatchPreviewState.members.length} 个成员</EmptyStateBadge>
           ) : null}
           <EmptyStateBadge>不遮挡画布</EmptyStateBadge>
         </EmptyStateFooter>

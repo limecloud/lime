@@ -18,9 +18,9 @@ interface HookHarness {
 }
 
 const mockSendMessage = vi.fn<HookProps["sendMessage"]>(async () => undefined);
-const mockPrepareRuntimeTeamBeforeSend = vi.fn<HookProps["prepareRuntimeTeamBeforeSend"]>(
-  async () => null,
-);
+const mockPrepareRuntimeTeamBeforeSend = vi.fn<
+  HookProps["prepareRuntimeTeamBeforeSend"]
+>(async () => null);
 const mockFinalizeAfterSendSuccess = vi.fn();
 const mockRollbackAfterSendFailure = vi.fn();
 const mockSetInput = vi.fn();
@@ -98,6 +98,7 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     currentGateKey: "default_gate",
     themeWorkbenchActiveQueueTitle: undefined,
     contentId: null,
+    workspaceRequestMetadataBase: undefined,
     messagesCount: 0,
     sendMessage: mockSendMessage,
     resolveSendBoundary: (({ sourceText }) => ({
@@ -106,9 +107,10 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       shouldConsumePendingThemeWorkbenchInitialPrompt: false,
       shouldDismissThemeWorkbenchEntryPrompt: false,
     })) as HookProps["resolveSendBoundary"],
-    isBlockedByBrowserPreflight: (() => false) as HookProps["isBlockedByBrowserPreflight"],
-    maybeStartBrowserTaskPreflight:
-      (() => false) as HookProps["maybeStartBrowserTaskPreflight"],
+    isBlockedByBrowserPreflight: (() =>
+      false) as HookProps["isBlockedByBrowserPreflight"],
+    maybeStartBrowserTaskPreflight: (() =>
+      false) as HookProps["maybeStartBrowserTaskPreflight"],
     finalizeAfterSendSuccess:
       mockFinalizeAfterSendSuccess as HookProps["finalizeAfterSendSuccess"],
     rollbackAfterSendFailure:
@@ -171,20 +173,23 @@ describe("useWorkspaceSendActions", () => {
 
     try {
       await act(async () => {
-        const started = await harness.getValue().handleSend(
-          [],
-          false,
-          false,
-          "继续处理当前话题",
-          "react",
-          autoContinue,
-        );
+        const started = await harness
+          .getValue()
+          .handleSend(
+            [],
+            false,
+            false,
+            "继续处理当前话题",
+            "react",
+            autoContinue,
+          );
         expect(started).toBe(true);
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      const args =
-        mockSendMessage.mock.calls[0] as Parameters<HookProps["sendMessage"]>;
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
       expect(args?.[6]).toBeUndefined();
       expect(args?.[7]).toEqual(autoContinue);
       expect(args?.[8]).toMatchObject({
@@ -221,7 +226,10 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockSetRuntimeTeamDispatchPreview).toHaveBeenNthCalledWith(1, null);
+      expect(mockSetRuntimeTeamDispatchPreview).toHaveBeenNthCalledWith(
+        1,
+        null,
+      );
       expect(mockSetRuntimeTeamDispatchPreview).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
@@ -235,6 +243,47 @@ describe("useWorkspaceSendActions", () => {
           }),
         }),
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("应保留 workspace 级 request metadata，并与 harness 元数据合并", async () => {
+    const harness = mountHook({
+      isThemeWorkbench: true,
+      mappedTheme: "social-media",
+      contentId: "content-service-skill-1",
+      workspaceRequestMetadataBase: {
+        artifact: {
+          artifact_mode: "draft",
+          artifact_kind: "analysis",
+        },
+      },
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[8]).toMatchObject({
+        requestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+            artifact_kind: "analysis",
+          },
+          harness: expect.objectContaining({
+            theme: "social-media",
+            session_mode: "theme_workbench",
+            content_id: "content-service-skill-1",
+          }),
+        },
+      });
     } finally {
       harness.unmount();
     }

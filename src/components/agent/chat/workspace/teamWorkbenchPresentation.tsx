@@ -42,16 +42,16 @@ function resolveTeamWorkbenchTriggerState(params: {
   teamControlSummary?: TeamWorkspaceControlSummary | null;
   executionSummary: ReturnType<typeof summarizeTeamWorkspaceExecution>;
 }): CanvasWorkbenchTeamView["triggerState"] {
-  const runtimeTeamState = params.teamDispatchPreviewState;
+  const dispatchPreviewState = params.teamDispatchPreviewState;
   if (!params.enabled) {
     return null;
   }
 
-  if (runtimeTeamState?.status === "failed") {
+  if (dispatchPreviewState?.status === "failed") {
     return { tone: "error", label: "失败" };
   }
 
-  if (runtimeTeamState?.status === "forming") {
+  if (dispatchPreviewState?.status === "forming") {
     return { tone: "active", label: "组建中" };
   }
 
@@ -75,7 +75,7 @@ function resolveTeamWorkbenchTriggerState(params: {
     };
   }
 
-  if (runtimeTeamState?.status === "formed" && !params.hasRealTeamGraph) {
+  if (dispatchPreviewState?.status === "formed" && !params.hasRealTeamGraph) {
     return { tone: "active", label: "已就绪" };
   }
 
@@ -102,7 +102,7 @@ export function useTeamWorkbenchPresentation({
   teamWaitSummary = null,
   teamControlSummary = null,
 }: UseTeamWorkbenchPresentationParams) {
-  const runtimeTeamState = teamDispatchPreviewState;
+  const dispatchPreviewState = teamDispatchPreviewState;
   const boardProps = useMemo<ComponentProps<typeof TeamWorkspaceBoard>>(
     () => ({
       ...surfaceProps,
@@ -194,8 +194,8 @@ export function useTeamWorkbenchPresentation({
     return {
       enabled: true,
       title:
-        runtimeTeamState?.label?.trim() ||
-        runtimeTeamState?.blueprint?.label?.trim() ||
+        dispatchPreviewState?.label?.trim() ||
+        dispatchPreviewState?.blueprint?.label?.trim() ||
         surfaceProps.selectedTeamLabel ||
         "团队工作台",
       subtitle: "主对话保留调度记录，画布按角色分别展示执行过程与结果。",
@@ -210,7 +210,7 @@ export function useTeamWorkbenchPresentation({
     autoFocusToken,
     enabled,
     renderTeamWorkbenchPreview,
-    runtimeTeamState,
+    dispatchPreviewState,
     surfaceProps.selectedTeamLabel,
     teamWorkbenchSummaryPanel,
     triggerState,

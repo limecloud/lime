@@ -130,6 +130,17 @@ npm run test:contracts
 7. 验证页面出现 `Theme Workbench` 或相关工作台内容
 8. 再次检查控制台 error
 
+### 服务型技能自动化交付链
+
+1. 从首页进入服务型技能卡片
+2. 选择一个 `scheduled / managed` 的本地服务型技能
+3. 打开“创建自动化任务”，提交后进入对应工作区
+4. 确认同一次操作里：
+   - 自动化任务已创建
+   - 工作区已打开
+   - 对应内容仍落在同一个 `contentId`
+5. 如能查看运行记录或调试面板，继续确认自动化 `agent_turn` payload 含 `content_id` 与 `request_metadata.artifact`
+
 ### 素材页验证
 
 1. 从社媒内容项目进入 `素材`

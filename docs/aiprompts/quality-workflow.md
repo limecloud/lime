@@ -181,6 +181,10 @@ npm run bridge:health -- --timeout-ms 120000
 | Rust 模块改动                       | 受影响 crate / 模块定向测试                        | 再决定是否跑全量 `cargo test`               |
 | 真实页面交互验证                    | 先跑 `npm run verify:gui-smoke`                    | 再进入 `playwright-e2e.md`                  |
 
+补充说明：
+
+- 如果这次改动把 `ServiceSkill -> automation_job -> agent_turn` 接到 Artifact 主线，除了常规 `verify:local` / `test:contracts` 之外，还应至少补一条稳定回归，证明 `content_id + request_metadata.artifact` 没在表单编辑或执行链路里丢失。
+
 ## CI 事实源
 
 主工作流：

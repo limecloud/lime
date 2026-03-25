@@ -1,10 +1,4 @@
-import {
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import {
   AgentChatHomeShell,
   type AgentChatWorkspaceBootstrap,
@@ -37,7 +31,10 @@ function scheduleWorkspacePrefetch(task: () => void): () => void {
     };
   }
 
-  const timeoutId = window.setTimeout(task, WORKSPACE_PREFETCH_FALLBACK_DELAY_MS);
+  const timeoutId = window.setTimeout(
+    task,
+    WORKSPACE_PREFETCH_FALLBACK_DELAY_MS,
+  );
   return () => {
     window.clearTimeout(timeoutId);
   };

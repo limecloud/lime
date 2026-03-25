@@ -1394,12 +1394,12 @@ export function TeamWorkspaceBoard({
   selectedTeamRoles = [],
   teamDispatchPreviewState = null,
 }: TeamWorkspaceBoardProps) {
-  const runtimeTeamState = teamDispatchPreviewState;
+  const dispatchPreviewState = teamDispatchPreviewState;
   const isChildSession = Boolean(subagentParentContext);
   const canvasStorageScopeId =
     currentSessionId?.trim() ||
     subagentParentContext?.parent_session_id?.trim() ||
-    runtimeTeamState?.requestId?.trim() ||
+    dispatchPreviewState?.requestId?.trim() ||
     "team-workspace";
   const [shellExpanded, setShellExpanded] = useState(defaultShellExpanded);
   const detailExpanded = !embedded;
@@ -1623,26 +1623,26 @@ export function TeamWorkspaceBoard({
   const normalizedSelectedTeamRoles = (selectedTeamRoles ?? []).filter((role) =>
     role.label.trim(),
   );
-  const runtimeFormationMeta = runtimeTeamState
-    ? resolveRuntimeFormationStatusMeta(runtimeTeamState.status)
+  const runtimeFormationMeta = dispatchPreviewState
+    ? resolveRuntimeFormationStatusMeta(dispatchPreviewState.status)
     : null;
   const runtimeFormationLabel =
-    runtimeTeamState?.label?.trim() ||
-    runtimeTeamState?.blueprint?.label?.trim() ||
+    dispatchPreviewState?.label?.trim() ||
+    dispatchPreviewState?.blueprint?.label?.trim() ||
     normalizedSelectedTeamLabel;
   const runtimeFormationSummary =
-    runtimeTeamState?.summary?.trim() ||
-    runtimeTeamState?.blueprint?.summary?.trim() ||
+    dispatchPreviewState?.summary?.trim() ||
+    dispatchPreviewState?.blueprint?.summary?.trim() ||
     normalizedSelectedTeamSummary;
   const runtimeMembers = useMemo(
-    () => runtimeTeamState?.members ?? [],
-    [runtimeTeamState?.members],
+    () => dispatchPreviewState?.members ?? [],
+    [dispatchPreviewState?.members],
   );
   const runtimeBlueprintRoles = useMemo(
-    () => runtimeTeamState?.blueprint?.roles ?? [],
-    [runtimeTeamState?.blueprint?.roles],
+    () => dispatchPreviewState?.blueprint?.roles ?? [],
+    [dispatchPreviewState?.blueprint?.roles],
   );
-  const hasRuntimeFormation = Boolean(runtimeTeamState);
+  const hasRuntimeFormation = Boolean(dispatchPreviewState);
   const hasSelectedTeamPlan =
     Boolean(normalizedSelectedTeamLabel) ||
     Boolean(normalizedSelectedTeamSummary) ||
@@ -1740,9 +1740,9 @@ export function TeamWorkspaceBoard({
             {runtimeMembers.length} 位当前成员
           </span>
         ) : null}
-        {runtimeTeamState?.blueprint?.label ? (
+        {dispatchPreviewState?.blueprint?.label ? (
           <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-            参考方案 · {runtimeTeamState.blueprint.label}
+            参考方案 · {dispatchPreviewState.blueprint.label}
           </span>
         ) : null}
       </div>
@@ -1750,7 +1750,7 @@ export function TeamWorkspaceBoard({
   };
 
   const renderRuntimeFormationPanel = () => {
-    if (!runtimeTeamState || !runtimeFormationMeta) {
+    if (!dispatchPreviewState || !runtimeFormationMeta) {
       return null;
     }
 
@@ -1780,15 +1780,15 @@ export function TeamWorkspaceBoard({
           {runtimeFormationMeta.title}
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          {runtimeTeamState.status === "failed"
-            ? runtimeTeamState.errorMessage?.trim() ||
+          {dispatchPreviewState.status === "failed"
+            ? dispatchPreviewState.errorMessage?.trim() ||
               "当前协作准备失败，暂时无法展示更多内容。"
             : runtimeFormationSummary ||
               "这里会先展示当前协作方案，成员加入后再切换成实时进展。"}
         </p>
-        {runtimeTeamState.blueprint?.label ? (
+        {dispatchPreviewState.blueprint?.label ? (
           <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
-            参考方案：{runtimeTeamState.blueprint.label}
+            参考方案：{dispatchPreviewState.blueprint.label}
           </div>
         ) : null}
       </div>
@@ -3212,11 +3212,11 @@ export function TeamWorkspaceBoard({
     ? isChildSession
       ? "当前协作成员会在各自面板里持续更新进展和结果，主对话只保留必要摘要。"
       : `${visibleSessions.length} 位协作成员已加入，每位成员都会在自己的面板里持续更新进展和结果。`
-    : runtimeTeamState?.status === "forming"
+    : dispatchPreviewState?.status === "forming"
       ? "正在准备当前协作分工，成员接入后会在这里独立更新进展。"
-      : runtimeTeamState?.status === "formed"
+      : dispatchPreviewState?.status === "formed"
         ? "当前协作分工已经就绪，成员接入后会在各自面板里开始处理。"
-        : runtimeTeamState?.status === "failed"
+        : dispatchPreviewState?.status === "failed"
           ? "这次协作准备失败，暂时无法生成成员面板。"
           : "成员加入后，这里会展开为独立的协作进展面板。";
 
@@ -3258,7 +3258,7 @@ export function TeamWorkspaceBoard({
             </div>
             <p className="mt-1 text-xs leading-5 text-slate-500">
               {hasRuntimeFormation
-                ? buildRuntimeFormationHint(runtimeTeamState)
+                ? buildRuntimeFormationHint(dispatchPreviewState)
                 : "这里先保持简洁，避免遮挡消息区；只有真正需要协作分工时才会展开完整面板。"}
             </p>
             {hasRuntimeFormation
@@ -3295,7 +3295,7 @@ export function TeamWorkspaceBoard({
         });
   const boardHint =
     !hasRealTeamGraph && hasRuntimeFormation
-      ? buildRuntimeFormationHint(runtimeTeamState)
+      ? buildRuntimeFormationHint(dispatchPreviewState)
       : buildBoardHint({
           hasRealTeamGraph,
           isChildSession,
@@ -4558,14 +4558,14 @@ export function TeamWorkspaceBoard({
                 renderSelectedTeamPlanPanel()
               )}
               <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-500">
-                {runtimeTeamState?.status === "forming" ? (
+                {dispatchPreviewState?.status === "forming" ? (
                   "系统正在准备当前协作分工，完成后会先展示成员卡片，后续再切换为独立的实时进展面板。"
-                ) : runtimeTeamState?.status === "formed" ? (
+                ) : dispatchPreviewState?.status === "formed" ? (
                   <>
                     当前协作方案已就绪。系统开始分工后，这里会从方案视图过渡到实时协作画布。
                   </>
-                ) : runtimeTeamState?.status === "failed" ? (
-                  runtimeTeamState.errorMessage?.trim() ||
+                ) : dispatchPreviewState?.status === "failed" ? (
+                  dispatchPreviewState.errorMessage?.trim() ||
                   "当前协作准备失败，暂时还没有协作成员加入。"
                 ) : (
                   <>
@@ -4589,7 +4589,7 @@ export function TeamWorkspaceBoard({
                 {runtimeFormationMeta?.title || "等待协作成员加入"}
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                {buildRuntimeFormationEmptyDetail(runtimeTeamState)}
+                {buildRuntimeFormationEmptyDetail(dispatchPreviewState)}
               </p>
               {hasRuntimeFormation ? (
                 <div className="mt-4 space-y-4">

@@ -1,6 +1,9 @@
 import type { ContentType, ProjectType } from "@/lib/api/project";
 import { getDefaultContentTypeForProject } from "@/lib/api/project";
-import type { ServiceSkillArtifactKind, ServiceSkillItem } from "@/lib/api/serviceSkills";
+import type {
+  ServiceSkillArtifactKind,
+  ServiceSkillItem,
+} from "@/lib/api/serviceSkills";
 import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
 
 export interface ServiceSkillWorkspaceSeed {

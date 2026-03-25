@@ -154,6 +154,20 @@ npm run verify:local
 5. `npm run test:contracts` 通过
 6. 涉及 compat / deprecated 的改动，已补 `governance:legacy-report` 或明确说明不需要
 
+## 自动化 `agent_turn` 负载补充约定
+
+当 `create_automation_job` / `update_automation_job` 的 `payload.kind = "agent_turn"` 用于持续产出交付物时，允许并推荐透传以下字段：
+
+- `content_id`：绑定长期内容主线，供自动化版本持续沉淀到同一交付链
+- `request_metadata`：与运行时 turn 保持同合同，至少可包含 `artifact` 与 `harness` 两层
+
+推荐形态：
+
+- `request_metadata.artifact`：`artifact_mode / artifact_kind / artifact_stage / workbench_surface`
+- `request_metadata.harness`：`theme / session_mode / content_id`
+
+这样做的目的不是给自动化新增第二套协议，而是让自动化直接复用现有 runtime turn 的 Artifact 主链。
+
 ## 明确禁止
 
 - 在页面、组件、普通 Hook 中直接散落 `invoke`

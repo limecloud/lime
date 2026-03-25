@@ -10,7 +10,10 @@ import {
   extractExistingHarnessMetadata,
 } from "../utils/harnessRequestMetadata";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
-import { saveChatToolPreferences, type ChatToolPreferences } from "../utils/chatToolPreferences";
+import {
+  saveChatToolPreferences,
+  type ChatToolPreferences,
+} from "../utils/chatToolPreferences";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { ThemeWorkbenchSendBoundaryState } from "../hooks/useThemeWorkbenchSendBoundary";
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
@@ -90,7 +93,10 @@ interface UseWorkspaceSendActionsParams {
   }) => Promise<boolean>;
 }
 
-function applyActiveContextPrompt(text: string, activeContextPrompt: string): string {
+function applyActiveContextPrompt(
+  text: string,
+  activeContextPrompt: string,
+): string {
   if (!activeContextPrompt.trim()) {
     return text;
   }

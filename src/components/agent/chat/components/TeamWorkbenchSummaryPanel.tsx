@@ -77,7 +77,7 @@ export function TeamWorkbenchSummaryPanel({
   selectedTeamRoles = [],
   teamDispatchPreviewState = null,
 }: TeamWorkbenchSummaryPanelProps) {
-  const runtimeTeamState = teamDispatchPreviewState;
+  const dispatchPreviewState = teamDispatchPreviewState;
   const executionSummary = summarizeTeamWorkspaceExecution({
     currentSessionId,
     currentSessionRuntimeStatus,
@@ -89,17 +89,17 @@ export function TeamWorkbenchSummaryPanel({
   });
   const hasRealTeamGraph =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
-  const runtimeFormationMeta = runtimeTeamState
-    ? resolveRuntimeFormationStatusMeta(runtimeTeamState.status)
+  const runtimeFormationMeta = dispatchPreviewState
+    ? resolveRuntimeFormationStatusMeta(dispatchPreviewState.status)
     : null;
   const runtimeTeamLabel =
-    runtimeTeamState?.label?.trim() ||
-    runtimeTeamState?.blueprint?.label?.trim() ||
+    dispatchPreviewState?.label?.trim() ||
+    dispatchPreviewState?.blueprint?.label?.trim() ||
     selectedTeamLabel?.trim() ||
     null;
   const runtimeSummaryText =
-    runtimeTeamState?.summary?.trim() ||
-    runtimeTeamState?.blueprint?.summary?.trim() ||
+    dispatchPreviewState?.summary?.trim() ||
+    dispatchPreviewState?.blueprint?.summary?.trim() ||
     selectedTeamSummary ||
     null;
   const operationSummary = buildOperationSummary({
@@ -111,10 +111,10 @@ export function TeamWorkbenchSummaryPanel({
     .slice(0, 4);
   const displayRoleCount = hasRealTeamGraph
     ? executionSummary.totalSessionCount
-    : runtimeTeamState?.members.length ?? 0;
+    : dispatchPreviewState?.members.length ?? 0;
   const roleCards =
-    runtimeTeamState?.members.length
-      ? runtimeTeamState.members.map((member) => ({
+    dispatchPreviewState?.members.length
+      ? dispatchPreviewState.members.map((member) => ({
           id: member.id,
           label: member.label,
           roleKey: member.roleKey,
@@ -151,7 +151,7 @@ export function TeamWorkbenchSummaryPanel({
     {
       label: hasRealTeamGraph
         ? "总会话"
-        : runtimeTeamState
+        : dispatchPreviewState
           ? "当前成员"
           : "总会话",
       value: String(
@@ -159,7 +159,7 @@ export function TeamWorkbenchSummaryPanel({
       ),
       hint: hasRealTeamGraph
         ? "已进入团队图谱"
-        : runtimeTeamState
+        : dispatchPreviewState
           ? "当前编队"
           : "等待创建",
     },
@@ -193,13 +193,13 @@ export function TeamWorkbenchSummaryPanel({
             "团队已就绪，等待主代理开始编排"}
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          {runtimeTeamState?.status === "failed"
-            ? runtimeTeamState.errorMessage?.trim() ||
+          {dispatchPreviewState?.status === "failed"
+            ? dispatchPreviewState.errorMessage?.trim() ||
               "这次 Team 准备失败，可继续在当前对话中推进。"
             : runtimeSummaryText ||
             "这里展示团队总览与运行密度；主对话只保留调度记录，角色执行正文在左侧 Team 画布查看。"}
         </p>
-        {!hasRealTeamGraph && runtimeTeamState ? (
+        {!hasRealTeamGraph && dispatchPreviewState ? (
           <div
             className={cn(
               "mt-3 rounded-2xl border px-3 py-2 text-xs leading-5",
@@ -207,15 +207,15 @@ export function TeamWorkbenchSummaryPanel({
                 "border border-slate-200 bg-slate-50 text-slate-700",
             )}
           >
-            {runtimeTeamState.status === "forming"
+            {dispatchPreviewState.status === "forming"
               ? "模型正在依据当前任务准备 Team，真实成员加入后会自动切换到实时协作轨道。"
-              : runtimeTeamState.status === "formed"
-                ? `已准备 ${runtimeTeamState.members.length} 个成员，当前等待系统分派真实成员进入协作。`
-                : runtimeTeamState.errorMessage?.trim() ||
+              : dispatchPreviewState.status === "formed"
+                ? `已准备 ${dispatchPreviewState.members.length} 个成员，当前等待系统分派真实成员进入协作。`
+                : dispatchPreviewState.errorMessage?.trim() ||
                   "暂未成功准备这次 Team。"}
           </div>
         ) : null}
-        {!hasRealTeamGraph && !runtimeTeamState ? (
+        {!hasRealTeamGraph && !dispatchPreviewState ? (
           <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
             尚未出现真实团队成员。开始分派成员后，左侧 Team 画布会自动切换为实时协作视图。
           </div>
@@ -243,7 +243,7 @@ export function TeamWorkbenchSummaryPanel({
         <section className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
             <Bot className="h-3.5 w-3.5" />
-            <span>{runtimeTeamState ? "当前成员" : "角色分工"}</span>
+            <span>{dispatchPreviewState ? "当前成员" : "角色分工"}</span>
           </div>
           <div className="mt-3 space-y-2">
             {roleCards.map((role) => (
@@ -294,9 +294,9 @@ export function TeamWorkbenchSummaryPanel({
               </div>
             ))}
           </div>
-          {runtimeTeamState?.blueprint?.label ? (
+          {dispatchPreviewState?.blueprint?.label ? (
             <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
-              参考蓝图 Team：{runtimeTeamState.blueprint.label}
+              参考蓝图 Team：{dispatchPreviewState.blueprint.label}
             </div>
           ) : null}
         </section>

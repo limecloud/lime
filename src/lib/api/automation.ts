@@ -16,6 +16,7 @@ export type AutomationOutputSchema =
   | "table"
   | "csv"
   | "links";
+export type AutomationRequestMetadata = Record<string, unknown>;
 
 export interface DeliveryConfig {
   mode: "none" | "announce";
@@ -69,6 +70,8 @@ export interface AgentTurnAutomationPayload {
   prompt: string;
   system_prompt?: string | null;
   web_search: boolean;
+  content_id?: string | null;
+  request_metadata?: AutomationRequestMetadata | null;
 }
 
 export interface BrowserSessionAutomationPayload {

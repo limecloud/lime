@@ -15,6 +15,10 @@ on:
         description: "Version to release (e.g., v0.1.0)"
         required: true
         default: "v0.1.0"
+      source_ref:
+        description: "Git ref to build from (e.g., v0.96.0 or main)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -48,12 +52,14 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_RAW: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       NODE_OPTIONS: --max-old-space-size=8192
+      SCCACHE_NO_DAEMON: "1"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.source_ref || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

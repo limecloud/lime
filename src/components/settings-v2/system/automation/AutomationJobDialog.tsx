@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +60,8 @@ type AutomationJobFormState = {
   prompt: string;
   system_prompt: string;
   web_search: boolean;
+  agent_content_id: string;
+  agent_request_metadata: Record<string, unknown> | null;
   browser_profile_id: string;
   browser_profile_key: string;
   browser_url: string;
@@ -103,6 +112,8 @@ function createDefaultForm(workspaces: Project[]): AutomationJobFormState {
     prompt: "",
     system_prompt: "",
     web_search: false,
+    agent_content_id: "",
+    agent_request_metadata: null,
     browser_profile_id: "",
     browser_profile_key: "",
     browser_url: "",
@@ -210,6 +221,8 @@ function createFormFromJob(
     form.prompt = job.payload.prompt;
     form.system_prompt = job.payload.system_prompt ?? "";
     form.web_search = job.payload.web_search;
+    form.agent_content_id = job.payload.content_id ?? "";
+    form.agent_request_metadata = job.payload.request_metadata ?? null;
   } else {
     form.browser_profile_id = job.payload.profile_id;
     form.browser_profile_key = job.payload.profile_key ?? "";
@@ -228,9 +241,9 @@ function createFormFromJob(
       ? "telegram"
       : job.delivery.channel === "google_sheets"
         ? "google_sheets"
-      : job.delivery.channel === "local_file"
-        ? "local_file"
-        : "webhook";
+        : job.delivery.channel === "local_file"
+          ? "local_file"
+          : "webhook";
   form.delivery_target = job.delivery.target ?? "";
   const deliveryOutputContract = normalizeDeliveryOutputContract(
     form.delivery_channel,
@@ -311,7 +324,9 @@ function scheduleHint(form: AutomationJobFormState): string {
   if (form.schedule_kind === "cron") {
     return "使用 Cron 表达式驱动执行。";
   }
-  return form.at_local ? "一次性任务，到点后自动停用。" : "选择一次性触发时间。";
+  return form.at_local
+    ? "一次性任务，到点后自动停用。"
+    : "选择一次性触发时间。";
 }
 
 export function AutomationJobDialog({
@@ -370,7 +385,9 @@ export function AutomationJobDialog({
         if (cancelled) {
           return;
         }
-        setProfiles(nextProfiles.filter((profile) => profile.archived_at === null));
+        setProfiles(
+          nextProfiles.filter((profile) => profile.archived_at === null),
+        );
         setPresets(nextPresets.filter((preset) => preset.archived_at === null));
       } catch (loadError) {
         if (!cancelled) {
@@ -421,16 +438,19 @@ export function AutomationJobDialog({
   const scheduleSummary = useMemo(() => scheduleHint(form), [form]);
   const selectedBrowserProfile = useMemo(
     () =>
-      profiles.find((profile) => profile.id === form.browser_profile_id) ?? null,
+      profiles.find((profile) => profile.id === form.browser_profile_id) ??
+      null,
     [form.browser_profile_id, profiles],
   );
   const selectedEnvironmentPreset = useMemo(
     () =>
-      presets.find((preset) => preset.id === form.browser_environment_preset_id) ??
-      null,
+      presets.find(
+        (preset) => preset.id === form.browser_environment_preset_id,
+      ) ?? null,
     [form.browser_environment_preset_id, presets],
   );
-  const isTextOnlyDelivery = form.delivery_channel === TEXT_ONLY_DELIVERY_CHANNEL;
+  const isTextOnlyDelivery =
+    form.delivery_channel === TEXT_ONLY_DELIVERY_CHANNEL;
 
   async function handleSubmit() {
     try {
@@ -454,13 +474,16 @@ export function AutomationJobDialog({
           prompt: form.prompt.trim(),
           system_prompt: form.system_prompt.trim() || null,
           web_search: form.web_search,
+          content_id: form.agent_content_id.trim() || null,
+          request_metadata: form.agent_request_metadata ?? null,
         };
       } else {
         if (!form.browser_profile_id.trim()) {
           throw new Error("请选择浏览器资料");
         }
         const profileKey =
-          selectedBrowserProfile?.profile_key ?? form.browser_profile_key.trim();
+          selectedBrowserProfile?.profile_key ??
+          form.browser_profile_key.trim();
         if (!profileKey) {
           throw new Error("浏览器资料不可用，请重新选择");
         }
@@ -472,7 +495,10 @@ export function AutomationJobDialog({
           } catch {
             throw new Error("浏览器启动地址格式无效");
           }
-          if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+          if (
+            parsedUrl.protocol !== "http:" &&
+            parsedUrl.protocol !== "https:"
+          ) {
             throw new Error("浏览器启动地址仅支持 http/https");
           }
         }
@@ -543,7 +569,9 @@ export function AutomationJobDialog({
         });
       }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "保存任务失败");
+      setError(
+        submitError instanceof Error ? submitError.message : "保存任务失败",
+      );
     }
   }
 
@@ -559,7 +587,8 @@ export function AutomationJobDialog({
               {mode === "create" ? "新建自动化任务" : "编辑自动化任务"}
             </DialogTitle>
             <DialogDescription>
-              用结构化 job 承载 Agent 与浏览器任务，调度、工作区、运行历史都在单一模型里维护。
+              用结构化 job 承载 Agent
+              与浏览器任务，调度、工作区、运行历史都在单一模型里维护。
             </DialogDescription>
           </DialogHeader>
 
@@ -568,37 +597,40 @@ export function AutomationJobDialog({
             className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-5"
           >
             <div className="grid gap-5 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="automation-job-name">任务名称</Label>
-              <Input
-                id="automation-job-name"
-                value={form.name}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, name: event.target.value }))
-                }
-                placeholder="例如：每日品牌线索巡检"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>工作区</Label>
-              <Select
-                value={form.workspace_id}
-                onValueChange={(value) =>
-                  setForm((current) => ({ ...current, workspace_id: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择工作区" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((workspace) => (
-                    <SelectItem key={workspace.id} value={workspace.id}>
-                      {workspace.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="automation-job-name">任务名称</Label>
+                <Input
+                  id="automation-job-name"
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="例如：每日品牌线索巡检"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>工作区</Label>
+                <Select
+                  value={form.workspace_id}
+                  onValueChange={(value) =>
+                    setForm((current) => ({ ...current, workspace_id: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择工作区" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.id} value={workspace.id}>
+                        {workspace.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="mt-5 space-y-2">
@@ -634,7 +666,9 @@ export function AutomationJobDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="agent_turn">Agent 对话任务</SelectItem>
-                    <SelectItem value="browser_session">浏览器会话任务</SelectItem>
+                    <SelectItem value="browser_session">
+                      浏览器会话任务
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -714,72 +748,74 @@ export function AutomationJobDialog({
                   </Select>
                 </div>
 
-              {form.schedule_kind === "every" ? (
-                <div className="space-y-2 md:col-span-2">
-                  <Label>间隔秒数</Label>
-                  <Input
-                    value={form.every_secs}
-                    type="number"
-                    min={60}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        every_secs: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              ) : null}
-
-              {form.schedule_kind === "cron" ? (
-                <>
+                {form.schedule_kind === "every" ? (
                   <div className="space-y-2 md:col-span-2">
-                    <Label>Cron 表达式</Label>
+                    <Label>间隔秒数</Label>
                     <Input
-                      value={form.cron_expr}
+                      value={form.every_secs}
+                      type="number"
+                      min={60}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          cron_expr: event.target.value,
+                          every_secs: event.target.value,
                         }))
                       }
-                      placeholder="0 9 * * *"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>时区</Label>
+                ) : null}
+
+                {form.schedule_kind === "cron" ? (
+                  <>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Cron 表达式</Label>
+                      <Input
+                        value={form.cron_expr}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            cron_expr: event.target.value,
+                          }))
+                        }
+                        placeholder="0 9 * * *"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>时区</Label>
+                      <Input
+                        value={form.cron_tz}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            cron_tz: event.target.value,
+                          }))
+                        }
+                        placeholder="Asia/Shanghai"
+                      />
+                    </div>
+                  </>
+                ) : null}
+
+                {form.schedule_kind === "at" ? (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>触发时间</Label>
                     <Input
-                      value={form.cron_tz}
+                      value={form.at_local}
+                      type="datetime-local"
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          cron_tz: event.target.value,
+                          at_local: event.target.value,
                         }))
                       }
-                      placeholder="Asia/Shanghai"
                     />
                   </div>
-                </>
-              ) : null}
+                ) : null}
+              </div>
 
-              {form.schedule_kind === "at" ? (
-                <div className="space-y-2 md:col-span-2">
-                  <Label>触发时间</Label>
-                  <Input
-                    value={form.at_local}
-                    type="datetime-local"
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        at_local: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              ) : null}
-            </div>
-
-              <div className="mt-3 text-xs text-slate-500">{scheduleSummary}</div>
+              <div className="mt-3 text-xs text-slate-500">
+                {scheduleSummary}
+              </div>
             </div>
 
             {form.payload_kind === "agent_turn" ? (
@@ -801,7 +837,9 @@ export function AutomationJobDialog({
                 </div>
 
                 <div className="mt-5 space-y-2">
-                  <Label htmlFor="automation-job-system-prompt">附加系统指令</Label>
+                  <Label htmlFor="automation-job-system-prompt">
+                    附加系统指令
+                  </Label>
                   <Textarea
                     id="automation-job-system-prompt"
                     value={form.system_prompt}
@@ -819,132 +857,136 @@ export function AutomationJobDialog({
             ) : (
               <div className="mt-5 rounded-[24px] border border-slate-200/80 bg-white/80 p-4">
                 <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>浏览器资料</Label>
-                  <Select
-                    value={form.browser_profile_id || undefined}
-                    onValueChange={(value) => {
-                      const profile =
-                        profiles.find((item) => item.id === value) ?? null;
-                      setForm((current) => ({
-                        ...current,
-                        browser_profile_id: value,
-                        browser_profile_key:
-                          profile?.profile_key ?? current.browser_profile_key,
-                      }));
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择浏览器资料" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {form.browser_profile_id && !selectedBrowserProfile ? (
-                        <SelectItem value={form.browser_profile_id}>
-                          {form.browser_profile_key
-                            ? `${form.browser_profile_key}（当前绑定，已不可用）`
-                            : "当前绑定资料（已不可用）"}
+                  <div className="space-y-2">
+                    <Label>浏览器资料</Label>
+                    <Select
+                      value={form.browser_profile_id || undefined}
+                      onValueChange={(value) => {
+                        const profile =
+                          profiles.find((item) => item.id === value) ?? null;
+                        setForm((current) => ({
+                          ...current,
+                          browser_profile_id: value,
+                          browser_profile_key:
+                            profile?.profile_key ?? current.browser_profile_key,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择浏览器资料" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {form.browser_profile_id && !selectedBrowserProfile ? (
+                          <SelectItem value={form.browser_profile_id}>
+                            {form.browser_profile_key
+                              ? `${form.browser_profile_key}（当前绑定，已不可用）`
+                              : "当前绑定资料（已不可用）"}
+                          </SelectItem>
+                        ) : null}
+                        {profiles.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id}>
+                            {profile.name} · {profile.profile_key}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">
+                      调度执行时会复用统一 `launch_browser_session` 启动边界。
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>环境预设</Label>
+                    <Select
+                      value={
+                        form.browser_environment_preset_id || NO_PRESET_VALUE
+                      }
+                      onValueChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          browser_environment_preset_id:
+                            value === NO_PRESET_VALUE ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="不附加环境预设" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_PRESET_VALUE}>
+                          不附加环境预设
                         </SelectItem>
-                      ) : null}
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.id} value={profile.id}>
-                          {profile.name} · {profile.profile_key}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="text-xs text-slate-500">
-                    调度执行时会复用统一 `launch_browser_session` 启动边界。
+                        {form.browser_environment_preset_id &&
+                        !selectedEnvironmentPreset ? (
+                          <SelectItem
+                            value={form.browser_environment_preset_id}
+                          >
+                            当前绑定预设（已不可用）
+                          </SelectItem>
+                        ) : null}
+                        {presets.map((preset) => (
+                          <SelectItem key={preset.id} value={preset.id}>
+                            {preset.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="automation-job-browser-url">启动地址</Label>
+                    <Input
+                      id="automation-job-browser-url"
+                      value={form.browser_url}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          browser_url: event.target.value,
+                        }))
+                      }
+                      placeholder="留空则使用资料默认启动地址"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="automation-job-browser-target-id">
+                      Target ID
+                    </Label>
+                    <Input
+                      id="automation-job-browser-target-id"
+                      value={form.browser_target_id}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          browser_target_id: event.target.value,
+                        }))
+                      }
+                      placeholder="可选，指定固定 target"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>流模式</Label>
+                    <Select
+                      value={form.browser_stream_mode}
+                      onValueChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          browser_stream_mode: value as BrowserStreamMode,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="events">仅事件</SelectItem>
+                        <SelectItem value="frames">仅画面</SelectItem>
+                        <SelectItem value="both">事件 + 画面</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>环境预设</Label>
-                  <Select
-                    value={form.browser_environment_preset_id || NO_PRESET_VALUE}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        browser_environment_preset_id:
-                          value === NO_PRESET_VALUE ? "" : value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="不附加环境预设" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_PRESET_VALUE}>
-                        不附加环境预设
-                      </SelectItem>
-                      {form.browser_environment_preset_id &&
-                      !selectedEnvironmentPreset ? (
-                        <SelectItem value={form.browser_environment_preset_id}>
-                          当前绑定预设（已不可用）
-                        </SelectItem>
-                      ) : null}
-                      {presets.map((preset) => (
-                        <SelectItem key={preset.id} value={preset.id}>
-                          {preset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="automation-job-browser-url">启动地址</Label>
-                  <Input
-                    id="automation-job-browser-url"
-                    value={form.browser_url}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        browser_url: event.target.value,
-                      }))
-                    }
-                    placeholder="留空则使用资料默认启动地址"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="automation-job-browser-target-id">
-                    Target ID
-                  </Label>
-                  <Input
-                    id="automation-job-browser-target-id"
-                    value={form.browser_target_id}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        browser_target_id: event.target.value,
-                      }))
-                    }
-                    placeholder="可选，指定固定 target"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>流模式</Label>
-                  <Select
-                    value={form.browser_stream_mode}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        browser_stream_mode: value as BrowserStreamMode,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="events">仅事件</SelectItem>
-                      <SelectItem value="frames">仅画面</SelectItem>
-                      <SelectItem value="both">事件 + 画面</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
                 {resourcesLoading ? (
                   <div className="mt-3 text-xs text-slate-500">
@@ -962,45 +1004,49 @@ export function AutomationJobDialog({
 
             <div className="mt-5 grid gap-4 rounded-[24px] border border-slate-200/80 bg-white/80 p-4 md:grid-cols-2">
               <div className="flex items-center justify-between rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-4 py-3">
-              <div>
-                <div className="text-sm font-medium text-slate-900">启用任务</div>
-                <div className="text-xs text-slate-500">关闭后 job 不参与轮询</div>
+                <div>
+                  <div className="text-sm font-medium text-slate-900">
+                    启用任务
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    关闭后 job 不参与轮询
+                  </div>
+                </div>
+                <Switch
+                  checked={form.enabled}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, enabled: checked }))
+                  }
+                />
               </div>
-              <Switch
-                checked={form.enabled}
-                onCheckedChange={(checked) =>
-                  setForm((current) => ({ ...current, enabled: checked }))
-                }
-              />
-            </div>
               <div className="flex items-center justify-between rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-4 py-3">
-              <div>
-                <div className="text-sm font-medium text-slate-900">
-                  {form.payload_kind === "agent_turn"
-                    ? "允许 Web 搜索"
-                    : "自动打开调试窗口"}
+                <div>
+                  <div className="text-sm font-medium text-slate-900">
+                    {form.payload_kind === "agent_turn"
+                      ? "允许 Web 搜索"
+                      : "自动打开调试窗口"}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {form.payload_kind === "agent_turn"
+                      ? "为这个 job 单独开启搜索能力"
+                      : "适合需要人工观察或接管的浏览器任务"}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500">
-                  {form.payload_kind === "agent_turn"
-                    ? "为这个 job 单独开启搜索能力"
-                    : "适合需要人工观察或接管的浏览器任务"}
-                </div>
-              </div>
-              <Switch
-                checked={
-                  form.payload_kind === "agent_turn"
-                    ? form.web_search
-                    : form.browser_open_window
-                }
-                onCheckedChange={(checked) =>
-                  setForm((current) => ({
-                    ...current,
-                    ...(current.payload_kind === "agent_turn"
-                      ? { web_search: checked }
-                      : { browser_open_window: checked }),
-                  }))
-                }
-              />
+                <Switch
+                  checked={
+                    form.payload_kind === "agent_turn"
+                      ? form.web_search
+                      : form.browser_open_window
+                  }
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({
+                      ...current,
+                      ...(current.payload_kind === "agent_turn"
+                        ? { web_search: checked }
+                        : { browser_open_window: checked }),
+                    }))
+                  }
+                />
               </div>
             </div>
 
@@ -1027,92 +1073,96 @@ export function AutomationJobDialog({
                   </Select>
                 </div>
 
-              {form.delivery_mode === "announce" ? (
-                <>
-                  <div className="space-y-2">
-                    <Label>输出目标</Label>
-                    <Select
-                      value={form.delivery_channel}
-                      onValueChange={(value) =>
-                        setForm((current) => {
-                          const deliveryChannel = value as
-                            | "webhook"
-                            | "telegram"
-                            | "local_file"
-                            | "google_sheets";
-                          const contract = normalizeDeliveryOutputContract(
-                            deliveryChannel,
-                            current.delivery_output_schema,
-                            current.delivery_output_format,
-                          );
-                          return {
+                {form.delivery_mode === "announce" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>输出目标</Label>
+                      <Select
+                        value={form.delivery_channel}
+                        onValueChange={(value) =>
+                          setForm((current) => {
+                            const deliveryChannel = value as
+                              | "webhook"
+                              | "telegram"
+                              | "local_file"
+                              | "google_sheets";
+                            const contract = normalizeDeliveryOutputContract(
+                              deliveryChannel,
+                              current.delivery_output_schema,
+                              current.delivery_output_format,
+                            );
+                            return {
+                              ...current,
+                              delivery_channel: deliveryChannel,
+                              delivery_output_schema: contract.outputSchema,
+                              delivery_output_format: contract.outputFormat,
+                            };
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="webhook">Webhook</SelectItem>
+                          <SelectItem value="google_sheets">
+                            Google Sheets
+                          </SelectItem>
+                          <SelectItem value="local_file">本地文件</SelectItem>
+                          <SelectItem value="telegram">Telegram</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>输出契约</Label>
+                      <Select
+                        disabled={isTextOnlyDelivery}
+                        value={form.delivery_output_schema}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
                             ...current,
-                            delivery_channel: deliveryChannel,
-                            delivery_output_schema: contract.outputSchema,
-                            delivery_output_format: contract.outputFormat,
-                          };
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="webhook">Webhook</SelectItem>
-                        <SelectItem value="google_sheets">Google Sheets</SelectItem>
-                        <SelectItem value="local_file">本地文件</SelectItem>
-                        <SelectItem value="telegram">Telegram</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>输出契约</Label>
-                    <Select
-                      disabled={isTextOnlyDelivery}
-                      value={form.delivery_output_schema}
-                      onValueChange={(value) =>
-                        setForm((current) => ({
-                          ...current,
-                          delivery_output_schema: value as AutomationOutputSchema,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">文本摘要</SelectItem>
-                        <SelectItem value="json">JSON 对象</SelectItem>
-                        <SelectItem value="table">表格</SelectItem>
-                        <SelectItem value="csv">CSV</SelectItem>
-                        <SelectItem value="links">链接列表</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>输出格式</Label>
-                    <Select
-                      disabled={isTextOnlyDelivery}
-                      value={form.delivery_output_format}
-                      onValueChange={(value) =>
-                        setForm((current) => ({
-                          ...current,
-                          delivery_output_format: value as AutomationOutputFormat,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">文本摘要</SelectItem>
-                        <SelectItem value="json">结构化 JSON</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              ) : null}
-            </div>
+                            delivery_output_schema:
+                              value as AutomationOutputSchema,
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">文本摘要</SelectItem>
+                          <SelectItem value="json">JSON 对象</SelectItem>
+                          <SelectItem value="table">表格</SelectItem>
+                          <SelectItem value="csv">CSV</SelectItem>
+                          <SelectItem value="links">链接列表</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>输出格式</Label>
+                      <Select
+                        disabled={isTextOnlyDelivery}
+                        value={form.delivery_output_format}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            delivery_output_format:
+                              value as AutomationOutputFormat,
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">文本摘要</SelectItem>
+                          <SelectItem value="json">结构化 JSON</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : null}
+              </div>
 
               {form.delivery_mode === "announce" ? (
                 <>
@@ -1190,7 +1240,11 @@ export function AutomationJobDialog({
               onClick={() => void handleSubmit()}
               disabled={saving}
             >
-              {saving ? "保存中..." : mode === "create" ? "创建任务" : "保存修改"}
+              {saving
+                ? "保存中..."
+                : mode === "create"
+                  ? "创建任务"
+                  : "保存修改"}
             </Button>
           </DialogFooter>
         </div>

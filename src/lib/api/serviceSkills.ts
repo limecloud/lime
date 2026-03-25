@@ -7,9 +7,7 @@ export type ServiceSkillSource = "cloud_catalog" | "local_custom";
 
 export type ServiceSkillRunnerType = "instant" | "scheduled" | "managed";
 
-export type ServiceSkillExecutionLocation =
-  | "client_default"
-  | "cloud_required";
+export type ServiceSkillExecutionLocation = "client_default" | "cloud_required";
 
 export type ServiceSkillArtifactKind =
   | "report"
@@ -119,7 +117,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       id: "carousel-post-replication",
       skillKey: "carousel-post-replication",
       title: "复制轮播帖",
-      summary: "拆解参考轮播帖的结构、文风和卖点，再输出一版可继续改写的轮播内容。",
+      summary:
+        "拆解参考轮播帖的结构、文风和卖点，再输出一版可继续改写的轮播内容。",
       category: "社媒内容",
       outputHint: "轮播结构 + 文案初稿",
       source: "cloud_catalog",
@@ -325,7 +324,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       id: "daily-trend-briefing",
       skillKey: "daily-trend-briefing",
       title: "每日趋势摘要",
-      summary: "围绕指定平台、行业和地区，先产出一版趋势摘要和后续本地定时任务建议。",
+      summary:
+        "围绕指定平台、行业和地区，先产出一版趋势摘要和后续本地定时任务建议。",
       category: "社媒运营",
       outputHint: "趋势摘要 + 调度建议",
       source: "cloud_catalog",
@@ -386,7 +386,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       id: "account-performance-tracking",
       skillKey: "account-performance-tracking",
       title: "跟踪账号表现",
-      summary: "围绕指定账号先做一版表现分析，并整理后续本地跟踪任务需要的指标和告警条件。",
+      summary:
+        "围绕指定账号先做一版表现分析，并整理后续本地跟踪任务需要的指标和告警条件。",
       category: "社媒运营",
       outputHint: "账号分析 + 跟踪指标",
       source: "cloud_catalog",
@@ -464,7 +465,8 @@ function isServiceSkillSlotDefinition(
     typeof slot.type === "string" &&
     typeof slot.required === "boolean" &&
     typeof slot.placeholder === "string" &&
-    (slot.defaultValue === undefined || typeof slot.defaultValue === "string") &&
+    (slot.defaultValue === undefined ||
+      typeof slot.defaultValue === "string") &&
     (slot.helpText === undefined || typeof slot.helpText === "string") &&
     (slot.options === undefined || isSlotOptionArray(slot.options))
   );
@@ -521,7 +523,9 @@ function isServiceSkillCatalog(value: unknown): value is ServiceSkillCatalog {
   );
 }
 
-function cloneServiceSkillCatalog(catalog: ServiceSkillCatalog): ServiceSkillCatalog {
+function cloneServiceSkillCatalog(
+  catalog: ServiceSkillCatalog,
+): ServiceSkillCatalog {
   return {
     ...catalog,
     items: catalog.items.map((item) => ({
@@ -637,7 +641,9 @@ async function requestRemoteServiceSkillCatalog(): Promise<ServiceSkillCatalog> 
   }
 
   if (!response.ok) {
-    throw new Error(payload?.message?.trim() || `请求失败 (${response.status})`);
+    throw new Error(
+      payload?.message?.trim() || `请求失败 (${response.status})`,
+    );
   }
 
   const catalog = parseServiceSkillCatalog(payload?.data);
@@ -663,7 +669,10 @@ export function isSeededServiceSkillCatalog(
 
 export function saveServiceSkillCatalog(
   catalog: ServiceSkillCatalog,
-  source: Exclude<ServiceSkillCatalogChangeSource, "seeded_fallback" | "cache_clear"> = "manual_override",
+  source: Exclude<
+    ServiceSkillCatalogChangeSource,
+    "seeded_fallback" | "cache_clear"
+  > = "manual_override",
 ): ServiceSkillCatalog {
   const normalized = parseServiceSkillCatalog(catalog);
   if (!normalized) {

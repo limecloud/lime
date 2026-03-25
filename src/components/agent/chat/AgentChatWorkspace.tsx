@@ -15,13 +15,8 @@ import {
   useRef,
 } from "react";
 import { toast } from "sonner";
-import {
-  useAgentChatUnified,
-  useCompatSubagentRuntime,
-} from "./hooks";
-import {
-  type TaskStatusReason,
-} from "./hooks/agentChatShared";
+import { useAgentChatUnified, useCompatSubagentRuntime } from "./hooks";
+import { type TaskStatusReason } from "./hooks/agentChatShared";
 import {
   settleLiveArtifactAfterStreamStops,
   useArtifactDisplayState,
@@ -72,9 +67,7 @@ import { logAgentDebug } from "@/lib/agentDebug";
 import { SettingsTabs } from "@/types/settings";
 import { setActiveContentTarget } from "@/lib/activeContentTarget";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
-import {
-  useImageGen,
-} from "@/components/image-gen/useImageGen";
+import { useImageGen } from "@/components/image-gen/useImageGen";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
 
 import type {
@@ -82,22 +75,15 @@ import type {
   SiteSavedContentTarget,
   WriteArtifactContext,
 } from "./types";
-import type {
-  ThemeType,
-  LayoutMode,
-} from "@/components/content-creator/types";
+import type { ThemeType, LayoutMode } from "@/components/content-creator/types";
 import { normalizeProjectId } from "./utils/topicProjectResolution";
-import {
-  buildHarnessRequestMetadata,
-} from "./utils/harnessRequestMetadata";
+import { buildHarnessRequestMetadata } from "./utils/harnessRequestMetadata";
 import { deriveHarnessSessionState } from "./utils/harnessState";
 import {
   mergeArtifacts,
   resolveDefaultArtifactViewMode,
 } from "./utils/messageArtifacts";
-import {
-  createChatToolPreferencesFromExecutionRuntime,
-} from "./utils/sessionExecutionRuntime";
+import { createChatToolPreferencesFromExecutionRuntime } from "./utils/sessionExecutionRuntime";
 import {
   buildRealSubagentTimelineItems,
   buildSyntheticSubagentTimelineItems,
@@ -112,15 +98,11 @@ import { useThemeScopedChatToolPreferences } from "./hooks/useThemeScopedChatToo
 import { useLimeSkills } from "./hooks/useLimeSkills";
 import { useWorkspaceProjectSelection } from "./hooks/useWorkspaceProjectSelection";
 import { useBootstrapDispatchPreview } from "./hooks/useBootstrapDispatchPreview";
-import {
-  useRuntimeTeamFormation,
-} from "./hooks/useRuntimeTeamFormation";
+import { useRuntimeTeamFormation } from "./hooks/useRuntimeTeamFormation";
 import { useThemeWorkbenchEntryPrompt } from "./hooks/useThemeWorkbenchEntryPrompt";
 import { useThemeWorkbenchEntryPromptActions } from "./hooks/useThemeWorkbenchEntryPromptActions";
 import { useThemeWorkbenchSendBoundary } from "./hooks/useThemeWorkbenchSendBoundary";
-import type {
-  BrowserTaskPreflight,
-} from "./hooks/handleSendTypes";
+import type { BrowserTaskPreflight } from "./hooks/handleSendTypes";
 import { mergeThreadItems } from "./utils/threadTimelineView";
 import {
   DEFAULT_STYLE_PROFILE,
@@ -191,9 +173,7 @@ import {
   normalizeInitialTheme,
   projectTypeToTheme,
 } from "./agentChatWorkspaceShared";
-import type {
-  AgentChatWorkspaceProps,
-} from "./agentChatWorkspaceContract";
+import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 
@@ -257,8 +237,7 @@ export function AgentChatWorkspace({
     chatToolPreferences,
     setChatToolPreferences,
     syncChatToolPreferencesSource,
-  } =
-    useThemeScopedChatToolPreferences(activeTheme);
+  } = useThemeScopedChatToolPreferences(activeTheme);
   const {
     projectId,
     shouldDisableSessionRestore,
@@ -1122,11 +1101,7 @@ export function AgentChatWorkspace({
 
   useEffect(() => {
     syncChatToolPreferencesSource(activeTheme, runtimeChatToolPreferences);
-  }, [
-    activeTheme,
-    runtimeChatToolPreferences,
-    syncChatToolPreferencesSource,
-  ]);
+  }, [activeTheme, runtimeChatToolPreferences, syncChatToolPreferencesSource]);
 
   const hasRealTeamGraph =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
@@ -1442,18 +1417,19 @@ export function AgentChatWorkspace({
     harnessAttentionLevel,
     navbarHarnessPanelVisible,
   } = contextHarnessRuntime;
-  const themeWorkbenchScaffoldRuntime = useWorkspaceThemeWorkbenchScaffoldRuntime({
-    isThemeWorkbench,
-    mappedTheme,
-    sessionId,
-    projectId,
-    canvasState,
-    documentVersionStatusMap,
-    setDocumentVersionStatusMap,
-    clearThemeSkillsRailState,
-    setCanvasState,
-    setLayoutMode,
-  });
+  const themeWorkbenchScaffoldRuntime =
+    useWorkspaceThemeWorkbenchScaffoldRuntime({
+      isThemeWorkbench,
+      mappedTheme,
+      sessionId,
+      projectId,
+      canvasState,
+      documentVersionStatusMap,
+      setDocumentVersionStatusMap,
+      clearThemeSkillsRailState,
+      setCanvasState,
+      setLayoutMode,
+    });
   const {
     shouldUseCompactThemeWorkbench,
     shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
@@ -1492,15 +1468,17 @@ export function AgentChatWorkspace({
     pendingActionRequest,
   });
 
-  const themeWorkbenchSidebarRuntime = useWorkspaceThemeWorkbenchSidebarRuntime({
-    isThemeWorkbench,
-    sessionId,
-    messages,
-    isSending,
-    themeWorkbenchBackendRunState,
-    contextActivityLogs: contextWorkspace.activityLogs,
-    historyPageSize: THEME_WORKBENCH_HISTORY_PAGE_SIZE,
-  });
+  const themeWorkbenchSidebarRuntime = useWorkspaceThemeWorkbenchSidebarRuntime(
+    {
+      isThemeWorkbench,
+      sessionId,
+      messages,
+      isSending,
+      themeWorkbenchBackendRunState,
+      contextActivityLogs: contextWorkspace.activityLogs,
+      historyPageSize: THEME_WORKBENCH_HISTORY_PAGE_SIZE,
+    },
+  );
 
   const { handleViewContextDetail } = useWorkspaceContextDetailActions({
     contextWorkspace,
@@ -1709,45 +1687,42 @@ export function AgentChatWorkspace({
     setCreationMode,
     setTaskFiles,
   });
-  const {
-    handleClearMessages,
-    handleBackHome,
-    resetTopicLocalState,
-  } = useWorkspaceResetRuntime({
-    clearMessages,
-    clearRuntimeTeamState,
-    clearProjectSelectionRuntime,
-    resetRestoredSessionState,
-    resetProjectSelection,
-    resetGuideState,
-    hasHandledNewChatRequest,
-    markNewChatRequestHandled,
-    createFreshSession,
-    defaultTopicSidebarVisible,
-    normalizedInitialTheme: normalizedEntryTheme,
-    initialCreationMode,
-    newChatAt,
-    initialSessionName,
-    projectId,
-    externalProjectId,
-    onNavigate: _onNavigate,
-    autoCollapsedTopicSidebarRef,
-    processedMessageIdsRef: processedMessageIds,
-    setInput,
-    setSelectedText,
-    setLayoutMode,
-    setShowSidebar,
-    setCanvasState,
-    setGeneralCanvasState,
-    setTaskFiles,
-    setSelectedFileId,
-    setBrowserTaskPreflight,
-    setMentionedCharacters,
-    setProject,
-    setProjectMemory,
-    setActiveTheme,
-    setCreationMode,
-  });
+  const { handleClearMessages, handleBackHome, resetTopicLocalState } =
+    useWorkspaceResetRuntime({
+      clearMessages,
+      clearRuntimeTeamState,
+      clearProjectSelectionRuntime,
+      resetRestoredSessionState,
+      resetProjectSelection,
+      resetGuideState,
+      hasHandledNewChatRequest,
+      markNewChatRequestHandled,
+      createFreshSession,
+      defaultTopicSidebarVisible,
+      normalizedInitialTheme: normalizedEntryTheme,
+      initialCreationMode,
+      newChatAt,
+      initialSessionName,
+      projectId,
+      externalProjectId,
+      onNavigate: _onNavigate,
+      autoCollapsedTopicSidebarRef,
+      processedMessageIdsRef: processedMessageIds,
+      setInput,
+      setSelectedText,
+      setLayoutMode,
+      setShowSidebar,
+      setCanvasState,
+      setGeneralCanvasState,
+      setTaskFiles,
+      setSelectedFileId,
+      setBrowserTaskPreflight,
+      setMentionedCharacters,
+      setProject,
+      setProjectMemory,
+      setActiveTheme,
+      setCreationMode,
+    });
 
   const { switchTopic } = useWorkspaceTopicSwitch({
     projectId,
@@ -2184,7 +2159,9 @@ export function AgentChatWorkspace({
       return;
     }
 
-    setLayoutMode((current) => (current === "canvas" ? "chat-canvas" : current));
+    setLayoutMode((current) =>
+      current === "canvas" ? "chat-canvas" : current,
+    );
     setFocusedTimelineItemId(normalizedItemId);
     setTimelineFocusRequestKey((current) => current + 1);
   }, []);
@@ -2433,136 +2410,135 @@ export function AgentChatWorkspace({
     teamDispatchPreviewState,
   });
 
-  const workspaceShellSceneRuntime =
-    useWorkspaceConversationShellSceneRuntime({
-      navigationActions,
-      inputbarScene,
-      canvasScene,
-      shellChromeRuntime,
-      themeWorkbenchShellRuntime,
-      contextHarnessRuntime,
-      teamSessionRuntime,
-      currentImageWorkbenchState,
-      project,
-      projectId,
-      projectMemory,
-      handleSend,
-      mappedTheme,
-      runtimeStyleSelection,
-      setRuntimeStyleSelection,
-      generalCanvasState,
-      runtimeStylePrompt,
-      showSidebar,
-      topics,
-      switchTopic,
-      handleResumeSidebarTask,
-      deleteTopic,
-      renameTopic,
-      childSubagentSessions,
-      subagentParentContext,
-      handleReturnToParentSession,
-      entryBannerVisible,
-      entryBannerMessage,
-      contextWorkspaceEnabled: contextWorkspace.enabled,
-      input,
-      setInput,
-      providerType,
-      setProviderType,
-      model,
-      setModel,
-      executionStrategy,
-      setExecutionStrategy,
-      chatToolPreferences,
-      setChatToolPreferences,
-      selectedTeam,
-      handleSelectTeam,
-      handleEnableSuggestedTeam,
-      creationMode,
-      setCreationMode,
-      activeTheme,
-      setActiveTheme,
-      lockTheme,
-      artifacts,
-      resolvedCanvasState,
-      contentId,
-      selectedText,
-      handleRecommendationClick,
-      skills,
-      skillsLoading,
-      handleNavigateToSkillSettings,
-      handleRefreshSkills,
-      handleOpenBrowserAssistInCanvas,
-      browserAssistLaunching,
-      hideHistoryToggle,
-      showChatPanel,
-      topBarChrome,
-      onBackToProjectManagement,
-      fromResources,
-      handleBackHome,
-      handleToggleSidebar,
-      chatMode,
-      isBrowserAssistCanvasVisible,
-      browserAssistAttentionLevel,
-      browserAssistEntryLabel,
-      showHarnessToggle,
-      navbarHarnessPanelVisible,
-      harnessPendingCount,
-      harnessAttentionLevel,
-      sessionId,
-      syncStatus,
-      pendingA2UIForm,
-      handleToggleCanvas,
-      hideInlineStepProgress,
-      isContentCreationMode,
-      hasMessages,
-      steps,
-      currentStepIndex,
-      goToStep,
-      displayMessages,
-      turns,
-      effectiveThreadItems,
-      currentTurnId,
-      threadRead,
-      pendingActions,
-      submittedActionsInFlight,
-      queuedTurns,
-      isSending,
-      stopSending,
-      resumeThread,
-      replayPendingAction,
-      promoteQueuedTurn,
-      deleteMessage,
-      editMessage,
-      handleA2UISubmit,
-      handleWriteFile,
-      handleFileClick: handleWorkspaceFileClick,
-      handleOpenArtifactFromTimeline,
-      handleOpenSavedSiteContent,
-      handleArtifactClick: handleWorkspaceArtifactClick,
-      handleOpenSubagentSession,
-      handlePermissionResponseWithBrowserPreflight,
-      pendingPromotedA2UIActionRequest,
-      shouldCollapseCodeBlocks,
-      shouldCollapseCodeBlockInChat,
-      handleCodeBlockClick,
-      layoutMode,
-      handleActivateTeamWorkbench,
-      isThemeWorkbench,
-      showNovelNavbarControls,
-      novelChapterListCollapsed,
-      handleToggleNovelChapterList,
-      handleAddNovelChapter,
-      handleCloseCanvas,
-      settledWorkbenchArtifacts,
-      taskFiles,
-      selectedFileId,
-      handleHarnessLoadFilePreview,
-      setCanvasWorkbenchLayoutMode,
-      workspacePathMissing: Boolean(workspacePathMissing),
-      workspaceHealthError,
-      focusedTimelineItemId,
-      timelineFocusRequestKey,
-    });
+  const workspaceShellSceneRuntime = useWorkspaceConversationShellSceneRuntime({
+    navigationActions,
+    inputbarScene,
+    canvasScene,
+    shellChromeRuntime,
+    themeWorkbenchShellRuntime,
+    contextHarnessRuntime,
+    teamSessionRuntime,
+    currentImageWorkbenchState,
+    project,
+    projectId,
+    projectMemory,
+    handleSend,
+    mappedTheme,
+    runtimeStyleSelection,
+    setRuntimeStyleSelection,
+    generalCanvasState,
+    runtimeStylePrompt,
+    showSidebar,
+    topics,
+    switchTopic,
+    handleResumeSidebarTask,
+    deleteTopic,
+    renameTopic,
+    childSubagentSessions,
+    subagentParentContext,
+    handleReturnToParentSession,
+    entryBannerVisible,
+    entryBannerMessage,
+    contextWorkspaceEnabled: contextWorkspace.enabled,
+    input,
+    setInput,
+    providerType,
+    setProviderType,
+    model,
+    setModel,
+    executionStrategy,
+    setExecutionStrategy,
+    chatToolPreferences,
+    setChatToolPreferences,
+    selectedTeam,
+    handleSelectTeam,
+    handleEnableSuggestedTeam,
+    creationMode,
+    setCreationMode,
+    activeTheme,
+    setActiveTheme,
+    lockTheme,
+    artifacts,
+    resolvedCanvasState,
+    contentId,
+    selectedText,
+    handleRecommendationClick,
+    skills,
+    skillsLoading,
+    handleNavigateToSkillSettings,
+    handleRefreshSkills,
+    handleOpenBrowserAssistInCanvas,
+    browserAssistLaunching,
+    hideHistoryToggle,
+    showChatPanel,
+    topBarChrome,
+    onBackToProjectManagement,
+    fromResources,
+    handleBackHome,
+    handleToggleSidebar,
+    chatMode,
+    isBrowserAssistCanvasVisible,
+    browserAssistAttentionLevel,
+    browserAssistEntryLabel,
+    showHarnessToggle,
+    navbarHarnessPanelVisible,
+    harnessPendingCount,
+    harnessAttentionLevel,
+    sessionId,
+    syncStatus,
+    pendingA2UIForm,
+    handleToggleCanvas,
+    hideInlineStepProgress,
+    isContentCreationMode,
+    hasMessages,
+    steps,
+    currentStepIndex,
+    goToStep,
+    displayMessages,
+    turns,
+    effectiveThreadItems,
+    currentTurnId,
+    threadRead,
+    pendingActions,
+    submittedActionsInFlight,
+    queuedTurns,
+    isSending,
+    stopSending,
+    resumeThread,
+    replayPendingAction,
+    promoteQueuedTurn,
+    deleteMessage,
+    editMessage,
+    handleA2UISubmit,
+    handleWriteFile,
+    handleFileClick: handleWorkspaceFileClick,
+    handleOpenArtifactFromTimeline,
+    handleOpenSavedSiteContent,
+    handleArtifactClick: handleWorkspaceArtifactClick,
+    handleOpenSubagentSession,
+    handlePermissionResponseWithBrowserPreflight,
+    pendingPromotedA2UIActionRequest,
+    shouldCollapseCodeBlocks,
+    shouldCollapseCodeBlockInChat,
+    handleCodeBlockClick,
+    layoutMode,
+    handleActivateTeamWorkbench,
+    isThemeWorkbench,
+    showNovelNavbarControls,
+    novelChapterListCollapsed,
+    handleToggleNovelChapterList,
+    handleAddNovelChapter,
+    handleCloseCanvas,
+    settledWorkbenchArtifacts,
+    taskFiles,
+    selectedFileId,
+    handleHarnessLoadFilePreview,
+    setCanvasWorkbenchLayoutMode,
+    workspacePathMissing: Boolean(workspacePathMissing),
+    workspaceHealthError,
+    focusedTimelineItemId,
+    timelineFocusRequestKey,
+  });
 
   return workspaceShellSceneRuntime.shellSceneNode;
 }

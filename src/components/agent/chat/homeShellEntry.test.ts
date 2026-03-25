@@ -53,6 +53,12 @@ describe("homeShellEntry", () => {
         defaultToolPreferences,
         payload: {
           prompt: "请起草一版首稿",
+          contentId: "content-1",
+          initialRequestMetadata: {
+            artifact: {
+              artifact_mode: "draft",
+            },
+          },
           themeOverride: "social-media",
         },
         now: () => 456,
@@ -66,18 +72,30 @@ describe("homeShellEntry", () => {
         agentEntry: "claw",
         immersiveHome: false,
         projectId: "project-1",
+        contentId: "content-1",
         theme: "social-media",
         initialCreationMode: "guided",
         initialUserPrompt: "请起草一版首稿",
         initialUserImages: undefined,
+        initialRequestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+          },
+        },
         openBrowserAssistOnMount: undefined,
         newChatAt: 456,
         lockTheme: false,
       },
       workspaceBootstrap: {
         projectId: "project-1",
+        contentId: "content-1",
         initialUserPrompt: "请起草一版首稿",
         initialUserImages: undefined,
+        initialRequestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+          },
+        },
         theme: "social-media",
         initialCreationMode: "guided",
         openBrowserAssistOnMount: undefined,

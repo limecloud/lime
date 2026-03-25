@@ -1,10 +1,12 @@
 import type { AutomationJobDialogInitialValues } from "@/components/settings-v2/system/automation/AutomationJobDialog";
+import { buildHarnessRequestMetadata } from "../utils/harnessRequestMetadata";
 import { composeServiceSkillAutomationPrompt } from "./promptComposer";
 import type {
   ServiceSkillItem,
   ServiceSkillSlotDefinition,
   ServiceSkillSlotValues,
 } from "./types";
+import { buildServiceSkillWorkspaceSeed } from "./workspaceLaunch";
 
 const DEFAULT_AUTOMATION_INTERVAL_SECS = 86_400;
 const WEEKDAY_TO_CRON_DAY: Record<string, string> = {
@@ -23,6 +25,11 @@ interface BuildServiceSkillAutomationInitialValuesInput {
   slotValues: ServiceSkillSlotValues;
   userInput?: string;
   workspaceId: string;
+}
+
+interface BuildServiceSkillAutomationAgentTurnPayloadContextInput {
+  skill: ServiceSkillItem;
+  contentId?: string | null;
 }
 
 function resolveSlotValue(
@@ -53,7 +60,9 @@ function resolveScheduleSlotValue(
   skill: ServiceSkillItem,
   slotValues: ServiceSkillSlotValues,
 ): string {
-  const scheduleSlot = skill.slotSchema.find((slot) => slot.type === "schedule_time");
+  const scheduleSlot = skill.slotSchema.find(
+    (slot) => slot.type === "schedule_time",
+  );
   if (!scheduleSlot) {
     return "";
   }
@@ -70,7 +79,9 @@ function buildDefaultSchedulePrefill(): Pick<
   };
 }
 
-function buildCronPrefill(expr: string): Pick<
+function buildCronPrefill(
+  expr: string,
+): Pick<
   AutomationJobDialogInitialValues,
   "schedule_kind" | "cron_expr" | "cron_tz"
 > {
@@ -115,7 +126,9 @@ function parseScheduleTextToPrefill(
     return buildCronPrefill(`${dailyMatch[2]} ${dailyMatch[1]} * * *`);
   }
 
-  const weekdayMatch = value.match(/^每周([一二三四五六日天])\s*(\d{1,2}):(\d{2})$/);
+  const weekdayMatch = value.match(
+    /^每周([一二三四五六日天])\s*(\d{1,2}):(\d{2})$/,
+  );
   if (weekdayMatch) {
     const cronDay = WEEKDAY_TO_CRON_DAY[weekdayMatch[1]];
     if (cronDay) {
@@ -125,7 +138,9 @@ function parseScheduleTextToPrefill(
     }
   }
 
-  const weekdayDailyMatch = value.match(/^(?:工作日|每个工作日)\s*(\d{1,2}):(\d{2})$/);
+  const weekdayDailyMatch = value.match(
+    /^(?:工作日|每个工作日)\s*(\d{1,2}):(\d{2})$/,
+  );
   if (weekdayDailyMatch) {
     return buildCronPrefill(
       `${weekdayDailyMatch[2]} ${weekdayDailyMatch[1]} * * 1-5`,
@@ -156,6 +171,34 @@ function buildServiceSkillAutomationDescription(
   return lines.join("\n");
 }
 
+function buildServiceSkillAutomationRequestMetadata(
+  skill: ServiceSkillItem,
+  contentId?: string | null,
+): Record<string, unknown> | undefined {
+  const targetTheme = skill.themeTarget?.trim();
+  const workspaceSeed = buildServiceSkillWorkspaceSeed(skill, targetTheme);
+
+  if (!targetTheme && !workspaceSeed?.requestMetadata) {
+    return undefined;
+  }
+
+  return {
+    ...(workspaceSeed?.requestMetadata ?? {}),
+    harness: buildHarnessRequestMetadata({
+      theme: targetTheme || "general",
+      preferences: {
+        webSearch: false,
+        thinking: false,
+        task: false,
+        subagent: false,
+      },
+      sessionMode: workspaceSeed ? "theme_workbench" : "default",
+      runTitle: skill.title,
+      contentId: contentId || undefined,
+    }),
+  };
+}
+
 export function supportsServiceSkillLocalAutomation(
   skill: ServiceSkillItem,
 ): boolean {
@@ -163,6 +206,25 @@ export function supportsServiceSkillLocalAutomation(
     skill.executionLocation === "client_default" &&
     skill.runnerType !== "instant"
   );
+}
+
+export function buildServiceSkillAutomationAgentTurnPayloadContext({
+  skill,
+  contentId,
+}: BuildServiceSkillAutomationAgentTurnPayloadContextInput): {
+  content_id?: string | null;
+  request_metadata?: Record<string, unknown> | null;
+} {
+  const normalizedContentId = contentId?.trim() || null;
+  const requestMetadata = buildServiceSkillAutomationRequestMetadata(
+    skill,
+    normalizedContentId,
+  );
+
+  return {
+    content_id: normalizedContentId,
+    request_metadata: requestMetadata ?? null,
+  };
 }
 
 export function buildServiceSkillAutomationInitialValues({
@@ -188,6 +250,10 @@ export function buildServiceSkillAutomationInitialValues({
     }),
     system_prompt: "",
     web_search: false,
+    agent_content_id: "",
+    agent_request_metadata: buildServiceSkillAutomationAgentTurnPayloadContext({
+      skill,
+    }).request_metadata,
     max_retries: "2",
     delivery_mode: "none",
     ...schedulePrefill,

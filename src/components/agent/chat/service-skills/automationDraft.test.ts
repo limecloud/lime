@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildServiceSkillAutomationAgentTurnPayloadContext,
   buildServiceSkillAutomationInitialValues,
   supportsServiceSkillLocalAutomation,
 } from "./automationDraft";
@@ -15,6 +16,8 @@ const SCHEDULED_SKILL: ServiceSkillItem = {
   runnerType: "scheduled",
   defaultExecutorBinding: "automation_job",
   executionLocation: "client_default",
+  defaultArtifactKind: "analysis",
+  themeTarget: "social-media",
   version: "seed-v1",
   slotSchema: [
     {
@@ -75,5 +78,42 @@ describe("service skill automation draft", () => {
     expect(initialValues.cron_expr).toBe("00 09 * * *");
     expect(initialValues.prompt).toContain("[服务型技能] 每日趋势摘要");
     expect(initialValues.prompt).toContain("[自动化执行要求]");
+    expect(initialValues.agent_request_metadata).toEqual(
+      expect.objectContaining({
+        artifact: expect.objectContaining({
+          artifact_mode: "draft",
+          artifact_kind: "analysis",
+        }),
+        harness: expect.objectContaining({
+          theme: "social-media",
+          session_mode: "theme_workbench",
+          run_title: "每日趋势摘要",
+        }),
+      }),
+    );
+  });
+
+  it("应为自动化 agent_turn 生成可复用的 artifact/content payload 上下文", () => {
+    const payloadContext = buildServiceSkillAutomationAgentTurnPayloadContext({
+      skill: SCHEDULED_SKILL,
+      contentId: "content-1",
+    });
+
+    expect(payloadContext).toEqual(
+      expect.objectContaining({
+        content_id: "content-1",
+        request_metadata: expect.objectContaining({
+          artifact: expect.objectContaining({
+            artifact_mode: "draft",
+            artifact_kind: "analysis",
+          }),
+          harness: expect.objectContaining({
+            theme: "social-media",
+            session_mode: "theme_workbench",
+            content_id: "content-1",
+          }),
+        }),
+      }),
+    );
   });
 });
