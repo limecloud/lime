@@ -1071,6 +1071,33 @@ impl AgentDao {
         )?;
         Ok(())
     }
+
+    /// 更新会话 provider / model 持久化配置
+    pub fn update_provider_config(
+        conn: &Connection,
+        session_id: &str,
+        provider_name: Option<&str>,
+        model_name: Option<&str>,
+        model_config_json: Option<&str>,
+        updated_at: &str,
+    ) -> Result<(), rusqlite::Error> {
+        conn.execute(
+            "UPDATE agent_sessions SET
+                provider_name = COALESCE(?1, provider_name),
+                model = COALESCE(?2, model),
+                model_config_json = CASE WHEN ?3 IS NULL THEN model_config_json ELSE ?3 END,
+                updated_at = ?4
+             WHERE id = ?5",
+            params![
+                provider_name,
+                model_name,
+                model_config_json,
+                updated_at,
+                session_id,
+            ],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

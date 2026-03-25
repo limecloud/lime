@@ -157,6 +157,29 @@ jobs:
             } >> "$GITHUB_ENV"
           fi
 
+      - name: Ensure GitHub release exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          TARGET_REF="${{ github.event.inputs.source_ref || github.sha }}"
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+
+          printf '%s\n' "$RELEASE_BODY" > "$NOTES_FILE"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_REF" \
+            --title "Lime $TAG" \
+            --notes-file "$NOTES_FILE" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+
       - name: Install frontend dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -322,18 +345,18 @@ jobs:
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.online.conf.json
 
-      - name: Build Tauri app (macOS with notarization, attempt 1)
+      - name: Build macOS app (attempt 1, verbose)
         id: build_macos_primary
         if: matrix.platform == 'macos-latest'
         continue-on-error: true
-        uses: tauri-apps/tauri-action@v0
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 禁用 LTO 加速编译（正式发布可改为 thin）
           CARGO_PROFILE_RELEASE_LTO: "off"
           # 增加并行编译单元
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
           CARGO_INCREMENTAL: 0
+          CARGO_TARGET_DIR: src-tauri/target
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
           # Apple 签名环境变量
@@ -344,28 +367,34 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        with:
-          tauriScript: npx tauri
-          projectPath: src-tauri
-          tagName: ${{ github.event.inputs.version || github.ref_name }}
-          releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
-          releaseBody: ${{ env.RELEASE_BODY }}
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
-          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
-          args: --target ${{ matrix.target }}
+        run: |
+          set -euxo pipefail
+          echo "macOS target: ${{ matrix.target }}"
+          echo "bundle dir: src-tauri/target/${{ matrix.target }}/release/bundle"
+          pnpm tauri build --target "${{ matrix.target }}"
 
-      - name: Build Tauri app (macOS with notarization, retry)
+      - name: Inspect macOS outputs after attempt 1
+        if: matrix.platform == 'macos-latest' && always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ -d "$BUNDLE_DIR" ]; then
+            find "$BUNDLE_DIR" -maxdepth 4 -type f | sort
+          else
+            echo "Bundle dir not created yet: $BUNDLE_DIR"
+          fi
+
+      - name: Build macOS app (retry, verbose)
         id: build_macos_retry
         if: matrix.platform == 'macos-latest' && steps.build_macos_primary.outcome == 'failure'
         continue-on-error: true
-        uses: tauri-apps/tauri-action@v0
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_PROFILE_RELEASE_LTO: "off"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
           CARGO_INCREMENTAL: 0
+          CARGO_TARGET_DIR: src-tauri/target
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -374,45 +403,92 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        with:
-          tauriScript: npx tauri
-          projectPath: src-tauri
-          tagName: ${{ github.event.inputs.version || github.ref_name }}
-          releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
-          releaseBody: ${{ env.RELEASE_BODY }}
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
-          args: --target ${{ matrix.target }}
+        run: |
+          set -euxo pipefail
+          echo "Retry macOS target: ${{ matrix.target }}"
+          pnpm tauri build --target "${{ matrix.target }}"
 
-      - name: Build Tauri app (macOS fallback without notarization)
+      - name: Inspect macOS outputs after retry
+        if: matrix.platform == 'macos-latest' && steps.build_macos_primary.outcome == 'failure' && always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ -d "$BUNDLE_DIR" ]; then
+            find "$BUNDLE_DIR" -maxdepth 4 -type f | sort
+          else
+            echo "Bundle dir not created yet: $BUNDLE_DIR"
+          fi
+
+      - name: Build macOS app (fallback without notarization, verbose)
+        id: build_macos_fallback
         if: matrix.platform == 'macos-latest' && steps.build_macos_primary.outcome == 'failure' && steps.build_macos_retry.outcome == 'failure'
-        uses: tauri-apps/tauri-action@v0
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_PROFILE_RELEASE_LTO: "off"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
           CARGO_INCREMENTAL: 0
+          CARGO_TARGET_DIR: src-tauri/target
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        with:
-          tauriScript: npx tauri
-          projectPath: src-tauri
-          tagName: ${{ github.event.inputs.version || github.ref_name }}
-          releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
-          releaseBody: ${{ env.RELEASE_BODY }}
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
-          args: --target ${{ matrix.target }}
+        run: |
+          set -euxo pipefail
+          echo "Fallback macOS target without notarization: ${{ matrix.target }}"
+          pnpm tauri build --target "${{ matrix.target }}"
 
       - name: Warn on macOS notarization fallback
         if: matrix.platform == 'macos-latest' && steps.build_macos_primary.outcome == 'failure' && steps.build_macos_retry.outcome == 'failure'
         run: |
           echo "::warning::macOS notarization failed twice; fallback build skipped notarization and produced a signed-only artifact."
+
+      - name: Inspect final macOS outputs
+        if: matrix.platform == 'macos-latest' && always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          if [ -d "$BUNDLE_DIR" ]; then
+            find "$BUNDLE_DIR" -maxdepth 4 -type f | sort
+          else
+            echo "Bundle dir missing: $BUNDLE_DIR"
+          fi
+
+      - name: Upload macOS release assets
+        if: matrix.platform == 'macos-latest' && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Expected bundle dir missing: $BUNDLE_DIR" >&2
+            exit 1
+          fi
+
+          mapfile -d '' assets < <(
+            find "$BUNDLE_DIR" -type f \
+              \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "latest*.json" \) \
+              -print0 | sort -z
+          )
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No macOS release assets found under $BUNDLE_DIR" >&2
+            find "$BUNDLE_DIR" -maxdepth 4 -type f | sort || true
+            exit 1
+          fi
+
+          printf 'Uploading macOS assets:\n'
+          printf ' - %s\n' "${assets[@]}"
+
+          gh release upload "$TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
 
       # 注意：移除了 Post-build cleanup 步骤
       # 之前的清理会删除 deps/build/incremental 目录，导致缓存无法复用

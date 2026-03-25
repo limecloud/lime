@@ -148,6 +148,7 @@ npm run bridge:health -- --timeout-ms 120000
 高频场景：
 
 - 修改 `safeInvoke` / `invoke`
+- 修改 `agent_runtime_update_session` 或会话 provider/model 恢复语义
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`

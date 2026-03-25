@@ -130,6 +130,14 @@ npm run test:contracts
 7. 验证页面出现 `Theme Workbench` 或相关工作台内容
 8. 再次检查控制台 error
 
+### 话题模型恢复验证
+
+1. 进入同一工作区中的两个话题
+2. 分别切换成不同的 provider/model 组合
+3. 在两个话题之间来回切换
+4. 验证模型选择器恢复的是该话题最近一次 session runtime，而不是陈旧的 localStorage 默认值
+5. 如页面暴露运行时摘要条，再确认 provider/model 文案与选择器一致
+
 ### 服务型技能自动化交付链
 
 1. 从首页进入服务型技能卡片

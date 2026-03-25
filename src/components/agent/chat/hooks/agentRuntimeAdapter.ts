@@ -60,6 +60,11 @@ export interface AgentRuntimeAdapter {
     sessionId: string,
     executionStrategy: AsterExecutionStrategy,
   ): Promise<void>;
+  setSessionProviderSelection(
+    sessionId: string,
+    providerType: string,
+    model: string,
+  ): Promise<void>;
   submitOp(op: AgentOp): Promise<void>;
   compactSession(sessionId: string, eventName: string): Promise<void>;
   interruptTurn(sessionId: string): Promise<boolean>;
@@ -112,6 +117,13 @@ export const defaultAgentRuntimeAdapter: AgentRuntimeAdapter = {
     await updateAgentRuntimeSession({
       session_id: sessionId,
       execution_strategy: executionStrategy,
+    });
+  },
+  async setSessionProviderSelection(sessionId, providerType, model) {
+    await updateAgentRuntimeSession({
+      session_id: sessionId,
+      provider_name: providerType,
+      model_name: model,
     });
   },
   async submitOp(op) {

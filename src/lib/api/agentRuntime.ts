@@ -437,6 +437,8 @@ export interface AgentRuntimeReplayedActionRequiredView {
 export interface AgentRuntimeUpdateSessionRequest {
   session_id: string;
   name?: string;
+  provider_name?: string;
+  model_name?: string;
   execution_strategy?: AsterExecutionStrategy;
 }
 

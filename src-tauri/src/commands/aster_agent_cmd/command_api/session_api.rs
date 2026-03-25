@@ -72,5 +72,24 @@ pub async fn agent_runtime_update_session(
         )?;
     }
 
+    let provider_name = request
+        .provider_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let model_name = request
+        .model_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if provider_name.is_some() || model_name.is_some() {
+        AsterAgentWrapper::update_session_provider_config_sync(
+            db.inner(),
+            &trimmed_session_id,
+            provider_name,
+            model_name,
+        )?;
+    }
+
     Ok(())
 }

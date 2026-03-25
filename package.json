@@ -20,7 +20,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "CARGO_TARGET_DIR=target tauri dev",
-    "tauri:dev:headless": "CARGO_TARGET_DIR=target tauri dev --config src-tauri/tauri.conf.headless.json",
+    "tauri:dev:headless": "CARGO_TARGET_DIR=src-tauri/target tauri dev --config src-tauri/tauri.conf.headless.json",
     "tauri:dev:nowatch": "CARGO_TARGET_DIR=target tauri dev --no-watch",
     "tauri:dev:profile:trace": "node scripts/run-tauri-profile.mjs trace",
     "tauri:dev:profile:trace:devtools": "node scripts/run-tauri-profile.mjs trace --open-devtools",

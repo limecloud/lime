@@ -12,6 +12,9 @@ import type { Artifact } from "@/lib/artifact/types";
 import {
   extractArtifactProtocolPaths,
   extractArtifactProtocolPathsFromValue,
+  resolveArtifactProtocolDocumentPayload,
+  resolveArtifactProtocolFilePath,
+  resolveArtifactProtocolPreviewText,
 } from "@/lib/artifact-protocol";
 import type { ActionRequired, Message, WriteArtifactContext } from "../types";
 import { activityLogger } from "@/components/content-creator/utils/activityLogger";
@@ -34,6 +37,10 @@ import {
   findMessageArtifact,
   upsertMessageArtifact,
 } from "../utils/messageArtifacts";
+import {
+  collectArtifactDocumentSourcesFromToolCalls,
+  mergeSourcesIntoArtifactDocument,
+} from "../utils/artifactToolSources";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { buildContextRuntimeStatus } from "../utils/agentRuntimeStatus";
 
@@ -200,6 +207,78 @@ function buildWriteMetadata(
   };
 }
 
+function buildWriteMetadataWithToolSources({
+  content,
+  metadata,
+  artifact,
+  toolCalls,
+}: {
+  content: string;
+  metadata: WriteArtifactContext["metadata"] | undefined;
+  artifact?: Artifact;
+  toolCalls: NonNullable<Message["toolCalls"]>;
+}): {
+  metadata: WriteArtifactContext["metadata"] | undefined;
+  changed: boolean;
+} {
+  const toolSources = collectArtifactDocumentSourcesFromToolCalls(toolCalls);
+  if (toolSources.length === 0) {
+    return {
+      metadata,
+      changed: false,
+    };
+  }
+
+  const existingArtifactDocument = artifact
+    ? resolveArtifactProtocolDocumentPayload({
+        content: artifact.content,
+        metadata:
+          artifact.meta && typeof artifact.meta === "object"
+            ? (artifact.meta as Record<string, unknown>)
+            : undefined,
+      })
+    : null;
+  const currentArtifactDocument = resolveArtifactProtocolDocumentPayload({
+    content,
+    metadata,
+    previous: existingArtifactDocument,
+  });
+  const mergedArtifactDocument = mergeSourcesIntoArtifactDocument(
+    currentArtifactDocument,
+    toolSources,
+  );
+  if (!mergedArtifactDocument || !currentArtifactDocument) {
+    return {
+      metadata,
+      changed: false,
+    };
+  }
+
+  const currentSourcesKey = JSON.stringify(
+    currentArtifactDocument.sources || [],
+  );
+  const nextSourcesKey = JSON.stringify(mergedArtifactDocument.sources || []);
+  if (currentSourcesKey === nextSourcesKey) {
+    return {
+      metadata,
+      changed: false,
+    };
+  }
+
+  return {
+    metadata: {
+      ...(metadata || {}),
+      artifactSchema: mergedArtifactDocument.schemaVersion,
+      artifactDocument: mergedArtifactDocument,
+      previewText:
+        typeof metadata?.previewText === "string" && metadata.previewText.trim()
+          ? metadata.previewText
+          : resolveArtifactProtocolPreviewText(mergedArtifactDocument),
+    },
+    changed: true,
+  };
+}
+
 function upsertAssistantWriteArtifact({
   assistantMsgId,
   setMessages,
@@ -229,6 +308,12 @@ function upsertAssistantWriteArtifact({
         content.length > 0 || !existingArtifact
           ? content
           : existingArtifact.content;
+      const { metadata: nextMetadata } = buildWriteMetadataWithToolSources({
+        content: nextContent,
+        metadata: context.metadata,
+        artifact: existingArtifact,
+        toolCalls: message.toolCalls || [],
+      });
       nextArtifact = buildArtifactFromWrite({
         filePath,
         content: nextContent,
@@ -236,6 +321,7 @@ function upsertAssistantWriteArtifact({
           ...context,
           artifact: existingArtifact,
           artifactId: existingArtifact?.id || context.artifactId,
+          metadata: nextMetadata,
         },
       });
 
@@ -244,6 +330,81 @@ function upsertAssistantWriteArtifact({
   );
 
   return nextArtifact;
+}
+
+function refreshAssistantArtifactDocumentsFromToolSources({
+  assistantMsgId,
+  setMessages,
+  onWriteFile,
+}: BaseProcessorContext & ArtifactWriteOptions): Artifact[] {
+  const emittedArtifacts: Artifact[] = [];
+
+  setMessages((prev) =>
+    prev.map((message) => {
+      if (message.id !== assistantMsgId || !message.artifacts?.length) {
+        return message;
+      }
+
+      const nextArtifacts = message.artifacts.map((artifact) => {
+        const filePath = resolveArtifactProtocolFilePath(artifact);
+        const { metadata: nextMetadata, changed } =
+          buildWriteMetadataWithToolSources({
+            content: artifact.content,
+            metadata:
+              artifact.meta && typeof artifact.meta === "object"
+                ? (artifact.meta as WriteArtifactContext["metadata"])
+                : undefined,
+            artifact,
+            toolCalls: message.toolCalls || [],
+          });
+
+        if (!changed) {
+          return artifact;
+        }
+
+        const nextArtifact = buildArtifactFromWrite({
+          filePath,
+          content: artifact.content,
+          context: {
+            artifact,
+            artifactId: artifact.id,
+            source: "tool_result",
+            sourceMessageId: assistantMsgId,
+            status: artifact.status,
+            metadata: nextMetadata,
+          },
+        });
+        emittedArtifacts.push(nextArtifact);
+        return nextArtifact;
+      });
+
+      const hasChanges = nextArtifacts.some(
+        (artifact, index) => artifact !== message.artifacts?.[index],
+      );
+      if (!hasChanges) {
+        return message;
+      }
+
+      return {
+        ...message,
+        artifacts: nextArtifacts,
+      };
+    }),
+  );
+
+  for (const artifact of emittedArtifacts) {
+    const filePath = resolveArtifactProtocolFilePath(artifact);
+    onWriteFile?.(artifact.content, filePath, {
+      artifact,
+      artifactId: artifact.id,
+      source: "tool_result",
+      sourceMessageId: assistantMsgId,
+      status: artifact.status,
+      metadata: artifact.meta,
+    });
+  }
+
+  return emittedArtifacts;
 }
 
 export function handleToolStartEvent({
@@ -418,7 +579,8 @@ export function handleToolEndEvent({
   ToolTrackingContext & {
     data: AgentEventToolEnd;
   }) {
-  const normalizedResult = normalizeIncomingToolResult(data.result) || data.result;
+  const normalizedResult =
+    normalizeIncomingToolResult(data.result) || data.result;
   const isSuccess = isToolResultSuccessful(normalizedResult);
   const eventType = isSuccess ? "tool_complete" : "tool_error";
   const startedAt = toolStartedAtByToolId.get(data.tool_id);
@@ -493,10 +655,15 @@ export function handleToolEndEvent({
     }),
   );
 
-  const artifactPaths = extractArtifactProtocolPaths(
-    normalizedResult.metadata,
-  );
+  const artifactPaths = extractArtifactProtocolPaths(normalizedResult.metadata);
   if (artifactPaths.length === 0) {
+    refreshAssistantArtifactDocumentsFromToolSources({
+      assistantMsgId,
+      activeSessionId,
+      resolvedWorkspaceId,
+      setMessages,
+      onWriteFile,
+    });
     return;
   }
 

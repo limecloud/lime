@@ -143,6 +143,13 @@ npm run governance:legacy-report
 npm run verify:local
 ```
 
+如果命令边界改动影响会话运行时恢复语义，例如：
+
+- `agent_runtime_update_session` 新增或调整 `provider_name / model_name / execution_strategy`
+- 话题切换时的 provider/model 恢复从本地 fallback 向 `execution_runtime` 收敛
+
+除了契约检查，还应补对应 Hook / UI 稳定回归，确认切换话题后模型选择器恢复的是会话 runtime，而不是陈旧本地缓存。
+
 ## 变更完成定义
 
 一次命令边界改动，至少满足以下条件才算完成：
@@ -181,6 +188,7 @@ npm run verify:local
 以下是仓库当前已经明确收敛的几个方向：
 
 - **Agent / Codex 主命令**：继续收敛到 `agent_runtime_*`
+- **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略以及 session provider/model 的轻量持久化回写
 - **运行态摘要主链**：Aster `runtime_status` item -> timeline `turn_summary`
 - **旧 `chat_*` 命令**：已停止注册，不应重新回到 `commands::mod` 或 `generate_handler!`
 - **旧 `general_chat_*` 边界**：前端 compat 网关与 Rust 命令都已移除，不应重新接入

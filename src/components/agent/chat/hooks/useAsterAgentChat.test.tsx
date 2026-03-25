@@ -75,10 +75,9 @@ vi.mock("@/lib/api/agentRuntime", () => ({
 }));
 
 vi.mock("@/lib/api/agentProtocol", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
-      "@/lib/api/agentProtocol",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/agentProtocol")
+  >("@/lib/api/agentProtocol");
   return {
     ...actual,
     parseAgentEvent: mockParseAgentEvent,
@@ -430,6 +429,11 @@ describe("useAsterAgentChat 首页新会话", () => {
           .getValue()
           .topics.some((topic) => topic.id === "session-live-missing"),
       ).toBe(true);
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: "session-live-missing",
+        provider_name: harness.getValue().providerType,
+        model_name: harness.getValue().model,
+      });
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         "session-live-missing",
       );
@@ -586,7 +590,7 @@ describe("useAsterAgentChat 任务快照", () => {
       await flushEffects();
 
       await act(async () => {
-      await harness.getValue().stopSending();
+        await harness.getValue().stopSending();
       });
 
       expect(mockInterruptAgentRuntimeTurn).toHaveBeenCalledWith({
@@ -2304,7 +2308,9 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
       );
       expect(mockSubmitAgentRuntimeTurn).not.toHaveBeenCalled();
       expect(harness.getValue().sessionId).toBe("session-slash-new");
-      expect(mockToast.success).toHaveBeenCalledWith("已创建新任务：重构输入命令");
+      expect(mockToast.success).toHaveBeenCalledWith(
+        "已创建新任务：重构输入命令",
+      );
     } finally {
       harness.unmount();
     }
@@ -3550,6 +3556,200 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
       harness.unmount();
     }
   });
+
+  it("搜索工具来源应在后续 artifact_snapshot 中沉淀到同一文档", async () => {
+    const workspaceId = "ws-artifact-sources-before-snapshot";
+    seedSession(workspaceId, "session-artifact-sources-before-snapshot");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("先搜索再生成报告", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_id: "tool-search-1",
+          tool_name: "WebSearch",
+          arguments: JSON.stringify({
+            query: "Artifact First 来源面板",
+          }),
+        });
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-search-1",
+          result: {
+            success: true,
+            output: JSON.stringify({
+              results: [
+                {
+                  title: "Artifact 来源指南",
+                  url: "https://example.com/artifact-sources",
+                  snippet: "统一来源与版本展示。",
+                },
+              ],
+            }),
+          },
+        });
+      });
+
+      act(() => {
+        stream.emit({
+          type: "artifact_snapshot",
+          artifact: {
+            artifactId: "artifact-doc-search-1",
+            filePath: ".lime/artifacts/thread-1/source-report.artifact.json",
+            content: JSON.stringify({
+              schemaVersion: "artifact_document.v1",
+              artifactId: "artifact-doc-search-1",
+              kind: "analysis",
+              title: "来源报告",
+              status: "ready",
+              language: "zh-CN",
+              summary: "先搜索后成文。",
+              blocks: [
+                {
+                  id: "body-1",
+                  type: "rich_text",
+                  markdown: "正文内容",
+                },
+              ],
+              sources: [],
+              metadata: {},
+            }),
+            metadata: {
+              complete: false,
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+      const artifactDocument = JSON.parse(
+        assistantMessage?.artifacts?.[0]?.content || "{}",
+      ) as {
+        sources?: Array<{ url?: string }>;
+      };
+
+      expect(artifactDocument.sources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            url: "https://example.com/artifact-sources",
+          }),
+        ]),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 artifact_snapshot 也应在后续 tool_end 时补齐来源", async () => {
+    const workspaceId = "ws-artifact-sources-after-snapshot";
+    seedSession(workspaceId, "session-artifact-sources-after-snapshot");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("先写报告再补来源", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "artifact_snapshot",
+          artifact: {
+            artifactId: "artifact-doc-search-2",
+            filePath: ".lime/artifacts/thread-1/source-report-2.artifact.json",
+            content: JSON.stringify({
+              schemaVersion: "artifact_document.v1",
+              artifactId: "artifact-doc-search-2",
+              kind: "analysis",
+              title: "来源报告 2",
+              status: "ready",
+              language: "zh-CN",
+              summary: "先成文后补来源。",
+              blocks: [
+                {
+                  id: "body-1",
+                  type: "rich_text",
+                  markdown: "正文内容",
+                },
+              ],
+              sources: [],
+              metadata: {},
+            }),
+            metadata: {
+              complete: false,
+            },
+          },
+        });
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_id: "tool-search-2",
+          tool_name: "WebSearch",
+          arguments: JSON.stringify({
+            query: "Artifact First 浏览器引用",
+          }),
+        });
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-search-2",
+          result: {
+            success: true,
+            output: JSON.stringify({
+              results: [
+                {
+                  title: "Browser Assist 文档",
+                  url: "https://example.com/browser-assist",
+                  snippet: "浏览器结果也应进入来源抽屉。",
+                },
+              ],
+            }),
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+      const artifactDocument = JSON.parse(
+        assistantMessage?.artifacts?.[0]?.content || "{}",
+      ) as {
+        sources?: Array<{ url?: string }>;
+      };
+
+      expect(artifactDocument.sources).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            url: "https://example.com/browser-assist",
+          }),
+        ]),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
 });
 
 describe("useAsterAgentChat 偏好持久化", () => {
@@ -4135,6 +4335,11 @@ describe("useAsterAgentChat 偏好持久化", () => {
       const value = harness.getValue();
       expect(value.providerType).toBe("gemini");
       expect(value.model).toBe("gemini-2.5-pro");
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: topicId,
+        provider_name: "gemini",
+        model_name: "gemini-2.5-pro",
+      });
     } finally {
       harness.unmount();
     }
@@ -4779,7 +4984,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续沿用当前模型处理", [], false, false, false, "react");
+          .sendMessage(
+            "继续沿用当前模型处理",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -4831,7 +5043,9 @@ describe("useAsterAgentChat 兼容接口", () => {
     try {
       await flushEffects();
       await act(async () => {
-        await harness.getValue().switchTopic("topic-runtime-model-switch-same-provider");
+        await harness
+          .getValue()
+          .switchTopic("topic-runtime-model-switch-same-provider");
       });
 
       act(() => {
@@ -4842,7 +5056,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("切换到同 provider 的另一个模型", [], false, false, false, "react");
+          .sendMessage(
+            "切换到同 provider 的另一个模型",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -4956,7 +5177,6 @@ describe("useAsterAgentChat 兼容接口", () => {
         await harness.getValue().renameTopic("topic-1", "新标题");
       });
 
-      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledTimes(1);
       expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
         session_id: "topic-1",
         name: "新标题",

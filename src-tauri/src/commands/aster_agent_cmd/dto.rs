@@ -1589,6 +1589,10 @@ pub struct AgentRuntimeUpdateSessionRequest {
     pub session_id: String,
     #[serde(default)]
     pub name: Option<String>,
+    #[serde(default, alias = "providerName")]
+    pub provider_name: Option<String>,
+    #[serde(default, alias = "modelName")]
+    pub model_name: Option<String>,
     #[serde(default, alias = "executionStrategy")]
     pub execution_strategy: Option<AsterExecutionStrategy>,
 }

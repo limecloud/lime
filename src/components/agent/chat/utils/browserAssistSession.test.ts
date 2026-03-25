@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "../types";
 import {
   createBrowserAssistSessionState,
+  extractBrowserAssistSessionFromToolCall,
   extractBrowserAssistSessionFromArtifact,
   findLatestBrowserAssistSessionInMessages,
   mergeBrowserAssistSessionStates,
@@ -156,6 +157,42 @@ describe("browserAssistSession", () => {
     ).toBe("aster_browser_assist_session_session-a_project-a");
     expect(resolveBrowserAssistSessionStorageKey("project-a", null)).toBe(
       "aster_browser_assist_session_active_project-a",
+    );
+  });
+
+  it("应从顶层 metadata.page_info 解析页面标题", () => {
+    expect(
+      extractBrowserAssistSessionFromToolCall({
+        id: "tool-page-info-1",
+        name: "browser_navigate",
+        arguments: JSON.stringify({
+          url: "https://example.com/publish",
+        }),
+        status: "completed",
+        startTime: new Date("2026-03-14T10:00:01.000Z"),
+        endTime: new Date("2026-03-14T10:00:02.000Z"),
+        result: {
+          success: true,
+          output: "ok",
+          metadata: {
+            tool_family: "browser",
+            browser_session: {
+              session_id: "browser-session-2",
+              profile_key: "general_browser_assist",
+            },
+            page_info: {
+              title: "发布页",
+              url: "https://example.com/publish",
+            },
+          },
+        },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        sessionId: "browser-session-2",
+        url: "https://example.com/publish",
+        title: "发布页",
+      }),
     );
   });
 });

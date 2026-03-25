@@ -113,9 +113,9 @@ pub use session_store::{
     create_session_sync, delete_session, get_persisted_session_metadata_sync,
     get_runtime_session_detail, get_session_sync, list_sessions_sync,
     list_title_preview_messages_sync, rename_session_sync, update_session_execution_strategy_sync,
-    update_session_working_dir_sync, ChildSubagentRuntimeStatus, ChildSubagentSession,
-    PersistedSessionMetadata, SessionDetail, SessionInfo, SessionTitlePreviewMessage,
-    SessionTodoItem, SubagentParentContext,
+    update_session_provider_config_sync, update_session_working_dir_sync,
+    ChildSubagentRuntimeStatus, ChildSubagentSession, PersistedSessionMetadata, SessionDetail,
+    SessionInfo, SessionTitlePreviewMessage, SessionTodoItem, SubagentParentContext,
 };
 pub use session_update::{
     create_subagent_session, persist_compaction_session_metrics_update,

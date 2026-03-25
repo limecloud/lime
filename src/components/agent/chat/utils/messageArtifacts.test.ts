@@ -129,4 +129,71 @@ describe("messageArtifacts.buildArtifactFromWrite", () => {
       summary: "沿用已有结构摘要",
     });
   });
+
+  it("content 命中文档协议时应把 metadata 中补充的 sources 合并回内容", () => {
+    const artifact = buildArtifactFromWrite({
+      filePath: ".lime/artifacts/thread-1/report.artifact.json",
+      content: JSON.stringify({
+        schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+        artifactId: "artifact-doc-3",
+        kind: "analysis",
+        title: "来源合并演示",
+        status: "ready",
+        language: "zh-CN",
+        summary: "正文仍以 content 为准。",
+        blocks: [
+          {
+            id: "body-1",
+            type: "rich_text",
+            markdown: "正文内容",
+          },
+        ],
+        sources: [],
+        metadata: {},
+      }),
+      context: {
+        source: "artifact_snapshot",
+        sourceMessageId: "assistant-3",
+        status: "complete",
+        metadata: {
+          artifactSchema: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+          artifactDocument: {
+            schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+            artifactId: "artifact-doc-3",
+            kind: "analysis",
+            title: "来源合并演示",
+            status: "ready",
+            language: "zh-CN",
+            summary: "正文仍以 content 为准。",
+            blocks: [
+              {
+                id: "body-1",
+                type: "rich_text",
+                markdown: "正文内容",
+              },
+            ],
+            sources: [
+              {
+                id: "source-1",
+                title: "官方来源",
+                url: "https://example.com/source",
+              },
+            ],
+            metadata: {},
+          },
+        },
+      },
+    });
+
+    expect(artifact.meta.artifactDocument).toMatchObject({
+      artifactId: "artifact-doc-3",
+      sources: [
+        expect.objectContaining({
+          id: "source-1",
+          url: "https://example.com/source",
+        }),
+      ],
+    });
+    expect(artifact.content).toContain("https://example.com/source");
+  });
 });

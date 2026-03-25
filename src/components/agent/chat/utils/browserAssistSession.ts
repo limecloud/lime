@@ -1,9 +1,6 @@
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type { Artifact } from "@/lib/artifact/types";
-import type {
-  BrowserAssistSessionState,
-  Message,
-} from "../types";
+import type { BrowserAssistSessionState, Message } from "../types";
 import { loadTransient, saveTransient } from "../hooks/agentChatStorage";
 import { getScopedStorageKey } from "../hooks/agentChatShared";
 
@@ -181,6 +178,11 @@ export function extractBrowserAssistSessionFromToolCall(
   const metadataResultDataBrowserSession =
     asRecord(metadataResultData?.browser_session) ||
     asRecord(metadataResultData?.browserSession);
+  const metadataPageInfo =
+    asRecord(metadata?.page_info) ||
+    asRecord(metadata?.pageInfo) ||
+    asRecord(metadata?.last_page_info) ||
+    asRecord(metadata?.lastPageInfo);
   const metadataResultPageInfo =
     asRecord(metadataResult?.page_info) ||
     asRecord(metadataResult?.pageInfo) ||
@@ -197,6 +199,7 @@ export function extractBrowserAssistSessionFromToolCall(
     metadataResult,
     metadataSession,
     metadataBrowserSession,
+    metadataPageInfo,
     metadataResultSession,
     metadataResultBrowserSession,
     metadataResultData,
@@ -209,8 +212,17 @@ export function extractBrowserAssistSessionFromToolCall(
   return createBrowserAssistSessionState({
     sessionId: readFirstString(candidates, ["session_id", "sessionId"]),
     profileKey: readFirstString(candidates, ["profile_key", "profileKey"]),
-    url: readFirstString(candidates, ["url", "href", "target_url", "targetUrl"]),
-    title: readFirstString(candidates, ["title", "target_title", "targetTitle"]),
+    url: readFirstString(candidates, [
+      "url",
+      "href",
+      "target_url",
+      "targetUrl",
+    ]),
+    title: readFirstString(candidates, [
+      "title",
+      "target_title",
+      "targetTitle",
+    ]),
     targetId: readFirstString(candidates, ["target_id", "targetId"]),
     transportKind: readFirstString(candidates, [
       "transport_kind",
@@ -259,7 +271,10 @@ export function extractBrowserAssistSessionFromArtifact(
   const meta = asRecord(artifact.meta);
   return createBrowserAssistSessionState({
     sessionId: readFirstString(meta ? [meta] : [], ["sessionId", "session_id"]),
-    profileKey: readFirstString(meta ? [meta] : [], ["profileKey", "profile_key"]),
+    profileKey: readFirstString(meta ? [meta] : [], [
+      "profileKey",
+      "profile_key",
+    ]),
     url: readFirstString(meta ? [meta] : [], ["url", "launchUrl"]),
     title: artifact.title?.trim(),
     targetId: readFirstString(meta ? [meta] : [], ["targetId", "target_id"]),

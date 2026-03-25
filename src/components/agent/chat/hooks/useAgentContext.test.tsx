@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockNotifyProjectRuntimeAgentsGuide,
   mockSetSessionExecutionStrategy,
+  mockSetSessionProviderSelection,
   mockToastError,
   mockUpdateProject,
   mockWechatChannelSetRuntimeModel,
 } = vi.hoisted(() => ({
   mockNotifyProjectRuntimeAgentsGuide: vi.fn(),
   mockSetSessionExecutionStrategy: vi.fn(async () => undefined),
+  mockSetSessionProviderSelection: vi.fn(async () => undefined),
   mockToastError: vi.fn(),
   mockUpdateProject: vi.fn(async () => undefined),
   mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
@@ -42,7 +44,10 @@ interface HookHarness {
   sendMessage: ReturnType<typeof vi.fn>;
 }
 
-function mountHook(workspaceId = "workspace-1"): HookHarness {
+function mountHook(
+  workspaceId = "workspace-1",
+  sessionId: string | null = null,
+): HookHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -53,11 +58,12 @@ function mountHook(workspaceId = "workspace-1"): HookHarness {
   function TestComponent() {
     hookValue = useAgentContext({
       workspaceId,
-      sessionIdRef: { current: null },
+      sessionIdRef: { current: sessionId },
       topicsUpdaterRef: { current: null },
       sendMessageRef: { current: sendMessage },
       runtime: {
         setSessionExecutionStrategy: mockSetSessionExecutionStrategy,
+        setSessionProviderSelection: mockSetSessionProviderSelection,
       },
     });
     return null;
@@ -93,6 +99,7 @@ describe("useAgentContext", () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     mockNotifyProjectRuntimeAgentsGuide.mockReset();
     mockSetSessionExecutionStrategy.mockClear();
+    mockSetSessionProviderSelection.mockClear();
     mockToastError.mockReset();
     mockUpdateProject.mockReset();
     mockWechatChannelSetRuntimeModel.mockReset();
@@ -117,6 +124,25 @@ describe("useAgentContext", () => {
       providerId: "deepseek",
       modelId: "deepseek-reasoner",
     });
+
+    harness.unmount();
+  });
+
+  it("当前会话切换 provider/model 时应合并回写 session provider/model", async () => {
+    const harness = mountHook("workspace-1", "session-1");
+
+    await act(async () => {
+      harness.getValue().setProviderType("deepseek");
+      harness.getValue().setModel("deepseek-reasoner");
+      await Promise.resolve();
+    });
+
+    expect(mockSetSessionProviderSelection).toHaveBeenCalledTimes(1);
+    expect(mockSetSessionProviderSelection).toHaveBeenCalledWith(
+      "session-1",
+      "deepseek",
+      "deepseek-reasoner",
+    );
 
     harness.unmount();
   });

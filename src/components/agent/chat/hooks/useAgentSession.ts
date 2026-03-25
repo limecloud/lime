@@ -480,6 +480,15 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           providerTypeRef.current,
           modelRef.current,
         );
+        void runtime
+          .setSessionProviderSelection(
+            newSessionId,
+            providerTypeRef.current,
+            modelRef.current,
+          )
+          .catch((error) => {
+            console.warn("[AsterChat] 新会话回写 provider/model 失败:", error);
+          });
         saveTransient(scopedKeys.currentSessionKey, newSessionId);
         savePersisted(scopedKeys.persistedSessionKey, newSessionId);
         saveTransient(scopedKeys.messagesKey, []);
@@ -703,6 +712,20 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
         if (topicPreference) {
           applySessionModelPreference(topicId, topicPreference);
+          if (!runtimePreference) {
+            void runtime
+              .setSessionProviderSelection(
+                topicId,
+                topicPreference.providerType,
+                topicPreference.model,
+              )
+              .catch((error) => {
+                console.warn(
+                  "[AsterChat] 迁移会话 provider/model fallback 失败:",
+                  error,
+                );
+              });
+          }
         }
       } catch (error) {
         console.error("[AsterChat] 切换话题失败:", error);

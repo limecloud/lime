@@ -3,6 +3,7 @@
 //! 提供会话创建、列表查询、详情查询能力。
 //! 数据事实源收敛到 lime_core::database::agent_session_repository + Lime 数据库。
 
+use aster::model::ModelConfig;
 use aster::session::extension_data::{
     resolve_todo_list_state, ExtensionState, TodoListItem, TodoListItemStatus,
 };
@@ -1102,6 +1103,43 @@ pub fn update_session_execution_strategy_sync(
     Ok(())
 }
 
+pub fn update_session_provider_config_sync(
+    db: &DbConnection,
+    session_id: &str,
+    provider_name: Option<&str>,
+    model_name: Option<&str>,
+) -> Result<(), String> {
+    let normalized_provider_name = provider_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let normalized_model_name = model_name.map(str::trim).filter(|value| !value.is_empty());
+
+    if normalized_provider_name.is_none() && normalized_model_name.is_none() {
+        return Ok(());
+    }
+
+    let model_config_json = normalized_model_name
+        .map(ModelConfig::new)
+        .transpose()
+        .map_err(|error| format!("构建 model_config 失败: {error}"))?
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|error| format!("序列化 model_config 失败: {error}"))?;
+    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+    let now = Utc::now().to_rfc3339();
+
+    agent_session_repository::update_session_provider_config(
+        &conn,
+        session_id,
+        normalized_provider_name,
+        normalized_model_name,
+        model_config_json.as_deref(),
+        &now,
+    )?;
+    Ok(())
+}
+
 /// 删除会话
 pub async fn delete_session(db: &DbConnection, session_id: &str) -> Result<(), String> {
     aster::session::SessionStore::delete_session(&LimeSessionStore::new(db.clone()), session_id)
@@ -1996,6 +2034,44 @@ mod tests {
         let detail = get_session_sync(&db, "session-3").expect("get session");
         assert_eq!(detail.working_dir.as_deref(), Some("/tmp/lime-workspace-4"));
         assert_eq!(detail.workspace_id.as_deref(), Some("workspace-4"));
+    }
+
+    #[test]
+    fn update_session_provider_config_sync_should_persist_provider_and_model_config() {
+        let db = create_test_db();
+        insert_test_session_with_message(
+            &db,
+            "session-provider-config",
+            "/tmp/lime-workspace-provider-config",
+            "切换模型",
+        );
+
+        update_session_provider_config_sync(
+            &db,
+            "session-provider-config",
+            Some("openai"),
+            Some("gpt-5.4-mini"),
+        )
+        .expect("update provider config");
+
+        let conn = db.lock().expect("lock db");
+        let (provider_name, model_name, model_config_json): (
+            Option<String>,
+            String,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT provider_name, model, model_config_json FROM agent_sessions WHERE id = ?",
+                ["session-provider-config"],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("query session provider config");
+
+        assert_eq!(provider_name.as_deref(), Some("openai"));
+        assert_eq!(model_name, "gpt-5.4-mini");
+        assert!(model_config_json
+            .as_deref()
+            .is_some_and(|value| value.contains("\"model_name\":\"gpt-5.4-mini\"")));
     }
 
     #[test]

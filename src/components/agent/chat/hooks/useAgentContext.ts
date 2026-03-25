@@ -37,6 +37,11 @@ interface UseAgentContextOptions {
       sessionId: string,
       executionStrategy: AsterExecutionStrategy,
     ) => Promise<void>;
+    setSessionProviderSelection?: (
+      sessionId: string,
+      providerType: string,
+      model: string,
+    ) => Promise<void>;
   };
 }
 
@@ -90,6 +95,9 @@ export function useAgentContext(options: UseAgentContextOptions) {
   const scopedModelPrefKeyRef = useRef<string>(
     getAgentPreferenceKeys(workspaceId).modelKey,
   );
+  const pendingSessionProviderSelectionSyncRef = useRef(
+    new Map<string, SessionModelPreference>(),
+  );
 
   providerTypeRef.current = providerType;
   modelRef.current = model;
@@ -130,6 +138,53 @@ export function useAgentContext(options: UseAgentContextOptions) {
       return parsed;
     },
     [workspaceId],
+  );
+
+  const scheduleSessionProviderSelectionSync = useCallback(
+    (
+      targetSessionId: string,
+      targetProviderType: string,
+      targetModel: string,
+    ) => {
+      persistSessionModelPreference(
+        targetSessionId,
+        targetProviderType,
+        targetModel,
+      );
+
+      const syncSelection = runtime.setSessionProviderSelection;
+      const trimmedSessionId = targetSessionId.trim();
+      if (!syncSelection || !trimmedSessionId) {
+        return;
+      }
+
+      const pending = pendingSessionProviderSelectionSyncRef.current;
+      const alreadyQueued = pending.has(trimmedSessionId);
+      pending.set(trimmedSessionId, {
+        providerType: targetProviderType,
+        model: targetModel,
+      });
+      if (alreadyQueued) {
+        return;
+      }
+
+      queueMicrotask(() => {
+        const latestPreference = pending.get(trimmedSessionId);
+        pending.delete(trimmedSessionId);
+        if (!latestPreference) {
+          return;
+        }
+
+        void syncSelection(
+          trimmedSessionId,
+          latestPreference.providerType,
+          latestPreference.model,
+        ).catch((error) => {
+          console.warn("[AsterChat] 回写会话 provider/model 失败:", error);
+        });
+      });
+    },
+    [persistSessionModelPreference, runtime],
   );
 
   const filterSessionsByWorkspace = useCallback(
@@ -179,14 +234,14 @@ export function useAgentContext(options: UseAgentContextOptions) {
 
       const currentSessionId = sessionIdRef.current;
       if (currentSessionId) {
-        persistSessionModelPreference(
+        scheduleSessionProviderSelectionSync(
           currentSessionId,
           nextProviderType,
           modelRef.current,
         );
       }
     },
-    [persistSessionModelPreference, sessionIdRef],
+    [scheduleSessionProviderSelectionSync, sessionIdRef],
   );
 
   const setModel = useCallback(
@@ -197,14 +252,14 @@ export function useAgentContext(options: UseAgentContextOptions) {
 
       const currentSessionId = sessionIdRef.current;
       if (currentSessionId) {
-        persistSessionModelPreference(
+        scheduleSessionProviderSelectionSync(
           currentSessionId,
           providerTypeRef.current,
           nextModel,
         );
       }
     },
-    [persistSessionModelPreference, sessionIdRef],
+    [scheduleSessionProviderSelectionSync, sessionIdRef],
   );
 
   const setExecutionStrategy = useCallback(

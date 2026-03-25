@@ -219,6 +219,15 @@ impl AsterAgentWrapper {
         lime_agent::update_session_execution_strategy_sync(db, session_id, execution_strategy)
     }
 
+    pub fn update_session_provider_config_sync(
+        db: &DbConnection,
+        session_id: &str,
+        provider_name: Option<&str>,
+        model_name: Option<&str>,
+    ) -> Result<(), String> {
+        lime_agent::update_session_provider_config_sync(db, session_id, provider_name, model_name)
+    }
+
     /// 删除会话
     pub async fn delete_session(db: &DbConnection, session_id: &str) -> Result<(), String> {
         lime_agent::delete_session(db, session_id).await

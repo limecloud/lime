@@ -194,3 +194,22 @@ pub fn update_session_execution_strategy(
     AgentDao::update_execution_strategy(conn, session_id, execution_strategy)
         .map_err(|error| format!("更新会话执行策略失败: {error}"))
 }
+
+pub fn update_session_provider_config(
+    conn: &Connection,
+    session_id: &str,
+    provider_name: Option<&str>,
+    model_name: Option<&str>,
+    model_config_json: Option<&str>,
+    updated_at: &str,
+) -> Result<(), String> {
+    AgentDao::update_provider_config(
+        conn,
+        session_id,
+        provider_name,
+        model_name,
+        model_config_json,
+        updated_at,
+    )
+    .map_err(|error| format!("更新会话 provider/model 失败: {error}"))
+}

@@ -16,14 +16,9 @@ import type {
   Message,
   WriteArtifactContext,
 } from "../types";
+import { mergeArtifactDocuments } from "./artifactToolSources";
 
-const MARKDOWN_EXTENSIONS = new Set([
-  "md",
-  "markdown",
-  "txt",
-  "rst",
-  "adoc",
-]);
+const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "txt", "rst", "adoc"]);
 const MERMAID_EXTENSIONS = new Set(["mmd", "mermaid"]);
 const REACT_EXTENSIONS = new Set(["jsx", "tsx"]);
 
@@ -162,7 +157,8 @@ export function resolveArtifactPreviewText(
   maxChars = ARTIFACT_PREVIEW_MAX_CHARS,
 ): string | undefined {
   const previewCandidate =
-    typeof artifact.meta.previewText === "string" && artifact.meta.previewText.trim()
+    typeof artifact.meta.previewText === "string" &&
+    artifact.meta.previewText.trim()
       ? artifact.meta.previewText
       : artifact.content;
 
@@ -181,7 +177,9 @@ export function findMessageArtifact(
   },
 ): Artifact | undefined {
   const artifacts = message.artifacts || [];
-  const normalizedPath = options.filePath ? normalizePath(options.filePath) : null;
+  const normalizedPath = options.filePath
+    ? normalizePath(options.filePath)
+    : null;
 
   return artifacts.find((artifact) => {
     if (options.artifactId && artifact.id === options.artifactId) {
@@ -192,7 +190,9 @@ export function findMessageArtifact(
       return false;
     }
 
-    const artifactPath = normalizePath(resolveArtifactProtocolFilePath(artifact));
+    const artifactPath = normalizePath(
+      resolveArtifactProtocolFilePath(artifact),
+    );
     return artifactPath === normalizedPath;
   });
 }
@@ -242,7 +242,9 @@ export function resolveArtifactTypeFromFile(
   return "code";
 }
 
-export function resolveArtifactLanguageFromFile(filePath: string): string | undefined {
+export function resolveArtifactLanguageFromFile(
+  filePath: string,
+): string | undefined {
   const extension = extensionFromPath(filePath);
   if (!extension) {
     return undefined;
@@ -267,7 +269,9 @@ export function resolveDefaultArtifactViewMode(
   if (
     artifact.type === "code" &&
     ["html", "svg"].includes(
-      String(artifact.meta.language || "").trim().toLowerCase(),
+      String(artifact.meta.language || "")
+        .trim()
+        .toLowerCase(),
     )
   ) {
     return "preview";
@@ -297,26 +301,39 @@ export function buildArtifactFromWrite({
   const existingArtifactDocument = resolveArtifactProtocolDocumentPayload({
     metadata: existingMeta,
   });
-  const artifactDocument = resolveArtifactProtocolDocumentPayload({
+  const metadataArtifactDocument = resolveArtifactProtocolDocumentPayload({
+    metadata,
+    previous: existingArtifactDocument,
+  });
+  const resolvedArtifactDocument = resolveArtifactProtocolDocumentPayload({
     content,
     metadata,
     previous: existingArtifactDocument,
   });
+  const artifactDocument = mergeArtifactDocuments(
+    resolvedArtifactDocument,
+    metadataArtifactDocument,
+  );
+  const contentArtifactDocument = resolveArtifactProtocolDocumentPayload({
+    content,
+  });
+  const nextContent =
+    contentArtifactDocument && artifactDocument
+      ? JSON.stringify(artifactDocument, null, 2)
+      : content;
   const type = resolveArtifactTypeFromFile(normalizedPath, metadata, content);
-  const language =
-    artifactDocument
-      ? "json"
-      : type === "code" || type === "document"
+  const language = artifactDocument
+    ? "json"
+    : type === "code" || type === "document"
       ? resolveArtifactLanguageFromFile(normalizedPath)
       : undefined;
-  const previewCandidate =
-    artifactDocument
-      ? resolveArtifactProtocolPreviewText(artifactDocument)
-      : typeof metadata?.previewText === "string" && metadata.previewText.trim()
-        ? metadata.previewText
-        : typeof content === "string" && content.trim()
-          ? content
-          : undefined;
+  const previewCandidate = artifactDocument
+    ? resolveArtifactProtocolPreviewText(artifactDocument)
+    : typeof metadata?.previewText === "string" && metadata.previewText.trim()
+      ? metadata.previewText
+      : typeof nextContent === "string" && nextContent.trim()
+        ? nextContent
+        : undefined;
   const previewText = previewCandidate
     ? normalizePreviewText(previewCandidate)
     : undefined;
@@ -352,19 +369,27 @@ export function buildArtifactFromWrite({
       `artifact:${context?.sourceMessageId || "session"}:${normalizedPath}`,
     type,
     title,
-    content,
+    content: nextContent,
     status: context?.status || "complete",
     meta: baseMeta,
-    position: context?.artifact?.position || { start: 0, end: content.length },
+    position: context?.artifact?.position || {
+      start: 0,
+      end: nextContent.length,
+    },
     createdAt: context?.artifact?.createdAt || now,
     updatedAt: now,
     error: context?.artifact?.error,
   };
 }
 
-export function upsertMessageArtifact(message: Message, artifact: Artifact): Message {
+export function upsertMessageArtifact(
+  message: Message,
+  artifact: Artifact,
+): Message {
   const currentArtifacts = message.artifacts || [];
-  const existingIndex = currentArtifacts.findIndex((item) => item.id === artifact.id);
+  const existingIndex = currentArtifacts.findIndex(
+    (item) => item.id === artifact.id,
+  );
 
   if (existingIndex < 0) {
     return {
