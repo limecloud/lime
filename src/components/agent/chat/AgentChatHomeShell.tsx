@@ -875,7 +875,6 @@ export function AgentChatHomeShell({
     },
     [
       createServiceSkillSeededContent,
-      currentProjectId,
       handleEnterWorkspace,
       pendingServiceSkillAutomation,
       prepareServiceSkillWorkspacePayload,
