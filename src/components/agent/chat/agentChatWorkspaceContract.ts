@@ -16,6 +16,7 @@ export interface AgentChatWorkspaceProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
   projectId?: string;
   contentId?: string;
+  initialRequestMetadata?: Record<string, unknown>;
   agentEntry?: "new-task" | "claw";
   immersiveHome?: boolean;
   theme?: string;

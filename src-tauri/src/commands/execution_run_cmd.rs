@@ -6,6 +6,7 @@ use crate::database::dao::agent_run::{AgentRun, AgentRunDao, AgentRunStatus};
 use crate::database::DbConnection;
 use crate::services::execution_tracker_service::ExecutionTracker;
 use chrono::Utc;
+use lime_agent::artifact_protocol::extract_artifact_protocol_paths_from_value;
 use serde::Serialize;
 use serde_json::Value;
 use tauri::State;
@@ -318,32 +319,7 @@ fn derive_run_artifact_paths(run: &AgentRun) -> Vec<String> {
 
     parsed_metadata
         .as_ref()
-        .map(|value| {
-            let mut paths = value
-                .get("artifact_paths")
-                .and_then(Value::as_array)
-                .map(|items| {
-                    items
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .map(str::trim)
-                        .filter(|path| !path.is_empty())
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            for key in ["artifact_path", "source_file_name"] {
-                if let Some(path) = metadata_string(value, &[key]) {
-                    let normalized = path.to_string();
-                    if !paths.iter().any(|existing| existing == &normalized) {
-                        paths.push(normalized);
-                    }
-                }
-            }
-
-            paths
-        })
+        .map(extract_artifact_protocol_paths_from_value)
         .unwrap_or_default()
 }
 
@@ -658,6 +634,26 @@ mod tests {
         assert_eq!(
             derive_run_artifact_paths(&run),
             vec!["social-posts/demo.md".to_string()]
+        );
+    }
+
+    #[test]
+    fn derive_run_artifact_paths_should_recurse_nested_artifact_protocol_metadata() {
+        let run = sample_run_with_metadata(Some(serde_json::json!({
+            "payload": {
+                "artifact_paths": ["social-posts\\nested.md"]
+            },
+            "result": {
+                "absolute_path": " /tmp\\social-posts\\final.md "
+            }
+        })));
+
+        assert_eq!(
+            derive_run_artifact_paths(&run),
+            vec![
+                "social-posts/nested.md".to_string(),
+                "/tmp/social-posts/final.md".to_string(),
+            ]
         );
     }
 

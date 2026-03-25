@@ -58,6 +58,11 @@ vi.mock("@/lib/serviceSkillCatalogBootstrap", () => ({
   syncServiceSkillCatalogFromBootstrapPayload: vi.fn(),
 }));
 
+vi.mock("@/lib/siteAdapterCatalogBootstrap", () => ({
+  syncSiteAdapterCatalogFromBootstrapPayload: vi.fn(),
+  clearSiteAdapterCatalogCache: vi.fn(),
+}));
+
 import { useOemCloudAccess } from "./useOemCloudAccess";
 
 interface MountedHarness {

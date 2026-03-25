@@ -1,4 +1,4 @@
-import type { AgentThreadItem } from "@/lib/api/agentStream";
+import type { AgentThreadItem } from "@/lib/api/agentProtocol";
 import type {
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,

@@ -11,6 +11,10 @@ pub const LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME: &str =
 pub const LIME_CREATE_IMAGE_TASK_TOOL_NAME: &str = "lime_create_image_generation_task";
 pub const LIME_CREATE_URL_PARSE_TASK_TOOL_NAME: &str = "lime_create_url_parse_task";
 pub const LIME_CREATE_TYPESETTING_TASK_TOOL_NAME: &str = "lime_create_typesetting_task";
+pub const LIME_SITE_LIST_TOOL_NAME: &str = "lime_site_list";
+pub const LIME_SITE_SEARCH_TOOL_NAME: &str = "lime_site_search";
+pub const LIME_SITE_INFO_TOOL_NAME: &str = "lime_site_info";
+pub const LIME_SITE_RUN_TOOL_NAME: &str = "lime_site_run";
 pub const BROWSER_RUNTIME_TOOL_PREFIX: &str = "mcp__lime-browser__";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -126,6 +130,7 @@ const SEARCH_CAP: &[ToolCapability] = &[ToolCapability::WebSearch];
 const SKILL_CAP: &[ToolCapability] = &[ToolCapability::SkillExecution];
 const CONTENT_CAP: &[ToolCapability] = &[ToolCapability::ContentCreation];
 const BROWSER_CAP: &[ToolCapability] = &[ToolCapability::BrowserRuntime];
+const SITE_CAP: &[ToolCapability] = &[ToolCapability::BrowserRuntime, ToolCapability::WebSearch];
 const WORKSPACE_IO_CAP: &[ToolCapability] = &[ToolCapability::WorkspaceIo];
 const EXECUTION_CAP: &[ToolCapability] = &[ToolCapability::Execution];
 const VISION_CAP: &[ToolCapability] = &[ToolCapability::Vision];
@@ -438,6 +443,42 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
+        name: LIME_SITE_LIST_TOOL_NAME,
+        profiles: BROWSER_PROFILES,
+        capabilities: SITE_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: LIME_SITE_SEARCH_TOOL_NAME,
+        profiles: BROWSER_PROFILES,
+        capabilities: SITE_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: LIME_SITE_INFO_TOOL_NAME,
+        profiles: BROWSER_PROFILES,
+        capabilities: SITE_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: LIME_SITE_RUN_TOOL_NAME,
+        profiles: BROWSER_PROFILES,
+        capabilities: SITE_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
         name: BROWSER_RUNTIME_TOOL_PREFIX,
         profiles: BROWSER_PROFILES,
         capabilities: BROWSER_CAP,
@@ -673,14 +714,14 @@ mod tests {
             .any(|entry| entry.name == BROWSER_RUNTIME_TOOL_PREFIX));
 
         let browser = tool_catalog_entries_for_surface(WorkspaceToolSurface::browser_assist());
-        assert_eq!(browser.len(), 27);
+        assert_eq!(browser.len(), 31);
         assert!(browser
             .iter()
             .any(|entry| entry.name == BROWSER_RUNTIME_TOOL_PREFIX));
 
         let combined =
             tool_catalog_entries_for_surface(WorkspaceToolSurface::creator_with_browser_assist());
-        assert_eq!(combined.len(), 35);
+        assert_eq!(combined.len(), 39);
     }
 
     #[test]
@@ -699,9 +740,10 @@ mod tests {
         let names = workspace_default_allowed_tool_names(
             WorkspaceToolSurface::creator_with_browser_assist(),
         );
-        assert_eq!(names.len(), 22);
+        assert_eq!(names.len(), 26);
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&"tool_search"));
+        assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));
         assert!(!names
             .iter()
             .any(|name| name.starts_with(BROWSER_RUNTIME_TOOL_PREFIX)));

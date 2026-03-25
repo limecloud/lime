@@ -62,6 +62,15 @@ pub struct AsterChatRequest {
     /// Provider 配置（可选，如果未配置则使用当前配置）
     #[serde(default, alias = "providerConfig")]
     pub provider_config: Option<ConfigureProviderRequest>,
+    /// Provider 偏好（后端会基于该偏好解析最终 provider_config）
+    #[serde(default, alias = "providerPreference")]
+    pub provider_preference: Option<String>,
+    /// 模型偏好（后端会基于该偏好解析最终 model_name）
+    #[serde(default, alias = "modelPreference")]
+    pub model_preference: Option<String>,
+    /// 是否偏好 reasoning 变体
+    #[serde(default, alias = "thinkingEnabled")]
+    pub thinking_enabled: Option<bool>,
     /// 项目 ID（可选，用于注入项目上下文到 System Prompt）
     #[serde(default, alias = "projectId")]
     pub project_id: Option<String>,
@@ -101,6 +110,12 @@ pub struct AsterChatRequest {
 pub struct AgentTurnConfigSnapshot {
     #[serde(default, alias = "providerConfig")]
     pub provider_config: Option<ConfigureProviderRequest>,
+    #[serde(default, alias = "providerPreference")]
+    pub provider_preference: Option<String>,
+    #[serde(default, alias = "modelPreference")]
+    pub model_preference: Option<String>,
+    #[serde(default, alias = "thinkingEnabled")]
+    pub thinking_enabled: Option<bool>,
     #[serde(default, alias = "executionStrategy")]
     pub execution_strategy: Option<AsterExecutionStrategy>,
     #[serde(default, alias = "webSearch")]
@@ -148,6 +163,15 @@ impl From<AgentRuntimeSubmitTurnRequest> for AsterChatRequest {
             provider_config: turn_config
                 .as_ref()
                 .and_then(|config| config.provider_config.clone()),
+            provider_preference: turn_config
+                .as_ref()
+                .and_then(|config| config.provider_preference.clone()),
+            model_preference: turn_config
+                .as_ref()
+                .and_then(|config| config.model_preference.clone()),
+            thinking_enabled: turn_config
+                .as_ref()
+                .and_then(|config| config.thinking_enabled),
             project_id: None,
             workspace_id: request.workspace_id,
             web_search: turn_config.as_ref().and_then(|config| config.web_search),
@@ -223,8 +247,10 @@ pub struct AgentRuntimeSessionDetail {
     pub created_at: i64,
     pub updated_at: i64,
     pub thread_id: String,
-    pub messages: Vec<lime_agent::event_converter::TauriMessage>,
+    pub messages: Vec<lime_agent::AgentMessage>,
     pub execution_strategy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_runtime: Option<lime_agent::SessionExecutionRuntime>,
     pub turns: Vec<lime_core::database::dao::agent_timeline::AgentThreadTurn>,
     pub items: Vec<lime_core::database::dao::agent_timeline::AgentThreadItem>,
     #[serde(default)]
@@ -463,6 +489,7 @@ impl AgentRuntimeSessionDetail {
             thread_id: detail.thread_id,
             messages: detail.messages,
             execution_strategy: detail.execution_strategy,
+            execution_runtime: detail.execution_runtime,
             turns: detail.turns,
             items: detail.items,
             todo_items: detail.todo_items,
@@ -955,7 +982,12 @@ fn build_thread_diagnostics(
         })
     } else if latest_turn_aborted {
         last_outcome
-            .and_then(|outcome| outcome.summary.clone().or_else(|| outcome.primary_cause.clone()))
+            .and_then(|outcome| {
+                outcome
+                    .summary
+                    .clone()
+                    .or_else(|| outcome.primary_cause.clone())
+            })
             .or_else(|| Some("最近一次回合已被中断".to_string()))
     } else if let Some(incident) = incidents.first() {
         incident
@@ -1634,6 +1666,7 @@ mod tests {
             workspace_id: None,
             messages: Vec::new(),
             execution_strategy: None,
+            execution_runtime: None,
             turns,
             items,
             todo_items: Vec::new(),

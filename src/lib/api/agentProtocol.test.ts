@@ -1,10 +1,101 @@
 import { describe, expect, it } from "vitest";
-import { parseStreamEvent } from "./agentStream";
+import {
+  createSubmitTurnRequestFromAgentOp,
+  parseAgentEvent,
+} from "./agentProtocol";
 
-describe("agentStream.parseStreamEvent", () => {
+describe("agentProtocol", () => {
+  it("应将 AgentOp.user_input 适配为现有 runtime submit request", () => {
+    expect(
+      createSubmitTurnRequestFromAgentOp({
+        type: "user_input",
+        text: "继续处理这段对话",
+        sessionId: "session-1",
+        eventName: "aster_stream_session-1",
+        workspaceId: "workspace-1",
+        turnId: "turn-1",
+        preferences: {
+          providerPreference: "openai",
+          modelPreference: "gpt-5.4",
+          thinking: true,
+          webSearch: false,
+          searchMode: "disabled",
+          executionStrategy: "react",
+          autoContinue: {
+            enabled: true,
+            fast_mode_enabled: false,
+            continuation_length: 3,
+            sensitivity: 0.6,
+          },
+        },
+        systemPrompt: "保持简洁",
+        metadata: {
+          harness: {
+            theme: "general",
+          },
+        },
+        queueIfBusy: true,
+        queuedTurnId: "queued-1",
+      }),
+    ).toEqual({
+      message: "继续处理这段对话",
+      session_id: "session-1",
+      event_name: "aster_stream_session-1",
+      workspace_id: "workspace-1",
+      turn_id: "turn-1",
+      turn_config: {
+        provider_preference: "openai",
+        model_preference: "gpt-5.4",
+        thinking_enabled: true,
+        execution_strategy: "react",
+        web_search: false,
+        search_mode: "disabled",
+        auto_continue: {
+          enabled: true,
+          fast_mode_enabled: false,
+          continuation_length: 3,
+          sensitivity: 0.6,
+        },
+        system_prompt: "保持简洁",
+        metadata: {
+          harness: {
+            theme: "general",
+          },
+        },
+      },
+      queue_if_busy: true,
+      queued_turn_id: "queued-1",
+    });
+  });
+
+  it("应沿用现有流式解析逻辑解析 AgentEvent", () => {
+    expect(
+      parseAgentEvent({
+        type: "artifact_snapshot",
+        artifact: {
+          artifact_id: "artifact-1",
+          file_path: "drafts/demo.md",
+          metadata: {
+            complete: false,
+          },
+        },
+      }),
+    ).toEqual({
+      type: "artifact_snapshot",
+      artifact: {
+        artifactId: "artifact-1",
+        filePath: "drafts/demo.md",
+        content: undefined,
+        metadata: {
+          complete: false,
+        },
+      },
+    });
+  });
+
   it("应解析 action_required 的 scope，并兼容嵌套 data.scope", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "action_required",
         request_id: "req-scope-1",
         action_type: "ask_user",
@@ -29,7 +120,7 @@ describe("agentStream.parseStreamEvent", () => {
     });
 
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "action_required",
         data: {
           id: "req-scope-2",
@@ -71,7 +162,7 @@ describe("agentStream.parseStreamEvent", () => {
 
   it("兼容嵌套 artifact_snapshot 结构", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "artifact_snapshot",
         artifact: {
           artifactId: "artifact-1",
@@ -99,7 +190,7 @@ describe("agentStream.parseStreamEvent", () => {
 
   it("应解析 runtime_status 与 thinking_delta 事件", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "runtime_status",
         status: {
           phase: "routing",
@@ -119,7 +210,7 @@ describe("agentStream.parseStreamEvent", () => {
     });
 
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "thinking_delta",
         text: "先判断任务性质",
       }),
@@ -131,7 +222,7 @@ describe("agentStream.parseStreamEvent", () => {
 
   it("应解析队列事件", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "queue_added",
         session_id: "session-1",
         queued_turn: {
@@ -159,7 +250,7 @@ describe("agentStream.parseStreamEvent", () => {
 
   it("应保留 context_compaction item 类型", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "item_started",
         item: {
           id: "context-compaction-1",
@@ -195,7 +286,7 @@ describe("agentStream.parseStreamEvent", () => {
 
   it("应兼容 camelCase 的队列快照字段", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "queue_added",
         session_id: "session-2",
         queued_turn: {
@@ -223,7 +314,7 @@ describe("agentStream.parseStreamEvent", () => {
 
   it("应解析 subagent_status_changed 事件", () => {
     expect(
-      parseStreamEvent({
+      parseAgentEvent({
         type: "subagent_status_changed",
         session_id: "child-1",
         root_session_id: "root-1",

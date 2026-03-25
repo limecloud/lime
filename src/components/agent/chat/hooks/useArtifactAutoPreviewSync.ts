@@ -1,12 +1,12 @@
 import { useEffect } from "react";
 import type { Artifact } from "@/lib/artifact/types";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type {
   ArtifactWriteMetadata,
   WriteArtifactContext,
 } from "../types";
 import {
   buildArtifactFromWrite,
-  resolveArtifactFilePath,
   resolveArtifactWritePhase,
 } from "../utils/messageArtifacts";
 
@@ -46,7 +46,7 @@ export function shouldAutoSyncArtifactPreview(artifact: Artifact | null): boolea
     return false;
   }
 
-  const artifactPath = resolveArtifactFilePath(artifact);
+  const artifactPath = resolveArtifactProtocolFilePath(artifact);
   if (!artifactPath.trim()) {
     return false;
   }
@@ -77,7 +77,7 @@ export function mergePreviewContentIntoArtifact(
 
   const nextContent =
     typeof preview.content === "string" ? preview.content : artifact.content;
-  const nextPath = preview.path?.trim() || resolveArtifactFilePath(artifact);
+  const nextPath = preview.path?.trim() || resolveArtifactProtocolFilePath(artifact);
   const currentContent = artifact.content;
 
   if (!nextContent.trim() && currentContent.trim()) {
@@ -92,7 +92,10 @@ export function mergePreviewContentIntoArtifact(
     return null;
   }
 
-  if (nextContent === currentContent && nextPath === resolveArtifactFilePath(artifact)) {
+  if (
+    nextContent === currentContent &&
+    nextPath === resolveArtifactProtocolFilePath(artifact)
+  ) {
     return null;
   }
 
@@ -160,7 +163,7 @@ export function useArtifactAutoPreviewSync({
       return;
     }
 
-    const artifactPath = resolveArtifactFilePath(artifact);
+    const artifactPath = resolveArtifactProtocolFilePath(artifact);
     if (!artifactPath.trim()) {
       return;
     }

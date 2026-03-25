@@ -5,6 +5,13 @@
 
 // 保留在主 crate 的 Tauri 相关服务
 pub mod agent_timeline_service;
+pub mod artifact_diff_service;
+pub mod artifact_document_service;
+pub mod artifact_document_validator;
+pub mod artifact_ops_service;
+pub mod artifact_output_schema_service;
+pub mod artifact_prompt_service;
+pub mod artifact_request_metadata_service;
 pub mod auto_memory_service;
 pub mod automation_service;
 pub mod browser_environment_service;
@@ -23,6 +30,8 @@ pub mod memory_source_resolver_service;
 pub mod novel_service;
 pub mod openclaw_service;
 pub mod runtime_agents_template_service;
+pub mod site_adapter_registry;
+pub mod site_capability_service;
 pub mod sysinfo_service;
 pub mod thread_reliability_projection_service;
 pub mod update_check_service;

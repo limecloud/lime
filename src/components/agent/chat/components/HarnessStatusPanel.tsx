@@ -58,6 +58,7 @@ import {
   openPathWithDefaultApp,
   revealPathInFinder,
 } from "@/lib/api/fileSystem";
+import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import { SearchResultPreviewList } from "./SearchResultPreviewList";
 import type {
   ActionRequired,
@@ -547,29 +548,7 @@ function matchesOutputFilter(
 function pickPathFromArguments(
   argumentsValue?: Record<string, unknown>,
 ): string | undefined {
-  if (!argumentsValue) {
-    return undefined;
-  }
-
-  for (const key of [
-    "path",
-    "filePath",
-    "file_path",
-    "fileName",
-    "file_name",
-    "filename",
-    "targetPath",
-    "target_path",
-    "outputPath",
-    "output_path",
-  ]) {
-    const value = argumentsValue[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return undefined;
+  return extractArtifactProtocolPathsFromValue(argumentsValue)[0];
 }
 
 function describeApproval(item: ActionRequired): string | undefined {

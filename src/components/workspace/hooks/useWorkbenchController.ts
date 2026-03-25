@@ -29,6 +29,7 @@ import { useWorkbenchPanelRenderer } from "@/components/workspace/hooks/useWorkb
 import { useWorkbenchProjectData } from "@/components/workspace/hooks/useWorkbenchProjectData";
 import { useWorkbenchQuickActions } from "@/components/workspace/hooks/useWorkbenchQuickActions";
 import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
+import { resolveWorkbenchHotkeyAction } from "@/components/workspace/hooks/workbenchHotkeys";
 
 export const DEFAULT_CREATION_MODE: CreationMode = "guided";
 export const MIN_CREATION_INTENT_LENGTH = 10;
@@ -166,10 +167,12 @@ function useSelectedProjectContentsLoader({
 function useSidebarToggleHotkey(toggleLeftSidebar: () => void): void {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "b") {
-        event.preventDefault();
-        toggleLeftSidebar();
+      if (resolveWorkbenchHotkeyAction(event) !== "toggle-sidebar") {
+        return;
       }
+
+      event.preventDefault();
+      toggleLeftSidebar();
     };
 
     window.addEventListener("keydown", handleKeyDown);

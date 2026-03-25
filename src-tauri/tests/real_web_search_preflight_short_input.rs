@@ -109,11 +109,11 @@ async fn test_real_web_search_preflight_short_input_continue() {
     let mut tool_names = Vec::new();
     for event in execution.events {
         match event {
-            lime_agent::TauriAgentEvent::ToolStart { tool_name, .. } => {
+            lime_agent::AgentEvent::ToolStart { tool_name, .. } => {
                 tool_start_count += 1;
                 tool_names.push(tool_name);
             }
-            lime_agent::TauriAgentEvent::ToolEnd { .. } => {
+            lime_agent::AgentEvent::ToolEnd { .. } => {
                 tool_end_count += 1;
             }
             _ => {}

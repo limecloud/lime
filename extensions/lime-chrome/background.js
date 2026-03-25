@@ -137,7 +137,9 @@ function disconnectObserver(manual = true) {
 function setConnectionState(connected) {
   isConnected = connected;
   chrome.action.setBadgeText({ text: connected ? "ON" : "OFF" });
-  chrome.action.setBadgeBackgroundColor({ color: connected ? "#16a34a" : "#dc2626" });
+  chrome.action.setBadgeBackgroundColor({
+    color: connected ? "#16a34a" : "#dc2626",
+  });
 }
 
 function startHeartbeat() {
@@ -272,6 +274,7 @@ async function executeRemoteCommand(commandData) {
       sourceClientId,
       status: "success",
       message: response?.message || `${command} 执行成功`,
+      data: response?.data,
     });
 
     if (waitForPageInfo || command === "get_page_info") {
@@ -290,6 +293,7 @@ async function executeRemoteCommand(commandData) {
 async function handleOpenUrl(commandData, waitForPageInfo) {
   const requestId = commandData.requestId;
   const sourceClientId = commandData.sourceClientId;
+  const rawTarget = String(commandData.target || "").trim();
   let targetUrl = String(commandData.url || "").trim();
   if (!targetUrl) {
     sendCommandResult({
@@ -305,22 +309,45 @@ async function handleOpenUrl(commandData, waitForPageInfo) {
   }
 
   try {
-    const tab = await new Promise((resolve, reject) => {
-      chrome.tabs.create({ url: targetUrl, active: true }, (created) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        resolve(created);
-      });
-    });
+    const existingTabId = Number(rawTarget);
+    const tab =
+      Number.isInteger(existingTabId) && existingTabId > 0
+        ? await new Promise((resolve, reject) => {
+            chrome.tabs.update(
+              existingTabId,
+              { url: targetUrl, active: true },
+              (updated) => {
+                if (chrome.runtime.lastError) {
+                  reject(new Error(chrome.runtime.lastError.message));
+                  return;
+                }
+                resolve(updated);
+              },
+            );
+          })
+        : await new Promise((resolve, reject) => {
+            chrome.tabs.create({ url: targetUrl, active: true }, (created) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+              }
+              resolve(created);
+            });
+          });
 
     activeTabId = tab.id;
     sendCommandResult({
       requestId,
       sourceClientId,
       status: "success",
-      message: `已打开 ${targetUrl}`,
+      message:
+        Number.isInteger(existingTabId) && existingTabId > 0
+          ? `已在标签页 ${existingTabId} 打开 ${targetUrl}`
+          : `已打开 ${targetUrl}`,
+      data: {
+        tab_id: tab.id,
+        url: targetUrl,
+      },
     });
 
     if (waitForPageInfo) {
@@ -387,6 +414,9 @@ async function handleSwitchTab(commandData, waitForPageInfo) {
     sourceClientId,
     status: "success",
     message: `已切换到标签页 ${targetTab.id}`,
+    data: {
+      tab_id: targetTab.id,
+    },
   });
 
   if (waitForPageInfo) {
@@ -487,9 +517,12 @@ async function triggerPageCapture(reason, retry = 0) {
     });
   } catch (error) {
     if (retry < PAGE_CAPTURE_RETRY_LIMIT) {
-      setTimeout(() => {
-        triggerPageCapture(reason, retry + 1);
-      }, 250 * (retry + 1));
+      setTimeout(
+        () => {
+          triggerPageCapture(reason, retry + 1);
+        },
+        250 * (retry + 1),
+      );
     } else {
       logWarn("页面抓取请求失败", error?.message || String(error));
     }
@@ -545,9 +578,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (type === "UPDATE_SETTINGS") {
     const patch = request?.data || {};
     const next = {
-      serverUrl: typeof patch.serverUrl === "string" ? patch.serverUrl : lastSettings.serverUrl,
-      bridgeKey: typeof patch.bridgeKey === "string" ? patch.bridgeKey : lastSettings.bridgeKey,
-      profileKey: typeof patch.profileKey === "string" ? patch.profileKey : lastSettings.profileKey,
+      serverUrl:
+        typeof patch.serverUrl === "string"
+          ? patch.serverUrl
+          : lastSettings.serverUrl,
+      bridgeKey:
+        typeof patch.bridgeKey === "string"
+          ? patch.bridgeKey
+          : lastSettings.bridgeKey,
+      profileKey:
+        typeof patch.profileKey === "string"
+          ? patch.profileKey
+          : lastSettings.profileKey,
       monitoringEnabled:
         typeof patch.monitoringEnabled === "boolean"
           ? patch.monitoringEnabled

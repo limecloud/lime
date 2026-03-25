@@ -2,17 +2,15 @@ import {
   getClientBootstrap,
   type OemCloudBootstrapResponse,
 } from "@/lib/api/oemCloudControlPlane";
-import {
-  DEFAULT_OEM_CLOUD_DESKTOP_OAUTH_NEXT_PATH,
-} from "@/lib/api/oemCloudRuntime";
+import { DEFAULT_OEM_CLOUD_DESKTOP_OAUTH_NEXT_PATH } from "@/lib/api/oemCloudRuntime";
 import {
   setOemCloudBootstrapSnapshot,
   setStoredOemCloudSessionState,
 } from "@/lib/oemCloudSession";
 import { syncServiceSkillCatalogFromBootstrapPayload } from "@/lib/serviceSkillCatalogBootstrap";
+import { syncSiteAdapterCatalogFromBootstrapPayload } from "@/lib/siteAdapterCatalogBootstrap";
 
-export const OEM_CLOUD_OAUTH_COMPLETED_EVENT =
-  "lime:oem-cloud-oauth-completed";
+export const OEM_CLOUD_OAUTH_COMPLETED_EVENT = "lime:oem-cloud-oauth-completed";
 
 export interface OemCloudDesktopOAuthCallbackPayload {
   tenantId: string | null;
@@ -189,6 +187,7 @@ export async function completeOemCloudDesktopOAuthLogin(
     setStoredOemCloudSessionState(nextSession);
     setOemCloudBootstrapSnapshot(nextBootstrap);
     syncServiceSkillCatalogFromBootstrapPayload(nextBootstrap);
+    void syncSiteAdapterCatalogFromBootstrapPayload(nextBootstrap);
     dispatchOemCloudOAuthCompleted({
       tenantId: payload.tenantId,
       nextPath: payload.nextPath,

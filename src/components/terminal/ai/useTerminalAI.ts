@@ -17,7 +17,11 @@ import {
   getAgentProcessStatus,
   submitAgentRuntimeTurn,
 } from "@/lib/api/agentRuntime";
-import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
+import {
+  createSubmitTurnRequestFromAgentOp,
+  parseAgentEvent,
+  type AgentEvent,
+} from "@/lib/api/agentProtocol";
 import { requireDefaultProjectId } from "@/lib/api/project";
 import { writeToTerminal } from "@/lib/api/terminal";
 import type {
@@ -270,8 +274,8 @@ export function useTerminalAI(
         const eventName = `terminal_ai_stream_${assistantMsgId}`;
 
         // 设置事件监听
-        unlisten = await safeListen<StreamEvent>(eventName, (event) => {
-          const data = parseStreamEvent(event.payload);
+        unlisten = await safeListen<AgentEvent>(eventName, (event) => {
+          const data = parseAgentEvent(event.payload);
           if (!data) return;
 
           switch (data.type) {
@@ -425,23 +429,21 @@ export function useTerminalAI(
 
         const resolvedWorkspaceId = await ensureWorkspaceId();
 
-        await submitAgentRuntimeTurn({
-          message: messageContent,
-          session_id: activeSessionId,
-          event_name: eventName,
-          workspace_id: resolvedWorkspaceId,
-          images: imagesToSend,
-          turn_config: {
-            provider_config: providerId
-              ? {
-                  provider_id: providerId,
-                  provider_name: providerId,
-                  model_name: modelId || "claude-sonnet-4-20250514",
-                }
-              : undefined,
-            system_prompt: TERMINAL_AI_SYSTEM_PROMPT,
-          },
-        });
+        await submitAgentRuntimeTurn(
+          createSubmitTurnRequestFromAgentOp({
+            type: "user_input",
+            text: messageContent,
+            sessionId: activeSessionId,
+            eventName,
+            workspaceId: resolvedWorkspaceId,
+            images: imagesToSend,
+            preferences: {
+              providerPreference: providerId || undefined,
+              modelPreference: modelId || "claude-sonnet-4-20250514",
+            },
+            systemPrompt: TERMINAL_AI_SYSTEM_PROMPT,
+          }),
+        );
       } catch (error) {
         console.error("[useTerminalAI] 发送消息失败:", error);
         toast.error(`发送失败: ${error}`);

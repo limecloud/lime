@@ -38,7 +38,7 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 use crate::credential_bridge::{create_aster_provider, AsterProviderConfig, CredentialBridge};
-use crate::event_converter::TauriActionRequiredScope;
+use crate::protocol::AgentActionRequiredScope;
 use crate::provider_continuation_state::{
     resolve_provider_continuation_capability, ProviderContinuationCapability,
     ProviderContinuationCapable, ProviderContinuationState,
@@ -63,7 +63,7 @@ async fn configure_lime_native_file_tools(agent: &Agent) {
 }
 
 fn normalize_runtime_action_scope(
-    scope: Option<TauriActionRequiredScope>,
+    scope: Option<AgentActionRequiredScope>,
 ) -> Option<ActionRequiredScope> {
     let scope = scope?;
     if scope.session_id.is_none() && scope.thread_id.is_none() && scope.turn_id.is_none() {
@@ -575,7 +575,7 @@ impl AsterAgentState {
         session_id: &str,
         request_id: &str,
         user_data: serde_json::Value,
-        action_scope: Option<TauriActionRequiredScope>,
+        action_scope: Option<AgentActionRequiredScope>,
     ) -> Result<(), String> {
         let trimmed_session_id = session_id.trim();
         if trimmed_session_id.is_empty() {

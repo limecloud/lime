@@ -1,7 +1,8 @@
 use futures::StreamExt;
+use lime_agent::event_converter::convert_agent_event;
 use lime_agent::{
-    convert_agent_event, merge_system_prompt_with_request_tool_policy, resolve_request_tool_policy,
-    AsterAgentState, SessionConfigBuilder, TauriAgentEvent, WebSearchExecutionTracker,
+    merge_system_prompt_with_request_tool_policy, resolve_request_tool_policy, AgentEvent,
+    AsterAgentState, SessionConfigBuilder, WebSearchExecutionTracker,
 };
 use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::database::init_database;
@@ -133,7 +134,7 @@ async fn run_real_case(
             Ok(agent_event) => {
                 for event in convert_agent_event(agent_event) {
                     match &event {
-                        TauriAgentEvent::ToolStart {
+                        AgentEvent::ToolStart {
                             tool_name, tool_id, ..
                         } => {
                             summary.tool_start_count += 1;
@@ -142,7 +143,7 @@ async fn run_real_case(
                                 summary.web_search_tool_names.push(tool_name.clone());
                             }
                         }
-                        TauriAgentEvent::ToolEnd { tool_id, result } => {
+                        AgentEvent::ToolEnd { tool_id, result } => {
                             summary.tool_end_count += 1;
                             tracker.record_tool_end(
                                 &policy,
@@ -151,8 +152,8 @@ async fn run_real_case(
                                 result.error.as_deref(),
                             );
                         }
-                        TauriAgentEvent::TextDelta { text } => text_buffer.push_str(text),
-                        TauriAgentEvent::Error { message } => summary.errors.push(message.clone()),
+                        AgentEvent::TextDelta { text } => text_buffer.push_str(text),
+                        AgentEvent::Error { message } => summary.errors.push(message.clone()),
                         _ => {}
                     }
                 }

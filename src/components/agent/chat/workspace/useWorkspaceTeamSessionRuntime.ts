@@ -21,7 +21,6 @@ interface UseWorkspaceTeamSessionRuntimeParams {
   queuedTurnCount: number;
   isSending: boolean;
   subagentEnabled: boolean;
-  runtimeTeamState: unknown;
   childSubagentSessions: AsterSubagentSessionInfo[];
   subagentParentContext: AsterSubagentParentContext | null;
 }
@@ -33,7 +32,6 @@ export function useWorkspaceTeamSessionRuntime({
   queuedTurnCount,
   isSending,
   subagentEnabled,
-  runtimeTeamState,
   childSubagentSessions,
   subagentParentContext,
 }: UseWorkspaceTeamSessionRuntimeParams) {
@@ -44,8 +42,7 @@ export function useWorkspaceTeamSessionRuntime({
 
   const hasRealTeamGraph =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
-  const showTeamWorkspaceBoard =
-    subagentEnabled || hasRealTeamGraph || Boolean(runtimeTeamState);
+  const showTeamWorkspaceBoard = subagentEnabled || hasRealTeamGraph;
 
   const currentSessionRuntimeStatus = useMemo(
     () =>

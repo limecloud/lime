@@ -1,4 +1,5 @@
 use super::*;
+use lime_agent::AgentEvent as RuntimeAgentEvent;
 
 /// 统一运行时：删除会话。
 #[tauri::command]
@@ -79,8 +80,8 @@ pub(crate) fn validate_elicitation_submission(
     Ok(trimmed_session_id)
 }
 
-pub(crate) fn build_action_resume_runtime_status() -> TauriRuntimeStatus {
-    TauriRuntimeStatus {
+pub(crate) fn build_action_resume_runtime_status() -> AgentRuntimeStatus {
+    AgentRuntimeStatus {
         phase: "routing".to_string(),
         title: "已提交补充信息，继续执行中".to_string(),
         detail: "补充信息已回填到当前执行链路，正在恢复后续步骤。".to_string(),
@@ -98,7 +99,7 @@ fn emit_action_resume_runtime_status(app: &AppHandle, event_name: &str) {
         return;
     }
 
-    let event = TauriAgentEvent::RuntimeStatus {
+    let event = RuntimeAgentEvent::RuntimeStatus {
         status: build_action_resume_runtime_status(),
     };
     if let Err(error) = app.emit(event_name, &event) {

@@ -28,6 +28,7 @@ import {
   TerminalContextMenu,
   type ContextMenuPosition,
 } from "./widgets/TerminalContextMenu";
+import { resolveTerminalPageHotkeyAction } from "./terminalPageHotkeys";
 import "./terminal.css";
 
 interface TerminalPanelProps {
@@ -109,61 +110,31 @@ export function TerminalPanel({
     const termWrap = termWrapRef.current;
     if (!termWrap) return true;
 
-    const isMac = /mac/i.test(navigator.userAgent);
+    const action = resolveTerminalPageHotkeyAction(e);
 
-    // Shift+End - 滚动到底部
-    if (
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      e.key === "End"
-    ) {
+    if (action === "scroll-to-bottom") {
       termWrap.terminal.scrollToBottom();
       e.preventDefault();
       e.stopPropagation();
       return false;
     }
 
-    // Shift+Home - 滚动到顶部
-    if (
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.metaKey &&
-      e.key === "Home"
-    ) {
+    if (action === "scroll-to-top") {
       termWrap.terminal.scrollToLine(0);
       e.preventDefault();
       e.stopPropagation();
       return false;
     }
 
-    // Cmd+End (macOS) - 滚动到底部
-    if (
-      isMac &&
-      e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.shiftKey &&
-      e.key === "End"
-    ) {
-      termWrap.terminal.scrollToBottom();
+    if (action === "scroll-page-down") {
+      termWrap.terminal.scrollPages(1);
       e.preventDefault();
       e.stopPropagation();
       return false;
     }
 
-    // Cmd+Home (macOS) - 滚动到顶部
-    if (
-      isMac &&
-      e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey &&
-      !e.shiftKey &&
-      e.key === "Home"
-    ) {
-      termWrap.terminal.scrollToLine(0);
+    if (action === "scroll-page-up") {
+      termWrap.terminal.scrollPages(-1);
       e.preventDefault();
       e.stopPropagation();
       return false;

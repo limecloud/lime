@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Artifact } from "@/lib/artifact/types";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import { resolveArtifactWritePhase } from "../utils/messageArtifacts";
 
 export type ArtifactDisplayMode =
@@ -80,16 +81,6 @@ function hasRenderableArtifactContent(artifact: Artifact | null | undefined): bo
   return Boolean(artifact?.content.trim());
 }
 
-function resolveArtifactPath(artifact: Pick<Artifact, "title" | "meta">): string {
-  if (typeof artifact.meta.filePath === "string" && artifact.meta.filePath.trim()) {
-    return artifact.meta.filePath.trim();
-  }
-  if (typeof artifact.meta.filename === "string" && artifact.meta.filename.trim()) {
-    return artifact.meta.filename.trim();
-  }
-  return artifact.title;
-}
-
 function resolveArtifactDisplayName(path: string): string {
   const normalized = path.replace(/\\/g, "/");
   const segments = normalized.split("/");
@@ -138,7 +129,7 @@ function buildOverlayState(
   phase: ArtifactOverlayPhase,
   options: { isSlowTransition: boolean },
 ): ArtifactDisplayOverlayState {
-  const filePath = resolveArtifactPath(artifact);
+  const filePath = resolveArtifactProtocolFilePath(artifact);
   const displayName = resolveArtifactDisplayName(filePath);
 
   switch (phase) {

@@ -199,16 +199,16 @@ pub(crate) fn collect_subagent_task_compat_warnings(input: &SubAgentTaskToolInpu
     warnings
 }
 
-fn extract_tauri_message_text(message: &TauriMessage) -> Option<String> {
+fn extract_runtime_message_text(message: &AgentMessage) -> Option<String> {
     let parts = message
         .content
         .iter()
         .filter_map(|content| match content {
-            TauriMessageContent::Text { text } => {
+            AgentMessageContent::Text { text } => {
                 let trimmed = text.trim();
                 (!trimmed.is_empty()).then(|| trimmed.to_string())
             }
-            TauriMessageContent::ToolResponse {
+            AgentMessageContent::ToolResponse {
                 output, success, ..
             } if *success => {
                 let trimmed = output.trim();
@@ -231,7 +231,7 @@ pub(crate) fn extract_runtime_subagent_result_text(detail: &SessionDetail) -> Op
         .iter()
         .rev()
         .find(|message| message.role == "assistant")
-        .and_then(extract_tauri_message_text)
+        .and_then(extract_runtime_message_text)
         .or_else(|| {
             detail.items.iter().rev().find_map(|item| {
                 match &item.payload {

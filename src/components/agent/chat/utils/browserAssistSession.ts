@@ -1,4 +1,4 @@
-import type { ToolCallState } from "@/lib/api/agentStream";
+import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type { Artifact } from "@/lib/artifact/types";
 import type {
   BrowserAssistSessionState,

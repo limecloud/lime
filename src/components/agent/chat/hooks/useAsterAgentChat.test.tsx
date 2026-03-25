@@ -19,7 +19,7 @@ const {
   mockPromoteAgentRuntimeQueuedTurn,
   mockRemoveAgentRuntimeQueuedTurn,
   mockRespondAgentRuntimeAction,
-  mockParseStreamEvent,
+  mockParseAgentEvent,
   mockSafeListen,
   mockToast,
   mockParseSkillSlashCommand,
@@ -41,7 +41,7 @@ const {
   mockPromoteAgentRuntimeQueuedTurn: vi.fn(),
   mockRemoveAgentRuntimeQueuedTurn: vi.fn(),
   mockRespondAgentRuntimeAction: vi.fn(),
-  mockParseStreamEvent: vi.fn((payload: unknown) => payload),
+  mockParseAgentEvent: vi.fn((payload: unknown) => payload),
   mockSafeListen: vi.fn(),
   mockToast: {
     success: vi.fn(),
@@ -74,9 +74,16 @@ vi.mock("@/lib/api/agentRuntime", () => ({
   respondAgentRuntimeAction: mockRespondAgentRuntimeAction,
 }));
 
-vi.mock("@/lib/api/agentStream", () => ({
-  parseStreamEvent: mockParseStreamEvent,
-}));
+vi.mock("@/lib/api/agentProtocol", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
+      "@/lib/api/agentProtocol",
+    );
+  return {
+    ...actual,
+    parseAgentEvent: mockParseAgentEvent,
+  };
+});
 
 vi.mock("@/lib/dev-bridge", () => ({
   safeListen: mockSafeListen,
@@ -243,7 +250,7 @@ beforeEach(() => {
   mockPromoteAgentRuntimeQueuedTurn.mockReset();
   mockRemoveAgentRuntimeQueuedTurn.mockReset();
   mockRespondAgentRuntimeAction.mockReset();
-  mockParseStreamEvent.mockReset();
+  mockParseAgentEvent.mockReset();
   mockSafeListen.mockReset();
   mockParseSkillSlashCommand.mockReset();
   mockTryExecuteSlashSkillCommand.mockReset();
@@ -272,7 +279,7 @@ beforeEach(() => {
   mockPromoteAgentRuntimeQueuedTurn.mockResolvedValue(true);
   mockRemoveAgentRuntimeQueuedTurn.mockResolvedValue(true);
   mockRespondAgentRuntimeAction.mockResolvedValue(undefined);
-  mockParseStreamEvent.mockImplementation((payload: unknown) => payload);
+  mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
   mockSafeListen.mockResolvedValue(() => {});
   mockParseSkillSlashCommand.mockReturnValue(null);
   mockTryExecuteSlashSkillCommand.mockResolvedValue(false);
@@ -1527,14 +1534,14 @@ describe("useAsterAgentChat thread timeline", () => {
           .sendMessage("帮我先开始处理", [], false, false, false, "react");
       });
 
-      const optimisticTurnId = harness.getValue().currentTurnId;
-      expect(optimisticTurnId).toBeTruthy();
+      const pendingTurnKey = harness.getValue().currentTurnId;
+      expect(pendingTurnKey).toContain("pending-turn:");
       expect(harness.getValue().turns).toHaveLength(1);
-      expect(harness.getValue().turns[0]?.id).toBe(optimisticTurnId);
+      expect(harness.getValue().turns[0]?.id).toBe(pendingTurnKey);
       expect(harness.getValue().turns[0]?.status).toBe("running");
       expect(harness.getValue().threadItems).toHaveLength(1);
       expect(harness.getValue().threadItems[0]?.id).toBe(
-        `turn-summary:${optimisticTurnId}`,
+        `pending-item:${pendingTurnKey}`,
       );
       expect(harness.getValue().threadItems[0]?.type).toBe("turn_summary");
       expect(harness.getValue().threadItems[0]?.status).toBe("in_progress");
@@ -1559,7 +1566,7 @@ describe("useAsterAgentChat thread timeline", () => {
       expect(harness.getValue().turns[0]?.id).toBe("turn-real-1");
       expect(harness.getValue().threadItems).toEqual([
         expect.objectContaining({
-          id: `turn-summary:${optimisticTurnId}`,
+          id: `pending-item:${pendingTurnKey}`,
           type: "turn_summary",
           status: "in_progress",
           turn_id: "turn-real-1",
@@ -1755,7 +1762,7 @@ describe("useAsterAgentChat thread timeline", () => {
       ]);
       expect(harness.getValue().threadItems).toEqual([
         expect.objectContaining({
-          id: expect.stringContaining("turn-summary:"),
+          id: expect.stringContaining("pending-item:"),
           type: "turn_summary",
           status: "failed",
           turn_id: "turn-stream-error-1",
@@ -3303,6 +3310,63 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
     }
   });
 
+  it("write_file 工具启动时应递归识别嵌套参数中的协议路径", async () => {
+    const workspaceId = "ws-artifact-tool-start-nested";
+    seedSession(workspaceId, "session-artifact-tool-start-nested");
+    const onWriteFile = vi.fn();
+    const harness = mountHook(workspaceId, { onWriteFile });
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("生成嵌套文稿", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_id: "tool-write-nested-1",
+          tool_name: "write_file",
+          arguments: JSON.stringify({
+            payload: {
+              filePath: "notes/nested.md",
+              content: "# Nested\n\nbody",
+            },
+          }),
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.artifacts?.[0]).toMatchObject({
+        title: "nested.md",
+        content: "",
+        status: "streaming",
+        meta: expect.objectContaining({
+          filePath: "notes/nested.md",
+          writePhase: "preparing",
+          source: "tool_start",
+        }),
+      });
+      expect(onWriteFile).toHaveBeenCalledWith(
+        "",
+        "notes/nested.md",
+        expect.objectContaining({
+          source: "tool_start",
+          status: "streaming",
+        }),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("apply_patch 工具启动时应立即暴露目标文件，避免工作台空白等待", async () => {
     const workspaceId = "ws-artifact-apply-patch";
     seedSession(workspaceId, "session-artifact-apply-patch");
@@ -3982,6 +4046,100 @@ describe("useAsterAgentChat 偏好持久化", () => {
     }
   });
 
+  it("切换话题时应优先从 execution_runtime 恢复 provider/model", async () => {
+    const workspaceId = "ws-topic-runtime-priority";
+    const topicId = "topic-runtime-priority";
+    localStorage.setItem(
+      `agent_pref_provider_${workspaceId}`,
+      JSON.stringify("deepseek"),
+    );
+    localStorage.setItem(
+      `agent_pref_model_${workspaceId}`,
+      JSON.stringify("deepseek-chat"),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      messages: [],
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        provider_selector: "openai",
+        provider_name: "openai",
+        model_name: "gpt-5.4-mini",
+        source: "session",
+      },
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+
+      const value = harness.getValue();
+      expect(value.providerType).toBe("openai");
+      expect(value.model).toBe("gpt-5.4-mini");
+      expect(
+        JSON.parse(
+          localStorage.getItem(
+            `agent_topic_model_pref_${workspaceId}_${topicId}`,
+          ) || "null",
+        ),
+      ).toEqual({
+        providerType: "openai",
+        model: "gpt-5.4-mini",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换话题时 execution_runtime 缺失应回退本地 session preference", async () => {
+    const workspaceId = "ws-topic-runtime-fallback";
+    const topicId = "topic-runtime-fallback";
+    localStorage.setItem(
+      `agent_pref_provider_${workspaceId}`,
+      JSON.stringify("openai"),
+    );
+    localStorage.setItem(
+      `agent_pref_model_${workspaceId}`,
+      JSON.stringify("gpt-5.4-mini"),
+    );
+    localStorage.setItem(
+      `agent_topic_model_pref_${workspaceId}_${topicId}`,
+      JSON.stringify({
+        providerType: "gemini",
+        model: "gemini-2.5-pro",
+      }),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      messages: [],
+      execution_strategy: "react",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+
+      const value = harness.getValue();
+      expect(value.providerType).toBe("gemini");
+      expect(value.model).toBe("gemini-2.5-pro");
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("切换话题时应保留工具调用历史并恢复 elicitation 回答文本", async () => {
     const workspaceId = "ws-history-hydrate";
     const now = Math.floor(Date.now() / 1000);
@@ -4515,7 +4673,7 @@ describe("useAsterAgentChat 兼容接口", () => {
     }
   });
 
-  it("发送请求时应透传 provider_id，避免 custom provider 类型丢失", async () => {
+  it("发送请求时应透传 provider 偏好，避免 custom provider 类型丢失", async () => {
     const harness = mountHook("ws-provider-id");
     const providerId = "custom-a32774c6-6fd0-433b-8b81-e95340e08793";
     const model = "gpt-5.3-codex";
@@ -4535,12 +4693,12 @@ describe("useAsterAgentChat 兼容接口", () => {
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
-          ?.provider_config,
-      ).toMatchObject({
-        provider_id: providerId,
-        provider_name: providerId,
-        model_name: model,
-      });
+          ?.provider_preference,
+      ).toBe(providerId);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.model_preference,
+      ).toBe(model);
     } finally {
       harness.unmount();
     }
@@ -4570,11 +4728,199 @@ describe("useAsterAgentChat 兼容接口", () => {
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
-          ?.provider_config,
-      ).toMatchObject({
-        provider_id: selectedProvider,
+          ?.provider_preference,
+      ).toBe(selectedProvider);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.model_preference,
+      ).toBe(selectedModel);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 executionRuntime 且 provider/model 未变化时不应重复提交偏好", async () => {
+    const workspaceId = "ws-runtime-model-reuse";
+    const selectedProvider = "openai";
+    const selectedModel = "gpt-5.4-mini";
+    localStorage.setItem(
+      `agent_pref_provider_${workspaceId}`,
+      JSON.stringify(selectedProvider),
+    );
+    localStorage.setItem(
+      `agent_pref_model_${workspaceId}`,
+      JSON.stringify(selectedModel),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: "topic-runtime-model-reuse",
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: "topic-runtime-model-reuse",
+        provider_selector: selectedProvider,
+        provider_name: "openai",
         model_name: selectedModel,
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic("topic-runtime-model-reuse");
       });
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续沿用当前模型处理", [], false, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.provider_preference,
+      ).toBeUndefined();
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.model_preference,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("同 provider 切模型时应只提交 model 偏好", async () => {
+    const workspaceId = "ws-runtime-model-switch-same-provider";
+    const selectedProvider = "openai";
+    const currentModel = "gpt-5.4-mini";
+    const nextModel = "gpt-5.4";
+    localStorage.setItem(
+      `agent_pref_provider_${workspaceId}`,
+      JSON.stringify(selectedProvider),
+    );
+    localStorage.setItem(
+      `agent_pref_model_${workspaceId}`,
+      JSON.stringify(currentModel),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: "topic-runtime-model-switch-same-provider",
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: "topic-runtime-model-switch-same-provider",
+        provider_selector: selectedProvider,
+        provider_name: "openai",
+        model_name: currentModel,
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic("topic-runtime-model-switch-same-provider");
+      });
+
+      act(() => {
+        harness.getValue().setModel(nextModel);
+      });
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("切换到同 provider 的另一个模型", [], false, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.provider_preference,
+      ).toBeUndefined();
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.model_preference,
+      ).toBe(nextModel);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("流式 turn_context / model_change 应更新 executionRuntime，并在结束后仅保留 last runtime", async () => {
+    const stream = captureTurnStream();
+    const harness = mountHook("ws-execution-runtime");
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().triggerAIGuide("请输出结构化结果");
+      });
+
+      await act(async () => {
+        stream.emit({
+          type: "turn_context",
+          session_id: "created-session",
+          thread_id: "created-session",
+          turn_id: "turn-runtime-1",
+          output_schema_runtime: {
+            source: "turn",
+            strategy: "native",
+            providerName: "openai",
+            modelName: "gpt-5.4",
+          },
+        });
+      });
+
+      expect(harness.getValue().executionRuntime).toMatchObject({
+        session_id: "created-session",
+        source: "turn_context",
+        provider_name: "openai",
+        model_name: "gpt-5.4",
+      });
+      expect(harness.getValue().activeExecutionRuntime).toMatchObject({
+        model_name: "gpt-5.4",
+      });
+
+      await act(async () => {
+        stream.emit({
+          type: "model_change",
+          model: "gpt-5.4-mini",
+          mode: "responses",
+        });
+      });
+
+      expect(harness.getValue().executionRuntime).toMatchObject({
+        source: "model_change",
+        model_name: "gpt-5.4-mini",
+        mode: "responses",
+      });
+      expect(harness.getValue().activeExecutionRuntime).toMatchObject({
+        model_name: "gpt-5.4-mini",
+      });
+
+      await act(async () => {
+        stream.emit({
+          type: "final_done",
+        });
+      });
+
+      expect(harness.getValue().executionRuntime).toMatchObject({
+        model_name: "gpt-5.4-mini",
+      });
+      expect(harness.getValue().activeExecutionRuntime).toBeNull();
     } finally {
       harness.unmount();
     }

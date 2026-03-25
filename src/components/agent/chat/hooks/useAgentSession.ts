@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import type {
   AsterExecutionStrategy,
+  AsterSessionExecutionRuntime,
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,
   AgentRuntimeThreadReadModel,
@@ -47,6 +48,10 @@ import {
   mergeThreadItems,
   mergeThreadTurns,
 } from "../utils/threadTimelineView";
+import {
+  createExecutionRuntimeFromSessionDetail,
+  createSessionModelPreferenceFromExecutionRuntime,
+} from "../utils/sessionExecutionRuntime";
 
 interface UseAgentSessionOptions {
   runtime: AgentRuntimeAdapter;
@@ -152,6 +157,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const [queuedTurns, setQueuedTurns] = useState<QueuedTurnSnapshot[]>([]);
   const [threadRead, setThreadRead] =
     useState<AgentRuntimeThreadReadModel | null>(null);
+  const [executionRuntime, setExecutionRuntime] =
+    useState<AsterSessionExecutionRuntime | null>(null);
   const [todoItems, setTodoItems] = useState<AsterTodoItem[]>([]);
   const [childSubagentSessions, setChildSubagentSessions] = useState<
     AsterSubagentSessionInfo[]
@@ -264,6 +271,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       setCurrentTurnId(null);
       setQueuedTurns([]);
       setThreadRead(null);
+      setExecutionRuntime(null);
       setTodoItems([]);
       setChildSubagentSessions([]);
       setSubagentParentContext(null);
@@ -300,6 +308,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     setCurrentTurnId(scopedCurrentTurnId);
     setQueuedTurns([]);
     setThreadRead(null);
+    setExecutionRuntime(null);
     setTodoItems([]);
     setChildSubagentSessions([]);
     setSubagentParentContext(null);
@@ -571,9 +580,22 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   }, []);
 
   const applyRuntimeReadModel = useCallback(
-    (detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>) => {
+    (
+      detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
+      options?: { preserveExecutionRuntimeOnMissingDetail?: boolean },
+    ) => {
+      const nextExecutionRuntime = createExecutionRuntimeFromSessionDetail(detail);
       setQueuedTurns(normalizeQueuedTurnSnapshots(detail.queued_turns));
       setThreadRead(detail.thread_read ?? null);
+      setExecutionRuntime((current) => {
+        if (
+          options?.preserveExecutionRuntimeOnMissingDetail &&
+          !nextExecutionRuntime
+        ) {
+          return current;
+        }
+        return nextExecutionRuntime;
+      });
       setTodoItems(detail.todo_items ?? []);
       setChildSubagentSessions(detail.child_subagent_sessions ?? []);
       setSubagentParentContext(detail.subagent_parent_context ?? null);
@@ -603,11 +625,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       const nextItems = shouldPreserveExistingTimeline
         ? mergeThreadItems(threadItemsRef.current, incomingItems)
         : incomingItems;
+      const shouldPreserveExecutionRuntimeOnMissingDetail =
+        shouldPreserveExistingTimeline && !options?.syncSessionId;
 
       setMessages(nextMessages);
       setThreadTurns(nextTurns);
       setThreadItems(nextItems);
-      applyRuntimeReadModel(detail);
+      applyRuntimeReadModel(detail, {
+        preserveExecutionRuntimeOnMissingDetail:
+          shouldPreserveExecutionRuntimeOnMissingDetail,
+      });
       setCurrentTurnId(
         nextTurns.length > 0
           ? nextTurns[nextTurns.length - 1]?.id || null
@@ -651,13 +678,23 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           workspaceId,
         });
         const detail = await runtime.getSession(topicId);
-        const topicPreference = loadSessionModelPreference(topicId);
+        const runtimePreference =
+          createSessionModelPreferenceFromExecutionRuntime(
+            detail.execution_runtime,
+          );
+        const topicPreference =
+          runtimePreference || loadSessionModelPreference(topicId);
 
         applySessionDetail(topicId, detail, { syncSessionId: true });
         logAgentDebug("useAgentSession", "switchTopic.success", {
           durationMs: Date.now() - startedAt,
           itemsCount: detail.items?.length ?? 0,
           messagesCount: detail.messages.length,
+          modelPreferenceSource: runtimePreference
+            ? "execution_runtime"
+            : topicPreference
+              ? "session_storage"
+              : null,
           queuedTurnsCount: detail.queued_turns?.length ?? 0,
           topicId,
           turnsCount: detail.turns?.length ?? 0,
@@ -687,6 +724,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           setCurrentTurnId(null);
           setQueuedTurns([]);
           setThreadRead(null);
+          setExecutionRuntime(null);
           setTodoItems([]);
           setChildSubagentSessions([]);
           setSubagentParentContext(null);
@@ -702,6 +740,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         setCurrentTurnId(null);
         setQueuedTurns([]);
         setThreadRead(null);
+        setExecutionRuntime(null);
         setTodoItems([]);
         setChildSubagentSessions([]);
         setSubagentParentContext(null);
@@ -938,6 +977,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           setCurrentTurnId(null);
           setQueuedTurns([]);
           setThreadRead(null);
+          setExecutionRuntime(null);
           setTodoItems([]);
           setChildSubagentSessions([]);
           setSubagentParentContext(null);
@@ -1070,6 +1110,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           setCurrentTurnId(null);
           setQueuedTurns([]);
           setThreadRead(null);
+          setExecutionRuntime(null);
           setTodoItems([]);
           setChildSubagentSessions([]);
           setSubagentParentContext(null);
@@ -1202,6 +1243,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     subagentParentContext,
     queuedTurns,
     threadRead,
+    executionRuntime,
+    setExecutionRuntime,
     setQueuedTurns,
     topics,
     setTopics,

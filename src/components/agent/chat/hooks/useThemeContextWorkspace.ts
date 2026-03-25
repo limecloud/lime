@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getContent, listContents, type ContentListItem } from "@/lib/api/project";
+import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 import { useMaterials } from "@/hooks/useMaterials";
 import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
@@ -270,67 +271,6 @@ function formatDurationLabel(
   )}s`;
 }
 
-const TOOL_ARTIFACT_KEYWORDS = [
-  "path",
-  "file",
-  "filename",
-  "artifact",
-  "output",
-  "target",
-  "destination",
-];
-
-function isLikelyArtifactPath(value: string): boolean {
-  const normalized = value.trim();
-  if (!normalized || normalized.length > 260) {
-    return false;
-  }
-  if (normalized.includes("\n")) {
-    return false;
-  }
-  const lower = normalized.toLowerCase();
-  if (
-    lower.startsWith("http://") ||
-    lower.startsWith("https://") ||
-    lower.startsWith("data:")
-  ) {
-    return false;
-  }
-  return /[\\/]/.test(normalized) || /\.[a-z0-9]{1,10}$/i.test(normalized);
-}
-
-function collectArtifactPathFromValue(value: unknown, bucket: Set<string>): void {
-  if (typeof value === "string") {
-    const candidate = value.trim();
-    if (isLikelyArtifactPath(candidate)) {
-      bucket.add(candidate);
-    }
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectArtifactPathFromValue(item, bucket));
-    return;
-  }
-  if (!value || typeof value !== "object") {
-    return;
-  }
-
-  const record = value as Record<string, unknown>;
-  Object.entries(record).forEach(([key, nestedValue]) => {
-    const lowerKey = key.toLowerCase();
-    const shouldCollectDirectly = TOOL_ARTIFACT_KEYWORDS.some((keyword) =>
-      lowerKey.includes(keyword),
-    );
-    if (shouldCollectDirectly) {
-      collectArtifactPathFromValue(nestedValue, bucket);
-      return;
-    }
-    if (nestedValue && typeof nestedValue === "object") {
-      collectArtifactPathFromValue(nestedValue, bucket);
-    }
-  });
-}
-
 function tryParseJson(raw?: string): unknown {
   if (!raw || typeof raw !== "string") {
     return null;
@@ -354,11 +294,11 @@ function extractToolCallArtifactPaths(
   const parsedArgs = tryParseJson(argumentsRaw);
   const parsedOutput = tryParseJson(outputRaw);
 
-  if (parsedArgs) {
-    collectArtifactPathFromValue(parsedArgs, bucket);
+  for (const path of extractArtifactProtocolPathsFromValue(parsedArgs)) {
+    bucket.add(path);
   }
-  if (parsedOutput) {
-    collectArtifactPathFromValue(parsedOutput, bucket);
+  for (const path of extractArtifactProtocolPathsFromValue(parsedOutput)) {
+    bucket.add(path);
   }
 
   return Array.from(bucket);

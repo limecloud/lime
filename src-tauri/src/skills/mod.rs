@@ -24,7 +24,7 @@ pub use runtime::{
     build_skill_run_finish_decision, build_skill_run_start_metadata, prepare_skill_execution,
     PreparedSkillExecution, SkillProviderSelection,
 };
-pub use social_post::{collect_social_artifact_paths_from_output, infer_theme_workbench_gate_key};
+pub use social_post::infer_theme_workbench_gate_key;
 // Tauri 实现（留在主 crate）
 pub use default_skills::ensure_default_local_skills;
 pub use execution_callback::TauriExecutionCallback;

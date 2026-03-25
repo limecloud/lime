@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  clearServiceSkillCatalogCache,
-} from "@/lib/api/serviceSkills";
+import { clearServiceSkillCatalogCache } from "@/lib/api/serviceSkills";
 import {
   type ClientPasswordLoginPayload,
   type CreateClientDesktopAuthSessionPayload,
@@ -49,6 +47,10 @@ import {
   setStoredOemCloudSessionState,
 } from "@/lib/oemCloudSession";
 import { syncServiceSkillCatalogFromBootstrapPayload } from "@/lib/serviceSkillCatalogBootstrap";
+import {
+  clearSiteAdapterCatalogCache,
+  syncSiteAdapterCatalogFromBootstrapPayload,
+} from "@/lib/siteAdapterCatalogBootstrap";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 
 export type OemCloudLoginMode = "password" | "email_code";
@@ -119,7 +121,8 @@ function isDesktopClientNotFound(error: unknown) {
 
 function resolveDesktopClientIdCandidates(clientId: string) {
   const primaryClientId = clientId.trim();
-  const fallbackClientIds = DESKTOP_AUTH_LEGACY_CLIENT_IDS[primaryClientId] ?? [];
+  const fallbackClientIds =
+    DESKTOP_AUTH_LEGACY_CLIENT_IDS[primaryClientId] ?? [];
   return [primaryClientId, ...fallbackClientIds];
 }
 
@@ -355,9 +358,9 @@ export function useOemCloudAccess() {
     useState<OemCloudProviderPreference | null>(null);
   const [selectedOffer, setSelectedOffer] =
     useState<OemCloudProviderOfferDetail | null>(null);
-  const [selectedModels, setSelectedModels] = useState<OemCloudProviderModelItem[]>(
-    [],
-  );
+  const [selectedModels, setSelectedModels] = useState<
+    OemCloudProviderModelItem[]
+  >([]);
   const [initializing, setInitializing] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
@@ -384,6 +387,7 @@ export function useOemCloudAccess() {
     clearStoredOemCloudSessionState();
     clearOemCloudBootstrapSnapshot();
     clearServiceSkillCatalogCache();
+    void clearSiteAdapterCatalogCache();
     setSession(null);
     setBootstrap(null);
     setOffers([]);
@@ -405,10 +409,7 @@ export function useOemCloudAccess() {
     ) => {
       const nextSession: OemCloudCurrentSession = {
         ...nextBootstrap.session,
-        token:
-          nextBootstrap.session.token ??
-          fallbackToken ??
-          session?.token,
+        token: nextBootstrap.session.token ?? fallbackToken ?? session?.token,
       };
 
       setStoredOemCloudSessionState(nextSession);
@@ -417,6 +418,10 @@ export function useOemCloudAccess() {
         session: nextSession,
       });
       syncServiceSkillCatalogFromBootstrapPayload({
+        ...nextBootstrap,
+        session: nextSession,
+      });
+      void syncSiteAdapterCatalogFromBootstrapPayload({
         ...nextBootstrap,
         session: nextSession,
       });
@@ -583,14 +588,14 @@ export function useOemCloudAccess() {
 
     window.addEventListener(
       OEM_CLOUD_OAUTH_COMPLETED_EVENT,
-      handleOauthCompleted as EventListener,
+      handleOauthCompleted,
     );
 
     return () => {
       cancelled = true;
       window.removeEventListener(
         OEM_CLOUD_OAUTH_COMPLETED_EVENT,
-        handleOauthCompleted as EventListener,
+        handleOauthCompleted,
       );
     };
   }, [applyBootstrap, clearCloudState, refreshAuthenticatedState]);
@@ -777,12 +782,12 @@ export function useOemCloudAccess() {
 
               window.addEventListener(
                 OEM_CLOUD_OAUTH_COMPLETED_EVENT,
-                handleOauthCompleted as EventListener,
+                handleOauthCompleted,
               );
               disposeCompletionListener = () => {
                 window.removeEventListener(
                   OEM_CLOUD_OAUTH_COMPLETED_EVENT,
-                  handleOauthCompleted as EventListener,
+                  handleOauthCompleted,
                 );
               };
             });
@@ -969,7 +974,8 @@ export function useOemCloudAccess() {
   );
 
   const activeDeveloperAccessEnabled = Boolean(
-    activeCloudOffer?.apiKeyModeEnabled && activeCloudOffer?.developerAccessVisible,
+    activeCloudOffer?.apiKeyModeEnabled &&
+    activeCloudOffer?.developerAccessVisible,
   );
 
   const activeDeveloperAccessLabel = useMemo(() => {

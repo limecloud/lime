@@ -135,9 +135,9 @@ describe("UserCenterSessionSettings", () => {
     const { container } = renderPage();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("个人中心会话");
+    expect(text).toContain("账户资料");
     expect(text).toContain("使用 Google 一键登录");
-    expect(text).toContain("登录后自动完成");
+    expect(text).toContain("登录后会自动完成");
   });
 
   it("点击 Google 一键登录时应调用 hook 的 handleGoogleLogin", async () => {
@@ -186,6 +186,7 @@ describe("UserCenterSessionSettings", () => {
 
   it("已登录时应展示会话摘要并允许退出", async () => {
     const handleLogout = vi.fn();
+    const openUserCenter = vi.fn();
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
         session: {
@@ -205,12 +206,16 @@ describe("UserCenterSessionSettings", () => {
             items: [{ id: "skill-001" }, { id: "skill-002" }],
           },
           sceneCatalog: [{ id: "scene-001" }],
+          features: {
+            profileEditable: true,
+          },
           gateway: {
             basePath: "/gateway-api",
           },
         },
         defaultProviderSummary: "Lime Hub 主服务 · gpt-5.2-pro",
         handleLogout,
+        openUserCenter,
       }),
     );
 
@@ -219,11 +224,22 @@ describe("UserCenterSessionSettings", () => {
 
     expect(text).toContain("Demo Operator");
     expect(text).toContain("fmt:2026-03-25T08:00:00.000Z");
-    expect(text).toContain("2 项");
+    expect(text).toContain("2 项技能 / 1 个入口");
     expect(text).toContain("Lime Hub 主服务 · gpt-5.2-pro");
+    expect(text).toContain("资料修改请前往账号中心完成");
+    expect(text).toContain("前往账号中心修改资料");
+    expect(text).not.toContain("会话说明");
 
     await act(async () => {
-      findButton(container, "退出登录").dispatchEvent(
+      findButton(container, "前往账号中心修改资料").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(openUserCenter).toHaveBeenCalledWith("");
+
+    await act(async () => {
+      findButton(container, "退出当前账号").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });

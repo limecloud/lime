@@ -6,18 +6,23 @@ import { ServiceSkillLaunchDialog } from "./ServiceSkillLaunchDialog";
 import type { ServiceSkillHomeItem } from "./types";
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: React.ReactNode;
-  }) => (open ? <div data-testid="service-skill-dialog">{children}</div> : null),
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="service-skill-dialog">{children}</div> : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock("@/components/ui/button", () => ({
@@ -32,7 +37,9 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 vi.mock("@/components/ui/input", () => ({
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...props} />
+  ),
 }));
 
 vi.mock("@/components/ui/textarea", () => ({
@@ -45,7 +52,9 @@ vi.mock("@/components/ui/label", () => ({
   Label: ({
     children,
     ...props
-  }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
+  }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+    <label {...props}>{children}</label>
+  ),
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -87,6 +96,7 @@ const MOCK_SKILL: ServiceSkillHomeItem = {
   runnerTone: "emerald",
   runnerDescription: "客户端起步版可直接进入工作区执行。",
   actionLabel: "填写参数",
+  automationStatus: null,
 };
 
 beforeEach(() => {
@@ -160,10 +170,9 @@ function setFormValue(
   const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
   descriptor?.set?.call(element, value);
   element.dispatchEvent(
-    new Event(
-      element instanceof HTMLSelectElement ? "change" : "input",
-      { bubbles: true },
-    ),
+    new Event(element instanceof HTMLSelectElement ? "change" : "input", {
+      bubbles: true,
+    }),
   );
 }
 
@@ -261,5 +270,74 @@ describe("ServiceSkillLaunchDialog", () => {
         platform: "douyin",
       },
     );
+  });
+
+  it("云端托管技能应显示云端运行文案且不暴露本地自动化入口", async () => {
+    const onLaunch = vi.fn();
+    const onCreateAutomation = vi.fn();
+
+    renderDialog({
+      skill: {
+        ...MOCK_SKILL,
+        id: "cloud-video-dubbing",
+        title: "云端视频配音",
+        executionLocation: "cloud_required",
+        defaultExecutorBinding: "cloud_scene",
+        runnerLabel: "云端托管执行",
+        runnerTone: "slate",
+        runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
+        actionLabel: "提交云端",
+      },
+      onLaunch,
+      onCreateAutomation,
+    });
+
+    await flushEffects();
+
+    expect(document.body.textContent).toContain("提交云端运行");
+    expect(document.body.textContent).toContain(
+      "不会进入本地工作区，也不会创建本地自动化草稿",
+    );
+    expect(
+      document.body.querySelector(
+        '[data-testid="service-skill-enter-workspace"]',
+      ),
+    ).toBeNull();
+    expect(
+      document.body.querySelector(
+        '[data-testid="service-skill-create-automation"]',
+      ),
+    ).toBeNull();
+
+    const referenceInput = document.body.querySelector(
+      '[data-testid="service-skill-slot-reference_video"]',
+    ) as HTMLInputElement | null;
+    const launchButton = document.body.querySelector(
+      '[data-testid="service-skill-launch"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      if (referenceInput) {
+        setFormValue(referenceInput, "https://example.com/cloud-video");
+      }
+    });
+
+    await flushEffects();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    expect(onLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "cloud-video-dubbing",
+        executionLocation: "cloud_required",
+      }),
+      {
+        reference_video: "https://example.com/cloud-video",
+        platform: "douyin",
+      },
+    );
+    expect(onCreateAutomation).not.toHaveBeenCalled();
   });
 });

@@ -127,4 +127,84 @@ describe("useThemeScopedChatToolPreferences", () => {
       harness.unmount();
     }
   });
+
+  it("收到 runtime 快照时应优先回灌工具偏好", () => {
+    saveChatToolPreferences(
+      { webSearch: false, thinking: false, task: true, subagent: false },
+      "general",
+    );
+
+    const harness = mountHook("general");
+
+    try {
+      act(() => {
+        harness.getValue().syncChatToolPreferencesSource("general", {
+          webSearch: true,
+          thinking: true,
+          task: false,
+          subagent: true,
+        });
+      });
+
+      expect(harness.getValue().chatToolPreferences).toEqual({
+        webSearch: true,
+        thinking: true,
+        task: false,
+        subagent: true,
+      });
+      expect(
+        JSON.parse(
+          localStorage.getItem("lime.chat.tool_preferences.general.v3") ||
+            "null",
+        ),
+      ).toEqual({
+        webSearch: true,
+        thinking: true,
+        task: false,
+        subagent: true,
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("相同 runtime 快照不应覆盖用户手动切换的偏好", () => {
+    const harness = mountHook("general");
+
+    try {
+      act(() => {
+        harness.getValue().syncChatToolPreferencesSource("general", {
+          webSearch: true,
+          thinking: false,
+          task: false,
+          subagent: false,
+        });
+      });
+      act(() => {
+        harness.getValue().setChatToolPreferences({
+          webSearch: false,
+          thinking: true,
+          task: true,
+          subagent: true,
+        });
+      });
+      act(() => {
+        harness.getValue().syncChatToolPreferencesSource("general", {
+          webSearch: true,
+          thinking: false,
+          task: false,
+          subagent: false,
+        });
+      });
+
+      expect(harness.getValue().chatToolPreferences).toEqual({
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: true,
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
 });

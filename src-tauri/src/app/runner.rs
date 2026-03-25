@@ -3,10 +3,10 @@
 //! 包含 Tauri 应用的主入口函数和命令注册。
 
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
-#[cfg(target_os = "macos")]
-use tauri::{Emitter, Listener};
+#[cfg(desktop)]
+use tauri::Listener;
 
 use crate::commands;
 use crate::tray::{TrayIconStatus, TrayManager, TrayStateSnapshot};
@@ -148,9 +148,9 @@ pub fn run() {
             Some(vec!["--minimized"]),
         ));
 
-    // 在 macOS 上注册 Deep Link 插件
+    // 在桌面端注册 Deep Link 插件
     // _Requirements: 1.4_
-    #[cfg(target_os = "macos")]
+    #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_deep_link::init());
     }
@@ -163,6 +163,25 @@ pub fn run() {
             // 将窗口带到前台
             if let Some(window) = app.get_webview_window("main") {
                 reveal_main_window(&window);
+            }
+
+            let deep_link_urls: Vec<String> = args
+                .iter()
+                .filter_map(|arg| {
+                    let value = arg.trim();
+                    if value.starts_with("lime://") {
+                        Some(value.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !deep_link_urls.is_empty() {
+                tracing::info!("[单实例] 转发 Deep Link URL: {:?}", deep_link_urls);
+                if let Err(error) = app.emit("deep-link://new-url", &deep_link_urls) {
+                    tracing::error!("[单实例] 转发 Deep Link URL 失败: {}", error);
+                }
             }
         }));
 
@@ -568,9 +587,9 @@ pub fn run() {
                 }
             }
 
-            // 注册 Deep Link 事件处理器（仅 macOS）
+            // 注册 Deep Link 事件处理器（桌面端）
             // _Requirements: 1.4_
-            #[cfg(target_os = "macos")]
+            #[cfg(desktop)]
             {
                 let app_handle = app.handle().clone();
                 app.listen("deep-link://new-url", move |event| {
@@ -1267,6 +1286,15 @@ pub fn run() {
             commands::browser_runtime_cmd::close_browser_runtime_debugger_window,
             commands::browser_runtime_cmd::launch_browser_session,
             commands::browser_runtime_cmd::launch_browser_runtime_assist,
+            commands::site_capability_cmd::site_list_adapters,
+            commands::site_capability_cmd::site_search_adapters,
+            commands::site_capability_cmd::site_get_adapter_info,
+            commands::site_capability_cmd::site_get_adapter_catalog_status,
+            commands::site_capability_cmd::site_apply_adapter_catalog_bootstrap,
+            commands::site_capability_cmd::site_clear_adapter_catalog_cache,
+            commands::site_capability_cmd::site_run_adapter,
+            commands::site_capability_cmd::site_debug_run_adapter,
+            commands::site_capability_cmd::site_save_adapter_result,
             // API Key Provider commands
             commands::api_key_provider_cmd::get_system_provider_catalog,
             commands::api_key_provider_cmd::get_api_key_providers,
@@ -1579,6 +1607,7 @@ pub fn run() {
             // Screenshot Chat commands
             // _Requirements: 1.1, 1.4, 1.5, 2.2, 2.4, 3.1, 5.1_
             commands::screenshot_cmd::get_experimental_config,
+            commands::screenshot_cmd::get_screenshot_shortcut_runtime_status,
             commands::screenshot_cmd::save_experimental_config,
             commands::screenshot_cmd::start_screenshot,
             commands::screenshot_cmd::validate_shortcut,
@@ -1798,6 +1827,7 @@ pub fn run() {
             commands::external_tools_cmd::get_external_tools,
             // Voice Input commands
             crate::voice::commands::get_voice_input_config,
+            crate::voice::commands::get_voice_shortcut_runtime_status,
             crate::voice::commands::save_voice_input_config,
             crate::voice::commands::get_voice_instructions,
             crate::voice::commands::save_voice_instruction,

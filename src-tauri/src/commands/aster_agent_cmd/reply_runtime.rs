@@ -1,4 +1,5 @@
 use super::*;
+use lime_agent::{project_runtime_event, AgentEvent as RuntimeAgentEvent};
 
 fn execution_strategy_label(strategy: AsterExecutionStrategy) -> &'static str {
     match strategy {
@@ -115,16 +116,45 @@ fn message_suggests_subagent(message: &str) -> bool {
     .any(|keyword| normalized.contains(keyword))
 }
 
+fn message_suggests_content_generation(message: &str) -> bool {
+    let normalized = message.to_ascii_lowercase();
+    [
+        "生成",
+        "写一",
+        "帮我写",
+        "起草",
+        "草拟",
+        "撰写",
+        "提纲",
+        "大纲",
+        "报告",
+        "方案",
+        "文档",
+        "演示",
+        "ppt",
+        "slide",
+        "brief",
+        "draft",
+        "outline",
+        "generate",
+        "write",
+        "create a",
+    ]
+    .iter()
+    .any(|keyword| normalized.contains(keyword))
+}
+
 pub(super) fn build_turn_runtime_statuses(
     request: &AsterChatRequest,
     effective_strategy: AsterExecutionStrategy,
     request_tool_policy: &RequestToolPolicy,
     model_name: Option<&str>,
-) -> (TauriRuntimeStatus, TauriRuntimeStatus) {
+) -> (AgentRuntimeStatus, AgentRuntimeStatus) {
     let thinking_enabled = extract_harness_bool(
         request.metadata.as_ref(),
         &["thinking_enabled", "thinkingEnabled"],
     )
+    .or(request.thinking_enabled)
     .unwrap_or(false);
     let task_enabled = extract_harness_bool(
         request.metadata.as_ref(),
@@ -256,6 +286,15 @@ pub(super) fn build_turn_runtime_statuses(
                 "优先输出结构化行动路径".to_string(),
             ],
         )
+    } else if message_suggests_content_generation(&request.message) {
+        (
+            "已决定：先生成草稿".to_string(),
+            "当前请求属于内容生成类，优先基于已有上下文生成一版草稿，信息不足时附带假设说明，而非反复追问。".to_string(),
+            vec![
+                "检测到内容生成需求".to_string(),
+                "先产出可用草稿，再根据反馈迭代".to_string(),
+            ],
+        )
     } else {
         (
             "已决定：直接回答优先".to_string(),
@@ -268,7 +307,7 @@ pub(super) fn build_turn_runtime_statuses(
     };
 
     (
-        TauriRuntimeStatus {
+        AgentRuntimeStatus {
             phase: "preparing".to_string(),
             title: "正在理解意图".to_string(),
             detail: "正在判断当前任务应该直接回答、深度思考、规划、联网核实，还是升级为任务协作。"
@@ -276,7 +315,7 @@ pub(super) fn build_turn_runtime_statuses(
             checkpoints: initial_checkpoints,
             metadata: None,
         },
-        TauriRuntimeStatus {
+        AgentRuntimeStatus {
             phase: "routing".to_string(),
             title: decided.0,
             detail: decided.1,
@@ -291,7 +330,7 @@ fn emit_projected_runtime_item_event(
     event_name: &str,
     timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
     workspace_root: &str,
-    event: TauriAgentEvent,
+    event: RuntimeAgentEvent,
 ) {
     if let Err(error) = app.emit(event_name, &event) {
         tracing::warn!("[AsterAgent] 发送 runtime item 投影事件失败: {}", error);
@@ -316,7 +355,7 @@ pub(super) async fn emit_runtime_status_with_projection(
     timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
     workspace_root: &str,
     session_config: &aster::agents::SessionConfig,
-    status: TauriRuntimeStatus,
+    status: AgentRuntimeStatus,
 ) {
     match agent
         .upsert_runtime_status_item(
@@ -329,7 +368,7 @@ pub(super) async fn emit_runtime_status_with_projection(
         .await
     {
         Ok(agent_event) => {
-            for event in lime_agent::convert_agent_event(agent_event) {
+            for event in project_runtime_event(agent_event) {
                 emit_projected_runtime_item_event(
                     app,
                     event_name,
@@ -347,7 +386,7 @@ pub(super) async fn emit_runtime_status_with_projection(
         }
     }
 
-    let runtime_event = TauriAgentEvent::RuntimeStatus { status };
+    let runtime_event = RuntimeAgentEvent::RuntimeStatus { status };
     if let Err(error) = app.emit(event_name, &runtime_event) {
         tracing::warn!("[AsterAgent] 发送 runtime_status 失败: {}", error);
     }
@@ -363,7 +402,7 @@ pub(super) async fn complete_runtime_status_projection(
 ) {
     match agent.complete_runtime_status_item(session_config).await {
         Ok(Some(agent_event)) => {
-            for event in lime_agent::convert_agent_event(agent_event) {
+            for event in project_runtime_event(agent_event) {
                 emit_projected_runtime_item_event(
                     app,
                     event_name,
@@ -428,9 +467,9 @@ pub(super) async fn stream_reply_once<F>(
     cancel_token: CancellationToken,
     request_tool_policy: &RequestToolPolicy,
     mut on_event: F,
-) -> Result<(), ReplyAttemptError>
+) -> Result<StreamReplyExecution, ReplyAttemptError>
 where
-    F: FnMut(&TauriAgentEvent),
+    F: FnMut(&RuntimeAgentEvent),
 {
     stream_message_reply_with_policy(
         agent,
@@ -453,7 +492,6 @@ where
         },
     )
     .await
-    .map(|_| ())
 }
 
 pub(super) fn build_runtime_user_message(

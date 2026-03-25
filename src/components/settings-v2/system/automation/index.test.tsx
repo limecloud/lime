@@ -496,4 +496,109 @@ describe("AutomationSettings", () => {
         ?.textContent,
     ).toBe("create:browser_session:every");
   });
+
+  it("workspace 模式应支持从页面参数直接落到概览 tab", async () => {
+    const container = await renderSettings({
+      mode: "workspace",
+      initialWorkspaceTab: "overview",
+    });
+
+    expect(container.textContent).toContain("运行概览");
+    expect(
+      container.querySelector("[data-testid='automation-health-panel']"),
+    ).not.toBeNull();
+  });
+
+  it("workspace 模式应支持按页面参数预选任务", async () => {
+    mockGetAutomationJobs.mockResolvedValueOnce([
+      {
+        id: "job-browser-1",
+        name: "浏览器巡检",
+        description: "启动浏览器并等待人工检查",
+        enabled: true,
+        workspace_id: "workspace-default",
+        execution_mode: "intelligent",
+        schedule: { kind: "every", every_secs: 900 },
+        payload: {
+          kind: "browser_session",
+          profile_id: "profile-1",
+          profile_key: "shop_us",
+          url: "https://seller.example.com/dashboard",
+          environment_preset_id: "preset-1",
+          target_id: null,
+          open_window: false,
+          stream_mode: "events",
+        },
+        delivery: {
+          mode: "announce",
+          channel: "local_file",
+          target: "/tmp/lime/browser-output.json",
+          best_effort: false,
+          output_schema: "json",
+          output_format: "json",
+        },
+        timeout_secs: 120,
+        max_retries: 2,
+        next_run_at: "2026-03-16T00:15:00Z",
+        last_status: "waiting_for_human",
+        last_error: null,
+        last_run_at: "2026-03-16T00:00:00Z",
+        last_finished_at: null,
+        running_started_at: "2026-03-16T00:00:00Z",
+        consecutive_failures: 0,
+        last_retry_count: 0,
+        auto_disabled_until: null,
+        last_delivery: null,
+        created_at: "2026-03-16T00:00:00Z",
+        updated_at: "2026-03-16T00:00:00Z",
+      },
+      {
+        id: "job-agent-2",
+        name: "日报摘要",
+        description: "生成日报",
+        enabled: true,
+        workspace_id: "workspace-default",
+        execution_mode: "skill",
+        schedule: { kind: "cron", expr: "0 9 * * *", tz: "Asia/Shanghai" },
+        payload: {
+          kind: "agent_turn",
+          prompt: "请输出日报摘要",
+          system_prompt: null,
+          web_search: false,
+        },
+        delivery: {
+          mode: "none",
+          channel: null,
+          target: null,
+          best_effort: true,
+          output_schema: "text",
+          output_format: "text",
+        },
+        timeout_secs: 120,
+        max_retries: 2,
+        next_run_at: "2026-03-16T09:00:00Z",
+        last_status: "success",
+        last_error: null,
+        last_run_at: "2026-03-16T08:59:00Z",
+        last_finished_at: "2026-03-16T09:00:10Z",
+        running_started_at: null,
+        consecutive_failures: 0,
+        last_retry_count: 0,
+        auto_disabled_until: null,
+        last_delivery: null,
+        created_at: "2026-03-16T00:00:00Z",
+        updated_at: "2026-03-16T00:00:00Z",
+      },
+    ]);
+
+    await renderSettings({
+      mode: "workspace",
+      initialSelectedJobId: "job-agent-2",
+    });
+
+    expect(mockGetAutomationRunHistory).toHaveBeenLastCalledWith(
+      "job-agent-2",
+      15,
+    );
+  });
 });

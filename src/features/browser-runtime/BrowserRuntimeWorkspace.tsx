@@ -7,8 +7,10 @@ import {
 import { BrowserEnvironmentPresetManager } from "./BrowserEnvironmentPresetManager";
 import { BrowserProfileManager } from "./BrowserProfileManager";
 import { BrowserRuntimeDebugPanel } from "./BrowserRuntimeDebugPanel";
+import { BrowserSiteAdapterPanel } from "./BrowserSiteAdapterPanel";
 import type { BrowserEnvironmentPresetRecord } from "./api";
 import { getExistingSessionBridgeStatus } from "./existingSessionBridgeClient";
+import type { Page, PageParams } from "@/types/page";
 
 const MESSAGE_AUTO_HIDE_MS = 3000;
 const MESSAGE_DISMISS_SUPPRESS_MS = 12000;
@@ -29,6 +31,7 @@ interface BrowserRuntimeWorkspaceProps {
   initialTargetId?: string;
   embedded?: boolean;
   active?: boolean;
+  onNavigate?: (page: Page, params?: PageParams) => void;
 }
 
 export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
@@ -39,6 +42,7 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
     initialTargetId,
     embedded = false,
     active = true,
+    onNavigate,
   } = props;
   const shouldActivate = standalone || embedded || active;
   const [sessions, setSessions] = useState<ChromeProfileSessionInfo[]>([]);
@@ -167,7 +171,7 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
   }
 
   const rootClassName = standalone
-    ? "min-h-screen bg-background p-6"
+    ? "min-h-screen bg-background p-6 space-y-4"
     : embedded
       ? "relative flex h-full min-h-0 flex-col bg-background"
       : "space-y-4";
@@ -268,6 +272,15 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
         />
       ) : null}
 
+      {!embedded ? (
+        <BrowserSiteAdapterPanel
+          selectedProfileKey={preferredProfileKey || initialProfileKey}
+          onMessage={showMessage}
+          variant="workspace"
+          onNavigate={onNavigate}
+        />
+      ) : null}
+
       <div className={embedded ? "min-h-0 flex-1" : undefined}>
         <BrowserRuntimeDebugPanel
           key={
@@ -278,6 +291,7 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
           sessions={sessions}
           onMessage={showMessage}
           showStandaloneWindowButton={!standalone}
+          showSiteAdapterPanel={embedded}
           initialProfileKey={preferredProfileKey || initialProfileKey}
           initialSessionId={initialSessionId}
           initialTargetId={initialTargetId}

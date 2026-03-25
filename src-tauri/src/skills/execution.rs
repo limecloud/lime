@@ -4,9 +4,10 @@
 //! 本模块只保留 Tauri emitter 与错误码映射。
 
 use lime_agent::{
+    artifact_protocol::extend_unique_artifact_protocol_paths,
     execute_skill_prompt as execute_agent_skill_prompt,
-    execute_skill_workflow as execute_agent_skill_workflow, AsterAgentState, SkillEventEmitter,
-    SkillExecutionError, SkillWorkflowExecution, TauriAgentEvent,
+    execute_skill_workflow as execute_agent_skill_workflow, AgentEvent as RuntimeAgentEvent,
+    AsterAgentState, SkillEventEmitter, SkillExecutionError, SkillWorkflowExecution,
 };
 use lime_skills::{ExecutionCallback, LoadedSkillDefinition};
 use std::sync::{Arc, Mutex};
@@ -89,7 +90,7 @@ impl ExecutionCallback for TauriExecutionCallbackAdapter<'_> {
 
 fn create_skill_event_emitter(app_handle: &AppHandle) -> SkillEventEmitter {
     let app_handle = app_handle.clone();
-    Arc::new(move |event_name: String, event: TauriAgentEvent| {
+    Arc::new(move |event_name: String, event: RuntimeAgentEvent| {
         if let Err(error) = app_handle.emit(&event_name, &event) {
             tracing::error!("[execute_skill_workflow] 发送事件失败: {}", error);
         }
@@ -98,7 +99,7 @@ fn create_skill_event_emitter(app_handle: &AppHandle) -> SkillEventEmitter {
 
 fn emit_skill_final_done(app_handle: &AppHandle, execution_id: &str) {
     let event_name = format!("skill-exec-{execution_id}");
-    if let Err(error) = app_handle.emit(&event_name, TauriAgentEvent::FinalDone { usage: None }) {
+    if let Err(error) = app_handle.emit(&event_name, RuntimeAgentEvent::FinalDone { usage: None }) {
         tracing::error!("[execute_skill] 发送完成事件失败: {}", error);
     }
 }
@@ -274,20 +275,21 @@ pub async fn execute_skill_prompt(
         return Ok(result);
     }
 
-    let final_output = finalize_skill_output(
+    let finalized = finalize_skill_output(
         app_handle,
         &skill.skill_name,
         user_input,
         execution_id,
         result.output.as_deref().unwrap_or(""),
     );
-    result.output = Some(final_output.clone());
+    extend_unique_artifact_protocol_paths(&mut result.artifact_paths, &finalized.artifact_paths);
+    result.output = Some(finalized.final_output.clone());
     if let Some(step_result) = result.steps_completed.get_mut(0) {
-        step_result.output = Some(final_output.clone());
+        step_result.output = Some(finalized.final_output.clone());
     }
 
-    callback_adapter.on_step_complete("main", &final_output);
-    callback_adapter.on_complete(true, Some(&final_output), None);
+    callback_adapter.on_step_complete("main", &finalized.final_output);
+    callback_adapter.on_complete(true, Some(&finalized.final_output), None);
     emit_skill_final_done(app_handle, execution_id);
     Ok(result)
 }

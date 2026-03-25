@@ -10,8 +10,29 @@ import type {
   AgentThreadTurn,
 } from "../types";
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
+import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 
 const parseAIResponseMock = vi.fn();
+const mockToolCallItem = vi.fn(
+  ({
+    toolCall,
+    onOpenSavedSiteContent,
+  }: {
+    toolCall: { name: string };
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
+  }) => (
+    <div
+      data-testid="tool-call-item"
+      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
+    >
+      {toolCall.name}
+    </div>
+  ),
+);
 
 vi.mock("@/components/content-creator/a2ui/parser", () => ({
   parseAIResponse: (...args: unknown[]) => parseAIResponseMock(...args),
@@ -29,9 +50,14 @@ vi.mock("./A2UITaskCard", () => ({
 }));
 
 vi.mock("./ToolCallDisplay", () => ({
-  ToolCallItem: ({ toolCall }: { toolCall: { name: string } }) => (
-    <div data-testid="tool-call-item">{toolCall.name}</div>
-  ),
+  ToolCallItem: (props: {
+    toolCall: { name: string };
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
+  }) => mockToolCallItem(props),
 }));
 
 vi.mock("./DecisionPanel", () => ({
@@ -59,6 +85,7 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  HTMLElement.prototype.scrollIntoView = vi.fn();
   parseAIResponseMock.mockImplementation((content: string) => ({
     parts: content.trim() ? [{ type: "text", content: content.trim() }] : [],
     hasA2UI: false,
@@ -133,7 +160,15 @@ function renderTimeline(
     turn?: Partial<AgentThreadTurn>;
     threadRead?: AgentRuntimeThreadReadModel | null;
     actionRequests?: ActionRequired[];
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
     onOpenSubagentSession?: (sessionId: string) => void;
+    onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
+    focusedItemId?: string | null;
+    focusRequestKey?: number;
   },
 ): HTMLDivElement {
   const container = document.createElement("div");
@@ -148,7 +183,11 @@ function renderTimeline(
         threadRead={props?.threadRead}
         actionRequests={props?.actionRequests}
         isCurrentTurn={props?.isCurrentTurn}
+        onOpenArtifactFromTimeline={props?.onOpenArtifactFromTimeline}
+        onOpenSavedSiteContent={props?.onOpenSavedSiteContent}
         onOpenSubagentSession={props?.onOpenSubagentSession}
+        focusedItemId={props?.focusedItemId}
+        focusRequestKey={props?.focusRequestKey}
       />,
     );
   });
@@ -170,7 +209,126 @@ function clickTimelineToggle(container: HTMLElement) {
   });
 }
 
+function createFileArtifactItem(
+  overrides: Partial<Extract<AgentThreadItem, { type: "file_artifact" }>> = {},
+): Extract<AgentThreadItem, { type: "file_artifact" }> {
+  return {
+    ...createBaseItem("artifact-1", 1),
+    type: "file_artifact",
+    path: ".lime/artifacts/thread-1/demo.artifact.json",
+    source: "artifact_snapshot",
+    content: JSON.stringify({
+      schemaVersion: "artifact_document.v1",
+      artifactId: "artifact-document:demo",
+      kind: "analysis",
+      title: "季度复盘",
+      status: "ready",
+      language: "zh-CN",
+      blocks: [
+        { id: "hero-1", type: "hero_summary", summary: "摘要" },
+        { id: "body-1", type: "rich_text", markdown: "正文" },
+      ],
+      sources: [],
+      metadata: {},
+    }),
+    metadata: {
+      artifact_id: "artifact-document:demo",
+      artifact_block_id: ["hero-1", "body-1"],
+    },
+    ...overrides,
+  };
+}
+
 describe("AgentThreadTimeline", () => {
+  it("file_artifact 命中多个 block 时应提供精确跳转按钮", () => {
+    const onOpenArtifactFromTimeline = vi.fn();
+    const container = renderTimeline([createFileArtifactItem()], {
+      onOpenArtifactFromTimeline,
+    });
+
+    clickTimelineToggle(container);
+
+    const heroJumpButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("跳到 block hero-1"));
+    expect(heroJumpButton).not.toBeUndefined();
+
+    act(() => {
+      heroJumpButton?.click();
+    });
+
+    expect(onOpenArtifactFromTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timelineItemId: "artifact-1",
+        filePath: ".lime/artifacts/thread-1/demo.artifact.json",
+        blockId: "hero-1",
+      }),
+    );
+  });
+
+  it("收到 timeline 聚焦请求时应自动展开并高亮目标项", () => {
+    const container = renderTimeline(
+      [
+        {
+          ...createBaseItem("browser-1", 1),
+          type: "tool_call",
+          tool_name: "browser_click",
+          arguments: { selector: "#publish" },
+        },
+      ],
+      {
+        turn: {
+          status: "completed",
+        },
+        focusedItemId: "browser-1",
+        focusRequestKey: 1,
+      },
+    );
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-details"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-details-toggle"]'),
+    ).toBeNull();
+
+    const focusedEntry = container.querySelector<HTMLElement>(
+      '[data-thread-item-id="browser-1"]',
+    );
+    expect(focusedEntry?.className).toContain("ring-2");
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("应向时间线内的工具项透传已保存站点内容打开回调", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const container = renderTimeline(
+      [
+        {
+          ...createBaseItem("site-tool-1", 1),
+          type: "tool_call",
+          tool_name: "lime_site_run",
+          arguments: { adapter_name: "github/search" },
+          output: "ok",
+          metadata: {
+            tool_family: "site",
+            saved_content: {
+              content_id: "content-1",
+              project_id: "project-1",
+              title: "GitHub 搜索结果",
+            },
+          },
+        },
+      ],
+      { onOpenSavedSiteContent },
+    );
+
+    clickTimelineToggle(container);
+
+    expect(mockToolCallItem).toHaveBeenCalledWith(
+      expect.objectContaining({ onOpenSavedSiteContent }),
+    );
+  });
+
   it("应在时间线头部展示当前 turn 的 compact outcome 与 incident 徽标", () => {
     const container = renderTimeline(
       [

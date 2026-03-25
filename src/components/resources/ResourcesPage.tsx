@@ -416,7 +416,8 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       if (
         detail.source !== "image-gen-target" &&
         detail.source !== "image-gen-save" &&
-        detail.source !== "general-chat"
+        detail.source !== "general-chat" &&
+        detail.source !== "browser-runtime"
       ) {
         return;
       }

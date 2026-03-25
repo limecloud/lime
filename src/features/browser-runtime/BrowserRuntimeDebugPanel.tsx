@@ -22,6 +22,7 @@ import type {
   ChromeProfileSessionInfo,
 } from "@/lib/webview-api";
 import { browserRuntimeApi } from "./api";
+import { BrowserSiteAdapterPanel } from "./BrowserSiteAdapterPanel";
 import { getExistingSessionTabLabel } from "./existingSessionBridge";
 import { useExistingSessionAttachPanel } from "./useExistingSessionAttachPanel";
 import { useBrowserRuntimeDebug } from "./useBrowserRuntimeDebug";
@@ -30,6 +31,7 @@ interface BrowserRuntimeDebugPanelProps {
   sessions: ChromeProfileSessionInfo[];
   onMessage?: (message: { type: "success" | "error"; text: string }) => void;
   showStandaloneWindowButton?: boolean;
+  showSiteAdapterPanel?: boolean;
   initialProfileKey?: string;
   initialSessionId?: string;
   initialTargetId?: string;
@@ -264,6 +266,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     sessions,
     onMessage,
     showStandaloneWindowButton = true,
+    showSiteAdapterPanel = true,
     initialProfileKey,
     initialSessionId,
     initialTargetId,
@@ -1135,6 +1138,14 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
                       </button>
                     </div>
 
+                    {showSiteAdapterPanel ? (
+                      <BrowserSiteAdapterPanel
+                        selectedProfileKey={runtime.selectedProfileKey}
+                        onMessage={onMessage}
+                        variant="debug"
+                      />
+                    ) : null}
+
                     <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
                       <div className="rounded-md border p-3 text-xs">
                         <div className="mb-2 text-sm font-medium">会话信息</div>
@@ -1651,6 +1662,14 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
                     <Globe className="h-3.5 w-3.5" />在 Chrome 中继续
                   </button>
                 </div>
+
+                {showSiteAdapterPanel ? (
+                  <BrowserSiteAdapterPanel
+                    selectedProfileKey={runtime.selectedProfileKey}
+                    onMessage={onMessage}
+                    variant="debug"
+                  />
+                ) : null}
 
                 <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
                   <div className="space-y-3">

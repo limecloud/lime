@@ -209,8 +209,9 @@ function parseOemCloudRuntimeOverride(payload: unknown): OemCloudRuntimeOverride
   };
 }
 
-function readEnvValue(name: keyof ImportMetaEnv): string | null {
-  return normalizeText(import.meta.env[name]);
+function readEnvValue(name: string): string | null {
+  const env = import.meta.env as Record<string, string | boolean | undefined>;
+  return normalizeText(env[name]);
 }
 
 export interface OemCloudRuntimeContext {

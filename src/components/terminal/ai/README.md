@@ -91,7 +91,7 @@ AI 可以向活动终端发送命令，流程如下：
 ## 依赖
 
 - `@/lib/api/agentRuntime` - Agent / Aster 现役运行时 API
-- `@/lib/api/agentStream` - 流式事件解析与展示类型
+- `@/lib/api/agentProtocol` - Conversation Runtime 流式事件与展示类型出口
 - `@/lib/api/terminal` - 终端 API（用于发送命令）
 - `@/hooks/useProviderPool` - Provider 凭证
 - `@/hooks/useApiKeyProvider` - API Key 凭证

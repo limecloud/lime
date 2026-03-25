@@ -160,6 +160,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
         agentEntry={effectiveAgentEntry}
         showChatPanel={effectiveShowChatPanel}
         projectId={activeBootstrap?.projectId ?? projectId}
+        contentId={activeBootstrap?.contentId ?? contentId}
         theme={activeBootstrap?.theme ?? theme}
         initialCreationMode={
           activeBootstrap?.initialCreationMode ?? initialCreationMode
@@ -169,6 +170,10 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
         }
         initialUserImages={
           activeBootstrap?.initialUserImages ?? initialUserImages
+        }
+        initialRequestMetadata={
+          activeBootstrap?.initialRequestMetadata ??
+          props.initialRequestMetadata
         }
         newChatAt={activeBootstrap?.newChatAt ?? newChatAt}
         openBrowserAssistOnMount={

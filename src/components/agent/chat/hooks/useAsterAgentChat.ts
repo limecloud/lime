@@ -5,10 +5,10 @@
  * useAsterAgentChat -> useAgentContext / useAgentSession / useAgentTools / useAgentStream
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
-import { parseStreamEvent } from "@/lib/api/agentStream";
+import { parseAgentEvent } from "@/lib/api/agentProtocol";
 import { logAgentDebug } from "@/lib/agentDebug";
 import {
   executeCodexSlashCommand,
@@ -27,6 +27,7 @@ import {
   type SendMessageFn,
   type UseAsterAgentChatOptions,
 } from "./agentChatShared";
+import type { AsterSessionExecutionRuntime } from "@/lib/api/agentRuntime";
 
 export type { Topic } from "./agentChatShared";
 
@@ -123,10 +124,12 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     setThreadItems: session.setThreadItems,
     setThreadTurns: session.setThreadTurns,
     setCurrentTurnId: session.setCurrentTurnId,
+    setExecutionRuntime: session.setExecutionRuntime,
     queuedTurns: session.queuedTurns,
     setQueuedTurns: session.setQueuedTurns,
     setPendingActions: tools.setPendingActions,
     refreshSessionReadModel: session.refreshSessionReadModel,
+    executionRuntime: session.executionRuntime,
   });
   const setChatMessages = session.setMessages;
   const clearChatMessages = session.clearMessages;
@@ -244,6 +247,14 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     session.sessionId &&
     session.topics.some((topic) => topic.id === session.sessionId),
   );
+  const activeExecutionRuntime = useMemo<
+    AsterSessionExecutionRuntime | null
+  >(() => {
+    const threadStatus = session.threadRead?.status;
+    const shouldPreferRuntime =
+      stream.isSending || threadStatus === "running" || threadStatus === "queued";
+    return shouldPreferRuntime ? session.executionRuntime : null;
+  }, [session.executionRuntime, session.threadRead?.status, stream.isSending]);
   const currentSessionId = session.sessionId;
   const refreshActiveSessionDetail = session.refreshSessionDetail;
 
@@ -369,7 +380,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
         const unlisten = await runtime.listenToTeamEvents(
           eventName,
           (event) => {
-            const data = parseStreamEvent(event.payload);
+            const data = parseAgentEvent(event.payload);
             if (disposed || data?.type !== "subagent_status_changed") {
               return;
             }
@@ -522,6 +533,8 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     subagentParentContext: session.subagentParentContext,
     queuedTurns: session.queuedTurns,
     threadRead: session.threadRead,
+    executionRuntime: session.executionRuntime,
+    activeExecutionRuntime,
     isSending: stream.isSending,
     sendMessage,
     compactSession: stream.compactSession,

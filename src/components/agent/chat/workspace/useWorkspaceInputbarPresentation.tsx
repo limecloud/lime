@@ -41,7 +41,7 @@ interface WorkspaceTeamWorkbenchSurfaceParams {
   selectedTeamLabel: TeamWorkbenchSurfaceProps["selectedTeamLabel"];
   selectedTeamSummary: TeamWorkbenchSurfaceProps["selectedTeamSummary"];
   selectedTeamRoles: TeamWorkbenchSurfaceProps["selectedTeamRoles"];
-  runtimeTeamState: TeamWorkbenchSurfaceProps["runtimeTeamState"];
+  teamDispatchPreviewState: TeamWorkbenchSurfaceProps["teamDispatchPreviewState"];
 }
 
 interface UseWorkspaceInputbarPresentationParams {
@@ -100,7 +100,7 @@ export function useWorkspaceInputbarPresentation({
       selectedTeamLabel: teamWorkbench.selectedTeamLabel,
       selectedTeamSummary: teamWorkbench.selectedTeamSummary,
       selectedTeamRoles: teamWorkbench.selectedTeamRoles,
-      runtimeTeamState: teamWorkbench.runtimeTeamState,
+      teamDispatchPreviewState: teamWorkbench.teamDispatchPreviewState,
     }),
     [
       teamWorkbench.activityRefreshVersionBySessionId,
@@ -120,7 +120,7 @@ export function useWorkspaceInputbarPresentation({
       teamWorkbench.onSendSubagentInput,
       teamWorkbench.onWaitActiveTeamSessions,
       teamWorkbench.onWaitSubagentSession,
-      teamWorkbench.runtimeTeamState,
+      teamWorkbench.teamDispatchPreviewState,
       teamWorkbench.selectedTeamLabel,
       teamWorkbench.selectedTeamRoles,
       teamWorkbench.selectedTeamSummary,

@@ -11,6 +11,16 @@ export type ServiceSkillExecutionLocation =
   | "client_default"
   | "cloud_required";
 
+export type ServiceSkillArtifactKind =
+  | "report"
+  | "roadmap"
+  | "prd"
+  | "brief"
+  | "analysis"
+  | "comparison"
+  | "plan"
+  | "table_report";
+
 export type ServiceSkillExecutorBinding =
   | "native_skill"
   | "agent_turn"
@@ -61,6 +71,7 @@ export interface ServiceSkillItem {
   runnerType: ServiceSkillRunnerType;
   defaultExecutorBinding: ServiceSkillExecutorBinding;
   executionLocation: ServiceSkillExecutionLocation;
+  defaultArtifactKind?: ServiceSkillArtifactKind;
   readinessRequirements?: ServiceSkillReadinessRequirements;
   slotSchema: ServiceSkillSlotDefinition[];
   themeTarget?: string;
@@ -115,6 +126,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       runnerType: "instant",
       defaultExecutorBinding: "native_skill",
       executionLocation: "client_default",
+      defaultArtifactKind: "brief",
       readinessRequirements: {
         requiresModel: true,
         requiresProject: true,
@@ -170,6 +182,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       runnerType: "instant",
       defaultExecutorBinding: "agent_turn",
       executionLocation: "client_default",
+      defaultArtifactKind: "brief",
       readinessRequirements: {
         requiresModel: true,
         requiresProject: true,
@@ -225,6 +238,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       runnerType: "instant",
       defaultExecutorBinding: "native_skill",
       executionLocation: "client_default",
+      defaultArtifactKind: "analysis",
       readinessRequirements: {
         requiresModel: true,
         requiresProject: true,
@@ -269,6 +283,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       runnerType: "instant",
       defaultExecutorBinding: "agent_turn",
       executionLocation: "client_default",
+      defaultArtifactKind: "brief",
       readinessRequirements: {
         requiresModel: true,
         requiresProject: true,
@@ -317,6 +332,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       runnerType: "scheduled",
       defaultExecutorBinding: "automation_job",
       executionLocation: "client_default",
+      defaultArtifactKind: "analysis",
       readinessRequirements: {
         requiresModel: true,
         requiresProject: true,
@@ -377,6 +393,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       runnerType: "managed",
       defaultExecutorBinding: "automation_job",
       executionLocation: "client_default",
+      defaultArtifactKind: "analysis",
       readinessRequirements: {
         requiresModel: true,
         requiresProject: true,
@@ -459,6 +476,18 @@ function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
   }
 
   const item = value as Partial<ServiceSkillItem>;
+  const artifactKindValid =
+    item.defaultArtifactKind === undefined ||
+    [
+      "report",
+      "roadmap",
+      "prd",
+      "brief",
+      "analysis",
+      "comparison",
+      "plan",
+      "table_report",
+    ].includes(item.defaultArtifactKind);
   return (
     typeof item.id === "string" &&
     (item.skillKey === undefined || typeof item.skillKey === "string") &&
@@ -470,6 +499,7 @@ function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
     typeof item.runnerType === "string" &&
     typeof item.defaultExecutorBinding === "string" &&
     typeof item.executionLocation === "string" &&
+    artifactKindValid &&
     Array.isArray(item.slotSchema) &&
     item.slotSchema.every(isServiceSkillSlotDefinition) &&
     typeof item.version === "string"

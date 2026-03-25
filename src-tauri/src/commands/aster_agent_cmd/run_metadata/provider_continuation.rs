@@ -47,11 +47,11 @@ pub(super) fn extract_provider_continuation_from_metadata(
 }
 
 pub(super) fn extract_provider_continuation_from_message(
-    message: &TauriMessage,
+    message: &AgentMessage,
     capability: ProviderContinuationCapability,
 ) -> Option<ProviderContinuationState> {
     for content in &message.content {
-        if let TauriMessageContent::ToolResponse {
+        if let AgentMessageContent::ToolResponse {
             metadata: Some(metadata),
             ..
         } = content

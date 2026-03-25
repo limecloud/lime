@@ -12,7 +12,8 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import type { ToolCallState } from "@/lib/api/agentStream";
+import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
+import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 
 export type ToolCallStatus = ToolCallState["status"];
 export type ToolCallFamily =
@@ -866,6 +867,70 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       actionKey: "task",
     },
   ],
+  [
+    "limesitelist",
+    {
+      family: "list",
+      label: "站点能力目录",
+      verb: "浏览",
+      icon: Globe,
+      groupTitle: "站点",
+      actionKey: "list",
+      actions: {
+        failed: "浏览失败",
+        completed: "已浏览",
+        running: "浏览中",
+      },
+    },
+  ],
+  [
+    "limesitesearch",
+    {
+      family: "search",
+      label: "站点能力搜索",
+      verb: "搜索",
+      icon: Search,
+      groupTitle: "站点",
+      actionKey: "search",
+      actions: {
+        failed: "搜索失败",
+        completed: "已搜索",
+        running: "搜索中",
+      },
+    },
+  ],
+  [
+    "limesiteinfo",
+    {
+      family: "read",
+      label: "站点能力详情",
+      verb: "查看",
+      icon: Globe,
+      groupTitle: "站点",
+      actionKey: "read",
+      actions: {
+        failed: "查看失败",
+        completed: "已查看",
+        running: "查看中",
+      },
+    },
+  ],
+  [
+    "limesiterun",
+    {
+      family: "generic",
+      label: "站点能力执行",
+      verb: "执行",
+      icon: Globe,
+      groupTitle: "站点",
+      actionKey: "generic",
+      actions: {
+        failed: "执行失败",
+        completed: "已执行",
+        running: "执行中",
+      },
+    },
+  ],
 ]);
 
 const BROWSER_TOOL_MATCHERS: Array<{
@@ -1173,7 +1238,7 @@ const resolveToolArgumentPreview = (
 };
 
 const getFileName = (filePath: string): string => {
-  const parts = filePath.split("/");
+  const parts = filePath.split(/[/\\]/);
   return parts[parts.length - 1] || filePath;
 };
 
@@ -1206,8 +1271,7 @@ export const parseToolCallArguments = (
 export const resolveToolFilePath = (
   args: Record<string, ToolCallArgumentValue>,
 ): string | null => {
-  const path = args.path || args.file_path || args.filePath;
-  return path ? String(path) : null;
+  return extractArtifactProtocolPathsFromValue(args)[0] ?? null;
 };
 
 export const isBrowserToolName = (name: string): boolean =>
@@ -1353,6 +1417,25 @@ export const resolveToolPrimarySubject = (
       "task_id",
       "url",
     ]);
+  }
+
+  if (
+    normalizedName === "limesiterun" ||
+    normalizedName === "limesiteinfo"
+  ) {
+    return (
+      resolveToolArgumentPreview(args, [
+        "adapter_name",
+        "name",
+        "query",
+        "repo",
+        "url",
+      ]) || "站点适配器"
+    );
+  }
+
+  if (normalizedName === "limesitesearch") {
+    return resolveToolArgumentPreview(args, ["query", "q"]) || "站点能力";
   }
 
   if (normalizedName === "ask" || normalizedName === "requestuserinput") {
@@ -1561,10 +1644,16 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
   const running = toolCalls.some((item) => item.status === "running");
 
   if (info.family === "search") {
+    if (info.groupTitle === "站点") {
+      return running ? "站点搜索中" : failed ? "站点搜索失败" : "已搜索站点能力";
+    }
     return running ? "搜索中" : failed ? "搜索失败" : "已搜索";
   }
 
   if (["read", "list"].includes(info.family)) {
+    if (info.groupTitle === "站点") {
+      return running ? "站点浏览中" : failed ? "站点浏览失败" : "已浏览站点能力";
+    }
     return running ? "探索中" : failed ? "探索失败" : "已探索";
   }
 
@@ -1645,7 +1734,15 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
       ? `图像分析失败 ${toolCalls.length} 项`
       : running
         ? `图像分析中 ${toolCalls.length} 项`
-        : `已分析 ${toolCalls.length} 项图像`;
+      : `已分析 ${toolCalls.length} 项图像`;
+  }
+
+  if (info.groupTitle === "站点") {
+    return failed
+      ? `站点操作失败 ${toolCalls.length} 项`
+      : running
+        ? `站点操作中 ${toolCalls.length} 项`
+        : `已完成 ${toolCalls.length} 项站点操作`;
   }
 
   return failed

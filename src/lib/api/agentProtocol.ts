@@ -1,59 +1,103 @@
-/**
- * Agent 流式事件与 UI 类型
- *
- * 聚合现役 Agent / Aster 流式协议的前端可消费类型与解析器。
- */
-
 import {
   normalizeQueuedTurnSnapshot,
-  type QueuedTurnSnapshot as QueueTurnSnapshot,
+  type QueuedTurnSnapshot,
 } from "./queuedTurn";
+import type { AsterTurnOutputSchemaRuntime } from "./agentExecutionRuntime";
+import type {
+  AgentRuntimeSubmitTurnRequest,
+  AgentSearchMode,
+  AsterExecutionStrategy,
+  AutoContinueRequestPayload,
+  ImageInput,
+} from "./agentRuntime";
 
-/**
- * Token 使用量统计
- * Requirements: 9.5 - THE Frontend SHALL display token usage statistics after each Agent response
- */
-export interface TokenUsage {
-  /** 输入 token 数 */
-  input_tokens: number;
-  /** 输出 token 数 */
-  output_tokens: number;
+export interface AgentContextTraceStep {
+  stage: string;
+  detail: string;
 }
 
-/**
- * 工具执行结果图片
- * Requirements: 9.2 - THE Frontend SHALL display a collapsible section showing the tool result
- */
-export interface ToolResultImage {
+export interface AgentToolResultImage {
   src: string;
   mimeType?: string;
   origin?: "data_url" | "tool_payload" | "file_path";
 }
 
-export type ToolResultMetadata = Record<string, unknown>;
+export type AgentToolResultMetadata = Record<string, unknown>;
 
-/**
- * 工具执行结果
- * Requirements: 9.2 - THE Frontend SHALL display a collapsible section showing the tool result
- */
-export interface ToolExecutionResult {
-  /** 是否成功 */
+export interface AgentToolExecutionResult {
   success: boolean;
-  /** 输出内容 */
   output: string;
-  /** 错误信息（如果失败） */
   error?: string;
-  /** 工具返回的图片（可选） */
-  images?: ToolResultImage[];
-  /** 工具返回的结构化元数据（可选） */
-  metadata?: ToolResultMetadata;
+  images?: AgentToolResultImage[];
+  metadata?: AgentToolResultMetadata;
 }
 
-export interface StreamArtifactSnapshot {
+export interface AgentMessageContentText {
+  type: "text";
+  text: string;
+}
+
+export interface AgentMessageContentThinking {
+  type: "thinking";
+  text: string;
+}
+
+export interface AgentMessageContentToolRequest {
+  type: "tool_request";
+  id: string;
+  tool_name: string;
+  arguments: unknown;
+}
+
+export interface AgentMessageContentToolResponse {
+  type: "tool_response";
+  id: string;
+  success: boolean;
+  output: string;
+  error?: string;
+  images?: AgentToolResultImage[];
+  metadata?: AgentToolResultMetadata;
+}
+
+export interface AgentMessageContentActionRequired {
+  type: "action_required";
+  id: string;
+  action_type: AgentActionRequiredType | string;
+  data: unknown;
+  scope?: AgentActionRequiredScope;
+}
+
+export interface AgentMessageContentImage {
+  type: "image";
+  mime_type: string;
+  data: string;
+}
+
+export type AgentMessageContent =
+  | AgentMessageContentText
+  | AgentMessageContentThinking
+  | AgentMessageContentToolRequest
+  | AgentMessageContentToolResponse
+  | AgentMessageContentActionRequired
+  | AgentMessageContentImage;
+
+export interface AgentMessage {
+  id?: string;
+  role: string;
+  content: AgentMessageContent[];
+  timestamp: number;
+}
+
+export interface AgentArtifactSignal {
   artifactId: string;
   filePath?: string;
   content?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface AgentTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
 }
 
 export type AgentThreadTurnStatus =
@@ -224,170 +268,313 @@ export type AgentThreadItem =
   | AgentThreadErrorItem
   | AgentThreadTurnSummaryItem;
 
-/**
- * 流式事件类型
- * Requirements: 9.1, 9.2, 9.3
- */
-export type StreamEvent =
-  | StreamEventThreadStarted
-  | StreamEventTurnStarted
-  | StreamEventItemStarted
-  | StreamEventItemUpdated
-  | StreamEventItemCompleted
-  | StreamEventTurnCompleted
-  | StreamEventTurnFailed
-  | StreamEventTextDelta
-  | StreamEventReasoningDelta
-  | StreamEventToolStart
-  | StreamEventToolEnd
-  | StreamEventArtifactSnapshot
-  | StreamEventActionRequired
-  | StreamEventContextTrace
-  | StreamEventRuntimeStatus
-  | StreamEventQueueAdded
-  | StreamEventQueueRemoved
-  | StreamEventQueueStarted
-  | StreamEventQueueCleared
-  | StreamEventSubagentStatusChanged
-  | StreamEventDone
-  | StreamEventFinalDone
-  | StreamEventWarning
-  | StreamEventError;
+export interface AgentToolCallState {
+  id: string;
+  name: string;
+  arguments?: string;
+  status: "running" | "completed" | "failed";
+  result?: AgentToolExecutionResult;
+  startTime: Date;
+  endTime?: Date;
+  logs?: string[];
+}
 
-/**
- * 文本增量事件
- * Requirements: 9.3 - THE Frontend SHALL distinguish between text responses and tool call responses visually
- */
-export interface StreamEventTextDelta {
+export interface AgentActionRequiredScope {
+  session_id?: string;
+  thread_id?: string;
+  turn_id?: string;
+}
+
+export type AgentActionRequiredType =
+  | "tool_confirmation"
+  | "ask_user"
+  | "elicitation";
+
+export interface AgentActionRequiredOption {
+  label: string;
+  description?: string;
+}
+
+export interface AgentActionRequiredQuestion {
+  question: string;
+  header?: string;
+  options?: AgentActionRequiredOption[];
+  multiSelect?: boolean;
+}
+
+export interface AgentEventTextDelta {
   type: "text_delta";
   text: string;
 }
 
-export interface StreamEventThreadStarted {
+export interface AgentEventThreadStarted {
   type: "thread_started";
   thread_id: string;
 }
 
-export interface StreamEventTurnStarted {
+export interface AgentEventTurnStarted {
   type: "turn_started";
   turn: AgentThreadTurn;
 }
 
-export interface StreamEventItemStarted {
+export interface AgentEventItemStarted {
   type: "item_started";
   item: AgentThreadItem;
 }
 
-export interface StreamEventItemUpdated {
+export interface AgentEventItemUpdated {
   type: "item_updated";
   item: AgentThreadItem;
 }
 
-export interface StreamEventItemCompleted {
+export interface AgentEventItemCompleted {
   type: "item_completed";
   item: AgentThreadItem;
 }
 
-export interface StreamEventTurnCompleted {
+export interface AgentEventTurnCompleted {
   type: "turn_completed";
   turn: AgentThreadTurn;
 }
 
-export interface StreamEventTurnFailed {
+export interface AgentEventTurnFailed {
   type: "turn_failed";
   turn: AgentThreadTurn;
 }
 
-/**
- * 推理内容增量事件（DeepSeek reasoner 等模型的思考过程）
- * Requirements: 9.3 - THE Frontend SHALL distinguish between text responses and tool call responses visually
- */
-export interface StreamEventReasoningDelta {
+export interface AgentEventThinkingDelta {
   type: "thinking_delta";
   text: string;
 }
 
-/**
- * 工具调用开始事件
- * Requirements: 9.1 - WHEN a tool is being executed, THE Frontend SHALL display a tool execution indicator with the tool name
- */
-export interface StreamEventToolStart {
+export interface AgentEventToolStart {
   type: "tool_start";
-  /** 工具名称 */
   tool_name: string;
-  /** 工具调用 ID */
   tool_id: string;
-  /** 工具参数（JSON 字符串） */
   arguments?: string;
 }
 
-/**
- * 工具调用结束事件
- * Requirements: 9.2 - WHEN a tool completes, THE Frontend SHALL display a collapsible section showing the tool result
- */
-export interface StreamEventToolEnd {
+export interface AgentEventToolEnd {
   type: "tool_end";
-  /** 工具调用 ID */
   tool_id: string;
-  /** 工具执行结果 */
-  result: ToolExecutionResult;
+  result: AgentToolExecutionResult;
 }
 
-export interface StreamEventArtifactSnapshot {
+export interface AgentEventArtifactSnapshot {
   type: "artifact_snapshot";
-  artifact: StreamArtifactSnapshot;
+  artifact: AgentArtifactSignal;
 }
 
-/**
- * 权限确认请求事件
- * 当 Agent 需要用户确认某个操作时发送
- */
-export interface StreamEventActionRequired {
+export interface AgentEventActionRequired {
   type: "action_required";
-  /** 请求 ID */
   request_id: string;
-  /** 操作类型 */
-  action_type: "tool_confirmation" | "ask_user" | "elicitation";
-  /** 原始运行时作用域 */
-  scope?: {
-    session_id?: string;
-    thread_id?: string;
-    turn_id?: string;
-  };
-  /** 工具名称（工具确认时） */
+  action_type: AgentActionRequiredType;
+  scope?: AgentActionRequiredScope;
   tool_name?: string;
-  /** 工具参数（工具确认时） */
   arguments?: Record<string, unknown>;
-  /** 提示信息 */
   prompt?: string;
-  /** 问题列表（ask_user 时） */
-  questions?: Array<{
-    question: string;
-    header?: string;
-    options?: Array<{
-      label: string;
-      description?: string;
-    }>;
-    multiSelect?: boolean;
-  }>;
-  /** 请求的数据结构（elicitation 时） */
+  questions?: AgentActionRequiredQuestion[];
   requested_schema?: Record<string, unknown>;
 }
 
-export interface ContextTraceStep {
-  stage: string;
-  detail: string;
+export interface AgentEventContextTrace {
+  type: "context_trace";
+  steps: AgentContextTraceStep[];
 }
+
+export interface AgentEventTurnContext {
+  type: "turn_context";
+  session_id: string;
+  thread_id: string;
+  turn_id: string;
+  output_schema_runtime?: AsterTurnOutputSchemaRuntime | null;
+}
+
+export interface AgentEventModelChange {
+  type: "model_change";
+  model: string;
+  mode: string;
+}
+
+export interface AgentRuntimeStatusMetadata {
+  team_phase?: string;
+  team_parallel_budget?: number;
+  team_active_count?: number;
+  team_queued_count?: number;
+  concurrency_phase?: string;
+  concurrency_scope?: string;
+  concurrency_active_count?: number;
+  concurrency_queued_count?: number;
+  concurrency_budget?: number;
+  provider_concurrency_group?: string;
+  provider_parallel_budget?: number;
+  queue_reason?: string;
+  retryable_overload?: boolean;
+}
+
+export interface AgentRuntimeStatusPayload {
+  phase: "preparing" | "routing" | "context" | "failed";
+  title: string;
+  detail: string;
+  checkpoints?: string[];
+  metadata?: AgentRuntimeStatusMetadata;
+}
+
+export interface AgentEventRuntimeStatus {
+  type: "runtime_status";
+  status: AgentRuntimeStatusPayload;
+}
+
+export interface AgentEventQueueAdded {
+  type: "queue_added";
+  session_id: string;
+  queued_turn: QueuedTurnSnapshot;
+}
+
+export interface AgentEventQueueRemoved {
+  type: "queue_removed";
+  session_id: string;
+  queued_turn_id: string;
+}
+
+export interface AgentEventQueueStarted {
+  type: "queue_started";
+  session_id: string;
+  queued_turn_id: string;
+}
+
+export interface AgentEventQueueCleared {
+  type: "queue_cleared";
+  session_id: string;
+  queued_turn_ids: string[];
+}
+
+export type AgentSubagentRuntimeStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "aborted"
+  | "closed"
+  | "not_found";
+
+export interface AgentEventSubagentStatusChanged {
+  type: "subagent_status_changed";
+  session_id: string;
+  root_session_id: string;
+  parent_session_id?: string;
+  status: AgentSubagentRuntimeStatus;
+}
+
+export interface AgentEventDone {
+  type: "done";
+  usage?: AgentTokenUsage;
+}
+
+export interface AgentEventFinalDone {
+  type: "final_done";
+  usage?: AgentTokenUsage;
+}
+
+export interface AgentEventWarning {
+  type: "warning";
+  code?: string;
+  message: string;
+}
+
+export interface AgentEventError {
+  type: "error";
+  message: string;
+}
+
+export type AgentEvent =
+  | AgentEventThreadStarted
+  | AgentEventTurnStarted
+  | AgentEventItemStarted
+  | AgentEventItemUpdated
+  | AgentEventItemCompleted
+  | AgentEventTurnCompleted
+  | AgentEventTurnFailed
+  | AgentEventTextDelta
+  | AgentEventThinkingDelta
+  | AgentEventToolStart
+  | AgentEventToolEnd
+  | AgentEventArtifactSnapshot
+  | AgentEventActionRequired
+  | AgentEventTurnContext
+  | AgentEventModelChange
+  | AgentEventContextTrace
+  | AgentEventRuntimeStatus
+  | AgentEventQueueAdded
+  | AgentEventQueueRemoved
+  | AgentEventQueueStarted
+  | AgentEventQueueCleared
+  | AgentEventSubagentStatusChanged
+  | AgentEventDone
+  | AgentEventFinalDone
+  | AgentEventWarning
+  | AgentEventError;
+
+export interface AgentUserPreferences {
+  providerPreference?: string;
+  modelPreference?: string;
+  thinking?: boolean;
+  webSearch?: boolean;
+  searchMode?: AgentSearchMode;
+  executionStrategy?: AsterExecutionStrategy;
+  autoContinue?: AutoContinueRequestPayload;
+}
+
+export interface AgentUserInputOp {
+  type: "user_input";
+  text: string;
+  sessionId: string;
+  eventName: string;
+  workspaceId: string;
+  turnId?: string;
+  images?: ImageInput[];
+  preferences?: AgentUserPreferences;
+  systemPrompt?: string;
+  metadata?: Record<string, unknown>;
+  queueIfBusy?: boolean;
+  queuedTurnId?: string;
+}
+
+export interface AgentInterruptOp {
+  type: "interrupt";
+  sessionId: string;
+  turnId?: string;
+}
+
+export interface AgentRetryOp {
+  type: "retry";
+  sessionId: string;
+  turnId: string;
+}
+
+export interface AgentConfigUpdateOp {
+  type: "config_update";
+  sessionId: string;
+  key: string;
+  value: unknown;
+}
+
+export interface AgentShutdownOp {
+  type: "shutdown";
+  sessionId?: string;
+}
+
+export type AgentOp =
+  | AgentUserInputOp
+  | AgentInterruptOp
+  | AgentRetryOp
+  | AgentConfigUpdateOp
+  | AgentShutdownOp;
 
 function normalizeActionRequiredScope(
   value: unknown,
-):
-  | {
-      session_id?: string;
-      thread_id?: string;
-      turn_id?: string;
-    }
-  | undefined {
+): AgentActionRequiredScope | undefined {
   if (!value || typeof value !== "object") {
     return undefined;
   }
@@ -419,147 +606,10 @@ function normalizeActionRequiredScope(
     : undefined;
 }
 
-export interface StreamEventContextTrace {
-  type: "context_trace";
-  steps: ContextTraceStep[];
-}
-
-export interface StreamRuntimeStatusPayload {
-  phase: "preparing" | "routing" | "context" | "failed";
-  title: string;
-  detail: string;
-  checkpoints?: string[];
-  metadata?: {
-    team_phase?: string;
-    team_parallel_budget?: number;
-    team_active_count?: number;
-    team_queued_count?: number;
-    concurrency_phase?: string;
-    concurrency_scope?: string;
-    concurrency_active_count?: number;
-    concurrency_queued_count?: number;
-    concurrency_budget?: number;
-    provider_concurrency_group?: string;
-    provider_parallel_budget?: number;
-    queue_reason?: string;
-    retryable_overload?: boolean;
-  };
-}
-
-export interface StreamEventRuntimeStatus {
-  type: "runtime_status";
-  status: StreamRuntimeStatusPayload;
-}
-
-export interface StreamEventQueueAdded {
-  type: "queue_added";
-  session_id: string;
-  queued_turn: QueueTurnSnapshot;
-}
-
-export interface StreamEventQueueRemoved {
-  type: "queue_removed";
-  session_id: string;
-  queued_turn_id: string;
-}
-
-export interface StreamEventQueueStarted {
-  type: "queue_started";
-  session_id: string;
-  queued_turn_id: string;
-}
-
-export interface StreamEventQueueCleared {
-  type: "queue_cleared";
-  session_id: string;
-  queued_turn_ids: string[];
-}
-
-export interface StreamEventSubagentStatusChanged {
-  type: "subagent_status_changed";
-  session_id: string;
-  root_session_id: string;
-  parent_session_id?: string;
-  status:
-    | "idle"
-    | "queued"
-    | "running"
-    | "completed"
-    | "failed"
-    | "aborted"
-    | "closed"
-    | "not_found";
-}
-
-/**
- * 完成事件（单次 API 响应完成，工具循环可能继续）
- * Requirements: 9.5 - THE Frontend SHALL display token usage statistics after each Agent response
- */
-export interface StreamEventDone {
-  type: "done";
-  /** Token 使用量（可选） */
-  usage?: TokenUsage;
-}
-
-/**
- * 最终完成事件（整个对话完成，包括所有工具调用循环）
- * 前端收到此事件后才能取消监听
- */
-export interface StreamEventFinalDone {
-  type: "final_done";
-  /** Token 使用量（可选） */
-  usage?: TokenUsage;
-}
-
-/**
- * 错误事件
- */
-export interface StreamEventError {
-  type: "error";
-  /** 错误信息 */
-  message: string;
-}
-
-/**
- * 告警事件（不中断流程）
- */
-export interface StreamEventWarning {
-  type: "warning";
-  /** 告警代码（可选） */
-  code?: string;
-  /** 告警信息 */
-  message: string;
-}
-
-/**
- * 工具调用状态（用于 UI 显示）
- */
-export interface ToolCallState {
-  /** 工具调用 ID */
-  id: string;
-  /** 工具名称 */
-  name: string;
-  /** 工具参数（JSON 字符串） */
-  arguments?: string;
-  /** 执行状态 */
-  status: "running" | "completed" | "failed";
-  /** 执行结果（完成后） */
-  result?: ToolExecutionResult;
-  /** 开始时间 */
-  startTime: Date;
-  /** 结束时间（完成后） */
-  endTime?: Date;
-  /** 执行日志（实时更新） */
-  logs?: string[];
-}
-
-/**
- * 解析流式事件
- * @param data - 原始事件数据
- * @returns 解析后的流式事件
- */
-export function parseStreamEvent(data: unknown): StreamEvent | null {
-  if (!data || typeof data !== "object") return null;
+export function parseAgentEvent(data: unknown): AgentEvent | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
 
   const event = data as Record<string, unknown>;
   const type = event.type as string;
@@ -622,7 +672,7 @@ export function parseStreamEvent(data: unknown): StreamEvent | null {
       return {
         type: "tool_end",
         tool_id: (event.tool_id as string) || "",
-        result: event.result as ToolExecutionResult,
+        result: event.result as AgentToolExecutionResult,
       };
     case "artifact_snapshot":
     case "ArtifactSnapshot": {
@@ -672,10 +722,7 @@ export function parseStreamEvent(data: unknown): StreamEvent | null {
       return {
         type: "action_required",
         request_id: requestId,
-        action_type: actionType as
-          | "tool_confirmation"
-          | "ask_user"
-          | "elicitation",
+        action_type: actionType as AgentActionRequiredType,
         scope: normalizeActionRequiredScope(event.scope ?? actionData.scope),
         tool_name:
           (event.tool_name as string | undefined) ||
@@ -688,43 +735,41 @@ export function parseStreamEvent(data: unknown): StreamEvent | null {
           (actionData.prompt as string | undefined) ||
           (actionData.message as string | undefined),
         questions:
-          (event.questions as
-            | Array<{
-                question: string;
-                header?: string;
-                options?: Array<{
-                  label: string;
-                  description?: string;
-                }>;
-                multiSelect?: boolean;
-              }>
-            | undefined) ||
-          (actionData.questions as
-            | Array<{
-                question: string;
-                header?: string;
-                options?: Array<{
-                  label: string;
-                  description?: string;
-                }>;
-                multiSelect?: boolean;
-              }>
-            | undefined),
+          (event.questions as AgentActionRequiredQuestion[] | undefined) ||
+          (actionData.questions as AgentActionRequiredQuestion[] | undefined),
         requested_schema:
           (event.requested_schema as Record<string, unknown> | undefined) ||
           (actionData.requested_schema as Record<string, unknown> | undefined),
       };
     }
+    case "turn_context":
+      return {
+        type: "turn_context",
+        session_id: (event.session_id as string) || "",
+        thread_id: (event.thread_id as string) || "",
+        turn_id: (event.turn_id as string) || "",
+        output_schema_runtime:
+          (event.output_schema_runtime as
+            | AsterTurnOutputSchemaRuntime
+            | null
+            | undefined) || null,
+      };
+    case "model_change":
+      return {
+        type: "model_change",
+        model: (event.model as string) || "",
+        mode: (event.mode as string) || "",
+      };
     case "done":
       return {
         type: "done",
-        usage: event.usage as TokenUsage | undefined,
+        usage: event.usage as AgentTokenUsage | undefined,
       };
     case "context_trace":
       return {
         type: "context_trace",
         steps: Array.isArray(event.steps)
-          ? (event.steps as ContextTraceStep[])
+          ? (event.steps as AgentContextTraceStep[])
           : [],
       };
     case "runtime_status": {
@@ -741,7 +786,10 @@ export function parseStreamEvent(data: unknown): StreamEvent | null {
         type: "runtime_status",
         status: {
           phase:
-            phase === "preparing" || phase === "routing" || phase === "context"
+            phase === "preparing" ||
+            phase === "routing" ||
+            phase === "context" ||
+            phase === "failed"
               ? phase
               : "routing",
           title: typeof status?.title === "string" ? status.title : "",
@@ -846,20 +894,12 @@ export function parseStreamEvent(data: unknown): StreamEvent | null {
         root_session_id: (event.root_session_id as string) || "",
         parent_session_id: event.parent_session_id as string | undefined,
         status:
-          (event.status as
-            | "idle"
-            | "queued"
-            | "running"
-            | "completed"
-            | "failed"
-            | "aborted"
-            | "closed"
-            | "not_found") || "idle",
+          (event.status as AgentSubagentRuntimeStatus | undefined) || "idle",
       };
     case "final_done":
       return {
         type: "final_done",
-        usage: event.usage as TokenUsage | undefined,
+        usage: event.usage as AgentTokenUsage | undefined,
       };
     case "error":
       return {
@@ -875,4 +915,32 @@ export function parseStreamEvent(data: unknown): StreamEvent | null {
     default:
       return null;
   }
+}
+
+export function createSubmitTurnRequestFromAgentOp(
+  op: AgentUserInputOp,
+): AgentRuntimeSubmitTurnRequest {
+  const preferences = op.preferences;
+
+  return {
+    message: op.text,
+    session_id: op.sessionId,
+    event_name: op.eventName,
+    workspace_id: op.workspaceId,
+    turn_id: op.turnId,
+    images: op.images,
+    turn_config: {
+      provider_preference: preferences?.providerPreference,
+      model_preference: preferences?.modelPreference,
+      thinking_enabled: preferences?.thinking,
+      execution_strategy: preferences?.executionStrategy,
+      web_search: preferences?.webSearch,
+      search_mode: preferences?.searchMode,
+      auto_continue: preferences?.autoContinue,
+      system_prompt: op.systemPrompt,
+      metadata: op.metadata,
+    },
+    queue_if_busy: op.queueIfBusy,
+    queued_turn_id: op.queuedTurnId,
+  };
 }

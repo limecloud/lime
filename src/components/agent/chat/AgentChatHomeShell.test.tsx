@@ -18,7 +18,9 @@ const {
   mockSetModel,
   mockSetProviderType,
   mockLoadConfiguredProviders,
-  mockLoadProviderModels,
+  mockGetModelRegistry,
+  mockGetProviderAliasConfig,
+  mockFetchProviderModelsAuto,
   mockFilterModelsByTheme,
   mockSaveChatToolPreferences,
   mockPrepareClawSolution,
@@ -27,6 +29,14 @@ const {
   mockClawSolutions,
   mockUseServiceSkills,
   mockRecordServiceSkillUsage,
+  mockRecordServiceSkillAutomationLink,
+  mockCreateServiceSkillRun,
+  mockGetServiceSkillRun,
+  mockIsTerminalServiceSkillRunStatus,
+  mockToastLoading,
+  mockToastSuccess,
+  mockToastError,
+  mockToastInfo,
   mockServiceSkills,
 } = vi.hoisted(() => {
   const mockClawSolutions = [
@@ -90,6 +100,7 @@ const {
       runnerTone: "emerald",
       runnerDescription: "客户端起步版可直接进入工作区执行。",
       actionLabel: "填写参数",
+      automationStatus: null,
     },
     {
       id: "daily-trend-briefing",
@@ -134,23 +145,41 @@ const {
       isRecent: false,
       runnerLabel: "本地计划任务",
       runnerTone: "sky",
-      runnerDescription: "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
+      runnerDescription:
+        "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
       actionLabel: "先做方案",
+      automationStatus: {
+        jobId: "automation-job-daily-trend",
+        jobName: "每日趋势摘要",
+        statusLabel: "成功",
+        tone: "emerald",
+        detail: "下次 03/24 09:00",
+      },
     },
   ];
 
   const mockRecordClawSolutionUsage = vi.fn();
   const mockRecordServiceSkillUsage = vi.fn();
+  const mockRecordServiceSkillAutomationLink = vi.fn();
+  const mockCreateServiceSkillRun = vi.fn();
+  const mockGetServiceSkillRun = vi.fn();
+  const mockIsTerminalServiceSkillRunStatus = vi.fn();
+  const mockToastLoading = vi.fn();
+  const mockToastSuccess = vi.fn();
+  const mockToastError = vi.fn();
+  const mockToastInfo = vi.fn();
 
   return {
     mockBuildClawAgentParams: vi.fn((overrides?: Record<string, unknown>) => ({
       agentEntry: "claw",
       ...(overrides || {}),
     })),
-    mockCreateAutomationJob: vi.fn(async (request: Record<string, unknown>) => ({
-      id: "automation-job-1",
-      ...request,
-    })),
+    mockCreateAutomationJob: vi.fn(
+      async (request: Record<string, unknown>) => ({
+        id: "automation-job-1",
+        ...request,
+      }),
+    ),
     mockHomeShellProviderType: { current: "mock-provider" },
     mockHomeShellModel: { current: "mock-model" },
     mockHomeShellExecutionStrategy: { current: "react" },
@@ -174,9 +203,15 @@ const {
     mockLoadConfiguredProviders: vi.fn(
       async (): Promise<ConfiguredProvider[]> => [],
     ),
-    mockLoadProviderModels: vi.fn(
+    mockGetModelRegistry: vi.fn(
       async (): Promise<EnhancedModelMetadata[]> => [],
     ),
+    mockGetProviderAliasConfig: vi.fn(async () => null),
+    mockFetchProviderModelsAuto: vi.fn(async () => ({
+      models: [],
+      source: "LocalFallback",
+      error: null,
+    })),
     mockFilterModelsByTheme: vi.fn(
       (_theme: string | undefined, models: unknown[]) => ({
         models,
@@ -202,8 +237,17 @@ const {
       error: null,
       refresh: vi.fn(),
       recordUsage: mockRecordServiceSkillUsage,
+      catalogMeta: null,
     })),
     mockRecordServiceSkillUsage,
+    mockRecordServiceSkillAutomationLink,
+    mockCreateServiceSkillRun,
+    mockGetServiceSkillRun,
+    mockIsTerminalServiceSkillRunStatus,
+    mockToastLoading,
+    mockToastSuccess,
+    mockToastError,
+    mockToastInfo,
     mockServiceSkills,
   };
 });
@@ -315,16 +359,35 @@ vi.mock("@/lib/api/automation", () => ({
   createAutomationJob: mockCreateAutomationJob,
 }));
 
+vi.mock("@/lib/api/serviceSkillRuns", () => ({
+  createServiceSkillRun: mockCreateServiceSkillRun,
+  getServiceSkillRun: mockGetServiceSkillRun,
+  isTerminalServiceSkillRunStatus: mockIsTerminalServiceSkillRunStatus,
+}));
+
 vi.mock("@/lib/api/project", () => ({
   listProjects: mockListProjects,
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    loading: mockToastLoading,
+    success: mockToastSuccess,
+    error: mockToastError,
+    info: mockToastInfo,
+  },
 }));
 
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   loadConfiguredProviders: mockLoadConfiguredProviders,
 }));
 
-vi.mock("@/hooks/useProviderModels", () => ({
-  loadProviderModels: mockLoadProviderModels,
+vi.mock("@/lib/api/modelRegistry", () => ({
+  modelRegistryApi: {
+    getModelRegistry: mockGetModelRegistry,
+    getProviderAliasConfig: mockGetProviderAliasConfig,
+    fetchProviderModelsAuto: mockFetchProviderModelsAuto,
+  },
 }));
 
 vi.mock("./utils/modelThemePolicy", () => ({
@@ -362,24 +425,48 @@ vi.mock("./service-skills/useServiceSkills", () => ({
   useServiceSkills: mockUseServiceSkills,
 }));
 
+vi.mock("./service-skills/automationLinkStorage", () => ({
+  recordServiceSkillAutomationLink: mockRecordServiceSkillAutomationLink,
+}));
+
 vi.mock("./service-skills/ServiceSkillHomePanel", () => ({
   ServiceSkillHomePanel: ({
     skills,
     onSelect,
+    onOpenAutomationJob,
   }: {
-    skills: Array<{ id: string; title: string }>;
+    skills: Array<{
+      id: string;
+      title: string;
+      automationStatus?: { jobId: string } | null;
+    }>;
     onSelect: (skill: { id: string; title: string }) => void;
+    onOpenAutomationJob?: (skill: {
+      id: string;
+      title: string;
+      automationStatus?: { jobId: string } | null;
+    }) => void;
   }) => (
     <>
       {skills.map((skill) => (
-        <button
-          key={skill.id}
-          type="button"
-          data-testid={`home-shell-service-skill-${skill.id}`}
-          onClick={() => onSelect(skill)}
-        >
-          {skill.title}
-        </button>
+        <React.Fragment key={skill.id}>
+          <button
+            type="button"
+            data-testid={`home-shell-service-skill-${skill.id}`}
+            onClick={() => onSelect(skill)}
+          >
+            {skill.title}
+          </button>
+          {skill.automationStatus && onOpenAutomationJob ? (
+            <button
+              type="button"
+              data-testid={`home-shell-service-skill-open-automation-${skill.id}`}
+              onClick={() => onOpenAutomationJob(skill)}
+            >
+              打开任务
+            </button>
+          ) : null}
+        </React.Fragment>
       ))}
     </>
   ),
@@ -444,105 +531,110 @@ vi.mock("./service-skills/ServiceSkillLaunchDialog", () => ({
     ) : null,
 }));
 
-vi.mock("@/components/settings-v2/system/automation/AutomationJobDialog", () => ({
-  AutomationJobDialog: ({
-    open,
-    mode,
-    initialValues,
-    onSubmit,
-  }: {
-    open: boolean;
-    mode: "create" | "edit";
-    initialValues?: Record<string, unknown> | null;
-    onSubmit: (payload: {
-      mode: "create";
-      request: Record<string, unknown>;
-    }) => Promise<void>;
-  }) =>
-    open ? (
-      <div data-testid="home-shell-automation-dialog">
-        <span data-testid="home-shell-automation-dialog-mode">{mode}</span>
-        <span data-testid="home-shell-automation-dialog-schedule">
-          {typeof initialValues?.schedule_kind === "string"
-            ? initialValues.schedule_kind
-            : "-"}
-        </span>
-        <span data-testid="home-shell-automation-dialog-name">
-          {typeof initialValues?.name === "string" ? initialValues.name : "-"}
-        </span>
-        <button
-          type="button"
-          data-testid="home-shell-automation-submit"
-          onClick={() =>
-            void onSubmit({
-              mode: "create",
-              request: {
-                name:
-                  typeof initialValues?.name === "string"
-                    ? initialValues.name
-                    : "自动化任务",
-                description:
-                  typeof initialValues?.description === "string"
-                    ? initialValues.description
-                    : null,
-                workspace_id:
-                  typeof initialValues?.workspace_id === "string"
-                    ? initialValues.workspace_id
-                    : "project-1",
-                execution_mode:
-                  typeof initialValues?.execution_mode === "string"
-                    ? initialValues.execution_mode
-                    : "skill",
-                schedule:
-                  initialValues?.schedule_kind === "cron"
-                    ? {
-                        kind: "cron",
-                        expr:
-                          typeof initialValues?.cron_expr === "string"
-                            ? initialValues.cron_expr
-                            : "0 9 * * *",
-                        tz:
-                          typeof initialValues?.cron_tz === "string"
-                            ? initialValues.cron_tz
-                            : "Asia/Shanghai",
-                      }
-                    : {
-                        kind: "every",
-                        every_secs: Number(initialValues?.every_secs ?? 86400),
-                      },
-                payload: {
-                  kind: "agent_turn",
-                  prompt:
-                    typeof initialValues?.prompt === "string"
-                      ? initialValues.prompt
-                      : "",
-                  system_prompt:
-                    typeof initialValues?.system_prompt === "string"
-                      ? initialValues.system_prompt
+vi.mock(
+  "@/components/settings-v2/system/automation/AutomationJobDialog",
+  () => ({
+    AutomationJobDialog: ({
+      open,
+      mode,
+      initialValues,
+      onSubmit,
+    }: {
+      open: boolean;
+      mode: "create" | "edit";
+      initialValues?: Record<string, unknown> | null;
+      onSubmit: (payload: {
+        mode: "create";
+        request: Record<string, unknown>;
+      }) => Promise<void>;
+    }) =>
+      open ? (
+        <div data-testid="home-shell-automation-dialog">
+          <span data-testid="home-shell-automation-dialog-mode">{mode}</span>
+          <span data-testid="home-shell-automation-dialog-schedule">
+            {typeof initialValues?.schedule_kind === "string"
+              ? initialValues.schedule_kind
+              : "-"}
+          </span>
+          <span data-testid="home-shell-automation-dialog-name">
+            {typeof initialValues?.name === "string" ? initialValues.name : "-"}
+          </span>
+          <button
+            type="button"
+            data-testid="home-shell-automation-submit"
+            onClick={() =>
+              void onSubmit({
+                mode: "create",
+                request: {
+                  name:
+                    typeof initialValues?.name === "string"
+                      ? initialValues.name
+                      : "自动化任务",
+                  description:
+                    typeof initialValues?.description === "string"
+                      ? initialValues.description
                       : null,
-                  web_search:
-                    typeof initialValues?.web_search === "boolean"
-                      ? initialValues.web_search
-                      : false,
+                  workspace_id:
+                    typeof initialValues?.workspace_id === "string"
+                      ? initialValues.workspace_id
+                      : "project-1",
+                  execution_mode:
+                    typeof initialValues?.execution_mode === "string"
+                      ? initialValues.execution_mode
+                      : "skill",
+                  schedule:
+                    initialValues?.schedule_kind === "cron"
+                      ? {
+                          kind: "cron",
+                          expr:
+                            typeof initialValues?.cron_expr === "string"
+                              ? initialValues.cron_expr
+                              : "0 9 * * *",
+                          tz:
+                            typeof initialValues?.cron_tz === "string"
+                              ? initialValues.cron_tz
+                              : "Asia/Shanghai",
+                        }
+                      : {
+                          kind: "every",
+                          every_secs: Number(
+                            initialValues?.every_secs ?? 86400,
+                          ),
+                        },
+                  payload: {
+                    kind: "agent_turn",
+                    prompt:
+                      typeof initialValues?.prompt === "string"
+                        ? initialValues.prompt
+                        : "",
+                    system_prompt:
+                      typeof initialValues?.system_prompt === "string"
+                        ? initialValues.system_prompt
+                        : null,
+                    web_search:
+                      typeof initialValues?.web_search === "boolean"
+                        ? initialValues.web_search
+                        : false,
+                  },
+                  delivery: {
+                    mode: "none",
+                    channel: null,
+                    target: null,
+                    best_effort: true,
+                    output_schema: "text",
+                    output_format: "text",
+                  },
+                  max_retries: Number(initialValues?.max_retries ?? 2),
                 },
-                delivery: {
-                  mode: "none",
-                  channel: null,
-                  target: null,
-                  best_effort: true,
-                  output_schema: "text",
-                  output_format: "text",
-                },
-                max_retries: Number(initialValues?.max_retries ?? 2),
-              },
-            })
-          }
-        >
-          提交自动化
-        </button>
-      </div>
-    ) : null,
-}));
+              })
+            }
+          >
+            提交自动化
+          </button>
+        </div>
+      ) : null,
+  }),
+);
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
@@ -568,9 +660,16 @@ beforeEach(() => {
     error: null,
     refresh: vi.fn(),
     recordUsage: mockRecordServiceSkillUsage,
+    catalogMeta: null,
   }));
   mockLoadConfiguredProviders.mockResolvedValue([]);
-  mockLoadProviderModels.mockResolvedValue([]);
+  mockGetModelRegistry.mockResolvedValue([]);
+  mockGetProviderAliasConfig.mockResolvedValue(null);
+  mockFetchProviderModelsAuto.mockResolvedValue({
+    models: [],
+    source: "LocalFallback",
+    error: null,
+  });
   mockListProjects.mockResolvedValue([
     {
       id: "project-1",
@@ -593,6 +692,22 @@ beforeEach(() => {
       policyName: "mock",
     }),
   );
+  mockCreateServiceSkillRun.mockResolvedValue({
+    id: "service-skill-run-1",
+    status: "success",
+    outputSummary: "云端结果已生成",
+  });
+  mockGetServiceSkillRun.mockResolvedValue({
+    id: "service-skill-run-1",
+    status: "success",
+  });
+  mockIsTerminalServiceSkillRunStatus.mockImplementation((status: string) =>
+    ["success", "failed", "canceled", "timeout"].includes(status),
+  );
+  mockToastLoading.mockImplementation(() => "toast-loading");
+  mockToastSuccess.mockImplementation(() => undefined);
+  mockToastError.mockImplementation(() => undefined);
+  mockToastInfo.mockImplementation(() => undefined);
 });
 
 afterEach(() => {
@@ -745,7 +860,7 @@ describe("AgentChatHomeShell", () => {
         type: "openai",
       },
     ]);
-    mockLoadProviderModels.mockResolvedValueOnce([
+    mockGetModelRegistry.mockResolvedValueOnce([
       {
         id: "social-model-1",
         display_name: "Social Model 1",
@@ -862,7 +977,7 @@ describe("AgentChatHomeShell", () => {
         type: "openai",
       },
     ]);
-    mockLoadProviderModels.mockResolvedValueOnce([
+    mockGetModelRegistry.mockResolvedValueOnce([
       {
         id: "custom-social-model",
         display_name: "Custom Social Model",
@@ -925,11 +1040,8 @@ describe("AgentChatHomeShell", () => {
 
     expect(mockSetProviderType).not.toHaveBeenCalled();
     expect(mockSetModel).toHaveBeenCalledWith("custom-social-model");
-    expect(mockLoadProviderModels).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "custom-social-provider",
-      }),
-    );
+    expect(mockGetModelRegistry).toHaveBeenCalled();
+    expect(mockFetchProviderModelsAuto).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
@@ -1031,9 +1143,8 @@ describe("AgentChatHomeShell", () => {
         projectId: "project-1",
         theme: "video",
         initialCreationMode: "guided",
-        initialUserPrompt: expect.stringContaining(
-          "[服务型技能] 复制短视频脚本",
-        ),
+        initialUserPrompt:
+          expect.stringContaining("[服务型技能] 复制短视频脚本"),
       }),
     );
     expect(onEnterWorkspace).toHaveBeenCalledWith(
@@ -1047,6 +1158,84 @@ describe("AgentChatHomeShell", () => {
       skillId: "short-video-script-replication",
       runnerType: "instant",
     });
+  });
+
+  it("cloud_required 服务型技能应提交云端运行且不进入本地工作区", async () => {
+    const onEnterWorkspace = vi.fn();
+    mockUseServiceSkills.mockImplementation(() => ({
+      skills: [
+        {
+          ...mockServiceSkills[0],
+          id: "cloud-video-dubbing",
+          title: "云端视频配音",
+          executionLocation: "cloud_required",
+          defaultExecutorBinding: "cloud_scene",
+          runnerLabel: "云端托管执行",
+          runnerTone: "slate",
+          runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
+          actionLabel: "提交云端",
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refresh: vi.fn(),
+      recordUsage: mockRecordServiceSkillUsage,
+      catalogMeta: null,
+    }));
+
+    const { container } = renderShell({
+      onNavigate: undefined,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const serviceSkillButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-cloud-video-dubbing"]',
+    ) as HTMLButtonElement | null;
+
+    expect(serviceSkillButton).toBeTruthy();
+
+    act(() => {
+      serviceSkillButton?.click();
+    });
+
+    await flushEffects();
+
+    const launchButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-launch"]',
+    ) as HTMLButtonElement | null;
+
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
+      "cloud-video-dubbing",
+      expect.stringContaining("[服务型技能] 云端视频配音"),
+    );
+    expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
+      "cloud-video-dubbing",
+      expect.stringContaining("- 参考视频链接/素材: https://example.com/video"),
+    );
+    expect(onEnterWorkspace).not.toHaveBeenCalled();
+    expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
+      skillId: "cloud-video-dubbing",
+      runnerType: "instant",
+    });
+    expect(mockToastLoading).toHaveBeenCalledWith(
+      "正在提交 云端视频配音 到云端...",
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "云端视频配音 云端运行完成：云端结果已生成",
+      {
+        id: "toast-loading",
+      },
+    );
   });
 
   it("点击定时服务型技能创建任务后应先建本地 automation 再进入工作区", async () => {
@@ -1124,9 +1313,38 @@ describe("AgentChatHomeShell", () => {
         initialUserPrompt: expect.stringContaining("[服务型技能] 每日趋势摘要"),
       }),
     );
+    expect(mockRecordServiceSkillAutomationLink).toHaveBeenCalledWith({
+      skillId: "daily-trend-briefing",
+      jobId: "automation-job-1",
+      jobName: expect.any(String),
+    });
     expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "daily-trend-briefing",
       runnerType: "scheduled",
+    });
+  });
+
+  it("点击服务型技能任务状态后应跳转到 automation 对应任务", async () => {
+    const onNavigate = vi.fn();
+    const { container } = renderShell({
+      onNavigate,
+    });
+
+    await flushEffects();
+
+    const openAutomationButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-open-automation-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+
+    expect(openAutomationButton).toBeTruthy();
+
+    act(() => {
+      openAutomationButton?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("automation", {
+      selectedJobId: "automation-job-daily-trend",
+      workspaceTab: "tasks",
     });
   });
 

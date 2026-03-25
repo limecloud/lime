@@ -39,8 +39,10 @@ export interface OemCloudUserSession {
   expiresAt: string;
 }
 
-export interface OemCloudCurrentSession
-  extends Omit<OemCloudCurrentSessionLike, "tenant" | "user" | "session"> {
+export interface OemCloudCurrentSession extends Omit<
+  OemCloudCurrentSessionLike,
+  "tenant" | "user" | "session"
+> {
   token?: string;
   tenant: OemCloudTenant;
   user: OemCloudUser;
@@ -107,8 +109,7 @@ export interface OemCloudProviderOfferAccess {
   lastIssuedAt?: string;
 }
 
-export interface OemCloudProviderOfferDetail
-  extends OemCloudProviderOfferSummary {
+export interface OemCloudProviderOfferDetail extends OemCloudProviderOfferSummary {
   loginHint?: string;
   subscribeHint?: string;
   unavailableHint?: string;
@@ -145,6 +146,7 @@ export interface OemCloudBootstrapResponse {
   providerOffersSummary: OemCloudProviderOfferSummary[];
   providerPreference: OemCloudProviderPreference;
   serviceSkillCatalog?: unknown;
+  siteAdapterCatalog?: unknown;
   sceneCatalog?: Array<{ id: string }>;
   features: OemCloudFeatureFlags;
   gateway?: {
@@ -270,7 +272,9 @@ function normalizeBoolean(value: unknown, fallback = false): boolean {
 }
 
 function normalizeNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 const PARTNER_HUB_ACCESS_MODE_SET = new Set<OemCloudPartnerHubAccessMode>([
@@ -285,8 +289,10 @@ const PARTNER_HUB_CONFIG_MODE_SET = new Set<OemCloudPartnerHubConfigMode>([
   "developer",
 ]);
 
-const PARTNER_HUB_MODELS_SOURCE_SET =
-  new Set<OemCloudPartnerHubModelsSource>(["hub_catalog", "manual"]);
+const PARTNER_HUB_MODELS_SOURCE_SET = new Set<OemCloudPartnerHubModelsSource>([
+  "hub_catalog",
+  "manual",
+]);
 
 function parsePartnerHubAccessMode(
   value: unknown,
@@ -348,8 +354,7 @@ function unwrapEnvelope<T>(payload: unknown): {
   code: number | undefined;
 } {
   if (isRecord(payload)) {
-    const code =
-      typeof payload.code === "number" ? payload.code : undefined;
+    const code = typeof payload.code === "number" ? payload.code : undefined;
     const message = normalizeText(payload.message) ?? "";
     const data = payload.data as T | undefined;
     return {
@@ -494,10 +499,12 @@ function parseProviderOfferSummary(
 
   const providerKey = normalizeText(value.providerKey);
   const displayName = normalizeText(value.displayName);
-  const source = normalizeText(value.source) as OemCloudProviderSource | undefined;
-  const state = normalizeText(
-    value.state,
-  ) as OemCloudProviderOfferState | undefined;
+  const source = normalizeText(value.source) as
+    | OemCloudProviderSource
+    | undefined;
+  const state = normalizeText(value.state) as
+    | OemCloudProviderOfferState
+    | undefined;
 
   if (!providerKey || !displayName || !source || !state) {
     throw new OemCloudControlPlaneError("服务商摘要格式非法");
@@ -615,9 +622,9 @@ function parseProviderPreference(value: unknown): OemCloudProviderPreference {
 
   const tenantId = normalizeText(value.tenantId);
   const userId = normalizeText(value.userId);
-  const providerSource = normalizeText(
-    value.providerSource,
-  ) as OemCloudProviderSource | undefined;
+  const providerSource = normalizeText(value.providerSource) as
+    | OemCloudProviderSource
+    | undefined;
   const providerKey = normalizeText(value.providerKey);
   if (!tenantId || !userId || !providerSource || !providerKey) {
     throw new OemCloudControlPlaneError("默认服务商配置格式非法");
@@ -649,15 +656,16 @@ function parseFeatureFlags(value: unknown): OemCloudFeatureFlags {
   };
 }
 
-const DESKTOP_AUTH_SESSION_STATUS_SET = new Set<OemCloudDesktopAuthSessionStatus>([
-  "pending_login",
-  "pending_consent",
-  "approved",
-  "denied",
-  "cancelled",
-  "consumed",
-  "expired",
-]);
+const DESKTOP_AUTH_SESSION_STATUS_SET =
+  new Set<OemCloudDesktopAuthSessionStatus>([
+    "pending_login",
+    "pending_consent",
+    "approved",
+    "denied",
+    "cancelled",
+    "consumed",
+    "expired",
+  ]);
 
 function parseDesktopAuthSessionStatus(
   value: unknown,
@@ -772,9 +780,12 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
   return {
     session: parseCurrentSession(value.session),
     app: {
-      id: normalizeText(value.app && isRecord(value.app) ? value.app.id : "") ?? "",
+      id:
+        normalizeText(value.app && isRecord(value.app) ? value.app.id : "") ??
+        "",
       key:
-        normalizeText(value.app && isRecord(value.app) ? value.app.key : "") ?? "",
+        normalizeText(value.app && isRecord(value.app) ? value.app.key : "") ??
+        "",
       name:
         normalizeText(value.app && isRecord(value.app) ? value.app.name : "") ??
         "",
@@ -790,8 +801,9 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
           value.app && isRecord(value.app) ? value.app.description : "",
         ) ?? undefined,
       status:
-        normalizeText(value.app && isRecord(value.app) ? value.app.status : "") ??
-        "",
+        normalizeText(
+          value.app && isRecord(value.app) ? value.app.status : "",
+        ) ?? "",
       distributionChannels: normalizeStringArray(
         value.app && isRecord(value.app) ? value.app.distributionChannels : [],
       ),
@@ -801,6 +813,7 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
       : [],
     providerPreference: parseProviderPreference(value.providerPreference),
     serviceSkillCatalog: value.serviceSkillCatalog,
+    siteAdapterCatalog: value.siteAdapterCatalog ?? value.site_adapter_catalog,
     sceneCatalog: Array.isArray(value.sceneCatalog)
       ? value.sceneCatalog
           .filter((item) => isRecord(item) && normalizeText(item.id))
@@ -813,7 +826,9 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
       value.gateway && isRecord(value.gateway)
         ? {
             basePath: normalizeText(value.gateway.basePath),
-            chatCompletionsPath: normalizeText(value.gateway.chatCompletionsPath),
+            chatCompletionsPath: normalizeText(
+              value.gateway.chatCompletionsPath,
+            ),
           }
         : undefined,
   };

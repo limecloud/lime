@@ -13,11 +13,17 @@ const {
   mockListBrowserProfiles,
   mockGetChromeBridgeStatus,
   mockBrowserExecuteAction,
+  mockSiteListAdapters,
+  mockSiteGetAdapterCatalogStatus,
+  mockSiteRunAdapter,
 } = vi.hoisted(() => ({
   mockGetBrowserRuntimeAuditLogs: vi.fn(),
   mockListBrowserProfiles: vi.fn(),
   mockGetChromeBridgeStatus: vi.fn(),
   mockBrowserExecuteAction: vi.fn(),
+  mockSiteListAdapters: vi.fn(),
+  mockSiteGetAdapterCatalogStatus: vi.fn(),
+  mockSiteRunAdapter: vi.fn(),
 }));
 
 const defaultRuntimeState = {
@@ -66,6 +72,9 @@ vi.mock("./api", () => ({
     listBrowserProfiles: mockListBrowserProfiles,
     getChromeBridgeStatus: mockGetChromeBridgeStatus,
     browserExecuteAction: mockBrowserExecuteAction,
+    siteListAdapters: mockSiteListAdapters,
+    siteGetAdapterCatalogStatus: mockSiteGetAdapterCatalogStatus,
+    siteRunAdapter: mockSiteRunAdapter,
     openBrowserRuntimeDebuggerWindow: vi.fn(async () => undefined),
     reopenProfileWindow: vi.fn(async () => undefined),
   },
@@ -107,6 +116,51 @@ beforeEach(() => {
       },
     },
   });
+  mockSiteListAdapters.mockResolvedValue([
+    {
+      name: "github/search",
+      domain: "github.com",
+      description: "按关键词采集 GitHub 仓库搜索结果。",
+      read_only: true,
+      capabilities: ["search", "repository"],
+      input_schema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "integer" },
+        },
+        required: ["query"],
+      },
+      example_args: {
+        query: "model context protocol",
+        limit: 5,
+      },
+      example: 'github/search {"query":"model context protocol","limit":5}',
+      auth_hint: "若需要完整结果，请先在浏览器中登录 GitHub。",
+    },
+  ]);
+  mockSiteGetAdapterCatalogStatus.mockResolvedValue({
+    exists: false,
+    source_kind: "server_synced",
+    registry_version: 1,
+    catalog_version: "test-catalog",
+    tenant_id: "local-test",
+    synced_at: "2026-03-16T10:00:00Z",
+    adapter_count: 1,
+  });
+  mockSiteRunAdapter.mockResolvedValue({
+    ok: true,
+    adapter: "github/search",
+    domain: "github.com",
+    profile_key: "general_browser_assist",
+    session_id: "mock-cdp-session",
+    target_id: "mock-target-1",
+    entry_url: "https://github.com/search?q=model%20context%20protocol&type=repositories",
+    source_url: "https://github.com/search?q=model%20context%20protocol&type=repositories",
+    data: {
+      items: [{ title: "mock repo", url: "https://github.com/mock/repo" }],
+    },
+  });
 });
 
 afterEach(() => {
@@ -142,6 +196,17 @@ async function renderPanel(props?: {
     await Promise.resolve();
   });
   return container;
+}
+
+async function flushPanelEffects(times = 4) {
+  for (let i = 0; i < times; i += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
+  }
 }
 
 function createDeferredPromise<T>() {
@@ -227,6 +292,44 @@ describe("BrowserRuntimeDebugPanel", () => {
     expect(container.textContent).toContain("美区桌面");
     expect(container.textContent).toContain("动作 · navigate");
   }, 10000);
+
+  it("高级调试中应支持执行站点命令", async () => {
+    const container = await renderPanel();
+    const toggleButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("高级调试"),
+    );
+
+    await act(async () => {
+      toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPanelEffects();
+
+    expect(container.textContent).toContain("站点命令调试");
+    expect(container.textContent).toContain("github/search");
+
+    const runButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("执行站点命令"),
+    );
+    expect(runButton).toBeTruthy();
+
+    await act(async () => {
+      runButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPanelEffects();
+
+    expect(mockSiteRunAdapter).toHaveBeenCalledWith({
+      adapter_name: "github/search",
+      args: {
+        query: "model context protocol",
+        limit: 5,
+      },
+      profile_key: "general_browser_assist",
+    });
+    expect(container.textContent).toContain("执行成功");
+    expect(container.textContent).toContain("mock repo");
+  });
 
   it("无 CDP 会话但存在附着资料时应展示附着当前 Chrome 调试面板", async () => {
     mockUseBrowserRuntimeDebug.mockReturnValue({

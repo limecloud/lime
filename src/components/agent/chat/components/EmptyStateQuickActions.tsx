@@ -1,4 +1,5 @@
 import styled, { keyframes } from "styled-components";
+import type { KeyboardEvent, ReactNode } from "react";
 import {
   EMPTY_STATE_META_PILL_CLASSNAME,
   EMPTY_STATE_PANEL_CLASSNAME,
@@ -75,7 +76,7 @@ const PresetButton = styled.button.attrs({
   }
 `;
 
-const RecommendationCard = styled.button.attrs({
+const RecommendationCard = styled.div.attrs({
   className: EMPTY_STATE_RECOMMENDATION_CARD_CLASSNAME,
 })<{ $index: number }>`
   animation: ${itemReveal} 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -108,6 +109,9 @@ export interface EmptyStateQuickActionItem {
   statusLabel?: string;
   statusTone?: "slate" | "sky" | "emerald" | "amber";
   statusDescription?: string;
+  secondaryStatusLabel?: string;
+  secondaryStatusTone?: "slate" | "sky" | "emerald" | "amber";
+  secondaryStatusDescription?: string;
   testId?: string;
   solutionId?: string;
 }
@@ -122,12 +126,14 @@ export interface EmptyStateQuickPresetItem {
 interface EmptyStateQuickActionsProps {
   title: string;
   description: string;
+  headerAddon?: ReactNode;
   selectedTextPreview?: string;
   presets?: EmptyStateQuickPresetItem[];
   items: EmptyStateQuickActionItem[];
   embedded?: boolean;
   loading?: boolean;
   onPresetAction?: (item: EmptyStateQuickPresetItem) => void;
+  onSecondaryStatusAction?: (item: EmptyStateQuickActionItem) => void;
   onAction: (item: EmptyStateQuickActionItem) => void;
 }
 
@@ -141,15 +147,17 @@ const STATUS_TONE_CLASSNAMES = {
 export function EmptyStateQuickActions({
   title,
   description,
+  headerAddon,
   selectedTextPreview,
   presets = [],
   items,
   embedded = false,
   loading = false,
   onPresetAction,
+  onSecondaryStatusAction,
   onAction,
 }: EmptyStateQuickActionsProps) {
-  if (!loading && items.length === 0 && presets.length === 0) {
+  if (!loading && items.length === 0 && presets.length === 0 && !headerAddon) {
     return null;
   }
 
@@ -168,6 +176,7 @@ export function EmptyStateQuickActions({
           <p className="mt-1 text-xs leading-5 text-slate-500 md:text-sm">
             {description}
           </p>
+          {headerAddon ? <div className="mt-2.5">{headerAddon}</div> : null}
         </div>
       </div>
 
@@ -204,15 +213,27 @@ export function EmptyStateQuickActions({
         <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-500">
           正在加载推荐方案…
         </div>
+      ) : items.length === 0 ? (
+        <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-500">
+          当前目录暂无可用项。
+        </div>
       ) : (
         <div className="mt-2.5 grid gap-2 md:grid-cols-2">
           {items.map((item, index) => (
             <RecommendationCard
               key={item.key}
               $index={index}
-              type="button"
               data-testid={item.testId}
+              role="button"
+              tabIndex={0}
               onClick={() => onAction(item)}
+              onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                if (event.key !== "Enter" && event.key !== " ") {
+                  return;
+                }
+                event.preventDefault();
+                onAction(item);
+              }}
             >
               <div className="flex w-full items-start justify-between gap-3">
                 <span className={EMPTY_STATE_META_PILL_CLASSNAME}>
@@ -233,6 +254,38 @@ export function EmptyStateQuickActions({
                   <p className="mt-2 text-[11px] leading-5 text-slate-400">
                     产出：{item.outputHint}
                   </p>
+                ) : null}
+                {item.secondaryStatusLabel ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {onSecondaryStatusAction ? (
+                      <button
+                        type="button"
+                        data-testid={
+                          item.testId ? `${item.testId}-secondary-status` : undefined
+                        }
+                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium transition-colors hover:brightness-95 ${STATUS_TONE_CLASSNAMES[item.secondaryStatusTone ?? "slate"]}`}
+                        title={item.secondaryStatusDescription ?? "打开对应任务"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSecondaryStatusAction(item);
+                        }}
+                      >
+                        {item.secondaryStatusLabel}
+                      </button>
+                    ) : (
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium ${STATUS_TONE_CLASSNAMES[item.secondaryStatusTone ?? "slate"]}`}
+                        title={item.secondaryStatusDescription}
+                      >
+                        {item.secondaryStatusLabel}
+                      </span>
+                    )}
+                    {item.secondaryStatusDescription ? (
+                      <span className="text-[11px] leading-5 text-slate-400">
+                        {item.secondaryStatusDescription}
+                      </span>
+                    ) : null}
+                  </div>
                 ) : null}
                 {item.statusLabel ? (
                   <div className="mt-2 flex items-center justify-start">

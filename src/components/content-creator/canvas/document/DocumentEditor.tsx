@@ -7,6 +7,7 @@
 import React, { memo, useRef, useEffect } from "react";
 import styled from "styled-components";
 import type { DocumentEditorProps } from "./types";
+import { resolveDocumentEditorHotkeyAction } from "./documentEditorHotkeys";
 
 const Container = styled.div`
   display: flex;
@@ -55,16 +56,18 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = memo(
 
     // 处理快捷键
     const handleKeyDown = (e: React.KeyboardEvent) => {
-      // Cmd/Ctrl + S 保存
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
+      const action = resolveDocumentEditorHotkeyAction(e.nativeEvent);
+      if (!action) {
+        return;
+      }
+
+      e.preventDefault();
+      if (action === "save") {
         onSave();
+        return;
       }
-      // Escape 取消
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onCancel();
-      }
+
+      onCancel();
     };
 
     return (

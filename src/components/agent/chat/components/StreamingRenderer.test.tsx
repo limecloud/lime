@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StreamingRenderer } from "./StreamingRenderer";
+import type { AgentToolCallState } from "@/lib/api/agentProtocol";
 import type {
   AgentRuntimeStatus,
   ActionRequired,
@@ -11,6 +12,38 @@ import type {
 } from "../types";
 
 const parseAIResponseMock = vi.fn();
+const mockToolCallList = vi.fn(
+  ({
+    onOpenSavedSiteContent,
+  }: {
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
+  }) => (
+    <div
+      data-testid="tool-call-list"
+      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
+    />
+  ),
+);
+const mockToolCallItem = vi.fn(
+  ({
+    onOpenSavedSiteContent,
+  }: {
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
+  }) => (
+    <div
+      data-testid="tool-call-item"
+      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
+    />
+  ),
+);
 
 vi.mock("@/components/content-creator/a2ui/parser", () => ({
   parseAIResponse: (...args: unknown[]) => parseAIResponseMock(...args),
@@ -32,8 +65,20 @@ vi.mock("./A2UITaskCard", () => ({
 }));
 
 vi.mock("./ToolCallDisplay", () => ({
-  ToolCallList: () => <div data-testid="tool-call-list" />,
-  ToolCallItem: () => <div data-testid="tool-call-item" />,
+  ToolCallList: (props: {
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
+  }) => mockToolCallList(props),
+  ToolCallItem: (props: {
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
+  }) => mockToolCallItem(props),
 }));
 
 vi.mock("./DecisionPanel", () => ({
@@ -96,6 +141,7 @@ function renderHarness(props: {
   renderA2UIInline?: boolean;
   runtimeStatus?: AgentRuntimeStatus;
   showRuntimeStatusInline?: boolean;
+  toolCalls?: AgentToolCallState[];
   actionRequests?: ActionRequired[];
   promoteActionRequestsToA2UI?: boolean;
   onPermissionResponse?: (payload: unknown) => void;
@@ -104,6 +150,11 @@ function renderHarness(props: {
     fileName: string,
     context?: WriteArtifactContext,
   ) => void;
+  onOpenSavedSiteContent?: (target: {
+    projectId: string;
+    contentId: string;
+    title?: string;
+  }) => void;
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -178,6 +229,57 @@ describe("StreamingRenderer", () => {
     });
 
     expect(parseAIResponseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("普通工具列表应透传已保存站点内容打开回调", () => {
+    const onOpenSavedSiteContent = vi.fn();
+
+    renderHarness({
+      content: "工具执行完成",
+      toolCalls: [
+        {
+          id: "tool-site-run-streaming-list",
+          name: "lime_site_run",
+          arguments: JSON.stringify({ adapter_name: "github/search" }),
+          status: "completed",
+          result: { success: true, output: "ok" },
+          startTime: new Date("2026-03-25T10:00:00.000Z"),
+          endTime: new Date("2026-03-25T10:00:01.000Z"),
+        },
+      ],
+      onOpenSavedSiteContent,
+    });
+
+    expect(mockToolCallList).toHaveBeenCalledWith(
+      expect.objectContaining({ onOpenSavedSiteContent }),
+    );
+  });
+
+  it("交错工具片段应透传已保存站点内容打开回调", () => {
+    const onOpenSavedSiteContent = vi.fn();
+
+    renderHarness({
+      content: "",
+      contentParts: [
+        {
+          type: "tool_use",
+          toolCall: {
+            id: "tool-site-run-streaming-item",
+            name: "lime_site_run",
+            arguments: JSON.stringify({ adapter_name: "github/search" }),
+            status: "completed",
+            result: { success: true, output: "ok" },
+            startTime: new Date("2026-03-25T10:01:00.000Z"),
+            endTime: new Date("2026-03-25T10:01:01.000Z"),
+          },
+        },
+      ],
+      onOpenSavedSiteContent,
+    });
+
+    expect(mockToolCallItem).toHaveBeenCalledWith(
+      expect.objectContaining({ onOpenSavedSiteContent }),
+    );
   });
 
   it("关闭内联 A2UI 时应仅保留普通文本片段", () => {

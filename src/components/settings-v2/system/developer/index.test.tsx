@@ -10,6 +10,16 @@ const { mockGetConfig } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
 }));
 
+const {
+  mockClearServiceSkillCatalogCache,
+  mockGetServiceSkillCatalog,
+  mockSubscribeServiceSkillCatalogChanged,
+} = vi.hoisted(() => ({
+  mockClearServiceSkillCatalogCache: vi.fn(),
+  mockGetServiceSkillCatalog: vi.fn(),
+  mockSubscribeServiceSkillCatalogChanged: vi.fn(),
+}));
+
 const { mockGetLogs, mockGetPersistedLogsTail } = vi.hoisted(() => ({
   mockGetLogs: vi.fn(),
   mockGetPersistedLogsTail: vi.fn(),
@@ -49,12 +59,26 @@ const {
   mockOpenCrashDiagnosticDownloadDirectory: vi.fn(),
 }));
 
+const {
+  mockEmitServiceSkillCatalogBootstrap,
+  mockExtractServiceSkillCatalogFromBootstrapPayload,
+} = vi.hoisted(() => ({
+  mockEmitServiceSkillCatalogBootstrap: vi.fn(),
+  mockExtractServiceSkillCatalogFromBootstrapPayload: vi.fn(),
+}));
+
 vi.mock("@/contexts/ComponentDebugContext", () => ({
   useComponentDebug: mockUseComponentDebug,
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
+}));
+
+vi.mock("@/lib/api/serviceSkills", () => ({
+  clearServiceSkillCatalogCache: mockClearServiceSkillCatalogCache,
+  getServiceSkillCatalog: mockGetServiceSkillCatalog,
+  subscribeServiceSkillCatalogChanged: mockSubscribeServiceSkillCatalogChanged,
 }));
 
 vi.mock("@/lib/api/logs", () => ({
@@ -83,6 +107,12 @@ vi.mock("@/lib/crashDiagnostic", () => ({
   openCrashDiagnosticDownloadDirectory: mockOpenCrashDiagnosticDownloadDirectory,
 }));
 
+vi.mock("@/lib/serviceSkillCatalogBootstrap", () => ({
+  emitServiceSkillCatalogBootstrap: mockEmitServiceSkillCatalogBootstrap,
+  extractServiceSkillCatalogFromBootstrapPayload:
+    mockExtractServiceSkillCatalogFromBootstrapPayload,
+}));
+
 vi.mock("../shared/ClipboardPermissionGuideCard", () => ({
   ClipboardPermissionGuideCard: () => <div>剪贴板权限卡片占位</div>,
 }));
@@ -97,6 +127,34 @@ interface Mounted {
   container: HTMLDivElement;
   root: Root;
 }
+
+const remoteCatalog = {
+  version: "tenant-2026-03-24",
+  tenantId: "tenant-demo",
+  syncedAt: "2026-03-24T12:00:00.000Z",
+  items: [
+    {
+      id: "tenant-skill-1",
+      title: "租户技能 1",
+    },
+    {
+      id: "tenant-skill-2",
+      title: "租户技能 2",
+    },
+  ],
+};
+
+const seededCatalog = {
+  version: "client-seed-2026-03-24",
+  tenantId: "local-seeded",
+  syncedAt: "2026-03-24T00:00:00.000Z",
+  items: [
+    {
+      id: "seeded-skill-1",
+      title: "Seeded 技能 1",
+    },
+  ],
+};
 
 const mounted: Mounted[] = [];
 
@@ -139,9 +197,37 @@ function findSwitch(container: HTMLElement, ariaLabel: string): HTMLButtonElemen
   return button;
 }
 
+function findTextarea(
+  container: HTMLElement,
+  ariaLabel: string,
+): HTMLTextAreaElement {
+  const textarea = container.querySelector<HTMLTextAreaElement>(
+    `textarea[aria-label="${ariaLabel}"]`,
+  );
+  if (!textarea) {
+    throw new Error(`未找到输入框: ${ariaLabel}`);
+  }
+  return textarea;
+}
+
 async function clickButton(button: HTMLButtonElement) {
   await act(async () => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushEffects();
+  });
+}
+
+async function inputTextarea(textarea: HTMLTextAreaElement, value: string) {
+  const prototype = Object.getPrototypeOf(textarea) as HTMLTextAreaElement;
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+  const setValue = descriptor?.set;
+  if (!setValue) {
+    throw new Error("未找到 textarea value setter");
+  }
+
+  await act(async () => {
+    setValue.call(textarea, value);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
     await flushEffects();
   });
 }
@@ -198,6 +284,12 @@ beforeEach(() => {
   });
   mockClearCrashDiagnosticHistory.mockResolvedValue(undefined);
   mockIsClipboardPermissionDeniedError.mockReturnValue(false);
+  mockGetServiceSkillCatalog.mockResolvedValue(remoteCatalog);
+  mockSubscribeServiceSkillCatalogChanged.mockImplementation(() => vi.fn());
+  mockClearServiceSkillCatalogCache.mockImplementation(() => undefined);
+  mockExtractServiceSkillCatalogFromBootstrapPayload.mockReturnValue(
+    remoteCatalog,
+  );
 });
 
 afterEach(() => {
@@ -217,11 +309,13 @@ afterEach(() => {
 });
 
 describe("DeveloperSettings", () => {
-  it("应渲染新的开发者工作台与主要分区", () => {
+  it("应渲染新的开发者工作台与主要分区", async () => {
     const container = renderComponent();
+    await flushEffects();
 
     const text = container.textContent ?? "";
     expect(text).toContain("DEVELOPER DESK");
+    expect(text).toContain("服务型技能目录联调");
     expect(text).toContain("组件视图调试");
     expect(text).toContain("崩溃诊断日志（开发协作）");
     expect(text).toContain("诊断建议");
@@ -273,5 +367,65 @@ describe("DeveloperSettings", () => {
 
     expect(container.textContent).toContain("剪贴板权限卡片占位");
     expect(container.textContent).toContain("clipboard denied");
+  });
+
+  it("点击载入当前目录后应把 serviceSkillCatalog 写入调试输入框", async () => {
+    const container = renderComponent();
+
+    await clickButton(findButton(container, "载入当前目录"));
+    await flushEffects();
+
+    const textarea = findTextarea(container, "服务型技能目录调试输入");
+    expect(textarea.value).toContain("\"tenantId\": \"tenant-demo\"");
+    expect(container.textContent).toContain("已把当前目录写入调试编辑器");
+  });
+
+  it("输入 JSON 后通过事件注入应调用 bootstrap 桥接", async () => {
+    const container = renderComponent();
+    const textarea = findTextarea(container, "服务型技能目录调试输入");
+
+    await inputTextarea(
+      textarea,
+      JSON.stringify(
+        {
+          serviceSkillCatalog: remoteCatalog,
+        },
+        null,
+        2,
+      ),
+    );
+    await clickButton(findButton(container, "通过事件注入"));
+    await flushEffects();
+
+    expect(mockExtractServiceSkillCatalogFromBootstrapPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceSkillCatalog: expect.objectContaining({
+          tenantId: "tenant-demo",
+        }),
+      }),
+    );
+    expect(mockEmitServiceSkillCatalogBootstrap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceSkillCatalog: expect.objectContaining({
+          tenantId: "tenant-demo",
+        }),
+      }),
+    );
+    expect(container.textContent).toContain("已通过 bootstrap 事件注入目录：2 项");
+  });
+
+  it("清空目录缓存后应回退 seeded 目录并展示提示", async () => {
+    mockGetServiceSkillCatalog.mockResolvedValueOnce(remoteCatalog);
+    mockGetServiceSkillCatalog.mockResolvedValueOnce(seededCatalog);
+
+    const container = renderComponent();
+
+    await clickButton(findButton(container, "清空目录缓存"));
+    await flushEffects();
+
+    expect(mockClearServiceSkillCatalogCache).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain(
+      "已清空远端目录缓存，当前回退到 seeded：1 项",
+    );
   });
 });

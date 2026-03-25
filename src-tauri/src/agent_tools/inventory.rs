@@ -910,8 +910,8 @@ mod tests {
         .map(ToString::to_string)
         .collect::<Vec<_>>();
 
-        assert_eq!(inventory.counts.catalog_total, 35);
-        assert_eq!(inventory.counts.catalog_current_total, 34);
+        assert_eq!(inventory.counts.catalog_total, 39);
+        assert_eq!(inventory.counts.catalog_current_total, 38);
         assert_eq!(inventory.counts.catalog_compat_total, 1);
         assert_eq!(inventory.default_allowed_tools, expected_default_allowed);
         assert_eq!(

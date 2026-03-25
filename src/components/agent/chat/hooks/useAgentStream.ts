@@ -10,14 +10,15 @@ import {
 import { toast } from "sonner";
 import type {
   AsterExecutionStrategy,
+  AsterSessionExecutionRuntime,
   AutoContinueRequestPayload,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
 import {
-  parseStreamEvent,
+  parseAgentEvent,
   type AgentThreadItem,
   type AgentThreadTurn,
-} from "@/lib/api/agentStream";
+} from "@/lib/api/agentProtocol";
 import type { ActionRequired, Message, MessageImage } from "../types";
 import { activityLogger } from "@/components/content-creator/utils/activityLogger";
 import {
@@ -58,6 +59,18 @@ function buildQueuedMessagePreview(content: string): string {
 
   const preview = Array.from(compact).slice(0, 80).join("");
   return compact.length > preview.length ? `${preview}...` : preview;
+}
+
+function normalizeRuntimeIdentifier(value?: string | null): string {
+  return value?.trim().toLowerCase() || "";
+}
+
+function createPendingTurnKey() {
+  return `pending-turn:${crypto.randomUUID()}`;
+}
+
+function createPendingItemKey(pendingTurnKey: string) {
+  return `pending-item:${pendingTurnKey}`;
 }
 
 function appendThinkingToParts(
@@ -107,10 +120,14 @@ interface UseAgentStreamOptions {
   setThreadItems: Dispatch<SetStateAction<AgentThreadItem[]>>;
   setThreadTurns: Dispatch<SetStateAction<AgentThreadTurn[]>>;
   setCurrentTurnId: Dispatch<SetStateAction<string | null>>;
+  setExecutionRuntime: Dispatch<
+    SetStateAction<AsterSessionExecutionRuntime | null>
+  >;
   queuedTurns: QueuedTurnSnapshot[];
   setQueuedTurns: Dispatch<SetStateAction<QueuedTurnSnapshot[]>>;
   setPendingActions: Dispatch<SetStateAction<ActionRequired[]>>;
   refreshSessionReadModel: (targetSessionId?: string) => Promise<boolean>;
+  executionRuntime: AsterSessionExecutionRuntime | null;
 }
 
 export function useAgentStream(options: UseAgentStreamOptions) {
@@ -133,10 +150,12 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     setThreadItems,
     setThreadTurns,
     setCurrentTurnId,
+    setExecutionRuntime,
     queuedTurns,
     setQueuedTurns,
     setPendingActions,
     refreshSessionReadModel,
+    executionRuntime,
   } = options;
 
   const [isSending, setIsSending] = useState(false);
@@ -145,8 +164,8 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     assistantMsgId: string;
     eventName: string;
     sessionId: string;
-    optimisticTurnId?: string;
-    optimisticItemId?: string;
+    pendingTurnKey?: string;
+    pendingItemKey?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -165,8 +184,8 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         assistantMsgId: string;
         eventName: string;
         sessionId: string;
-        optimisticTurnId?: string;
-        optimisticItemId?: string;
+        pendingTurnKey?: string;
+        pendingItemKey?: string;
       } | null,
     ) => {
       activeStreamRef.current = nextActive;
@@ -231,6 +250,21 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         executionStrategyOverride || executionStrategy;
       const effectiveProviderType = providerTypeRef.current;
       const effectiveModel = modelOverride?.trim() || modelRef.current;
+      const runtimeProviderSelector =
+        executionRuntime?.provider_selector?.trim() ||
+        executionRuntime?.provider_name?.trim() ||
+        null;
+      const runtimeModelName = executionRuntime?.model_name?.trim() || null;
+      const shouldSubmitProviderPreference =
+        !runtimeProviderSelector ||
+        normalizeRuntimeIdentifier(runtimeProviderSelector) !==
+          normalizeRuntimeIdentifier(effectiveProviderType);
+      const shouldSubmitModelPreference =
+        Boolean(modelOverride?.trim()) ||
+        shouldSubmitProviderPreference ||
+        !runtimeModelName ||
+        normalizeRuntimeIdentifier(runtimeModelName) !==
+          normalizeRuntimeIdentifier(effectiveModel);
       const observer = options?.observer;
       const requestMetadata = options?.requestMetadata;
       const messagePurpose = options?.purpose;
@@ -333,8 +367,8 @@ export function useAgentStream(options: UseAgentStreamOptions) {
                   activeStreamRef.current?.assistantMsgId || assistantMsgId,
                 eventName: skillEventName,
                 sessionId: sessionIdForStop,
-                optimisticTurnId: activeStreamRef.current?.optimisticTurnId,
-                optimisticItemId: activeStreamRef.current?.optimisticItemId,
+                pendingTurnKey: activeStreamRef.current?.pendingTurnKey,
+                pendingItemKey: activeStreamRef.current?.pendingItemKey,
               });
             },
             isExecutionCancelled: () =>
@@ -362,8 +396,9 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       };
       let streamActivated = false;
       const optimisticStartedAt = assistantMsg.timestamp.toISOString();
-      const optimisticTurnId = crypto.randomUUID();
-      const optimisticItemId = `turn-summary:${optimisticTurnId}`;
+      const pendingTurnKey = createPendingTurnKey();
+      const pendingItemKey = createPendingItemKey(pendingTurnKey);
+      const requestTurnId = crypto.randomUUID();
       const optimisticThreadId =
         sessionIdRef.current || `local-thread:${assistantMsgId}`;
       const toolLogIdByToolId = new Map<string, string>();
@@ -416,15 +451,15 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         if (expectingQueue) {
           return;
         }
-        setThreadItems((prev) => removeThreadItemState(prev, optimisticItemId));
+        setThreadItems((prev) => removeThreadItemState(prev, pendingItemKey));
       };
 
       const clearOptimisticTurn = () => {
         if (expectingQueue) {
           return;
         }
-        setThreadTurns((prev) => removeThreadTurnState(prev, optimisticTurnId));
-        setCurrentTurnId((prev) => (prev === optimisticTurnId ? null : prev));
+        setThreadTurns((prev) => removeThreadTurnState(prev, pendingTurnKey));
+        setCurrentTurnId((prev) => (prev === pendingTurnKey ? null : prev));
       };
 
       const markOptimisticFailure = (errorMessage: string) => {
@@ -436,7 +471,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errorMessage);
 
         setThreadTurns((prev) => {
-          const currentTurn = prev.find((turn) => turn.id === optimisticTurnId);
+          const currentTurn = prev.find((turn) => turn.id === pendingTurnKey);
           if (!currentTurn) {
             return prev;
           }
@@ -451,7 +486,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         });
 
         setThreadItems((prev) => {
-          const currentItem = prev.find((item) => item.id === optimisticItemId);
+          const currentItem = prev.find((item) => item.id === pendingItemKey);
           if (!currentItem || currentItem.type !== "turn_summary") {
             return prev;
           }
@@ -480,7 +515,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       if (!expectingQueue) {
         setThreadTurns((prev) =>
           upsertThreadTurnState(prev, {
-            id: optimisticTurnId,
+            id: pendingTurnKey,
             thread_id: optimisticThreadId,
             prompt_text: content,
             status: "running",
@@ -491,9 +526,9 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         );
         setThreadItems((prev) =>
           upsertThreadItemState(prev, {
-            id: optimisticItemId,
+            id: pendingItemKey,
             thread_id: optimisticThreadId,
-            turn_id: optimisticTurnId,
+            turn_id: pendingTurnKey,
             sequence: 0,
             status: "in_progress",
             started_at: optimisticStartedAt,
@@ -502,7 +537,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
             text: formatAgentRuntimeStatusSummary(assistantMsg.runtimeStatus),
           }),
         );
-        setCurrentTurnId(optimisticTurnId);
+        setCurrentTurnId(pendingTurnKey);
       }
 
       const eventName = `aster_stream_${assistantMsgId}`;
@@ -528,8 +563,8 @@ export function useAgentStream(options: UseAgentStreamOptions) {
             assistantMsgId,
             eventName,
             sessionId: activeSessionId,
-            optimisticTurnId,
-            optimisticItemId,
+            pendingTurnKey,
+            pendingItemKey,
           });
           setMessages((prev) =>
             prev.map((msg) =>
@@ -547,7 +582,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
           activateStream();
           setThreadTurns((prev) =>
             upsertThreadTurnState(prev, {
-              id: optimisticTurnId,
+              id: pendingTurnKey,
               thread_id: activeSessionId,
               prompt_text: content,
               status: "running",
@@ -558,9 +593,9 @@ export function useAgentStream(options: UseAgentStreamOptions) {
           );
           setThreadItems((prev) =>
             upsertThreadItemState(prev, {
-              id: optimisticItemId,
+              id: pendingItemKey,
               thread_id: activeSessionId,
-              turn_id: optimisticTurnId,
+              turn_id: pendingTurnKey,
               sequence: 0,
               status: "in_progress",
               started_at: optimisticStartedAt,
@@ -597,7 +632,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         unlisten = await runtime.listenToTurnEvents(
           eventName,
           (event: { payload: unknown }) => {
-            const data = parseStreamEvent(event.payload);
+            const data = parseAgentEvent(event.payload);
             if (!data) {
               return;
             }
@@ -621,8 +656,8 @@ export function useAgentStream(options: UseAgentStreamOptions) {
               },
               observer,
               eventName,
-              optimisticTurnId,
-              optimisticItemId,
+              pendingTurnKey,
+              pendingItemKey,
               assistantMsgId,
               activeSessionId,
               resolvedWorkspaceId,
@@ -639,6 +674,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
               setThreadItems,
               setThreadTurns,
               setCurrentTurnId,
+              setExecutionRuntime,
             });
           },
         );
@@ -653,24 +689,27 @@ export function useAgentStream(options: UseAgentStreamOptions) {
               }))
             : undefined;
 
-        const providerConfig = {
-          provider_id: effectiveProviderType,
-          provider_name: mapProviderName(effectiveProviderType),
-          model_name: effectiveModel,
-        };
-
-        await runtime.submitTurn({
-          message: content,
+        await runtime.submitOp({
+          type: "user_input",
+          text: content,
           sessionId: activeSessionId,
           eventName,
           workspaceId: resolvedWorkspaceId,
-          turnId: optimisticTurnId,
+          turnId: requestTurnId,
           images: imagesToSend,
-          providerConfig,
-          executionStrategy: effectiveExecutionStrategy,
-          webSearch,
-          searchMode: webSearch ? "allowed" : "disabled",
-          autoContinue,
+          preferences: {
+            providerPreference: shouldSubmitProviderPreference
+              ? effectiveProviderType
+              : undefined,
+            modelPreference: shouldSubmitModelPreference
+              ? effectiveModel
+              : undefined,
+            thinking: _thinking,
+            executionStrategy: effectiveExecutionStrategy,
+            webSearch,
+            searchMode: webSearch ? "allowed" : "disabled",
+            autoContinue,
+          },
           systemPrompt,
           metadata: requestMetadata,
           queueIfBusy: true,
@@ -734,9 +773,11 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       providerTypeRef,
       queuedTurns.length,
       runtime,
+      executionRuntime,
       sessionIdRef,
       setActiveStream,
       setCurrentTurnId,
+      setExecutionRuntime,
       setMessages,
       setPendingActions,
       setQueuedTurns,
@@ -770,17 +811,17 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     setQueuedTurns([]);
 
     if (activeStream?.assistantMsgId) {
-      if (activeStream.optimisticItemId) {
+      if (activeStream.pendingItemKey) {
         setThreadItems((prev) =>
-          removeThreadItemState(prev, activeStream.optimisticItemId!),
+          removeThreadItemState(prev, activeStream.pendingItemKey!),
         );
       }
-      if (activeStream.optimisticTurnId) {
+      if (activeStream.pendingTurnKey) {
         setThreadTurns((prev) =>
-          removeThreadTurnState(prev, activeStream.optimisticTurnId!),
+          removeThreadTurnState(prev, activeStream.pendingTurnKey!),
         );
         setCurrentTurnId((prev) =>
-          prev === activeStream.optimisticTurnId ? null : prev,
+          prev === activeStream.pendingTurnKey ? null : prev,
         );
       }
       setMessages((prev) =>
@@ -884,7 +925,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
 
     try {
       unlisten = await runtime.listenToTurnEvents(eventName, (event) => {
-        const data = parseStreamEvent(event.payload);
+        const data = parseAgentEvent(event.payload);
         if (!data) {
           return;
         }

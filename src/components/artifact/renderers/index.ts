@@ -14,6 +14,7 @@ import type { RendererEntry, ArtifactType } from "@/lib/artifact/types";
 // ============================================================================
 
 export { CodeRenderer } from "./CodeRenderer";
+export { ArtifactDocumentRenderer } from "./ArtifactDocumentRenderer";
 export { DocumentRenderer } from "./DocumentRenderer";
 export { HtmlRenderer } from "./HtmlRenderer";
 export { SvgRenderer } from "./SvgRenderer";

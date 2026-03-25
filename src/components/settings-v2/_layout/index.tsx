@@ -37,7 +37,8 @@ import { MediaServicesSettings } from "../agent/media-services";
 import { StatsSettings } from "../account/stats";
 // 个人资料
 import { ProfileSettings } from "../account/profile";
-import { ProviderPoolPage } from "@/components/provider-pool";
+import { UserCenterSessionSettings } from "../account/user-center-session";
+import { CloudProviderSettings } from "../agent/providers";
 import { ApiServerPage } from "@/components/api-server/ApiServerPage";
 import { McpPanel } from "@/components/mcp";
 import { ChannelsSettings } from "../system/channels";
@@ -47,6 +48,7 @@ import { ChromeRelaySettings } from "../system/chrome-relay";
 
 import { SettingHeader } from "../features/SettingHeader";
 import { SettingsHomePage } from "../home";
+import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 
 const LayoutContainer = styled.div`
   display: flex;
@@ -129,6 +131,8 @@ function renderSettingsContent(
   onTabChange: (tab: SettingsTabs) => void,
   onNavigate?: (page: Page, params?: PageParams) => void,
 ): ReactNode {
+  const hasManagedAccountProfile = Boolean(resolveOemCloudRuntimeContext());
+
   switch (tab) {
     case SettingsTabs.Home:
       return <SettingsHomePage onTabChange={onTabChange} />;
@@ -137,8 +141,9 @@ function renderSettingsContent(
     case SettingsTabs.Profile:
       return (
         <>
-          <SettingHeader title="个人资料" />
-          <ProfileSettings />
+          <SettingHeader title={hasManagedAccountProfile ? "账号与资料" : "个人资料"} />
+          <UserCenterSessionSettings />
+          {!hasManagedAccountProfile ? <ProfileSettings /> : null}
         </>
       );
 
@@ -179,8 +184,10 @@ function renderSettingsContent(
     case SettingsTabs.Providers:
       return (
         <>
-          <SettingHeader title="凭证管理" />
-          <ProviderPoolPage hideHeader />
+          <SettingHeader title="AI 服务商" />
+          <CloudProviderSettings
+            onOpenProfile={() => onTabChange(SettingsTabs.Profile)}
+          />
         </>
       );
 
@@ -350,7 +357,7 @@ export function SettingsLayoutV2({
   }, [initialTab]);
 
   useEffect(() => {
-    contentContainerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    contentContainerRef.current?.scrollTo?.({ top: 0, behavior: "auto" });
   }, [activeTab]);
 
   return (

@@ -5,12 +5,12 @@ import type { Message } from "../types";
 
 const {
   mockSafeListen,
-  mockParseStreamEvent,
+  mockParseAgentEvent,
   mockListExecutableSkills,
   mockExecuteSkill,
 } = vi.hoisted(() => ({
   mockSafeListen: vi.fn(),
-  mockParseStreamEvent: vi.fn((payload: unknown) => payload),
+  mockParseAgentEvent: vi.fn((payload: unknown) => payload),
   mockListExecutableSkills: vi.fn(),
   mockExecuteSkill: vi.fn(),
 }));
@@ -19,9 +19,16 @@ vi.mock("@/lib/dev-bridge", () => ({
   safeListen: mockSafeListen,
 }));
 
-vi.mock("@/lib/api/agentStream", () => ({
-  parseStreamEvent: mockParseStreamEvent,
-}));
+vi.mock("@/lib/api/agentProtocol", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
+      "@/lib/api/agentProtocol",
+    );
+  return {
+    ...actual,
+    parseAgentEvent: mockParseAgentEvent,
+  };
+});
 
 vi.mock("@/lib/api/skill-execution", () => ({
   skillExecutionApi: {
@@ -59,7 +66,7 @@ function buildBaseMessage(id = "assistant-1"): Message {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockParseStreamEvent.mockImplementation((payload: unknown) => payload);
+  mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
   mockListExecutableSkills.mockResolvedValue([
     {
       name: "social_post_with_cover",

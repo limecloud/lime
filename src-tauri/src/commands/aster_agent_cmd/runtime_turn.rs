@@ -1,355 +1,180 @@
 use super::*;
+use aster::session::TurnContextOverride;
+use lime_agent::AgentEvent as RuntimeAgentEvent;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimePreparedTeamRole {
-    pub(crate) id: String,
-    pub(crate) label: String,
-    pub(crate) summary: Option<String>,
-    pub(crate) profile_id: Option<String>,
-    pub(crate) role_key: Option<String>,
-    pub(crate) skill_ids: Vec<String>,
-}
+const ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE: &str = "artifact_document_repaired";
+const ARTIFACT_DOCUMENT_FAILED_WARNING_CODE: &str = "artifact_document_failed";
+const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE: &str = "artifact_document_persist_failed";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimePreparedTeamSessionCandidate {
-    pub(crate) blueprint_role_id: String,
-    pub(crate) session_id: String,
-    pub(crate) status_kind: SubagentRuntimeStatusKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RuntimePreparedTeamAction {
-    Spawn(RuntimePreparedTeamRole),
-    Resume {
-        role: RuntimePreparedTeamRole,
-        session_id: String,
-    },
-}
-
-fn normalize_runtime_team_role_string(value: Option<&serde_json::Value>) -> Option<String> {
-    normalize_optional_text(
-        value
-            .and_then(serde_json::Value::as_str)
-            .map(ToString::to_string),
-    )
-}
-
-fn normalize_runtime_team_role_id_fragment(value: &str) -> Option<String> {
-    let normalized = value.split_whitespace().collect::<Vec<_>>().join("-");
-    let normalized = normalized.trim_matches('-').to_string();
-    if normalized.is_empty() {
-        None
-    } else {
-        Some(normalized)
-    }
-}
-
-fn normalize_runtime_team_skill_ids(value: Option<&serde_json::Value>) -> Vec<String> {
-    let Some(items) = value.and_then(serde_json::Value::as_array) else {
-        return Vec::new();
-    };
-
-    let mut seen = HashSet::new();
-    let mut skill_ids = Vec::new();
-    for item in items {
-        let Some(skill_id) = normalize_runtime_team_role_string(Some(item)) else {
-            continue;
-        };
-        if seen.insert(skill_id.clone()) {
-            skill_ids.push(skill_id);
-        }
-    }
-
-    skill_ids
-}
-
-fn parse_runtime_prepared_team_role(
-    role_value: &serde_json::Value,
-    index: usize,
-) -> Option<RuntimePreparedTeamRole> {
-    let role = role_value.as_object()?;
-    let profile_id = normalize_runtime_team_role_string(role.get("profile_id"))
-        .or_else(|| normalize_runtime_team_role_string(role.get("profileId")));
-    let role_key = normalize_runtime_team_role_string(role.get("role_key"))
-        .or_else(|| normalize_runtime_team_role_string(role.get("roleKey")));
-    let label = normalize_runtime_team_role_string(role.get("label"))
-        .or_else(|| profile_id.clone())
-        .or_else(|| role_key.clone())
-        .unwrap_or_else(|| format!("角色 {}", index + 1));
-    let id = normalize_runtime_team_role_string(role.get("id"))
-        .or_else(|| {
-            profile_id
-                .as_deref()
-                .and_then(normalize_runtime_team_role_id_fragment)
-                .map(|fragment| format!("profile-{fragment}"))
-        })
-        .or_else(|| {
-            role_key
-                .as_deref()
-                .and_then(normalize_runtime_team_role_id_fragment)
-                .map(|fragment| format!("role-{fragment}"))
-        })
-        .or_else(|| {
-            normalize_runtime_team_role_id_fragment(&label)
-                .map(|fragment| format!("lane-{fragment}"))
-        })
-        .unwrap_or_else(|| format!("runtime-team-role-{}", index + 1));
-
-    Some(RuntimePreparedTeamRole {
-        id,
-        label,
-        summary: normalize_runtime_team_role_string(role.get("summary")),
-        profile_id,
-        role_key,
-        skill_ids: normalize_runtime_team_skill_ids(
-            role.get("skill_ids").or_else(|| role.get("skillIds")),
-        ),
-    })
-}
-
-pub(crate) fn parse_runtime_prepared_team_roles(
-    request_metadata: Option<&serde_json::Value>,
-) -> Vec<RuntimePreparedTeamRole> {
-    if extract_harness_string(
-        request_metadata,
-        &["turn_team_decision", "turnTeamDecision"],
-    )
-    .as_deref()
-        != Some("team_prepared")
-    {
-        return Vec::new();
-    }
-
-    let Some(blueprint) = extract_harness_nested_object(
-        request_metadata,
-        &["turn_team_blueprint", "turnTeamBlueprint"],
-    ) else {
-        return Vec::new();
-    };
-    let Some(role_values) = blueprint.get("roles").and_then(serde_json::Value::as_array) else {
-        return Vec::new();
-    };
-
-    let mut seen = HashSet::new();
-    let mut roles = Vec::new();
-    for (index, role_value) in role_values.iter().enumerate() {
-        let Some(role) = parse_runtime_prepared_team_role(role_value, index) else {
-            continue;
-        };
-        if seen.insert(role.id.clone()) {
-            roles.push(role);
-        }
-    }
-
-    roles
-}
-
-fn runtime_prepared_team_session_rank(status_kind: SubagentRuntimeStatusKind) -> u8 {
-    match status_kind {
-        SubagentRuntimeStatusKind::Running => 7,
-        SubagentRuntimeStatusKind::Queued => 6,
-        SubagentRuntimeStatusKind::Idle => 5,
-        SubagentRuntimeStatusKind::Completed => 4,
-        SubagentRuntimeStatusKind::Failed => 3,
-        SubagentRuntimeStatusKind::Aborted => 2,
-        SubagentRuntimeStatusKind::Closed => 1,
-        SubagentRuntimeStatusKind::NotFound => 0,
-    }
-}
-
-pub(crate) fn plan_runtime_prepared_team_actions(
-    roles: &[RuntimePreparedTeamRole],
-    existing_candidates: &[RuntimePreparedTeamSessionCandidate],
-) -> Vec<RuntimePreparedTeamAction> {
-    let mut existing_by_role_id: HashMap<&str, &RuntimePreparedTeamSessionCandidate> =
-        HashMap::new();
-
-    for candidate in existing_candidates {
-        let replace = existing_by_role_id
-            .get(candidate.blueprint_role_id.as_str())
-            .map(|current| {
-                runtime_prepared_team_session_rank(candidate.status_kind)
-                    > runtime_prepared_team_session_rank(current.status_kind)
-            })
-            .unwrap_or(true);
-        if replace {
-            existing_by_role_id.insert(candidate.blueprint_role_id.as_str(), candidate);
-        }
-    }
-
-    roles
-        .iter()
-        .filter_map(|role| match existing_by_role_id.get(role.id.as_str()) {
-            Some(candidate) if candidate.status_kind == SubagentRuntimeStatusKind::Closed => {
-                Some(RuntimePreparedTeamAction::Resume {
-                    role: role.clone(),
-                    session_id: candidate.session_id.clone(),
-                })
-            }
-            Some(candidate) if candidate.status_kind != SubagentRuntimeStatusKind::NotFound => None,
-            _ => Some(RuntimePreparedTeamAction::Spawn(role.clone())),
-        })
-        .collect()
-}
-
-pub(crate) fn build_runtime_prepared_team_spawn_message(
-    role: &RuntimePreparedTeamRole,
-    user_message: &str,
-) -> String {
-    let mut sections = vec![format!("你是当前协作团队中的「{}」角色。", role.label)];
-    if let Some(summary) = role.summary.as_deref() {
-        sections.push(format!("你负责：{summary}"));
-    }
-    sections
-        .push("先用 1-2 句说明你会接手哪一部分，再开始处理，不要只回一句笼统状态。".to_string());
-    sections.push(
-        "请直接在当前子会话输出可交付的过程与结果，优先给事实、结论、风险和下一步，不要把具体产出留给父会话代写。".to_string(),
-    );
-    sections.push(format!("当前用户任务：\n{}", user_message.trim()));
-    sections.push(
-        "只处理当前角色范围内的工作；如果依赖其他角色，请明确写出需要谁补充什么，再继续推进。"
-            .to_string(),
-    );
-    sections.join("\n\n")
-}
-
-async fn collect_runtime_prepared_team_candidates(
-    parent_session_id: &str,
-) -> Result<Vec<RuntimePreparedTeamSessionCandidate>, String> {
-    let child_sessions =
-        list_child_subagent_sessions(parent_session_id, "读取 runtime team child sessions 失败")
-            .await?;
-    let mut candidates = Vec::new();
-
-    for child_session in child_sessions {
-        let Some(customization) = SubagentCustomizationState::from_session(&child_session) else {
-            continue;
-        };
-        let Some(blueprint_role_id) = normalize_optional_text(customization.blueprint_role_id)
-        else {
-            continue;
-        };
-        let status_kind = load_subagent_runtime_status(&child_session.id)
-            .await
-            .map(|status| status.kind)
-            .unwrap_or(SubagentRuntimeStatusKind::NotFound);
-        candidates.push(RuntimePreparedTeamSessionCandidate {
-            blueprint_role_id,
-            session_id: child_session.id,
-            status_kind,
-        });
-    }
-
-    Ok(candidates)
-}
-
-async fn maybe_prepare_runtime_team_sessions(
+fn emit_runtime_side_event(
     app: &AppHandle,
-    state: &AsterAgentState,
-    db: &DbConnection,
-    api_key_provider_service: &ApiKeyProviderServiceState,
-    logs: &LogState,
-    config_manager: &GlobalConfigManagerState,
-    mcp_manager: &McpManagerState,
-    automation_state: &AutomationServiceState,
-    request: &AsterChatRequest,
-) -> Result<(), String> {
-    let roles = parse_runtime_prepared_team_roles(request.metadata.as_ref());
-    if roles.is_empty() {
-        return Ok(());
-    }
-
-    let existing_candidates = collect_runtime_prepared_team_candidates(&request.session_id).await?;
-    let actions = plan_runtime_prepared_team_actions(&roles, &existing_candidates);
-    if actions.is_empty() {
-        tracing::info!(
-            "[AsterAgent][RuntimeTeam] session={} 所有 blueprint 角色已就绪，无需新增预拉起",
-            request.session_id
-        );
-        return Ok(());
-    }
-
-    tracing::info!(
-        "[AsterAgent][RuntimeTeam] session={} 开始按 blueprint 预拉起角色: total_roles={}, pending_actions={}",
-        request.session_id,
-        roles.len(),
-        actions.len()
-    );
-
-    let runtime = SubagentControlRuntime::new(
-        app.clone(),
-        state,
-        db,
-        api_key_provider_service,
-        logs,
-        config_manager,
-        mcp_manager,
-        automation_state,
-    );
-
-    for action in actions {
-        match action {
-            RuntimePreparedTeamAction::Spawn(role) => {
-                tracing::info!(
-                    "[AsterAgent][RuntimeTeam] session={} 自动预拉起角色: role_id={}, label={}",
-                    request.session_id,
-                    role.id,
-                    role.label
-                );
-                agent_runtime_spawn_subagent_internal(
-                    &runtime,
-                    AgentRuntimeSpawnSubagentRequest {
-                        parent_session_id: request.session_id.clone(),
-                        message: build_runtime_prepared_team_spawn_message(&role, &request.message),
-                        agent_type: Some(role.label.clone()),
-                        model: None,
-                        reasoning_effort: None,
-                        fork_context: false,
-                        blueprint_role_id: Some(role.id.clone()),
-                        blueprint_role_label: Some(role.label.clone()),
-                        profile_id: role.profile_id.clone(),
-                        profile_name: None,
-                        role_key: role.role_key.clone(),
-                        skill_ids: role.skill_ids.clone(),
-                        skill_directories: Vec::new(),
-                        team_preset_id: None,
-                        theme: None,
-                        system_overlay: None,
-                        output_contract: None,
-                    },
-                )
-                .await
-                .map_err(|error| {
-                    format!(
-                        "自动预拉起 team 角色失败: role_id={}, label={}, error={error}",
-                        role.id, role.label
-                    )
-                })?;
-            }
-            RuntimePreparedTeamAction::Resume { role, session_id } => {
-                tracing::info!(
-                    "[AsterAgent][RuntimeTeam] session={} 恢复已关闭角色 lane: role_id={}, label={}, child_session={}",
-                    request.session_id,
-                    role.id,
-                    role.label,
-                    session_id
-                );
-                agent_runtime_resume_subagent_internal(
-                    &runtime,
-                    AgentRuntimeResumeSubagentRequest { id: session_id.clone() },
-                )
-                .await
-                .map_err(|error| {
-                    format!(
-                        "恢复已关闭 team 角色失败: role_id={}, label={}, child_session={}, error={error}",
-                        role.id, role.label, session_id
-                    )
-                })?;
-            }
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    workspace_root: &str,
+    event: RuntimeAgentEvent,
+) {
+    {
+        let mut recorder = match timeline_recorder.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        if let Err(error) = recorder.record_runtime_event(app, event_name, &event, workspace_root) {
+            tracing::warn!(
+                "[AsterAgent] 记录 Artifact 运行时事件失败（已降级继续）: {}",
+                error
+            );
         }
     }
 
-    Ok(())
+    if let Err(error) = app.emit(event_name, &event) {
+        tracing::warn!("[AsterAgent] 发送 Artifact 运行时事件失败: {}", error);
+    }
+}
+
+fn summarize_artifact_document_issues(issues: &[String]) -> String {
+    let parts = issues
+        .iter()
+        .map(|issue| issue.trim())
+        .filter(|issue| !issue.is_empty())
+        .take(3)
+        .collect::<Vec<_>>();
+
+    if parts.is_empty() {
+        "结构已按最小可用方案落盘。".to_string()
+    } else {
+        parts.join("；")
+    }
+}
+
+fn merge_turn_context_with_artifact_output_schema(
+    turn_context: Option<TurnContextOverride>,
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<TurnContextOverride> {
+    crate::services::artifact_output_schema_service::merge_turn_context_with_artifact_output_schema(
+        turn_context,
+        request_metadata,
+    )
+}
+
+fn should_skip_artifact_document_autopersist(
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+    final_text_output: &str,
+) -> bool {
+    if final_text_output.trim().is_empty() {
+        return true;
+    }
+
+    let observation = match run_observation.lock() {
+        Ok(guard) => guard,
+        Err(error) => error.into_inner(),
+    };
+    // 只允许根据运行期 artifact observation 决定是否跳过 autopersist，
+    // 不再从最终文本中的 `<write_file>` 片段反推 artifact 状态。
+    !observation.artifact_paths.is_empty()
+}
+
+fn maybe_persist_artifact_document_after_stream(
+    app: &AppHandle,
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+    workspace_root: &str,
+    workspace_id: &str,
+    thread_id: &str,
+    turn_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+    final_text_output: &str,
+) {
+    if !crate::services::artifact_document_service::should_attempt_artifact_document_autopersist(
+        request_metadata,
+    ) {
+        return;
+    }
+    if should_skip_artifact_document_autopersist(run_observation, final_text_output) {
+        return;
+    }
+
+    let persist_params =
+        crate::services::artifact_document_service::ArtifactDocumentPersistParams {
+            workspace_root: PathBuf::from(workspace_root),
+            workspace_id: Some(workspace_id.to_string()),
+            thread_id: thread_id.to_string(),
+            turn_id: turn_id.to_string(),
+            request_metadata: request_metadata.cloned(),
+        };
+
+    match crate::services::artifact_document_service::persist_artifact_document_from_text(
+        final_text_output,
+        &persist_params,
+    ) {
+        Ok(persisted) => {
+            {
+                let mut observation = match run_observation.lock() {
+                    Ok(guard) => guard,
+                    Err(error) => error.into_inner(),
+                };
+                observation.record_artifact_path(persisted.relative_path.clone(), request_metadata);
+            }
+
+            emit_runtime_side_event(
+                app,
+                event_name,
+                timeline_recorder,
+                workspace_root,
+                RuntimeAgentEvent::ArtifactSnapshot {
+                    artifact: lime_agent::AgentArtifactSignal {
+                        artifact_id: persisted.artifact_id.clone(),
+                        file_path: persisted.relative_path.clone(),
+                        content: Some(persisted.serialized_document.clone()),
+                        metadata: Some(
+                            persisted
+                                .snapshot_metadata
+                                .iter()
+                                .map(|(key, value)| (key.clone(), value.clone()))
+                                .collect(),
+                        ),
+                    },
+                },
+            );
+
+            if persisted.repaired || persisted.status == "failed" {
+                let (code, prefix) = if persisted.status == "failed" {
+                    (
+                        ARTIFACT_DOCUMENT_FAILED_WARNING_CODE,
+                        "ArtifactDocument 未通过完整校验，已以失败态文档落盘",
+                    )
+                } else {
+                    (
+                        ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE,
+                        "ArtifactDocument 已自动修复后落盘",
+                    )
+                };
+                let detail = summarize_artifact_document_issues(&persisted.issues);
+                emit_runtime_side_event(
+                    app,
+                    event_name,
+                    timeline_recorder,
+                    workspace_root,
+                    RuntimeAgentEvent::Warning {
+                        code: Some(code.to_string()),
+                        message: format!("{prefix}: {detail}"),
+                    },
+                );
+            }
+        }
+        Err(error) => {
+            emit_runtime_side_event(
+                app,
+                event_name,
+                timeline_recorder,
+                workspace_root,
+                RuntimeAgentEvent::Warning {
+                    code: Some(ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE.to_string()),
+                    message: format!("ArtifactDocument 自动落盘失败，已保留消息区结果：{error}"),
+                },
+            );
+        }
+    }
 }
 
 async fn execute_aster_chat_request(
@@ -361,7 +186,7 @@ async fn execute_aster_chat_request(
     config_manager: &GlobalConfigManagerState,
     mcp_manager: &McpManagerState,
     automation_state: &AutomationServiceState,
-    request: AsterChatRequest,
+    mut request: AsterChatRequest,
 ) -> Result<(), String> {
     tracing::info!(
         "[AsterAgent] 发送流式消息: session={}, event={}",
@@ -387,6 +212,12 @@ async fn execute_aster_chat_request(
         }
     }
     ensure_tool_search_tool_registered(state).await?;
+
+    if let Some(resolved_provider_config) =
+        resolve_runtime_request_provider_config(app, db, api_key_provider_service, &request).await?
+    {
+        request.provider_config = Some(resolved_provider_config);
+    }
 
     // 直接使用前端传递的 session_id
     // LimeSessionStore 会在 add_message 时自动创建不存在的 session
@@ -463,7 +294,7 @@ async fn execute_aster_chat_request(
         logs.write()
             .await
             .add("warn", &format!("[AsterAgent] {}", warning_message));
-        let warning_event = TauriAgentEvent::Warning {
+        let warning_event = RuntimeAgentEvent::Warning {
             code: Some(WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE.to_string()),
             message: warning_message,
         };
@@ -645,8 +476,17 @@ async fn execute_aster_chat_request(
         prompt_with_request_policy.clone(),
     );
 
-    let prompt_with_elicitation = merge_system_prompt_with_elicitation_context(
+    let prompt_with_artifact = merge_system_prompt_with_artifact_context(
         prompt_with_request_policy,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::Artifact,
+        prompt_with_artifact.clone(),
+    );
+
+    let prompt_with_elicitation = merge_system_prompt_with_elicitation_context(
+        prompt_with_artifact,
         request.metadata.as_ref(),
     );
     turn_input_builder.apply_prompt_stage(
@@ -844,7 +684,7 @@ async fn execute_aster_chat_request(
                 warning_message
             );
             if notify_user {
-                let warning_event = TauriAgentEvent::Warning {
+                let warning_event = RuntimeAgentEvent::Warning {
                     code: Some(WORKSPACE_SANDBOX_FALLBACK_WARNING_CODE.to_string()),
                     message: warning_message,
                 };
@@ -858,6 +698,8 @@ async fn execute_aster_chat_request(
     let tracker = ExecutionTracker::new(db.clone());
     let cancel_token = state.create_cancel_token(session_id).await;
     let auto_continue_metadata = auto_continue_config.clone();
+    request.metadata = crate::services::artifact_request_metadata_service::
+        normalize_request_metadata_with_artifact_defaults(request.metadata.take());
     let request_metadata = request.metadata.clone();
     sync_browser_assist_runtime_hint(session_id, request_metadata.as_ref()).await;
     let model_skill_tool_enabled = should_enable_model_skill_tool(request_metadata.as_ref());
@@ -950,51 +792,30 @@ async fn execute_aster_chat_request(
         let mut session_config_builder = SessionConfigBuilder::new(session_id)
             .thread_id(turn_state.thread_id.clone())
             .turn_id(turn_state.turn_id.clone());
-        if let Some(turn_context) = turn_input_envelope.turn_context_override() {
+        if let Some(turn_context) = merge_turn_context_with_artifact_output_schema(
+            turn_input_envelope.turn_context_override(),
+            request_metadata.as_ref(),
+        ) {
             session_config_builder = session_config_builder.turn_context(turn_context);
         }
         session_config_builder.build()
     };
 
-    let runtime_turn_initialized = {
+    {
         let guard = agent_arc.read().await;
         let agent = guard.as_ref().ok_or("Agent not initialized")?;
-        match agent
+        if let Err(error) = agent
             .ensure_runtime_turn_initialized(
                 &runtime_status_session_config,
                 Some(request.message.clone()),
             )
             .await
         {
-            Ok(_) => true,
-            Err(error) => {
-                tracing::warn!(
-                    "[AsterAgent] 初始化 runtime turn 失败，后续降级继续: {}",
-                    error
-                );
-                false
-            }
+            tracing::warn!(
+                "[AsterAgent] 初始化 runtime turn 失败，后续降级继续: {}",
+                error
+            );
         }
-    };
-
-    if runtime_turn_initialized {
-        maybe_prepare_runtime_team_sessions(
-            app,
-            state,
-            db,
-            api_key_provider_service,
-            logs,
-            config_manager,
-            mcp_manager,
-            automation_state,
-            &request,
-        )
-        .await?;
-    } else {
-        tracing::warn!(
-            "[AsterAgent][RuntimeTeam] 跳过当前 task 的 team 预拉起，因为父会话 runtime turn 尚未就绪: session={}",
-            session_id
-        );
     }
 
     // 获取 Agent Arc 并保持 guard 在整个流处理期间存活
@@ -1025,6 +846,7 @@ async fn execute_aster_chat_request(
     let resolved_thread_id_for_session = turn_state.thread_id.clone();
     let resolved_turn_id_for_session = turn_state.turn_id.clone();
     let turn_input_envelope_for_session = turn_input_envelope.clone();
+    let request_metadata_for_session = request_metadata.clone();
 
     let build_session_config = || {
         let mut session_config_builder = SessionConfigBuilder::new(session_id)
@@ -1033,7 +855,10 @@ async fn execute_aster_chat_request(
         if let Some(prompt) = turn_input_envelope_for_session.system_prompt() {
             session_config_builder = session_config_builder.system_prompt(prompt.to_string());
         }
-        if let Some(turn_context) = turn_input_envelope_for_session.turn_context_override() {
+        if let Some(turn_context) = merge_turn_context_with_artifact_output_schema(
+            turn_input_envelope_for_session.turn_context_override(),
+            request_metadata_for_session.as_ref(),
+        ) {
             session_config_builder = session_config_builder.turn_context(turn_context);
         }
         session_config_builder = session_config_builder
@@ -1108,7 +933,21 @@ async fn execute_aster_chat_request(
                 .await;
 
                 let run_result: Result<(), String> = match primary_result {
-                    Ok(()) => Ok(()),
+                    Ok(execution) => {
+                        maybe_persist_artifact_document_after_stream(
+                            &app,
+                            &request.event_name,
+                            &timeline_recorder,
+                            &run_observation,
+                            workspace_root.as_str(),
+                            workspace_id.as_str(),
+                            turn_state.thread_id.as_str(),
+                            turn_state.turn_id.as_str(),
+                            request_metadata.as_ref(),
+                            execution.text_output.as_str(),
+                        );
+                        Ok(())
+                    }
                     Err(primary_error)
                         if effective_strategy == AsterExecutionStrategy::CodeOrchestrated
                             && should_fallback_to_react_from_code_orchestrated(&primary_error) =>
@@ -1184,6 +1023,20 @@ async fn execute_aster_chat_request(
                             },
                         )
                         .await
+                        .map(|execution| {
+                            maybe_persist_artifact_document_after_stream(
+                                &app,
+                                &request.event_name,
+                                &timeline_recorder,
+                                &run_observation,
+                                workspace_root.as_str(),
+                                workspace_id.as_str(),
+                                turn_state.thread_id.as_str(),
+                                turn_state.turn_id.as_str(),
+                                request_metadata.as_ref(),
+                                execution.text_output.as_str(),
+                            );
+                        })
                         .map_err(|fallback_err| fallback_err.message)
                     }
                     Err(primary_error) => Err(primary_error.message),
@@ -1252,7 +1105,7 @@ async fn execute_aster_chat_request(
                     tracing::warn!("[AsterAgent] 完成 turn 时间线失败（已降级继续）: {}", error);
                 }
             }
-            let done_event = TauriAgentEvent::FinalDone { usage: None };
+            let done_event = RuntimeAgentEvent::FinalDone { usage: None };
             if let Err(e) = app.emit(&request.event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送完成事件失败: {}", e);
             }
@@ -1280,7 +1133,7 @@ async fn execute_aster_chat_request(
                     );
                 }
             }
-            let error_event = TauriAgentEvent::Error { message: e.clone() };
+            let error_event = RuntimeAgentEvent::Error { message: e.clone() };
             if let Err(emit_err) = app.emit(&request.event_name, &error_event) {
                 tracing::error!("[AsterAgent] 发送错误事件失败: {}", emit_err);
             }
@@ -1406,9 +1259,7 @@ pub(crate) async fn compact_runtime_session_internal(
             .ensure_runtime_turn_initialized(&session_config, Some("压缩上下文".to_string()))
             .await
             .map_err(|error| format!("初始化压缩 turn 失败: {error}"))?;
-        for event in
-            lime_agent::event_converter::convert_agent_event(AgentEvent::TurnStarted { turn })
-        {
+        for event in lime_agent::project_runtime_event(AgentEvent::TurnStarted { turn }) {
             {
                 let mut recorder = match timeline_recorder.lock() {
                     Ok(guard) => guard,
@@ -1431,7 +1282,7 @@ pub(crate) async fn compact_runtime_session_internal(
             .clone()
             .unwrap_or_else(|| session_id.clone());
         let compaction_item_id = format!("context_compaction:{compaction_turn_id}");
-        let start_event = TauriAgentEvent::ContextCompactionStarted {
+        let start_event = RuntimeAgentEvent::ContextCompactionStarted {
             item_id: compaction_item_id.clone(),
             trigger: "manual".to_string(),
             detail: Some("系统正在将较早消息整理为摘要，以释放上下文窗口。".to_string()),
@@ -1468,7 +1319,7 @@ pub(crate) async fn compact_runtime_session_internal(
             .await?;
         update_compaction_session_metrics(&session_config, &usage).await?;
 
-        let completed_event = TauriAgentEvent::ContextCompactionCompleted {
+        let completed_event = RuntimeAgentEvent::ContextCompactionCompleted {
             item_id: compaction_item_id,
             trigger: "manual".to_string(),
             detail: Some("较早消息已替换为摘要，后续回复会基于压缩后的上下文继续。".to_string()),
@@ -1506,7 +1357,7 @@ pub(crate) async fn compact_runtime_session_internal(
                     error
                 );
             }
-            let done_event = TauriAgentEvent::FinalDone { usage: None };
+            let done_event = RuntimeAgentEvent::FinalDone { usage: None };
             if let Err(error) = app.emit(&event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送压缩完成事件失败: {}", error);
             }
@@ -1523,7 +1374,7 @@ pub(crate) async fn compact_runtime_session_internal(
                         timeline_error
                     );
                 }
-                let error_event = TauriAgentEvent::Error {
+                let error_event = RuntimeAgentEvent::Error {
                     message: error.clone(),
                 };
                 if let Err(emit_error) = app.emit(&event_name, &error_event) {
@@ -1635,7 +1486,7 @@ fn build_provider_runtime_status_metadata(
 fn build_provider_waiting_runtime_status(
     snapshot: &ProviderRuntimeGovernorSnapshot,
     is_team_member: bool,
-) -> TauriRuntimeStatus {
+) -> AgentRuntimeStatus {
     let target_label = if is_team_member {
         "这位协作成员"
     } else {
@@ -1658,7 +1509,7 @@ fn build_provider_waiting_runtime_status(
         ));
     }
 
-    TauriRuntimeStatus {
+    AgentRuntimeStatus {
         phase: "routing".to_string(),
         title: "当前服务较忙，稍后开始处理".to_string(),
         detail: snapshot
@@ -1673,14 +1524,14 @@ fn build_provider_waiting_runtime_status(
 fn build_provider_running_runtime_status(
     snapshot: &ProviderRuntimeGovernorSnapshot,
     is_team_member: bool,
-) -> TauriRuntimeStatus {
+) -> AgentRuntimeStatus {
     let detail = if is_team_member {
         "已轮到这位协作成员，系统会按更稳妥的节奏继续处理。".to_string()
     } else {
         "已轮到这条请求，系统会按更稳妥的节奏开始处理。".to_string()
     };
 
-    TauriRuntimeStatus {
+    AgentRuntimeStatus {
         phase: "routing".to_string(),
         title: if is_team_member {
             "协作成员开始处理".to_string()
@@ -1737,7 +1588,7 @@ fn build_team_runtime_status_metadata(
     metadata
 }
 
-fn build_team_waiting_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> TauriRuntimeStatus {
+fn build_team_waiting_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> AgentRuntimeStatus {
     let mut checkpoints = vec![format!(
         "当前已有 {}/{} 位协作成员在处理",
         snapshot.team_active_count, snapshot.team_parallel_budget
@@ -1752,7 +1603,7 @@ fn build_team_waiting_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> 
         checkpoints.push("当前服务较忙，已切换为更稳妥的顺序处理".to_string());
     }
 
-    TauriRuntimeStatus {
+    AgentRuntimeStatus {
         phase: "routing".to_string(),
         title: "等待执行窗口".to_string(),
         detail: snapshot
@@ -1764,7 +1615,7 @@ fn build_team_waiting_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> 
     }
 }
 
-fn build_team_running_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> TauriRuntimeStatus {
+fn build_team_running_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> AgentRuntimeStatus {
     let mut checkpoints = vec![format!(
         "当前并发预算 {}/{}",
         snapshot.team_active_count, snapshot.team_parallel_budget
@@ -1773,7 +1624,7 @@ fn build_team_running_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> 
         checkpoints.push("当前服务使用稳妥处理模式".to_string());
     }
 
-    TauriRuntimeStatus {
+    AgentRuntimeStatus {
         phase: "routing".to_string(),
         title: "开始处理".to_string(),
         detail: "已获得可用执行窗口，这位协作成员正在接手当前任务。".to_string(),
@@ -1782,11 +1633,11 @@ fn build_team_running_runtime_status(snapshot: &TeamRuntimeGovernorSnapshot) -> 
     }
 }
 
-fn emit_transient_runtime_status(app: &AppHandle, event_name: &str, status: TauriRuntimeStatus) {
+fn emit_transient_runtime_status(app: &AppHandle, event_name: &str, status: AgentRuntimeStatus) {
     if event_name.trim().is_empty() {
         return;
     }
-    let event = TauriAgentEvent::RuntimeStatus { status };
+    let event = RuntimeAgentEvent::RuntimeStatus { status };
     if let Err(error) = app.emit(event_name, &event) {
         tracing::warn!(
             "[AsterAgent] 发送 team runtime 状态失败: event_name={}, error={}",
@@ -2142,5 +1993,39 @@ mod tests {
         SessionManager::delete_session(&session.id)
             .await
             .expect("清理测试会话失败");
+    }
+
+    #[test]
+    fn should_skip_artifact_document_autopersist_when_output_is_empty() {
+        let observation = Arc::new(Mutex::new(ChatRunObservation::default()));
+
+        assert!(should_skip_artifact_document_autopersist(
+            &observation,
+            "   \n  "
+        ));
+    }
+
+    #[test]
+    fn should_skip_artifact_document_autopersist_when_runtime_observation_has_artifacts() {
+        let observation = Arc::new(Mutex::new(ChatRunObservation::default()));
+        observation
+            .lock()
+            .expect("lock observation")
+            .record_artifact_path("social-posts/demo.md".to_string(), None);
+
+        assert!(should_skip_artifact_document_autopersist(
+            &observation,
+            "普通正文输出"
+        ));
+    }
+
+    #[test]
+    fn should_not_skip_artifact_document_autopersist_based_on_write_file_text_only() {
+        let observation = Arc::new(Mutex::new(ChatRunObservation::default()));
+
+        assert!(!should_skip_artifact_document_autopersist(
+            &observation,
+            "<write_file path=\"social-posts/demo.md\">内容</write_file>"
+        ));
     }
 }

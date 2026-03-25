@@ -11,6 +11,7 @@ import { resolveSocialMediaArtifactDescriptor } from "@/components/content-creat
 import { createInitialMusicState } from "@/components/content-creator/canvas/music/types";
 import { parseLyrics } from "@/components/content-creator/canvas/music/utils/lyricsParser";
 import type { ThemeType, LayoutMode } from "@/components/content-creator/types";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import type { WriteArtifactContext } from "../types";
@@ -19,7 +20,6 @@ import { getContent, updateContent } from "@/lib/api/project";
 import { getFileToStepMap } from "../utils/workflowMapping";
 import {
   buildArtifactFromWrite,
-  resolveArtifactFilePath,
   resolveDefaultArtifactViewMode,
 } from "../utils/messageArtifacts";
 import {
@@ -118,10 +118,7 @@ export function useWorkspaceWriteFileAction({
             return true;
           }
 
-          return (
-            typeof artifact.meta.filePath === "string" &&
-            artifact.meta.filePath === fileName
-          );
+          return resolveArtifactProtocolFilePath(artifact) === fileName;
         });
         const nextContent =
           content.length > 0
@@ -162,7 +159,7 @@ export function useWorkspaceWriteFileAction({
           }
 
           void syncGeneralArtifactToResource({
-            rawFilePath: resolveArtifactFilePath(nextArtifact),
+            rawFilePath: resolveArtifactProtocolFilePath(nextArtifact),
             preferredName: nextArtifact.title,
           });
         };

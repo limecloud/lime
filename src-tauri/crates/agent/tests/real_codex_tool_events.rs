@@ -1,5 +1,6 @@
 use futures::StreamExt;
-use lime_agent::{convert_agent_event, AsterAgentState, SessionConfigBuilder, TauriAgentEvent};
+use lime_agent::event_converter::convert_agent_event;
+use lime_agent::{AgentEvent, AsterAgentState, SessionConfigBuilder};
 use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::database::init_database;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
@@ -138,10 +139,10 @@ async fn test_real_codex_stream_emits_tool_events() {
             Ok(agent_event) => {
                 for event in convert_agent_event(agent_event) {
                     match event {
-                        TauriAgentEvent::ToolStart { .. } => tool_start_count += 1,
-                        TauriAgentEvent::ToolEnd { .. } => tool_end_count += 1,
-                        TauriAgentEvent::TextDelta { text } => text_buffer.push_str(&text),
-                        TauriAgentEvent::Error { message } => error_messages.push(message),
+                        AgentEvent::ToolStart { .. } => tool_start_count += 1,
+                        AgentEvent::ToolEnd { .. } => tool_end_count += 1,
+                        AgentEvent::TextDelta { text } => text_buffer.push_str(&text),
+                        AgentEvent::Error { message } => error_messages.push(message),
                         _ => {}
                     }
                 }

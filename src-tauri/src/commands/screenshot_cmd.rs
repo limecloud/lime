@@ -13,6 +13,12 @@ use crate::screenshot::{capture, shortcut};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tracing::{debug, error, info};
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ScreenshotShortcutRuntimeStatus {
+    pub shortcut_registered: bool,
+    pub registered_shortcut: Option<String>,
+}
+
 /// 获取实验室功能配置
 ///
 /// 从应用状态中获取当前的实验室功能配置
@@ -29,6 +35,16 @@ pub async fn get_experimental_config(
 
     let config = config_manager.config();
     Ok(config.experimental.clone())
+}
+
+/// 获取截图快捷键运行时状态
+#[tauri::command]
+pub async fn get_screenshot_shortcut_runtime_status(
+) -> Result<ScreenshotShortcutRuntimeStatus, String> {
+    Ok(ScreenshotShortcutRuntimeStatus {
+        shortcut_registered: shortcut::is_registered(),
+        registered_shortcut: shortcut::get_current(),
+    })
 }
 
 /// 保存实验室功能配置

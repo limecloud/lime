@@ -6,6 +6,8 @@ mod browser_tools;
 mod creation_tools;
 #[path = "tool_runtime/search_bridge.rs"]
 mod search_bridge;
+#[path = "tool_runtime/site_tools.rs"]
+mod site_tools;
 #[path = "tool_runtime/social_tools.rs"]
 pub(crate) mod social_tools;
 #[path = "tool_runtime/subagent_tools.rs"]
@@ -73,8 +75,10 @@ fn sync_workspace_mode_native_tool_surface(
 ) {
     if surface.browser_assist {
         browser_tools::register_browser_mcp_tools_to_registry(registry);
+        site_tools::register_site_tools_to_registry(registry, db.clone());
     } else {
         browser_tools::unregister_browser_mcp_tools_from_registry(registry);
+        site_tools::unregister_site_tools_from_registry(registry);
     }
 
     if surface.creator {

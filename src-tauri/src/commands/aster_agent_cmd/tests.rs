@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use crate::commands::aster_agent_cmd::action_runtime::build_runtime_action_scope;
     use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
+    use async_trait::async_trait;
+    use lime_agent::AgentEvent as RuntimeAgentEvent;
     use lime_agent::request_tool_policy::resolve_request_tool_policy;
     use regex::Regex;
     use std::ffi::OsString;
@@ -530,6 +531,9 @@ mod tests {
             "turn_config": {
                 "execution_strategy": "auto",
                 "web_search": true,
+                "provider_preference": "custom-provider",
+                "model_preference": "gpt-5.3-codex",
+                "thinking_enabled": true,
                 "system_prompt": "runtime prompt",
                 "provider_config": {
                     "provider_id": "custom-provider",
@@ -554,6 +558,12 @@ mod tests {
             Some(AsterExecutionStrategy::Auto)
         );
         assert_eq!(mapped.web_search, Some(true));
+        assert_eq!(
+            mapped.provider_preference.as_deref(),
+            Some("custom-provider")
+        );
+        assert_eq!(mapped.model_preference.as_deref(), Some("gpt-5.3-codex"));
+        assert_eq!(mapped.thinking_enabled, Some(true));
         assert_eq!(mapped.system_prompt.as_deref(), Some("runtime prompt"));
         assert_eq!(
             mapped
@@ -751,6 +761,17 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_artifact_path_from_tool_start_reads_nested_artifact_protocol_path() {
+        let path = extract_artifact_path_from_tool_start(
+            "write_file",
+            Some(r##"{"payload":{"artifact_paths":["social-posts\\nested.md"]}}"##),
+            "/tmp/workspace",
+        );
+
+        assert_eq!(path.as_deref(), Some("social-posts/nested.md"));
+    }
+
+    #[test]
     fn test_resolve_social_run_artifact_descriptor_matches_social_draft() {
         let descriptor = resolve_social_run_artifact_descriptor(
             "social-posts/draft.md",
@@ -773,6 +794,9 @@ mod tests {
                 event_name: "event-1".to_string(),
                 images: None,
                 provider_config: None,
+                provider_preference: None,
+                model_preference: None,
+                thinking_enabled: None,
                 project_id: Some("project-1".to_string()),
                 workspace_id: "workspace-1".to_string(),
                 web_search: Some(false),
@@ -840,14 +864,227 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_harness_bool_reads_nested_preferences() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "preferences": {
+                    "web_search": true,
+                    "thinking": true,
+                    "task": false,
+                    "subagent": true
+                }
+            }
+        });
+
+        assert_eq!(
+            extract_harness_bool(Some(&metadata), &["web_search_enabled", "webSearchEnabled"]),
+            Some(true)
+        );
+        assert_eq!(
+            extract_harness_bool(Some(&metadata), &["thinking_enabled", "thinkingEnabled"]),
+            Some(true)
+        );
+        assert_eq!(
+            extract_harness_bool(Some(&metadata), &["task_mode_enabled", "taskModeEnabled"]),
+            Some(false)
+        );
+        assert_eq!(
+            extract_harness_bool(
+                Some(&metadata),
+                &["subagent_mode_enabled", "subagentModeEnabled"]
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn test_build_chat_run_metadata_base_flattens_nested_preferences() {
+        let metadata = build_chat_run_metadata_base(
+            &AsterChatRequest {
+                message: "hello".to_string(),
+                session_id: "session-1".to_string(),
+                event_name: "event-1".to_string(),
+                images: None,
+                provider_config: None,
+                provider_preference: None,
+                model_preference: None,
+                thinking_enabled: None,
+                project_id: Some("project-1".to_string()),
+                workspace_id: "workspace-1".to_string(),
+                web_search: Some(false),
+                search_mode: None,
+                execution_strategy: Some(AsterExecutionStrategy::React),
+                auto_continue: None,
+                system_prompt: None,
+                metadata: Some(serde_json::json!({
+                    "harness": {
+                        "theme": "general",
+                        "preferences": {
+                            "thinking": true,
+                            "task": false,
+                            "subagent": true
+                        }
+                    }
+                })),
+                turn_id: None,
+                queue_if_busy: None,
+                queued_turn_id: None,
+            },
+            "workspace-1",
+            AsterExecutionStrategy::React,
+            &RequestToolPolicy {
+                search_mode: RequestToolPolicyMode::Disabled,
+                effective_web_search: false,
+                required_tools: vec![],
+                allowed_tools: vec![],
+                disallowed_tools: vec![],
+            },
+            false,
+            None,
+        );
+
+        assert_eq!(
+            metadata
+                .get("thinking_enabled")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            metadata
+                .get("task_mode_enabled")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            metadata
+                .get("subagent_mode_enabled")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn test_chat_run_observation_records_nested_artifact_protocol_paths_from_tool_result() {
+        let mut observation = ChatRunObservation::default();
+        observation.record_event(
+            &RuntimeAgentEvent::ToolEnd {
+                tool_id: "tool-1".to_string(),
+                result: lime_agent::AgentToolResult {
+                    success: true,
+                    output: "done".to_string(),
+                    error: None,
+                    images: None,
+                    metadata: Some(HashMap::from([(
+                        "payload".to_string(),
+                        serde_json::json!({
+                            "artifact_paths": [" /tmp/workspace/social-posts\\final.md "]
+                        }),
+                    )])),
+                },
+            },
+            "/tmp/workspace",
+            Some(&serde_json::json!({
+                "harness": {
+                    "theme": "social-media",
+                    "gate_key": "write_mode"
+                }
+            })),
+            ProviderContinuationCapability::HistoryReplayOnly,
+        );
+
+        assert_eq!(
+            observation.artifact_paths,
+            vec!["social-posts/final.md".to_string()]
+        );
+        assert_eq!(
+            observation
+                .primary_social_artifact
+                .as_ref()
+                .map(|artifact| artifact.source_file_name.as_str()),
+            Some("social-posts/final.md")
+        );
+    }
+
+    #[test]
+    fn test_chat_run_observation_ignores_output_file_log_hint_without_explicit_artifact_path() {
+        let mut observation = ChatRunObservation::default();
+        observation.record_event(
+            &RuntimeAgentEvent::ToolEnd {
+                tool_id: "tool-1".to_string(),
+                result: lime_agent::AgentToolResult {
+                    success: true,
+                    output: "done".to_string(),
+                    error: None,
+                    images: None,
+                    metadata: Some(HashMap::from([(
+                        "output_file".to_string(),
+                        serde_json::json!("/tmp/workspace/tasks/task.log"),
+                    )])),
+                },
+            },
+            "/tmp/workspace",
+            Some(&serde_json::json!({
+                "harness": {
+                    "theme": "social-media",
+                    "gate_key": "write_mode"
+                }
+            })),
+            ProviderContinuationCapability::HistoryReplayOnly,
+        );
+
+        assert!(observation.artifact_paths.is_empty());
+        assert!(observation.primary_social_artifact.is_none());
+    }
+
+    #[test]
+    fn test_chat_run_observation_falls_back_to_probable_output_file_artifact_hint() {
+        let mut observation = ChatRunObservation::default();
+        observation.record_event(
+            &RuntimeAgentEvent::ToolEnd {
+                tool_id: "tool-1".to_string(),
+                result: lime_agent::AgentToolResult {
+                    success: true,
+                    output: "done".to_string(),
+                    error: None,
+                    images: None,
+                    metadata: Some(HashMap::from([(
+                        "output_file".to_string(),
+                        serde_json::json!("/tmp/workspace/social-posts/final.md"),
+                    )])),
+                },
+            },
+            "/tmp/workspace",
+            Some(&serde_json::json!({
+                "harness": {
+                    "theme": "social-media",
+                    "gate_key": "write_mode"
+                }
+            })),
+            ProviderContinuationCapability::HistoryReplayOnly,
+        );
+
+        assert_eq!(
+            observation.artifact_paths,
+            vec!["social-posts/final.md".to_string()]
+        );
+        assert_eq!(
+            observation
+                .primary_social_artifact
+                .as_ref()
+                .map(|artifact| artifact.source_file_name.as_str()),
+            Some("social-posts/final.md")
+        );
+    }
+
+    #[test]
     fn test_chat_run_observation_records_previous_response_id_from_message_event() {
         let mut observation = ChatRunObservation::default();
         observation.record_event(
-            &TauriAgentEvent::Message {
-                message: TauriMessage {
+            &RuntimeAgentEvent::Message {
+                message: lime_agent::AgentMessage {
                     id: Some("resp-1".to_string()),
                     role: "assistant".to_string(),
-                    content: vec![TauriMessageContent::Text {
+                    content: vec![lime_agent::AgentMessageContent::Text {
                         text: "hello".to_string(),
                     }],
                     timestamp: 0,
@@ -868,11 +1105,11 @@ mod tests {
     fn test_chat_run_observation_records_provider_session_token_from_message_event() {
         let mut observation = ChatRunObservation::default();
         observation.record_event(
-            &TauriAgentEvent::Message {
-                message: TauriMessage {
+            &RuntimeAgentEvent::Message {
+                message: lime_agent::AgentMessage {
                     id: Some("conv-1".to_string()),
                     role: "assistant".to_string(),
-                    content: vec![TauriMessageContent::Text {
+                    content: vec![lime_agent::AgentMessageContent::Text {
                         text: "hello".to_string(),
                     }],
                     timestamp: 0,
@@ -1308,58 +1545,30 @@ mod tests {
     }
 
     #[test]
-    fn test_build_team_preference_system_prompt_renders_turn_team_contract() {
+    fn test_build_team_preference_system_prompt_emphasizes_parent_coordination() {
         let prompt = build_team_preference_system_prompt(Some(&serde_json::json!({
             "harness": {
                 "subagent_mode_enabled": true,
-                "turn_team_decision": "team_prepared",
-                "turn_team_reason": "runtime_team_prepared",
-                "turn_team_blueprint": {
-                    "label": "当前调试 Team",
-                    "description": "先分析，再实现，最后验证。",
-                    "roles": [
-                        {
-                            "id": "runtime-explorer",
-                            "label": "分析",
-                            "summary": "负责定位问题。",
-                            "profile_id": "code-explorer",
-                            "role_key": "explorer",
-                            "skill_ids": ["repo-exploration"]
-                        },
-                        {
-                            "label": "执行",
-                            "summary": "负责提交修复。"
-                        }
-                    ]
-                }
+                "selected_team_label": "当前调试 Team",
+                "selected_team_roles": [
+                    {
+                        "id": "runtime-explorer",
+                        "label": "分析",
+                        "summary": "负责定位问题。",
+                        "profile_id": "code-explorer",
+                        "role_key": "explorer",
+                        "skill_ids": ["repo-exploration"]
+                    }
+                ]
             }
         })))
         .expect("team prompt should exist");
 
-        assert!(prompt.contains("发送前已经准备好协作分工"));
         assert!(prompt.contains("当前调试 Team"));
-        assert!(prompt.contains("先分析，再实现，最后验证。"));
         assert!(prompt.contains("分析：负责定位问题。"));
-        assert!(prompt.contains("id: runtime-explorer"));
         assert!(prompt.contains("blueprintRoleId"));
-        assert!(prompt.contains("主对话要像项目助理一样汇总目标"));
-        assert!(prompt.contains("不要等主 agent 完整处理结束后再补做 team"));
-    }
-
-    #[test]
-    fn test_build_team_preference_system_prompt_renders_single_agent_turn_decision() {
-        let prompt = build_team_preference_system_prompt(Some(&serde_json::json!({
-            "harness": {
-                "subagent_mode_enabled": true,
-                "turn_team_decision": "single_agent",
-                "turn_team_reason": "single_agent_direct",
-            }
-        })))
-        .expect("team prompt should exist");
-
-        assert!(prompt.contains("当前任务没有在 GUI 中提前准备 Team"));
-        assert!(prompt.contains("主助手直接处理更合适"));
-        assert!(prompt.contains("不要为了形式化 team 而推迟主任务"));
+        assert!(prompt.contains("主对话需要承担协调职责"));
+        assert!(prompt.contains("主动汇总关键进展、风险和下一步"));
     }
 
     #[test]
@@ -1440,126 +1649,6 @@ mod tests {
         assert!(prompt.contains("代码排障团队"));
         assert!(prompt.contains("仓库探索"));
         assert!(prompt.contains("输出问题定位、证据与影响面。"));
-    }
-
-    #[test]
-    fn test_parse_runtime_prepared_team_roles_from_metadata() {
-        let roles = parse_runtime_prepared_team_roles(Some(&serde_json::json!({
-            "harness": {
-                "turn_team_decision": "team_prepared",
-                "turn_team_blueprint": {
-                    "roles": [
-                        {
-                            "id": "runtime-explorer",
-                            "label": "分析",
-                            "summary": "负责定位问题。",
-                            "profile_id": "code-explorer",
-                            "role_key": "explorer",
-                            "skill_ids": ["repo-exploration", "repo-exploration", " "]
-                        },
-                        {
-                            "label": "执行 角色",
-                            "summary": "负责提交修复。"
-                        },
-                        {
-                            "id": "runtime-explorer",
-                            "label": "重复分析"
-                        }
-                    ]
-                }
-            }
-        })));
-
-        assert_eq!(roles.len(), 2);
-        assert_eq!(roles[0].id, "runtime-explorer");
-        assert_eq!(roles[0].label, "分析");
-        assert_eq!(roles[0].profile_id.as_deref(), Some("code-explorer"));
-        assert_eq!(roles[0].role_key.as_deref(), Some("explorer"));
-        assert_eq!(roles[0].skill_ids, vec!["repo-exploration".to_string()]);
-
-        assert_eq!(roles[1].id, "lane-执行-角色");
-        assert_eq!(roles[1].label, "执行 角色");
-        assert_eq!(roles[1].summary.as_deref(), Some("负责提交修复。"));
-    }
-
-    #[test]
-    fn test_plan_runtime_prepared_team_actions_skips_existing_and_resumes_closed_lane() {
-        let roles = vec![
-            RuntimePreparedTeamRole {
-                id: "runtime-explorer".to_string(),
-                label: "分析".to_string(),
-                summary: Some("负责定位问题。".to_string()),
-                profile_id: Some("code-explorer".to_string()),
-                role_key: Some("explorer".to_string()),
-                skill_ids: vec!["repo-exploration".to_string()],
-            },
-            RuntimePreparedTeamRole {
-                id: "runtime-executor".to_string(),
-                label: "执行".to_string(),
-                summary: Some("负责提交修复。".to_string()),
-                profile_id: Some("code-executor".to_string()),
-                role_key: Some("executor".to_string()),
-                skill_ids: vec![],
-            },
-            RuntimePreparedTeamRole {
-                id: "runtime-verifier".to_string(),
-                label: "验证".to_string(),
-                summary: Some("负责回归验证。".to_string()),
-                profile_id: Some("code-verifier".to_string()),
-                role_key: Some("verifier".to_string()),
-                skill_ids: vec![],
-            },
-        ];
-        let existing_candidates = vec![
-            RuntimePreparedTeamSessionCandidate {
-                blueprint_role_id: "runtime-explorer".to_string(),
-                session_id: "child-explorer".to_string(),
-                status_kind: SubagentRuntimeStatusKind::Running,
-            },
-            RuntimePreparedTeamSessionCandidate {
-                blueprint_role_id: "runtime-executor".to_string(),
-                session_id: "child-executor-old".to_string(),
-                status_kind: SubagentRuntimeStatusKind::Closed,
-            },
-            RuntimePreparedTeamSessionCandidate {
-                blueprint_role_id: "runtime-executor".to_string(),
-                session_id: "child-executor-stale".to_string(),
-                status_kind: SubagentRuntimeStatusKind::NotFound,
-            },
-        ];
-
-        let actions = plan_runtime_prepared_team_actions(&roles, &existing_candidates);
-        assert_eq!(actions.len(), 2);
-
-        assert!(matches!(
-            &actions[0],
-            RuntimePreparedTeamAction::Resume { role, session_id }
-                if role.id == "runtime-executor" && session_id == "child-executor-old"
-        ));
-        assert!(matches!(
-            &actions[1],
-            RuntimePreparedTeamAction::Spawn(role) if role.id == "runtime-verifier"
-        ));
-    }
-
-    #[test]
-    fn test_build_runtime_prepared_team_spawn_message_emphasizes_lane_output() {
-        let message = build_runtime_prepared_team_spawn_message(
-            &RuntimePreparedTeamRole {
-                id: "runtime-explorer".to_string(),
-                label: "分析".to_string(),
-                summary: Some("负责定位问题。".to_string()),
-                profile_id: Some("code-explorer".to_string()),
-                role_key: Some("explorer".to_string()),
-                skill_ids: vec!["repo-exploration".to_string()],
-            },
-            "修正 team runtime 的执行顺序",
-        );
-
-        assert!(message.contains("当前子会话输出"));
-        assert!(message.contains("修正 team runtime 的执行顺序"));
-        assert!(message.contains("负责定位问题。"));
-        assert!(message.contains("不要把具体产出留给父会话代写"));
     }
 
     #[test]
@@ -1867,15 +1956,16 @@ mod tests {
             model: None,
             working_dir: None,
             workspace_id: None,
-            messages: vec![TauriMessage {
+            messages: vec![lime_agent::AgentMessage {
                 id: None,
                 role: "assistant".to_string(),
-                content: vec![TauriMessageContent::Text {
+                content: vec![lime_agent::AgentMessageContent::Text {
                     text: "子代理最终结论".to_string(),
                 }],
                 timestamp: 0,
             }],
             execution_strategy: None,
+            execution_runtime: None,
             turns: vec![],
             items: vec![],
             todo_items: vec![],
@@ -1902,6 +1992,7 @@ mod tests {
             workspace_id: None,
             messages: vec![],
             execution_strategy: None,
+            execution_runtime: None,
             turns: vec![lime_core::database::dao::agent_timeline::AgentThreadTurn {
                 id: "turn-1".to_string(),
                 thread_id: "thread-2".to_string(),

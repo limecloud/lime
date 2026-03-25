@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { safeListen } from "@/lib/dev-bridge";
-import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
+import { parseAgentEvent, type AgentEvent } from "@/lib/api/agentProtocol";
 import {
   skillExecutionApi,
   type ExecutableSkillInfo,
@@ -421,8 +421,8 @@ export async function tryExecuteSlashSkillCommand(
     });
     stepUnlisteners.push(stepStartUl);
 
-    skillUnlisten = await safeListen<StreamEvent>(eventName, ({ payload }) => {
-      const streamEvent = parseStreamEvent(payload as unknown);
+    skillUnlisten = await safeListen<AgentEvent>(eventName, ({ payload }) => {
+      const streamEvent = parseAgentEvent(payload as unknown);
       if (!streamEvent) return;
 
       switch (streamEvent.type) {

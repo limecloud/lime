@@ -3,11 +3,10 @@
 //! 该模块沉淀“请求级工具策略（例如联网搜索）”与统一流式执行逻辑，
 //! 供 aster_agent_cmd、scheduler、gateway 等入口复用同一条执行主链。
 
-use crate::event_converter::{
-    convert_agent_event, TauriAgentEvent, TauriRuntimeStatus, TauriToolResult,
-};
+use crate::protocol::{AgentEvent as RuntimeAgentEvent, AgentRuntimeStatus, AgentToolResult};
+use crate::protocol_projection::project_runtime_event;
 use crate::write_artifact_events::WriteArtifactEventEmitter;
-use aster::agents::{Agent, AgentEvent};
+use aster::agents::{Agent, AgentEvent as AsterAgentEvent};
 use aster::conversation::message::Message;
 use aster::tools::ToolContext;
 use chrono::{Datelike, Local, NaiveDate};
@@ -232,7 +231,7 @@ impl WebSearchExecutionTracker {
 
 #[derive(Debug, Clone)]
 pub struct PreflightToolExecution {
-    pub events: Vec<TauriAgentEvent>,
+    pub events: Vec<RuntimeAgentEvent>,
     pub planned_queries: Vec<String>,
     pub system_prompt_appendix: Option<String>,
     pub coverage_summary: Option<String>,
@@ -289,10 +288,10 @@ struct StreamEventDiagnostics {
 
 fn update_stream_event_diagnostics(
     diagnostics: &mut StreamEventDiagnostics,
-    event: &TauriAgentEvent,
+    event: &RuntimeAgentEvent,
 ) {
     match event {
-        TauriAgentEvent::TextDelta { text } => {
+        RuntimeAgentEvent::TextDelta { text } => {
             diagnostics.text_delta_count += 1;
             let char_count = text.chars().count();
             diagnostics.max_text_delta_chars = diagnostics.max_text_delta_chars.max(char_count);
@@ -303,10 +302,10 @@ fn update_stream_event_diagnostics(
                 );
             }
         }
-        TauriAgentEvent::ToolStart { .. } => {
+        RuntimeAgentEvent::ToolStart { .. } => {
             diagnostics.tool_start_count += 1;
         }
-        TauriAgentEvent::ToolEnd { tool_id, result } => {
+        RuntimeAgentEvent::ToolEnd { tool_id, result } => {
             diagnostics.tool_end_count += 1;
             let output_chars = result.output.chars().count();
             diagnostics.max_tool_output_chars = diagnostics.max_tool_output_chars.max(output_chars);
@@ -319,7 +318,7 @@ fn update_stream_event_diagnostics(
                 );
             }
         }
-        TauriAgentEvent::ContextTrace { steps } => {
+        RuntimeAgentEvent::ContextTrace { steps } => {
             diagnostics.context_trace_events += 1;
             diagnostics.max_context_trace_steps =
                 diagnostics.max_context_trace_steps.max(steps.len());
@@ -330,7 +329,7 @@ fn update_stream_event_diagnostics(
                 );
             }
         }
-        TauriAgentEvent::Error { .. } => {
+        RuntimeAgentEvent::Error { .. } => {
             diagnostics.error_count += 1;
         }
         _ => {}
@@ -978,7 +977,7 @@ fn merge_system_prompt_with_web_search_synthesis_instruction(
     }
 }
 
-fn build_web_search_synthesis_runtime_status(coverage_summary: Option<&str>) -> TauriRuntimeStatus {
+fn build_web_search_synthesis_runtime_status(coverage_summary: Option<&str>) -> AgentRuntimeStatus {
     let mut checkpoints = vec![
         "已完成 WebSearch 预检索".to_string(),
         "正在把检索结果整理为最终答复".to_string(),
@@ -991,7 +990,7 @@ fn build_web_search_synthesis_runtime_status(coverage_summary: Option<&str>) -> 
         checkpoints.push(summary.to_string());
     }
 
-    TauriRuntimeStatus {
+    AgentRuntimeStatus {
         phase: "synthesizing".to_string(),
         title: "正在整理联网结果".to_string(),
         detail: "已完成前置扩搜，正在基于已有 WebSearch 结果输出最终总结，不再重复检索。"
@@ -1018,10 +1017,10 @@ fn duplicate_session_config(config: &aster::agents::SessionConfig) -> aster::age
 async fn emit_runtime_status_with_projection<F>(
     agent: &Agent,
     session_config: &aster::agents::SessionConfig,
-    status: TauriRuntimeStatus,
+    status: AgentRuntimeStatus,
     on_event: &mut F,
 ) where
-    F: FnMut(&TauriAgentEvent),
+    F: FnMut(&RuntimeAgentEvent),
 {
     match agent
         .upsert_runtime_status_item(
@@ -1034,7 +1033,7 @@ async fn emit_runtime_status_with_projection<F>(
         .await
     {
         Ok(agent_event) => {
-            for event in convert_agent_event(agent_event) {
+            for event in project_runtime_event(agent_event) {
                 on_event(&event);
             }
         }
@@ -1046,7 +1045,7 @@ async fn emit_runtime_status_with_projection<F>(
         }
     }
 
-    let event = TauriAgentEvent::RuntimeStatus { status };
+    let event = RuntimeAgentEvent::RuntimeStatus { status };
     on_event(&event);
 }
 
@@ -1080,7 +1079,7 @@ async fn stream_agent_reply_once<F>(
     on_event: &mut F,
 ) -> Result<(), ReplyAttemptError>
 where
-    F: FnMut(&TauriAgentEvent),
+    F: FnMut(&RuntimeAgentEvent),
 {
     let mut stream = agent
         .reply(user_message, session_config, cancel_token)
@@ -1095,36 +1094,38 @@ where
             Ok(agent_event) => {
                 *emitted_any = true;
                 let inline_provider_error = match &agent_event {
-                    AgentEvent::Message(message) => extract_inline_agent_provider_error(message),
+                    AsterAgentEvent::Message(message) => {
+                        extract_inline_agent_provider_error(message)
+                    }
                     _ => None,
                 };
-                let tauri_events = convert_agent_event(agent_event);
-                for mut tauri_event in tauri_events {
-                    let extra_events = write_artifact_emitter.process_event(&mut tauri_event);
+                let runtime_events = project_runtime_event(agent_event);
+                for mut runtime_event in runtime_events {
+                    let extra_events = write_artifact_emitter.process_event(&mut runtime_event);
                     for extra_event in &extra_events {
                         update_stream_event_diagnostics(diagnostics, extra_event);
                         on_event(extra_event);
                     }
 
-                    match &tauri_event {
-                        TauriAgentEvent::TextDelta { text } => {
+                    match &runtime_event {
+                        RuntimeAgentEvent::TextDelta { text } => {
                             if !text.is_empty() {
                                 text_chunks.push(text.clone());
                             }
                         }
-                        TauriAgentEvent::Error { message } => {
+                        RuntimeAgentEvent::Error { message } => {
                             if !message.trim().is_empty() {
                                 event_errors.push(message.clone());
                             }
                         }
-                        TauriAgentEvent::ToolStart {
+                        RuntimeAgentEvent::ToolStart {
                             tool_name, tool_id, ..
                         } => web_search_tracker.record_tool_start(
                             request_tool_policy,
                             tool_id,
                             tool_name,
                         ),
-                        TauriAgentEvent::ToolEnd { tool_id, result } => {
+                        RuntimeAgentEvent::ToolEnd { tool_id, result } => {
                             web_search_tracker.record_tool_end(
                                 request_tool_policy,
                                 tool_id,
@@ -1134,8 +1135,8 @@ where
                         }
                         _ => {}
                     }
-                    update_stream_event_diagnostics(diagnostics, &tauri_event);
-                    on_event(&tauri_event);
+                    update_stream_event_diagnostics(diagnostics, &runtime_event);
+                    on_event(&runtime_event);
                 }
                 if let Some(message) = inline_provider_error {
                     return Err(ReplyAttemptError {
@@ -1248,7 +1249,7 @@ pub async fn execute_web_search_preflight_if_needed(
     let mut events = Vec::new();
     for planned in &planned_queries {
         tracker.record_tool_start(policy, &planned.tool_id, &preflight_tool_name);
-        events.push(TauriAgentEvent::ToolStart {
+        events.push(RuntimeAgentEvent::ToolStart {
             tool_name: preflight_tool_name.clone(),
             tool_id: planned.tool_id.clone(),
             arguments: planned.arguments.clone(),
@@ -1307,9 +1308,9 @@ pub async fn execute_web_search_preflight_if_needed(
             outcome.success,
             outcome.error.as_deref(),
         );
-        events.push(TauriAgentEvent::ToolEnd {
+        events.push(RuntimeAgentEvent::ToolEnd {
             tool_id: outcome.tool_id.clone(),
-            result: TauriToolResult {
+            result: AgentToolResult {
                 success: outcome.success,
                 output: outcome.output.clone(),
                 error: outcome.error.clone(),
@@ -1362,7 +1363,7 @@ pub async fn stream_reply_with_policy<F>(
     on_event: F,
 ) -> Result<StreamReplyExecution, ReplyAttemptError>
 where
-    F: FnMut(&TauriAgentEvent),
+    F: FnMut(&RuntimeAgentEvent),
 {
     stream_message_reply_with_policy(
         agent,
@@ -1386,7 +1387,7 @@ pub async fn stream_message_reply_with_policy<F>(
     mut on_event: F,
 ) -> Result<StreamReplyExecution, ReplyAttemptError>
 where
-    F: FnMut(&TauriAgentEvent),
+    F: FnMut(&RuntimeAgentEvent),
 {
     let message_text = user_message.as_concat_text();
     let mut web_search_tracker = WebSearchExecutionTracker::default();

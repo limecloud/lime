@@ -27,6 +27,7 @@
 - `develop/scheduler-task-governance-p1.md`：调度任务治理 P1（连续失败、自动停用、冷却恢复）
 - `roadmap/lime-skills-standardization-roadmap.md`：Skills 标准化与产品化路线图
 - `roadmap/lime-service-skill-cloud-config-prd.md`：服务型技能的端优先执行与云配置同步 PRD
+- `roadmap/lime-browser-site-capability-prd.md`：站点能力按真实浏览器优先接入的产品需求文档
 - `ops.md`：运维与发布说明
 - `app.config.ts` / `nuxt.config.ts` / `package.json`：文档站配置
 

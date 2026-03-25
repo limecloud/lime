@@ -9,7 +9,7 @@ const {
   mockListAgentRuntimeSessions,
   mockGetAgentRuntimeSession,
   mockUpdateAgentRuntimeSession,
-  mockParseStreamEvent,
+  mockParseAgentEvent,
   mockSafeListen,
   mockToast,
   mockUseConfiguredProviders,
@@ -23,7 +23,7 @@ const {
   mockListAgentRuntimeSessions: vi.fn(),
   mockGetAgentRuntimeSession: vi.fn(),
   mockUpdateAgentRuntimeSession: vi.fn(),
-  mockParseStreamEvent: vi.fn((payload: unknown) => payload),
+  mockParseAgentEvent: vi.fn((payload: unknown) => payload),
   mockSafeListen: vi.fn(),
   mockToast: {
     success: vi.fn(),
@@ -53,9 +53,16 @@ vi.mock("@/lib/api/agentRuntime", async () => {
   };
 });
 
-vi.mock("@/lib/api/agentStream", () => ({
-  parseStreamEvent: mockParseStreamEvent,
-}));
+vi.mock("@/lib/api/agentProtocol", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
+      "@/lib/api/agentProtocol",
+    );
+  return {
+    ...actual,
+    parseAgentEvent: mockParseAgentEvent,
+  };
+});
 
 vi.mock("@/lib/dev-bridge", async () => {
   const actual = await vi.importActual<typeof import("@/lib/dev-bridge")>(

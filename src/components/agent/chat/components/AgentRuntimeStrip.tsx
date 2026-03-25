@@ -1,11 +1,18 @@
 import React, { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import type { AsterSubagentSessionInfo } from "@/lib/api/agentRuntime";
+import type {
+  AsterSessionExecutionRuntime,
+  AsterSubagentSessionInfo,
+} from "@/lib/api/agentRuntime";
 
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CompatSubagentRuntimeSnapshot } from "../utils/compatSubagentRuntime";
 import type { HarnessSessionState } from "../utils/harnessState";
+import {
+  getExecutionRuntimeDisplayLabel,
+  getOutputSchemaRuntimeLabel,
+} from "../utils/sessionExecutionRuntime";
 
 interface AgentRuntimeStripProps {
   activeTheme?: string;
@@ -18,6 +25,8 @@ interface AgentRuntimeStripProps {
   >;
   variant?: "standalone" | "embedded";
   isSending?: boolean;
+  executionRuntime?: AsterSessionExecutionRuntime | null;
+  isExecutionRuntimeActive?: boolean;
   runtimeStatusTitle?: string | null;
   selectedTeamLabel?: string | null;
   selectedTeamSummary?: string | null;
@@ -50,6 +59,8 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
   childSubagentSessions = [],
   variant = "standalone",
   isSending = false,
+  executionRuntime = null,
+  isExecutionRuntimeActive = false,
   runtimeStatusTitle = null,
   selectedTeamLabel = null,
   selectedTeamSummary = null,
@@ -77,6 +88,13 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
 
   const statusItems = useMemo<StatusItem[]>(() => {
     const nextItems: StatusItem[] = [];
+    const executionRuntimeLabel = getExecutionRuntimeDisplayLabel(
+      executionRuntime,
+      { active: isExecutionRuntimeActive },
+    );
+    const outputSchemaLabel = getOutputSchemaRuntimeLabel(
+      executionRuntime?.output_schema_runtime,
+    );
     const runningTeamSessions = childSubagentSessions.filter(
       (session) => session.runtime_status === "running",
     ).length;
@@ -96,6 +114,22 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         key: "sending",
         label: runtimeStatusTitle || "正在准备处理",
         tone: "secondary",
+      });
+    }
+
+    if (executionRuntimeLabel) {
+      nextItems.push({
+        key: "execution_runtime",
+        label: executionRuntimeLabel,
+        tone: isExecutionRuntimeActive ? "secondary" : "outline",
+      });
+    }
+
+    if (outputSchemaLabel) {
+      nextItems.push({
+        key: "output_schema_runtime",
+        label: `结构化输出 ${outputSchemaLabel}`,
+        tone: "outline",
       });
     }
 
@@ -182,7 +216,9 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
     childSubagentSessions,
     compatSubagentRuntime.isRunning,
     compatSubagentRuntime.progress,
+    executionRuntime,
     harnessState,
+    isExecutionRuntimeActive,
     isSending,
     runtimeStatusTitle,
   ]);

@@ -1,4 +1,10 @@
 use super::*;
+use lime_agent::artifact_protocol::{
+    extract_artifact_protocol_paths_from_metadata, extract_artifact_protocol_paths_from_value,
+    normalize_artifact_protocol_path,
+};
+use lime_agent::filesystem_event_protocol::extract_filesystem_event_location_hints_from_metadata;
+use lime_agent::AgentEvent as RuntimeAgentEvent;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::commands::aster_agent_cmd) struct SocialRunArtifactDescriptor {
@@ -25,13 +31,13 @@ pub(in crate::commands::aster_agent_cmd) struct ChatRunObservation {
 impl ChatRunObservation {
     pub(in crate::commands::aster_agent_cmd) fn record_event(
         &mut self,
-        event: &TauriAgentEvent,
+        event: &RuntimeAgentEvent,
         workspace_root: &str,
         request_metadata: Option<&serde_json::Value>,
         provider_continuation_capability: ProviderContinuationCapability,
     ) {
         match event {
-            TauriAgentEvent::ToolStart {
+            RuntimeAgentEvent::ToolStart {
                 tool_name,
                 arguments,
                 ..
@@ -44,7 +50,7 @@ impl ChatRunObservation {
                     self.record_artifact_path(path, request_metadata);
                 }
             }
-            TauriAgentEvent::ToolEnd { result, .. } => {
+            RuntimeAgentEvent::ToolEnd { result, .. } => {
                 if let Some(metadata) = &result.metadata {
                     if let Some(provider_continuation) = extract_provider_continuation_from_metadata(
                         metadata,
@@ -59,7 +65,7 @@ impl ChatRunObservation {
                     }
                 }
             }
-            TauriAgentEvent::Message { message } => {
+            RuntimeAgentEvent::Message { message } => {
                 if let Some(provider_continuation) = extract_provider_continuation_from_message(
                     message,
                     provider_continuation_capability,
@@ -67,7 +73,7 @@ impl ChatRunObservation {
                     self.record_provider_continuation(provider_continuation);
                 }
             }
-            TauriAgentEvent::ArtifactSnapshot { artifact } => {
+            RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
                 if let Some(path) =
                     normalize_metadata_path(artifact.file_path.as_str(), workspace_root)
                 {
@@ -166,62 +172,86 @@ pub(in crate::commands::aster_agent_cmd) fn extract_artifact_path_from_tool_star
     }
 
     let args = parse_tool_arguments(arguments)?;
-    let object = args.as_object()?;
-
-    for key in ["path", "file_path", "filePath", "output_path", "outputPath"] {
-        let Some(raw_path) = object.get(key).and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        if normalized_tool_name.contains("write")
-            || normalized_tool_name.contains("create")
-            || normalized_tool_name.contains("output")
-        {
-            return normalize_metadata_path(raw_path, workspace_root);
-        }
+    if normalized_tool_name.contains("write")
+        || normalized_tool_name.contains("create")
+        || normalized_tool_name.contains("output")
+    {
+        return extract_artifact_protocol_paths_from_value(&args)
+            .into_iter()
+            .find_map(|path| normalize_metadata_path(path.as_str(), workspace_root));
     }
 
     None
 }
 
-fn push_metadata_path(target: &mut Vec<String>, value: &serde_json::Value, workspace_root: &str) {
+fn push_normalized_metadata_path(target: &mut Vec<String>, path: &str, workspace_root: &str) {
+    if let Some(normalized) = normalize_metadata_path(path, workspace_root) {
+        if !target.iter().any(|item| item == &normalized) {
+            target.push(normalized);
+        }
+    }
+}
+
+fn push_compat_metadata_paths(
+    target: &mut Vec<String>,
+    value: &serde_json::Value,
+    workspace_root: &str,
+) {
     match value {
         serde_json::Value::String(path) => {
-            if let Some(normalized) = normalize_metadata_path(path, workspace_root) {
-                if !target.iter().any(|item| item == &normalized) {
-                    target.push(normalized);
-                }
-            }
+            let Some(normalized_path) = normalize_artifact_protocol_path(path) else {
+                return;
+            };
+            push_normalized_metadata_path(target, normalized_path.as_str(), workspace_root);
         }
         serde_json::Value::Array(items) => {
             for item in items {
-                push_metadata_path(target, item, workspace_root);
+                push_compat_metadata_paths(target, item, workspace_root);
             }
         }
         _ => {}
     }
 }
 
+fn is_probable_artifact_location_hint(path: &str) -> bool {
+    let normalized = path.trim().replace('\\', "/").to_lowercase();
+    if normalized.is_empty() || normalized.ends_with('/') {
+        return false;
+    }
+
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    if !file_name.contains('.') {
+        return false;
+    }
+
+    !file_name.ends_with(".log") && !file_name.ends_with(".txt") && !file_name.ends_with(".jsonl")
+}
+
 fn extract_artifact_paths_from_tool_result_metadata(
     metadata: &HashMap<String, serde_json::Value>,
     workspace_root: &str,
 ) -> Vec<String> {
-    let mut paths = Vec::new();
-    for key in [
-        "artifact_paths",
-        "artifact_path",
-        "path",
-        "absolute_path",
-        "output_file",
-        "file_path",
-        "output_path",
-        "article_path",
-        "cover_meta_path",
-        "publish_path",
-    ] {
+    let mut paths = extract_artifact_protocol_paths_from_metadata(metadata)
+        .into_iter()
+        .filter_map(|path| normalize_metadata_path(path.as_str(), workspace_root))
+        .collect::<Vec<_>>();
+
+    for key in ["article_path", "cover_meta_path", "publish_path"] {
         if let Some(value) = metadata.get(key) {
-            push_metadata_path(&mut paths, value, workspace_root);
+            push_compat_metadata_paths(&mut paths, value, workspace_root);
         }
     }
+
+    if paths.is_empty() {
+        // `output_file` / `cwd` 这类字段只是文件事件位置线索，不是 artifact 事实源。
+        // 只有完全没有显式 artifact 路径时，才允许做一次保守兜底。
+        for hint in extract_filesystem_event_location_hints_from_metadata(metadata) {
+            if is_probable_artifact_location_hint(hint.as_str()) {
+                push_normalized_metadata_path(&mut paths, hint.as_str(), workspace_root);
+            }
+        }
+    }
+
     paths
 }
 

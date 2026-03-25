@@ -120,6 +120,52 @@ describe("agentThreadGrouping", () => {
     ]);
   });
 
+  it("应通过 artifact protocol 识别嵌套参数中的文件路径", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("tool-file-1", 1),
+        type: "tool_call",
+        tool_name: "write_file",
+        arguments: {
+          payload: {
+            filePath: "articles/nested-draft.md",
+          },
+        },
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.groups.map((group) => group.kind)).toEqual(["file"]);
+    expect(model.groups[0]?.previewLines).toEqual(["nested-draft.md"]);
+  });
+
+  it("应通过 filesystem event protocol 识别目录与输出文件位置线索", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("tool-dir-1", 1),
+        type: "tool_call",
+        tool_name: "list_directory",
+        arguments: {
+          directory: "workspace\\reports",
+        },
+      },
+      {
+        ...createBaseItem("tool-output-1", 2),
+        type: "tool_call",
+        tool_name: "bash",
+        metadata: {
+          output_file: "workspace\\logs\\run.log",
+        },
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.groups.map((group) => group.kind)).toEqual(["file"]);
+    expect(model.groups[0]?.previewLines).toEqual(["reports", "run.log"]);
+  });
+
   it("思考块应保留在真实时序中，而不是整体前置", () => {
     const items: AgentThreadItem[] = [
       {

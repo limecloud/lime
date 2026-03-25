@@ -60,8 +60,6 @@ function createOffer(overrides: Record<string, unknown> = {}) {
 }
 
 function createAccessState(overrides: Record<string, unknown> = {}) {
-  const defaultOffer = createOffer();
-
   return {
     runtime: {
       baseUrl: "https://user.150404.xyz",
@@ -161,7 +159,7 @@ afterEach(() => {
 });
 
 describe("CloudProviderSettings", () => {
-  it("未配置运行时信息时应展示配置提示并保留本地 Provider 面板", () => {
+  it("未配置运行时信息时应展示配置提示，并通过单独视图承接本地 Provider", async () => {
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
         runtime: null,
@@ -174,8 +172,17 @@ describe("CloudProviderSettings", () => {
 
     expect(text).toContain("云端接入");
     expect(text).toContain("public/oem-runtime-config.js");
-    expect(text).toContain("本地 / 其它开发者 Provider");
-    expect(text).toContain("凭证池占位");
+    expect(text).toContain("按任务阶段看 AI 服务商");
+    expect(text).not.toContain("凭证池占位");
+
+    await act(async () => {
+      findButton(container, "本地 Provider").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(container.textContent ?? "").toContain("本地 / 其它开发者 Provider");
+    expect(container.textContent ?? "").toContain("凭证池占位");
   });
 
   it("未登录时应提示前往个人中心登录", async () => {
@@ -193,7 +200,7 @@ describe("CloudProviderSettings", () => {
     expect(onOpenProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("已登录时应展示云端来源目录与模型详情", async () => {
+  it("已登录时应通过分视图展示云端来源目录与模型详情", async () => {
     const handleRefresh = vi.fn();
     const handleSetDefault = vi.fn();
     const selectedOffer = {
@@ -244,18 +251,25 @@ describe("CloudProviderSettings", () => {
     );
 
     const { container } = renderPage();
-    const text = container.textContent ?? "";
-
-    expect(text).toContain("Demo Operator");
-    expect(text).toContain("Lime Hub 主服务");
-    expect(text).toContain("GPT-5.2 Pro");
-    expect(text).toContain("fmt:2026-03-25T08:00:00.000Z");
+    expect(container.textContent ?? "").toContain("Demo Operator");
+    expect(container.textContent ?? "").toContain("治理摘要与下一步");
+    expect(container.textContent ?? "").toContain("fmt:2026-03-25T08:00:00.000Z");
 
     await act(async () => {
       findButton(container, "刷新云端状态").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });
+
+    await act(async () => {
+      findButton(container, "云端目录").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Lime Hub 主服务");
+    expect(text).toContain("GPT-5.2 Pro");
 
     await act(async () => {
       findButton(container, "已是默认来源").dispatchEvent(
@@ -265,5 +279,119 @@ describe("CloudProviderSettings", () => {
 
     expect(handleRefresh).toHaveBeenCalledTimes(1);
     expect(handleSetDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("服务端误报待登录时应优先展示当前会话的已登录状态", async () => {
+    const staleOffer = createOffer({
+      state: "available_logged_out",
+      loggedIn: true,
+      accountStatus: "logged_in",
+      subscriptionStatus: "active",
+      quotaStatus: "ok",
+      canInvoke: true,
+    });
+
+    mockUseOemCloudAccess.mockReturnValue(
+      createAccessState({
+        session: {
+          tenant: { id: "tenant-0001" },
+          user: {
+            id: "user-001",
+            email: "operator@example.com",
+            displayName: "Demo Operator",
+          },
+          session: {
+            id: "session-001",
+            expiresAt: "2026-03-25T08:00:00.000Z",
+          },
+        },
+        offers: [staleOffer],
+        preference: {
+          providerSource: "oem_cloud",
+          providerKey: "lime-hub-main",
+        },
+        selectedOffer: {
+          ...staleOffer,
+          loginHint: "请先登录后再查看模型目录",
+          access: {
+            offerId: "offer-001",
+            accessMode: "session",
+            sessionTokenRef: "session-001",
+            hubTokenEnabled: false,
+          },
+        },
+        selectedModels: [
+          {
+            id: "model-001",
+            offerId: "offer-001",
+            modelId: "gpt-5.2-pro",
+            displayName: "GPT-5.2 Pro",
+            recommended: true,
+          },
+        ],
+        defaultCloudOffer: staleOffer,
+        activeCloudOffer: staleOffer,
+      }),
+    );
+
+    const { container } = renderPage();
+
+    await act(async () => {
+      findButton(container, "云端目录").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("available_ready");
+    expect(text).not.toContain("available_logged_out");
+    expect(text).not.toContain("登录提示：请先登录后再查看模型目录");
+  });
+
+  it("单个云端来源时不应保留空的双列占位", () => {
+    mockUseOemCloudAccess.mockReturnValue(
+      createAccessState({
+        session: {
+          tenant: { id: "tenant-0001" },
+          user: {
+            id: "user-001",
+            email: "operator@example.com",
+            displayName: "Demo Operator",
+          },
+          session: {
+            id: "session-001",
+            expiresAt: "2026-03-25T08:00:00.000Z",
+          },
+        },
+        offers: [createOffer()],
+        preference: {
+          providerSource: "oem_cloud",
+          providerKey: "lime-hub-main",
+        },
+        selectedOffer: {
+          ...createOffer(),
+          access: {
+            offerId: "offer-001",
+            accessMode: "session",
+            hubTokenEnabled: false,
+          },
+        },
+        defaultCloudOffer: createOffer(),
+        activeCloudOffer: createOffer(),
+      }),
+    );
+
+    const { container } = renderPage();
+    act(() => {
+      findButton(container, "云端目录").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    const offerGrid = container.querySelector(
+      '[data-testid="oem-cloud-offer-grid"]',
+    );
+
+    expect(offerGrid).not.toBeNull();
+    expect(offerGrid?.className).not.toContain("lg:grid-cols-2");
   });
 });

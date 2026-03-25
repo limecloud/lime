@@ -72,9 +72,7 @@ function renderFieldControl(params: {
           "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
         )}
       >
-        <option value="">
-          {slot.placeholder}
-        </option>
+        <option value="">{slot.placeholder}</option>
         {(slot.options ?? []).map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -131,7 +129,14 @@ export function ServiceSkillLaunchDialog({
     () => (skill ? supportsServiceSkillLocalAutomation(skill) : false),
     [skill],
   );
-  const canCreateAutomation = supportsAutomation && typeof onCreateAutomation === "function";
+  const canCreateAutomation =
+    supportsAutomation && typeof onCreateAutomation === "function";
+  const isCloudRequired = skill?.executionLocation === "cloud_required";
+  const primaryActionLabel = canCreateAutomation
+    ? "创建任务并进入工作区"
+    : isCloudRequired
+      ? "提交云端运行"
+      : "进入工作区";
 
   if (!skill) {
     return null;
@@ -156,6 +161,11 @@ export function ServiceSkillLaunchDialog({
           {canCreateAutomation ? (
             <div className="mt-2 text-[11px] text-slate-500">
               这类任务支持直接生成本地自动化草稿；你也可以只先进入工作区做首版结果。
+            </div>
+          ) : skill.executionLocation === "cloud_required" ? (
+            <div className="mt-2 text-[11px] text-slate-500">
+              该任务会直接提交到 OEM
+              云端执行，不会进入本地工作区，也不会创建本地自动化草稿。
             </div>
           ) : null}
         </div>
@@ -193,7 +203,8 @@ export function ServiceSkillLaunchDialog({
 
         {!validation.valid ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-700">
-            还缺少必填参数：{validation.missing.map((slot) => slot.label).join("、")}
+            还缺少必填参数：
+            {validation.missing.map((slot) => slot.label).join("、")}
           </div>
         ) : null}
 
@@ -234,7 +245,7 @@ export function ServiceSkillLaunchDialog({
               void onLaunch(skill, slotValues);
             }}
           >
-            {canCreateAutomation ? "创建任务并进入工作区" : "进入工作区"}
+            {primaryActionLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

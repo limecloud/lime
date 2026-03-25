@@ -11,6 +11,7 @@
 #![allow(clippy::borrowed_box)]
 
 pub mod agent_tools;
+pub mod artifact_protocol;
 pub mod ask_bridge;
 pub mod aster_runtime_support;
 pub mod aster_state;
@@ -18,11 +19,14 @@ pub mod aster_state_support;
 pub mod credential_bridge;
 pub mod durable_memory_fs;
 pub mod event_converter;
+pub mod filesystem_event_protocol;
 pub mod hooks;
 mod kiro_provider_adapter;
 pub mod lsp_bridge;
 pub mod mcp_bridge;
 pub mod prompt;
+pub mod protocol;
+pub mod protocol_projection;
 pub mod provider_continuation_state;
 pub mod provider_runtime_governor;
 mod provider_safety;
@@ -30,6 +34,7 @@ pub mod queued_turn;
 pub mod request_tool_policy;
 pub mod runtime_projection_snapshot;
 pub mod runtime_queue;
+mod session_execution_runtime;
 mod session_query;
 pub mod session_state_snapshot;
 mod session_store;
@@ -60,10 +65,6 @@ pub use durable_memory_fs::{
     resolve_virtual_memory_path, to_virtual_memory_path, virtual_memory_relative_path,
     DURABLE_MEMORY_VIRTUAL_ROOT, LEGACY_DURABLE_MEMORY_ROOT_ENV, LIME_DURABLE_MEMORY_ROOT_ENV,
 };
-pub use event_converter::{
-    convert_agent_event, convert_item_runtime, convert_to_tauri_message, convert_turn_runtime,
-    TauriAgentEvent, TauriArtifactSnapshot, TauriRuntimeStatus,
-};
 pub use lime_mcp as mcp;
 pub use lsp_bridge::create_lsp_callback;
 pub use prompt::SystemPromptBuilder;
@@ -71,6 +72,12 @@ pub use prompt::{
     build_runtime_agents_prompt, merge_system_prompt_with_runtime_agents,
     RUNTIME_AGENTS_PROMPT_MARKER,
 };
+pub use protocol::{
+    AgentActionRequiredScope, AgentArtifactSignal, AgentEvent, AgentImageAttachment, AgentMessage,
+    AgentMessageContent, AgentOp, AgentRuntimeStatus, AgentTokenUsage, AgentToolImage,
+    AgentToolResult, AgentUserInputOp, AgentUserPreferences,
+};
+pub use protocol_projection::{project_item_runtime, project_runtime_event, project_turn_runtime};
 pub use provider_continuation_state::{
     ProviderContinuationCapability, ProviderContinuationCapable, ProviderContinuationState,
 };
@@ -93,6 +100,9 @@ pub use runtime_queue::{
     remove_runtime_queued_turn, resume_persisted_runtime_queues_on_startup,
     resume_runtime_queue_if_needed, submit_runtime_turn, RuntimeQueueEventEmitter,
     RuntimeQueueExecutor,
+};
+pub use session_execution_runtime::{
+    build_session_execution_runtime, SessionExecutionRuntime, SessionExecutionRuntimeSource,
 };
 pub use session_query::{
     collect_subagent_cascade_session_ids, list_child_subagent_sessions,
@@ -145,4 +155,4 @@ pub use turn_input_envelope::{
     TurnRequestToolPolicySnapshot, TurnSystemPromptSource,
 };
 pub use turn_state::TurnState;
-pub use write_artifact_events::WriteArtifactEventEmitter;
+pub use write_artifact_events::{build_write_tool_artifact_events, WriteArtifactEventEmitter};

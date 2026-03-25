@@ -22,12 +22,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { ToolCallState } from "@/lib/api/agentStream";
+import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type {
   ActionRequired,
   AgentThreadItem,
   AgentThreadTurn,
   ConfirmResponse,
+  SiteSavedContentTarget,
 } from "../types";
 import {
   buildAgentThreadDisplayModel,
@@ -53,6 +54,10 @@ import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 import { ToolCallItem } from "./ToolCallDisplay";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentPlanBlock } from "./AgentPlanBlock";
+import {
+  resolveTimelineArtifactNavigation,
+  type ArtifactTimelineOpenTarget,
+} from "../utils/artifactTimelineNavigation";
 
 interface AgentThreadTimelineProps {
   turn: AgentThreadTurn;
@@ -61,8 +66,12 @@ interface AgentThreadTimelineProps {
   actionRequests?: ActionRequired[];
   isCurrentTurn?: boolean;
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
   onOpenSubagentSession?: (sessionId: string) => void;
   onPermissionResponse?: (response: ConfirmResponse) => void;
+  focusedItemId?: string | null;
+  focusRequestKey?: number;
 }
 
 interface TurnStatusMeta {
@@ -802,6 +811,8 @@ function renderThinkingItemDetails(item: AgentThreadItem) {
 function renderGroupItemDetails(
   item: AgentThreadItem,
   onFileClick?: (fileName: string, content: string) => void,
+  onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void,
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void,
   onOpenSubagentSession?: (sessionId: string) => void,
   onPermissionResponse?: (response: ConfirmResponse) => void,
 ) {
@@ -869,37 +880,69 @@ function renderGroupItemDetails(
           toolCall={toolCall}
           defaultExpanded={item.status !== "completed"}
           onFileClick={onFileClick}
+          onOpenSavedSiteContent={onOpenSavedSiteContent}
         />
       </div>
     );
   }
 
   if (item.type === "file_artifact") {
+    const navigation = resolveTimelineArtifactNavigation(item);
+    const blockTargets = navigation?.blockTargets || [];
+    const shouldOpenFocusedBlock =
+      Boolean(onOpenArtifactFromTimeline) && blockTargets.length === 1;
+
     return (
-      <button
-        type="button"
-        className="w-full rounded-xl border border-border/70 bg-background/80 px-3 py-3 text-left transition-colors hover:bg-muted/40"
-        onClick={() => onFileClick?.(item.path, item.content || "")}
-      >
-        <div className="flex items-center gap-2">
-          <div className="text-sm font-medium text-foreground">{item.path}</div>
-          <Badge variant={resolveStatusBadgeVariant(item.status)} className="ml-auto">
-            {resolveArtifactSourceLabel(item.source)}
-          </Badge>
-          {timestamp ? (
-            <span className="text-xs text-muted-foreground">{timestamp}</span>
-          ) : null}
-        </div>
-        {item.content?.trim() ? (
-          <div className="mt-2 line-clamp-4 whitespace-pre-wrap text-xs text-muted-foreground">
-            {item.content}
+      <div className="rounded-xl border border-border/70 bg-background/80 px-3 py-3">
+        <button
+          type="button"
+          className="w-full text-left transition-colors hover:bg-muted/40"
+          onClick={() => {
+            if (onOpenArtifactFromTimeline && navigation) {
+              onOpenArtifactFromTimeline(
+                shouldOpenFocusedBlock ? blockTargets[0] : navigation.rootTarget,
+              );
+              return;
+            }
+
+            onFileClick?.(item.path, item.content || "");
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-medium text-foreground">{item.path}</div>
+            <Badge variant={resolveStatusBadgeVariant(item.status)} className="ml-auto">
+              {resolveArtifactSourceLabel(item.source)}
+            </Badge>
+            {timestamp ? (
+              <span className="text-xs text-muted-foreground">{timestamp}</span>
+            ) : null}
           </div>
-        ) : (
-          <div className="mt-2 text-xs text-muted-foreground">
-            点击在画布中打开文件
+          {item.content?.trim() ? (
+            <div className="mt-2 line-clamp-4 whitespace-pre-wrap text-xs text-muted-foreground">
+              {item.content}
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-muted-foreground">
+              点击在画布中打开文件
+            </div>
+          )}
+        </button>
+
+        {onOpenArtifactFromTimeline && blockTargets.length > 1 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {blockTargets.slice(0, 4).map((target) => (
+              <button
+                key={`${item.id}:${target.blockId}`}
+                type="button"
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                onClick={() => onOpenArtifactFromTimeline(target)}
+              >
+                跳到 block {target.blockId}
+              </button>
+            ))}
           </div>
-        )}
-      </button>
+        ) : null}
+      </div>
     );
   }
 
@@ -1372,8 +1415,12 @@ function TimelineBlockCard({
   emphasis,
   isExpanded,
   onFileClick,
+  onOpenArtifactFromTimeline,
+  onOpenSavedSiteContent,
   onOpenSubagentSession,
   onPermissionResponse,
+  focusedItemId,
+  focusRequestKey,
 }: {
   block: AgentThreadOrderedBlock;
   index: number;
@@ -1381,8 +1428,12 @@ function TimelineBlockCard({
   emphasis: "active" | "default" | "quiet";
   isExpanded: boolean;
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
   onOpenSubagentSession?: (sessionId: string) => void;
   onPermissionResponse?: (response: ConfirmResponse) => void;
+  focusedItemId?: string | null;
+  focusRequestKey?: number;
 }) {
   const Icon = resolveGroupIcon(block.kind);
   const timestamp = formatTimestamp(block.startedAt);
@@ -1391,6 +1442,10 @@ function TimelineBlockCard({
   const isActive = emphasis === "active";
   const isQuiet = emphasis === "quiet";
   const stageLabel = `步骤 ${String(index + 1).padStart(2, "0")}`;
+  const focusedEntryRef = useRef<HTMLDivElement | null>(null);
+  const hasFocusedItem = Boolean(
+    focusedItemId && block.items.some((item) => item.id === focusedItemId),
+  );
   const detailEntries = block.items.flatMap((item) => {
     const content =
       block.kind === "thinking"
@@ -1398,6 +1453,8 @@ function TimelineBlockCard({
         : renderGroupItemDetails(
             item,
             onFileClick,
+            onOpenArtifactFromTimeline,
+            onOpenSavedSiteContent,
             onOpenSubagentSession,
             onPermissionResponse,
           );
@@ -1405,6 +1462,7 @@ function TimelineBlockCard({
     return content ? [{ id: item.id, content }] : [];
   });
   const hasDetailEntries = detailEntries.length > 0;
+  const detailsExpanded = isExpanded || hasFocusedItem;
   const cardClassName = isActive
     ? "overflow-hidden rounded-2xl border border-primary/25 bg-primary/[0.045] shadow-md shadow-primary/10"
     : isCompact
@@ -1419,6 +1477,17 @@ function TimelineBlockCard({
     summaryClassName,
     hasDetailEntries ? "cursor-pointer" : "cursor-default",
   );
+
+  useEffect(() => {
+    if (!hasFocusedItem || !focusRequestKey) {
+      return;
+    }
+
+    focusedEntryRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [focusRequestKey, hasFocusedItem]);
 
   return (
     <div
@@ -1465,7 +1534,7 @@ function TimelineBlockCard({
           className={cardClassName}
           data-testid={dataTestId}
           data-emphasis={emphasis}
-          open={isExpanded}
+          open={detailsExpanded}
         >
           <summary className={interactiveSummaryClassName}>
             <div className="min-w-0 flex-1">
@@ -1523,7 +1592,17 @@ function TimelineBlockCard({
             data-testid={`${dataTestId}:details`}
           >
             {detailEntries.map((entry) => (
-              <div key={entry.id}>{entry.content}</div>
+              <div
+                key={entry.id}
+                data-thread-item-id={entry.id}
+                ref={entry.id === focusedItemId ? focusedEntryRef : null}
+                className={cn(
+                  entry.id === focusedItemId &&
+                    "rounded-2xl ring-2 ring-sky-200 ring-offset-2 ring-offset-white",
+                )}
+              >
+                {entry.content}
+              </div>
             ))}
           </div>
         </details>
@@ -1594,8 +1673,12 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   actionRequests = [],
   isCurrentTurn = false,
   onFileClick,
+  onOpenArtifactFromTimeline,
+  onOpenSavedSiteContent,
   onOpenSubagentSession,
   onPermissionResponse,
+  focusedItemId = null,
+  focusRequestKey = 0,
 }) => {
   const visibleItems = useMemo(
     () =>
@@ -1670,6 +1753,24 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
     () => buildCompactReliabilityBadges(turn, threadRead),
     [threadRead, turn],
   );
+  const hasFocusedItem = useMemo(
+    () =>
+      Boolean(
+        focusedItemId &&
+          displayModel.orderedBlocks.some((block) =>
+            block.items.some((item) => item.id === focusedItemId),
+          ),
+      ),
+    [displayModel.orderedBlocks, focusedItemId],
+  );
+
+  useEffect(() => {
+    if (!hasFocusedItem || focusRequestKey <= 0) {
+      return;
+    }
+
+    setDetailsExpanded(true);
+  }, [focusRequestKey, hasFocusedItem]);
 
   if (visibleItems.length === 0) {
     return null;
@@ -1983,8 +2084,12 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
                   }
                   isExpanded={expandedBlockIndexes.has(index)}
                   onFileClick={onFileClick}
+                  onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+                  onOpenSavedSiteContent={onOpenSavedSiteContent}
                   onOpenSubagentSession={onOpenSubagentSession}
                   onPermissionResponse={onPermissionResponse}
+                  focusedItemId={focusedItemId}
+                  focusRequestKey={focusRequestKey}
                 />
               ))}
             </div>

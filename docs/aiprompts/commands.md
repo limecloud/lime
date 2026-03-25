@@ -1,126 +1,86 @@
-# Tauri 命令
+# Tauri 命令边界
 
-## 概述
+## 这份文档回答什么
 
-Tauri 命令是前端与 Rust 后端通信的边界，但前端业务代码**不应直接散落 `invoke`**。
+本文件用于说明 Lime 中 Tauri 命令的工程边界，主要回答：
+
+- 命令改动应该从哪里进入，而不是到处直接 `invoke`
+- 哪些文件共同构成命令契约的事实源
+- 新增、迁移、下线命令时，最低要同步哪些位置
+- 怎样避免 compat / deprecated 路径重新长出新表面
+
+## 推荐调用路径
+
+前端业务代码**不应直接散落 `invoke`**。
 
 推荐路径是：
 
 `组件 / Hook -> src/lib/api/* 网关 -> safeInvoke -> Rust command`
 
-这样做的目的不是“多包一层”，而是确保：
+这样做的目的不是“多包一层”，而是为了保证：
 
 - 前端只有一个可治理的调用出口
-- Rust 命令可以按 `current / compat / deprecated` 分类演进
+- Rust 命令可以按 `current / compat / deprecated / dead-candidate` 演进
 - 新旧命令并存时，迁移边界清晰，不会继续扩散
+- 契约检查脚本能稳定扫描并阻止回流
 
-## 治理约束
+## 命令契约的五个事实源
 
-- 新的前端功能，禁止在页面、组件、普通 Hook 中直接调用 `invoke`。
-- 新的 Rust 命令，必须同时落一个对应的 `src/lib/api/*` 网关文件或收口到现有网关。
-- 旧命令如果暂时不能删，必须明确标记为 `compat` 或 `deprecated`，只允许保兼容，不允许继续长新逻辑。
-- 当前端已经迁到新网关后，要继续用 ESLint、脚本或日志告警封住旧入口，避免 AI 回流。
+命令边界不是单文件事实，至少要同时看下面五处：
 
-## 当前事实源
+1. **前端实际调用**  
+   `src/` 下运行时代码里的 `safeInvoke(...)` / `invoke(...)`
 
-- Agent / Codex 主命令：`agent_runtime_*`
-- 运行态摘要主链：Aster `runtime_status` item -> timeline `turn_summary`
-- `chat_*` 已停止注册，且不再纳入 `commands::mod` 编译图；旧 General / Creator / 历史桥接如仍需恢复，必须显式走新的 compat 评审
-- 旧 `general_chat_*` 前端 compat 网关与 Rust 命令已删除
-- `Tauri runtime_status` 事件只保留前端瞬时状态用途，不再作为 timeline 事实源
-- 当前剩余治理重点：统计、记忆等旁路继续按 `runtime context` 与 `durable knowledge` 分层收口
+2. **Rust 实际注册**  
+   `src-tauri/src/app/runner.rs` 中的 `tauri::generate_handler![...]`
 
-## 治理案例：记忆系统
+3. **治理目录册**  
+   `src/lib/governance/agentCommandCatalog.json`
 
-以当前仓库里的记忆能力为例：
+4. **Bridge mock 优先集合**  
+   `src/lib/dev-bridge/mockPriorityCommands.ts`
 
-- `unified_memory_*`：现役统一记忆主链路，后续功能优先往这里收
-- `memory_runtime_*`：现役 runtime / 上下文记忆主入口
-- `memory_get_*` / `memory_toggle_auto`：当前仍在使用的治理配置入口
-- `switch_prompt`：旧 prompt 切换命令已移除，统一使用 `enable_prompt`
-- `get_legacy_api_key_credentials` 等迁移命令：前端与 Tauri 入口都已移除，避免 UI/AI 再接入历史迁移链路
+5. **默认 mock 实现**  
+   `src/lib/tauri-mock/core.ts` 中的 `defaultMocks`
 
-这类场景下，AI 不应该再做一套“第三套记忆命令”，而应该：
+只看其中一侧都不够。只要能力仍然依赖命令边界，就至少要同时核对前端调用、Rust 注册、治理目录册、mock 集合这几面。
 
-1. 先判断当前需求属于主链路、兼容层，还是治理配置
-2. 如果是统一沉淀记忆，优先补到 `unified_memory_*`
-3. 如果是 runtime / 上下文记忆视图，优先补到 `memory_runtime_*`
-4. 如果存在旧命令又无任何调用，就直接删掉命令注册、桥接和 mock，不要继续保留空兼容壳
+## 命令分类语言
 
-同理，对话系统也不应该重新引回已经删除的 `general_chat_*` 命令；
-后续如需扩展 Agent / Codex 工作流，应继续收敛到 `agent_runtime_*` 与对应网关；
-`chat_*` 只允许作为 dead-candidate 参考，不应重新回到 `commands::mod` 或 `generate_handler!`。
+命令治理统一沿用 `governance.md` 的分类语言：
 
-## 目录结构
+- `current`：当前主路径，后续能力继续向这里收敛
+- `compat`：兼容层，只允许委托、适配、告警，不允许长新逻辑
+- `deprecated`：废弃层，只允许迁移与下线，不允许新增依赖
+- `dead`：已停用或确认无入口，优先删除
 
-```
-src-tauri/src/commands/
-├── mod.rs              # 模块入口
-├── credential.rs       # 凭证管理命令
-├── provider.rs         # Provider 命令
-├── server.rs           # 服务器控制命令
-├── flow.rs             # 流量监控命令
-├── config.rs           # 配置命令
-├── mcp.rs              # MCP 服务器命令
-└── terminal.rs         # 终端命令
-```
+脚本或治理报告里还可能看到：
 
-## 命令分类
+- `dead-candidate`
 
-### 凭证管理
+它表示“删除候选信号”，不是自动等于 `dead`。
 
-```rust
-#[tauri::command]
-async fn add_credential(
-    provider: String,
-    file_path: String,
-) -> Result<CredentialInfo, String>;
+如果本次改动说不清自己属于哪一类，先不要写代码，先读 `docs/aiprompts/governance.md`。
 
-#[tauri::command]
-async fn remove_credential(id: String) -> Result<(), String>;
+## 新增或改命令的标准步骤
 
-#[tauri::command]
-async fn list_credentials() -> Result<Vec<CredentialInfo>, String>;
+### 1. 先判断是不是应该新增命令
 
-#[tauri::command]
-async fn refresh_credential(id: String) -> Result<(), String>;
+先问三个问题：
 
-#[tauri::command]
-async fn get_credential_status(id: String) -> Result<CredentialStatus, String>;
-```
+- 当前需求能不能落到已有 `current` 主链？
+- 这次是补能力，还是只是在给 compat 层续命？
+- 有没有已经存在但尚未收口的旧入口？
 
-### 服务器控制
+如果答案是“已有主链可承接”，优先补现有主链，不再新开平级命令。
 
-```rust
-#[tauri::command]
-async fn start_server(config: ServerConfig) -> Result<(), String>;
+### 2. 前端只从 API 网关进入
 
-#[tauri::command]
-async fn stop_server() -> Result<(), String>;
+- 在 `src/lib/api/*` 下新增或扩展对应网关
+- 页面、组件、普通 Hook 不要直接调用裸 `invoke`
+- 尽量把命令名、参数整理、返回类型都收在网关层
 
-#[tauri::command]
-async fn get_server_status() -> Result<ServerStatus, String>;
-
-#[tauri::command]
-async fn update_server_config(config: ServerConfig) -> Result<(), String>;
-```
-
-### 流量监控
-
-```rust
-#[tauri::command]
-async fn get_flow_records(query: FlowQuery) -> Result<PagedResult<FlowRecord>, String>;
-
-#[tauri::command]
-async fn get_flow_stats(time_range: TimeRange) -> Result<FlowStats, String>;
-
-#[tauri::command]
-async fn clear_flow_records(before: Option<i64>) -> Result<u64, String>;
-```
-
-## 前端调用
-
-推荐写法不是在业务层直接 `invoke`，而是在 API 网关里集中调用：
+推荐写法：
 
 ```typescript
 // src/lib/api/serverRuntime.ts
@@ -131,7 +91,7 @@ export async function getServerStatus() {
 }
 ```
 
-业务层只消费 API 网关：
+业务层只消费网关：
 
 ```typescript
 import { getServerStatus } from "@/lib/api/serverRuntime";
@@ -139,21 +99,98 @@ import { getServerStatus } from "@/lib/api/serverRuntime";
 const status = await getServerStatus();
 ```
 
-## 错误处理
+### 3. Rust 命令与注册表同步
 
-```rust
-// 命令返回 Result<T, String>
-// 错误信息会传递到前端
+- 在 `src-tauri/src/commands/` 下落到对应模块
+- 在 `src-tauri/src/app/runner.rs` 的 `tauri::generate_handler!` 中注册
+- 不要只写命令实现，不补注册
 
-#[tauri::command]
-async fn example_command() -> Result<Data, String> {
-    do_something()
-        .await
-        .map_err(|e| e.to_string())
-}
+### 4. 治理目录册与 mock 同步
+
+命令边界发生变化时，按需同步：
+
+- `src/lib/governance/agentCommandCatalog.json`
+- `src/lib/dev-bridge/mockPriorityCommands.ts`
+- `src/lib/tauri-mock/core.ts`
+
+尤其是以下场景：
+
+- 新命令属于 runtime gateway
+- 旧命令进入 `deprecated`
+- 旧 helper 被替换
+- Bridge 优先命令需要本地 mock
+
+### 5. 文档同步
+
+至少同步更新：
+
+- 本文档 `docs/aiprompts/commands.md`
+- `docs/aiprompts/quality-workflow.md`
+- 如涉及 GUI 续测，再看 `docs/aiprompts/playwright-e2e.md`
+
+### 6. 跑最低校验
+
+至少运行：
+
+```bash
+npm run test:contracts
+```
+
+必要时补：
+
+```bash
+npm run governance:legacy-report
+npm run verify:local
+```
+
+## 变更完成定义
+
+一次命令边界改动，至少满足以下条件才算完成：
+
+1. 前端调用已经收口到 `src/lib/api/*`
+2. Rust 命令已在 `runner.rs` 注册
+3. `agentCommandCatalog.json` 中的治理口径已同步
+4. `mockPriorityCommands` 与 `defaultMocks` 没有漂移
+5. `npm run test:contracts` 通过
+6. 涉及 compat / deprecated 的改动，已补 `governance:legacy-report` 或明确说明不需要
+
+## 明确禁止
+
+- 在页面、组件、普通 Hook 中直接散落 `invoke`
+- 给 `compat` 路径继续长新业务逻辑
+- 把已经进入 `deprecated` / `dead-candidate` / `dead` 的命令重新接回主链
+- 只改前端或只改 Rust，一侧通过就宣布完成
+- 用“先兼容一下”作为长期保留第二套入口的理由
+
+## 当前主链示例
+
+以下是仓库当前已经明确收敛的几个方向：
+
+- **Agent / Codex 主命令**：继续收敛到 `agent_runtime_*`
+- **运行态摘要主链**：Aster `runtime_status` item -> timeline `turn_summary`
+- **旧 `chat_*` 命令**：已停止注册，不应重新回到 `commands::mod` 或 `generate_handler!`
+- **旧 `general_chat_*` 边界**：前端 compat 网关与 Rust 命令都已移除，不应重新接入
+- **记忆系统**：统一沉淀优先走 `unified_memory_*`，runtime / 上下文视图优先走 `memory_runtime_*`
+
+这些示例的意义不是列清单，而是提醒：
+
+**不要再造第三套入口，优先继续把能力收敛到已存在的主链。**
+
+## 相关检查脚本
+
+```bash
+# 命令契约检查
+npm run test:contracts
+
+# 旧边界与死链收口
+npm run governance:legacy-report
+
+# 本地统一校验
+npm run verify:local
 ```
 
 ## 相关文档
 
-- [services.md](services.md) - 业务服务
-- [hooks.md](hooks.md) - 前端 Hooks
+- `docs/aiprompts/governance.md`
+- `docs/aiprompts/quality-workflow.md`
+- `docs/aiprompts/credential-pool.md`

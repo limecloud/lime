@@ -5,20 +5,16 @@
  */
 
 import { useMemo, useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { modelRegistryApi } from "@/lib/api/modelRegistry";
+import {
+  modelRegistryApi,
+  type FetchProviderModelsResult,
+} from "@/lib/api/modelRegistry";
 import { useModelRegistry } from "./useModelRegistry";
 import { useAliasConfig } from "./useAliasConfig";
-import {
-  getAliasConfigKey,
-  isAliasProvider,
-} from "@/lib/constants/providerMappings";
-import { inferModelCapabilities } from "@/lib/model/inferModelCapabilities";
+import { getAliasConfigKey, isAliasProvider } from "@/lib/constants/providerMappings";
+import { buildProviderModelsFromRegistry } from "@/lib/model/providerModelsCatalog";
 import type { ConfiguredProvider } from "./useConfiguredProviders";
-import type {
-  EnhancedModelMetadata,
-  ProviderAliasConfig,
-} from "@/lib/types/modelRegistry";
+import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
 // ============================================================================
 // 类型定义
@@ -42,279 +38,22 @@ export interface UseProviderModelsResult {
   error: string | null;
 }
 
-// API 获取模型结果类型
-interface FetchModelsResult {
-  models: EnhancedModelMetadata[];
-  source: "Api" | "LocalFallback";
-  error: string | null;
-  request_url?: string | null;
-  diagnostic_hint?: string | null;
-  error_kind?:
-    | "not_found"
-    | "unauthorized"
-    | "forbidden"
-    | "network"
-    | "invalid_response"
-    | "other"
-    | null;
-  should_prompt_error?: boolean;
-}
-
 interface LoadProviderModelsOptions {
   forceRefresh?: boolean;
 }
 
-export interface BuiltProviderModelsResult {
-  modelIds: string[];
-  models: EnhancedModelMetadata[];
-  hasLocalModels: boolean;
-}
-
-// ============================================================================
-// 工具函数
-// ============================================================================
-
-/**
- * 模型排序函数
- * 排序优先级：is_latest > release_date（降序） > display_name（字母序）
- */
-function sortModels(models: EnhancedModelMetadata[]): EnhancedModelMetadata[] {
-  return [...models].sort((a, b) => {
-    // 1. is_latest 优先
-    if (a.is_latest && !b.is_latest) return -1;
-    if (!a.is_latest && b.is_latest) return 1;
-
-    // 2. 按 release_date 降序（最新的在前）
-    if (a.release_date && b.release_date) {
-      return b.release_date.localeCompare(a.release_date);
-    }
-    if (a.release_date && !b.release_date) return -1;
-    if (!a.release_date && b.release_date) return 1;
-
-    // 3. 按 display_name 字母序
-    return a.display_name.localeCompare(b.display_name);
-  });
-}
-
-/**
- * 将自定义模型列表转换为 EnhancedModelMetadata 格式
- */
-function convertCustomModelsToMetadata(
-  models: string[],
-  providerId: string,
-  providerName: string,
-): EnhancedModelMetadata[] {
-  return models.map((modelName): EnhancedModelMetadata => {
-    return {
-      id: modelName,
-      display_name: modelName,
-      provider_id: providerId,
-      provider_name: providerName,
-      family: null,
-      tier: "pro" as const,
-      capabilities: inferModelCapabilities({
-        modelId: modelName,
-        providerId,
-      }),
-      pricing: null,
-      limits: {
-        context_length: null,
-        max_output_tokens: null,
-        requests_per_minute: null,
-        tokens_per_minute: null,
-      },
-      status: "active" as const,
-      release_date: null,
-      is_latest: false,
-      description: `自定义模型: ${modelName}`,
-      source: "custom" as const,
-      created_at: Date.now() / 1000,
-      updated_at: Date.now() / 1000,
-    };
-  });
-}
-
-/**
- * 将别名配置中的模型转换为 EnhancedModelMetadata 格式
- */
-function convertAliasModelsToMetadata(
-  models: string[],
-  aliasConfig: ProviderAliasConfig,
-  providerId: string,
-  providerName: string,
-): EnhancedModelMetadata[] {
-  return models.map((modelName): EnhancedModelMetadata => {
-    const aliasInfo = aliasConfig.aliases[modelName];
-    return {
-      id: modelName,
-      display_name: modelName,
-      provider_id: providerId,
-      provider_name: providerName,
-      family: aliasInfo?.provider || null,
-      tier: "pro" as const,
-      capabilities: inferModelCapabilities({
-        modelId: modelName,
-        providerId: aliasInfo?.provider || providerId,
-        family: aliasInfo?.provider || null,
-        description: aliasInfo?.description || null,
-      }),
-      pricing: null,
-      limits: {
-        context_length: null,
-        max_output_tokens: null,
-        requests_per_minute: null,
-        tokens_per_minute: null,
-      },
-      status: "active" as const,
-      release_date: null,
-      is_latest: false,
-      description:
-        aliasInfo?.description || `${aliasInfo?.actual || modelName}`,
-      source: "custom" as const,
-      created_at: Date.now() / 1000,
-      updated_at: Date.now() / 1000,
-    };
-  });
-}
-
-function buildLocalProviderModels(
-  selectedProvider: ConfiguredProvider | undefined | null,
-  registryModels: EnhancedModelMetadata[],
-  aliasConfig: ProviderAliasConfig | null,
-): BuiltProviderModelsResult {
-  if (!selectedProvider) {
-    return { modelIds: [], models: [], hasLocalModels: false };
-  }
-
-  let allModels: EnhancedModelMetadata[] = [];
-  let allModelIds: string[] = [];
-
-  if (selectedProvider.customModels && selectedProvider.customModels.length > 0) {
-    const customModels = convertCustomModelsToMetadata(
-      selectedProvider.customModels,
-      selectedProvider.key,
-      selectedProvider.label,
-    );
-    allModels = [...customModels];
-    allModelIds = [...selectedProvider.customModels];
-  }
-
-  const findModelIndexById = (modelId: string): number => {
-    const targetId = modelId.toLowerCase();
-    return allModels.findIndex((model) => model.id.toLowerCase() === targetId);
-  };
-
-  if (isAliasProvider(selectedProvider.key) && aliasConfig) {
-    const aliasModels = convertAliasModelsToMetadata(
-      aliasConfig.models,
-      aliasConfig,
-      selectedProvider.key,
-      selectedProvider.label,
-    );
-    const newAliasModels = aliasModels.filter(
-      (model) =>
-        !allModelIds.some(
-          (existingModelId) =>
-            existingModelId.toLowerCase() === model.id.toLowerCase(),
-        ),
-    );
-    allModels = [...allModels, ...newAliasModels];
-    allModelIds = [...allModelIds, ...newAliasModels.map((model) => model.id)];
-  }
-
-  const registryFilteredModels = registryModels.filter(
-    (model) => model.provider_id === selectedProvider.registryId,
-  );
-  const sortedRegistryModels = sortModels(registryFilteredModels);
-
-  for (const registryModel of sortedRegistryModels) {
-    const existingIndex = findModelIndexById(registryModel.id);
-    if (existingIndex >= 0) {
-      allModels[existingIndex] = registryModel;
-      continue;
-    }
-
-    allModels.push(registryModel);
-    allModelIds.push(registryModel.id);
-  }
-
-  const hasLocalModels = Boolean(
-    sortedRegistryModels.length > 0 ||
-      (isAliasProvider(selectedProvider.key) &&
-        aliasConfig &&
-        aliasConfig.models.length > 0),
-  );
-
-  return {
-    modelIds: allModelIds,
-    models: allModels,
-    hasLocalModels,
-  };
-}
-
-export function buildProviderModelsFromRegistry(
-  selectedProvider: ConfiguredProvider | undefined | null,
-  registryModels: EnhancedModelMetadata[],
-  aliasConfig: ProviderAliasConfig | null,
-): BuiltProviderModelsResult {
-  const localResult = buildLocalProviderModels(
-    selectedProvider,
-    registryModels,
-    aliasConfig,
-  );
-
-  if (!selectedProvider) {
-    return localResult;
-  }
-
-  if (localResult.hasLocalModels || localResult.models.length > 0) {
-    return localResult;
-  }
-
-  if (!selectedProvider.fallbackRegistryId) {
-    return localResult;
-  }
-
-  const fallbackModels = sortModels(
-    registryModels.filter(
-      (model) => model.provider_id === selectedProvider.fallbackRegistryId,
-    ),
-  );
-
-  if (fallbackModels.length === 0) {
-    return localResult;
-  }
-
-  return {
-    modelIds: fallbackModels.map((model) => model.id),
-    models: fallbackModels,
-    hasLocalModels: false,
-  };
-}
-
 async function fetchProviderModelsFromApi(
   selectedProvider: ConfiguredProvider,
-  registryModels: EnhancedModelMetadata[],
 ): Promise<EnhancedModelMetadata[]> {
   try {
-    const result = await invoke<FetchModelsResult>("fetch_provider_models_auto", {
-      providerId: selectedProvider.key,
-    });
+    const result: FetchProviderModelsResult =
+      await modelRegistryApi.fetchProviderModelsAuto(selectedProvider.key);
 
     if (result && result.models && result.models.length > 0) {
       return result.models;
     }
   } catch {
     // ignore and fall back below
-  }
-
-  if (selectedProvider.fallbackRegistryId) {
-    const fallbackModels = registryModels.filter(
-      (model) => model.provider_id === selectedProvider.fallbackRegistryId,
-    );
-    if (fallbackModels.length > 0) {
-      return sortModels(fallbackModels);
-    }
   }
 
   return [];
@@ -341,7 +80,7 @@ export async function loadProviderModels(
     aliasConfigPromise,
   ]);
 
-  const localResult = buildLocalProviderModels(
+  const localResult = buildProviderModelsFromRegistry(
     selectedProvider,
     registryModels,
     aliasConfig,
@@ -354,22 +93,25 @@ export async function loadProviderModels(
     return localResult.models;
   }
 
-  const apiModels = await fetchProviderModelsFromApi(selectedProvider, registryModels);
+  const apiModels = await fetchProviderModelsFromApi(selectedProvider);
   if (apiModels.length === 0) {
     return localResult.models;
   }
+  const existingModelIds = new Set(
+    localResult.models.map((model) => model.id.toLowerCase()),
+  );
 
-  const customModels = selectedProvider.customModels || [];
-  const customModelMetadata =
-    customModels.length > 0
-      ? convertCustomModelsToMetadata(
-          customModels,
-          selectedProvider.key,
-          selectedProvider.label,
-        )
-      : [];
-
-  return [...customModelMetadata, ...apiModels];
+  return [
+    ...localResult.models,
+    ...apiModels.filter((model) => {
+      const normalizedModelId = model.id.toLowerCase();
+      if (existingModelIds.has(normalizedModelId)) {
+        return false;
+      }
+      existingModelIds.add(normalizedModelId);
+      return true;
+    }),
+  ];
 }
 
 // ============================================================================
@@ -422,7 +164,12 @@ export function useProviderModels(
 
   // 计算本地模型列表
   const localResult = useMemo(
-    () => buildLocalProviderModels(selectedProvider, registryModels, aliasConfig),
+    () =>
+      buildProviderModelsFromRegistry(
+        selectedProvider,
+        registryModels,
+        aliasConfig,
+      ),
     [selectedProvider, registryModels, aliasConfig],
   );
 
@@ -462,9 +209,7 @@ export function useProviderModels(
       setApiError(null);
 
       try {
-        setApiModels(
-          await fetchProviderModelsFromApi(selectedProvider, registryModels),
-        );
+        setApiModels(await fetchProviderModelsFromApi(selectedProvider));
       } catch (err) {
         setApiError(err instanceof Error ? err.message : String(err));
         setApiModels([]);
@@ -495,18 +240,20 @@ export function useProviderModels(
 
     // 否则使用 API 模型
     if (apiModels.length > 0) {
-      // 合并自定义模型和 API 模型
-      const customModels = selectedProvider?.customModels || [];
-      const customModelMetadata =
-        customModels.length > 0
-          ? convertCustomModelsToMetadata(
-              customModels,
-              selectedProvider!.key,
-              selectedProvider!.label,
-            )
-          : [];
-
-      const allModels = [...customModelMetadata, ...apiModels];
+      const existingModelIds = new Set(
+        localResult.models.map((model) => model.id.toLowerCase()),
+      );
+      const allModels = [
+        ...localResult.models,
+        ...apiModels.filter((model) => {
+          const normalizedModelId = model.id.toLowerCase();
+          if (existingModelIds.has(normalizedModelId)) {
+            return false;
+          }
+          existingModelIds.add(normalizedModelId);
+          return true;
+        }),
+      ];
       const allModelIds = allModels.map((m) => m.id);
 
       return {
@@ -519,7 +266,7 @@ export function useProviderModels(
       modelIds: localResult.modelIds,
       models: returnFullMetadata ? localResult.models : [],
     };
-  }, [localResult, apiModels, returnFullMetadata, selectedProvider]);
+  }, [localResult, apiModels, returnFullMetadata]);
 
   // 计算加载状态
   const loading = registryLoading || aliasLoading || apiLoading;

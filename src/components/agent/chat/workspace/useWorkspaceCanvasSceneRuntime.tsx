@@ -7,6 +7,7 @@ import { useWorkspaceInputbarSceneRuntime } from "./useWorkspaceInputbarSceneRun
 import { useWorkspaceImageWorkbenchActionRuntime } from "./useWorkspaceImageWorkbenchActionRuntime";
 import { useWorkspaceTeamSessionControlRuntime } from "./useWorkspaceTeamSessionControlRuntime";
 import { useWorkspaceTeamSessionRuntime } from "./useWorkspaceTeamSessionRuntime";
+import type { AgentThreadItem } from "../types";
 
 type CanvasScenePresentationParams = Parameters<
   typeof useWorkspaceCanvasScenePresentation
@@ -53,6 +54,11 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   setArtifactViewMode: ArtifactPreviewParams["onArtifactViewModeChange"];
   artifactPreviewSize: ArtifactPreviewParams["artifactPreviewSize"];
   setArtifactPreviewSize: ArtifactPreviewParams["onArtifactPreviewSizeChange"];
+  onSaveArtifactDocument: ArtifactPreviewParams["onSaveArtifactDocument"];
+  threadItems: AgentThreadItem[];
+  focusedBlockId: string | null;
+  blockFocusRequestKey: number;
+  onJumpToTimelineItem: (itemId: string) => void;
   handleCloseCanvas: ArtifactPreviewParams["onCloseCanvas"];
   currentImageWorkbenchState: SessionImageWorkbenchState;
   imageWorkbenchPreferenceSummary: ImageWorkbenchParams["preferenceSummary"];
@@ -81,7 +87,7 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   teamSessionRuntime: TeamSessionRuntime;
   teamSessionControlRuntime: TeamSessionControlRuntime;
   teamWorkbenchAutoFocusToken: TeamWorkbenchParams["autoFocusToken"];
-  runtimeTeamState: TeamWorkbenchParams["runtimeTeamState"];
+  teamDispatchPreviewState: TeamWorkbenchParams["teamDispatchPreviewState"];
 }
 
 export function useWorkspaceCanvasSceneRuntime({
@@ -105,6 +111,11 @@ export function useWorkspaceCanvasSceneRuntime({
   setArtifactViewMode,
   artifactPreviewSize,
   setArtifactPreviewSize,
+  onSaveArtifactDocument,
+  threadItems,
+  focusedBlockId,
+  blockFocusRequestKey,
+  onJumpToTimelineItem,
   handleCloseCanvas,
   currentImageWorkbenchState,
   imageWorkbenchPreferenceSummary,
@@ -133,7 +144,7 @@ export function useWorkspaceCanvasSceneRuntime({
   teamSessionRuntime,
   teamSessionControlRuntime,
   teamWorkbenchAutoFocusToken,
-  runtimeTeamState,
+  teamDispatchPreviewState,
 }: UseWorkspaceCanvasSceneRuntimeParams) {
   return useWorkspaceCanvasScenePresentation({
     shouldBootstrapCanvasOnEntry,
@@ -164,6 +175,11 @@ export function useWorkspaceCanvasSceneRuntime({
         onArtifactViewModeChange: setArtifactViewMode,
         artifactPreviewSize,
         onArtifactPreviewSizeChange: setArtifactPreviewSize,
+        onSaveArtifactDocument,
+        threadItems,
+        focusedBlockId,
+        blockFocusRequestKey,
+        onJumpToTimelineItem,
         onCloseCanvas: handleCloseCanvas,
       },
       imageWorkbench: {
@@ -241,7 +257,7 @@ export function useWorkspaceCanvasSceneRuntime({
         surfaceProps: inputbarScene.teamWorkbenchSurfaceProps,
         hasRealTeamGraph: teamSessionRuntime.hasRealTeamGraph,
         autoFocusToken: teamWorkbenchAutoFocusToken,
-        runtimeTeamState,
+        teamDispatchPreviewState,
         liveActivityBySessionId: teamSessionRuntime.liveActivityBySessionId,
         teamWaitSummary: teamSessionControlRuntime.teamWaitSummary,
         teamControlSummary: teamSessionControlRuntime.teamControlSummary,

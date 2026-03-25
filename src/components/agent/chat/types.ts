@@ -1,8 +1,8 @@
 import type {
-  ContextTraceStep,
-  ToolCallState,
-  TokenUsage,
-} from "@/lib/api/agentStream";
+  AgentContextTraceStep as ContextTraceStep,
+  AgentToolCallState as ToolCallState,
+  AgentTokenUsage as TokenUsage,
+} from "@/lib/api/agentProtocol";
 import type { Artifact, ArtifactStatus } from "@/lib/artifact/types";
 import { safeInvoke } from "@/lib/dev-bridge";
 
@@ -10,7 +10,7 @@ export type {
   AgentThreadItem,
   AgentThreadItemStatus,
   AgentThreadTurn,
-} from "@/lib/api/agentStream";
+} from "@/lib/api/agentProtocol";
 
 export interface MessageImage {
   data: string;
@@ -44,6 +44,12 @@ export type BrowserPreflightState =
   | "ready_to_resume"
   | "failed"
   | "degraded";
+
+export interface SiteSavedContentTarget {
+  projectId: string;
+  contentId: string;
+  title?: string;
+}
 
 // ============ 权限确认相关类型 ============
 

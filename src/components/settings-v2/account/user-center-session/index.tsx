@@ -3,7 +3,6 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle2,
-  Cloud,
   ExternalLink,
   LoaderCircle,
   LogIn,
@@ -31,10 +30,10 @@ function SessionValueCard(props: {
       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
         {props.label}
       </p>
-      <p className="mt-2 break-all text-sm font-semibold text-slate-900">
+      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
         {props.value}
       </p>
-      <p className="mt-2 text-xs text-slate-500">{props.hint}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{props.hint}</p>
     </div>
   );
 }
@@ -71,12 +70,32 @@ function resolveServiceSkillCount(payload: unknown): number {
   return Array.isArray(items) ? items.length : 0;
 }
 
+function formatProviderLabel(provider?: string) {
+  const normalized = provider?.trim();
+  if (!normalized) {
+    return "系统账号";
+  }
+
+  if (normalized.toLowerCase() === "google") {
+    return "Google";
+  }
+
+  return normalized;
+}
+
+function buildAccountInitials(value?: string) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return "LH";
+  }
+
+  return normalized.slice(0, 2).toUpperCase();
+}
+
 export function UserCenterSessionSettings() {
   const [showAlternativeMethods, setShowAlternativeMethods] = useState(false);
   const {
     runtime,
-    configuredTarget,
-    hubProviderName,
     loginMode,
     setLoginMode,
     passwordForm,
@@ -104,6 +123,32 @@ export function UserCenterSessionSettings() {
     openUserCenter,
   } = useOemCloudAccess();
 
+  const accountName =
+    session?.user.displayName?.trim() ||
+    session?.user.username?.trim() ||
+    session?.user.email?.trim() ||
+    "未登录";
+  const accountEmail =
+    session?.user.email?.trim() || session?.user.username?.trim() || "登录后显示";
+  const accountIdentity =
+    session?.user.username?.trim() || session?.user.id || "登录后显示";
+  const identityLabel = session?.user.username?.trim() ? "账号" : "用户 ID";
+  const providerLabel = formatProviderLabel(session?.session.provider);
+  const accountInitials = buildAccountInitials(
+    session?.user.displayName ||
+      session?.user.username ||
+      session?.user.email ||
+      undefined,
+  );
+  const syncedCapabilitiesSummary = session
+    ? `${resolveServiceSkillCount(bootstrap?.serviceSkillCatalog)} 项技能 / ${
+        bootstrap?.sceneCatalog?.length || 0
+      } 个入口`
+    : "登录后自动同步";
+  const manageProfileLabel = bootstrap?.features?.profileEditable
+    ? "前往账号中心修改资料"
+    : "打开账号中心";
+
   return (
     <section className="space-y-4">
       <div className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(245,250,248,0.98)_0%,rgba(255,255,255,0.98)_52%,rgba(242,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
@@ -114,33 +159,44 @@ export function UserCenterSessionSettings() {
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl space-y-3">
               <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                USER CENTER
+                ACCOUNT
               </span>
               <div className="space-y-2">
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-900">
-                  个人中心会话
-                </h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-3xl font-semibold tracking-tight text-slate-900">
+                    账户资料
+                  </h2>
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
+                      session
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-600",
+                    )}
+                  >
+                    {session ? "已登录" : "未登录"}
+                  </span>
+                </div>
                 <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                  用户登录、退出和云端会话同步统一放在这里。登录成功后，Providers 页里的 {hubProviderName} 云服务入口会直接复用这份会话。
+                  昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[520px]">
+            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
               <SessionValueCard
-                label="用户中心"
-                value={configuredTarget?.baseUrl || "未配置"}
-                hint="控制面与场景目录入口"
+                label="当前状态"
+                value={session ? "账号已连接" : "等待登录"}
+                hint={
+                  session
+                    ? "当前桌面端会直接复用这份账号状态。"
+                    : "登录后将自动同步账户资料与服务配置。"
+                }
               />
               <SessionValueCard
-                label="Gateway"
-                value={runtime?.gatewayBaseUrl || "未配置"}
-                hint="云端 OpenAI 兼容网关地址"
-              />
-              <SessionValueCard
-                label="租户"
-                value={configuredTarget?.tenantId || "未配置"}
-                hint="个人中心登录所属租户"
+                label="默认服务"
+                value={defaultProviderSummary || "登录后自动同步"}
+                hint="来自账号中心当前默认设置。"
               />
             </div>
           </div>
@@ -164,61 +220,57 @@ export function UserCenterSessionSettings() {
             <div className="rounded-[24px] border border-white/90 bg-white/84 p-5 shadow-sm">
               <div className="flex items-center gap-3 text-sm text-slate-600">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                正在恢复个人中心会话...
+                正在恢复账户状态...
               </div>
             </div>
           ) : session ? (
             <div
-              className="grid gap-4 xl:grid-cols-[minmax(0,2.2fr)_minmax(300px,1fr)]"
+              className="grid gap-4 xl:grid-cols-[minmax(0,2.15fr)_minmax(300px,1fr)]"
               data-testid="oem-cloud-session-panel"
             >
               <article className={SURFACE_CLASS_NAME}>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-700">
-                        <Cloud className="h-5 w-5" />
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0 space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-slate-200 bg-slate-100 text-lg font-semibold text-slate-700">
+                        {session.user.avatarUrl ? (
+                          <img
+                            src={session.user.avatarUrl}
+                            alt={`${accountName} 头像`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span>{accountInitials}</span>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-lg font-semibold text-slate-900">
-                          {session.user.displayName || session.user.email || "已登录"}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          {session.user.email || session.user.username || session.user.id}
-                        </p>
-                      </div>
-                    </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                      <SessionValueCard
-                        label="会话到期"
-                        value={formatOemCloudDateTime(session.session.expiresAt)}
-                        hint="会话过期后需重新登录"
-                      />
-                      <SessionValueCard
-                        label="服务技能"
-                        value={`${resolveServiceSkillCount(bootstrap?.serviceSkillCatalog)} 项`}
-                        hint="登录后自动同步到本地"
-                      />
-                      <SessionValueCard
-                        label="Scene 入口"
-                        value={`${bootstrap?.sceneCatalog?.length || 0} 项`}
-                        hint="来自个人中心 bootstrap"
-                      />
-                      <SessionValueCard
-                        label="默认来源"
-                        value={defaultProviderSummary || "未设定"}
-                        hint="登录后自动同步当前云端默认来源"
-                      />
-                      <SessionValueCard
-                        label="Gateway"
-                        value={bootstrap?.gateway?.basePath || "/gateway-api"}
-                        hint="OpenAI 兼容调用入口"
-                      />
+                      <div className="min-w-0 space-y-3">
+                        <div>
+                          <p className="break-words text-xl font-semibold text-slate-900">
+                            {accountName}
+                          </p>
+                          <p className="mt-1 break-words text-sm text-slate-500">
+                            {accountEmail}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                            登录方式：{providerLabel}
+                          </span>
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                            已同步：{syncedCapabilitiesSummary}
+                          </span>
+                        </div>
+
+                        <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                          资料修改请前往账号中心完成。客户端会同步最新昵称、头像、邮箱与默认服务状态，不再在本地维护第二份个人资料。
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 xl:w-[220px]">
                     <button
                       type="button"
                       onClick={() => void handleRefresh()}
@@ -229,7 +281,7 @@ export function UserCenterSessionSettings() {
                       <RefreshCw
                         className={cn("h-4 w-4", refreshing && "animate-spin")}
                       />
-                      刷新云端状态
+                      同步最新状态
                     </button>
                     <button
                       type="button"
@@ -237,7 +289,7 @@ export function UserCenterSessionSettings() {
                       className="inline-flex items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      打开用户中心
+                      {manageProfileLabel}
                     </button>
                     <button
                       type="button"
@@ -247,19 +299,45 @@ export function UserCenterSessionSettings() {
                       data-testid="oem-cloud-logout"
                     >
                       <LogOut className="h-4 w-4" />
-                      {loggingOut ? "退出中..." : "退出登录"}
+                      {loggingOut ? "退出中..." : "退出当前账号"}
                     </button>
                   </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <SessionValueCard
+                    label="邮箱"
+                    value={accountEmail}
+                    hint="来自账号中心当前账户信息。"
+                  />
+                  <SessionValueCard
+                    label={identityLabel}
+                    value={accountIdentity}
+                    hint="用于识别当前账户身份。"
+                  />
+                  <SessionValueCard
+                    label="会话有效期"
+                    value={formatOemCloudDateTime(session.session.expiresAt)}
+                    hint="到期后需要重新登录。"
+                  />
+                  <SessionValueCard
+                    label="默认服务"
+                    value={defaultProviderSummary || "尚未设定"}
+                    hint="当前 AI 服务页默认使用的来源。"
+                  />
                 </div>
               </article>
 
               <article className={SURFACE_CLASS_NAME}>
                 <div className="space-y-3">
                   <h3 className="text-base font-semibold text-slate-900">
-                    会话说明
+                    资料维护方式
                   </h3>
                   <p className="text-sm leading-6 text-slate-600">
-                    Providers 页里的 {hubProviderName} 云服务入口不再单独维护登录表单，而是直接读取这里的会话。你在这里刷新、退出之后，上游云端目录和下游面板都会一起同步。
+                    昵称、头像、邮箱等资料由账号中心统一维护。这里专注展示当前账户状态，不再提供单独的本地资料编辑入口。
+                  </p>
+                  <p className="text-sm leading-6 text-slate-600">
+                    如需调整资料，请前往账号中心完成修改，然后回到这里点击“同步最新状态”。
                   </p>
                   {codeDelivery ? (
                     <p className="text-sm leading-6 text-slate-600">
@@ -281,7 +359,7 @@ export function UserCenterSessionSettings() {
                       使用 Google 一键登录
                     </h3>
                     <p className="text-sm leading-6 text-slate-600">
-                      Google 是默认登录方式。授权完成后桌面端会自动完成登录，并同步默认云端来源、服务技能目录与 Scene 入口。
+                      Google 是默认登录方式。授权完成后，客户端会自动同步账户资料、默认服务与已开通能力。
                     </p>
                   </div>
 
@@ -302,7 +380,7 @@ export function UserCenterSessionSettings() {
                           : "使用 Google 一键登录"}
                       </span>
                       <span className="mt-1 block text-xs leading-5 text-slate-500">
-                        在系统浏览器完成授权，桌面端会自动同步登录结果。
+                        在系统浏览器完成授权后，客户端会自动完成登录。
                       </span>
                     </span>
                   </button>
@@ -314,7 +392,7 @@ export function UserCenterSessionSettings() {
                       className="inline-flex items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      打开完整登录页
+                      打开登录页
                     </button>
                     <button
                       type="button"
@@ -339,12 +417,12 @@ export function UserCenterSessionSettings() {
                 <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/90 p-5">
                   <div className="space-y-3">
                     <h4 className="text-sm font-semibold text-slate-900">
-                      登录后自动完成
+                      登录后会自动完成
                     </h4>
                     <ul className="space-y-2 text-sm leading-6 text-slate-600">
-                      <li>同步当前租户下的默认云端来源与模型目录。</li>
-                      <li>把个人中心会话复用到 Providers 页，不再重复登录。</li>
-                      <li>同步服务技能目录与 Scene 入口，形成完整闭环。</li>
+                      <li>同步当前账户资料与头像、昵称显示。</li>
+                      <li>同步默认 AI 服务、模型目录与已开通能力。</li>
+                      <li>个人资料统一在账号中心维护，避免多入口重复编辑。</li>
                     </ul>
                   </div>
                 </div>
@@ -358,7 +436,7 @@ export function UserCenterSessionSettings() {
                         备用登录方式
                       </h4>
                       <p className="text-sm leading-6 text-slate-600">
-                        如果当前租户没有启用 Google，或需要兼容已有账号体系，可以改用邮箱验证码或账号密码登录。
+                        如果当前组织没有启用 Google，或需要兼容已有账号体系，可以改用邮箱验证码或账号密码登录。
                       </p>
                     </div>
 
@@ -423,7 +501,7 @@ export function UserCenterSessionSettings() {
                               password: event.target.value,
                             }))
                           }
-                          placeholder="输入用户中心密码"
+                          placeholder="输入账号中心密码"
                           className="w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-300"
                           data-testid="oem-cloud-password-secret"
                         />
@@ -437,7 +515,7 @@ export function UserCenterSessionSettings() {
                         data-testid="oem-cloud-password-submit"
                       >
                         <LogIn className="h-4 w-4" />
-                        {loggingIn ? "登录中..." : "登录并同步云端"}
+                        {loggingIn ? "登录中..." : "登录并同步账户"}
                       </button>
                     </div>
                   ) : (
@@ -533,7 +611,7 @@ export function UserCenterSessionSettings() {
                         data-testid="oem-cloud-code-submit"
                       >
                         <LogIn className="h-4 w-4" />
-                        {loggingIn ? "登录中..." : "验证并同步云端"}
+                        {loggingIn ? "登录中..." : "验证并同步账户"}
                       </button>
                     </div>
                   )}

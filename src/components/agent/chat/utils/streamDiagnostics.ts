@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@/lib/api/agentStream";
+import type { AgentEvent } from "@/lib/api/agentProtocol";
 import { updateCrashContext } from "@/lib/crashReporting";
 
 const EVENT_PUBLISH_INTERVAL = 20;
@@ -119,7 +119,7 @@ export function createStreamDiagnosticsReporter(componentName: string) {
       publish(true);
     },
 
-    record(event: StreamEvent) {
+    record(event: AgentEvent) {
       if (!snapshot) return;
       snapshot.totalEvents += 1;
       snapshot.lastEventAt = nowIso();

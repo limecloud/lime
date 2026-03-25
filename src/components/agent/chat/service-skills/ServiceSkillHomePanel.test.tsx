@@ -64,18 +64,42 @@ describe("ServiceSkillHomePanel", () => {
         runnerTone: "emerald",
         runnerDescription: "客户端起步版可直接进入工作区执行。",
         actionLabel: "填写参数",
+        automationStatus: {
+          jobId: "automation-job-1",
+          jobName: "复制短视频脚本｜定时执行",
+          statusLabel: "成功",
+          tone: "emerald",
+          detail: "下次 03/24 09:00",
+        },
       },
     ];
     const onSelect = vi.fn();
+    const onOpenAutomationJob = vi.fn();
 
     const container = renderPanel({
       skills,
+      catalogMeta: {
+        tenantId: "tenant-demo",
+        version: "tenant-2026-03-24",
+        syncedAt: "2026-03-24T12:00:00.000Z",
+        itemCount: 1,
+        sourceLabel: "租户云目录",
+        isSeeded: false,
+      },
       onSelect,
+      onOpenAutomationJob,
     });
 
     expect(container.textContent).toContain("服务型技能");
+    expect(container.textContent).toContain("租户云目录");
+    expect(container.textContent).toContain("tenant-demo");
+    expect(container.textContent).toContain("tenant-2026-03-24");
+    expect(container.textContent).toContain("1 项");
+    expect(container.textContent).toContain("同步于");
     expect(container.textContent).toContain("复制短视频脚本");
     expect(container.textContent).toContain("产出：脚本大纲 + 镜头节奏");
+    expect(container.textContent).toContain("本地任务 · 成功");
+    expect(container.textContent).toContain("下次 03/24 09:00");
     expect(container.textContent).toContain("本地即时执行");
     expect(container.textContent).toContain("填写参数");
 
@@ -90,5 +114,17 @@ describe("ServiceSkillHomePanel", () => {
     });
 
     expect(onSelect).toHaveBeenCalledWith(skills[0]);
+
+    const statusButton = container.querySelector(
+      '[data-testid="service-skill-short-video-script-replication-secondary-status"]',
+    ) as HTMLButtonElement | null;
+
+    expect(statusButton).toBeTruthy();
+
+    act(() => {
+      statusButton?.click();
+    });
+
+    expect(onOpenAutomationJob).toHaveBeenCalledWith(skills[0]);
   });
 });

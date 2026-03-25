@@ -4,6 +4,12 @@ import type {
   ArtifactStatus,
   ArtifactType,
 } from "@/lib/artifact/types";
+import {
+  hasArtifactProtocolDocumentMetadata,
+  resolveArtifactProtocolDocumentPayload,
+  resolveArtifactProtocolFilePath,
+  resolveArtifactProtocolPreviewText,
+} from "@/lib/artifact-protocol";
 import type {
   ArtifactWriteMetadata,
   ArtifactWritePhase,
@@ -52,6 +58,8 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, string> = {
 };
 
 const ARTIFACT_TYPE_ALIASES: Record<string, ArtifactType> = {
+  artifact_document: "document",
+  artifact_document_v1: "document",
   code: "code",
   document: "document",
   draft: "document",
@@ -184,10 +192,7 @@ export function findMessageArtifact(
       return false;
     }
 
-    const artifactPath =
-      typeof artifact.meta.filePath === "string"
-        ? normalizePath(artifact.meta.filePath)
-        : null;
+    const artifactPath = normalizePath(resolveArtifactProtocolFilePath(artifact));
     return artifactPath === normalizedPath;
   });
 }
@@ -195,7 +200,18 @@ export function findMessageArtifact(
 export function resolveArtifactTypeFromFile(
   filePath: string,
   metadata?: Record<string, unknown>,
+  content?: string,
 ): ArtifactType {
+  if (
+    resolveArtifactProtocolDocumentPayload({
+      content,
+      metadata,
+    }) ||
+    hasArtifactProtocolDocumentMetadata(metadata)
+  ) {
+    return "document";
+  }
+
   const explicitType =
     readStringValue(metadata, "artifact_type") ||
     readStringValue(metadata, "type") ||
@@ -259,24 +275,6 @@ export function resolveDefaultArtifactViewMode(
   return "source";
 }
 
-export function resolveArtifactFilePath(
-  artifact: Pick<Artifact, "title" | "meta">,
-): string {
-  if (
-    typeof artifact.meta.filePath === "string" &&
-    artifact.meta.filePath.trim()
-  ) {
-    return artifact.meta.filePath.trim();
-  }
-  if (
-    typeof artifact.meta.filename === "string" &&
-    artifact.meta.filename.trim()
-  ) {
-    return artifact.meta.filename.trim();
-  }
-  return artifact.title;
-}
-
 export interface BuildArtifactInput {
   filePath: string;
   content: string;
@@ -292,31 +290,59 @@ export function buildArtifactFromWrite({
   const title = fileNameFromPath(normalizedPath);
   const now = Date.now();
   const metadata = context?.metadata;
-  const type = resolveArtifactTypeFromFile(normalizedPath, metadata);
-  const language =
-    type === "code" || type === "document"
-      ? resolveArtifactLanguageFromFile(normalizedPath)
-      : undefined;
-  const previewText =
-    typeof content === "string" && content.trim()
-      ? normalizePreviewText(content)
-      : undefined;
   const existingMeta =
     context?.artifact?.meta && typeof context.artifact.meta === "object"
       ? (context.artifact.meta as ArtifactWriteMetadata)
       : undefined;
+  const existingArtifactDocument = resolveArtifactProtocolDocumentPayload({
+    metadata: existingMeta,
+  });
+  const artifactDocument = resolveArtifactProtocolDocumentPayload({
+    content,
+    metadata,
+    previous: existingArtifactDocument,
+  });
+  const type = resolveArtifactTypeFromFile(normalizedPath, metadata, content);
+  const language =
+    artifactDocument
+      ? "json"
+      : type === "code" || type === "document"
+      ? resolveArtifactLanguageFromFile(normalizedPath)
+      : undefined;
+  const previewCandidate =
+    artifactDocument
+      ? resolveArtifactProtocolPreviewText(artifactDocument)
+      : typeof metadata?.previewText === "string" && metadata.previewText.trim()
+        ? metadata.previewText
+        : typeof content === "string" && content.trim()
+          ? content
+          : undefined;
+  const previewText = previewCandidate
+    ? normalizePreviewText(previewCandidate)
+    : undefined;
   const baseMeta: ArtifactMeta = {
     ...(existingMeta || {}),
     ...(metadata || {}),
     ...(language ? { language } : {}),
     ...(previewText &&
-    !(typeof metadata?.previewText === "string" && metadata.previewText.trim())
+    (!(
+      typeof metadata?.previewText === "string" && metadata.previewText.trim()
+    ) ||
+      Boolean(artifactDocument))
       ? { previewText }
       : {}),
     filePath: normalizedPath,
     filename: title,
     source: context?.source,
     sourceMessageId: context?.sourceMessageId,
+    ...(artifactDocument
+      ? {
+          artifactSchema: artifactDocument.schemaVersion,
+          artifactKind: artifactDocument.kind,
+          artifactDocument,
+          artifactTitle: artifactDocument.title,
+        }
+      : {}),
   };
 
   return {
@@ -395,42 +421,6 @@ export function updateMessageArtifactsStatus(
     ...message,
     artifacts: nextArtifacts,
   };
-}
-
-export function extractArtifactPathsFromMetadata(
-  metadata?: Record<string, unknown>,
-): string[] {
-  if (!metadata) {
-    return [];
-  }
-
-  const collected = new Set<string>();
-  const appendPath = (value: unknown) => {
-    if (typeof value !== "string") {
-      return;
-    }
-    const normalized = normalizePath(value);
-    if (normalized) {
-      collected.add(normalized);
-    }
-  };
-
-  const appendArray = (value: unknown) => {
-    if (!Array.isArray(value)) {
-      return;
-    }
-    for (const item of value) {
-      appendPath(item);
-    }
-  };
-
-  appendArray(metadata.artifact_paths);
-  appendArray(metadata.paths);
-  appendPath(metadata.artifact_path);
-  appendPath(metadata.path);
-  appendPath(metadata.source_file_name);
-
-  return Array.from(collected);
 }
 
 export function mergeArtifacts(artifacts: Artifact[]): Artifact[] {

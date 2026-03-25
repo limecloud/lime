@@ -27,7 +27,7 @@ export interface UseTeamWorkbenchPresentationParams {
   surfaceProps: TeamWorkbenchSurfaceProps;
   hasRealTeamGraph: boolean;
   autoFocusToken?: string | number | null;
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
   liveActivityBySessionId?: Record<string, TeamWorkspaceActivityEntry[]>;
   teamWaitSummary?: TeamWorkspaceWaitSummary | null;
   teamControlSummary?: TeamWorkspaceControlSummary | null;
@@ -36,21 +36,22 @@ export interface UseTeamWorkbenchPresentationParams {
 function resolveTeamWorkbenchTriggerState(params: {
   enabled: boolean;
   hasRealTeamGraph: boolean;
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
   liveActivityBySessionId?: Record<string, TeamWorkspaceActivityEntry[]>;
   teamWaitSummary?: TeamWorkspaceWaitSummary | null;
   teamControlSummary?: TeamWorkspaceControlSummary | null;
   executionSummary: ReturnType<typeof summarizeTeamWorkspaceExecution>;
 }): CanvasWorkbenchTeamView["triggerState"] {
+  const runtimeTeamState = params.teamDispatchPreviewState;
   if (!params.enabled) {
     return null;
   }
 
-  if (params.runtimeTeamState?.status === "failed") {
+  if (runtimeTeamState?.status === "failed") {
     return { tone: "error", label: "失败" };
   }
 
-  if (params.runtimeTeamState?.status === "forming") {
+  if (runtimeTeamState?.status === "forming") {
     return { tone: "active", label: "组建中" };
   }
 
@@ -74,7 +75,7 @@ function resolveTeamWorkbenchTriggerState(params: {
     };
   }
 
-  if (params.runtimeTeamState?.status === "formed" && !params.hasRealTeamGraph) {
+  if (runtimeTeamState?.status === "formed" && !params.hasRealTeamGraph) {
     return { tone: "active", label: "已就绪" };
   }
 
@@ -96,11 +97,12 @@ export function useTeamWorkbenchPresentation({
   surfaceProps,
   hasRealTeamGraph,
   autoFocusToken,
-  runtimeTeamState = null,
+  teamDispatchPreviewState = null,
   liveActivityBySessionId = {},
   teamWaitSummary = null,
   teamControlSummary = null,
 }: UseTeamWorkbenchPresentationParams) {
+  const runtimeTeamState = teamDispatchPreviewState;
   const boardProps = useMemo<ComponentProps<typeof TeamWorkspaceBoard>>(
     () => ({
       ...surfaceProps,
@@ -135,7 +137,7 @@ export function useTeamWorkbenchPresentation({
       selectedTeamLabel: surfaceProps.selectedTeamLabel,
       selectedTeamSummary: surfaceProps.selectedTeamSummary,
       selectedTeamRoles: surfaceProps.selectedTeamRoles,
-      runtimeTeamState: surfaceProps.runtimeTeamState,
+      teamDispatchPreviewState: surfaceProps.teamDispatchPreviewState,
     }),
     [liveActivityBySessionId, surfaceProps, teamControlSummary, teamWaitSummary],
   );
@@ -167,7 +169,7 @@ export function useTeamWorkbenchPresentation({
       resolveTeamWorkbenchTriggerState({
         enabled,
         hasRealTeamGraph,
-        runtimeTeamState,
+        teamDispatchPreviewState,
         liveActivityBySessionId,
         teamWaitSummary,
         teamControlSummary,
@@ -178,7 +180,7 @@ export function useTeamWorkbenchPresentation({
       executionSummary,
       hasRealTeamGraph,
       liveActivityBySessionId,
-      runtimeTeamState,
+      teamDispatchPreviewState,
       teamControlSummary,
       teamWaitSummary,
     ],

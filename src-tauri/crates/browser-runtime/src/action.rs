@@ -1,10 +1,12 @@
 use crate::manager::CdpSessionHandle;
-use crate::types::BrowserPageInfo;
+use crate::types::{BrowserEvent, BrowserEventPayload, BrowserPageInfo};
 use chrono::Utc;
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::sync::broadcast;
 
 const DEFAULT_ACTION_TIMEOUT_MS: u64 = 15_000;
+const NAVIGATION_POLL_INTERVAL_MS: u64 = 250;
 
 pub async fn execute_action(
     session: &CdpSessionHandle,
@@ -52,23 +54,44 @@ async fn navigate(session: &CdpSessionHandle, args: &Value) -> Result<Value, Str
         ));
     }
     let url = get_string_arg(args, &["url"]).ok_or_else(|| "navigate 需要提供 url".to_string())?;
-    session
+    let wait_timeout_ms = get_u64_arg(args, &["timeout_ms"]).unwrap_or(DEFAULT_ACTION_TIMEOUT_MS);
+    let previous_url = session
+        .state()
+        .await
+        .last_page_info
+        .as_ref()
+        .map(|page| page.url.clone())
+        .filter(|value| !value.trim().is_empty());
+    let mut event_rx = session.subscribe();
+    let response = session
         .send_command(
             "Page.navigate",
             json!({ "url": url }),
             DEFAULT_ACTION_TIMEOUT_MS,
         )
         .await?;
-    tokio::time::sleep(Duration::from_millis(1200)).await;
-    let page = session
-        .capture_page_info()
-        .await
-        .unwrap_or(BrowserPageInfo {
-            title: url.clone(),
-            url: url.clone(),
-            markdown: format!("# {}\nURL: {}", url, url),
-            updated_at: Utc::now().to_rfc3339(),
-        });
+    if let Some(error_text) = response
+        .get("errorText")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Err(format!("导航失败: {error_text}"));
+    }
+    let page = wait_for_navigation_page(
+        session,
+        Some(url.as_str()),
+        previous_url.as_deref(),
+        wait_timeout_ms,
+        &mut event_rx,
+    )
+    .await
+    .unwrap_or(BrowserPageInfo {
+        title: url.clone(),
+        url: url.clone(),
+        markdown: format!("# {}\nURL: {}", url, url),
+        updated_at: Utc::now().to_rfc3339(),
+    });
     Ok(json!({
         "url": url,
         "page_info": page,
@@ -230,12 +253,152 @@ async fn scroll(session: &CdpSessionHandle, args: &Value) -> Result<Value, Strin
 }
 
 async fn evaluate_navigation(session: &CdpSessionHandle, script: &str) -> Result<Value, String> {
+    let previous_url = session
+        .state()
+        .await
+        .last_page_info
+        .as_ref()
+        .map(|page| page.url.clone())
+        .filter(|value| !value.trim().is_empty());
+    let mut event_rx = session.subscribe();
     session
         .runtime_evaluate(script.to_string(), false, DEFAULT_ACTION_TIMEOUT_MS)
         .await?;
-    tokio::time::sleep(Duration::from_millis(800)).await;
-    let page = session.capture_page_info().await?;
+    let page = if let Some(page_info) = wait_for_navigation_page(
+        session,
+        None,
+        previous_url.as_deref(),
+        DEFAULT_ACTION_TIMEOUT_MS,
+        &mut event_rx,
+    )
+    .await
+    {
+        page_info
+    } else if let Some(page_info) = session.state().await.last_page_info.clone() {
+        page_info
+    } else {
+        capture_and_sync_page_info(session)
+            .await
+            .ok_or_else(|| "读取页面信息失败".to_string())?
+    };
     Ok(json!({ "page_info": page }))
+}
+
+async fn wait_for_navigation_page(
+    session: &CdpSessionHandle,
+    expected_url: Option<&str>,
+    previous_url: Option<&str>,
+    timeout_ms: u64,
+    event_rx: &mut broadcast::Receiver<BrowserEvent>,
+) -> Option<BrowserPageInfo> {
+    let started_at = Instant::now();
+    let timeout = Duration::from_millis(timeout_ms.max(500));
+
+    while started_at.elapsed() < timeout {
+        let remaining = timeout.saturating_sub(started_at.elapsed());
+        let wait_window = remaining.min(Duration::from_millis(NAVIGATION_POLL_INTERVAL_MS));
+        match tokio::time::timeout(wait_window, event_rx.recv()).await {
+            Ok(Ok(event)) => {
+                if let Some(page_info) = page_info_from_event(&event) {
+                    if should_accept_navigation_page(
+                        Some(page_info.url.as_str()),
+                        expected_url,
+                        previous_url,
+                    ) {
+                        return session
+                            .state()
+                            .await
+                            .last_page_info
+                            .clone()
+                            .or(Some(page_info));
+                    }
+                }
+            }
+            Ok(Err(broadcast::error::RecvError::Lagged(_))) | Err(_) => {
+                if let Some(page_info) = capture_and_sync_page_info(session).await {
+                    if should_accept_navigation_page(
+                        Some(page_info.url.as_str()),
+                        expected_url,
+                        previous_url,
+                    ) {
+                        return Some(page_info);
+                    }
+                }
+            }
+            Ok(Err(broadcast::error::RecvError::Closed)) => break,
+        }
+    }
+
+    capture_and_sync_page_info(session).await
+}
+
+fn page_info_from_event(event: &BrowserEvent) -> Option<BrowserPageInfo> {
+    match &event.payload {
+        BrowserEventPayload::PageInfoChanged {
+            title,
+            url,
+            markdown,
+        } => Some(BrowserPageInfo {
+            title: title.clone(),
+            url: url.clone(),
+            markdown: markdown.clone(),
+            updated_at: Utc::now().to_rfc3339(),
+        }),
+        _ => None,
+    }
+}
+
+async fn capture_and_sync_page_info(session: &CdpSessionHandle) -> Option<BrowserPageInfo> {
+    let page_info = session.capture_page_info().await.ok()?;
+    let current_page_info = session.state().await.last_page_info;
+    let should_update = current_page_info.as_ref().map_or(true, |current| {
+        current.url != page_info.url
+            || current.title != page_info.title
+            || current.markdown != page_info.markdown
+    });
+    if should_update {
+        session.update_page_info(page_info.clone()).await;
+    }
+    Some(page_info)
+}
+
+fn should_accept_navigation_page(
+    current_url: Option<&str>,
+    expected_url: Option<&str>,
+    previous_url: Option<&str>,
+) -> bool {
+    let Some(current_url) = current_url.map(str::trim).filter(|value| !value.is_empty()) else {
+        return false;
+    };
+
+    if expected_url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_some_and(|expected_url| urls_equivalent(current_url, expected_url))
+    {
+        return true;
+    }
+
+    match previous_url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(previous_url) => !urls_equivalent(current_url, previous_url),
+        None => true,
+    }
+}
+
+fn urls_equivalent(left: &str, right: &str) -> bool {
+    normalize_url_for_navigation(left) == normalize_url_for_navigation(right)
+}
+
+fn normalize_url_for_navigation(url: &str) -> String {
+    let trimmed = url.trim();
+    if trimmed.len() > "https://".len() {
+        trimmed.trim_end_matches('/').to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 fn get_string_arg(args: &Value, keys: &[&str]) -> Option<String> {
@@ -246,4 +409,41 @@ fn get_string_arg(args: &Value, keys: &[&str]) -> Option<String> {
             .filter(|value| !value.is_empty())
             .map(ToString::to_string)
     })
+}
+
+fn get_u64_arg(args: &Value, keys: &[&str]) -> Option<u64> {
+    keys.iter()
+        .find_map(|key| args.get(*key).and_then(Value::as_u64))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_accept_exact_expected_url_even_when_previous_matches() {
+        assert!(should_accept_navigation_page(
+            Some("https://github.com/search?q=mcp&type=repositories"),
+            Some("https://github.com/search?q=mcp&type=repositories"),
+            Some("https://github.com/search?q=mcp&type=repositories"),
+        ));
+    }
+
+    #[test]
+    fn should_accept_url_change_when_expected_differs_only_by_query_order() {
+        assert!(should_accept_navigation_page(
+            Some("https://github.com/search?type=repositories&q=model%20context%20protocol"),
+            Some("https://github.com/search?q=model%20context%20protocol&type=repositories"),
+            Some("https://www.36kr.com/newsflashes"),
+        ));
+    }
+
+    #[test]
+    fn should_reject_stale_previous_url() {
+        assert!(!should_accept_navigation_page(
+            Some("https://www.36kr.com/newsflashes"),
+            Some("https://search.bilibili.com/all?keyword=AI%20Agent"),
+            Some("https://www.36kr.com/newsflashes"),
+        ));
+    }
 }

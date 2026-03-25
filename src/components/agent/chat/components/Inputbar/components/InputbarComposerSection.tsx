@@ -2,7 +2,10 @@ import React, { useState } from "react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
-import type { QueuedTurnSnapshot } from "@/lib/api/agentRuntime";
+import type {
+  AsterSessionExecutionRuntime,
+  QueuedTurnSnapshot,
+} from "@/lib/api/agentRuntime";
 import type { MessageImage } from "../../../types";
 import { CharacterMention } from "./CharacterMention";
 import { InputbarCore } from "./InputbarCore";
@@ -64,6 +67,8 @@ interface InputbarComposerSectionProps {
   isThemeWorkbenchVariant: boolean;
   activeTheme?: string;
   onManageProviders?: () => void;
+  executionRuntime?: AsterSessionExecutionRuntime | null;
+  isExecutionRuntimeActive?: boolean;
   setExecutionStrategy?: (
     strategy: "react" | "code_orchestrated" | "auto",
   ) => void;
@@ -113,6 +118,8 @@ export const InputbarComposerSection: React.FC<
   isThemeWorkbenchVariant,
   activeTheme,
   onManageProviders,
+  executionRuntime,
+  isExecutionRuntimeActive,
   setExecutionStrategy,
   topExtra,
   queuedTurns,
@@ -294,6 +301,8 @@ export const InputbarComposerSection: React.FC<
               setModel={inputAdapter.actions.setModel}
               activeTheme={activeTheme}
               onManageProviders={onManageProviders}
+              executionRuntime={executionRuntime}
+              isExecutionRuntimeActive={isExecutionRuntimeActive}
             />
           </>
         }

@@ -22,6 +22,7 @@ import {
   logRenderPerf,
 } from "@/lib/perfDebug";
 import { emitDocumentEditorFocus } from "@/lib/documentEditorFocusEvents";
+import { resolveDocumentEditorHotkeyAction } from "@/components/content-creator/canvas/document/documentEditorHotkeys";
 import "./editor-styles.css";
 
 interface NotionEditorProps {
@@ -245,7 +246,12 @@ const NotionEditorCore = forwardRef<NotionEditorHandle, NotionEditorProps>(
 
       const element = editor.view.dom as HTMLElement;
       const handleEditorKeyDown = (event: KeyboardEvent) => {
-        if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+        const action = resolveDocumentEditorHotkeyAction(event);
+        if (!action) {
+          return;
+        }
+
+        if (action === "save") {
           event.preventDefault();
           clearIdleCommitTimer();
           const latestContent = flushContent();
@@ -253,7 +259,7 @@ const NotionEditorCore = forwardRef<NotionEditorHandle, NotionEditorProps>(
           return;
         }
 
-        if (event.key === "Escape" && !slashState.isOpen) {
+        if (action === "cancel" && !slashState.isOpen) {
           event.preventDefault();
           onCancel();
         }

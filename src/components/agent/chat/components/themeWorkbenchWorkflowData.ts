@@ -1,3 +1,4 @@
+import { extractArtifactProtocolPathsFromRecord } from "@/lib/artifact-protocol";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 
 export interface ThemeWorkbenchCreationTaskEvent {
@@ -173,7 +174,7 @@ export function parseThemeWorkbenchRunMetadataSummary(
       executionId: readString(parsed.execution_id),
       versionId: readString(parsed.version_id),
       stages: readStringArray(parsed.stages),
-      artifactPaths: readStringArray(parsed.artifact_paths),
+      artifactPaths: extractArtifactProtocolPathsFromRecord(parsed),
     };
   } catch {
     return fallback;

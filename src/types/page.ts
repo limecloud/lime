@@ -133,6 +133,7 @@ export interface OpenClawPageParams {
 export interface AgentPageParams {
   projectId?: string;
   contentId?: string;
+  initialRequestMetadata?: Record<string, unknown>;
   /** Agent 入口模式：新建任务或任务中心 */
   agentEntry?: "new-task" | "claw";
   /** 首页沉浸模式提交后透传的首条图片 */
@@ -214,11 +215,19 @@ export interface StylePageParams {
   section?: StylePageSection;
 }
 
+export type AutomationWorkspaceTab = "tasks" | "overview";
+
+export interface AutomationPageParams {
+  selectedJobId?: string;
+  workspaceTab?: AutomationWorkspaceTab;
+}
+
 /**
  * 页面参数联合类型
  */
 export type PageParams =
   | AgentPageParams
+  | AutomationPageParams
   | ProjectDetailPageParams
   | SettingsPageParams
   | OpenClawPageParams

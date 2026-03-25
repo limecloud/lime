@@ -26,7 +26,12 @@ import { cn } from "@/lib/utils";
 import { artifactRegistry } from "@/lib/artifact/registry";
 import { useDebouncedValue } from "@/lib/artifact/hooks";
 import {
+  resolveArtifactProtocolDocumentPayload,
+  resolveArtifactProtocolFilePath,
+} from "@/lib/artifact-protocol";
+import {
   formatArtifactWritePhaseLabel,
+  resolveDefaultArtifactViewMode,
   resolveArtifactWritePhase,
 } from "@/components/agent/chat/utils/messageArtifacts";
 import { ErrorFallbackRenderer } from "./ErrorFallbackRenderer";
@@ -125,24 +130,6 @@ interface EmptyArtifactSurfaceState {
   skeletonKind: EmptyArtifactSkeletonKind;
 }
 
-function resolveArtifactPath(
-  artifact: Pick<Artifact, "title" | "meta">,
-): string {
-  if (
-    typeof artifact.meta.filePath === "string" &&
-    artifact.meta.filePath.trim()
-  ) {
-    return artifact.meta.filePath.trim();
-  }
-  if (
-    typeof artifact.meta.filename === "string" &&
-    artifact.meta.filename.trim()
-  ) {
-    return artifact.meta.filename.trim();
-  }
-  return artifact.title;
-}
-
 function resolveEmptyArtifactSkeletonKind(
   artifact: Pick<Artifact, "type">,
 ): EmptyArtifactSkeletonKind {
@@ -167,6 +154,15 @@ function resolveEmptyArtifactSurfaceState(
   artifact: Pick<Artifact, "content" | "error" | "meta" | "status" | "type">,
 ): EmptyArtifactSurfaceState | null {
   if (artifact.type === "browser_assist") {
+    return null;
+  }
+
+  const artifactDocument = resolveArtifactProtocolDocumentPayload({
+    content: artifact.content,
+    metadata: artifact.meta,
+  });
+
+  if (artifactDocument) {
     return null;
   }
 
@@ -330,7 +326,7 @@ const EmptyArtifactSurface: React.FC<{
   state: EmptyArtifactSurfaceState;
   tone?: "dark" | "light";
 }> = memo(({ artifact, state, tone = "dark" }) => {
-  const filePath = resolveArtifactPath(artifact);
+  const filePath = resolveArtifactProtocolFilePath(artifact);
   const isWriting = state.mode === "writing";
   const isFailed = state.mode === "failed";
   const Icon = isFailed
@@ -579,7 +575,7 @@ export const ArtifactRenderer: React.FC<ArtifactRendererComponentProps> = memo(
     className,
     debounceDelay = 100,
     hideToolbar = false,
-    viewMode = "source",
+    viewMode,
     previewSize = "desktop",
     tone = "dark",
   }) => {
@@ -644,6 +640,8 @@ export const ArtifactRenderer: React.FC<ArtifactRendererComponentProps> = memo(
     // 获取渲染器注册项
     const entry = artifactRegistry.get(artifact.type);
     const emptySurfaceState = resolveEmptyArtifactSurfaceState(artifact);
+    const effectiveViewMode =
+      viewMode ?? resolveDefaultArtifactViewMode(artifact);
 
     if (emptySurfaceState) {
       return (
@@ -754,7 +752,7 @@ export const ArtifactRenderer: React.FC<ArtifactRendererComponentProps> = memo(
               tone={tone}
               onContentChange={onContentChange}
               hideToolbar={hideToolbar}
-              viewMode={viewMode}
+              viewMode={effectiveViewMode}
               previewSize={previewSize}
             />
           </ArtifactErrorBoundary>

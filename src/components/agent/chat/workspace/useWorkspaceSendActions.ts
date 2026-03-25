@@ -1,50 +1,28 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
-import { loadConfiguredProviders } from "@/hooks/useConfiguredProviders";
-import { loadProviderModels } from "@/hooks/useProviderModels";
 import type { Character } from "@/lib/api/memory";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import { preheatBrowserAssistInBackground } from "../utils/browserAssistPreheat";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
-import { resolveProviderModelCompatibility } from "../utils/providerModelCompatibility";
 import {
   buildHarnessRequestMetadata,
   extractExistingHarnessMetadata,
-  type HarnessTurnTeamBlueprint,
 } from "../utils/harnessRequestMetadata";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
 import { saveChatToolPreferences, type ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { ThemeWorkbenchSendBoundaryState } from "../hooks/useThemeWorkbenchSendBoundary";
-import {
-  shouldPrepareRuntimeTeamBeforeSend,
-  type UseRuntimeTeamFormationResult,
-} from "../hooks/useRuntimeTeamFormation";
+import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
 import type { SendMessageFn } from "../hooks/agentChatShared";
-import {
-  isReasoningModel,
-  resolveBaseModelOnThinkingOff,
-  resolveThinkingModel,
-} from "@/lib/model/thinkingModelResolver";
-import { resolveVisionModel } from "@/lib/model/visionModelResolver";
-import {
-  loadRememberedBaseModel,
-  saveRememberedBaseModel,
-} from "@/lib/model/thinkingBaseModelMemory";
 import type { MessageImage } from "../types";
-import type { CreationMode, ThemeType } from "@/components/content-creator/types";
+import type { ThemeType } from "@/components/content-creator/types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
-import {
-  buildRuntimeTeamAssistantDraft,
-  type RuntimeTeamDispatchPreviewSnapshot,
-} from "./runtimeTeamPreview";
-import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
+import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 
 type ExecutionStrategy = "react" | "code_orchestrated" | "auto";
-type ChatMode = "agent" | "general" | "creator";
 type SetStringState = (value: string) => void;
 
 interface ContextWorkspaceSummary {
@@ -66,16 +44,10 @@ interface UseWorkspaceSendActionsParams {
   setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
   activeTheme: string;
   mappedTheme: ThemeType;
-  creationMode: CreationMode;
-  chatMode: ChatMode;
   isThemeWorkbench: boolean;
   contextWorkspace: ContextWorkspaceSummary;
   runtimeStyleMessagePrompt: string;
   projectId?: string | null;
-  sessionId?: string | null;
-  providerType: string;
-  model: string;
-  setModel: SetStringState;
   executionStrategy: ExecutionStrategy;
   preferredTeamPresetId?: string | null;
   selectedTeam?: TeamDefinition | null;
@@ -84,6 +56,7 @@ interface UseWorkspaceSendActionsParams {
   currentGateKey: string;
   themeWorkbenchActiveQueueTitle?: string;
   contentId?: string | null;
+  workspaceRequestMetadataBase?: Record<string, unknown>;
   messagesCount: number;
   sendMessage: SendMessageFn;
   resolveSendBoundary: (input: {
@@ -167,39 +140,6 @@ function applyRuntimeStyleMessagePrompt(
   return `[本次任务风格要求]\n${runtimeStyleMessagePrompt}\n\n[用户输入]\n${text}`;
 }
 
-function buildPreparedRuntimeTeamBlueprint(
-  runtimeTeamState: TeamWorkspaceRuntimeFormationState | null | undefined,
-): HarnessTurnTeamBlueprint | undefined {
-  if (!runtimeTeamState || runtimeTeamState.status !== "formed") {
-    return undefined;
-  }
-
-  return {
-    label:
-      runtimeTeamState.label?.trim() ||
-      runtimeTeamState.blueprint?.label?.trim() ||
-      undefined,
-    description:
-      runtimeTeamState.summary?.trim() ||
-      runtimeTeamState.blueprint?.summary?.trim() ||
-      undefined,
-    roles:
-      runtimeTeamState.members.length > 0
-        ? runtimeTeamState.members.map((member, index) => ({
-            id: member.id?.trim() || `runtime-member-${index + 1}`,
-            label: member.label?.trim() || `角色 ${index + 1}`,
-            summary:
-              member.summary?.trim() ||
-              `${member.label?.trim() || `角色 ${index + 1}`}负责当前子任务。`,
-            profileId: member.profileId?.trim() || undefined,
-            roleKey: member.roleKey?.trim() || undefined,
-            skillIds:
-              member.skillIds.length > 0 ? [...member.skillIds] : undefined,
-          }))
-        : undefined,
-  };
-}
-
 export type WorkspaceHandleSend = (
   images?: MessageImage[],
   webSearch?: boolean,
@@ -219,16 +159,10 @@ export function useWorkspaceSendActions({
   setChatToolPreferences,
   activeTheme,
   mappedTheme,
-  creationMode,
-  chatMode,
   isThemeWorkbench,
   contextWorkspace,
   runtimeStyleMessagePrompt,
   projectId,
-  sessionId,
-  providerType,
-  model,
-  setModel,
   executionStrategy,
   preferredTeamPresetId,
   selectedTeam,
@@ -237,6 +171,7 @@ export function useWorkspaceSendActions({
   currentGateKey,
   themeWorkbenchActiveQueueTitle,
   contentId,
+  workspaceRequestMetadataBase,
   messagesCount,
   sendMessage,
   resolveSendBoundary,
@@ -244,26 +179,11 @@ export function useWorkspaceSendActions({
   maybeStartBrowserTaskPreflight,
   finalizeAfterSendSuccess,
   rollbackAfterSendFailure,
-  prepareRuntimeTeamBeforeSend,
+  prepareRuntimeTeamBeforeSend: _prepareRuntimeTeamBeforeSend,
   setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
   handleImageWorkbenchCommand,
 }: UseWorkspaceSendActionsParams) {
-  const thinkingVariantWarnedRef = useRef<Set<string>>(new Set());
-
-  const resolveSendProviderContext = useCallback(async () => {
-    const configuredProviders = await loadConfiguredProviders();
-    const selectedProvider =
-      configuredProviders.find((provider) => provider.key === providerType) ||
-      null;
-    const providerModels = await loadProviderModels(selectedProvider);
-
-    return {
-      selectedProvider,
-      providerModels,
-    };
-  }, [providerType]);
-
   const handleSend = useCallback<WorkspaceHandleSend>(
     async (
       images,
@@ -383,220 +303,67 @@ export function useWorkspaceSendActions({
       setRuntimeTeamDispatchPreview(null);
 
       try {
-        const { selectedProvider, providerModels } =
-          await resolveSendProviderContext();
-        const memoryParams = {
-          scope: "aster" as const,
-          workspaceId: projectId,
-          sessionId,
-          providerKey: providerType,
-        };
-        const rememberedBaseModel = loadRememberedBaseModel(memoryParams);
-        let effectiveModel = model;
-
-        if (effectiveThinking) {
-          if (!isReasoningModel(model, providerModels)) {
-            saveRememberedBaseModel({
-              ...memoryParams,
-              modelId: model,
-            });
-          }
-
-          const thinkingResult = resolveThinkingModel({
-            currentModelId: model,
-            models: providerModels,
-          });
-          effectiveModel = thinkingResult.targetModelId;
-
-          if (thinkingResult.switched) {
-            setModel(thinkingResult.targetModelId);
-          } else if (
-            thinkingResult.reason === "no_variant" &&
-            providerModels.length > 0
-          ) {
-            const warnKey = `${providerType}:${model}`;
-            if (!thinkingVariantWarnedRef.current.has(warnKey)) {
-              thinkingVariantWarnedRef.current.add(warnKey);
-              toast.warning(
-                "当前 Provider 没有可用的 Thinking 模型，已保持原模型",
-              );
-            }
-          }
-        } else {
-          const restoreResult = resolveBaseModelOnThinkingOff({
-            currentModelId: model,
-            models: providerModels,
-            rememberedBaseModel,
-          });
-          effectiveModel = restoreResult.targetModelId;
-
-          if (restoreResult.switched) {
-            setModel(restoreResult.targetModelId);
-          }
-        }
-
-        const compatibilityResult = resolveProviderModelCompatibility({
-          providerType,
-          configuredProviderType: selectedProvider?.type,
-          model: effectiveModel,
-        });
-        if (compatibilityResult.changed) {
-          effectiveModel = compatibilityResult.model;
-          if (model !== compatibilityResult.model) {
-            setModel(compatibilityResult.model);
-          }
-          if (compatibilityResult.reason) {
-            toast.warning(compatibilityResult.reason);
-          }
-        }
-
-        if ((images?.length || 0) > 0) {
-          const visionResult = resolveVisionModel({
-            currentModelId: effectiveModel,
-            models: providerModels,
-          });
-
-          if (visionResult.reason === "no_vision_model") {
-            toast.error(
-              "当前 Provider 没有可用的多模态模型，请切换到支持多模态的 Provider 或模型后再发送图片",
-            );
-            return false;
-          }
-
-          if (visionResult.reason !== "already_vision") {
-            const suggestedModel = visionResult.targetModelId.trim();
-            toast.error(
-              suggestedModel
-                ? `当前模型 ${effectiveModel} 不支持多模态图片理解，请切换到 ${suggestedModel} 或其他支持多模态的模型后再发送图片`
-                : `当前模型 ${effectiveModel} 不支持多模态图片理解，请切换到支持多模态的模型后再发送图片`,
-            );
-            return false;
-          }
-        }
-
-        const shouldPrepareRuntimeTeam = shouldPrepareRuntimeTeamBeforeSend({
-          subagentEnabled: effectiveToolPreferences.subagent,
-          projectId,
+        const preparedRuntimeTeamState = await _prepareRuntimeTeamBeforeSend({
           input: sourceText,
           purpose: sendOptions?.purpose,
+          subagentEnabled: effectiveToolPreferences.subagent,
         });
-        const runtimeTeamDispatchPreviewKey = shouldPrepareRuntimeTeam
-          ? crypto.randomUUID()
-          : null;
-        if (shouldPrepareRuntimeTeam) {
+        if (preparedRuntimeTeamState) {
           setRuntimeTeamDispatchPreview({
-            key: runtimeTeamDispatchPreviewKey as string,
+            key: preparedRuntimeTeamState.requestId,
             prompt: sourceText,
             images: images || [],
             baseMessageCount: messagesCount,
-            status: "forming",
-            formationState: null,
+            status: preparedRuntimeTeamState.status,
+            formationState: preparedRuntimeTeamState,
+            failureMessage:
+              preparedRuntimeTeamState.errorMessage?.trim() || null,
           });
         }
-        const preparedRuntimeTeamState = await prepareRuntimeTeamBeforeSend({
-          input: sourceText,
-          providerType,
-          model: effectiveModel,
-          executionStrategy: sendExecutionStrategy ?? executionStrategy,
-          purpose: sendOptions?.purpose,
-          subagentEnabled: effectiveToolPreferences.subagent,
-        });
-        if (runtimeTeamDispatchPreviewKey) {
-          if (preparedRuntimeTeamState?.status === "formed") {
-            setRuntimeTeamDispatchPreview((current) =>
-              current?.key === runtimeTeamDispatchPreviewKey
-                ? {
-                    ...current,
-                    status: "formed",
-                    formationState: preparedRuntimeTeamState,
-                    failureMessage: null,
-                  }
-                : current,
-            );
-          } else if (preparedRuntimeTeamState?.status === "failed") {
-            setRuntimeTeamDispatchPreview((current) =>
-              current?.key === runtimeTeamDispatchPreviewKey
-                ? {
-                    ...current,
-                    status: "failed",
-                    formationState: null,
-                    failureMessage:
-                      preparedRuntimeTeamState.errorMessage?.trim() || null,
-                  }
-                : current,
-            );
-          }
-        }
-
-        const preparedRuntimeTeamBlueprint =
-          buildPreparedRuntimeTeamBlueprint(preparedRuntimeTeamState);
-        const turnTeamDecision =
-          preparedRuntimeTeamState?.status === "formed"
-            ? "team_prepared"
-            : "single_agent";
-        const turnTeamReason =
-          preparedRuntimeTeamState?.status === "formed"
-            ? "runtime_team_prepared"
-            : shouldPrepareRuntimeTeam
-              ? "runtime_team_generation_failed"
-              : !effectiveToolPreferences.subagent
-              ? "subagent_disabled"
-              : sendOptions?.purpose
-                ? "turn_purpose_override"
-                : "single_agent_direct";
-        const assistantDraft =
-          preparedRuntimeTeamState?.status === "formed"
-            ? buildRuntimeTeamAssistantDraft(preparedRuntimeTeamState)
-            : undefined;
 
         setInput("");
         setMentionedCharacters([]);
 
-        const existingHarnessMetadata = extractExistingHarnessMetadata(
-          sendOptions?.requestMetadata,
-        );
+        const existingHarnessMetadata = extractExistingHarnessMetadata({
+          ...(workspaceRequestMetadataBase || {}),
+          ...(sendOptions?.requestMetadata || {}),
+        });
+        const nextRequestMetadata: Record<string, unknown> = {
+          ...(workspaceRequestMetadataBase || {}),
+          ...(sendOptions?.requestMetadata || {}),
+          harness: buildHarnessRequestMetadata({
+            base: existingHarnessMetadata,
+            theme: mappedTheme,
+            turnPurpose: sendOptions?.purpose,
+            preferences: {
+              webSearch: effectiveWebSearch,
+              thinking: effectiveThinking,
+              task: effectiveToolPreferences.task,
+              subagent: effectiveToolPreferences.subagent,
+            },
+            sessionMode: isThemeWorkbench ? "theme_workbench" : "default",
+            gateKey: isThemeWorkbench ? currentGateKey : undefined,
+            runTitle: themeWorkbenchActiveQueueTitle?.trim() || undefined,
+            contentId: contentId || undefined,
+            browserRequirement: browserRequirementMatch?.requirement,
+            browserRequirementReason: browserRequirementMatch?.reason,
+            browserLaunchUrl: browserRequirementMatch?.launchUrl,
+            browserAssistProfileKey:
+              mappedTheme === "general"
+                ? GENERAL_BROWSER_ASSIST_PROFILE_KEY
+                : undefined,
+            preferredTeamPresetId,
+            selectedTeamId: selectedTeam?.id,
+            selectedTeamSource: selectedTeam?.source,
+            selectedTeamLabel,
+            selectedTeamSummary,
+            selectedTeamRoles: selectedTeam?.roles,
+          }),
+        };
         const nextSendOptions: HandleSendOptions = {
           ...(sendOptions || {}),
-          requestMetadata: {
-            ...(sendOptions?.requestMetadata || {}),
-            harness: buildHarnessRequestMetadata({
-              base: existingHarnessMetadata,
-              theme: mappedTheme,
-              creationMode,
-              chatMode,
-              webSearchEnabled: effectiveWebSearch,
-              thinkingEnabled: effectiveThinking,
-              taskModeEnabled: effectiveToolPreferences.task,
-              subagentModeEnabled: effectiveToolPreferences.subagent,
-              sessionMode: isThemeWorkbench ? "theme_workbench" : "default",
-              gateKey: isThemeWorkbench ? currentGateKey : undefined,
-              runTitle: themeWorkbenchActiveQueueTitle?.trim() || undefined,
-              contentId: contentId || undefined,
-              browserRequirement: browserRequirementMatch?.requirement,
-              browserRequirementReason: browserRequirementMatch?.reason,
-              browserLaunchUrl: browserRequirementMatch?.launchUrl,
-              browserAssistProfileKey:
-                mappedTheme === "general"
-                  ? GENERAL_BROWSER_ASSIST_PROFILE_KEY
-                  : undefined,
-              preferredTeamPresetId,
-              selectedTeamId: selectedTeam?.id,
-              selectedTeamSource: selectedTeam?.source,
-              selectedTeamLabel,
-              selectedTeamSummary,
-              selectedTeamRoles: selectedTeam?.roles,
-              turnTeamDecision,
-              turnTeamReason,
-              turnTeamBlueprint: preparedRuntimeTeamBlueprint,
-            }),
-          },
+          requestMetadata: nextRequestMetadata,
         };
-        const runtimeSendOptions = assistantDraft
-          ? {
-              ...nextSendOptions,
-              assistantDraft,
-            }
-          : nextSendOptions;
 
         await sendMessage(
           text,
@@ -605,9 +372,9 @@ export function useWorkspaceSendActions({
           effectiveThinking,
           false,
           sendExecutionStrategy,
-          effectiveModel,
+          undefined,
           autoContinuePayload,
-          runtimeSendOptions,
+          nextSendOptions,
         );
 
         finalizeAfterSendSuccess(sendBoundary);
@@ -634,14 +401,11 @@ export function useWorkspaceSendActions({
     },
     [
       activeTheme,
-      chatMode,
       chatToolPreferences,
       contentId,
       contextWorkspace,
-      creationMode,
       currentGateKey,
       ensureBrowserAssistCanvas,
-      executionStrategy,
       finalizeAfterSendSuccess,
       handleImageWorkbenchCommand,
       input,
@@ -651,25 +415,21 @@ export function useWorkspaceSendActions({
       maybeStartBrowserTaskPreflight,
       mentionedCharacters,
       messagesCount,
-      model,
       preferredTeamPresetId,
-      prepareRuntimeTeamBeforeSend,
+      _prepareRuntimeTeamBeforeSend,
       projectId,
-      providerType,
       resolveSendBoundary,
-      resolveSendProviderContext,
       rollbackAfterSendFailure,
       runtimeStyleMessagePrompt,
       selectedTeam,
       selectedTeamLabel,
       selectedTeamSummary,
       sendMessage,
-      sessionId,
       setMentionedCharacters,
       setInput,
-      setModel,
       setRuntimeTeamDispatchPreview,
       themeWorkbenchActiveQueueTitle,
+      workspaceRequestMetadataBase,
     ],
   );
 

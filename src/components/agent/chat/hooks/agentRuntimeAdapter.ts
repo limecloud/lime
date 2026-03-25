@@ -1,6 +1,11 @@
 import { safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
+  createSubmitTurnRequestFromAgentOp,
+  type AgentEvent,
+  type AgentOp,
+} from "@/lib/api/agentProtocol";
+import {
   compactAgentRuntimeSession,
   createAgentRuntimeSession,
   deleteAgentRuntimeSession,
@@ -18,33 +23,10 @@ import {
   submitAgentRuntimeTurn,
   updateAgentRuntimeSession,
   type AsterExecutionStrategy,
-  type AsterProviderConfig,
-  type AgentSearchMode,
   type AsterSessionDetail,
   type AsterSessionInfo,
-  type AutoContinueRequestPayload,
-  type ImageInput,
 } from "@/lib/api/agentRuntime";
-import type { StreamEvent } from "@/lib/api/agentStream";
 import type { ActionRequiredScope } from "../types";
-
-export interface AgentRuntimeTurnRequest {
-  message: string;
-  sessionId: string;
-  eventName: string;
-  workspaceId: string;
-  turnId?: string;
-  images?: ImageInput[];
-  providerConfig?: AsterProviderConfig;
-  executionStrategy?: AsterExecutionStrategy;
-  webSearch?: boolean;
-  searchMode?: AgentSearchMode;
-  autoContinue?: AutoContinueRequestPayload;
-  systemPrompt?: string;
-  metadata?: Record<string, unknown>;
-  queueIfBusy?: boolean;
-  queuedTurnId?: string;
-}
 
 export interface AgentRuntimeActionResponse {
   sessionId: string;
@@ -78,7 +60,7 @@ export interface AgentRuntimeAdapter {
     sessionId: string,
     executionStrategy: AsterExecutionStrategy,
   ): Promise<void>;
-  submitTurn(request: AgentRuntimeTurnRequest): Promise<void>;
+  submitOp(op: AgentOp): Promise<void>;
   compactSession(sessionId: string, eventName: string): Promise<void>;
   interruptTurn(sessionId: string): Promise<boolean>;
   resumeThread(sessionId: string): Promise<boolean>;
@@ -87,11 +69,11 @@ export interface AgentRuntimeAdapter {
   respondToAction(request: AgentRuntimeActionResponse): Promise<void>;
   listenToTurnEvents(
     eventName: string,
-    handler: (event: { payload: StreamEvent | unknown }) => void,
+    handler: (event: { payload: AgentEvent | unknown }) => void,
   ): Promise<UnlistenFn>;
   listenToTeamEvents(
     eventName: string,
-    handler: (event: { payload: StreamEvent | unknown }) => void,
+    handler: (event: { payload: AgentEvent | unknown }) => void,
   ): Promise<UnlistenFn>;
 }
 
@@ -132,26 +114,14 @@ export const defaultAgentRuntimeAdapter: AgentRuntimeAdapter = {
       execution_strategy: executionStrategy,
     });
   },
-  async submitTurn(request) {
-    await submitAgentRuntimeTurn({
-      message: request.message,
-      session_id: request.sessionId,
-      event_name: request.eventName,
-      workspace_id: request.workspaceId,
-      turn_id: request.turnId,
-      images: request.images,
-      turn_config: {
-        provider_config: request.providerConfig,
-        execution_strategy: request.executionStrategy,
-        web_search: request.webSearch,
-        search_mode: request.searchMode,
-        auto_continue: request.autoContinue,
-        system_prompt: request.systemPrompt,
-        metadata: request.metadata,
-      },
-      queue_if_busy: request.queueIfBusy,
-      queued_turn_id: request.queuedTurnId,
-    });
+  async submitOp(op) {
+    switch (op.type) {
+      case "user_input":
+        await submitAgentRuntimeTurn(createSubmitTurnRequestFromAgentOp(op));
+        return;
+      default:
+        throw new Error(`当前 runtime adapter 尚不支持 AgentOp: ${op.type}`);
+    }
   },
   async compactSession(sessionId, eventName) {
     await compactAgentRuntimeSession({
@@ -203,9 +173,9 @@ export const defaultAgentRuntimeAdapter: AgentRuntimeAdapter = {
     });
   },
   async listenToTurnEvents(eventName, handler) {
-    return safeListen<StreamEvent>(eventName, handler);
+    return safeListen<AgentEvent>(eventName, handler);
   },
   async listenToTeamEvents(eventName, handler) {
-    return safeListen<StreamEvent>(eventName, handler);
+    return safeListen<AgentEvent>(eventName, handler);
   },
 };

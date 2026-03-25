@@ -7,16 +7,28 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 import { logAgentDebug } from "@/lib/agentDebug";
 import type {
+  AgentMessage,
   AgentThreadItem,
   AgentThreadTurn,
-  ToolResultImage,
-} from "./agentStream";
+} from "./agentProtocol";
+import type {
+  AsterExecutionStrategy,
+  AsterSessionExecutionRuntime,
+} from "./agentExecutionRuntime";
 import {
   normalizeQueuedTurnSnapshots,
   type QueuedTurnSnapshot,
 } from "./queuedTurn";
 
 export type { QueuedTurnSnapshot } from "./queuedTurn";
+export type {
+  AsterExecutionStrategy,
+  AsterSessionExecutionRuntime,
+  AsterSessionExecutionRuntimeSource,
+  AsterTurnOutputSchemaRuntime,
+  AsterTurnOutputSchemaSource,
+  AsterTurnOutputSchemaStrategy,
+} from "./agentExecutionRuntime";
 
 /**
  * Agent 状态
@@ -26,8 +38,6 @@ export interface AgentProcessStatus {
   base_url?: string;
   port?: number;
 }
-
-export type AsterExecutionStrategy = "react" | "code_orchestrated" | "auto";
 
 /**
  * 图片输入
@@ -302,30 +312,6 @@ export interface AsterSubagentParentContext {
 }
 
 /**
- * TauriMessageContent（匹配后端 TauriMessageContent 枚举）
- */
-export interface TauriMessageContent {
-  type: string;
-  text?: string;
-  image_url?: { url: string; detail?: string } | string;
-  id?: string;
-  action_type?: string;
-  data?: unknown;
-  scope?: {
-    session_id?: string;
-    thread_id?: string;
-    turn_id?: string;
-  };
-  tool_name?: string;
-  arguments?: unknown;
-  success?: boolean;
-  output?: string;
-  error?: string;
-  images?: ToolResultImage[];
-  mime_type?: string;
-}
-
-/**
  * Aster 会话详情（匹配后端 SessionDetail 结构）
  */
 export interface AsterSessionDetail {
@@ -338,12 +324,8 @@ export interface AsterSessionDetail {
   workspace_id?: string;
   working_dir?: string;
   execution_strategy?: AsterExecutionStrategy;
-  messages: Array<{
-    id?: string;
-    role: string;
-    content: TauriMessageContent[];
-    timestamp: number;
-  }>;
+  execution_runtime?: AsterSessionExecutionRuntime | null;
+  messages: AgentMessage[];
   turns?: AgentThreadTurn[];
   items?: AgentThreadItem[];
   queued_turns?: QueuedTurnSnapshot[];
@@ -368,6 +350,9 @@ function normalizeThreadReadModel(
 
 export interface AgentTurnConfigSnapshot {
   provider_config?: AsterProviderConfig;
+  provider_preference?: string;
+  model_preference?: string;
+  thinking_enabled?: boolean;
   execution_strategy?: AsterExecutionStrategy;
   web_search?: boolean;
   search_mode?: AgentSearchMode;

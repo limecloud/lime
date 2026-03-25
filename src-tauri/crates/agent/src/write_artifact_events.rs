@@ -1,4 +1,8 @@
-use crate::event_converter::{TauriAgentEvent, TauriArtifactSnapshot, TauriToolResult};
+use crate::artifact_protocol::{
+    extract_artifact_protocol_paths_from_metadata, extract_artifact_protocol_paths_from_value,
+    normalize_artifact_protocol_path,
+};
+use crate::protocol::{AgentArtifactSignal, AgentEvent as RuntimeAgentEvent, AgentToolResult};
 use regex::Regex;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -41,6 +45,53 @@ pub struct WriteArtifactEventEmitter {
     tracked_artifacts: HashMap<String, TrackedArtifactState>,
 }
 
+fn push_processed_event(
+    target: &mut Vec<RuntimeAgentEvent>,
+    emitter: &mut WriteArtifactEventEmitter,
+    mut event: RuntimeAgentEvent,
+) {
+    target.extend(emitter.process_event(&mut event));
+    target.push(event);
+}
+
+pub fn build_write_tool_artifact_events(
+    scope_id: &str,
+    tool_name: &str,
+    tool_id: &str,
+    file_path: &str,
+    file_content: &str,
+    result: AgentToolResult,
+) -> Vec<RuntimeAgentEvent> {
+    let arguments = serde_json::json!({
+        "path": file_path,
+        "content": file_content,
+    })
+    .to_string();
+    let mut emitter = WriteArtifactEventEmitter::new(scope_id.to_string());
+    let mut events = Vec::new();
+
+    push_processed_event(
+        &mut events,
+        &mut emitter,
+        RuntimeAgentEvent::ToolStart {
+            tool_name: tool_name.to_string(),
+            tool_id: tool_id.to_string(),
+            arguments: Some(arguments),
+        },
+    );
+
+    push_processed_event(
+        &mut events,
+        &mut emitter,
+        RuntimeAgentEvent::ToolEnd {
+            tool_id: tool_id.to_string(),
+            result,
+        },
+    );
+
+    events
+}
+
 impl WriteArtifactEventEmitter {
     pub fn new(scope_id: impl Into<String>) -> Self {
         Self {
@@ -49,15 +100,15 @@ impl WriteArtifactEventEmitter {
         }
     }
 
-    pub fn process_event(&mut self, event: &mut TauriAgentEvent) -> Vec<TauriAgentEvent> {
+    pub fn process_event(&mut self, event: &mut RuntimeAgentEvent) -> Vec<RuntimeAgentEvent> {
         match event {
-            TauriAgentEvent::ToolStart {
+            RuntimeAgentEvent::ToolStart {
                 tool_name,
                 tool_id,
                 arguments,
             } => self.handle_tool_start(tool_name, tool_id, arguments.as_deref()),
-            TauriAgentEvent::TextDelta { text } => self.handle_text_delta(text),
-            TauriAgentEvent::ToolEnd { tool_id, result } => self.handle_tool_end(tool_id, result),
+            RuntimeAgentEvent::TextDelta { text } => self.handle_text_delta(text),
+            RuntimeAgentEvent::ToolEnd { tool_id, result } => self.handle_tool_end(tool_id, result),
             _ => Vec::new(),
         }
     }
@@ -67,7 +118,7 @@ impl WriteArtifactEventEmitter {
         tool_name: &str,
         tool_id: &str,
         arguments: Option<&str>,
-    ) -> Vec<TauriAgentEvent> {
+    ) -> Vec<RuntimeAgentEvent> {
         let Some(arguments_value) = parse_json_str(arguments) else {
             return Vec::new();
         };
@@ -116,7 +167,7 @@ impl WriteArtifactEventEmitter {
         events
     }
 
-    fn handle_text_delta(&mut self, text: &str) -> Vec<TauriAgentEvent> {
+    fn handle_text_delta(&mut self, text: &str) -> Vec<RuntimeAgentEvent> {
         if text.is_empty() {
             return Vec::new();
         }
@@ -176,8 +227,8 @@ impl WriteArtifactEventEmitter {
     fn handle_tool_end(
         &mut self,
         tool_id: &str,
-        result: &mut TauriToolResult,
-    ) -> Vec<TauriAgentEvent> {
+        result: &mut AgentToolResult,
+    ) -> Vec<RuntimeAgentEvent> {
         let artifacts = self.collect_tool_end_artifacts(tool_id, result.metadata.as_ref());
         if artifacts.is_empty() {
             return Vec::new();
@@ -378,9 +429,9 @@ fn build_artifact_snapshot_event(
     file_path: &str,
     content: &str,
     metadata: HashMap<String, Value>,
-) -> TauriAgentEvent {
-    TauriAgentEvent::ArtifactSnapshot {
-        artifact: TauriArtifactSnapshot {
+) -> RuntimeAgentEvent {
+    RuntimeAgentEvent::ArtifactSnapshot {
+        artifact: AgentArtifactSignal {
             artifact_id: artifact_id.into(),
             file_path: file_path.to_string(),
             content: Some(content.to_string()),
@@ -393,7 +444,7 @@ fn build_artifact_snapshot_event(
     }
 }
 
-fn annotate_tool_result_metadata(result: &mut TauriToolResult, artifacts: &[ToolEndArtifact]) {
+fn annotate_tool_result_metadata(result: &mut AgentToolResult, artifacts: &[ToolEndArtifact]) {
     let metadata = result.metadata.get_or_insert_with(HashMap::new);
     metadata.insert("artifact_streamed".to_string(), Value::Bool(true));
 
@@ -520,28 +571,7 @@ fn parse_json_str(raw: Option<&str>) -> Option<Value> {
 }
 
 fn extract_candidate_paths(value: &Value) -> Vec<String> {
-    let Some(object) = value.as_object() else {
-        return Vec::new();
-    };
-
-    let mut paths = Vec::new();
-    for key in [
-        "path",
-        "file_path",
-        "filePath",
-        "target_path",
-        "targetPath",
-        "output_path",
-        "outputPath",
-        "artifact_path",
-        "artifactPath",
-        "artifact_paths",
-        "artifactPaths",
-    ] {
-        if let Some(candidate) = object.get(key) {
-            push_paths_from_value(&mut paths, candidate);
-        }
-    }
+    let mut paths = extract_artifact_protocol_paths_from_value(value);
 
     if paths.is_empty() {
         if let Some(patch_text) = extract_candidate_patch_text(value) {
@@ -616,7 +646,7 @@ fn push_paths_from_patch_text(target: &mut Vec<String>, patch_text: &str) {
             "*** Move to:",
         ] {
             if let Some(path) = trimmed.strip_prefix(prefix) {
-                if let Some(normalized) = normalize_path(path.trim()) {
+                if let Some(normalized) = normalize_artifact_protocol_path(path.trim()) {
                     if !target.iter().any(|item| item == &normalized) {
                         target.push(normalized);
                     }
@@ -642,10 +672,10 @@ fn extract_embedded_metadata(value: &Value) -> Option<HashMap<String, Value>> {
     None
 }
 
-fn push_paths_from_value(target: &mut Vec<String>, value: &Value) {
+fn push_compat_paths_from_value(target: &mut Vec<String>, value: &Value) {
     match value {
         Value::String(path) => {
-            if let Some(normalized) = normalize_path(path) {
+            if let Some(normalized) = normalize_artifact_protocol_path(path) {
                 if !target.iter().any(|item| item == &normalized) {
                     target.push(normalized);
                 }
@@ -653,19 +683,10 @@ fn push_paths_from_value(target: &mut Vec<String>, value: &Value) {
         }
         Value::Array(values) => {
             for nested in values {
-                push_paths_from_value(target, nested);
+                push_compat_paths_from_value(target, nested);
             }
         }
         _ => {}
-    }
-}
-
-fn normalize_path(raw: &str) -> Option<String> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.replace('\\', "/"))
     }
 }
 
@@ -676,23 +697,10 @@ fn extract_artifacts_from_metadata(
         return Vec::new();
     };
 
-    let mut paths = Vec::new();
-    for key in [
-        "artifact_paths",
-        "artifact_path",
-        "path",
-        "absolute_path",
-        "output_file",
-        "file_path",
-        "output_path",
-        "filePath",
-        "outputPath",
-        "article_path",
-        "cover_meta_path",
-        "publish_path",
-    ] {
+    let mut paths = extract_artifact_protocol_paths_from_metadata(metadata);
+    for key in ["article_path", "cover_meta_path", "publish_path"] {
         if let Some(value) = metadata.get(key) {
-            push_paths_from_value(&mut paths, value);
+            push_compat_paths_from_value(&mut paths, value);
         }
     }
 
@@ -755,7 +763,7 @@ fn parse_write_file_blocks(text: &str) -> Vec<ParsedWriteBlock> {
 
         let open_start = search_offset + full_match.start();
         let open_end = search_offset + full_match.end();
-        let Some(path) = normalize_path(path_match.as_str()) else {
+        let Some(path) = normalize_artifact_protocol_path(path_match.as_str()) else {
             search_offset = open_end;
             continue;
         };
@@ -801,13 +809,13 @@ mod tests {
     use super::*;
 
     fn assert_snapshot(
-        event: &TauriAgentEvent,
+        event: &RuntimeAgentEvent,
         expected_path: &str,
         expected_content: &str,
         expected_complete: bool,
     ) -> String {
         match event {
-            TauriAgentEvent::ArtifactSnapshot { artifact } => {
+            RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
                 assert_eq!(artifact.file_path, expected_path);
                 assert_eq!(artifact.content.as_deref(), Some(expected_content));
                 assert_eq!(
@@ -827,7 +835,7 @@ mod tests {
     #[test]
     fn tool_start_with_path_only_emits_preparing_snapshot() {
         let mut emitter = WriteArtifactEventEmitter::new("session-1");
-        let mut event = TauriAgentEvent::ToolStart {
+        let mut event = RuntimeAgentEvent::ToolStart {
             tool_name: "write_file".to_string(),
             tool_id: "tool-1".to_string(),
             arguments: Some(r#"{"path":"drafts/demo.md"}"#.to_string()),
@@ -838,7 +846,7 @@ mod tests {
         let artifact_id = assert_snapshot(&extras[0], "drafts/demo.md", "", false);
 
         match &extras[0] {
-            TauriAgentEvent::ArtifactSnapshot { artifact } => {
+            RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
                 assert_eq!(
                     artifact
                         .metadata
@@ -856,7 +864,7 @@ mod tests {
     #[test]
     fn tool_start_apply_patch_emits_preparing_snapshot_for_target_file() {
         let mut emitter = WriteArtifactEventEmitter::new("session-1");
-        let mut event = TauriAgentEvent::ToolStart {
+        let mut event = RuntimeAgentEvent::ToolStart {
             tool_name: "apply_patch".to_string(),
             tool_id: "tool-patch-1".to_string(),
             arguments: Some(
@@ -874,7 +882,7 @@ mod tests {
     #[test]
     fn shell_apply_patch_command_emits_preparing_snapshot_for_target_file() {
         let mut emitter = WriteArtifactEventEmitter::new("session-1");
-        let mut event = TauriAgentEvent::ToolStart {
+        let mut event = RuntimeAgentEvent::ToolStart {
             tool_name: "bash".to_string(),
             tool_id: "tool-shell-patch-1".to_string(),
             arguments: Some(
@@ -892,10 +900,10 @@ mod tests {
     #[test]
     fn text_delta_write_file_stream_emits_incremental_snapshots() {
         let mut emitter = WriteArtifactEventEmitter::new("session-1");
-        let mut first = TauriAgentEvent::TextDelta {
+        let mut first = RuntimeAgentEvent::TextDelta {
             text: "开始 <write_file path=\"notes/demo.md\">Hello".to_string(),
         };
-        let mut second = TauriAgentEvent::TextDelta {
+        let mut second = RuntimeAgentEvent::TextDelta {
             text: " world</write_file> 完成".to_string(),
         };
 
@@ -912,16 +920,16 @@ mod tests {
     #[test]
     fn tool_end_emits_completed_snapshot_and_backfills_metadata() {
         let mut emitter = WriteArtifactEventEmitter::new("session-1");
-        let mut tool_start = TauriAgentEvent::ToolStart {
+        let mut tool_start = RuntimeAgentEvent::ToolStart {
             tool_name: "write_file".to_string(),
             tool_id: "tool-1".to_string(),
             arguments: Some(r##"{"path":"drafts/demo.md","content":"# 标题"}"##.to_string()),
         };
         emitter.process_event(&mut tool_start);
 
-        let mut tool_end = TauriAgentEvent::ToolEnd {
+        let mut tool_end = RuntimeAgentEvent::ToolEnd {
             tool_id: "tool-1".to_string(),
-            result: TauriToolResult {
+            result: AgentToolResult {
                 success: true,
                 output: "写入完成".to_string(),
                 error: None,
@@ -935,7 +943,7 @@ mod tests {
         let artifact_id = assert_snapshot(&extras[0], "drafts/demo.md", "# 标题", true);
 
         match &tool_end {
-            TauriAgentEvent::ToolEnd { result, .. } => {
+            RuntimeAgentEvent::ToolEnd { result, .. } => {
                 let metadata = result.metadata.as_ref().expect("tool_end metadata");
                 assert_eq!(
                     metadata.get("artifact_id").and_then(Value::as_str),
@@ -948,6 +956,101 @@ mod tests {
                 assert_eq!(
                     metadata.get("artifact_streamed").and_then(Value::as_bool),
                     Some(true)
+                );
+            }
+            _ => panic!("expected tool_end"),
+        }
+    }
+
+    #[test]
+    fn tool_end_reads_nested_artifact_protocol_metadata_paths() {
+        let mut emitter = WriteArtifactEventEmitter::new("session-1");
+        let mut tool_end = RuntimeAgentEvent::ToolEnd {
+            tool_id: "tool-2".to_string(),
+            result: AgentToolResult {
+                success: true,
+                output: "写入完成".to_string(),
+                error: None,
+                images: None,
+                metadata: Some(HashMap::from([
+                    (
+                        "artifact_id".to_string(),
+                        Value::String("artifact-social-1".to_string()),
+                    ),
+                    (
+                        "payload".to_string(),
+                        serde_json::json!({
+                            "artifact_paths": ["social-posts\\final.md"]
+                        }),
+                    ),
+                ])),
+            },
+        };
+
+        let extras = emitter.process_event(&mut tool_end);
+
+        assert_eq!(extras.len(), 1);
+        assert_snapshot(&extras[0], "social-posts/final.md", "", true);
+
+        match &tool_end {
+            RuntimeAgentEvent::ToolEnd { result, .. } => {
+                let metadata = result.metadata.as_ref().expect("tool_end metadata");
+                assert_eq!(
+                    metadata.get("path").and_then(Value::as_str),
+                    Some("social-posts/final.md")
+                );
+                assert_eq!(
+                    metadata.get("artifact_id").and_then(Value::as_str),
+                    Some("artifact-social-1")
+                );
+            }
+            _ => panic!("expected tool_end"),
+        }
+    }
+
+    #[test]
+    fn build_write_tool_artifact_events_emits_protocol_order() {
+        let events = build_write_tool_artifact_events(
+            "session-1",
+            "write_file",
+            "tool-3",
+            "drafts/demo.md",
+            "# 标题",
+            AgentToolResult {
+                success: true,
+                output: "写入完成".to_string(),
+                error: None,
+                images: None,
+                metadata: None,
+            },
+        );
+
+        assert_eq!(events.len(), 4);
+        assert_snapshot(&events[0], "drafts/demo.md", "# 标题", false);
+
+        match &events[1] {
+            RuntimeAgentEvent::ToolStart {
+                tool_name, tool_id, ..
+            } => {
+                assert_eq!(tool_name, "write_file");
+                assert_eq!(tool_id, "tool-3");
+            }
+            _ => panic!("expected tool_start"),
+        }
+
+        assert_snapshot(&events[2], "drafts/demo.md", "# 标题", true);
+
+        match &events[3] {
+            RuntimeAgentEvent::ToolEnd { tool_id, result } => {
+                assert_eq!(tool_id, "tool-3");
+                let metadata = result.metadata.as_ref().expect("tool_end metadata");
+                assert_eq!(
+                    metadata.get("artifact_streamed").and_then(Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    metadata.get("file_path").and_then(Value::as_str),
+                    Some("drafts/demo.md")
                 );
             }
             _ => panic!("expected tool_end"),

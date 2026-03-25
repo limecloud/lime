@@ -13,6 +13,7 @@ import type { Artifact } from "@/lib/artifact/types";
 import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
+import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 
 type NavigationActions = ReturnType<typeof useWorkspaceNavigationActions>;
 type InputbarScene = ReturnType<typeof useWorkspaceInputbarSceneRuntime>;
@@ -116,6 +117,10 @@ interface UseWorkspaceConversationSceneRuntimeParams {
     context?: WriteArtifactContext,
   ) => void | Promise<void>;
   handleFileClick: ConversationScenePresentationParams["messageList"]["onFileClick"];
+  handleOpenArtifactFromTimeline: (
+    target: ArtifactTimelineOpenTarget,
+  ) => void;
+  handleOpenSavedSiteContent: ConversationScenePresentationParams["messageList"]["onOpenSavedSiteContent"];
   handleArtifactClick: ConversationScenePresentationParams["messageList"]["onArtifactClick"];
   handleOpenSubagentSession: ConversationScenePresentationParams["messageList"]["onOpenSubagentSession"];
   handlePermissionResponseWithBrowserPreflight: ConversationScenePresentationParams["messageList"]["onPermissionResponse"];
@@ -140,6 +145,8 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   setCanvasWorkbenchLayoutMode: ConversationScenePresentationParams["canvasWorkbenchLayout"]["onLayoutModeChange"];
   workspacePathMissing: WorkspacePathMissingState | boolean | null;
   workspaceHealthError: boolean;
+  focusedTimelineItemId: string | null;
+  timelineFocusRequestKey: number;
 }
 
 export function useWorkspaceConversationSceneRuntime({
@@ -229,6 +236,8 @@ export function useWorkspaceConversationSceneRuntime({
   handleA2UISubmit,
   handleWriteFile,
   handleFileClick,
+  handleOpenArtifactFromTimeline,
+  handleOpenSavedSiteContent,
   handleArtifactClick,
   handleOpenSubagentSession,
   handlePermissionResponseWithBrowserPreflight,
@@ -253,6 +262,8 @@ export function useWorkspaceConversationSceneRuntime({
   setCanvasWorkbenchLayoutMode,
   workspacePathMissing,
   workspaceHealthError,
+  focusedTimelineItemId,
+  timelineFocusRequestKey,
 }: UseWorkspaceConversationSceneRuntimeParams) {
   const teamWorkspaceDockLayoutMode =
     layoutMode === "chat" ? "chat" : "chat-canvas";
@@ -383,6 +394,8 @@ export function useWorkspaceConversationSceneRuntime({
       onA2UISubmit: handleA2UISubmit,
       onWriteFile: handleWriteFile,
       onFileClick: handleFileClick,
+      onOpenArtifactFromTimeline: handleOpenArtifactFromTimeline,
+      onOpenSavedSiteContent: handleOpenSavedSiteContent,
       onArtifactClick: handleArtifactClick,
       onOpenSubagentSession: handleOpenSubagentSession,
       onPermissionResponse: handlePermissionResponseWithBrowserPreflight,
@@ -391,6 +404,8 @@ export function useWorkspaceConversationSceneRuntime({
       collapseCodeBlocks: shouldCollapseCodeBlocks,
       shouldCollapseCodeBlock: shouldCollapseCodeBlockInChat,
       onCodeBlockClick: handleCodeBlockClick,
+      focusedTimelineItemId,
+      timelineFocusRequestKey,
     },
     teamWorkspaceDock: {
       enabled: showTeamWorkspaceBoard,

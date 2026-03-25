@@ -261,6 +261,7 @@ export interface ChromeBridgeCommandRequest {
   target?: string;
   text?: string;
   url?: string;
+  payload?: unknown;
   wait_for_page_info?: boolean;
   timeout_ms?: number;
 }
@@ -327,6 +328,75 @@ export interface BrowserActionResult {
   data?: unknown;
   error?: string;
   attempts: BrowserActionAttempt[];
+}
+
+export interface SiteAdapterDefinition {
+  name: string;
+  domain: string;
+  description: string;
+  read_only: boolean;
+  capabilities: string[];
+  input_schema: Record<string, unknown>;
+  example_args: Record<string, unknown>;
+  example: string;
+  auth_hint?: string;
+  source_kind?: "bundled" | "server_synced";
+  source_version?: string;
+}
+
+export interface SiteAdapterCatalogStatus {
+  exists: boolean;
+  source_kind: "server_synced";
+  registry_version: number;
+  directory?: string;
+  catalog_version?: string;
+  tenant_id?: string;
+  synced_at?: string;
+  adapter_count: number;
+}
+
+export interface RunSiteAdapterRequest {
+  adapter_name: string;
+  args?: Record<string, unknown>;
+  profile_key?: string;
+  target_id?: string;
+  timeout_ms?: number;
+  project_id?: string;
+  save_title?: string;
+}
+
+export interface SiteAdapterRunResult {
+  ok: boolean;
+  adapter: string;
+  domain: string;
+  profile_key: string;
+  session_id?: string;
+  target_id?: string;
+  entry_url: string;
+  source_url?: string;
+  data?: unknown;
+  error_code?: string;
+  error_message?: string;
+  auth_hint?: string;
+  saved_content?: SavedSiteAdapterContent;
+  saved_project_id?: string;
+  saved_by?: "explicit_project";
+  save_skipped_project_id?: string;
+  save_skipped_by?: "explicit_project";
+  save_error_message?: string;
+}
+
+export interface SaveSiteAdapterResultRequest {
+  project_id: string;
+  save_title?: string;
+  run_request: RunSiteAdapterRequest;
+  result: SiteAdapterRunResult;
+}
+
+export interface SavedSiteAdapterContent {
+  content_id: string;
+  project_id: string;
+  title: string;
 }
 
 export type BrowserRuntimeAuditKind = "action" | "launch";
@@ -881,6 +951,73 @@ export async function browserExecuteAction(
   request: BrowserActionRequest,
 ): Promise<BrowserActionResult> {
   return safeInvoke<BrowserActionResult>("browser_execute_action", { request });
+}
+
+export async function siteListAdapters(): Promise<SiteAdapterDefinition[]> {
+  return safeInvoke<SiteAdapterDefinition[]>("site_list_adapters");
+}
+
+export async function siteSearchAdapters(
+  query: string,
+): Promise<SiteAdapterDefinition[]> {
+  return safeInvoke<SiteAdapterDefinition[]>("site_search_adapters", {
+    request: { query },
+  });
+}
+
+export async function siteGetAdapterInfo(
+  name: string,
+): Promise<SiteAdapterDefinition> {
+  return safeInvoke<SiteAdapterDefinition>("site_get_adapter_info", {
+    request: { name },
+  });
+}
+
+export async function siteGetAdapterCatalogStatus(): Promise<SiteAdapterCatalogStatus> {
+  return safeInvoke<SiteAdapterCatalogStatus>(
+    "site_get_adapter_catalog_status",
+  );
+}
+
+export async function siteApplyAdapterCatalogBootstrap(
+  payload: unknown,
+): Promise<SiteAdapterCatalogStatus> {
+  return safeInvoke<SiteAdapterCatalogStatus>(
+    "site_apply_adapter_catalog_bootstrap",
+    {
+      request: {
+        payload,
+      },
+    },
+  );
+}
+
+export async function siteClearAdapterCatalogCache(): Promise<SiteAdapterCatalogStatus> {
+  return safeInvoke<SiteAdapterCatalogStatus>(
+    "site_clear_adapter_catalog_cache",
+  );
+}
+
+export async function siteRunAdapter(
+  request: RunSiteAdapterRequest,
+): Promise<SiteAdapterRunResult> {
+  return safeInvoke<SiteAdapterRunResult>("site_run_adapter", { request });
+}
+
+export async function siteDebugRunAdapter(
+  request: RunSiteAdapterRequest,
+): Promise<SiteAdapterRunResult> {
+  return safeInvoke<SiteAdapterRunResult>("site_debug_run_adapter", {
+    request,
+  });
+}
+
+export async function siteSaveAdapterResult(
+  request: SaveSiteAdapterResultRequest,
+): Promise<SavedSiteAdapterContent> {
+  return safeInvoke<SavedSiteAdapterContent>("site_save_adapter_result", {
+    request,
+  });
 }
 
 export async function getBrowserRuntimeAuditLogs(

@@ -5,6 +5,13 @@ import {
   getChromeBridgeStatus,
   getBrowserRuntimeAuditLogs,
   launchBrowserSession,
+  siteDebugRunAdapter,
+  siteGetAdapterInfo,
+  siteGetAdapterCatalogStatus,
+  siteListAdapters,
+  siteRunAdapter,
+  siteSaveAdapterResult,
+  siteSearchAdapters,
   type BrowserEnvironmentLaunchConfig,
   type BrowserEnvironmentPresetRecord,
   type BrowserSessionLaunchResponse,
@@ -45,6 +52,12 @@ import {
   type CdpTargetInfo,
   type SaveBrowserEnvironmentPresetRequest,
   type SaveBrowserProfileRequest,
+  type RunSiteAdapterRequest,
+  type SaveSiteAdapterResultRequest,
+  type SavedSiteAdapterContent,
+  type SiteAdapterDefinition,
+  type SiteAdapterCatalogStatus,
+  type SiteAdapterRunResult,
 } from "@/lib/webview-api";
 import {
   hasNativeTauriEventSupport,
@@ -70,8 +83,14 @@ export type {
   CdpSessionState,
   CdpTargetInfo,
   OpenChromeProfileResponse,
+  RunSiteAdapterRequest,
+  SaveSiteAdapterResultRequest,
   SaveBrowserProfileRequest,
   SaveBrowserEnvironmentPresetRequest,
+  SavedSiteAdapterContent,
+  SiteAdapterDefinition,
+  SiteAdapterCatalogStatus,
+  SiteAdapterRunResult,
 };
 
 export const browserRuntimeApi = {
@@ -100,6 +119,13 @@ export const browserRuntimeApi = {
   openBrowserRuntimeDebuggerWindow,
   launchBrowserRuntimeAssist,
   browserExecuteAction,
+  siteListAdapters,
+  siteSearchAdapters,
+  siteGetAdapterInfo,
+  siteGetAdapterCatalogStatus,
+  siteRunAdapter,
+  siteDebugRunAdapter,
+  siteSaveAdapterResult,
   reopenProfileWindow: (params: { profile_key: string; url: string }) =>
     openChromeProfileWindow(params),
   listenBrowserEvent: (handler: (event: { payload: BrowserEvent }) => void) =>

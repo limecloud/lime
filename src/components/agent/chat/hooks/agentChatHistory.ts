@@ -1,6 +1,7 @@
-import type { ContextTraceStep } from "@/lib/api/agentStream";
+import type { AgentContextTraceStep as ContextTraceStep } from "@/lib/api/agentProtocol";
 import type { Message, MessageImage, ContentPart } from "../types";
 import type { AsterSessionDetail } from "@/lib/api/agentRuntime";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import { mergeArtifacts } from "../utils/messageArtifacts";
 import {
   extractLimeToolMetadataBlock,
@@ -370,10 +371,7 @@ const messageArtifactsSignature = (
   if (!artifacts || artifacts.length === 0) return "";
   return artifacts
     .map((artifact) => {
-      const filePath =
-        typeof artifact.meta.filePath === "string"
-          ? artifact.meta.filePath
-          : "";
+      const filePath = resolveArtifactProtocolFilePath(artifact);
       return [
         artifact.id,
         artifact.type,

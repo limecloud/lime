@@ -6,20 +6,20 @@ import { useTeamWorkspaceRuntime } from "./useTeamWorkspaceRuntime";
 
 const {
   mockSafeListen,
-  mockParseStreamEvent,
+  mockParseAgentEvent,
 } = vi.hoisted(() => ({
   mockSafeListen: vi.fn(),
-  mockParseStreamEvent: vi.fn((payload: unknown) => payload),
+  mockParseAgentEvent: vi.fn((payload: unknown) => payload),
 }));
 
-vi.mock("@/lib/api/agentStream", async () => {
+vi.mock("@/lib/api/agentProtocol", async () => {
   const actual =
-    await vi.importActual<typeof import("@/lib/api/agentStream")>(
-      "@/lib/api/agentStream",
+    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
+      "@/lib/api/agentProtocol",
     );
   return {
     ...actual,
-    parseStreamEvent: mockParseStreamEvent,
+    parseAgentEvent: mockParseAgentEvent,
   };
 });
 
@@ -88,7 +88,7 @@ describe("useTeamWorkspaceRuntime", () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
     latestValue = null;
-    mockParseStreamEvent.mockImplementation((payload: unknown) => payload);
+    mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
     mockSafeListen.mockImplementation(
       async (_eventName: string, _handler: (event: { payload: unknown }) => void) =>
         () => {},

@@ -140,12 +140,14 @@ const sendMessage = async (content: string, ...) => {
     messageToSend = `${systemPrompt}\n\n---\n\n用户请求：${content}`;
   }
 
-  await runtime.submitTurn({
-    message: messageToSend,
+  await runtime.submitOp({
+    type: "user_input",
+    text: messageToSend,
     sessionId,
     eventName,
     workspaceId,
     systemPrompt,
+    preferences: {},
   });
 };
 ```

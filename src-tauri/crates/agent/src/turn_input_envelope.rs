@@ -65,6 +65,7 @@ pub enum TurnPromptAugmentationStageKind {
     Memory,
     WebSearch,
     RequestToolPolicy,
+    Artifact,
     Elicitation,
     TeamPreference,
     AutoContinue,
@@ -171,6 +172,9 @@ pub struct TurnInputEnvelope {
 impl TurnInputEnvelope {
     fn merged_turn_context_metadata(&self) -> Option<Map<String, Value>> {
         let mut metadata = self.turn_context_metadata.clone().unwrap_or_default();
+        if let Some(project_id) = self.project_id.as_ref() {
+            metadata.insert("project_id".to_string(), Value::String(project_id.clone()));
+        }
         if let Some(provider_continuation) =
             build_provider_continuation_metadata(&self.provider_continuation)
         {
@@ -480,12 +484,17 @@ mod tests {
         assert_eq!(
             diagnostics.turn_context_metadata_keys,
             vec![
+                "project_id".to_string(),
                 "provider_continuation".to_string(),
                 "task_mode_enabled".to_string(),
                 "theme".to_string()
             ]
         );
         let turn_context = envelope.turn_context_override().expect("turn context");
+        assert_eq!(
+            turn_context.metadata.get("project_id"),
+            Some(&json!("project-1"))
+        );
         assert_eq!(
             turn_context.metadata.get("provider_continuation"),
             Some(&json!({

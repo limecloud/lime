@@ -1,9 +1,14 @@
 import type {
+  AgentContextTraceStep as ContextTraceStep,
   AgentThreadItem,
-  ContextTraceStep,
-  ToolCallState,
-} from "@/lib/api/agentStream";
+  AgentToolCallState as ToolCallState,
+} from "@/lib/api/agentProtocol";
 import type { ArtifactStatus } from "@/lib/artifact/types";
+import {
+  extractArtifactProtocolPathsFromValue,
+  resolveArtifactProtocolFilePath,
+} from "@/lib/artifact-protocol";
+import { extractFilesystemEventPathsFromValue } from "@/lib/filesystem-event-protocol";
 import type { ActionRequired, AgentRuntimeStatus, Message } from "../types";
 import { resolveToolDisplayLabel } from "./toolDisplayInfo";
 import {
@@ -446,14 +451,7 @@ function extractActiveFileWrites(
         continue;
       }
 
-      const path =
-        typeof artifact.meta.filePath === "string" &&
-        artifact.meta.filePath.trim()
-          ? artifact.meta.filePath.trim()
-          : typeof artifact.meta.filename === "string" &&
-              artifact.meta.filename.trim()
-            ? artifact.meta.filename.trim()
-            : artifact.title;
+      const path = resolveArtifactProtocolFilePath(artifact);
       if (!path) {
         continue;
       }
@@ -580,56 +578,6 @@ function fileNameFromPath(path: string): string {
   return segments[segments.length - 1] || path;
 }
 
-function pickFirstPath(value: unknown): string | undefined {
-  if (typeof value === "string" && value.trim()) {
-    return value.trim();
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (typeof item === "string" && item.trim()) {
-        return item.trim();
-      }
-    }
-  }
-
-  return undefined;
-}
-
-function extractPathFromRecord(
-  record: Record<string, unknown> | null,
-): string | undefined {
-  if (!record) {
-    return undefined;
-  }
-
-  for (const key of [
-    "path",
-    "file_path",
-    "filePath",
-    "file_name",
-    "fileName",
-    "filename",
-    "target_path",
-    "targetPath",
-    "output_path",
-    "outputPath",
-    "absolute_path",
-    "absolutePath",
-    "new_path",
-    "newPath",
-    "paths",
-    "files",
-  ]) {
-    const value = pickFirstPath(record[key]);
-    if (value) {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
 function extractContentFromRecord(
   record: Record<string, unknown> | null,
 ): string | undefined {
@@ -739,12 +687,7 @@ function resolveFileKind(
 
 function extractArtifactPath(toolCall: ToolCallState): string | undefined {
   const output = toolCall.result?.output;
-  const parsed = asRecord(parseJsonValue(output));
-  return (
-    normalizeString(parsed?.absolute_path) ||
-    normalizeString(parsed?.path) ||
-    normalizeString(parsed?.output_path)
-  );
+  return extractArtifactProtocolPathsFromValue(parseJsonValue(output))[0];
 }
 
 function extractOutputSignal(
@@ -766,7 +709,7 @@ function extractOutputSignal(
       output,
     );
   const artifactPath =
-    normalizeString(metadata?.path) || extractArtifactPath(toolCall);
+    extractArtifactProtocolPathsFromValue(metadata)[0] || extractArtifactPath(toolCall);
   const exitCode =
     normalizeNumber(metadata?.exit_code) ||
     parseNumberFromText(/^退出码:\s*(-?\d+)$/m, output) ||
@@ -939,7 +882,12 @@ function extractFileEventFromToolCall(
 
   const args = asRecord(parseJsonValue(toolCall.arguments));
   const metadata = extractMetadata(toolCall);
-  const path = extractPathFromRecord(args) || extractPathFromRecord(metadata);
+  const path =
+    extractArtifactProtocolPathsFromValue(args)[0] ||
+    extractArtifactProtocolPathsFromValue(metadata)[0] ||
+    // 非 artifact 协议文件工具仍可能只暴露通用文件参数，这里保留事件级 fallback。
+    extractFilesystemEventPathsFromValue(args)[0] ||
+    extractFilesystemEventPathsFromValue(metadata)[0];
   if (!path) {
     return null;
   }
@@ -1147,8 +1095,7 @@ function pickItemPath(item: AgentThreadItem): string | undefined {
   }
 
   if (item.type === "tool_call") {
-    const metadata = asRecord(item.metadata);
-    return extractPathFromRecord(metadata);
+    return extractArtifactProtocolPathsFromValue(item.metadata)[0];
   }
 
   return undefined;

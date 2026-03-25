@@ -412,4 +412,55 @@ describe("useThemeContextWorkspace", () => {
       "social-posts/demo.publish-pack.json",
     ]);
   });
+
+  it("应递归提取嵌套协议对象中的产物路径", async () => {
+    mockIsContentCreationTheme.mockReturnValue(true);
+
+    const messages = [
+      {
+        id: "msg-4",
+        role: "assistant",
+        content: "",
+        timestamp: "2026-03-05T10:50:00.000Z",
+        toolCalls: [
+          {
+            id: "tool-4",
+            name: "typesetting",
+            status: "completed",
+            arguments: JSON.stringify({
+              payload: {
+                filePath: "social-posts/draft.md",
+              },
+            }),
+            result: {
+              success: true,
+              output: JSON.stringify({
+                result: {
+                  absolute_path: "/tmp/social-posts/final.md",
+                },
+              }),
+            },
+            startTime: "2026-03-05T10:50:00.000Z",
+            endTime: "2026-03-05T10:50:01.000Z",
+          },
+        ],
+      },
+    ] as unknown as Message[];
+
+    let snapshot: ThemeContextWorkspaceState | null = null;
+    mountProbe({
+      projectId: "project-artifact-nested-path",
+      activeTheme: "social-media",
+      messages,
+      onSnapshot: (value) => {
+        snapshot = value;
+      },
+    });
+    await flushEffects(12);
+
+    expect(snapshot!.activityLogs[0]?.artifactPaths).toEqual([
+      "social-posts/draft.md",
+      "/tmp/social-posts/final.md",
+    ]);
+  });
 });

@@ -67,6 +67,7 @@ import {
   AutomationJobDialogSubmit,
   type AutomationJobDialogInitialValues,
 } from "./AutomationJobDialog";
+import type { AutomationWorkspaceTab } from "@/types/page";
 
 function formatTime(value?: string | null): string {
   if (!value) {
@@ -517,16 +518,19 @@ const WORKSPACE_TEMPLATES: AutomationWorkspaceTemplate[] = [
 ];
 
 export type AutomationSettingsMode = "full" | "workspace" | "settings";
-type AutomationWorkspaceTab = "tasks" | "overview";
 
 interface AutomationSettingsProps {
   mode?: AutomationSettingsMode;
+  initialSelectedJobId?: string;
+  initialWorkspaceTab?: AutomationWorkspaceTab;
   onOpenSettings?: () => void;
   onOpenWorkspace?: () => void;
 }
 
 export function AutomationSettings({
   mode = "full",
+  initialSelectedJobId,
+  initialWorkspaceTab,
   onOpenSettings,
   onOpenWorkspace,
 }: AutomationSettingsProps) {
@@ -556,7 +560,7 @@ export function AutomationSettings({
   const [dialogInitialValues, setDialogInitialValues] =
     useState<AutomationJobDialogInitialValues | null>(null);
   const [workspaceTab, setWorkspaceTab] =
-    useState<AutomationWorkspaceTab>("tasks");
+    useState<AutomationWorkspaceTab>(initialWorkspaceTab ?? "tasks");
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? null,
@@ -629,6 +633,12 @@ export function AutomationSettings({
           if (!showWorkspacePanels) {
             return null;
           }
+          if (
+            initialSelectedJobId &&
+            nextJobs.some((job) => job.id === initialSelectedJobId)
+          ) {
+            return initialSelectedJobId;
+          }
           if (current && nextJobs.some((job) => job.id === current)) {
             return current;
           }
@@ -644,7 +654,7 @@ export function AutomationSettings({
         }
       }
     },
-    [showWorkspacePanels],
+    [initialSelectedJobId, showWorkspacePanels],
   );
 
   const refreshHistory = useCallback(async (jobId: string) => {
@@ -711,6 +721,33 @@ export function AutomationSettings({
   useEffect(() => {
     void refreshAll();
   }, [refreshAll]);
+
+  useEffect(() => {
+    if (!showWorkspacePanels || !initialSelectedJobId) {
+      return;
+    }
+
+    setSelectedJobId((current) => {
+      if (current === initialSelectedJobId) {
+        return current;
+      }
+      if (jobs.length === 0) {
+        return initialSelectedJobId;
+      }
+      if (jobs.some((job) => job.id === initialSelectedJobId)) {
+        return initialSelectedJobId;
+      }
+      return current;
+    });
+  }, [initialSelectedJobId, jobs, showWorkspacePanels]);
+
+  useEffect(() => {
+    if (!showWorkspacePanels || !initialWorkspaceTab) {
+      return;
+    }
+
+    setWorkspaceTab(initialWorkspaceTab);
+  }, [initialWorkspaceTab, showWorkspacePanels]);
 
   useEffect(() => {
     if (!showWorkspacePanels) {

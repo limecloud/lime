@@ -202,6 +202,7 @@ mod tests {
             success: true,
             output: Some("Hello, world!".to_string()),
             error: None,
+            artifact_paths: vec![],
             steps_completed: vec![StepResult {
                 step_id: "step-1".to_string(),
                 step_name: "Process".to_string(),

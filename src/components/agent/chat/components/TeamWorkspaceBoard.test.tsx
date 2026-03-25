@@ -508,7 +508,7 @@ describe("TeamWorkspaceBoard", () => {
           role_key: "explorer",
         },
       ],
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-formed-ordered",
         status: "formed",
         label: "修复 Team",
@@ -2015,7 +2015,7 @@ describe("TeamWorkspaceBoard", () => {
   it("本轮 Team 准备中时，应在空 shell 展示组建状态", async () => {
     const container = await renderBoard({
       shellVisible: true,
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-forming-1",
         status: "forming",
         label: "排障 Team",
@@ -2040,7 +2040,7 @@ describe("TeamWorkspaceBoard", () => {
     const container = await renderBoard({
       shellVisible: true,
       defaultShellExpanded: true,
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-formed-1",
         status: "formed",
         label: "修复 Team",
@@ -2096,7 +2096,7 @@ describe("TeamWorkspaceBoard", () => {
     const container = await renderBoard({
       shellVisible: true,
       defaultShellExpanded: true,
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-failed-1",
         status: "failed",
         label: "失败的 Team",

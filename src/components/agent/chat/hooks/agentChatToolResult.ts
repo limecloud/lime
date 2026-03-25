@@ -1,4 +1,4 @@
-import type { ToolResultImage } from "@/lib/api/agentStream";
+import type { AgentToolResultImage as ToolResultImage } from "@/lib/api/agentProtocol";
 import type { MessageImage } from "../types";
 import {
   LIME_TOOL_METADATA_BEGIN,

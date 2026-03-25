@@ -3,6 +3,12 @@ import styled from "styled-components";
 import { toast } from "sonner";
 import { createAutomationJob } from "@/lib/api/automation";
 import { prepareClawSolution } from "@/lib/api/clawSolutions";
+import {
+  createServiceSkillRun,
+  getServiceSkillRun,
+  isTerminalServiceSkillRunStatus,
+  type ServiceSkillRun,
+} from "@/lib/api/serviceSkillRuns";
 import { listProjects, type Project } from "@/lib/api/project";
 import {
   AutomationJobDialog,
@@ -50,6 +56,7 @@ import {
   buildServiceSkillAutomationInitialValues,
   supportsServiceSkillLocalAutomation,
 } from "./service-skills/automationDraft";
+import { recordServiceSkillAutomationLink } from "./service-skills/automationLinkStorage";
 import type {
   ServiceSkillHomeItem,
   ServiceSkillSlotValues,
@@ -214,6 +221,37 @@ function prioritizeAutomationWorkspaces(
   return [fallbackWorkspace, ...remaining];
 }
 
+const SERVICE_SKILL_RUN_STATUS_LABELS: Record<string, string> = {
+  queued: "排队中",
+  running: "运行中",
+  success: "已完成",
+  failed: "执行失败",
+  canceled: "已取消",
+  timeout: "已超时",
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function getServiceSkillRunStatusLabel(status: string): string {
+  return SERVICE_SKILL_RUN_STATUS_LABELS[status] ?? status;
+}
+
+function buildServiceSkillRunSuccessMessage(
+  skill: ServiceSkillHomeItem,
+  run: ServiceSkillRun,
+): string {
+  const summary = run.outputSummary || run.outputText || run.inputSummary;
+  if (summary) {
+    return `${skill.title} 云端运行完成：${summary}`;
+  }
+
+  return `${skill.title} 云端运行完成。`;
+}
+
 interface PendingServiceSkillAutomationLaunch {
   enterWorkspacePayload: HomeShellEnterWorkspacePayload;
   usage: {
@@ -278,6 +316,7 @@ export function AgentChatHomeShell({
   } = useClawSolutions(activeTheme === "general");
   const {
     skills: serviceSkills,
+    catalogMeta: serviceSkillCatalogMeta,
     isLoading: serviceSkillsLoading,
     error: serviceSkillsError,
     recordUsage: recordServiceSkillUsage,
@@ -475,6 +514,21 @@ export function AgentChatHomeShell({
     setServiceSkillDialogOpen(true);
   }, []);
 
+  const handleOpenServiceSkillAutomationJob = useCallback(
+    (skill: ServiceSkillHomeItem) => {
+      const jobId = skill.automationStatus?.jobId;
+      if (!jobId || !onNavigate) {
+        return;
+      }
+
+      onNavigate("automation", {
+        selectedJobId: jobId,
+        workspaceTab: "tasks",
+      });
+    },
+    [onNavigate],
+  );
+
   const handleServiceSkillLaunch = useCallback(
     async (
       skill: ServiceSkillHomeItem,
@@ -485,6 +539,64 @@ export function AgentChatHomeShell({
         slotValues,
         userInput: input.trim() || undefined,
       });
+
+      if (skill.executionLocation === "cloud_required") {
+        const toastId = toast.loading(`正在提交 ${skill.title} 到云端...`);
+
+        try {
+          setServiceSkillDialogOpen(false);
+          setSelectedServiceSkill(null);
+
+          let run = await createServiceSkillRun(skill.id, prompt);
+          recordServiceSkillUsage({
+            skillId: skill.id,
+            runnerType: skill.runnerType,
+          });
+
+          if (!isTerminalServiceSkillRunStatus(run.status)) {
+            toast.loading(
+              `${skill.title} ${getServiceSkillRunStatusLabel(run.status)}，正在等待结果...`,
+              {
+                id: toastId,
+              },
+            );
+
+            for (let attempt = 0; attempt < 12; attempt += 1) {
+              await sleep(2_000);
+              run = await getServiceSkillRun(run.id);
+              if (isTerminalServiceSkillRunStatus(run.status)) {
+                break;
+              }
+            }
+          }
+
+          if (run.status === "success") {
+            toast.success(buildServiceSkillRunSuccessMessage(skill, run), {
+              id: toastId,
+            });
+            return;
+          }
+
+          if (isTerminalServiceSkillRunStatus(run.status)) {
+            throw new Error(
+              run.errorMessage ||
+                `${skill.title} ${getServiceSkillRunStatusLabel(run.status)}`,
+            );
+          }
+
+          toast.info(
+            `${skill.title} 已提交云端，当前仍在 ${getServiceSkillRunStatusLabel(run.status)}。`,
+            {
+              id: toastId,
+            },
+          );
+        } catch (error) {
+          toast.error(`提交云端运行失败：${getErrorMessage(error)}`, {
+            id: toastId,
+          });
+        }
+        return;
+      }
 
       if (skill.runnerType !== "instant") {
         toast.info("当前先进入工作区生成首版方案，下一阶段再接本地自动化任务。");
@@ -605,6 +717,11 @@ export function AgentChatHomeShell({
           return;
         }
 
+        recordServiceSkillAutomationLink({
+          skillId: pendingLaunch.usage.skillId,
+          jobId: createdJob.id,
+          jobName: createdJob.name,
+        });
         recordServiceSkillUsage(pendingLaunch.usage);
         const entered = handleEnterWorkspace(pendingLaunch.enterWorkspacePayload);
         if (!entered) {
@@ -730,8 +847,10 @@ export function AgentChatHomeShell({
                     <>
                       <ServiceSkillHomePanel
                         skills={serviceSkills}
+                        catalogMeta={serviceSkillCatalogMeta}
                         loading={serviceSkillsLoading}
                         onSelect={handleServiceSkillSelect}
+                        onOpenAutomationJob={handleOpenServiceSkillAutomationJob}
                       />
                       <ClawHomeSolutionsPanel
                         solutions={clawSolutions}

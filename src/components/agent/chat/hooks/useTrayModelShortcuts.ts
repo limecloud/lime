@@ -20,7 +20,7 @@ import {
   loadConfiguredProviders,
   type ConfiguredProvider,
 } from "@/hooks/useConfiguredProviders";
-import { buildProviderModelsFromRegistry } from "@/hooks/useProviderModels";
+import { buildProviderModelsFromRegistry } from "@/lib/model/providerModelsCatalog";
 import { filterModelsByTheme } from "../utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "../utils/providerModelCompatibility";
 

@@ -470,7 +470,7 @@ interface TeamWorkspaceDockProps {
   selectedTeamLabel?: string | null;
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
 }
 
 interface InlinePanelLayout {
@@ -508,8 +508,9 @@ export function TeamWorkspaceDock({
   selectedTeamLabel,
   selectedTeamSummary,
   selectedTeamRoles = [],
-  runtimeTeamState = null,
+  teamDispatchPreviewState = null,
 }: TeamWorkspaceDockProps) {
+  const runtimeTeamState = teamDispatchPreviewState;
   const launcherOnly = typeof onActivateWorkbench === "function";
   const hasRealTeamGraph =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
@@ -786,7 +787,7 @@ export function TeamWorkspaceDock({
       selectedTeamLabel={selectedTeamLabel}
       selectedTeamSummary={selectedTeamSummary}
       selectedTeamRoles={selectedTeamRoles}
-      runtimeTeamState={runtimeTeamState}
+      teamDispatchPreviewState={runtimeTeamState}
     />
   ) : (
     <EmptyStateCard data-testid="team-workspace-empty-card" role="status">

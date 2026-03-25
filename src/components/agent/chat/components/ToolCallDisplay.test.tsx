@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToolCallDisplay, ToolCallList } from "./ToolCallDisplay";
-import type { ToolCallState } from "@/lib/api/agentStream";
+import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 
 vi.mock("@tauri-apps/plugin-shell", () => ({
   open: vi.fn().mockResolvedValue(undefined),
@@ -251,6 +251,154 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain("Copy");
   });
 
+  it("站点能力工具结果应展示自动保存结果与脚本来源", () => {
+    const { container } = renderTool({
+      id: "tool-site-run-1",
+      name: "lime_site_run",
+      arguments: JSON.stringify({
+        adapter_name: "github/search",
+        args: { query: "mcp" },
+      }),
+      status: "completed",
+      result: {
+        success: true,
+        output: JSON.stringify({
+          ok: true,
+          adapter: "github/search",
+          data: { items: [{ title: "modelcontextprotocol/servers" }] },
+        }),
+        metadata: {
+          tool_family: "site",
+          adapter_name: "github/search",
+          saved_content: {
+            content_id: "content-1",
+            project_id: "project-1",
+            title: "GitHub MCP 搜索结果",
+          },
+          saved_project_id: "project-1",
+          saved_by: "context_project",
+          adapter_source_kind: "server_synced",
+          adapter_source_version: "2026-03-25",
+        },
+      },
+      startTime: new Date("2026-03-25T12:10:00.000Z"),
+      endTime: new Date("2026-03-25T12:10:01.000Z"),
+    });
+
+    expect(container.textContent).toContain("已执行 github/search");
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain(
+      "结果已自动保存到项目 project-1：GitHub MCP 搜索结果 · 来自当前项目上下文",
+    );
+    expect(container.textContent).toContain("脚本来源：服务端脚本 · 2026-03-25");
+  });
+
+  it("站点能力工具结果应支持直接打开已保存内容", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <ToolCallDisplay
+          toolCall={{
+            id: "tool-site-run-open-1",
+            name: "lime_site_run",
+            arguments: JSON.stringify({
+              adapter_name: "github/search",
+              args: { query: "lime" },
+            }),
+            status: "completed",
+            result: {
+              success: true,
+              output: "ok",
+              metadata: {
+                tool_family: "site",
+                saved_content: {
+                  content_id: "content-open-1",
+                  project_id: "project-open-1",
+                  title: "Lime 搜索结果",
+                },
+                saved_by: "context_project",
+              },
+            },
+            startTime: new Date("2026-03-25T12:20:00.000Z"),
+            endTime: new Date("2026-03-25T12:20:01.000Z"),
+          }}
+          onOpenSavedSiteContent={onOpenSavedSiteContent}
+        />,
+      );
+    });
+
+    mountedRoots.push({ container, root });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    act(() => {
+      const openButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent?.includes("打开已保存内容"),
+      ) as HTMLButtonElement | undefined;
+      openButton?.click();
+    });
+
+    expect(onOpenSavedSiteContent).toHaveBeenCalledWith({
+      projectId: "project-open-1",
+      contentId: "content-open-1",
+      title: "Lime 搜索结果",
+    });
+  });
+
+  it("站点能力工具失败时应展示未保存原因", () => {
+    const { container } = renderTool({
+      id: "tool-site-run-2",
+      name: "lime_site_run",
+      arguments: JSON.stringify({
+        adapter_name: "zhihu/search",
+        args: { query: "lime" },
+      }),
+      status: "failed",
+      result: {
+        success: false,
+        error: "执行失败",
+        output: "",
+        metadata: {
+          tool_family: "site",
+          adapter_name: "zhihu/search",
+          save_skipped_project_id: "project-2",
+          save_skipped_by: "context_project",
+          save_error_message: "数据库写入失败",
+        },
+      },
+      startTime: new Date("2026-03-25T12:12:00.000Z"),
+      endTime: new Date("2026-03-25T12:12:03.000Z"),
+    });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain(
+      "执行失败，未保存到项目 project-2 · 来自当前项目上下文",
+    );
+    expect(container.textContent).toContain("自动保存失败：数据库写入失败");
+  });
+
   it("应为浏览器、委派、任务输出与交互类工具生成具体动作句", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -323,5 +471,26 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain("已加载技能 lime-governance");
     expect(container.textContent).toContain("已列出 src/**/*.tsx");
     expect(container.textContent).toContain("等待输入 需要继续吗？");
+  });
+
+  it("写文件工具应通过 artifact protocol 解析嵌套产物路径", () => {
+    const { container } = renderTool({
+      id: "tool-write-nested-1",
+      name: "write_file",
+      arguments: JSON.stringify({
+        payload: {
+          artifact_paths: ["social-posts\\final.md"],
+        },
+      }),
+      status: "completed",
+      result: {
+        success: true,
+        output: "# 最终稿",
+      },
+      startTime: new Date("2026-03-25T09:00:00.000Z"),
+      endTime: new Date("2026-03-25T09:00:01.000Z"),
+    });
+
+    expect(container.textContent).toContain("已写入 final.md");
   });
 });

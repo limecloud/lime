@@ -2,6 +2,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ArtifactRenderer } from "./ArtifactRenderer";
+import {
+  areLightweightRenderersRegistered,
+  registerLightweightRenderers,
+} from "./renderers";
 import type { Artifact } from "@/lib/artifact/types";
 
 interface MountedRenderer {
@@ -50,6 +54,10 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+
+  if (!areLightweightRenderersRegistered()) {
+    registerLightweightRenderers();
+  }
 });
 
 afterEach(() => {
@@ -81,7 +89,7 @@ describe("ArtifactRenderer 空内容态", () => {
     );
 
     const surface = container.querySelector(
-      "[data-testid=\"artifact-empty-surface\"]",
+      '[data-testid="artifact-empty-surface"]',
     );
 
     expect(surface).not.toBeNull();
@@ -103,11 +111,109 @@ describe("ArtifactRenderer 空内容态", () => {
     );
 
     const surface = container.querySelector(
-      "[data-testid=\"artifact-empty-surface\"]",
+      '[data-testid="artifact-empty-surface"]',
     );
 
     expect(surface?.getAttribute("data-empty-mode")).toBe("failed");
     expect(container.textContent).toContain("写入未完成");
     expect(container.textContent).toContain("保存失败");
+  });
+
+  it("命中 ArtifactDocument 协议时应渲染结构化阅读面", async () => {
+    const container = renderArtifact(
+      createArtifact({
+        content: JSON.stringify({
+          schemaVersion: "artifact_document.v1",
+          artifactId: "artifact-doc-1",
+          kind: "analysis",
+          title: "结构化报告标题",
+          status: "ready",
+          language: "zh-CN",
+          summary: "摘要信息",
+          blocks: [
+            {
+              id: "hero-1",
+              type: "hero_summary",
+              summary: "顶部摘要",
+            },
+            {
+              id: "body-1",
+              type: "rich_text",
+              markdown: "正文段落",
+            },
+          ],
+          sources: [],
+          metadata: {
+            theme: "knowledge",
+          },
+        }),
+        status: "complete",
+        meta: {
+          filePath: "workspace/report.json",
+          filename: "report.json",
+          language: "json",
+        },
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="artifact-document-renderer"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("结构化报告标题");
+    expect(container.textContent).toContain("正文段落");
+  });
+
+  it("content 为空但 metadata 携带 artifactDocument 时也应渲染结构化阅读面", async () => {
+    const container = renderArtifact(
+      createArtifact({
+        content: "",
+        status: "complete",
+        meta: {
+          filePath: ".lime/artifacts/thread-1/report.artifact.json",
+          filename: "report.artifact.json",
+          artifactSchema: "artifact_document.v1",
+          artifactDocument: {
+            schemaVersion: "artifact_document.v1",
+            artifactId: "artifact-doc-2",
+            kind: "report",
+            title: "落盘结构化周报",
+            status: "ready",
+            language: "zh-CN",
+            summary: "来自 metadata 的摘要",
+            blocks: [
+              {
+                id: "hero-1",
+                type: "hero_summary",
+                summary: "来自 metadata 的摘要",
+              },
+              {
+                id: "body-1",
+                type: "rich_text",
+                markdown: "落盘后的正文内容",
+              },
+            ],
+            sources: [],
+            metadata: {
+              theme: "knowledge",
+            },
+          },
+          language: "json",
+        },
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="artifact-document-renderer"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("落盘结构化周报");
+    expect(container.textContent).toContain("落盘后的正文内容");
   });
 });

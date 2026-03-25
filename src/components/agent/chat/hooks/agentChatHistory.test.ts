@@ -18,17 +18,17 @@ describe("agentChatHistory", () => {
           role: "user",
           timestamp: 1710000200,
           content: [
-            { type: "input_text", text: "[Image #1]" },
+            { type: "input_text", text: "[Image #1]" } as never,
             {
               type: "input_image",
               image_url: "data:image/png;base64,aGVsbG8=",
-            },
+            } as never,
           ],
         },
         {
           role: "assistant",
           timestamp: 1710000201,
-          content: [{ type: "output_text", text: "已收到图片" }],
+          content: [{ type: "output_text", text: "已收到图片" } as never],
         },
       ],
     };
@@ -70,7 +70,7 @@ describe("agentChatHistory", () => {
           content: [
             { type: "thinking", thinking: "先理解主题" } as never,
             { type: "thinking", thinking: "，再组织结构。\n" } as never,
-            { type: "output_text", text: "下面是整理好的 Prompt。" },
+            { type: "output_text", text: "下面是整理好的 Prompt。" } as never,
           ],
         },
       ],

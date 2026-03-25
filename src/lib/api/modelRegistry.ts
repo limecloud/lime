@@ -17,6 +17,23 @@ interface ModelRegistryQueryOptions {
   forceRefresh?: boolean;
 }
 
+export interface FetchProviderModelsResult {
+  models: EnhancedModelMetadata[];
+  source: "Api" | "LocalFallback";
+  error: string | null;
+  request_url?: string | null;
+  diagnostic_hint?: string | null;
+  error_kind?:
+    | "not_found"
+    | "unauthorized"
+    | "forbidden"
+    | "network"
+    | "invalid_response"
+    | "other"
+    | null;
+  should_prompt_error?: boolean;
+}
+
 let modelRegistryCache: EnhancedModelMetadata[] | null = null;
 let modelRegistryLoadingPromise: Promise<EnhancedModelMetadata[]> | null = null;
 let allAliasConfigsCache: Record<string, ProviderAliasConfig> | null = null;
@@ -172,6 +189,12 @@ export async function getModelsByTier(
   return safeInvoke("get_models_by_tier", { tier });
 }
 
+export async function fetchProviderModelsAuto(
+  providerId: string,
+): Promise<FetchProviderModelsResult> {
+  return safeInvoke("fetch_provider_models_auto", { providerId });
+}
+
 /**
  * 获取指定 Provider 的别名配置
  * 用于获取 Antigravity、Kiro 等中转服务的模型别名映射
@@ -277,6 +300,7 @@ export const modelRegistryApi = {
   getModelSyncState,
   getModelsForProvider,
   getModelsByTier,
+  fetchProviderModelsAuto,
   getProviderAliasConfig,
   getAllAliasConfigs: getAllAliasConfigsCached,
 };

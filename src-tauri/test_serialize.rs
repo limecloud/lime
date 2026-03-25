@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum TauriMessageContent {
+pub enum AgentMessageContent {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "thinking")]
@@ -11,8 +11,12 @@ pub enum TauriMessageContent {
 
 fn main() {
     let content = vec![
-        TauriMessageContent::Text { text: "Hello".to_string() },
-        TauriMessageContent::Thinking { text: "Thinking...".to_string() },
+        AgentMessageContent::Text {
+            text: "Hello".to_string(),
+        },
+        AgentMessageContent::Thinking {
+            text: "Thinking...".to_string(),
+        },
     ];
     
     let json = serde_json::to_string_pretty(&content).unwrap();

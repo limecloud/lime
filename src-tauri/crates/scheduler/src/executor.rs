@@ -446,7 +446,7 @@ impl AgentExecutor {
             None,
             &request_tool_policy,
             |event| match event {
-                lime_agent::TauriAgentEvent::ToolStart {
+                lime_agent::AgentEvent::ToolStart {
                     tool_name, tool_id, ..
                 } => {
                     tracing::info!(
@@ -455,7 +455,7 @@ impl AgentExecutor {
                         tool_id
                     );
                 }
-                lime_agent::TauriAgentEvent::ToolEnd { tool_id, result } => {
+                lime_agent::AgentEvent::ToolEnd { tool_id, result } => {
                     tracing::info!(
                         "[AgentExecutor] 工具调用结束: tool_id={} success={}",
                         tool_id,

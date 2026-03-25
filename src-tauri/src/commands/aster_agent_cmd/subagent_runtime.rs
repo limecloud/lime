@@ -1,5 +1,6 @@
 use super::*;
 use lime_agent::restore_aster_runtime_queued_turns;
+use lime_agent::AgentEvent as RuntimeAgentEvent;
 
 const SUBAGENT_RUNTIME_EVENT_PREFIX: &str = "agent_subagent_stream";
 const SUBAGENT_STATUS_EVENT_PREFIX: &str = "agent_subagent_status";
@@ -325,17 +326,17 @@ fn parse_subagent_runtime_event_session_id(event_name: &str) -> Option<&str> {
         .and_then(|rest| rest.strip_prefix(':'))
 }
 
-fn should_emit_subagent_status_for_runtime_event(event: &TauriAgentEvent) -> bool {
+fn should_emit_subagent_status_for_runtime_event(event: &RuntimeAgentEvent) -> bool {
     matches!(
         event,
-        TauriAgentEvent::ThreadStarted { .. }
-            | TauriAgentEvent::TurnStarted { .. }
-            | TauriAgentEvent::TurnCompleted { .. }
-            | TauriAgentEvent::TurnFailed { .. }
-            | TauriAgentEvent::QueueAdded { .. }
-            | TauriAgentEvent::QueueRemoved { .. }
-            | TauriAgentEvent::QueueStarted { .. }
-            | TauriAgentEvent::QueueCleared { .. }
+        RuntimeAgentEvent::ThreadStarted { .. }
+            | RuntimeAgentEvent::TurnStarted { .. }
+            | RuntimeAgentEvent::TurnCompleted { .. }
+            | RuntimeAgentEvent::TurnFailed { .. }
+            | RuntimeAgentEvent::QueueAdded { .. }
+            | RuntimeAgentEvent::QueueRemoved { .. }
+            | RuntimeAgentEvent::QueueStarted { .. }
+            | RuntimeAgentEvent::QueueCleared { .. }
     )
 }
 
@@ -379,7 +380,7 @@ pub(crate) async fn emit_subagent_status_changed_events(app: &AppHandle, session
 pub(crate) async fn maybe_emit_subagent_status_for_runtime_event(
     app: &AppHandle,
     event_name: &str,
-    event: &TauriAgentEvent,
+    event: &RuntimeAgentEvent,
 ) {
     let Some(session_id) = parse_subagent_runtime_event_session_id(event_name) else {
         return;
@@ -678,6 +679,9 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
             event_name: build_subagent_runtime_event_name(&child_session_id),
             images: None,
             provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
             project_id: None,
             workspace_id,
             web_search: None,
@@ -751,6 +755,9 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
         event_name: build_subagent_runtime_event_name(&session_id),
         images: None,
         provider_config: None,
+        provider_preference: None,
+        model_preference: None,
+        thinking_enabled: None,
         project_id: None,
         workspace_id,
         web_search: None,

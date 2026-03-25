@@ -8,7 +8,9 @@ import React, { memo, useMemo, useState } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import type { ArtifactRendererProps } from "@/lib/artifact/types";
 import { MarkdownRenderer } from "@/components/agent/chat/components/MarkdownRenderer";
+import { resolveArtifactProtocolDocumentPayload } from "@/lib/artifact-protocol";
 import { CodeRenderer } from "./CodeRenderer";
+import { ArtifactDocumentRenderer } from "./ArtifactDocumentRenderer";
 
 type ViewMode = "preview" | "source";
 
@@ -71,6 +73,14 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
   }) => {
     const [internalViewMode, setInternalViewMode] = useState<ViewMode>("preview");
     const viewMode = externalViewMode ?? internalViewMode;
+    const artifactDocument = useMemo(
+      () =>
+        resolveArtifactProtocolDocumentPayload({
+          content: artifact.content,
+          metadata: artifact.meta,
+        }),
+      [artifact.content, artifact.meta],
+    );
 
     const sourceArtifact = useMemo(
       () => ({
@@ -81,10 +91,12 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
           language:
             typeof artifact.meta.language === "string" && artifact.meta.language
               ? artifact.meta.language
-              : "markdown",
+              : artifactDocument
+                ? "json"
+                : "markdown",
         },
       }),
-      [artifact],
+      [artifact, artifactDocument],
     );
 
     return (
@@ -143,13 +155,19 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
               />
             )
           ) : (
-            <div
-              className={`h-full overflow-auto px-4 py-3 ${
-                tone === "light" ? "bg-background" : ""
-              }`}
-            >
-              <MarkdownRenderer content={artifact.content} isStreaming={isStreaming} />
-            </div>
+            <>
+              {artifactDocument ? (
+                <ArtifactDocumentRenderer document={artifactDocument} tone={tone} />
+              ) : (
+                <div
+                  className={`h-full overflow-auto px-4 py-3 ${
+                    tone === "light" ? "bg-background" : ""
+                  }`}
+                >
+                  <MarkdownRenderer content={artifact.content} isStreaming={isStreaming} />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

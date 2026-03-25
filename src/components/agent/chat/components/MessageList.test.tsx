@@ -14,20 +14,40 @@ vi.mock("./MarkdownRenderer", () => ({
 const mockStreamingRenderer = vi.fn(
   ({
     content,
+    onOpenSavedSiteContent,
   }: {
     content: string;
     renderA2UIInline?: boolean;
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
   }) => (
-    <div data-testid="streaming-renderer">{content || "<empty-assistant>"}</div>
+    <div
+      data-testid="streaming-renderer"
+      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
+    >
+      {content || "<empty-assistant>"}
+    </div>
   ),
 );
 const mockAgentThreadTimeline = vi.fn(
   ({
     actionRequests,
+    onOpenSavedSiteContent,
   }: {
     actionRequests?: Array<Record<string, unknown>>;
+    onOpenSavedSiteContent?: (target: {
+      projectId: string;
+      contentId: string;
+      title?: string;
+    }) => void;
   }) => (
-    <div data-testid="agent-thread-timeline">
+    <div
+      data-testid="agent-thread-timeline"
+      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
+    >
       执行轨迹{actionRequests?.length ? `:${actionRequests.length}` : ""}
     </div>
   ),
@@ -152,6 +172,25 @@ describe("MessageList", () => {
     render(messages, { renderA2UIInline: false });
     expect(mockStreamingRenderer).toHaveBeenLastCalledWith(
       expect.objectContaining({ renderA2UIInline: false }),
+    );
+  });
+
+  it("应向助手消息正文透传已保存站点内容打开回调", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-site-open",
+        role: "assistant",
+        content: "已保存站点结果。",
+        timestamp: now,
+      },
+    ];
+
+    render(messages, { onOpenSavedSiteContent });
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({ onOpenSavedSiteContent }),
     );
   });
 
@@ -446,6 +485,54 @@ describe("MessageList", () => {
         browserPrepState: "awaiting_user",
       }),
     ]);
+  });
+
+  it("应向执行轨迹透传已保存站点内容打开回调", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-site-timeline",
+        role: "assistant",
+        content: "站点结果已沉淀。",
+        timestamp: now,
+      },
+    ];
+
+    render(messages, {
+      onOpenSavedSiteContent,
+      turns: [
+        {
+          id: "turn-site-open",
+          thread_id: "thread-1",
+          prompt_text: "采集站点内容",
+          status: "completed",
+          started_at: "2026-03-25T09:00:00Z",
+          completed_at: "2026-03-25T09:00:05Z",
+          created_at: "2026-03-25T09:00:00Z",
+          updated_at: "2026-03-25T09:00:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-site-open-1",
+          thread_id: "thread-1",
+          turn_id: "turn-site-open",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-03-25T09:00:01Z",
+          completed_at: "2026-03-25T09:00:02Z",
+          updated_at: "2026-03-25T09:00:02Z",
+          type: "tool_call",
+          tool_name: "lime_site_run",
+          arguments: { adapter_name: "github/search" },
+        },
+      ],
+    });
+
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({ onOpenSavedSiteContent }),
+    );
   });
 
   it("当前 turn 映射错位时，应优先显示在最后一个助手消息上", () => {

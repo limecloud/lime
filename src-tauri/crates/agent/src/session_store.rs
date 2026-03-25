@@ -3,7 +3,9 @@
 //! 提供会话创建、列表查询、详情查询能力。
 //! 数据事实源收敛到 lime_core::database::agent_session_repository + Lime 数据库。
 
-use aster::session::extension_data::{resolve_todo_list_state, TodoListItem, TodoListItemStatus};
+use aster::session::extension_data::{
+    resolve_todo_list_state, ExtensionState, TodoListItem, TodoListItemStatus,
+};
 use aster::session::{
     resolve_subagent_session_metadata, Session as AsterSession, SessionRuntimeSnapshot,
 };
@@ -24,9 +26,11 @@ use std::path::Path;
 use uuid::Uuid;
 
 use crate::aster_runtime_support::load_aster_runtime_snapshot;
-use crate::event_converter::{
-    convert_item_runtime, convert_turn_runtime, TauriMessage, TauriMessageContent,
+use crate::protocol::{
+    AgentMessage as RuntimeAgentMessage, AgentMessageContent as RuntimeAgentMessageContent,
 };
+use crate::protocol_projection::{project_item_runtime, project_turn_runtime};
+use crate::session_execution_runtime::{build_session_execution_runtime, SessionExecutionRuntime};
 use crate::session_query::{list_child_subagent_sessions, read_session};
 use crate::subagent_control::{load_subagent_runtime_status, SubagentRuntimeStatusKind};
 use crate::subagent_profiles::{SubagentCustomizationState, SubagentSkillSummary};
@@ -63,8 +67,10 @@ pub struct SessionDetail {
     pub model: Option<String>,
     pub working_dir: Option<String>,
     pub workspace_id: Option<String>,
-    pub messages: Vec<TauriMessage>,
+    pub messages: Vec<RuntimeAgentMessage>,
     pub execution_strategy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_runtime: Option<SessionExecutionRuntime>,
     pub turns: Vec<AgentThreadTurn>,
     pub items: Vec<AgentThreadItem>,
     #[serde(default)]
@@ -305,6 +311,21 @@ fn normalize_optional_nonempty_body(value: Option<String>) -> Option<String> {
     } else {
         Some(text)
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct SessionProviderRoutingState {
+    provider_selector: String,
+}
+
+impl ExtensionState for SessionProviderRoutingState {
+    const EXTENSION_NAME: &'static str = "lime_provider_routing";
+    const VERSION: &'static str = "v0";
+}
+
+fn resolve_session_provider_selector(session: &AsterSession) -> Option<String> {
+    SessionProviderRoutingState::from_extension_data(&session.extension_data)
+        .and_then(|state| normalize_optional_text(Some(state.provider_selector)))
 }
 
 fn map_session_todo_status(status: TodoListItemStatus) -> SessionTodoStatus {
@@ -726,7 +747,7 @@ fn apply_aster_runtime_snapshot(detail: &mut SessionDetail, snapshot: &SessionRu
         .collect::<HashMap<_, _>>();
     for thread in &snapshot.threads {
         for turn in &thread.turns {
-            turns_by_id.insert(turn.id.clone(), convert_turn_runtime(turn.clone()));
+            turns_by_id.insert(turn.id.clone(), project_turn_runtime(turn.clone()));
         }
     }
     detail.turns = turns_by_id.into_values().collect();
@@ -745,7 +766,7 @@ fn apply_aster_runtime_snapshot(detail: &mut SessionDetail, snapshot: &SessionRu
         .collect::<HashMap<_, _>>();
     for thread in &snapshot.threads {
         for item in &thread.items {
-            items_by_id.insert(item.id.clone(), convert_item_runtime(item.clone()));
+            items_by_id.insert(item.id.clone(), project_item_runtime(item.clone()));
         }
     }
     detail.items = items_by_id.into_values().collect();
@@ -959,6 +980,7 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
         workspace_id,
         messages: tauri_messages,
         execution_strategy: session.execution_strategy,
+        execution_runtime: None,
         turns,
         items,
         todo_items,
@@ -972,16 +994,39 @@ pub async fn get_runtime_session_detail(
     session_id: &str,
 ) -> Result<SessionDetail, String> {
     let mut detail = get_session_sync(db, session_id)?;
-
-    match load_aster_runtime_snapshot(session_id).await {
-        Ok(snapshot) => apply_aster_runtime_snapshot(&mut detail, &snapshot),
+    let session = match read_session(session_id, false, "读取运行态 session 失败").await {
+        Ok(session) => Some(session),
+        Err(error) => {
+            tracing::warn!(
+                "[SessionStore] 读取运行态 session 失败，execution runtime 已降级忽略: session_id={}, error={}",
+                session_id,
+                error
+            );
+            None
+        }
+    };
+    let runtime_snapshot = match load_aster_runtime_snapshot(session_id).await {
+        Ok(snapshot) => Some(snapshot),
         Err(error) => {
             tracing::warn!(
                 "[SessionStore] 读取 Aster runtime snapshot 失败: session_id={}, error={}",
                 session_id,
                 error
             );
+            None
         }
+    };
+
+    detail.execution_runtime = build_session_execution_runtime(
+        session_id,
+        session.as_ref(),
+        detail.execution_strategy.clone(),
+        runtime_snapshot.as_ref(),
+        session.as_ref().and_then(resolve_session_provider_selector),
+    );
+
+    if let Some(snapshot) = runtime_snapshot.as_ref() {
+        apply_aster_runtime_snapshot(&mut detail, snapshot);
     }
 
     match load_child_subagent_sessions(db, session_id).await {
@@ -1099,32 +1144,32 @@ fn parse_data_url(url: &str) -> Option<(String, String)> {
     Some((normalized_mime, data.trim().to_string()))
 }
 
-fn convert_image_part(image_url: &str) -> Option<TauriMessageContent> {
+fn convert_image_part(image_url: &str) -> Option<RuntimeAgentMessageContent> {
     let normalized = image_url.trim();
     if normalized.is_empty() {
         return None;
     }
 
     if let Some((mime_type, data)) = parse_data_url(normalized) {
-        return Some(TauriMessageContent::Image { mime_type, data });
+        return Some(RuntimeAgentMessageContent::Image { mime_type, data });
     }
 
     if normalized.starts_with("data:") {
-        return Some(TauriMessageContent::Text {
+        return Some(RuntimeAgentMessageContent::Text {
             text: "[图片消息]".to_string(),
         });
     }
 
-    Some(TauriMessageContent::Text {
+    Some(RuntimeAgentMessageContent::Text {
         text: format!("![image]({normalized})"),
     })
 }
 
-/// 将 AgentMessage 转换为 TauriMessage
+/// 将 AgentMessage 转换为运行时协议消息
 fn convert_agent_messages(
     messages: &[AgentMessage],
     model_name: Option<&str>,
-) -> Vec<TauriMessage> {
+) -> Vec<RuntimeAgentMessage> {
     let eviction_plan = build_history_tool_io_eviction_plan_for_model(messages, model_name);
     messages
         .iter()
@@ -1135,13 +1180,13 @@ fn convert_agent_messages(
 fn convert_agent_message(
     message: &AgentMessage,
     eviction_plan: &crate::tool_io_offload::HistoryToolIoEvictionPlan,
-) -> TauriMessage {
+) -> RuntimeAgentMessage {
     let mut content = match &message.content {
         MessageContent::Text(text) => {
             if text.trim().is_empty() {
                 Vec::new()
             } else {
-                vec![TauriMessageContent::Text { text: text.clone() }]
+                vec![RuntimeAgentMessageContent::Text { text: text.clone() }]
             }
         }
         MessageContent::Parts(parts) => parts
@@ -1151,7 +1196,7 @@ fn convert_agent_message(
                     if text.trim().is_empty() {
                         None
                     } else {
-                        Some(TauriMessageContent::Text { text: text.clone() })
+                        Some(RuntimeAgentMessageContent::Text { text: text.clone() })
                     }
                 }
                 ContentPart::ImageUrl { image_url } => convert_image_part(&image_url.url),
@@ -1163,7 +1208,7 @@ fn convert_agent_message(
     if let Some(reasoning) = &message.reasoning_content {
         content.insert(
             0,
-            TauriMessageContent::Thinking {
+            RuntimeAgentMessageContent::Thinking {
                 text: reasoning.clone(),
             },
         );
@@ -1177,7 +1222,7 @@ fn convert_agent_message(
             } else {
                 maybe_offload_tool_arguments(&call.id, &parsed_arguments)
             };
-            content.push(TauriMessageContent::ToolRequest {
+            content.push(RuntimeAgentMessageContent::ToolRequest {
                 id: call.id.clone(),
                 tool_name: call.function.name.clone(),
                 arguments,
@@ -1195,10 +1240,10 @@ fn convert_agent_message(
 
         // tool/user 的工具结果协议消息都不应作为普通文本重复渲染。
         if message.role.eq_ignore_ascii_case("tool") || message.role.eq_ignore_ascii_case("user") {
-            content.retain(|part| !matches!(part, TauriMessageContent::Text { .. }));
+            content.retain(|part| !matches!(part, RuntimeAgentMessageContent::Text { .. }));
         }
 
-        content.push(TauriMessageContent::ToolResponse {
+        content.push(RuntimeAgentMessageContent::ToolResponse {
             id: tool_call_id.clone(),
             success: true,
             output: offloaded.output,
@@ -1216,7 +1261,7 @@ fn convert_agent_message(
         .map(|dt| dt.timestamp())
         .unwrap_or(0);
 
-    let result = TauriMessage {
+    let result = RuntimeAgentMessage {
         id: None,
         role: message.role.clone(),
         content,
@@ -1618,6 +1663,7 @@ mod tests {
                         input_text: Some("旧任务".to_string()),
                         error_message: None,
                         context_override: None,
+                        output_schema_runtime: None,
                         created_at: now - Duration::minutes(2),
                         started_at: Some(now - Duration::minutes(2)),
                         completed_at: None,
@@ -1631,6 +1677,7 @@ mod tests {
                         input_text: Some("新任务".to_string()),
                         error_message: None,
                         context_override: None,
+                        output_schema_runtime: None,
                         created_at: now - Duration::seconds(30),
                         started_at: Some(now - Duration::seconds(30)),
                         completed_at: Some(now - Duration::seconds(10)),
@@ -1730,7 +1777,7 @@ mod tests {
         assert!(assistant_converted.content.iter().any(|part| {
             matches!(
                 part,
-                TauriMessageContent::ToolRequest { id, tool_name, .. }
+                RuntimeAgentMessageContent::ToolRequest { id, tool_name, .. }
                     if id == "call-1" && tool_name == "Write"
             )
         }));
@@ -1751,11 +1798,11 @@ mod tests {
         assert!(!tool_converted
             .content
             .iter()
-            .any(|part| matches!(part, TauriMessageContent::Text { .. })));
+            .any(|part| matches!(part, RuntimeAgentMessageContent::Text { .. })));
         assert!(tool_converted.content.iter().any(|part| {
             matches!(
                 part,
-                TauriMessageContent::ToolResponse { id, output, .. }
+                RuntimeAgentMessageContent::ToolResponse { id, output, .. }
                     if id == "call-1" && output == "写入成功"
             )
         }));
@@ -1789,14 +1836,13 @@ mod tests {
         assert!(converted.content.iter().any(|part| {
             matches!(
                 part,
-                TauriMessageContent::Image { mime_type, data }
+                RuntimeAgentMessageContent::Image { mime_type, data }
                     if mime_type == "image/png" && data == "aGVsbG8="
             )
         }));
-        assert!(converted
-            .content
-            .iter()
-            .any(|part| matches!(part, TauriMessageContent::Text { text } if text == "参考图")));
+        assert!(converted.content.iter().any(
+            |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "参考图")
+        ));
     }
 
     #[test]
@@ -1817,11 +1863,11 @@ mod tests {
         assert!(!converted
             .content
             .iter()
-            .any(|part| matches!(part, TauriMessageContent::Text { .. })));
+            .any(|part| matches!(part, RuntimeAgentMessageContent::Text { .. })));
         assert!(converted.content.iter().any(|part| {
             matches!(
                 part,
-                TauriMessageContent::ToolResponse { id, output, .. }
+                RuntimeAgentMessageContent::ToolResponse { id, output, .. }
                     if id == "call-2" && output == "任务已完成"
             )
         }));
@@ -1893,7 +1939,7 @@ mod tests {
             .content
             .iter()
             .find_map(|part| match part {
-                TauriMessageContent::ToolRequest { arguments, .. } => Some(arguments),
+                RuntimeAgentMessageContent::ToolRequest { arguments, .. } => Some(arguments),
                 _ => None,
             })
             .expect("tool request");

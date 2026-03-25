@@ -4,7 +4,8 @@ use crate::aster_runtime_support::{
     queued_turn_runtime_from_task, queued_turn_snapshot_from_runtime,
     remove_aster_runtime_queued_turn,
 };
-use crate::{QueuedTurnSnapshot, QueuedTurnTask, TauriAgentEvent};
+use crate::protocol::AgentEvent as RuntimeAgentEvent;
+use crate::{QueuedTurnSnapshot, QueuedTurnTask};
 use aster::session::{
     require_shared_session_runtime_queue_service, QueuedTurnRuntime, RuntimeQueueSubmitResult,
 };
@@ -15,12 +16,12 @@ use std::sync::Arc;
 pub type RuntimeQueueExecutor<C> =
     Arc<dyn Fn(C, Value) -> BoxFuture<'static, Result<(), String>> + Send + Sync>;
 
-pub type RuntimeQueueEventEmitter = Arc<dyn Fn(String, TauriAgentEvent) + Send + Sync + 'static>;
+pub type RuntimeQueueEventEmitter = Arc<dyn Fn(String, RuntimeAgentEvent) + Send + Sync + 'static>;
 
 fn emit_runtime_queue_event(
     emitter: &RuntimeQueueEventEmitter,
     event_name: &str,
-    event: TauriAgentEvent,
+    event: RuntimeAgentEvent,
 ) {
     emitter(event_name.to_string(), event);
 }
@@ -69,7 +70,7 @@ where
     emit_runtime_queue_event(
         &emitter,
         &event_name,
-        TauriAgentEvent::QueueStarted {
+        RuntimeAgentEvent::QueueStarted {
             session_id: session_id.clone(),
             queued_turn_id: next_queued_turn.queued_turn_id.clone(),
         },
@@ -165,7 +166,7 @@ where
             emit_runtime_queue_event(
                 &emitter,
                 &queued_turn_event_name_from_runtime(&queued_turn),
-                TauriAgentEvent::QueueAdded {
+                RuntimeAgentEvent::QueueAdded {
                     session_id,
                     queued_turn: queued_turn_snapshot_from_runtime(&queued_turn, position),
                 },
@@ -192,7 +193,7 @@ pub async fn clear_runtime_queue(
         emit_runtime_queue_event(
             &emitter,
             &queued_turn_event_name_from_runtime(queued_turn),
-            TauriAgentEvent::QueueCleared {
+            RuntimeAgentEvent::QueueCleared {
                 session_id: session_id.to_string(),
                 queued_turn_ids: queued_turn_ids.clone(),
             },
@@ -234,7 +235,7 @@ pub async fn remove_runtime_queued_turn(
     emit_runtime_queue_event(
         &emitter,
         &queued_turn_event_name_from_runtime(&existing),
-        TauriAgentEvent::QueueRemoved {
+        RuntimeAgentEvent::QueueRemoved {
             session_id: session_id.to_string(),
             queued_turn_id: queued_turn.queued_turn_id,
         },

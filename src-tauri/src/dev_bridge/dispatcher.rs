@@ -17,6 +17,7 @@ mod providers;
 mod runtime_queries;
 mod skills;
 mod tray;
+mod voice;
 mod workspace;
 
 use crate::dev_bridge::DevBridgeState;
@@ -94,6 +95,10 @@ pub async fn handle_command(
     }
 
     if let Some(result) = providers::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = voice::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
 
@@ -282,5 +287,29 @@ mod tests {
 
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, created.id);
+    }
+
+    #[tokio::test]
+    async fn claw_solution_list_bridge_query_available() {
+        let state = make_test_state();
+        let list_value = handle_command(&state, "claw_solution_list", None)
+            .await
+            .unwrap();
+        let list = list_value.as_array().unwrap();
+
+        assert!(!list.is_empty());
+        assert!(list[0]["id"].is_string());
+        assert!(list[0]["readiness"].is_string());
+    }
+
+    #[tokio::test]
+    async fn voice_shortcut_status_bridge_query_available() {
+        let state = make_test_state();
+        let status_value = handle_command(&state, "get_voice_shortcut_runtime_status", None)
+            .await
+            .unwrap();
+
+        assert!(status_value["shortcut_registered"].is_boolean());
+        assert!(status_value["translate_shortcut_registered"].is_boolean());
     }
 }

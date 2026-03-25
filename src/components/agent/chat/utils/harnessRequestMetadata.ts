@@ -1,24 +1,16 @@
-import type { CreationMode } from "../components/types";
-import type { BrowserTaskRequirement } from "../types";
+import type { BrowserTaskRequirement, Message } from "../types";
 import type { TeamRoleDefinition, TeamDefinitionSource } from "./teamDefinitions";
-
-export type HarnessTurnTeamDecision = "single_agent" | "team_prepared";
-
-export interface HarnessTurnTeamBlueprint {
-  label?: string | null;
-  description?: string | null;
-  roles?: TeamRoleDefinition[] | null;
-}
 
 export interface BuildHarnessRequestMetadataOptions {
   base?: Record<string, unknown>;
   theme: string;
-  creationMode: CreationMode;
-  chatMode: "agent" | "general" | "creator";
-  webSearchEnabled: boolean;
-  thinkingEnabled: boolean;
-  taskModeEnabled: boolean;
-  subagentModeEnabled: boolean;
+  turnPurpose?: Message["purpose"] | null;
+  preferences: {
+    webSearch: boolean;
+    thinking: boolean;
+    task: boolean;
+    subagent: boolean;
+  };
   sessionMode: "default" | "theme_workbench";
   gateKey?: string | null;
   runTitle?: string | null;
@@ -33,9 +25,6 @@ export interface BuildHarnessRequestMetadataOptions {
   selectedTeamLabel?: string | null;
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
-  turnTeamDecision?: HarnessTurnTeamDecision | null;
-  turnTeamReason?: string | null;
-  turnTeamBlueprint?: HarnessTurnTeamBlueprint | null;
 }
 
 export function extractExistingHarnessMetadata(
@@ -53,18 +42,41 @@ export function extractExistingHarnessMetadata(
   return harnessValue as Record<string, unknown>;
 }
 
+const LEGACY_HARNESS_STATE_KEYS = [
+  "creation_mode",
+  "creationMode",
+  "chat_mode",
+  "chatMode",
+  "web_search_enabled",
+  "webSearchEnabled",
+  "thinking_enabled",
+  "thinkingEnabled",
+  "task_mode_enabled",
+  "taskModeEnabled",
+  "subagent_mode_enabled",
+  "subagentModeEnabled",
+  "turn_team_decision",
+  "turnTeamDecision",
+  "turn_team_reason",
+  "turnTeamReason",
+  "turn_team_blueprint",
+  "turnTeamBlueprint",
+] as const;
+
+function clearLegacyHarnessStateFields(metadata: Record<string, unknown>): void {
+  LEGACY_HARNESS_STATE_KEYS.forEach((key) => {
+    delete metadata[key];
+  });
+}
+
 export function buildHarnessRequestMetadata(
   options: BuildHarnessRequestMetadataOptions,
 ): Record<string, unknown> {
   const {
     base,
     theme,
-    creationMode,
-    chatMode,
-    webSearchEnabled,
-    thinkingEnabled,
-    taskModeEnabled,
-    subagentModeEnabled,
+    turnPurpose,
+    preferences,
     sessionMode,
     gateKey,
     runTitle,
@@ -79,9 +91,6 @@ export function buildHarnessRequestMetadata(
     selectedTeamLabel,
     selectedTeamSummary,
     selectedTeamRoles,
-    turnTeamDecision,
-    turnTeamReason,
-    turnTeamBlueprint,
   } = options;
 
   const serializeTeamRoles = (roles?: TeamRoleDefinition[] | null) =>
@@ -99,15 +108,16 @@ export function buildHarnessRequestMetadata(
         }))
       : undefined;
 
-  return {
+  const metadata: Record<string, unknown> = {
     ...(base || {}),
     theme,
-    creation_mode: creationMode,
-    chat_mode: chatMode,
-    web_search_enabled: webSearchEnabled,
-    thinking_enabled: thinkingEnabled,
-    task_mode_enabled: taskModeEnabled,
-    subagent_mode_enabled: subagentModeEnabled,
+    turn_purpose: turnPurpose || undefined,
+    preferences: {
+      web_search: preferences.webSearch,
+      thinking: preferences.thinking,
+      task: preferences.task,
+      subagent: preferences.subagent,
+    },
     session_mode: sessionMode,
     gate_key:
       sessionMode === "theme_workbench" ? gateKey || undefined : undefined,
@@ -119,19 +129,6 @@ export function buildHarnessRequestMetadata(
     selected_team_label: selectedTeamLabel || undefined,
     selected_team_summary: selectedTeamSummary || undefined,
     selected_team_roles: serializeTeamRoles(selectedTeamRoles),
-    turn_team_decision: turnTeamDecision || undefined,
-    turn_team_reason: turnTeamReason || undefined,
-    turn_team_blueprint:
-      turnTeamBlueprint &&
-      (turnTeamBlueprint.label?.trim() ||
-        turnTeamBlueprint.description?.trim() ||
-        (turnTeamBlueprint.roles?.length || 0) > 0)
-        ? {
-            label: turnTeamBlueprint.label?.trim() || undefined,
-            description: turnTeamBlueprint.description?.trim() || undefined,
-            roles: serializeTeamRoles(turnTeamBlueprint.roles),
-          }
-        : undefined,
     browser_requirement: browserRequirement || undefined,
     browser_requirement_reason: browserRequirementReason || undefined,
     browser_launch_url: browserLaunchUrl || undefined,
@@ -147,4 +144,7 @@ export function buildHarnessRequestMetadata(
         }
       : undefined,
   };
+
+  clearLegacyHarnessStateFields(metadata);
+  return metadata;
 }

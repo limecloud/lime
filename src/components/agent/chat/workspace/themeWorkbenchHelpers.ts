@@ -7,8 +7,9 @@ import type {
   ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
 } from "@/lib/api/executionRun";
 import type { ThemeWorkbenchDocumentState } from "@/lib/api/project";
-import type { ToolCallState } from "@/lib/api/agentStream";
+import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type { SkillDetailInfo } from "@/lib/api/skill-execution";
+import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import { parseSkillSlashCommand } from "../hooks/skillCommand";
@@ -115,11 +116,7 @@ function resolveThemeWorkbenchToolTaskTitle(toolCall: ToolCallState): string {
     return size ? `生成封面图（${size}）` : "生成封面图";
   }
   if (normalized.includes("write_file") || normalized.includes("create_file")) {
-    const pathValue = resolveThemeWorkbenchTextArg(args, [
-      "path",
-      "file_path",
-      "filePath",
-    ]);
+    const pathValue = extractArtifactProtocolPathsFromValue(args)[0] ?? "";
     return pathValue
       ? `写入 ${getThemeWorkbenchFileLabel(pathValue)}`
       : "写入主稿文件";

@@ -1,5 +1,5 @@
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
-import type { ContextTraceStep } from "@/lib/api/agentStream";
+import type { AgentContextTraceStep as ContextTraceStep } from "@/lib/api/agentProtocol";
 import type { AgentRuntimeStatus } from "../types";
 
 function buildExecutionLabel(strategy: AsterExecutionStrategy): string {

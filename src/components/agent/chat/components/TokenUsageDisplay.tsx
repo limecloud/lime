@@ -8,7 +8,7 @@
 import React from "react";
 import styled from "styled-components";
 import { Coins } from "lucide-react";
-import type { TokenUsage } from "@/lib/api/agentStream";
+import type { AgentTokenUsage as TokenUsage } from "@/lib/api/agentProtocol";
 
 const UsageContainer = styled.div`
   display: inline-flex;

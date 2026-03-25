@@ -6,6 +6,7 @@ import {
   type ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
   type ThemeWorkbenchRunTerminalItem,
 } from "@/lib/api/executionRun";
+import { extractArtifactProtocolPathsFromRecord } from "@/lib/artifact-protocol";
 import {
   skillExecutionApi,
   type SkillDetailInfo,
@@ -268,6 +269,7 @@ export function useWorkspaceThemeWorkbenchSidebarRuntime({
       (item) => {
         const gateKey =
           item.gate_key || inferThemeWorkbenchGateFromQueueItem(item).key;
+        const artifactPaths = extractArtifactProtocolPathsFromRecord(item);
         return {
           id: `run-queue-${item.run_id}`,
           name: item.title || "执行主题工作台编排",
@@ -277,10 +279,7 @@ export function useWorkspaceThemeWorkbenchSidebarRuntime({
           runId: item.run_id,
           executionId: item.execution_id || undefined,
           sessionId: item.session_id || undefined,
-          artifactPaths:
-            Array.isArray(item.artifact_paths) && item.artifact_paths.length > 0
-              ? item.artifact_paths
-              : undefined,
+          artifactPaths: artifactPaths.length > 0 ? artifactPaths : undefined,
           gateKey,
           source: item.source,
           sourceRef: item.source_ref || undefined,
@@ -289,32 +288,31 @@ export function useWorkspaceThemeWorkbenchSidebarRuntime({
     );
 
     const terminalLogs: SidebarActivityLog[] =
-      themeWorkbenchMergedTerminals.map((terminal) => ({
-        id: `run-terminal-${terminal.run_id}`,
-        name: terminal.title || "执行主题工作台编排",
-        status: terminal.status === "success" ? "completed" : "failed",
-        timeLabel: formatThemeWorkbenchRunTimeLabel(
-          terminal.finished_at || terminal.started_at,
-        ),
-        durationLabel: formatThemeWorkbenchRunDurationLabel(
-          terminal.started_at,
-          terminal.finished_at,
-        ),
-        applyTarget: resolveThemeWorkbenchApplyTargetByGateKey(
-          terminal.gate_key || "idle",
-        ),
-        runId: terminal.run_id,
-        executionId: terminal.execution_id || undefined,
-        sessionId: terminal.session_id || undefined,
-        artifactPaths:
-          Array.isArray(terminal.artifact_paths) &&
-          terminal.artifact_paths.length > 0
-            ? terminal.artifact_paths
-            : undefined,
-        gateKey: terminal.gate_key || "idle",
-        source: terminal.source,
-        sourceRef: terminal.source_ref || undefined,
-      }));
+      themeWorkbenchMergedTerminals.map((terminal) => {
+        const artifactPaths = extractArtifactProtocolPathsFromRecord(terminal);
+        return {
+          id: `run-terminal-${terminal.run_id}`,
+          name: terminal.title || "执行主题工作台编排",
+          status: terminal.status === "success" ? "completed" : "failed",
+          timeLabel: formatThemeWorkbenchRunTimeLabel(
+            terminal.finished_at || terminal.started_at,
+          ),
+          durationLabel: formatThemeWorkbenchRunDurationLabel(
+            terminal.started_at,
+            terminal.finished_at,
+          ),
+          applyTarget: resolveThemeWorkbenchApplyTargetByGateKey(
+            terminal.gate_key || "idle",
+          ),
+          runId: terminal.run_id,
+          executionId: terminal.execution_id || undefined,
+          sessionId: terminal.session_id || undefined,
+          artifactPaths: artifactPaths.length > 0 ? artifactPaths : undefined,
+          gateKey: terminal.gate_key || "idle",
+          source: terminal.source,
+          sourceRef: terminal.source_ref || undefined,
+        };
+      });
 
     return [...runningLogs, ...terminalLogs];
   }, [

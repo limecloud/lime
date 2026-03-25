@@ -79,6 +79,7 @@ import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
 
 import type {
   Message,
+  SiteSavedContentTarget,
   WriteArtifactContext,
 } from "./types";
 import type {
@@ -94,6 +95,9 @@ import {
   mergeArtifacts,
   resolveDefaultArtifactViewMode,
 } from "./utils/messageArtifacts";
+import {
+  createChatToolPreferencesFromExecutionRuntime,
+} from "./utils/sessionExecutionRuntime";
 import {
   buildRealSubagentTimelineItems,
   buildSyntheticSubagentTimelineItems,
@@ -167,6 +171,9 @@ import { useWorkspaceThemeWorkbenchShellRuntime } from "./workspace/useWorkspace
 import { useWorkspaceContextDetailActions } from "./workspace/useWorkspaceContextDetailActions";
 import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSessionRuntime";
 import { useWorkspaceThemeWorkbenchDocumentPersistenceRuntime } from "./workspace/useWorkspaceThemeWorkbenchDocumentPersistenceRuntime";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
+import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
+import type { ArtifactTimelineOpenTarget } from "./utils/artifactTimelineNavigation";
 import {
   createInitialSessionImageWorkbenchState,
   type SessionImageWorkbenchState,
@@ -200,6 +207,7 @@ export function AgentChatWorkspace({
   onNavigate: _onNavigate,
   projectId: externalProjectId,
   contentId,
+  initialRequestMetadata,
   agentEntry = "claw",
   theme: initialTheme,
   initialCreationMode,
@@ -245,7 +253,11 @@ export function AgentChatWorkspace({
   const [creationMode, setCreationMode] = useState<CreationMode>(
     initialCreationMode ?? "guided",
   );
-  const { chatToolPreferences, setChatToolPreferences } =
+  const {
+    chatToolPreferences,
+    setChatToolPreferences,
+    syncChatToolPreferencesSource,
+  } =
     useThemeScopedChatToolPreferences(activeTheme);
   const {
     projectId,
@@ -593,6 +605,15 @@ export function AgentChatWorkspace({
     useState<CanvasWorkbenchLayoutMode>("split");
   const [browserTaskPreflight, setBrowserTaskPreflight] =
     useState<BrowserTaskPreflight | null>(null);
+  const [focusedArtifactBlockId, setFocusedArtifactBlockId] = useState<
+    string | null
+  >(null);
+  const [artifactBlockFocusRequestKey, setArtifactBlockFocusRequestKey] =
+    useState(0);
+  const [focusedTimelineItemId, setFocusedTimelineItemId] = useState<
+    string | null
+  >(null);
+  const [timelineFocusRequestKey, setTimelineFocusRequestKey] = useState(0);
   const autoCollapsedTopicSidebarRef = useRef(false);
 
   useEffect(() => {
@@ -606,6 +627,17 @@ export function AgentChatWorkspace({
   const handleNavigateToSkillSettings = useCallback(() => {
     _onNavigate?.("settings", { tab: SettingsTabs.Skills });
   }, [_onNavigate]);
+  const handleOpenSavedSiteContent = useCallback(
+    ({ projectId, contentId }: SiteSavedContentTarget) => {
+      _onNavigate?.("agent", {
+        projectId,
+        contentId,
+        lockTheme: true,
+        fromResources: true,
+      });
+    },
+    [_onNavigate],
+  );
 
   const handleRefreshSkills = useCallback(async () => {
     await loadSkills(true);
@@ -1034,6 +1066,8 @@ export function AgentChatWorkspace({
     subagentParentContext = null,
     queuedTurns = [],
     threadRead = null,
+    executionRuntime = null,
+    activeExecutionRuntime = null,
     isSending,
     sendMessage,
     compactSession = async () => undefined,
@@ -1081,20 +1115,45 @@ export function AgentChatWorkspace({
     }
     void originalSwitchTopic(parentSessionId);
   }, [originalSwitchTopic, subagentParentContext?.parent_session_id]);
+  const runtimeChatToolPreferences = useMemo(
+    () => createChatToolPreferencesFromExecutionRuntime(executionRuntime),
+    [executionRuntime],
+  );
+
+  useEffect(() => {
+    syncChatToolPreferencesSource(activeTheme, runtimeChatToolPreferences);
+  }, [
+    activeTheme,
+    runtimeChatToolPreferences,
+    syncChatToolPreferencesSource,
+  ]);
+
   const hasRealTeamGraph =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
   const {
-    runtimeTeamState,
-    clearRuntimeTeamState,
+    clearRuntimeTeamState: clearPreparedRuntimeTeamState,
     prepareRuntimeTeamBeforeSend,
   } = useRuntimeTeamFormation({
-    activeTheme,
     projectId,
     sessionId,
     selectedTeam,
     subagentEnabled: chatToolPreferences.subagent,
     hasRealTeamGraph,
   });
+  const {
+    runtimeTeamDispatchPreview,
+    runtimeTeamPreviewState,
+    clearRuntimeTeamDispatchPreview,
+    setRuntimeTeamDispatchPreview,
+  } = useWorkspaceRuntimeTeamDispatchPreviewRuntime({
+    messagesLength: messages.length,
+    sessionId,
+  });
+  const teamDispatchPreviewState = runtimeTeamPreviewState;
+  const clearRuntimeTeamState = useCallback(() => {
+    clearPreparedRuntimeTeamState();
+    clearRuntimeTeamDispatchPreview();
+  }, [clearPreparedRuntimeTeamState, clearRuntimeTeamDispatchPreview]);
   const imageWorkbenchSessionKey = useMemo(
     () => sessionId?.trim() || "__local_image_workbench__",
     [sessionId],
@@ -1136,7 +1195,6 @@ export function AgentChatWorkspace({
     queuedTurnCount: queuedTurns.length,
     isSending,
     subagentEnabled: chatToolPreferences.subagent,
-    runtimeTeamState,
     childSubagentSessions,
     subagentParentContext,
   });
@@ -1152,7 +1210,7 @@ export function AgentChatWorkspace({
   } = useWorkspaceTeamWorkbenchAutoOpenRuntime({
     hasRealTeamGraph: teamSessionRuntime.hasRealTeamGraph,
     layoutMode,
-    runtimeTeamRequestId: runtimeTeamState?.requestId ?? null,
+    runtimeTeamRequestId: runtimeTeamDispatchPreview?.key ?? null,
     sessionId,
     setLayoutMode,
   });
@@ -1452,12 +1510,12 @@ export function AgentChatWorkspace({
     () =>
       buildHarnessRequestMetadata({
         theme: mappedTheme,
-        creationMode,
-        chatMode,
-        webSearchEnabled: chatToolPreferences.webSearch,
-        thinkingEnabled: chatToolPreferences.thinking,
-        taskModeEnabled: chatToolPreferences.task,
-        subagentModeEnabled: chatToolPreferences.subagent,
+        preferences: {
+          webSearch: chatToolPreferences.webSearch,
+          thinking: chatToolPreferences.thinking,
+          task: chatToolPreferences.task,
+          subagent: chatToolPreferences.subagent,
+        },
         sessionMode: isThemeWorkbench ? "theme_workbench" : "default",
         gateKey: isThemeWorkbench ? currentGate.key : undefined,
         runTitle: themeWorkbenchActiveQueueItem?.title?.trim() || undefined,
@@ -1474,13 +1532,11 @@ export function AgentChatWorkspace({
         selectedTeamRoles: selectedTeam?.roles,
       }),
     [
-      chatMode,
       chatToolPreferences.subagent,
       chatToolPreferences.task,
       chatToolPreferences.thinking,
       chatToolPreferences.webSearch,
       contentId,
-      creationMode,
       currentGate.key,
       isThemeWorkbench,
       mappedTheme,
@@ -1564,12 +1620,6 @@ export function AgentChatWorkspace({
   // 用于追踪是否已触发过 AI 引导
   const hasTriggeredGuide = useRef(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
-  const { runtimeTeamDispatchPreview, setRuntimeTeamDispatchPreview } =
-    useWorkspaceRuntimeTeamDispatchPreviewRuntime({
-      messagesLength: messages.length,
-      runtimeTeamState,
-      sessionId,
-    });
   const {
     initialDispatchKey,
     isBootstrapDispatchPending,
@@ -1766,8 +1816,6 @@ export function AgentChatWorkspace({
     setChatToolPreferences,
     activeTheme,
     mappedTheme,
-    creationMode,
-    chatMode,
     isThemeWorkbench,
     contextWorkspace: {
       enabled: contextWorkspace.enabled,
@@ -1775,10 +1823,6 @@ export function AgentChatWorkspace({
     },
     runtimeStyleMessagePrompt,
     projectId,
-    sessionId,
-    providerType,
-    model,
-    setModel,
     executionStrategy,
     preferredTeamPresetId,
     selectedTeam,
@@ -1787,6 +1831,7 @@ export function AgentChatWorkspace({
     currentGateKey: currentGate.key,
     themeWorkbenchActiveQueueTitle: themeWorkbenchActiveQueueItem?.title,
     contentId,
+    workspaceRequestMetadataBase: initialRequestMetadata,
     messagesCount: messages.length,
     sendMessage,
     resolveSendBoundary,
@@ -2035,6 +2080,48 @@ export function AgentChatWorkspace({
     handleWriteFileRef.current = handleWriteFile;
   }, [handleWriteFile]);
 
+  const handleSaveArtifactDocument = useCallback(
+    async (artifact: Artifact, document: ArtifactDocumentV1) => {
+      const filePath = resolveArtifactProtocolFilePath(artifact);
+      const serializedDocument = JSON.stringify(document, null, 2);
+
+      await Promise.resolve(
+        handleWriteFile(serializedDocument, filePath, {
+          artifactId: artifact.id,
+          source: "message_content",
+          status: "complete",
+          artifact: {
+            ...artifact,
+            content: serializedDocument,
+            status: "complete",
+            meta: {
+              ...artifact.meta,
+              artifactDocument: document,
+              language: "json",
+              filePath:
+                typeof artifact.meta.filePath === "string" &&
+                artifact.meta.filePath.trim()
+                  ? artifact.meta.filePath
+                  : filePath,
+              filename:
+                typeof artifact.meta.filename === "string" &&
+                artifact.meta.filename.trim()
+                  ? artifact.meta.filename
+                  : artifact.title,
+            },
+            updatedAt: Date.now(),
+          },
+          metadata: {
+            writePhase: "persisted",
+            previewText: document.summary || document.title,
+            lastUpdateSource: "message_content",
+          },
+        }),
+      );
+    },
+    [handleWriteFile],
+  );
+
   const {
     handleHarnessLoadFilePreview,
     handleArtifactClick,
@@ -2063,6 +2150,44 @@ export function AgentChatWorkspace({
     setCanvasState,
     upsertNovelCanvasState,
   });
+  const handleWorkspaceFileClick = useCallback(
+    (fileName: string, content: string) => {
+      setFocusedArtifactBlockId(null);
+      handleFileClick(fileName, content);
+    },
+    [handleFileClick],
+  );
+  const handleWorkspaceArtifactClick = useCallback(
+    (artifact: Artifact) => {
+      setFocusedArtifactBlockId(null);
+      handleArtifactClick(artifact);
+    },
+    [handleArtifactClick],
+  );
+  const handleOpenArtifactFromTimeline = useCallback(
+    (target: ArtifactTimelineOpenTarget) => {
+      handleWorkspaceFileClick(target.filePath, target.content);
+
+      const normalizedBlockId = target.blockId?.trim();
+      if (!normalizedBlockId) {
+        return;
+      }
+
+      setFocusedArtifactBlockId(normalizedBlockId);
+      setArtifactBlockFocusRequestKey((current) => current + 1);
+    },
+    [handleWorkspaceFileClick],
+  );
+  const handleJumpToTimelineItem = useCallback((itemId: string) => {
+    const normalizedItemId = itemId.trim();
+    if (!normalizedItemId) {
+      return;
+    }
+
+    setLayoutMode((current) => (current === "canvas" ? "chat-canvas" : current));
+    setFocusedTimelineItemId(normalizedItemId);
+    setTimelineFocusRequestKey((current) => current + 1);
+  }, []);
 
   useWorkspaceAutoGuideRuntime({
     contentId,
@@ -2123,7 +2248,7 @@ export function AgentChatWorkspace({
     themeWorkbenchRunState,
     currentGateStatus: currentGate.status,
     hasRealTeamGraph: teamSessionRuntime.hasRealTeamGraph,
-    runtimeTeamState,
+    teamDispatchPreviewState,
   });
   const themeWorkbenchShellRuntime = useWorkspaceThemeWorkbenchShellRuntime({
     showChatPanel,
@@ -2147,7 +2272,7 @@ export function AgentChatWorkspace({
     selectedTeamRoles: selectedTeam?.roles,
     handleOpenSubagentSession,
     handleHarnessLoadFilePreview,
-    handleFileClick,
+    handleFileClick: handleWorkspaceFileClick,
   });
 
   useWorkspaceWorkflowProgressSync({
@@ -2180,7 +2305,7 @@ export function AgentChatWorkspace({
     subagentParentContext,
     selectedTeamLabel,
     selectedTeamSummary,
-    runtimeTeamState,
+    teamDispatchPreviewState,
     teamSessionRuntime,
     teamSessionControlRuntime,
     handleOpenSubagentSession,
@@ -2200,6 +2325,8 @@ export function AgentChatWorkspace({
     setProviderType,
     model,
     setModel,
+    sessionExecutionRuntime: executionRuntime,
+    isExecutionRuntimeActive: Boolean(activeExecutionRuntime),
     projectId: projectId ?? null,
     executionStrategy,
     setExecutionStrategy,
@@ -2222,6 +2349,7 @@ export function AgentChatWorkspace({
     threadItems: effectiveThreadItems,
     currentTurnId,
     threadRead,
+    activeExecutionRuntime,
     pendingActions,
     submittedActionsInFlight,
     messages: displayMessages,
@@ -2242,7 +2370,7 @@ export function AgentChatWorkspace({
     harnessInventoryRuntime,
     mappedTheme,
     handleHarnessLoadFilePreview,
-    handleFileClick,
+    handleFileClick: handleWorkspaceFileClick,
     shellChromeRuntime,
     handleActivateTeamWorkbench,
     chatToolPreferences,
@@ -2269,6 +2397,11 @@ export function AgentChatWorkspace({
     setArtifactViewMode,
     artifactPreviewSize,
     setArtifactPreviewSize,
+    onSaveArtifactDocument: handleSaveArtifactDocument,
+    threadItems: effectiveThreadItems,
+    focusedBlockId: focusedArtifactBlockId,
+    blockFocusRequestKey: artifactBlockFocusRequestKey,
+    onJumpToTimelineItem: handleJumpToTimelineItem,
     handleCloseCanvas,
     currentImageWorkbenchState,
     imageWorkbenchPreferenceSummary,
@@ -2297,7 +2430,7 @@ export function AgentChatWorkspace({
     teamSessionRuntime,
     teamSessionControlRuntime,
     teamWorkbenchAutoFocusToken,
-    runtimeTeamState,
+    teamDispatchPreviewState,
   });
 
   const workspaceShellSceneRuntime =
@@ -2402,8 +2535,10 @@ export function AgentChatWorkspace({
       editMessage,
       handleA2UISubmit,
       handleWriteFile,
-      handleFileClick,
-      handleArtifactClick,
+      handleFileClick: handleWorkspaceFileClick,
+      handleOpenArtifactFromTimeline,
+      handleOpenSavedSiteContent,
+      handleArtifactClick: handleWorkspaceArtifactClick,
       handleOpenSubagentSession,
       handlePermissionResponseWithBrowserPreflight,
       pendingPromotedA2UIActionRequest,
@@ -2425,6 +2560,8 @@ export function AgentChatWorkspace({
       setCanvasWorkbenchLayoutMode,
       workspacePathMissing: Boolean(workspacePathMissing),
       workspaceHealthError,
+      focusedTimelineItemId,
+      timelineFocusRequestKey,
     });
 
   return workspaceShellSceneRuntime.shellSceneNode;

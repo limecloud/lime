@@ -1,50 +1,55 @@
-# 治理第一原则
+# 治理判断手册
 
-## 核心规则
+## 这份文档回答什么
+
+本文件定义 Lime 仓库的治理判断标准，主要回答：
+
+- 什么才算“统一事实源”，而不是“又补了一套更新版本”
+- 哪些路径还能继续演进，哪些路径只能收口、下线或删除
+- 遇到新旧并存时，应该先做什么，而不是先补功能再说
+- 如何用仓库现有守卫阻止 compat / deprecated 路径继续膨胀
+
+它是 **仓库治理规则**，不是某个 AI 工具、reviewer、sub-agent 或外部流程的说明书。
+
+## 第一原则
 
 **同一种能力，在同一时期只能存在一个继续演进的事实源。**
 
-其余实现必须被明确归类为：
+其余实现必须被明确归类。
+
+## 分类语言
+
+治理默认使用这四类：
 
 - `current`：当前唯一主路径，后续需求只允许继续向这里收敛
 - `compat`：兼容层，只允许委托、适配、告警，不允许继续长新逻辑
 - `deprecated`：废弃层，只允许迁移与下线，不允许新增依赖
-- `dead`：无入口或已停用，优先删除
+- `dead`：已停用或确认无入口，优先删除
 
-如果做不到这一点，系统就不会持续演进，只会持续膨胀。
+仓库脚本还可能给出一些辅助信号，例如：
 
-## 文档定位
+- `dead-candidate`
+- `unused-file`
+- `unused-export`
+- `zero-inbound`
 
-本文件定义的是 **Lime 仓库的治理判断标准**，不是某一种具体工具或 Agent 框架的使用说明。
+这些信号 **不是正式分类本身**。例如 `dead-candidate` 代表“很可能可以删”，但不是自动等于 `dead`，仍需要人工确认。
 
-它解决的是：
+## 什么时候先读
 
-- 什么才算“统一”，而不是“又写了一套更新版本”
-- 什么路径还允许继续演进，什么路径只能收口或删除
-- 什么时候可以保留兼容层，什么时候必须补守卫或删除
-
-它不直接规定：
-
-- 必须使用哪一种 harness、hook、sub-agent 或 reviewer
-- 必须采用哪一个 AI 工具的工作流
-
-如果未来引入额外 reviewer agent，它也只能 **执行** 本文件定义的治理规则，不能替代本文件成为新的事实源。
-
-## 适用场景
-
-当出现以下任一情况时，必须先读本文件，再决定是否改代码：
+出现以下任一情况时，先读本文件，再决定是否改代码：
 
 - 新旧 Hook、新旧组件、新旧命令并存
-- 前端已经有新抽象，Rust 后端仍保留多套入口
-- 新服务已经落地，但旧数据表、旧 DAO、旧旁路查询仍在使用
-- 需求迭代后，AI 倾向继续沿用旧实现
-- 团队打算“先补功能，后面再统一”
+- 前端已经切到新入口，Rust / 数据 / 旁路系统还在继续走旧路径
+- 新服务已落地，但旧表、旧 DAO、旧目录兼容仍被依赖
+- 需求迭代后，AI 倾向沿旧实现继续生成
+- 团队想“先补功能，后面再统一”
 
-## 强制执行规则
+## 治理工作流
 
 ### 1. 先盘点，再修改
 
-开始改动前，必须先盘点这项能力在 4 层中的实际分布：
+开始改动前，先盘点这项能力在 4 层中的分布：
 
 - 入口层：页面、组件、Hook、前端 API
 - 服务层：Tauri 命令、Service、Workflow、事件入口
@@ -71,75 +76,61 @@
 
 ### 3. 先分类，再动刀
 
-盘点完成后，必须把实际路径标成以下四类之一：
+盘点完成后，把实际路径标成以下类型之一：
 
 - `current`
 - `compat`
 - `deprecated`
 - `dead`
 
-分类不是文档装饰，而是后续动作的约束：
+并为 `compat` / `deprecated` 写清退出条件：
 
-- `current`：允许继续演进，但禁止再新增平级实现
-- `compat`：必须持续收口，不能承接新需求
-- `deprecated`：必须限制新增依赖，并明确退出条件
-- `dead`：优先删除，至少先建立自动守卫防止回流
+- 迁完哪些调用即可删
+- 哪个版本或阶段必须删
+- 删除前要看哪些扫描结果或指标
 
-### 4. compat 只能收口，不能增强
+没有退出条件的 compat，最终都会常驻。
 
-compat 层存在的唯一理由是迁移。
+### 4. 优先做减法
 
-compat 层允许：
+默认优先执行这些动作，而不是再加一层抽象：
 
-- 参数转换
-- 返回值适配
-- 委托到新实现
-- 迁移期埋点和告警
+- 把散落逻辑收回单一边界
+- 把 legacy 判断收回 `Repository` / `Database` / `app_paths`
+- 让 compat 层只做委托与适配
+- 删除零引用入口
+- 把运行时 fallback 改成启动期迁移或边界短路
 
-compat 层禁止：
+除非用户明确要求保留兼容，否则不要新增新的 compat 层。
 
-- 新增业务逻辑
-- 新增状态来源
-- 新增独立存储
-- 新增旁路能力
-
-一旦 compat 层承载新需求，它就不再是 compat，而是新的分叉点。
-
-### 5. 禁止回流，优先于“推荐新方案”
+### 5. 先封旧路，再谈“推荐新路”
 
 治理不能靠口头约定，必须靠守卫机制。
 
-至少建立以下一种或多种守卫：
-
-- ESLint / 静态规则禁止 import 旧入口
-- Rust 对旧命令输出 `warn` 与调用统计
-- CI 阻止新代码继续引用废弃路径
-- 脚本扫描旧表、旧 DAO、旧命令、旧 Hook 的新增使用点
-
-当前仓库可直接运行：
+当前仓库优先使用：
 
 ```bash
 npm run governance:legacy-report
 npm run test:contracts
 ```
 
-- `npm run governance:legacy-report` 用于扫描：
-  - 已被判定为 `deprecated` / `dead-candidate` 的前端入口
-  - 旧 Tauri 命令是否仍然只收口在指定 API 网关
-  - 哪些兼容壳层已经零引用，可以进入删除候选
-- `npm run test:contracts` 用于检查跨层命令契约：
-  - 前端 `safeInvoke(...)` / `invoke(...)` 的实际命令调用
-  - Rust `tauri::generate_handler!` 的实际注册表
-  - `agentCommandCatalog` 中的 `deprecated` 命令与 `runtime gateway` 命令边界
-  - `mockPriorityCommands` 与 `defaultMocks` 是否仍然同步
+它们分别用于：
 
-只看其中一侧都不够。只要能力仍然依赖命令边界，至少要同时看前端调用、Rust 注册、deprecated 目录、mock 集合这四个面。
+- `governance:legacy-report`
+  - 扫描已被判定为 `deprecated` / `dead-candidate` 的前端入口
+  - 检查旧 Tauri 命令是否仍被限制在指定 API 网关
+  - 找出已经零引用、可进入删除候选的兼容壳
+- `test:contracts`
+  - 检查前端 `safeInvoke(...)` / `invoke(...)` 的实际调用
+  - 检查 Rust `tauri::generate_handler!` 的实际注册
+  - 检查 `agentCommandCatalog` 中的治理口径
+  - 检查 `mockPriorityCommands` 与 `defaultMocks` 是否同步
 
 原则只有一句：
 
-**不是鼓励走新路，而是封住老路。**
+**不是鼓励走新路，而是先封住老路。**
 
-### 6. 主链路和旁路必须一起治理
+### 6. 主链路和旁路一起治理
 
 如果只迁：
 
@@ -157,98 +148,36 @@ npm run test:contracts
 
 那么旧表、旧命令、旧 DAO 最终都删不掉。
 
-治理完成的标准不是“页面能跑”，而是“系统生态已收口”。
+治理完成的标准不是“页面能跑”，而是“系统生态已经收口”。
 
-### 7. 删除必须有退出条件
+### 7. 验证后再删
 
-每一个 `compat` 或 `deprecated` 路径，都必须有明确退出条件：
+只有当以下条件同时满足时，才允许删除旧路径：
 
-- 哪些调用迁完即可删
-- 哪个版本或阶段必须删除
-- 删除前要验证哪些指标或扫描结果
+- 新增依赖已经被封住
+- 调用量或引用已清零
+- 旁路系统已经迁完
+- 边界检查与定向验证通过
 
-没有退出条件的兼容层，最终一定会常驻。
+## Lime 特别关注的三类边界
 
-## 推荐执行闭环
+### 1. 命令边界
 
-### 第一步：出迁移地图
+只要改动涉及 Tauri 命令、Bridge、mock、前端 API 网关，至少同时看这几处：
 
-至少列清楚：
+- 前端 `safeInvoke(...)` / `invoke(...)`
+- Rust `tauri::generate_handler!`
+- `src/lib/governance/agentCommandCatalog.json`
+- `src/lib/dev-bridge/mockPriorityCommands.ts`
+- `src/lib/tauri-mock/core.ts`
 
-- 当前主路径
-- 兼容路径
-- 废弃路径
-- 无入口路径
+命令边界的详细规则，直接看：
 
-### 第二步：写事实源声明
+- `docs/aiprompts/commands.md`
 
-例如：
+### 2. 运行时路径边界
 
-> 聊天能力后续统一收敛到 `useAgentChatUnified -> useAsterAgentChat -> agent_runtime_* + lime_core::database::agent_session_repository`。
-
-## 文件级治理图谱配套规则
-
-如果要维护文件 / 页面级治理图谱，仓库内默认配套：
-
-- 人工治理规则：`governance/surfaces.yml`
-- 交互图谱命令：`npm run governance:graph`
-- 既有边界扫描：`npm run governance:legacy-report`
-
-约束：
-
-- `current / compat / deprecated / dead` 只能来自人工治理规则或仓库内既有治理规则
-- 自动脚本只能补 `dead-candidate`、`unused-file`、`unused-export`、`zero-inbound`、`page-unreachable` 等信号
-- `dead` 不能由脚本自动判定，必须人工确认
-- `compat` 规则必须写清 `sourceOfTruth`
-- `deprecated` 规则必须写清 `exitCriteria`
-- 如遇构建期 alias、运行时桥接、特殊入口等静态分析盲区，可补 `ignoreSignals` 仅压制误报 signal，不改变事实源判断
-
-### 第三步：优先做减法
-
-默认优先做这些动作，而不是再加一层抽象：
-
-- 把上层散落逻辑收回单一边界
-- 把 legacy 判断收回 `Repository / Database / app_paths`
-- 让 compat 层只做委托与适配
-- 删除零引用入口
-- 把运行时 fallback 改成启动期迁移或边界短路
-
-除非用户明确要求保留兼容，否则不要新增新的 compat 层。
-
-### 第四步：补守卫
-
-至少加一条能自动失败的规则，阻止旧路径继续增长。
-
-如果改动涉及 Tauri 命令、前端 API 网关、bridge 或 mock，优先补：
-
-- `npm run test:contracts`
-- `npm run governance:legacy-report`
-
-### 第五步：迁旁路
-
-确认统计、记忆、搜索、报表、审计、任务系统不再依赖旧实现。
-
-### 第六步：验证并删除
-
-只有当新增依赖已被封住、调用量清零、旁路迁完，才允许删除旧路径。
-
-## Lime 中的典型判断方式
-
-以聊天系统为例，遇到新旧并存时，必须同时问这几个问题：
-
-- 前端唯一入口是不是 `useAgentChatUnified -> useAsterAgentChat`，还是 `useChat` / `useAgentChat` / `useUnifiedChat` 还在继续长逻辑？
-- Rust 唯一入口是不是 `agent_runtime_*`，还是 `chat_*` / `general_chat_*` / `agent_*` / `aster_agent_*` 还在平行演进？
-- 前端 `safeInvoke(...)` / `invoke(...)`、Rust `tauri::generate_handler!`、`agentCommandCatalog`、`mockPriorityCommands` / `defaultMocks` 这四个命令边界是不是仍然一致，还是已经产生漂移？
-- 数据事实源是不是同一组表 / 同一套 Repository，还是还在同时写 `agent_*` 与 `general_chat_*`？
-- 统计、记忆等旁路是不是已经切到新路径，还是还在读旧表？
-
-只要其中任意一个答案是否定的，就说明治理还没完成。
-
-## Lime 的治理偏好
-
-### 路径与目录
-
-涉及运行时目录、历史目录兼容、用户数据落盘时，优先收口到统一路径边界，例如 `app_paths` 或等价统一入口。
+涉及用户数据、日志、缓存、凭证、workspace、历史目录兼容时，优先收口到统一路径入口，例如 `app_paths` 或等价边界。
 
 不要在上层继续手写：
 
@@ -256,7 +185,9 @@ npm run test:contracts
 - `C:/Users/...`
 - `~/.lime/...`
 
-### 数据迁移
+路径兼容是边界问题，不应该变成业务层到处散落的字符串问题。
+
+### 3. 数据迁移与语义暴露
 
 一旦历史数据迁移已接入启动流程：
 
@@ -264,15 +195,13 @@ npm run test:contracts
 - 旧表只允许服务迁移、审计与回放
 - 业务层优先消费 `pending_*` 等迁移态语义
 
-不要在多个 service 中重复写：
+不要在多个 service 或 command 里重复写：
 
 - `is_migrated`
 - `legacy_*`
 - 手工分叉短路逻辑
 
-### 语义暴露
-
-过渡期对外暴露的命名必须体现“迁移态”语义，例如：
+过渡期对外暴露的命名，也应该体现“迁移态”语义，例如：
 
 - `pending_*`
 
@@ -280,32 +209,51 @@ npm run test:contracts
 
 - `legacy_*`
 - `general_chat_*`
-- 仅体现历史实现而不体现迁移语义的模块名
+- 只体现历史实现、不体现迁移语义的模块名
 
-## 与自动 reviewer / sub-agent 的关系
+## Lime 的典型判断方式
 
-如果未来为 Lime 增加治理 reviewer、hook 或额外 sub-agent，推荐把它们当成 **执行器**，而不是新的治理定义者。
+### 命令与会话主链
 
-它们至少应检查：
+遇到 Agent / 聊天 / 会话相关新旧并存时，至少问这几个问题：
+
+- 前端唯一入口是不是已经收敛到现役 API 网关
+- Rust 唯一入口是不是已经收敛到 `agent_runtime_*`
+- 旧 `chat_*`、`general_chat_*`、历史 helper 是否还在继续长逻辑
+- 命令契约五个事实源之间有没有漂移
+
+只要其中任意一个答案是否定的，就说明治理还没完成。
+
+### 记忆与旁路
+
+遇到记忆系统治理时，至少同时看：
+
+- 统一沉淀能力是否继续收敛到 `unified_memory_*`
+- runtime / 上下文视图是否继续收敛到 `memory_runtime_*`
+- 统计、搜索、审计等旁路是否还在读旧路径
+
+不要为了补一个功能，再造第三套记忆入口。
+
+## 自动 reviewer / sub-agent 的角色
+
+如果未来为 Lime 增加 reviewer、hook 或额外 sub-agent，它们只能做 **执行器**，不能成为新的治理事实源。
+
+它们至少应该检查：
 
 - 是否新增了与 `current` 平级的第二套实现
 - 是否让 `compat` 长了新业务逻辑
 - 是否只迁主链路却漏掉旁路
-- 是否出现了新的旧入口引用或旧命令回流
+- 是否出现新的旧入口引用或旧命令回流
 - 是否补了守卫与验证
 
-它们的输出应回到本文件的分类语言：
+它们的输出，也必须回到本文件的分类语言：
 
-- 本次改动涉及哪些 `current`
-- 哪些路径仍是 `compat`
-- 哪些路径已进入 `deprecated`
-- 哪些路径已经可以判定为 `dead`
+- 哪些是 `current`
+- 哪些仍是 `compat`
+- 哪些进入 `deprecated`
+- 哪些只是 `dead-candidate`，哪些已经能确认是 `dead`
 
-换句话说：
-
-**自动 reviewer 可以帮你发现问题和加速修复，但不能替你定义“什么叫收口完成”。**
-
-## 禁止事项
+## 明确禁止
 
 出现以下行为，视为违反治理原则：
 
@@ -316,26 +264,27 @@ npm run test:contracts
 - 主链路改到新表，旁路系统仍直接查旧表
 - 看到“旧代码还能用”，就继续让 AI 沿旧上下文生成
 
-## AI 执行要求
-
-未来 AI 在处理“新旧并存、迁移、重构、统一”类任务时，默认遵守以下要求：
-
-1. 不允许直接在旧路径上继续扩展新功能，除非用户明确要求做兼容补丁。
-2. 必须优先识别唯一事实源，并围绕事实源收口，而不是继续新增平级实现。
-3. 必须显式说明当前改动属于 `current`、`compat`、`deprecated`、`dead` 中哪一类。
-4. 如果发现主链路与旁路系统割裂，必须指出，不得假装治理已经完成。
-5. 如果无法在本次改动中完成收口，至少要建立守卫，阻止问题继续扩散。
-6. 如果已有自动 reviewer / hook / 子 agent，它们的结论必须服从本文件，而不是绕开本文件自行定义标准。
-
-## 输出要求
+## 汇报要求
 
 涉及治理类改动时，汇报结果至少应包含：
 
 1. 本次收掉了哪些 surface
 2. 当前改动分别属于 `current` / `compat` / `deprecated` / `dead` 中哪一类
 3. 补了哪些守卫和验证
-4. 还剩哪条主链路或旁路最值得继续优化
+4. 剩余最值得继续优化的一刀是什么
+
+如果仍保留 `dead-candidate`、延期白名单或临时例外，必须写明：
+
+- 具体对象
+- 当前原因
+- 退出条件
+
+## 相关文档
+
+- `docs/aiprompts/commands.md`
+- `docs/aiprompts/quality-workflow.md`
+- `docs/aiprompts/project-heatmap.md`
 
 ## 一句话总结
 
-**治理不是继续写一个“更新的版本”，而是让系统以后只能向一个版本收敛。**
+**治理不是继续写一个“更新版本”，而是让系统以后只能向一个版本收敛。**

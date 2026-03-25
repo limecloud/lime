@@ -90,6 +90,18 @@ vi.mock("./BrowserEnvironmentPresetManager", () => ({
   ),
 }));
 
+vi.mock("./BrowserSiteAdapterPanel", () => ({
+  BrowserSiteAdapterPanel: ({
+    selectedProfileKey,
+  }: {
+    selectedProfileKey?: string;
+  }) => (
+    <div data-testid="browser-site-adapter-panel">
+      {selectedProfileKey || "default"}
+    </div>
+  ),
+}));
+
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 beforeEach(() => {
@@ -189,6 +201,10 @@ describe("BrowserRuntimeWorkspace", () => {
       container.querySelector("[data-testid='browser-environment-manager']"),
     ).not.toBeNull();
     expect(
+      container.querySelector("[data-testid='browser-site-adapter-panel']")
+        ?.textContent,
+    ).toContain("default");
+    expect(
       container.querySelector("[data-testid='browser-runtime-debug-panel']")
         ?.textContent,
     ).toContain("1");
@@ -222,6 +238,20 @@ describe("BrowserRuntimeWorkspace", () => {
     expect(
       container.querySelector("[data-testid='browser-environment-manager']"),
     ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='browser-site-adapter-panel']"),
+    ).toBeNull();
+  });
+
+  it("独立调试页模式应保留自然文档高度布局", async () => {
+    const container = await renderWorkspaceWithProps({
+      standalone: true,
+      initialProfileKey: "general_browser_assist",
+    });
+
+    const shell = container.firstElementChild as HTMLElement | null;
+    expect(shell?.className).toContain("min-h-screen");
+    expect(shell?.className).toContain("space-y-4");
   });
 
   it("嵌入模式错误消息应支持手动关闭，并抑制同类消息立即重复出现", async () => {

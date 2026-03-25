@@ -36,29 +36,11 @@ function renderHook(props?: Partial<HookProps>) {
   const root = createRoot(container);
 
   const defaultProps: HookProps = {
-    activeTheme: "general",
     projectId: "project-1",
     sessionId: "session-1",
     selectedTeam: createSelectedTeam(),
     subagentEnabled: true,
     hasRealTeamGraph: false,
-    generateRuntimeTeam: vi.fn(
-      async (
-        _options: Parameters<NonNullable<HookProps["generateRuntimeTeam"]>>[0],
-      ): Promise<TeamDefinition> => ({
-        id: "ephemeral-1",
-        source: "ephemeral",
-        label: "临时 Team",
-        description: "自动生成",
-        roles: [
-          {
-            id: "member-1",
-            label: "执行者",
-            summary: "执行当前任务",
-          },
-        ],
-      }),
-    ),
     createRequestId: () => "request-1",
     now: () => 1_710_000_000_000,
   };
@@ -117,77 +99,28 @@ describe("useRuntimeTeamFormation", () => {
     vi.clearAllMocks();
   });
 
-  it("发送前满足条件时应进入 forming 并在生成完成后切到 formed", async () => {
-    let resolveRuntimeTeam:
-      | ((team: TeamDefinition) => void)
-      | null = null;
-    const generateRuntimeTeam = vi.fn(
-      async (
-        _options: Parameters<NonNullable<HookProps["generateRuntimeTeam"]>>[0],
-      ): Promise<TeamDefinition> =>
-        new Promise((resolve) => {
-          resolveRuntimeTeam = resolve;
-        }),
-    );
-    const { render, getValue } = renderHook({
-      generateRuntimeTeam,
-    });
+  it("发送前满足条件且已选 Team 时，应直接生成基于蓝图的 formed 状态", async () => {
+    const { render, getValue } = renderHook();
 
     await render();
 
     const resultRef: { current: RuntimeTeamPreparationResult } = {
       current: null,
     };
-    let pending:
-      | Promise<RuntimeTeamPreparationResult>
-      | null = null;
     await act(async () => {
-      pending = getValue().prepareRuntimeTeamBeforeSend({
-        input: "请拆成两个子任务",
-        providerType: "openai",
-        model: "gpt-4.1",
-        executionStrategy: "react",
+      resultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
+        input: "请把这个需求从多个角度拆解成子任务，分别调研竞品方案和技术实现路径，然后给出综合分析报告",
       });
-    });
-
-    expect(getValue().runtimeTeamState?.status).toBe("forming");
-    expect(generateRuntimeTeam).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: "project-1",
-        providerType: "openai",
-        model: "gpt-4.1",
-        input: "请拆成两个子任务",
-        activeTheme: "general",
-      }),
-    );
-
-    await act(async () => {
-      resolveRuntimeTeam?.({
-        id: "ephemeral-1",
-        source: "ephemeral",
-        label: "自动 Team",
-        description: "自动生成",
-        roles: [
-          {
-            id: "role-1",
-            label: "执行者",
-            summary: "负责执行",
-          },
-        ],
-      });
-      resultRef.current = await pending;
     });
 
     expect(resultRef.current?.status).toBe("formed");
-    expect(getValue().runtimeTeamState?.status).toBe("formed");
-    expect(getValue().runtimeTeamState?.label).toBe("自动 Team");
+    expect(resultRef.current?.label).toBe("研究协作组");
+    expect("runtimeTeamState" in getValue()).toBe(false);
   });
 
-  it("发送前 Team 生成失败时应返回 failed 状态", async () => {
+  it("未选择 Team 时，不应再触发发送前自动编队", async () => {
     const { render, getValue } = renderHook({
-      generateRuntimeTeam: vi.fn(async () => {
-        throw new Error("模型规划失败");
-      }),
+      selectedTeam: null,
     });
 
     await render();
@@ -197,118 +130,102 @@ describe("useRuntimeTeamFormation", () => {
     };
     await act(async () => {
       resultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
-        input: "请拆解任务",
-        providerType: "openai",
-        model: "gpt-4.1",
-        executionStrategy: "react",
+        input: "请从多个维度拆解这个复杂需求，先做竞品调研，再做技术方案评估，最后输出可行性分析报告",
       });
     });
 
-    expect(resultRef.current?.status).toBe("failed");
-    expect(resultRef.current?.errorMessage).toBe("模型规划失败");
-    expect(getValue().runtimeTeamState?.status).toBe("failed");
+    expect(resultRef.current).toBeNull();
+    expect("runtimeTeamState" in getValue()).toBe(false);
   });
 
-  it("subagent 关闭且没有真实 team 图时，应清空 runtime team 状态", async () => {
+  it("hook 不再把 prepared team 挂成会话级本地状态", async () => {
     const { render, getValue } = renderHook();
     await render();
 
-    act(() => {
-      void getValue().triggerRuntimeTeamFormation({
-        input: "请先规划 team",
-        providerType: "openai",
-        model: "gpt-4.1",
-        executionStrategy: "react",
+    const firstResultRef: { current: RuntimeTeamPreparationResult } = {
+      current: null,
+    };
+    await act(async () => {
+      firstResultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
+        input: "请先规划一个多角色协作的 team 来处理这个跨部门需求，需要调研、开发、测试三个角色分别推进各自负责的子任务",
+        subagentEnabled: true,
       });
     });
 
-    expect(getValue().runtimeTeamState?.status).toBe("forming");
-
-    await render({
-      subagentEnabled: false,
-      hasRealTeamGraph: false,
-    });
-
-    expect(getValue().runtimeTeamState).toBeNull();
+    expect(firstResultRef.current?.status).toBe("formed");
+    expect("runtimeTeamState" in getValue()).toBe(false);
   });
 
-  it("本轮不走 Team 且没有真实 team 图时，应清空上一轮 runtime team 状态", async () => {
+  it("本轮不走 Team 时，应只返回 null 而不保留上一轮残留状态", async () => {
     const { render, getValue } = renderHook();
     await render();
 
     await act(async () => {
       await getValue().prepareRuntimeTeamBeforeSend({
-        input: "请拆分成多个角色执行",
-        providerType: "openai",
-        model: "gpt-4.1",
-        executionStrategy: "react",
+        input: "请拆分成多个角色来协作执行这个跨领域的综合分析任务，需要数据分析师、行业研究员和报告撰写员分别负责各自模块",
       });
     });
 
-    expect(getValue().runtimeTeamState?.status).toBe("formed");
+    expect("runtimeTeamState" in getValue()).toBe(false);
 
+    const secondResultRef: { current: RuntimeTeamPreparationResult } = {
+      current: null,
+    };
     await act(async () => {
-      await getValue().prepareRuntimeTeamBeforeSend({
+      secondResultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
         input: "请直接润色这段文案",
-        providerType: "openai",
-        model: "gpt-4.1",
-        executionStrategy: "react",
         purpose: "content_review",
       });
     });
 
-    expect(getValue().runtimeTeamState).toBeNull();
+    expect(secondResultRef.current).toBeNull();
+    expect("runtimeTeamState" in getValue()).toBe(false);
   });
 
-  it("session 切换时应重置 runtime team 状态", async () => {
+  it("clearRuntimeTeamState 保留为空操作兼容壳", async () => {
     const { render, getValue } = renderHook();
     await render();
 
-    act(() => {
-      void getValue().triggerRuntimeTeamFormation({
-        input: "请先规划 team",
-        providerType: "openai",
-        model: "gpt-4.1",
-        executionStrategy: "react",
-      });
+    await act(async () => {
+      getValue().clearRuntimeTeamState();
     });
 
-    expect(getValue().runtimeTeamState?.status).toBe("forming");
-
-    await render({
-      sessionId: "session-2",
-    });
-
-    expect(getValue().runtimeTeamState).toBeNull();
+    expect("runtimeTeamState" in getValue()).toBe(false);
   });
 });
 
 describe("shouldPrepareRuntimeTeamBeforeSend", () => {
-  it("仅在 subagent 开启、存在项目、非 purpose 且输入非空时返回 true", () => {
+  it("输入足够长且非简单生成类请求时返回 true", () => {
     expect(
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "project-1",
-        input: "请拆解任务",
+        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案，最后做交叉验证",
       }),
     ).toBe(true);
+  });
 
+  it("subagent 关闭时返回 false", () => {
     expect(
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: false,
         projectId: "project-1",
-        input: "请拆解任务",
+        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
       }),
     ).toBe(false);
+  });
 
+  it("无项目时返回 false", () => {
     expect(
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "",
-        input: "请拆解任务",
+        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
       }),
     ).toBe(false);
+  });
 
+  it("空白输入时返回 false", () => {
     expect(
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
@@ -316,13 +233,43 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
         input: "  ",
       }),
     ).toBe(false);
+  });
 
+  it("带 purpose 时返回 false", () => {
+    expect(
+      shouldPrepareRuntimeTeamBeforeSend({
+        subagentEnabled: true,
+        projectId: "project-1",
+        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
+        purpose: "content_review",
+      }),
+    ).toBe(false);
+  });
+
+  it("短输入时返回 false（少于 40 字符）", () => {
     expect(
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "project-1",
         input: "请拆解任务",
-        purpose: "content_review",
+      }),
+    ).toBe(false);
+  });
+
+  it("简单内容生成类请求返回 false", () => {
+    expect(
+      shouldPrepareRuntimeTeamBeforeSend({
+        subagentEnabled: true,
+        projectId: "project-1",
+        input: "生成一份关于人工智能在医疗领域应用的详细报告，需要包含市场分析、技术趋势、政策法规、典型案例和未来展望五个部分",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldPrepareRuntimeTeamBeforeSend({
+        subagentEnabled: true,
+        projectId: "project-1",
+        input: "帮我写一篇关于可持续发展目标的深度分析报告，要求涵盖经济、环境和社会三个维度的详细分析以及各国实践案例",
       }),
     ).toBe(false);
   });

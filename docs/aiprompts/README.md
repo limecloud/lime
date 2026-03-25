@@ -1,83 +1,75 @@
-# aiprompts
+# `docs/aiprompts` 索引
 
-<!-- 一旦我所属的文件夹有所变化，请更新我 -->
+本目录存放 Lime 仓库的模块级说明、工程流程和治理文档。
+根 `AGENTS.md` 只保留仓库级规则；超过“规则/入口”粒度的说明统一放到这里。
 
-## 架构说明
+## 使用原则
 
-AI Agent 专用文档目录，提供模块级别的详细说明。
-参考 aster-rust 的 aiprompts 模式设计。
+1. **先按场景找入口** - 不确定从哪里开始时，优先读本页
+2. **先读对应文档再改代码** - 尤其是命令边界、GUI 主路径、迁移收口、Provider 与凭证
+3. **GUI 改动优先看质量链路** - Lime 是 GUI 桌面产品，先看 `quality-workflow.md` 与 `playwright-e2e.md`
+4. **新旧并存问题先看治理文档** - 避免在 compat / deprecated 路径上继续长新表面
 
-## 文件索引
+## 按场景导航
 
-### 核心系统
+### 架构与治理
 
-- `overview.md` - 项目架构概览
-- `governance.md` - **治理第一原则**（新旧并存、迁移收口、禁止回流）
-- `providers.md` - Provider 系统（OAuth/API Key 认证）
-- `credential-pool.md` - 凭证池管理（负载均衡、健康检查）
-- `converter.md` - 协议转换（OpenAI ↔ CW/Claude）
-- `server.md` - HTTP 服务器（API 端点）
+- `overview.md` - 项目架构总览与模块分层
+- `governance.md` - 新旧并存治理、迁移收口、禁止回流
+- `quality-workflow.md` - 本地校验、GUI smoke、契约检查、CI 门禁
+- `project-heatmap.md` - 仓库热力图与治理候选分析
+- `limecore-collaboration-entry.md` - 跨仓库联动入口
 
-### 前端模块
+### GUI 与前端
 
-- `components.md` - React 组件系统
-- `design-language.md` - 全局 UI 视觉语言（配色、渐变、排版、宽度策略）
-- `hooks.md` - 自定义 React Hooks
-- `lib.md` - 工具库和 API 封装
+- `design-language.md` - 全局 UI 视觉语言
+- `components.md` - React 组件约定
+- `hooks.md` - 自定义 Hooks
+- `lib.md` - 前端工具库与运行时封装
+- `workspace.md` - Workspace 边界与工作区模型
+- `content-creator.md` - 内容创作工作台与画布联动
+- `playwright-e2e.md` - GUI 续测、Playwright MCP、交互验证
+- `performance-profiling.md` - 性能分析与剖析方法
 
-### 后端模块
+### 后端与运行时
 
-- `services.md` - 业务服务层
-- `commands.md` - Tauri 命令
-- `database.md` - 数据库层（SQLite）
-
-### 功能模块
-
-- `terminal.md` - 内置终端
-- `mcp.md` - MCP 服务器管理
+- `commands.md` - Tauri 命令边界、协议同步点
+- `services.md` - Rust 服务层
+- `server.md` - HTTP Server 与接口边界
+- `mcp.md` - MCP 服务器与工具管理
+- `terminal.md` - 内置终端与 PTY
 - `plugins.md` - 插件系统
-- `playwright-e2e.md` - Playwright MCP 续测与 E2E 指南
+- `aster-integration.md` - Aster Agent 集成
 
-### Aster 集成
+### Provider 与数据
 
-- `aster-integration.md` - **Aster 框架集成方案**
-- `workspace.md` - **Workspace 设计文档**（工作目录管理）
+- `providers.md` - Provider 接入与认证方式
+- `credential-pool.md` - 凭证池、运行时路径、调试入口
+- `converter.md` - 协议转换与兼容层
+- `database.md` - 数据库层与持久化
 
-### 内容创作
+## 常见入口建议
 
-- `content-creator.md` - **内容创作系统**（write_file 标签、画布联动）
+- **改 UI / 页面结构**：先读 `design-language.md`，再看 `quality-workflow.md`
+- **改 Tauri 命令 / Bridge / mock**：先读 `commands.md`，再看 `quality-workflow.md`
+- **改 Workspace / GUI 壳 / 主路径**：先读 `workspace.md`、`quality-workflow.md`、`playwright-e2e.md`
+- **做迁移 / 收口 / 去兼容层**：先读 `governance.md`
+- **改 Provider / 凭证加载 / Token 刷新**：先读 `providers.md`、`credential-pool.md`
+- **做跨仓库联动**：先读 `limecore-collaboration-entry.md`
 
-## 使用方式
+## 对应 Codex Skills
 
-AI Agent 在处理特定模块时，应先阅读对应的 aiprompts 文档：
+- **治理收口**：`.codex/skills/lime-governance/`
+- **GUI 设计语言**：`.codex/skills/lime-design-language/`
+- **工程质量 / 交付判断**：`.codex/skills/lime-quality-workflow/`
+- **命令边界 / 契约同步**：`.codex/skills/lime-command-boundary/`
+- **GUI 续测 / Playwright MCP**：`.codex/skills/lime-playwright-e2e/`
+- **热力图 / 治理优先级**：`.codex/skills/lime-project-heatmap/`
+- **项目技能提炼**：`.codex/skills/project-skill-factory/`
 
-```
-# 处理 Provider 相关任务
-→ 先读 docs/aiprompts/providers.md
+## 维护规则
 
-# 处理 UI 配色、页面重排、视觉统一
-→ 先读 docs/aiprompts/design-language.md
-
-# 处理新旧并存、迁移、重构、架构收口
-→ 先读 docs/aiprompts/governance.md
-→ 再执行 npm run governance:legacy-report
-
-# 处理凭证池相关任务
-→ 先读 docs/aiprompts/credential-pool.md
-
-# 处理 Aster Agent 集成
-→ 先读 docs/aiprompts/aster-integration.md
-
-# 处理 Workspace 相关任务
-→ 先读 docs/aiprompts/workspace.md
-
-# 处理内容创作、画布联动
-→ 先读 docs/aiprompts/content-creator.md
-
-# 处理浏览器 E2E、Playwright MCP 续测
-→ 先读 docs/aiprompts/playwright-e2e.md
-```
-
-## 更新提醒
-
-任何文件变更后，请更新此文档和相关的上级文档。
+1. 新增长期文档后，要同步更新本索引
+2. 根 `AGENTS.md` 不再堆叠长流程，统一链接到这里
+3. 如果某段说明已经变成长期流程或模块说明，应从根规则迁到本目录
+4. 如果某条工作流已经高频复用到值得做成 skill，同步检查 `.codex/skills/README.md`

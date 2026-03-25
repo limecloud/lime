@@ -37,6 +37,12 @@
     --claude-accent-subtle: #fdf4f1;
     --success: #16a34a;
     --info: #2563eb;
+    --tooltip-bg: #f8fbf8;
+    --tooltip-foreground: #1f2937;
+    --tooltip-border: #d7e3db;
+    --tooltip-shadow:
+      0 20px 38px -24px rgba(15, 23, 42, 0.28),
+      0 12px 22px -20px rgba(46, 89, 67, 0.22);
   }
 
   .dark {
@@ -70,6 +76,12 @@
     --claude-accent: #e8956f;
     --claude-accent-hover: #d97757;
     --claude-accent-subtle: #3d2a24;
+    --tooltip-bg: #1f2b36;
+    --tooltip-foreground: #edf4f2;
+    --tooltip-border: #31424f;
+    --tooltip-shadow:
+      0 20px 38px -24px rgba(2, 8, 23, 0.5),
+      0 12px 22px -20px rgba(2, 8, 23, 0.4);
   }
 }
 
@@ -128,6 +140,20 @@
   animation: shimmer 1.4s linear infinite;
 }
 
+.lime-tooltip {
+  border: 1px solid var(--tooltip-border);
+  border-radius: 12px;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-foreground);
+  box-shadow: var(--tooltip-shadow);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0;
+  animation: tooltip-fade-in 140ms ease-out;
+}
+
 /* Claude 风格消息标题 */
 .claude-header {
   font-size: 0.75rem;
@@ -171,6 +197,17 @@
   border-radius: 9999px;
   opacity: 0.75;
   animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes ping {

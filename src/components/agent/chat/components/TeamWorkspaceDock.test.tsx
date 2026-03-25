@@ -10,10 +10,10 @@ const { mockGetAgentRuntimeSession } = vi.hoisted(() => ({
 }));
 const {
   mockSafeListen,
-  mockParseStreamEvent,
+  mockParseAgentEvent,
 } = vi.hoisted(() => ({
   mockSafeListen: vi.fn(),
-  mockParseStreamEvent: vi.fn((payload: unknown) => payload),
+  mockParseAgentEvent: vi.fn((payload: unknown) => payload),
 }));
 
 vi.mock("@/lib/api/agentRuntime", async () => {
@@ -27,14 +27,14 @@ vi.mock("@/lib/api/agentRuntime", async () => {
   };
 });
 
-vi.mock("@/lib/api/agentStream", async () => {
+vi.mock("@/lib/api/agentProtocol", async () => {
   const actual =
-    await vi.importActual<typeof import("@/lib/api/agentStream")>(
-      "@/lib/api/agentStream",
+    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
+      "@/lib/api/agentProtocol",
     );
   return {
     ...actual,
-    parseStreamEvent: mockParseStreamEvent,
+    parseAgentEvent: mockParseAgentEvent,
   };
 });
 
@@ -82,7 +82,7 @@ beforeEach(() => {
     createSessionDetail(sessionId),
   );
   mockSafeListen.mockResolvedValue(() => {});
-  mockParseStreamEvent.mockImplementation((payload: unknown) => payload);
+  mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
 });
 
 afterEach(() => {
@@ -262,7 +262,7 @@ describe("TeamWorkspaceDock", () => {
 
   it("仅处于协作准备中时，不应自动展开面板，但应显示提醒", async () => {
     const { container } = await renderDock({
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-forming-1",
         status: "forming",
         label: "修复 Team",
@@ -288,7 +288,7 @@ describe("TeamWorkspaceDock", () => {
 
   it("协作方案已就绪但真实成员未出现时，不应自动展开面板", async () => {
     const { container } = await renderDock({
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-formed-2",
         status: "formed",
         label: "修复 Team",
@@ -324,7 +324,7 @@ describe("TeamWorkspaceDock", () => {
 
   it("协作准备失败时，不应自动展开面板，但应保留提醒入口", async () => {
     const { container } = await renderDock({
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-failed-1",
         status: "failed",
         label: "修复 Team",
@@ -354,7 +354,7 @@ describe("TeamWorkspaceDock", () => {
     const { container } = await renderDock({
       placement: "inline",
       onActivateWorkbench,
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-formed-launcher-1",
         status: "formed",
         label: "修复 Team",
@@ -680,7 +680,7 @@ describe("TeamWorkspaceDock", () => {
 
   it("本轮协作方案已就绪时，应在空态 Dock 展示成员摘要", async () => {
     const { container } = await renderDock({
-      runtimeTeamState: {
+      teamDispatchPreviewState: {
         requestId: "runtime-formed-1",
         status: "formed",
         label: "修复 Team",

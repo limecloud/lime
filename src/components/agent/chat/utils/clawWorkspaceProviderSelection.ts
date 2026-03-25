@@ -2,7 +2,12 @@ import {
   loadConfiguredProviders,
   type ConfiguredProvider,
 } from "@/hooks/useConfiguredProviders";
-import { loadProviderModels } from "@/hooks/useProviderModels";
+import { modelRegistryApi } from "@/lib/api/modelRegistry";
+import {
+  getAliasConfigKey,
+  isAliasProvider,
+} from "@/lib/constants/providerMappings";
+import { buildProviderModelsFromRegistry } from "@/lib/model/providerModelsCatalog";
 import { type EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import { filterModelsByTheme } from "./modelThemePolicy";
 import { resolveProviderModelCompatibility } from "./providerModelCompatibility";
@@ -83,6 +88,52 @@ function resolvePreferredModelId(
   return candidateModels[0]?.id ?? null;
 }
 
+async function loadProviderModelsForSelection(
+  provider: ConfiguredProvider,
+): Promise<EnhancedModelMetadata[]> {
+  const aliasConfigPromise = isAliasProvider(provider.key)
+    ? modelRegistryApi.getProviderAliasConfig(getAliasConfigKey(provider.key))
+    : Promise.resolve(null);
+  const [registryModels, aliasConfig] = await Promise.all([
+    modelRegistryApi.getModelRegistry(),
+    aliasConfigPromise,
+  ]);
+  const localResult = buildProviderModelsFromRegistry(
+    provider,
+    registryModels,
+    aliasConfig,
+  );
+
+  if (localResult.models.length > 0 || isAliasProvider(provider.key)) {
+    return localResult.models;
+  }
+
+  try {
+    const apiResult = await modelRegistryApi.fetchProviderModelsAuto(provider.key);
+    if (!apiResult.models.length) {
+      return localResult.models;
+    }
+
+    const existingModelIds = new Set(
+      localResult.models.map((model) => normalizeValue(model.id)),
+    );
+
+    return [
+      ...localResult.models,
+      ...apiResult.models.filter((model) => {
+        const normalizedModelId = normalizeValue(model.id);
+        if (existingModelIds.has(normalizedModelId)) {
+          return false;
+        }
+        existingModelIds.add(normalizedModelId);
+        return true;
+      }),
+    ];
+  } catch {
+    return localResult.models;
+  }
+}
+
 export async function resolveClawWorkspaceProviderSelection(
   input: ResolveClawWorkspaceProviderSelectionInput,
 ): Promise<ClawWorkspaceProviderSelection | null> {
@@ -106,7 +157,7 @@ export async function resolveClawWorkspaceProviderSelection(
     : configuredProviders;
 
   for (const provider of orderedProviders) {
-    const providerModels = await loadProviderModels(provider);
+    const providerModels = await loadProviderModelsForSelection(provider);
     const preferredModel = resolvePreferredModelId(
       provider,
       providerModels,

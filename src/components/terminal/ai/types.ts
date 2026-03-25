@@ -6,7 +6,10 @@
  * 定义 Terminal AI 面板相关的所有类型
  */
 
-import type { ToolCallState, TokenUsage } from "@/lib/api/agentStream";
+import type {
+  AgentToolCallState as ToolCallState,
+  AgentTokenUsage as TokenUsage,
+} from "@/lib/api/agentProtocol";
 
 /**
  * AI 消息图片

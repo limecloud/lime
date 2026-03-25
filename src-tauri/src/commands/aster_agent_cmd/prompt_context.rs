@@ -232,17 +232,6 @@ fn render_team_roles(role_items: &[serde_json::Value]) -> Vec<String> {
         .collect()
 }
 
-fn describe_turn_team_reason(reason: &str) -> &'static str {
-    match reason {
-        "runtime_team_prepared" => "GUI 已提前准备这次 Team 分工",
-        "runtime_team_generation_failed" => "GUI 尝试准备 Team 失败，当前任务改由主助手直接推进",
-        "subagent_disabled" => "当前任务未开启 Team 模式",
-        "turn_purpose_override" => "当前任务属于特定目的流程，这次不走 Team 分工",
-        "single_agent_direct" => "GUI 判断当前任务由主助手直接处理更合适",
-        _ => "GUI 已记录这次 Team 判定",
-    }
-}
-
 pub(crate) fn build_team_preference_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
@@ -270,16 +259,6 @@ pub(crate) fn build_team_preference_system_prompt(
     let selected_team_roles = extract_harness_array(
         request_metadata,
         &["selected_team_roles", "selectedTeamRoles"],
-    );
-    let turn_team_decision = extract_harness_string(
-        request_metadata,
-        &["turn_team_decision", "turnTeamDecision"],
-    );
-    let turn_team_reason =
-        extract_harness_string(request_metadata, &["turn_team_reason", "turnTeamReason"]);
-    let turn_team_blueprint = extract_harness_nested_object(
-        request_metadata,
-        &["turn_team_blueprint", "turnTeamBlueprint"],
     );
 
     if !subagent_mode_enabled {
@@ -332,84 +311,16 @@ pub(crate) fn build_team_preference_system_prompt(
         }
     }
 
-    match turn_team_decision.as_deref() {
-        Some("team_prepared") => {
-            lines.push(
-                "- 当前任务在 GUI 发送前已经准备好协作分工；请把这份安排当成执行参考，而不是事后建议。"
-                    .to_string(),
-            );
-            if let Some(reason) = turn_team_reason.as_deref() {
-                lines.push(format!(
-                    "- GUI 判定：{}。",
-                    describe_turn_team_reason(reason)
-                ));
-            }
-
-            if let Some(blueprint) = turn_team_blueprint {
-                let blueprint_label = blueprint
-                    .get("label")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty());
-                let blueprint_description = blueprint
-                    .get("description")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty());
-                let rendered_roles = blueprint
-                    .get("roles")
-                    .and_then(serde_json::Value::as_array)
-                    .map(|items| render_team_roles(items))
-                    .unwrap_or_default();
-
-                if let Some(label) = blueprint_label {
-                    lines.push(format!("- 当前协作蓝图：{label}。"));
-                }
-                if let Some(description) = blueprint_description {
-                    lines.push(format!("- 蓝图说明：{description}"));
-                }
-                if !rendered_roles.is_empty() {
-                    lines.push("- 当前协作分工：".to_string());
-                    lines.extend(rendered_roles);
-                }
-            }
-
-            lines.push(
-                "- 回复用户时，先说明为什么要拆分协作、谁会先处理哪一部分、主对话会在什么节点带着结果回来同步。不要只播报“已进入 Team 协作”。"
-                    .to_string(),
-            );
-            lines.push(
-                "- 主对话要像项目助理一样汇总目标、分工、关键进展和下一步，而不是只抛出简短状态。"
-                    .to_string(),
-            );
-            lines.push(
-                "- 如果你决定调用 spawn_agent / send_input，应尽早按上述蓝图启动角色，并把蓝图里的 id / label 映射到 blueprintRoleId / blueprintRoleLabel，让各角色承担自己的输出，不要等主 agent 完整处理结束后再补做 team。"
-                    .to_string(),
-            );
-        }
-        Some("single_agent") => {
-            lines
-                .push("- 当前任务没有在 GUI 中提前准备 Team，默认先由主助手直接推进。".to_string());
-            if let Some(reason) = turn_team_reason.as_deref() {
-                lines.push(format!(
-                    "- GUI 判定：{}。",
-                    describe_turn_team_reason(reason)
-                ));
-            }
-            lines.push(
-                "- 除非执行中出现明确的拆分必要性，否则不要为了形式化 team 而推迟主任务。"
-                    .to_string(),
-            );
-        }
-        _ => {}
-    }
-
     lines.push(
         "- spawn_agent 支持这些结构化字段：blueprintRoleId、blueprintRoleLabel、teamPresetId、profileId、profileName、roleKey、skillIds、skillDirectories、theme、systemOverlay、outputContract。"
             .to_string(),
     );
     lines.push(
         "- 如果任务简单、强依赖当前上下文或下一步立即阻塞在结果上，不要为了套用 preset 而滥用 team。"
+            .to_string(),
+    );
+    lines.push(
+        "- 主对话需要承担协调职责：说明为什么要拆分、谁先处理哪一部分，并在拿到子 agent 结果后主动汇总关键进展、风险和下一步。"
             .to_string(),
     );
 

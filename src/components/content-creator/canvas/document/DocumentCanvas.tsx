@@ -33,6 +33,7 @@ import { DocumentToolbar } from "./DocumentToolbar";
 import { DocumentRenderer } from "./DocumentRenderer";
 import { NotionEditor, type NotionEditorHandle } from "./editor";
 import { PlatformTabs } from "./PlatformTabs";
+import { resolveDocumentCanvasHotkeyAction } from "./documentCanvasHotkeys";
 import {
   loadChatToolPreferences,
   saveChatToolPreferences,
@@ -251,15 +252,18 @@ export const DocumentCanvas: React.FC<DocumentCanvasProps> = memo(
     // 键盘快捷键：Cmd+Z 撤销，Cmd+Shift+Z 重做
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === "z") {
-          if (e.shiftKey) {
-            e.preventDefault();
-            handleRedo();
-          } else {
-            e.preventDefault();
-            handleUndo();
-          }
+        const action = resolveDocumentCanvasHotkeyAction(e);
+        if (!action) {
+          return;
         }
+
+        e.preventDefault();
+        if (action === "redo") {
+          handleRedo();
+          return;
+        }
+
+        handleUndo();
       };
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);

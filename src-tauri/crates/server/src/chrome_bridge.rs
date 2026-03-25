@@ -33,6 +33,7 @@ const COMMAND_WHITELIST: &[&str] = &[
     "go_forward",
     "switch_tab",
     "list_tabs",
+    "run_adapter",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +94,8 @@ pub struct ChromeBridgeCommandRequest {
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
+    pub payload: Option<Value>,
+    #[serde(default)]
     pub wait_for_page_info: bool,
     #[serde(default)]
     pub timeout_ms: Option<u64>,
@@ -139,6 +142,8 @@ pub struct ControlCommandPayload {
     pub text: Option<String>,
     #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
+    pub payload: Option<Value>,
     #[serde(default)]
     pub wait_for_page_info: bool,
 }
@@ -284,7 +289,7 @@ impl ChromeBridgeHub {
         request: ChromeBridgeCommandRequest,
     ) -> Result<ChromeBridgeCommandResult, String> {
         self.sweep_expired_pending().await;
-        validate_command(&request.command, &request.url)?;
+        validate_command(&request.command, &request.url, &request.payload)?;
 
         let timeout = normalize_timeout_ms(request.timeout_ms);
         let source_client_id = format!("lime-api-{}", Uuid::new_v4());
@@ -304,6 +309,7 @@ impl ChromeBridgeHub {
             request.target.clone(),
             request.text.clone(),
             request.url.clone(),
+            request.payload.clone(),
             request.wait_for_page_info,
         );
 
@@ -387,7 +393,7 @@ impl ChromeBridgeHub {
     ) {
         self.sweep_expired_pending().await;
 
-        if let Err(error) = validate_command(&payload.command, &payload.url) {
+        if let Err(error) = validate_command(&payload.command, &payload.url, &payload.payload) {
             self.send_control_error(control_client_id, &payload.request_id, &error)
                 .await;
             return;
@@ -417,6 +423,7 @@ impl ChromeBridgeHub {
             payload.target,
             payload.text,
             payload.url,
+            payload.payload,
             payload.wait_for_page_info,
         )
         .to_string();
@@ -844,7 +851,11 @@ impl Default for ChromeBridgeHub {
     }
 }
 
-fn validate_command(command: &str, url: &Option<String>) -> Result<(), String> {
+fn validate_command(
+    command: &str,
+    url: &Option<String>,
+    payload: &Option<Value>,
+) -> Result<(), String> {
     let normalized = command.trim().to_ascii_lowercase();
     if !COMMAND_WHITELIST.contains(&normalized.as_str()) {
         return Err(format!(
@@ -860,6 +871,18 @@ fn validate_command(command: &str, url: &Option<String>) -> Result<(), String> {
         };
         if url_value.trim().is_empty() {
             return Err("open_url 命令的 url 不能为空。".to_string());
+        }
+    }
+
+    if normalized == "run_adapter" {
+        let script = payload
+            .as_ref()
+            .and_then(|value| value.get("script"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if script.is_none() {
+            return Err("run_adapter 命令需要提供 payload.script。".to_string());
         }
     }
 
@@ -947,6 +970,7 @@ fn build_command_payload(
     target: Option<String>,
     text: Option<String>,
     url: Option<String>,
+    payload: Option<Value>,
     wait_for_page_info: bool,
 ) -> Value {
     json!({
@@ -958,6 +982,7 @@ fn build_command_payload(
             "target": target,
             "text": text,
             "url": url,
+            "payload": payload,
             "wait_for_page_info": wait_for_page_info,
         }
     })
@@ -1030,10 +1055,21 @@ mod tests {
 
     #[test]
     fn should_validate_command_whitelist() {
-        assert!(validate_command("open_url", &Some("https://example.com".to_string())).is_ok());
-        assert!(validate_command("click", &None).is_ok());
-        assert!(validate_command("list_tabs", &None).is_ok());
-        assert!(validate_command("eval_js", &None).is_err());
+        assert!(
+            validate_command("open_url", &Some("https://example.com".to_string()), &None,).is_ok()
+        );
+        assert!(validate_command("click", &None, &None).is_ok());
+        assert!(validate_command("list_tabs", &None, &None).is_ok());
+        assert!(validate_command(
+            "run_adapter",
+            &None,
+            &Some(json!({
+                "script": "(async () => ({ ok: true }))()",
+            })),
+        )
+        .is_ok());
+        assert!(validate_command("run_adapter", &None, &None).is_err());
+        assert!(validate_command("eval_js", &None, &None).is_err());
     }
 
     #[test]
@@ -1064,6 +1100,7 @@ mod tests {
                 target: Some("#btn".to_string()),
                 text: None,
                 url: None,
+                payload: None,
                 wait_for_page_info: false,
                 timeout_ms: Some(10),
             })
@@ -1221,6 +1258,29 @@ mod tests {
                     }
                 ],
             })),
+        );
+    }
+
+    #[test]
+    fn build_command_payload_should_include_payload() {
+        let payload = build_command_payload(
+            "req-1",
+            "lime-api-1",
+            "run_adapter",
+            Some("202".to_string()),
+            None,
+            None,
+            Some(json!({
+                "script": "(async () => ({ ok: true }))()",
+            })),
+            false,
+        );
+
+        assert_eq!(payload["data"]["command"], json!("run_adapter"));
+        assert_eq!(payload["data"]["target"], json!("202"));
+        assert_eq!(
+            payload["data"]["payload"]["script"],
+            json!("(async () => ({ ok: true }))()")
         );
     }
 }

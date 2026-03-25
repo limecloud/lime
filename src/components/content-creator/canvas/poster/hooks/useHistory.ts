@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fabric } from "fabric";
+import { resolvePosterCanvasHotkeyAction } from "./posterCanvasHotkeys";
 
 /**
  * 历史记录状态
@@ -167,30 +168,18 @@ export function useHistory(options: UseHistoryOptions): UseHistoryReturn {
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 检查是否在输入框中
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
+      const action = resolvePosterCanvasHotkeyAction(e);
+      if (!action) {
         return;
       }
 
-      // Cmd/Ctrl + Z 撤销
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+      if (action === "undo") {
         e.preventDefault();
         undo();
+        return;
       }
 
-      // Cmd/Ctrl + Shift + Z 重做
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "z") {
-        e.preventDefault();
-        redo();
-      }
-
-      // Cmd/Ctrl + Y 重做（Windows 风格）
-      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+      if (action === "redo") {
         e.preventDefault();
         redo();
       }

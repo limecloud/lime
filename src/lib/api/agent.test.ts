@@ -145,6 +145,36 @@ describe("Agent API 治理护栏", () => {
     });
   });
 
+  it("submitAgentRuntimeTurn 应支持透传 provider/model 偏好字段", async () => {
+    mockSafeInvoke.mockResolvedValueOnce(undefined);
+
+    await submitAgentRuntimeTurn({
+      message: "请继续",
+      session_id: "session-runtime-preference",
+      event_name: "event-runtime-preference",
+      workspace_id: "workspace-runtime-preference",
+      turn_config: {
+        provider_preference: "custom-provider",
+        model_preference: "gpt-5.3-codex",
+        thinking_enabled: true,
+      },
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_submit_turn", {
+      request: {
+        message: "请继续",
+        session_id: "session-runtime-preference",
+        event_name: "event-runtime-preference",
+        workspace_id: "workspace-runtime-preference",
+        turn_config: {
+          provider_preference: "custom-provider",
+          model_preference: "gpt-5.3-codex",
+          thinking_enabled: true,
+        },
+      },
+    });
+  });
+
   it("respondAgentRuntimeAction 应走统一 action 响应命令", async () => {
     mockSafeInvoke.mockResolvedValueOnce(undefined);
 

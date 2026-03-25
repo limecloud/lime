@@ -166,6 +166,11 @@ pub fn is_registered() -> bool {
     IS_REGISTERED.load(Ordering::SeqCst)
 }
 
+/// 获取当前已注册的主语音快捷键
+pub fn get_current() -> Option<String> {
+    get_current_shortcut().read().clone()
+}
+
 /// 注册翻译模式快捷键
 pub fn register_translate(
     app: &AppHandle,
@@ -274,6 +279,16 @@ pub fn unregister_translate(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 检查翻译快捷键是否已注册
+pub fn is_translate_registered() -> bool {
+    IS_TRANSLATE_REGISTERED.load(Ordering::SeqCst)
+}
+
+/// 获取当前已注册的翻译快捷键
+pub fn get_current_translate() -> Option<String> {
+    get_translate_shortcut().read().clone()
+}
+
 /// 更新翻译快捷键
 pub fn update_translate(
     app: &AppHandle,
@@ -309,5 +324,52 @@ pub fn update_translate(
 
             Err(e)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reset_runtime_state() {
+        IS_REGISTERED.store(false, Ordering::SeqCst);
+        IS_TRANSLATE_REGISTERED.store(false, Ordering::SeqCst);
+        *get_current_shortcut().write() = None;
+        *get_translate_shortcut().write() = None;
+    }
+
+    #[test]
+    fn test_main_shortcut_runtime_accessors_reflect_state() {
+        reset_runtime_state();
+
+        assert!(!is_registered());
+        assert_eq!(get_current(), None);
+
+        IS_REGISTERED.store(true, Ordering::SeqCst);
+        *get_current_shortcut().write() = Some("CommandOrControl+Shift+V".to_string());
+
+        assert!(is_registered());
+        assert_eq!(get_current().as_deref(), Some("CommandOrControl+Shift+V"));
+
+        reset_runtime_state();
+    }
+
+    #[test]
+    fn test_translate_shortcut_runtime_accessors_reflect_state() {
+        reset_runtime_state();
+
+        assert!(!is_translate_registered());
+        assert_eq!(get_current_translate(), None);
+
+        IS_TRANSLATE_REGISTERED.store(true, Ordering::SeqCst);
+        *get_translate_shortcut().write() = Some("CommandOrControl+Shift+T".to_string());
+
+        assert!(is_translate_registered());
+        assert_eq!(
+            get_current_translate().as_deref(),
+            Some("CommandOrControl+Shift+T")
+        );
+
+        reset_runtime_state();
     }
 }

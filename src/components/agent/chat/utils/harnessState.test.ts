@@ -151,6 +151,51 @@ describe("deriveHarnessSessionState", () => {
     expect(state.outputSignals[0]?.content).toContain("https://example.com/xinhua");
   });
 
+  it("应通过 artifact protocol 提取工具输出中的嵌套产物路径", () => {
+    const messages = [
+      createMessage({
+        toolCalls: [
+          {
+            id: "tool-artifact-1",
+            name: "write_file",
+            arguments: JSON.stringify({
+              payload: {
+                filePath: "workspace/draft.md",
+              },
+            }),
+            status: "completed",
+            result: {
+              success: true,
+              metadata: {
+                payload: {
+                  artifactPath: "workspace\\cover.png",
+                },
+              },
+              output: JSON.stringify({
+                result: {
+                  absolute_path: "/tmp/workspace/final.md",
+                },
+              }),
+            },
+            startTime: new Date("2026-03-13T12:00:00.000Z"),
+            endTime: new Date("2026-03-13T12:00:03.000Z"),
+          },
+        ],
+      }),
+    ];
+
+    const state = deriveHarnessSessionState(messages, []);
+
+    expect(state.outputSignals[0]).toMatchObject({
+      title: "产物已写入",
+      artifactPath: "workspace/cover.png",
+    });
+    expect(state.recentFileEvents[0]).toMatchObject({
+      path: "workspace/draft.md",
+      action: "write",
+    });
+  });
+
   it("仅有 turn_summary 时也应为 harness 提供计划摘要兜底", () => {
     const messages = [createMessage()];
     const items: AgentThreadItem[] = [

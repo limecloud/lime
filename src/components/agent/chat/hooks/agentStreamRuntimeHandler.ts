@@ -1,14 +1,15 @@
 import { toast } from "sonner";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type {
-  AsterExecutionStrategy,
-  QueuedTurnSnapshot,
-} from "@/lib/api/agentRuntime";
-import type {
+  AgentEvent,
   AgentThreadItem,
   AgentThreadTurn,
-  StreamEvent,
-} from "@/lib/api/agentStream";
+} from "@/lib/api/agentProtocol";
+import type {
+  AsterExecutionStrategy,
+  AsterSessionExecutionRuntime,
+  QueuedTurnSnapshot,
+} from "@/lib/api/agentRuntime";
 import { activityLogger } from "@/components/content-creator/utils/activityLogger";
 import type { ActionRequired, Message } from "../types";
 import { appendTextToParts } from "./agentChatHistory";
@@ -33,6 +34,10 @@ import {
   buildFailedAgentRuntimeStatus,
   formatAgentRuntimeStatusSummary,
 } from "../utils/agentRuntimeStatus";
+import {
+  applyModelChangeExecutionRuntime,
+  applyTurnContextExecutionRuntime,
+} from "../utils/sessionExecutionRuntime";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -69,13 +74,13 @@ interface StreamLifecycleCallbacks {
 }
 
 interface HandleTurnStreamEventOptions {
-  data: StreamEvent;
+  data: AgentEvent;
   requestState: StreamRequestState;
   callbacks: StreamLifecycleCallbacks;
   observer?: StreamObserver;
   eventName: string;
-  optimisticTurnId: string;
-  optimisticItemId: string;
+  pendingTurnKey: string;
+  pendingItemKey: string;
   assistantMsgId: string;
   activeSessionId: string;
   resolvedWorkspaceId: string;
@@ -96,6 +101,9 @@ interface HandleTurnStreamEventOptions {
   setThreadItems: Dispatch<SetStateAction<AgentThreadItem[]>>;
   setThreadTurns: Dispatch<SetStateAction<AgentThreadTurn[]>>;
   setCurrentTurnId: Dispatch<SetStateAction<string | null>>;
+  setExecutionRuntime: Dispatch<
+    SetStateAction<AsterSessionExecutionRuntime | null>
+  >;
 }
 
 function finishRequestLog(
@@ -127,8 +135,8 @@ export function handleTurnStreamEvent({
   callbacks,
   observer,
   eventName,
-  optimisticTurnId,
-  optimisticItemId,
+  pendingTurnKey,
+  pendingItemKey,
   assistantMsgId,
   activeSessionId,
   resolvedWorkspaceId,
@@ -145,6 +153,7 @@ export function handleTurnStreamEvent({
   setThreadItems,
   setThreadTurns,
   setCurrentTurnId,
+  setExecutionRuntime,
 }: HandleTurnStreamEventOptions): void {
   const {
     activateStream,
@@ -167,7 +176,7 @@ export function handleTurnStreamEvent({
 
     setThreadTurns((prev) => {
       const runningTurn =
-        prev.find((turn) => turn.id === optimisticTurnId) ||
+        prev.find((turn) => turn.id === pendingTurnKey) ||
         [...prev]
           .reverse()
           .find(
@@ -189,15 +198,15 @@ export function handleTurnStreamEvent({
     });
 
     setThreadItems((prev) => {
-      const optimisticItem = prev.find((item) => item.id === optimisticItemId);
-      if (!optimisticItem || optimisticItem.type !== "turn_summary") {
+      const pendingItem = prev.find((item) => item.id === pendingItemKey);
+      if (!pendingItem || pendingItem.type !== "turn_summary") {
         return prev;
       }
 
       return upsertThreadItemState(prev, {
-        ...optimisticItem,
+        ...pendingItem,
         status: "failed",
-        completed_at: optimisticItem.completed_at || failedAt,
+        completed_at: pendingItem.completed_at || failedAt,
         updated_at: failedAt,
         text: formatAgentRuntimeStatusSummary(failedRuntimeStatus),
       });
@@ -248,26 +257,26 @@ export function handleTurnStreamEvent({
       setCurrentTurnId(data.turn.id);
       setThreadTurns((prev) =>
         upsertThreadTurnState(
-          removeThreadTurnState(prev, optimisticTurnId),
+          removeThreadTurnState(prev, pendingTurnKey),
           data.turn,
         ),
       );
       setThreadItems((prev) => {
-        const optimisticItem = prev.find((item) => item.id === optimisticItemId);
-        if (!optimisticItem) {
+        const pendingItem = prev.find((item) => item.id === pendingItemKey);
+        if (!pendingItem) {
           return prev;
         }
 
         return upsertThreadItemState(
-          removeThreadItemState(prev, optimisticItemId),
+          removeThreadItemState(prev, pendingItemKey),
           {
-            ...optimisticItem,
+            ...pendingItem,
             thread_id: data.turn.thread_id,
             turn_id: data.turn.id,
             updated_at:
               data.turn.updated_at ||
               data.turn.started_at ||
-              optimisticItem.updated_at,
+              pendingItem.updated_at,
           },
         );
       });
@@ -279,7 +288,7 @@ export function handleTurnStreamEvent({
       activateStream();
       setThreadItems((prev) =>
         upsertThreadItemState(
-          removeThreadItemState(prev, optimisticItemId),
+          removeThreadItemState(prev, pendingItemKey),
           data.item,
         ),
       );
@@ -291,7 +300,7 @@ export function handleTurnStreamEvent({
       clearOptimisticItem();
       setThreadTurns((prev) =>
         upsertThreadTurnState(
-          removeThreadTurnState(prev, optimisticTurnId),
+          removeThreadTurnState(prev, pendingTurnKey),
           data.turn,
         ),
       );
@@ -309,6 +318,20 @@ export function handleTurnStreamEvent({
               }
             : msg,
         ),
+      );
+      break;
+
+    case "turn_context":
+      activateStream();
+      setExecutionRuntime((current) =>
+        applyTurnContextExecutionRuntime(current, data),
+      );
+      break;
+
+    case "model_change":
+      activateStream();
+      setExecutionRuntime((current) =>
+        applyModelChangeExecutionRuntime(current, data),
       );
       break;
 

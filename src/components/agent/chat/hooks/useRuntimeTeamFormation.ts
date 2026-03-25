@@ -1,43 +1,29 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import type { HandleSendOptions } from "./handleSendTypes";
 import {
   createRuntimeFormationStateFromTeam,
   type TeamWorkspaceRuntimeFormationState,
 } from "../teamWorkspaceRuntime";
-import { generateEphemeralTeamWithModel } from "../utils/teamAutoGeneration";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 
-interface TriggerRuntimeTeamFormationParams {
+interface PrepareRuntimeTeamBeforeSendParams {
   input: string;
-  providerType: string;
-  model: string;
-  executionStrategy?: "react" | "code_orchestrated" | "auto";
-}
-
-interface PrepareRuntimeTeamBeforeSendParams
-  extends TriggerRuntimeTeamFormationParams {
   purpose?: HandleSendOptions["purpose"];
   subagentEnabled?: boolean;
 }
 
 interface UseRuntimeTeamFormationOptions {
-  activeTheme: string;
   projectId?: string | null;
   sessionId?: string | null;
   selectedTeam?: TeamDefinition | null;
   subagentEnabled: boolean;
   hasRealTeamGraph: boolean;
-  generateRuntimeTeam?: typeof generateEphemeralTeamWithModel;
   createRequestId?: () => string;
   now?: () => number;
 }
 
 export interface UseRuntimeTeamFormationResult {
-  runtimeTeamState: TeamWorkspaceRuntimeFormationState | null;
   clearRuntimeTeamState: () => void;
-  triggerRuntimeTeamFormation: (
-    params: TriggerRuntimeTeamFormationParams,
-  ) => Promise<TeamWorkspaceRuntimeFormationState | null>;
   prepareRuntimeTeamBeforeSend: (
     params: PrepareRuntimeTeamBeforeSendParams,
   ) => Promise<TeamWorkspaceRuntimeFormationState | null>;
@@ -53,114 +39,61 @@ export function shouldPrepareRuntimeTeamBeforeSend(params: {
   input: string;
   purpose?: HandleSendOptions["purpose"];
 }): boolean {
-  return (
-    params.subagentEnabled &&
-    !params.purpose &&
-    Boolean(params.projectId) &&
-    params.input.trim().length > 0
-  );
+  if (!params.subagentEnabled || params.purpose || !params.projectId) {
+    return false;
+  }
+
+  const trimmed = params.input.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+
+  // 短输入（少于 40 字符）大概率是简单请求，不需要团队协作
+  if (trimmed.length < 40) {
+    return false;
+  }
+
+  // 检测是否为简单内容生成类请求（生成提纲、写报告等），这类任务单 agent 即可完成
+  const simpleGenerationPatterns = [
+    /^(请|帮我|帮忙)?(生成|写|起草|草拟|撰写|创建|制作|输出)/,
+    /^(generate|write|create|draft|make)\b/i,
+  ];
+  if (simpleGenerationPatterns.some((pattern) => pattern.test(trimmed))) {
+    return false;
+  }
+
+  return true;
 }
 
 export function useRuntimeTeamFormation({
-  activeTheme,
   projectId,
-  sessionId,
   selectedTeam,
   subagentEnabled,
-  hasRealTeamGraph,
-  generateRuntimeTeam = generateEphemeralTeamWithModel,
   createRequestId = defaultCreateRequestId,
   now = () => Date.now(),
 }: UseRuntimeTeamFormationOptions): UseRuntimeTeamFormationResult {
-  const [runtimeTeamState, setRuntimeTeamState] =
-    useState<TeamWorkspaceRuntimeFormationState | null>(null);
-  const runtimeTeamRequestIdRef = useRef<string | null>(null);
-
   const clearRuntimeTeamState = useCallback(() => {
-    runtimeTeamRequestIdRef.current = null;
-    setRuntimeTeamState(null);
+    return;
   }, []);
 
-  const triggerRuntimeTeamFormation = useCallback(
-    async ({
-      input,
-      providerType,
-      model,
-      executionStrategy,
-    }: TriggerRuntimeTeamFormationParams) => {
-      const normalizedInput = input.trim();
-      if (!projectId || !normalizedInput) {
-        return null;
-      }
+  const formRuntimeTeamState = useCallback(() => {
+    if (!selectedTeam) {
+      return null;
+    }
 
-      const requestId = createRequestId();
-      runtimeTeamRequestIdRef.current = requestId;
-      const formingState = createRuntimeFormationStateFromTeam({
-        requestId,
-        status: "forming",
-        blueprintTeam: selectedTeam ?? null,
-        updatedAt: now(),
-      });
-      setRuntimeTeamState(formingState);
-
-      try {
-        const runtimeTeam = await generateRuntimeTeam({
-          workspaceId: projectId,
-          providerType,
-          model,
-          executionStrategy,
-          activeTheme,
-          input: normalizedInput,
-          blueprintTeam: selectedTeam ?? null,
-        });
-
-        if (runtimeTeamRequestIdRef.current !== requestId) {
-          return null;
-        }
-
-        const formedState = createRuntimeFormationStateFromTeam({
-          requestId,
-          status: "formed",
-          runtimeTeam,
-          blueprintTeam: selectedTeam ?? null,
-          updatedAt: now(),
-        });
-        setRuntimeTeamState(formedState);
-        return formedState;
-      } catch (error) {
-        if (runtimeTeamRequestIdRef.current !== requestId) {
-          return null;
-        }
-
-        const errorMessage =
-          error instanceof Error ? error.message : "Team 生成失败";
-        const failedState = createRuntimeFormationStateFromTeam({
-          requestId,
-          status: "failed",
-          blueprintTeam: selectedTeam ?? null,
-          errorMessage,
-          updatedAt: now(),
-        });
-        setRuntimeTeamState(failedState);
-        return failedState;
-      }
-    },
-    [
-      activeTheme,
-      createRequestId,
-      generateRuntimeTeam,
-      now,
-      projectId,
-      selectedTeam,
-    ],
-  );
+    const formedState = createRuntimeFormationStateFromTeam({
+      requestId: createRequestId(),
+      status: "formed",
+      runtimeTeam: selectedTeam,
+      blueprintTeam: selectedTeam,
+      updatedAt: now(),
+    });
+    return formedState;
+  }, [createRequestId, now, selectedTeam]);
 
   const prepareRuntimeTeamBeforeSend = useCallback(
     ({
       input,
-      providerType,
-      model,
-      executionStrategy,
       purpose,
       subagentEnabled: subagentEnabledOverride,
     }: PrepareRuntimeTeamBeforeSendParams) => {
@@ -172,45 +105,19 @@ export function useRuntimeTeamFormation({
           projectId,
           input,
           purpose,
-        })
+        }) &&
+        selectedTeam
       ) {
-        return triggerRuntimeTeamFormation({
-          input,
-          providerType,
-          model,
-          executionStrategy,
-        });
-      }
-
-      if (!hasRealTeamGraph) {
-        clearRuntimeTeamState();
+        return Promise.resolve(formRuntimeTeamState());
       }
 
       return Promise.resolve(null);
     },
-    [
-      clearRuntimeTeamState,
-      hasRealTeamGraph,
-      projectId,
-      subagentEnabled,
-      triggerRuntimeTeamFormation,
-    ],
+    [formRuntimeTeamState, projectId, selectedTeam, subagentEnabled],
   );
 
-  useEffect(() => {
-    clearRuntimeTeamState();
-  }, [clearRuntimeTeamState, sessionId]);
-
-  useEffect(() => {
-    if (!subagentEnabled && !hasRealTeamGraph) {
-      clearRuntimeTeamState();
-    }
-  }, [clearRuntimeTeamState, hasRealTeamGraph, subagentEnabled]);
-
   return {
-    runtimeTeamState,
     clearRuntimeTeamState,
-    triggerRuntimeTeamFormation,
     prepareRuntimeTeamBeforeSend,
   };
 }

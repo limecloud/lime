@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { Artifact } from "@/lib/artifact/types";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import {
   MessageListContainer,
   MessageWrapper,
@@ -43,6 +44,7 @@ import {
   type ActionRequired,
   type AgentThreadItem,
   type AgentThreadTurn,
+  type SiteSavedContentTarget,
   type WriteArtifactContext,
 } from "../types";
 import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
@@ -54,6 +56,7 @@ import type {
 import { buildMessageTurnTimeline } from "../utils/threadTimelineView";
 import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
 import logoImg from "/logo.png";
+import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 
 interface MessageListProps {
   messages: Message[];
@@ -84,6 +87,10 @@ interface MessageListProps {
   ) => void;
   /** 文件点击回调 */
   onFileClick?: (fileName: string, content: string) => void;
+  /** 时间线内 artifact 精确跳转 */
+  onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
+  /** 打开站点能力已保存内容 */
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
   /** Artifact 点击回调 */
   onArtifactClick?: (artifact: Artifact) => void;
   /** 打开子代理会话 */
@@ -111,6 +118,10 @@ interface MessageListProps {
   onPromoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
   /** 是否压缩左侧留白，适用于工作台右栏 */
   compactLeadingSpacing?: boolean;
+  /** 需要高亮的 timeline item */
+  focusedTimelineItemId?: string | null;
+  /** 触发 timeline item 聚焦的请求序号 */
+  timelineFocusRequestKey?: number;
 }
 
 const MessageListInner: React.FC<MessageListProps> = ({
@@ -128,6 +139,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onA2UIFormChange,
   onWriteFile,
   onFileClick,
+  onOpenArtifactFromTimeline,
+  onOpenSavedSiteContent,
   onArtifactClick,
   onOpenSubagentSession,
   onPermissionResponse,
@@ -136,6 +149,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onCodeBlockClick,
   promoteActionRequestsToA2UI = false,
   compactLeadingSpacing = false,
+  focusedTimelineItemId = null,
+  timelineFocusRequestKey = 0,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -404,6 +419,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
                     : undefined
                 }
                 onFileClick={onFileClick}
+                onOpenSavedSiteContent={onOpenSavedSiteContent}
                 onPermissionResponse={onPermissionResponse}
                 collapseCodeBlocks={collapseCodeBlocks}
                 shouldCollapseCodeBlock={shouldCollapseCodeBlock}
@@ -448,8 +464,12 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 actionRequests={msg.actionRequests}
                 isCurrentTurn={timeline.turn.id === currentTurnId}
                 onFileClick={onFileClick}
+                onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+                onOpenSavedSiteContent={onOpenSavedSiteContent}
                 onOpenSubagentSession={onOpenSubagentSession}
                 onPermissionResponse={onPermissionResponse}
+                focusedItemId={focusedTimelineItemId}
+                focusRequestKey={timelineFocusRequestKey}
               />
             ) : null}
 
@@ -529,10 +549,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     return (
       <div className="mt-3 flex flex-col gap-2">
         {artifacts.map((artifact) => {
-          const filePath =
-            typeof artifact.meta.filePath === "string"
-              ? artifact.meta.filePath
-              : artifact.meta.filename || artifact.title;
+          const filePath = resolveArtifactProtocolFilePath(artifact);
           const writePhase = resolveArtifactWritePhase(artifact);
           const statusLabel = formatArtifactWritePhaseLabel(writePhase);
           const previewText = resolveArtifactPreviewText(artifact, 180);

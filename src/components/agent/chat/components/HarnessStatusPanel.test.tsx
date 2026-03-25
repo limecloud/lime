@@ -626,6 +626,28 @@ describe("HarnessStatusPanel", () => {
     HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
+  it("待审批区块应通过 artifact protocol 展示嵌套参数里的路径", () => {
+    renderPanel({
+      harnessState: createHarnessState({
+        pendingApprovals: [
+          {
+            requestId: "approval-path-1",
+            actionType: "tool_confirmation",
+            prompt: "确认写入主稿",
+            toolName: "write_file",
+            arguments: {
+              payload: {
+                filePath: "workspace/approval-draft.md",
+              },
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(document.body.textContent).toContain("workspace/approval-draft.md");
+  });
+
   it("应渲染最近文件活动区块", () => {
     renderPanel({
       harnessState: createHarnessState({

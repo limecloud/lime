@@ -13,12 +13,12 @@ import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
 import { readFilePreview } from "@/lib/api/fileBrowser";
 import type { SessionFile } from "@/lib/api/session-files";
 import type { Artifact } from "@/lib/artifact/types";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
 import type { HarnessFilePreviewResult } from "../components/HarnessStatusPanel";
 import { useArtifactAutoPreviewSync } from "../hooks/useArtifactAutoPreviewSync";
 import {
   buildArtifactFromWrite,
-  resolveArtifactFilePath,
   resolveDefaultArtifactViewMode,
 } from "../utils/messageArtifacts";
 import {
@@ -199,7 +199,7 @@ export function useWorkspaceArtifactPreviewActions({
   const openArtifactInWorkbench = useCallback(
     async (artifact: Artifact) => {
       let nextArtifact = artifact;
-      const artifactPath = resolveArtifactFilePath(artifact);
+      const artifactPath = resolveArtifactProtocolFilePath(artifact);
       const shouldLoadPreview = artifact.content.length === 0 && artifactPath;
 
       if (shouldLoadPreview) {
@@ -285,7 +285,7 @@ export function useWorkspaceArtifactPreviewActions({
 
       if (activeTheme === "general") {
         const matchingArtifact = artifacts.find((artifact) => {
-          const artifactPath = resolveArtifactFilePath(artifact);
+          const artifactPath = resolveArtifactProtocolFilePath(artifact);
           return (
             artifactPath === fileName ||
             artifact.title === extractFileNameFromPath(fileName) ||

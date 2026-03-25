@@ -385,7 +385,7 @@ pub struct TokenUsage {
 // 当前仓库的事实源是 Hook + runtime adapter，而不是根 store barrel。
 // 推荐边界：
 // - 会话 / turn / action：`src/lib/api/agentRuntime.ts`
-// - 流式协议：`src/lib/api/agentStream.ts`
+// - 流式协议：`src/lib/api/agentProtocol.ts`
 // - 前端主链：`useAgentChatUnified -> useAsterAgentChat`
 // - 已删除旧入口：`useAgentChat`、`useAgentStore`
 

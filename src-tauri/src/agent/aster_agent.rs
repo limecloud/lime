@@ -12,8 +12,8 @@ use crate::services::memory_profile_prompt_service::{
 use aster::conversation::message::Message;
 use futures::StreamExt;
 use lime_agent::{
-    convert_agent_event, get_persisted_session_metadata_sync,
-    merge_system_prompt_with_runtime_agents, TauriAgentEvent, WriteArtifactEventEmitter,
+    get_persisted_session_metadata_sync, merge_system_prompt_with_runtime_agents,
+    project_runtime_event, AgentEvent as RuntimeAgentEvent, WriteArtifactEventEmitter,
 };
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager};
@@ -103,10 +103,10 @@ impl AsterAgentWrapper {
                 while let Some(event_result) = stream.next().await {
                     match event_result {
                         Ok(agent_event) => {
-                            let tauri_events = convert_agent_event(agent_event);
-                            for mut tauri_event in tauri_events {
+                            let runtime_events = project_runtime_event(agent_event);
+                            for mut runtime_event in runtime_events {
                                 let extra_events =
-                                    write_artifact_emitter.process_event(&mut tauri_event);
+                                    write_artifact_emitter.process_event(&mut runtime_event);
                                 for extra_event in &extra_events {
                                     if let Err(error) = app.emit(&event_name, extra_event) {
                                         tracing::error!(
@@ -115,13 +115,13 @@ impl AsterAgentWrapper {
                                         );
                                     }
                                 }
-                                if let Err(error) = app.emit(&event_name, &tauri_event) {
+                                if let Err(error) = app.emit(&event_name, &runtime_event) {
                                     tracing::error!("[AsterAgentWrapper] 发送事件失败: {}", error);
                                 }
                             }
                         }
                         Err(error) => {
-                            let error_event = TauriAgentEvent::Error {
+                            let error_event = RuntimeAgentEvent::Error {
                                 message: format!("Stream error: {error}"),
                             };
                             let _ = app.emit(&event_name, &error_event);
@@ -129,11 +129,11 @@ impl AsterAgentWrapper {
                     }
                 }
 
-                let done_event = TauriAgentEvent::FinalDone { usage: None };
+                let done_event = RuntimeAgentEvent::FinalDone { usage: None };
                 let _ = app.emit(&event_name, &done_event);
             }
             Err(error) => {
-                let error_event = TauriAgentEvent::Error {
+                let error_event = RuntimeAgentEvent::Error {
                     message: format!("Agent error: {error}"),
                 };
                 let _ = app.emit(&event_name, &error_event);

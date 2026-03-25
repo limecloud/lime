@@ -59,11 +59,11 @@ impl RoundRobinPool {
             .iter()
             .filter(|c| c.is_healthy())
             .collect();
-        
+
         if healthy.is_empty() {
             return None;
         }
-        
+
         let index = self.current_index
             .fetch_add(1, Ordering::Relaxed) % healthy.len();
         Some(healthy[index])
@@ -83,11 +83,11 @@ pub struct WeightedPool {
 
 ### 检查项目
 
-| 检查项 | 说明 | 频率 |
-|--------|------|------|
-| Token 过期 | 检查 expires_at | 每次请求前 |
+| 检查项     | 说明               | 频率         |
+| ---------- | ------------------ | ------------ |
+| Token 过期 | 检查 expires_at    | 每次请求前   |
 | Token 刷新 | 尝试刷新过期 Token | Token 过期时 |
-| API 可用性 | 发送测试请求 | 定时 (5分钟) |
+| API 可用性 | 发送测试请求       | 定时 (5分钟) |
 
 ### 健康状态
 
@@ -125,7 +125,7 @@ async fn health_check_task(pool: Arc<ProviderPoolService>) {
                 _ => {}
             }
         }
-        
+
         tokio::time::sleep(Duration::from_secs(300)).await;
     }
 }
@@ -153,7 +153,7 @@ impl TokenCacheService {
                 return Ok(cached.access_token.clone());
             }
         }
-        
+
         // 刷新并缓存
         let new_token = self.refresh(credential_id).await?;
         self.cache.insert(credential_id.to_string(), new_token.clone());
@@ -220,3 +220,10 @@ async fn get_pool_status() -> Result<PoolStatus>;
 - [providers.md](providers.md) - Provider 系统
 - [services.md](services.md) - 业务服务
 - [database.md](database.md) - 数据库层
+
+## 运行时路径与调试
+
+- 凭证文件默认存放在应用数据目录下的 `lime/credentials/`
+- `~/Library/Application Support/lime/credentials/` 只作为 macOS 示例，Windows 必须使用对应的应用数据目录
+- `request_logs`、日志目录等运行时路径也应通过统一 `app_paths` / 系统目录 API 获取，不要在实现里写死
+- 需要排查 Kiro 凭证加载时，可使用 `debug_kiro_credentials` 对应命令进行诊断；具体命令边界以 `docs/aiprompts/commands.md` 和 Rust 注册表为准

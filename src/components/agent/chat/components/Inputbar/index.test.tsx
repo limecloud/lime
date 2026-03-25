@@ -228,6 +228,37 @@ describe("Inputbar", () => {
     expect(latestCall.skills).toEqual([]);
   });
 
+  it("存在 executionRuntime 时应展示最近执行模型与结构化输出提示", async () => {
+    const container = renderInputbar({
+      providerType: "openai",
+      setProviderType: vi.fn(),
+      model: "gpt-5.4-mini",
+      setModel: vi.fn(),
+      executionRuntime: {
+        session_id: "session-1",
+        provider_selector: "openai",
+        provider_name: "openai",
+        model_name: "gpt-5.4",
+        source: "turn_context",
+        output_schema_runtime: {
+          source: "turn",
+          strategy: "native",
+          providerName: "openai",
+          modelName: "gpt-5.4",
+        },
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("最近执行模型 OpenAI · gpt-5.4");
+    expect(container.textContent).toContain(
+      "结构化输出 Native schema · turn contract",
+    );
+  });
+
   it("受控模式下点击联网搜索应透传状态变更", async () => {
     const onToolStatesChange = vi.fn();
     const container = document.createElement("div");

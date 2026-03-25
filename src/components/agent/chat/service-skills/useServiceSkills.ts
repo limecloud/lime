@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listServiceSkills } from "@/lib/api/serviceSkills";
+import { getAutomationJobs } from "@/lib/api/automation";
+import {
+  getServiceSkillCatalog,
+  isSeededServiceSkillCatalog,
+  refreshServiceSkillCatalogFromRemote,
+  subscribeServiceSkillCatalogChanged,
+} from "@/lib/api/serviceSkills";
+import {
+  buildServiceSkillAutomationStatusMap,
+  listServiceSkillAutomationLinks,
+  subscribeServiceSkillAutomationLinksChanged,
+} from "./automationLinkStorage";
 import { getServiceSkillUsageMap, recordServiceSkillUsage } from "./storage";
 import type {
   RecordServiceSkillUsageInput,
+  ServiceSkillAutomationStatus,
+  ServiceSkillCatalog,
+  ServiceSkillCatalogMeta,
   ServiceSkillHomeItem,
   ServiceSkillItem,
   ServiceSkillRunnerType,
@@ -27,11 +41,39 @@ const RUNNER_DESCRIPTIONS: Record<ServiceSkillRunnerType, string> = {
   managed: "当前先进入工作区生成首版跟踪方案，后续再接本地持续任务。",
 };
 
-const ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
+const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
   instant: "填写参数",
   scheduled: "先做方案",
   managed: "先定指标",
 };
+
+function getRunnerLabel(item: ServiceSkillItem): string {
+  if (item.executionLocation === "cloud_required") {
+    return "云端托管执行";
+  }
+  return RUNNER_LABELS[item.runnerType];
+}
+
+function getRunnerTone(item: ServiceSkillItem): ServiceSkillTone {
+  if (item.executionLocation === "cloud_required") {
+    return "slate";
+  }
+  return RUNNER_TONES[item.runnerType];
+}
+
+function getRunnerDescription(item: ServiceSkillItem): string {
+  if (item.executionLocation === "cloud_required") {
+    return "提交到 OEM 云端执行，结果由服务端异步返回。";
+  }
+  return RUNNER_DESCRIPTIONS[item.runnerType];
+}
+
+function getActionLabel(item: ServiceSkillItem): string {
+  if (item.executionLocation === "cloud_required") {
+    return "提交云端";
+  }
+  return LOCAL_ACTION_LABELS[item.runnerType];
+}
 
 function getSkillBadge(item: ServiceSkillItem, isRecent: boolean): string {
   if (isRecent) {
@@ -43,7 +85,10 @@ function getSkillBadge(item: ServiceSkillItem, isRecent: boolean): string {
   return "本地技能";
 }
 
-function buildHomeItems(items: ServiceSkillItem[]): ServiceSkillHomeItem[] {
+function buildHomeItems(
+  items: ServiceSkillItem[],
+  automationStatusMap: Record<string, ServiceSkillAutomationStatus>,
+): ServiceSkillHomeItem[] {
   const usageMap = getServiceSkillUsageMap();
   const mapped: Array<ServiceSkillHomeItem & { _sortIndex: number }> = items.map(
     (item, index) => {
@@ -56,10 +101,11 @@ function buildHomeItems(items: ServiceSkillItem[]): ServiceSkillHomeItem[] {
         badge: getSkillBadge(item, isRecent),
         recentUsedAt,
         isRecent,
-        runnerLabel: RUNNER_LABELS[item.runnerType],
-        runnerTone: RUNNER_TONES[item.runnerType],
-        runnerDescription: RUNNER_DESCRIPTIONS[item.runnerType],
-        actionLabel: ACTION_LABELS[item.runnerType],
+        runnerLabel: getRunnerLabel(item),
+        runnerTone: getRunnerTone(item),
+        runnerDescription: getRunnerDescription(item),
+        actionLabel: getActionLabel(item),
+        automationStatus: automationStatusMap[item.id] ?? null,
         _sortIndex: index,
       };
     },
@@ -82,8 +128,24 @@ function buildHomeItems(items: ServiceSkillItem[]): ServiceSkillHomeItem[] {
     .map(({ _sortIndex, ...item }) => item);
 }
 
+function buildCatalogMeta(
+  catalog: ServiceSkillCatalog,
+): ServiceSkillCatalogMeta {
+  const isSeeded = isSeededServiceSkillCatalog(catalog);
+
+  return {
+    tenantId: catalog.tenantId,
+    version: catalog.version,
+    syncedAt: catalog.syncedAt,
+    itemCount: catalog.items.length,
+    sourceLabel: isSeeded ? "本地 Seeded 目录" : "租户云目录",
+    isSeeded,
+  };
+}
+
 interface UseServiceSkillsResult {
   skills: ServiceSkillHomeItem[];
+  catalogMeta: ServiceSkillCatalogMeta | null;
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -92,34 +154,119 @@ interface UseServiceSkillsResult {
 
 export function useServiceSkills(enabled = true): UseServiceSkillsResult {
   const [items, setItems] = useState<ServiceSkillItem[]>([]);
+  const [automationStatusMap, setAutomationStatusMap] = useState<
+    Record<string, ServiceSkillAutomationStatus>
+  >({});
+  const [catalogMeta, setCatalogMeta] = useState<ServiceSkillCatalogMeta | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const [usageVersion, setUsageVersion] = useState(0);
+  const [automationLinkCount, setAutomationLinkCount] = useState(0);
+
+  const applyCatalogSnapshot = useCallback(async (catalog: ServiceSkillCatalog) => {
+    const automationLinks = listServiceSkillAutomationLinks();
+    let automationStatuses: Record<string, ServiceSkillAutomationStatus> = {};
+
+    if (automationLinks.length > 0) {
+      try {
+        automationStatuses = buildServiceSkillAutomationStatusMap(
+          await getAutomationJobs(),
+        );
+      } catch {
+        automationStatuses = {};
+      }
+    }
+
+    setItems(catalog.items.filter((item) => item.source === "cloud_catalog"));
+    setAutomationLinkCount(automationLinks.length);
+    setAutomationStatusMap(automationStatuses);
+    setCatalogMeta(buildCatalogMeta(catalog));
+  }, []);
+
+  const loadCurrentCatalog = useCallback(async () => {
+    const catalog = await getServiceSkillCatalog();
+    await applyCatalogSnapshot(catalog);
+    return catalog;
+  }, [applyCatalogSnapshot]);
 
   const refresh = useCallback(async () => {
     if (!enabled) {
       setItems([]);
+      setAutomationStatusMap({});
+      setAutomationLinkCount(0);
+      setCatalogMeta(null);
       setError(null);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
+    let currentCatalog: ServiceSkillCatalog | null = null;
+
     try {
-      const nextItems = await listServiceSkills();
-      setItems(nextItems);
+      currentCatalog = await loadCurrentCatalog();
       setError(null);
+      setIsLoading(false);
+
+      try {
+        const remoteCatalog = await refreshServiceSkillCatalogFromRemote();
+        if (remoteCatalog) {
+          await applyCatalogSnapshot(remoteCatalog);
+        }
+      } catch (reason) {
+        if (!currentCatalog) {
+          throw reason;
+        }
+      }
     } catch (reason) {
       setItems([]);
+      setAutomationStatusMap({});
+      setAutomationLinkCount(0);
+      setCatalogMeta(null);
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setIsLoading(false);
     }
-  }, [enabled]);
+  }, [applyCatalogSnapshot, enabled, loadCurrentCatalog]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const unsubscribeCatalog = subscribeServiceSkillCatalogChanged(() => {
+      void loadCurrentCatalog();
+    });
+    const unsubscribeAutomationLinks =
+      subscribeServiceSkillAutomationLinksChanged(() => {
+        void loadCurrentCatalog();
+      });
+
+    return () => {
+      unsubscribeCatalog();
+      unsubscribeAutomationLinks();
+    };
+  }, [enabled, loadCurrentCatalog]);
+
+  useEffect(() => {
+    if (!enabled || automationLinkCount === 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void refresh();
+    }, 15_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [automationLinkCount, enabled, refresh]);
 
   const recordUsageAndRefresh = useCallback(
     (input: RecordServiceSkillUsageInput) => {
@@ -131,11 +278,12 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
 
   const skills = useMemo(() => {
     void usageVersion;
-    return buildHomeItems(items);
-  }, [items, usageVersion]);
+    return buildHomeItems(items, automationStatusMap);
+  }, [items, usageVersion, automationStatusMap]);
 
   return {
     skills,
+    catalogMeta,
     isLoading,
     error,
     refresh,

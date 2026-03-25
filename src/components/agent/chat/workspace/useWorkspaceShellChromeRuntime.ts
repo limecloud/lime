@@ -24,7 +24,7 @@ interface UseWorkspaceShellChromeRuntimeParams {
   themeWorkbenchRunState: "idle" | "auto_running" | "await_user_decision";
   currentGateStatus: "running" | "waiting" | "idle";
   hasRealTeamGraph: boolean;
-  runtimeTeamState: unknown;
+  teamDispatchPreviewState: unknown;
 }
 
 export function useWorkspaceShellChromeRuntime({
@@ -45,7 +45,7 @@ export function useWorkspaceShellChromeRuntime({
   themeWorkbenchRunState,
   currentGateStatus,
   hasRealTeamGraph,
-  runtimeTeamState,
+  teamDispatchPreviewState,
 }: UseWorkspaceShellChromeRuntimeParams) {
   const hasUnconsumedInitialDispatch =
     !shouldUseCompactThemeWorkbench && isBootstrapDispatchPending;
@@ -73,7 +73,7 @@ export function useWorkspaceShellChromeRuntime({
   const shouldUseTeamPrimaryChatPanelWidth =
     layoutMode === "chat-canvas" &&
     showTeamWorkspaceBoard &&
-    (hasRealTeamGraph || Boolean(runtimeTeamState));
+    (hasRealTeamGraph || Boolean(teamDispatchPreviewState));
   const layoutTransitionChatPanelWidth = shouldUseTeamPrimaryChatPanelWidth
     ? TEAM_PRIMARY_CHAT_PANEL_WIDTH
     : undefined;

@@ -17,9 +17,7 @@ use std::path::Path;
 
 use super::execution::SkillExecutionResult;
 use super::execution_callback::TauriExecutionCallback;
-use super::social_post::{
-    collect_social_artifact_paths_from_output, infer_theme_workbench_gate_key,
-};
+use super::social_post::infer_theme_workbench_gate_key;
 
 #[derive(Debug, Clone)]
 pub struct SkillProviderSelection {
@@ -335,7 +333,7 @@ pub fn build_skill_run_finish_decision(
                 provider_override,
                 model_override,
                 provider_selection,
-                collect_social_artifact_paths_from_output(execution.output.as_deref()),
+                execution.artifact_paths.clone(),
             )),
         },
         Ok(execution) => RunFinishDecision {
@@ -364,5 +362,51 @@ pub fn build_skill_run_finish_decision(
                 None,
             )),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::skills::StepResult;
+
+    #[test]
+    fn test_build_skill_run_finish_decision_uses_execution_artifact_paths() {
+        let result = Ok(SkillExecutionResult {
+            success: true,
+            output: Some("纯文本输出，不含 write_file block".to_string()),
+            error: None,
+            artifact_paths: vec![
+                "social-posts/demo.md".to_string(),
+                "social-posts/demo.cover.json".to_string(),
+                "social-posts/demo.publish-pack.json".to_string(),
+            ],
+            steps_completed: vec![StepResult {
+                step_id: "main".to_string(),
+                step_name: "social_post_with_cover".to_string(),
+                success: true,
+                output: Some("done".to_string()),
+                error: None,
+            }],
+        });
+
+        let decision = build_skill_run_finish_decision(
+            SOCIAL_POST_WITH_COVER_SKILL_NAME,
+            "exec-1",
+            None,
+            None,
+            None,
+            &result,
+        );
+        let metadata = decision.metadata.expect("metadata should exist");
+
+        assert_eq!(
+            metadata["artifact_paths"],
+            serde_json::json!([
+                "social-posts/demo.md",
+                "social-posts/demo.cover.json",
+                "social-posts/demo.publish-pack.json"
+            ])
+        );
     }
 }

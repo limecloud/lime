@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "0.95.1",
+  "version": "0.96.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -44,6 +44,8 @@
     "detect-translations:fix": "tsx scripts/detect-missing-translations.ts --fix",
     "detect-translations:verbose": "tsx scripts/detect-missing-translations.ts --verbose",
     "verify:app-version": "node scripts/check-app-version-consistency.mjs",
+    "verify:tasks": "node scripts/quality-task-selector.mjs --format json",
+    "verify:gui-smoke": "node scripts/verify-gui-smoke.mjs",
     "verify:local": "node scripts/local-ci.mjs",
     "verify:local:full": "node scripts/local-ci.mjs --full",
     "ai-verify": "tsx scripts/ai-code-verify.ts",

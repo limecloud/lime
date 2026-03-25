@@ -74,10 +74,14 @@ export function useWorkspaceTeamWorkbenchAutoOpenRuntime({
       return;
     }
 
-    if (previousRuntimeTeamRequestIdRef.current !== runtimeTeamRequestId) {
+    const previousRuntimeTeamRequestId =
+      previousRuntimeTeamRequestIdRef.current;
+    const runtimeTeamRequestIdChanged =
+      previousRuntimeTeamRequestId !== runtimeTeamRequestId;
+
+    if (runtimeTeamRequestIdChanged) {
       const previousSuppressedRequestId =
         suppressedRuntimeTeamRequestIdRef.current;
-      previousRuntimeTeamRequestIdRef.current = runtimeTeamRequestId;
       if (
         !runtimeTeamRequestId ||
         previousSuppressedRequestId !== runtimeTeamRequestId
@@ -88,6 +92,15 @@ export function useWorkspaceTeamWorkbenchAutoOpenRuntime({
     }
 
     if (
+      runtimeTeamRequestId &&
+      runtimeTeamRequestIdChanged &&
+      !hasRealTeamGraph &&
+      !suppressedAutoOpenRef.current
+    ) {
+      handleActivateTeamWorkbench();
+    }
+
+    if (
       hasRealTeamGraph &&
       !previousRealTeamGraphRef.current &&
       !suppressedAutoOpenRef.current
@@ -95,6 +108,7 @@ export function useWorkspaceTeamWorkbenchAutoOpenRuntime({
       handleActivateTeamWorkbench();
     }
 
+    previousRuntimeTeamRequestIdRef.current = runtimeTeamRequestId;
     previousRealTeamGraphRef.current = hasRealTeamGraph;
   }, [
     handleActivateTeamWorkbench,

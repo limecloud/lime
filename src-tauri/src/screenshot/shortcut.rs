@@ -290,6 +290,11 @@ fn handle_shortcut_triggered(app: &AppHandle) {
 mod tests {
     use super::*;
 
+    fn reset_runtime_state() {
+        IS_REGISTERED.store(false, Ordering::SeqCst);
+        *get_current_shortcut().write() = None;
+    }
+
     #[test]
     fn test_validate_valid_shortcuts() {
         // 有效的快捷键格式
@@ -318,5 +323,21 @@ mod tests {
         assert!(validate("InvalidKey").is_err());
         assert!(validate("+++").is_err());
         assert!(validate("Ctrl++").is_err());
+    }
+
+    #[test]
+    fn test_runtime_status_accessors_reflect_state() {
+        reset_runtime_state();
+
+        assert!(!is_registered());
+        assert_eq!(get_current(), None);
+
+        IS_REGISTERED.store(true, Ordering::SeqCst);
+        *get_current_shortcut().write() = Some("CommandOrControl+Shift+4".to_string());
+
+        assert!(is_registered());
+        assert_eq!(get_current().as_deref(), Some("CommandOrControl+Shift+4"));
+
+        reset_runtime_state();
     }
 }

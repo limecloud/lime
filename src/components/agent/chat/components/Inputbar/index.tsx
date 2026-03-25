@@ -2,7 +2,10 @@ import React from "react";
 import type { MessageImage } from "../../types";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
-import type { QueuedTurnSnapshot } from "@/lib/api/agentRuntime";
+import type {
+  AsterSessionExecutionRuntime,
+  QueuedTurnSnapshot,
+} from "@/lib/api/agentRuntime";
 import type { TaskFile } from "../TaskFiles";
 import { InputbarComposerSection } from "./components/InputbarComposerSection";
 import { InputbarOverlayShell } from "./components/InputbarOverlayShell";
@@ -70,6 +73,8 @@ interface InputbarProps {
   setProviderType?: (type: string) => void;
   model?: string;
   setModel?: (model: string) => void;
+  executionRuntime?: AsterSessionExecutionRuntime | null;
+  isExecutionRuntimeActive?: boolean;
   workspaceId?: string | null;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   setExecutionStrategy?: (
@@ -126,6 +131,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
   setProviderType,
   model,
   setModel,
+  executionRuntime,
+  isExecutionRuntimeActive,
   workspaceId,
   executionStrategy,
   setExecutionStrategy,
@@ -271,6 +278,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
         providerType={providerType}
         model={model}
         onManageProviders={onManageProviders}
+        executionRuntime={executionRuntime}
+        isExecutionRuntimeActive={isExecutionRuntimeActive}
         setExecutionStrategy={setExecutionStrategy}
         topExtra={topExtra}
         queuedTurns={queuedTurns}

@@ -183,6 +183,7 @@ mod tests {
             workspace_id: None,
             messages: Vec::new(),
             execution_strategy: None,
+            execution_runtime: None,
             turns: Vec::new(),
             items: Vec::new(),
             todo_items: Vec::new(),

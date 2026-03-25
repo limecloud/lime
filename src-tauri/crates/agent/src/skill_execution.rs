@@ -1,6 +1,10 @@
+use crate::protocol::AgentEvent as RuntimeAgentEvent;
 use crate::{
-    convert_agent_event, AsterAgentState, SessionConfigBuilder, TauriAgentEvent,
-    WriteArtifactEventEmitter,
+    artifact_protocol::{
+        extend_unique_artifact_protocol_paths, push_unique_artifact_protocol_path,
+    },
+    protocol_projection::project_runtime_event,
+    AsterAgentState, SessionConfigBuilder, WriteArtifactEventEmitter,
 };
 use aster::agents::SessionConfig;
 use aster::conversation::message::Message;
@@ -9,7 +13,7 @@ use lime_skills::{ExecutionCallback, LoadedSkillDefinition};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub type SkillEventEmitter = Arc<dyn Fn(String, TauriAgentEvent) + Send + Sync + 'static>;
+pub type SkillEventEmitter = Arc<dyn Fn(String, RuntimeAgentEvent) + Send + Sync + 'static>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepResult {
@@ -25,6 +29,8 @@ pub struct SkillExecutionResult {
     pub success: bool,
     pub output: Option<String>,
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifact_paths: Vec<String>,
     pub steps_completed: Vec<StepResult>,
 }
 
@@ -57,10 +63,17 @@ impl std::error::Error for SkillExecutionError {}
 struct StreamedSkillReply {
     output: String,
     error: Option<String>,
+    artifact_paths: Vec<String>,
 }
 
-fn emit_skill_event(emitter: &SkillEventEmitter, event_name: &str, event: TauriAgentEvent) {
+fn emit_skill_event(emitter: &SkillEventEmitter, event_name: &str, event: RuntimeAgentEvent) {
     emitter(event_name.to_string(), event);
+}
+
+fn collect_artifact_path_from_event(target: &mut Vec<String>, event: &RuntimeAgentEvent) {
+    if let RuntimeAgentEvent::ArtifactSnapshot { artifact } = event {
+        push_unique_artifact_protocol_path(target, artifact.file_path.as_str());
+    }
 }
 
 fn build_step_system_prompt(
@@ -118,6 +131,7 @@ async fn stream_skill_session(
 
     let mut output = String::new();
     let mut error: Option<String> = None;
+    let mut artifact_paths = Vec::new();
     let mut write_artifact_emitter = WriteArtifactEventEmitter::new(session_id.to_string());
 
     match stream_result {
@@ -125,17 +139,19 @@ async fn stream_skill_session(
             while let Some(event_result) = stream.next().await {
                 match event_result {
                     Ok(agent_event) => {
-                        let tauri_events = convert_agent_event(agent_event);
-                        for mut tauri_event in tauri_events {
+                        let runtime_events = project_runtime_event(agent_event);
+                        for mut runtime_event in runtime_events {
                             let extra_events =
-                                write_artifact_emitter.process_event(&mut tauri_event);
+                                write_artifact_emitter.process_event(&mut runtime_event);
                             for extra_event in extra_events {
+                                collect_artifact_path_from_event(&mut artifact_paths, &extra_event);
                                 emit_skill_event(emitter, event_name, extra_event);
                             }
-                            if let TauriAgentEvent::TextDelta { ref text } = tauri_event {
+                            collect_artifact_path_from_event(&mut artifact_paths, &runtime_event);
+                            if let RuntimeAgentEvent::TextDelta { ref text } = runtime_event {
                                 output.push_str(text);
                             }
-                            emit_skill_event(emitter, event_name, tauri_event);
+                            emit_skill_event(emitter, event_name, runtime_event);
                         }
                     }
                     Err(stream_error) => {
@@ -152,7 +168,11 @@ async fn stream_skill_session(
 
     aster_state.remove_cancel_token(session_id).await;
 
-    Ok(StreamedSkillReply { output, error })
+    Ok(StreamedSkillReply {
+        output,
+        error,
+        artifact_paths,
+    })
 }
 
 pub async fn execute_skill_workflow(
@@ -172,6 +192,7 @@ pub async fn execute_skill_workflow(
     let total_steps = steps.len();
     let event_name = format!("skill-exec-{execution_id}");
     let mut steps_completed = Vec::new();
+    let mut artifact_paths = Vec::new();
     let mut accumulated_context = user_input.to_string();
     let mut final_output = String::new();
 
@@ -218,6 +239,7 @@ pub async fn execute_skill_workflow(
             &emitter,
         )
         .await?;
+        extend_unique_artifact_protocol_paths(&mut artifact_paths, &reply.artifact_paths);
 
         if let Some(error) = &reply.error {
             callback.on_step_error(&step.id, error, false);
@@ -234,13 +256,14 @@ pub async fn execute_skill_workflow(
             emit_skill_event(
                 &emitter,
                 &event_name,
-                TauriAgentEvent::FinalDone { usage: None },
+                RuntimeAgentEvent::FinalDone { usage: None },
             );
 
             return Ok(SkillExecutionResult {
                 success: false,
                 output: None,
                 error: Some(final_error),
+                artifact_paths,
                 steps_completed,
             });
         }
@@ -261,7 +284,7 @@ pub async fn execute_skill_workflow(
     emit_skill_event(
         &emitter,
         &event_name,
-        TauriAgentEvent::FinalDone { usage: None },
+        RuntimeAgentEvent::FinalDone { usage: None },
     );
 
     tracing::info!(
@@ -274,6 +297,7 @@ pub async fn execute_skill_workflow(
         success: true,
         output: Some(final_output),
         error: None,
+        artifact_paths,
         steps_completed,
     })
 }
@@ -311,6 +335,7 @@ pub async fn execute_skill_prompt(
             success: false,
             output: None,
             error: Some(error.clone()),
+            artifact_paths: reply.artifact_paths.clone(),
             steps_completed: vec![StepResult {
                 step_id: "main".to_string(),
                 step_name: skill.display_name.clone(),
@@ -325,6 +350,7 @@ pub async fn execute_skill_prompt(
         success: true,
         output: Some(reply.output.clone()),
         error: None,
+        artifact_paths: reply.artifact_paths,
         steps_completed: vec![StepResult {
             step_id: "main".to_string(),
             step_name: skill.display_name.clone(),

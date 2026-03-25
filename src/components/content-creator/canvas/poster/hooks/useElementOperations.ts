@@ -7,6 +7,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { fabric } from "fabric";
 import type { Layer, ElementType } from "../types";
+import { resolvePosterCanvasHotkeyAction } from "./posterCanvasHotkeys";
 
 /**
  * 元素变换数据
@@ -425,28 +426,24 @@ export function useElementOperations(
         deleteSelected();
       }
 
-      // Cmd/Ctrl + A 全选
-      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable
-        ) {
-          return;
-        }
+      const action = resolvePosterCanvasHotkeyAction(e);
+      if (!action) {
+        return;
+      }
+
+      if (action === "select-all") {
         e.preventDefault();
         selectAll();
+        return;
       }
 
-      // Cmd/Ctrl + G 组合
-      if ((e.metaKey || e.ctrlKey) && e.key === "g" && !e.shiftKey) {
+      if (action === "group") {
         e.preventDefault();
         groupSelected();
+        return;
       }
 
-      // Cmd/Ctrl + Shift + G 取消组合
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "g") {
+      if (action === "ungroup") {
         e.preventDefault();
         ungroupSelected();
       }

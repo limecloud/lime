@@ -55,6 +55,7 @@ pub mod route_cmd;
 pub mod screenshot_cmd;
 pub mod security_perf_cmd;
 pub mod session_files_cmd;
+pub mod site_capability_cmd;
 pub mod skill_cmd;
 pub mod skill_error;
 pub mod skill_exec_cmd;

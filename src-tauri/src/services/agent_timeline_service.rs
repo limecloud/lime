@@ -1,5 +1,5 @@
 use chrono::Utc;
-use lime_agent::TauriAgentEvent;
+use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::database::dao::agent_timeline::{
     AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus, AgentThreadTurn,
     AgentThreadTurnStatus, AgentTimelineDao,
@@ -9,7 +9,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
 
-fn emit_event(app: &AppHandle, event_name: &str, event: &TauriAgentEvent) {
+fn emit_event(app: &AppHandle, event_name: &str, event: &RuntimeAgentEvent) {
     if let Err(error) = app.emit(event_name, event) {
         tracing::error!("[AgentTimeline] 发送事件失败: {}", error);
     }
@@ -107,12 +107,12 @@ impl AgentTimelineRecorder {
         &mut self,
         app: &AppHandle,
         event_name: &str,
-        event: &TauriAgentEvent,
+        event: &RuntimeAgentEvent,
         _workspace_root: &str,
     ) -> Result<(), String> {
         match event {
-            TauriAgentEvent::ThreadStarted { .. } => {}
-            TauriAgentEvent::TurnStarted { turn } => {
+            RuntimeAgentEvent::ThreadStarted { .. } => {}
+            RuntimeAgentEvent::TurnStarted { turn } => {
                 self.thread_id = turn.thread_id.clone();
                 self.turn_id = turn.id.clone();
                 self.turn = turn.clone();
@@ -121,33 +121,34 @@ impl AgentTimelineRecorder {
                 AgentTimelineDao::upsert_turn(&conn, &self.turn)
                     .map_err(|e| format!("同步 turn 启动态失败: {e}"))?;
             }
-            TauriAgentEvent::ItemStarted { item } => {
+            RuntimeAgentEvent::ItemStarted { item } => {
                 self.persist_runtime_item(
                     app,
                     event_name,
                     item.clone(),
-                    TauriAgentEvent::ItemStarted { item: item.clone() },
+                    RuntimeAgentEvent::ItemStarted { item: item.clone() },
                 )?;
             }
-            TauriAgentEvent::ItemUpdated { item } => {
+            RuntimeAgentEvent::ItemUpdated { item } => {
                 self.persist_runtime_item(
                     app,
                     event_name,
                     item.clone(),
-                    TauriAgentEvent::ItemUpdated { item: item.clone() },
+                    RuntimeAgentEvent::ItemUpdated { item: item.clone() },
                 )?;
             }
-            TauriAgentEvent::ItemCompleted { item } => {
+            RuntimeAgentEvent::ItemCompleted { item } => {
                 self.persist_runtime_item(
                     app,
                     event_name,
                     item.clone(),
-                    TauriAgentEvent::ItemCompleted { item: item.clone() },
+                    RuntimeAgentEvent::ItemCompleted { item: item.clone() },
                 )?;
             }
-            TauriAgentEvent::RuntimeStatus { .. } => {}
-            TauriAgentEvent::ToolEnd { .. } => {}
-            TauriAgentEvent::ArtifactSnapshot { artifact } => {
+            RuntimeAgentEvent::RuntimeStatus { .. } => {}
+            RuntimeAgentEvent::TurnContext { .. } => {}
+            RuntimeAgentEvent::ToolEnd { .. } => {}
+            RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
                 let metadata_value = artifact
                     .metadata
                     .as_ref()
@@ -170,8 +171,8 @@ impl AgentTimelineRecorder {
                 );
                 self.persist_and_emit_item(app, event_name, item)?;
             }
-            TauriAgentEvent::ActionRequired { .. } => {}
-            TauriAgentEvent::ContextCompactionStarted {
+            RuntimeAgentEvent::ActionRequired { .. } => {}
+            RuntimeAgentEvent::ContextCompactionStarted {
                 item_id,
                 trigger,
                 detail,
@@ -188,7 +189,7 @@ impl AgentTimelineRecorder {
                 );
                 self.persist_and_emit_item(app, event_name, item)?;
             }
-            TauriAgentEvent::ContextCompactionCompleted {
+            RuntimeAgentEvent::ContextCompactionCompleted {
                 item_id,
                 trigger,
                 detail,
@@ -205,7 +206,7 @@ impl AgentTimelineRecorder {
                 );
                 self.persist_and_emit_item(app, event_name, item)?;
             }
-            TauriAgentEvent::Warning { code, message } => {
+            RuntimeAgentEvent::Warning { code, message } => {
                 let item = self.build_item(
                     format!("warning:{}:{}", self.turn_id, self.sequence_counter + 1),
                     AgentThreadItemStatus::Completed,
@@ -217,7 +218,7 @@ impl AgentTimelineRecorder {
                 );
                 self.persist_and_emit_item(app, event_name, item)?;
             }
-            TauriAgentEvent::Error { message } => {
+            RuntimeAgentEvent::Error { message } => {
                 let item = self.build_item(
                     format!("error:{}", self.turn_id),
                     AgentThreadItemStatus::Failed,
@@ -260,7 +261,7 @@ impl AgentTimelineRecorder {
         emit_event(
             app,
             event_name,
-            &TauriAgentEvent::TurnCompleted {
+            &RuntimeAgentEvent::TurnCompleted {
                 turn: self.turn.clone(),
             },
         );
@@ -305,7 +306,7 @@ impl AgentTimelineRecorder {
         emit_event(
             app,
             event_name,
-            &TauriAgentEvent::TurnFailed {
+            &RuntimeAgentEvent::TurnFailed {
                 turn: self.turn.clone(),
             },
         );
@@ -391,13 +392,13 @@ impl AgentTimelineRecorder {
             .insert(item.id.clone(), item.status.clone());
         let event = match (&previous_status, &item.status) {
             (None, AgentThreadItemStatus::InProgress) => {
-                TauriAgentEvent::ItemStarted { item: item.clone() }
+                RuntimeAgentEvent::ItemStarted { item: item.clone() }
             }
-            (None, _) => TauriAgentEvent::ItemCompleted { item: item.clone() },
+            (None, _) => RuntimeAgentEvent::ItemCompleted { item: item.clone() },
             (_, AgentThreadItemStatus::Completed | AgentThreadItemStatus::Failed) => {
-                TauriAgentEvent::ItemCompleted { item: item.clone() }
+                RuntimeAgentEvent::ItemCompleted { item: item.clone() }
             }
-            _ => TauriAgentEvent::ItemUpdated { item: item.clone() },
+            _ => RuntimeAgentEvent::ItemUpdated { item: item.clone() },
         };
         emit_event(app, event_name, &event);
         Ok(())
@@ -408,7 +409,7 @@ impl AgentTimelineRecorder {
         app: &AppHandle,
         event_name: &str,
         item: AgentThreadItem,
-        event: TauriAgentEvent,
+        event: RuntimeAgentEvent,
     ) -> Result<(), String> {
         self.sync_runtime_item_state(&item);
         {

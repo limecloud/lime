@@ -16,14 +16,16 @@ use crate::agent::runtime_queue_service::{
 };
 use crate::agent::{
     AsterAgentState, AsterAgentWrapper, QueuedTurnSnapshot, QueuedTurnTask, SessionDetail,
-    SessionInfo, SubAgentRole, TauriAgentEvent,
+    SessionInfo, SubAgentRole,
 };
 use crate::agent_tools::catalog::{
     browser_runtime_tool_prefix, build_mcp_extension_surface, creator_tool_names,
     WorkspaceToolSurface, LIME_CREATE_BROADCAST_TASK_TOOL_NAME, LIME_CREATE_COVER_TASK_TOOL_NAME,
     LIME_CREATE_IMAGE_TASK_TOOL_NAME, LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME,
     LIME_CREATE_TYPESETTING_TASK_TOOL_NAME, LIME_CREATE_URL_PARSE_TASK_TOOL_NAME,
-    LIME_CREATE_VIDEO_TASK_TOOL_NAME, SOCIAL_IMAGE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME,
+    LIME_CREATE_VIDEO_TASK_TOOL_NAME, LIME_SITE_INFO_TOOL_NAME, LIME_SITE_LIST_TOOL_NAME,
+    LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME, SOCIAL_IMAGE_TOOL_NAME,
+    TOOL_SEARCH_TOOL_NAME,
 };
 #[cfg(test)]
 use crate::agent_tools::execution::build_workspace_shell_allow_pattern;
@@ -44,6 +46,7 @@ use crate::config::{GlobalConfigManager, GlobalConfigManagerState};
 use crate::database::DbConnection;
 use crate::mcp::{McpManagerState, McpServerConfig};
 use crate::services::agent_timeline_service::AgentTimelineRecorder;
+use crate::services::artifact_prompt_service::merge_system_prompt_with_artifact_context;
 use crate::services::automation_service::AutomationServiceState;
 use crate::services::execution_tracker_service::{ExecutionTracker, RunFinishDecision, RunSource};
 use crate::services::memory_profile_prompt_service::{
@@ -79,13 +82,13 @@ use aster::tools::{
 };
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
-use lime_agent::event_converter::{TauriMessage, TauriMessageContent};
 use lime_agent::mcp_bridge::McpBridgeClient;
 #[cfg(test)]
 use lime_agent::request_tool_policy::REQUEST_TOOL_POLICY_MARKER;
 use lime_agent::request_tool_policy::{
     merge_system_prompt_with_request_tool_policy, resolve_request_tool_policy_with_mode,
     stream_message_reply_with_policy, ReplyAttemptError, RequestToolPolicy, RequestToolPolicyMode,
+    StreamReplyExecution,
 };
 use lime_agent::{
     acquire_provider_runtime_permit, acquire_team_runtime_permit,
@@ -100,14 +103,14 @@ use lime_agent::{
     release_provider_runtime_permit, release_team_runtime_permit, replace_session_conversation,
     resolve_provider_runtime_parallel_budget, resolve_virtual_memory_path,
     snapshot_provider_runtime_lease, snapshot_team_runtime_session, summarize_builtin_skill,
-    virtual_memory_relative_path, write_subagent_control_state, CompactionSessionMetricsUpdate,
-    ProviderContinuationCapability, ProviderContinuationCapable, ProviderContinuationState,
-    ProviderRuntimeGovernorSnapshot, RuntimeProjectionSnapshot, SessionStateSnapshot,
-    SubagentControlState, SubagentCustomizationState, SubagentRuntimeStatus,
-    SubagentRuntimeStatusKind, SubagentSkillPromptBlock, SubagentSkillSummary, TauriRuntimeStatus,
-    TeamRuntimeGovernorSnapshot, TurnInputEnvelopeBuilder, TurnPromptAugmentationStageKind,
-    TurnProviderRoutingSnapshot, TurnRequestToolPolicySnapshot, TurnState, TurnSystemPromptSource,
-    DURABLE_MEMORY_VIRTUAL_ROOT,
+    virtual_memory_relative_path, write_subagent_control_state, AgentMessage, AgentMessageContent,
+    AgentRuntimeStatus, CompactionSessionMetricsUpdate, ProviderContinuationCapability,
+    ProviderContinuationCapable, ProviderContinuationState, ProviderRuntimeGovernorSnapshot,
+    RuntimeProjectionSnapshot, SessionStateSnapshot, SubagentControlState,
+    SubagentCustomizationState, SubagentRuntimeStatus, SubagentRuntimeStatusKind,
+    SubagentSkillPromptBlock, SubagentSkillSummary, TeamRuntimeGovernorSnapshot,
+    TurnInputEnvelopeBuilder, TurnPromptAugmentationStageKind, TurnProviderRoutingSnapshot,
+    TurnRequestToolPolicySnapshot, TurnState, TurnSystemPromptSource, DURABLE_MEMORY_VIRTUAL_ROOT,
 };
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::mcp_service::McpService;
@@ -258,6 +261,7 @@ mod dto;
 mod mcp_bridge;
 mod prompt_context;
 mod reply_runtime;
+mod request_model_resolution;
 mod run_metadata;
 mod runtime_turn;
 mod session_runtime;
@@ -335,6 +339,7 @@ use reply_runtime::{
     emit_runtime_status_with_projection, ensure_code_execution_extension_enabled,
     should_fallback_to_react_from_code_orchestrated, stream_reply_once,
 };
+use request_model_resolution::resolve_runtime_request_provider_config;
 use run_metadata::{
     build_chat_run_finish_metadata, build_chat_run_metadata_base, extract_harness_array,
     extract_harness_bool, extract_harness_nested_object, extract_harness_string,
@@ -346,12 +351,6 @@ use run_metadata::{
     resolve_social_run_artifact_descriptor,
 };
 pub(crate) use runtime_turn::{build_queued_turn_task, build_runtime_queue_executor};
-#[cfg(test)]
-pub(crate) use runtime_turn::{
-    build_runtime_prepared_team_spawn_message, parse_runtime_prepared_team_roles,
-    plan_runtime_prepared_team_actions, RuntimePreparedTeamAction, RuntimePreparedTeamRole,
-    RuntimePreparedTeamSessionCandidate,
-};
 pub(crate) use session_runtime::{
     delete_runtime_session_internal, persist_session_provider_routing,
     resolve_session_provider_selector,

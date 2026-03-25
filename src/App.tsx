@@ -26,6 +26,7 @@ import { showRegistryLoadError } from "./lib/utils/connectError";
 import { useDeepLink } from "./hooks/useDeepLink";
 import { useRelayRegistry } from "./hooks/useRelayRegistry";
 import { useServiceSkillCatalogBootstrap } from "./hooks/useServiceSkillCatalogBootstrap";
+import { useSiteAdapterCatalogBootstrap } from "./hooks/useSiteAdapterCatalogBootstrap";
 import { useGlobalTrayModelSync } from "./hooks/useGlobalTrayModelSync";
 import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
@@ -33,6 +34,7 @@ import { SoundProvider } from "./contexts/SoundProvider";
 import { ComponentDebugOverlay } from "./components/dev";
 import {
   AgentPageParams,
+  AutomationPageParams,
   getThemeByWorkspacePage,
   getThemeWorkspacePage,
   isThemeWorkspacePage,
@@ -246,6 +248,7 @@ function AppContent() {
   } | null>(null);
 
   useServiceSkillCatalogBootstrap();
+  useSiteAdapterCatalogBootstrap();
   useOemLimeHubProviderSync();
   useGlobalTrayModelSync({
     currentPage,
@@ -575,7 +578,10 @@ function AppContent() {
             flexDirection: "column",
           }}
         >
-          <AutomationPage onNavigate={handleNavigate} />
+          <AutomationPage
+            onNavigate={handleNavigate}
+            pageParams={pageParams as AutomationPageParams}
+          />
         </div>
       );
     }
@@ -595,6 +601,9 @@ function AppContent() {
             onNavigate={handleNavigate}
             projectId={(pageParams as AgentPageParams).projectId}
             contentId={(pageParams as AgentPageParams).contentId}
+            initialRequestMetadata={
+              (pageParams as AgentPageParams).initialRequestMetadata
+            }
             initialUserPrompt={
               (pageParams as AgentPageParams).initialUserPrompt
             }
@@ -698,7 +707,7 @@ function AppContent() {
     if (currentPage === "browser-runtime") {
       return (
         <PageWrapper $isActive={true}>
-          <BrowserRuntimeWorkspace active={true} />
+          <BrowserRuntimeWorkspace active={true} onNavigate={handleNavigate} />
         </PageWrapper>
       );
     }

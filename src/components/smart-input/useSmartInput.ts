@@ -14,7 +14,11 @@ import {
   submitAgentRuntimeTurn,
 } from "@/lib/api/agentRuntime";
 import type { ChatMessage, MessageImage, UseSmartInputReturn } from "./types";
-import { parseStreamEvent, type StreamEvent } from "@/lib/api/agentStream";
+import {
+  createSubmitTurnRequestFromAgentOp,
+  parseAgentEvent,
+  type AgentEvent,
+} from "@/lib/api/agentProtocol";
 
 const DEFAULT_SMART_INPUT_PROVIDER = "claude";
 const DEFAULT_SMART_INPUT_MODEL = "claude-sonnet-4-5";
@@ -164,8 +168,8 @@ export function useSmartInput(): UseSmartInputReturn {
         const eventName = `screenshot_chat_stream_${assistantMsgId}`;
 
         // 设置事件监听器
-        unlisten = await safeListen<StreamEvent>(eventName, (event) => {
-          const data = parseStreamEvent(event.payload);
+        unlisten = await safeListen<AgentEvent>(eventName, (event) => {
+          const data = parseAgentEvent(event.payload);
           if (!data) return;
 
           switch (data.type) {
@@ -239,26 +243,26 @@ export function useSmartInput(): UseSmartInputReturn {
         }
 
         // 发送流式请求（使用 Aster Agent）
-        await submitAgentRuntimeTurn({
-          message,
-          session_id: sessionId,
-          event_name: eventName,
-          workspace_id: workspaceId,
-          images:
-            images.length > 0
-              ? images.map((img) => ({
-                  data: img.data,
-                  media_type: img.mediaType,
-                }))
-              : undefined,
-          turn_config: {
-            provider_config: {
-              provider_id: DEFAULT_SMART_INPUT_PROVIDER,
-              provider_name: DEFAULT_SMART_INPUT_PROVIDER,
-              model_name: DEFAULT_SMART_INPUT_MODEL,
+        await submitAgentRuntimeTurn(
+          createSubmitTurnRequestFromAgentOp({
+            type: "user_input",
+            text: message,
+            sessionId,
+            eventName,
+            workspaceId,
+            images:
+              images.length > 0
+                ? images.map((img) => ({
+                    data: img.data,
+                    media_type: img.mediaType,
+                  }))
+                : undefined,
+            preferences: {
+              providerPreference: DEFAULT_SMART_INPUT_PROVIDER,
+              modelPreference: DEFAULT_SMART_INPUT_MODEL,
             },
-          },
-        });
+          }),
+        );
       } catch (err) {
         console.error("发送消息失败:", err);
         const errorMsg = err instanceof Error ? err.message : "发送失败";

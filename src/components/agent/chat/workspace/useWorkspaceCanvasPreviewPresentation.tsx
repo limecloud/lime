@@ -25,6 +25,7 @@ import type {
   CanvasWorkbenchTeamView,
 } from "../components/CanvasWorkbenchLayout";
 import type { TaskFile } from "../components/TaskFiles";
+import type { AgentThreadItem } from "../types";
 import {
   ArtifactWorkbenchPreview,
   WorkspaceLiveCanvasPreview,
@@ -68,6 +69,13 @@ interface WorkspaceCanvasPreviewArtifactParams {
   onArtifactPreviewSizeChange: NonNullable<
     ComponentProps<typeof ArtifactToolbar>["onPreviewSizeChange"]
   >;
+  onSaveArtifactDocument?: ComponentProps<
+    typeof ArtifactWorkbenchPreview
+  >["onSaveArtifactDocument"];
+  threadItems?: AgentThreadItem[];
+  focusedBlockId?: string | null;
+  blockFocusRequestKey?: number;
+  onJumpToTimelineItem?: (itemId: string) => void;
   onCloseCanvas: () => void;
 }
 
@@ -239,18 +247,28 @@ export function useWorkspaceCanvasPreviewPresentation({
       onArtifactViewModeChange: artifactPreview.onArtifactViewModeChange,
       artifactPreviewSize: artifactPreview.artifactPreviewSize,
       onArtifactPreviewSizeChange: artifactPreview.onArtifactPreviewSizeChange,
+      onSaveArtifactDocument: artifactPreview.onSaveArtifactDocument,
+      threadItems: artifactPreview.threadItems,
+      focusedBlockId: artifactPreview.focusedBlockId,
+      blockFocusRequestKey: artifactPreview.blockFocusRequestKey,
+      onJumpToTimelineItem: artifactPreview.onJumpToTimelineItem,
       onCloseCanvas: artifactPreview.onCloseCanvas,
     }),
     [
       artifactPreview.artifactOverlay,
       artifactPreview.artifactPreviewSize,
       artifactPreview.artifactViewMode,
+      artifactPreview.blockFocusRequestKey,
       artifactPreview.currentCanvasArtifact,
       artifactPreview.displayedCanvasArtifact,
+      artifactPreview.focusedBlockId,
       artifactPreview.onArtifactPreviewSizeChange,
+      artifactPreview.onSaveArtifactDocument,
       artifactPreview.onArtifactViewModeChange,
+      artifactPreview.onJumpToTimelineItem,
       artifactPreview.onCloseCanvas,
       artifactPreview.showPreviousVersionBadge,
+      artifactPreview.threadItems,
     ],
   );
 
@@ -477,7 +495,7 @@ export function useWorkspaceCanvasPreviewPresentation({
       surfaceProps: teamWorkbench.surfaceProps,
       hasRealTeamGraph: teamWorkbench.hasRealTeamGraph,
       autoFocusToken: teamWorkbench.autoFocusToken,
-      runtimeTeamState: teamWorkbench.runtimeTeamState,
+      teamDispatchPreviewState: teamWorkbench.teamDispatchPreviewState,
       liveActivityBySessionId: teamWorkbench.liveActivityBySessionId,
       teamWaitSummary: teamWorkbench.teamWaitSummary,
       teamControlSummary: teamWorkbench.teamControlSummary,

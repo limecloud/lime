@@ -134,6 +134,75 @@ let mockExistingSessionTabs = [
   },
 ];
 
+const mockSiteAdapters = [
+  {
+    name: "github/search",
+    domain: "github.com",
+    description: "按关键词采集 GitHub 仓库搜索结果。",
+    read_only: true,
+    capabilities: ["search", "repository", "research"],
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "搜索关键词",
+        },
+        limit: {
+          type: "integer",
+          description: "返回条目数量上限",
+        },
+      },
+      required: ["query"],
+    },
+    example_args: {
+      query: "model context protocol",
+      limit: 5,
+    },
+    example: 'github/search {"query":"model context protocol","limit":5}',
+    auth_hint: "若需要完整结果，请先在浏览器中登录 GitHub。",
+  },
+  {
+    name: "zhihu/hot",
+    domain: "www.zhihu.com",
+    description: "采集知乎热榜问题列表。",
+    read_only: true,
+    capabilities: ["hot", "feed", "research"],
+    input_schema: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          description: "返回条目数量上限",
+        },
+      },
+      required: [],
+    },
+    example_args: {
+      limit: 5,
+    },
+    example: 'zhihu/hot {"limit":5}',
+    auth_hint: "请先在浏览器中登录知乎，再重试该命令。",
+  },
+];
+
+let mockSiteAdapterCatalogStatus: {
+  exists: boolean;
+  source_kind: "server_synced";
+  registry_version: number;
+  directory: string;
+  catalog_version?: string;
+  tenant_id?: string;
+  synced_at?: string;
+  adapter_count: number;
+} = {
+  exists: false,
+  source_kind: "server_synced",
+  registry_version: 1,
+  directory: "/tmp/lime/site-adapters/server-synced",
+  adapter_count: 0,
+};
+
 function upsertMockBrowserSessionState(launchResponse: any) {
   mockBrowserSessionStates.set(
     launchResponse.session.session_id,
@@ -1300,6 +1369,148 @@ const defaultMocks: Record<string, any> = {
       open_window: args?.request?.open_window,
       stream_mode: args?.request?.stream_mode,
     }),
+  site_list_adapters: () => mockSiteAdapters,
+  site_search_adapters: (args: any) => {
+    const query = String(args?.request?.query ?? "")
+      .trim()
+      .toLowerCase();
+    if (!query) {
+      return mockSiteAdapters;
+    }
+    return mockSiteAdapters.filter(
+      (adapter) =>
+        adapter.name.toLowerCase().includes(query) ||
+        adapter.domain.toLowerCase().includes(query) ||
+        adapter.description.toLowerCase().includes(query) ||
+        adapter.capabilities.some((item) => item.toLowerCase().includes(query)),
+    );
+  },
+  site_get_adapter_info: (args: any) => {
+    const name = String(args?.request?.name ?? "");
+    const adapter = mockSiteAdapters.find((item) => item.name === name);
+    if (!adapter) {
+      throw new Error("未找到对应的站点适配器");
+    }
+    return adapter;
+  },
+  site_get_adapter_catalog_status: () => mockSiteAdapterCatalogStatus,
+  site_apply_adapter_catalog_bootstrap: (args: any) => {
+    const payload =
+      args?.request?.payload?.siteAdapterCatalog ??
+      args?.request?.payload?.site_adapter_catalog ??
+      args?.request?.payload;
+    const adapterCount = Array.isArray(payload?.adapters)
+      ? payload.adapters.length
+      : 0;
+    mockSiteAdapterCatalogStatus = {
+      exists: adapterCount > 0,
+      source_kind: "server_synced",
+      registry_version:
+        Number.isFinite(payload?.registry_version) &&
+        payload.registry_version > 0
+          ? payload.registry_version
+          : 1,
+      directory: "/tmp/lime/site-adapters/server-synced",
+      catalog_version:
+        payload?.catalogVersion ?? payload?.catalog_version ?? payload?.version,
+      tenant_id: payload?.tenantId ?? payload?.tenant_id,
+      synced_at: payload?.syncedAt ?? payload?.synced_at,
+      adapter_count: adapterCount,
+    };
+    return mockSiteAdapterCatalogStatus;
+  },
+  site_clear_adapter_catalog_cache: () => {
+    mockSiteAdapterCatalogStatus = {
+      exists: false,
+      source_kind: "server_synced",
+      registry_version: 1,
+      directory: "/tmp/lime/site-adapters/server-synced",
+      adapter_count: 0,
+    };
+    return mockSiteAdapterCatalogStatus;
+  },
+  site_run_adapter: (args: any) => {
+    const request = args?.request ?? {};
+    const adapterName = String(request.adapter_name ?? "");
+    const title =
+      typeof request.save_title === "string" && request.save_title.trim()
+        ? request.save_title.trim()
+        : `站点采集 ${adapterName || "github/search"} 2026-03-25 12:00:00`;
+    return {
+      ok: true,
+      adapter: adapterName || "github/search",
+      domain: adapterName.startsWith("zhihu") ? "www.zhihu.com" : "github.com",
+      profile_key: request.profile_key ?? "general_browser_assist",
+      session_id: "mock-cdp-session",
+      target_id: "mock-target-1",
+      entry_url: "https://example.com/mock-site",
+      source_url: "https://example.com/mock-site",
+      data: {
+        items: [
+          {
+            title: "Mock item 1",
+            url: "https://example.com/mock-site/item-1",
+          },
+          {
+            title: "Mock item 2",
+            url: "https://example.com/mock-site/item-2",
+          },
+        ],
+        echo_args: request.args ?? {},
+      },
+      saved_content: request.project_id
+        ? {
+            content_id: "mock-site-content-1",
+            project_id: String(request.project_id),
+            title,
+          }
+        : undefined,
+      saved_project_id: request.project_id ? String(request.project_id) : undefined,
+      saved_by: request.project_id ? "explicit_project" : undefined,
+    };
+  },
+  site_debug_run_adapter: (args: any) => {
+    const request = args?.request ?? {};
+    const adapterName = String(request.adapter_name ?? "");
+    return {
+      ok: true,
+      adapter: adapterName || "github/search",
+      domain: adapterName.startsWith("zhihu") ? "www.zhihu.com" : "github.com",
+      profile_key: request.profile_key ?? "general_browser_assist",
+      session_id: "mock-cdp-session",
+      target_id: "mock-target-1",
+      entry_url: "https://example.com/mock-site",
+      source_url: "https://example.com/mock-site",
+      data: {
+        items: [
+          {
+            title: "Mock item 1",
+            url: "https://example.com/mock-site/item-1",
+          },
+        ],
+        echo_args: request.args ?? {},
+        debug: true,
+      },
+    };
+  },
+  site_save_adapter_result: (args: any) => {
+    const request = args?.request ?? {};
+    const projectId = String(request.project_id ?? "mock-project");
+    const adapterName = String(
+      request.run_request?.adapter_name ??
+        request.result?.adapter ??
+        "github/search",
+    );
+    const title =
+      typeof request.save_title === "string" && request.save_title.trim()
+        ? request.save_title.trim()
+        : `站点采集 ${adapterName} 2026-03-25 12:00:00`;
+    return {
+      content_id: "mock-site-content-1",
+      project_id: projectId,
+      title,
+    };
+  },
   open_chrome_profile_window: () => ({
     success: true,
     reused: false,
@@ -2388,9 +2599,37 @@ const defaultMocks: Record<string, any> = {
   get_experimental_config: () => ({
     screenshot_chat: { enabled: false, shortcut: "" },
   }),
+  get_screenshot_shortcut_runtime_status: () => ({
+    shortcut_registered: false,
+    registered_shortcut: null,
+  }),
   save_experimental_config: () => ({}),
   validate_shortcut: () => ({ valid: true }),
   update_screenshot_shortcut: () => ({ success: true }),
+
+  // Voice 相关
+  get_voice_input_config: () => ({
+    enabled: false,
+    shortcut: "CommandOrControl+Shift+V",
+    processor: {
+      polish_enabled: true,
+      default_instruction_id: "default",
+    },
+    output: {
+      mode: "type",
+      type_delay_ms: 10,
+    },
+    instructions: [],
+    sound_enabled: true,
+    translate_instruction_id: "default",
+  }),
+  get_voice_shortcut_runtime_status: () => ({
+    shortcut_registered: false,
+    registered_shortcut: null,
+    translate_shortcut_registered: false,
+    registered_translate_shortcut: null,
+  }),
+  save_voice_input_config: () => ({}),
 
   // Screenshot Chat 相关
   send_screenshot_chat: () => ({ success: true }),

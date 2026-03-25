@@ -1051,14 +1051,18 @@ mod tests {
     use std::fs;
     use std::io::{Read, Write};
     use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static LOG_FIXTURE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     fn unique_log_path() -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("系统时间异常")
             .as_nanos();
-        let log_dir = std::env::temp_dir().join(format!("lime-log-tail-test-{nanos}"));
+        let counter = LOG_FIXTURE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let log_dir = std::env::temp_dir().join(format!("lime-log-tail-test-{nanos}-{counter}"));
         fs::create_dir_all(&log_dir).expect("创建测试日志目录失败");
         log_dir.join("lime.log")
     }

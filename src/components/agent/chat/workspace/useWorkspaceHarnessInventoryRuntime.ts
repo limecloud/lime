@@ -3,6 +3,7 @@ import {
   getAgentRuntimeToolInventory,
   type AgentRuntimeToolInventory,
 } from "@/lib/api/agentRuntime";
+import { extractArtifactProtocolPathsFromRecord } from "@/lib/artifact-protocol";
 import type {
   ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
   ThemeWorkbenchRunTerminalItem,
@@ -97,14 +98,16 @@ export function useWorkspaceHarnessInventoryRuntime({
     const latestTerminal: ThemeWorkbenchRunTerminalItem | null =
       themeWorkbenchBackendRunState?.latest_terminal ?? null;
     const activeRun = themeWorkbenchActiveQueueItem ?? latestTerminal;
+    const activeArtifactPaths = extractArtifactProtocolPathsFromRecord(
+      themeWorkbenchActiveQueueItem,
+    );
+    const latestTerminalArtifactPaths = extractArtifactProtocolPathsFromRecord(
+      latestTerminal,
+    );
     const artifactPaths =
-      Array.isArray(themeWorkbenchActiveQueueItem?.artifact_paths) &&
-      themeWorkbenchActiveQueueItem.artifact_paths.length > 0
-        ? themeWorkbenchActiveQueueItem.artifact_paths
-        : Array.isArray(latestTerminal?.artifact_paths) &&
-            latestTerminal.artifact_paths.length > 0
-          ? latestTerminal.artifact_paths
-          : [];
+      activeArtifactPaths.length > 0
+        ? activeArtifactPaths
+        : latestTerminalArtifactPaths;
 
     return {
       runState: themeWorkbenchRunState,

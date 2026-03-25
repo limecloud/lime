@@ -20,7 +20,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ToolCallState, ToolResultImage } from "@/lib/api/agentStream";
+import type {
+  AgentToolCallState as ToolCallState,
+  AgentToolResultImage as ToolResultImage,
+} from "@/lib/api/agentProtocol";
+import type { SiteSavedContentTarget } from "../types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { SearchResultPreviewList } from "./SearchResultPreviewList";
 import {
@@ -232,6 +236,180 @@ const normalizeToolResultMetadata = (
   }
   return Object.fromEntries(Object.entries(rawMetadata));
 };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function readFirstNonEmptyString(
+  candidates: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+): string | undefined {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    for (const key of keys) {
+      const value = candidate[key];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+  }
+  return undefined;
+}
+
+interface SiteToolResultSummary {
+  savedContent?: {
+    contentId?: string;
+    projectId?: string;
+    title?: string;
+  };
+  savedProjectId?: string;
+  savedBy?: string;
+  saveSkippedProjectId?: string;
+  saveSkippedBy?: string;
+  saveErrorMessage?: string;
+  adapterSourceKind?: string;
+  adapterSourceVersion?: string;
+}
+
+interface ToolResultNotice {
+  key: string;
+  text: string;
+  tone: "neutral" | "success" | "warning" | "error";
+}
+
+function resolveSiteSavedContentTarget(
+  summary: SiteToolResultSummary | null,
+): SiteSavedContentTarget | null {
+  if (!summary?.savedContent?.contentId) {
+    return null;
+  }
+
+  const projectId =
+    summary.savedContent.projectId?.trim() || summary.savedProjectId?.trim();
+  if (!projectId) {
+    return null;
+  }
+
+  return {
+    projectId,
+    contentId: summary.savedContent.contentId,
+    title: summary.savedContent.title,
+  };
+}
+
+function normalizeSiteToolResultSummary(
+  rawMetadata: unknown,
+): SiteToolResultSummary | null {
+  const metadata = normalizeToolResultMetadata(rawMetadata);
+  if (!metadata) {
+    return null;
+  }
+
+  const metadataResult = asRecord(metadata.result);
+  const savedContentRecord =
+    asRecord(metadata.saved_content) || asRecord(metadataResult?.saved_content);
+  const candidates = [metadata, metadataResult, savedContentRecord];
+  const toolFamily = readFirstNonEmptyString(candidates, [
+    "tool_family",
+    "toolFamily",
+  ]);
+  const savedProjectId = readFirstNonEmptyString(candidates, [
+    "saved_project_id",
+    "savedProjectId",
+  ]);
+  const saveSkippedProjectId = readFirstNonEmptyString(candidates, [
+    "save_skipped_project_id",
+    "saveSkippedProjectId",
+  ]);
+  const saveErrorMessage = readFirstNonEmptyString(candidates, [
+    "save_error_message",
+    "saveErrorMessage",
+  ]);
+  const adapterSourceKind = readFirstNonEmptyString(candidates, [
+    "adapter_source_kind",
+    "adapterSourceKind",
+  ]);
+  const adapterSourceVersion = readFirstNonEmptyString(candidates, [
+    "adapter_source_version",
+    "adapterSourceVersion",
+  ]);
+
+  const hasSavedContent =
+    !!savedContentRecord &&
+    [
+      savedContentRecord.content_id,
+      savedContentRecord.contentId,
+      savedContentRecord.project_id,
+      savedContentRecord.projectId,
+      savedContentRecord.title,
+    ].some((value) => typeof value === "string" && value.trim());
+
+  const isSiteTool =
+    toolFamily === "site" ||
+    hasSavedContent ||
+    !!savedProjectId ||
+    !!saveSkippedProjectId ||
+    !!saveErrorMessage ||
+    !!adapterSourceKind;
+
+  if (!isSiteTool) {
+    return null;
+  }
+
+  return {
+    savedContent: hasSavedContent
+      ? {
+          contentId: readFirstNonEmptyString([savedContentRecord], [
+            "content_id",
+            "contentId",
+          ]),
+          projectId: readFirstNonEmptyString([savedContentRecord], [
+            "project_id",
+            "projectId",
+          ]),
+          title: readFirstNonEmptyString([savedContentRecord], ["title"]),
+        }
+      : undefined,
+    savedProjectId,
+    savedBy: readFirstNonEmptyString(candidates, ["saved_by", "savedBy"]),
+    saveSkippedProjectId,
+    saveSkippedBy: readFirstNonEmptyString(candidates, [
+      "save_skipped_by",
+      "saveSkippedBy",
+    ]),
+    saveErrorMessage,
+    adapterSourceKind,
+    adapterSourceVersion,
+  };
+}
+
+function resolveSiteProjectSourceLabel(source?: string): string | null {
+  if (source === "context_project") {
+    return "来自当前项目上下文";
+  }
+  if (source === "explicit_project") {
+    return "来自显式项目参数";
+  }
+  return null;
+}
+
+function resolveSiteAdapterSourceLabel(summary: SiteToolResultSummary): string | null {
+  if (summary.adapterSourceKind === "server_synced") {
+    return summary.adapterSourceVersion
+      ? `服务端脚本 · ${summary.adapterSourceVersion}`
+      : "服务端脚本";
+  }
+  if (summary.adapterSourceKind === "bundled") {
+    return summary.adapterSourceVersion
+      ? `内置脚本 · ${summary.adapterSourceVersion}`
+      : "内置脚本";
+  }
+  return null;
+}
 
 // ============ 可展开面板组件 ============
 
@@ -472,6 +650,7 @@ interface ToolCallDisplayProps {
   isMessageStreaming?: boolean;
   /** 文件点击回调 - 用于打开右边栏显示文件内容 */
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
   grouped?: boolean;
   groupMarker?: string;
 }
@@ -481,6 +660,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   defaultExpanded = false,
   isMessageStreaming = false,
   onFileClick,
+  onOpenSavedSiteContent,
   grouped = false,
   groupMarker = "•",
 }) => {
@@ -528,6 +708,14 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   const resultMetadata = useMemo(
     () => normalizeToolResultMetadata(toolCall.result?.metadata),
     [toolCall.result?.metadata],
+  );
+  const siteResultSummary = useMemo(
+    () => normalizeSiteToolResultSummary(toolCall.result?.metadata),
+    [toolCall.result?.metadata],
+  );
+  const savedSiteContentTarget = useMemo(
+    () => resolveSiteSavedContentTarget(siteResultSummary),
+    [siteResultSummary],
   );
   const resultText = useMemo(() => {
     const rawText = toolCall.result?.error || toolCall.result?.output || "";
@@ -578,6 +766,65 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 
     return items;
   }, [resultMetadata]);
+  const siteResultNotices = useMemo(() => {
+    if (!siteResultSummary) return [] as ToolResultNotice[];
+
+    const notices: ToolResultNotice[] = [];
+    const savedProjectId =
+      siteResultSummary.savedProjectId || siteResultSummary.savedContent?.projectId;
+    const savedSourceLabel = resolveSiteProjectSourceLabel(siteResultSummary.savedBy);
+
+    if (siteResultSummary.savedContent?.title) {
+      let text = `结果已自动保存${
+        savedProjectId ? `到项目 ${savedProjectId}` : ""
+      }：${siteResultSummary.savedContent.title}`;
+      if (savedSourceLabel) {
+        text = `${text} · ${savedSourceLabel}`;
+      }
+      notices.push({
+        key: "site-save-success",
+        text,
+        tone: "success",
+      });
+    }
+
+    if (siteResultSummary.saveSkippedProjectId) {
+      let text =
+        toolCall.status === "failed"
+          ? `执行失败，未保存到项目 ${siteResultSummary.saveSkippedProjectId}`
+          : `本次结果未保存到项目 ${siteResultSummary.saveSkippedProjectId}`;
+      const skippedSourceLabel = resolveSiteProjectSourceLabel(
+        siteResultSummary.saveSkippedBy,
+      );
+      if (skippedSourceLabel) {
+        text = `${text} · ${skippedSourceLabel}`;
+      }
+      notices.push({
+        key: "site-save-skipped",
+        text,
+        tone: siteResultSummary.saveErrorMessage ? "warning" : "neutral",
+      });
+    }
+
+    if (siteResultSummary.saveErrorMessage) {
+      notices.push({
+        key: "site-save-error",
+        text: `自动保存失败：${siteResultSummary.saveErrorMessage}`,
+        tone: "error",
+      });
+    }
+
+    const adapterSourceLabel = resolveSiteAdapterSourceLabel(siteResultSummary);
+    if (adapterSourceLabel) {
+      notices.push({
+        key: "site-adapter-source",
+        text: `脚本来源：${adapterSourceLabel}`,
+        tone: "neutral",
+      });
+    }
+
+    return notices;
+  }, [siteResultSummary, toolCall.status]);
   const resultPath = useMemo(() => {
     if (!resultMetadata) return undefined;
     if (
@@ -687,6 +934,12 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
       onFileClick(openableFilePath, fileContent || "");
     }
   }, [fileContent, onFileClick, openableFilePath]);
+
+  const handleOpenSavedSiteContent = useCallback(() => {
+    if (savedSiteContentTarget && onOpenSavedSiteContent) {
+      onOpenSavedSiteContent(savedSiteContentTarget);
+    }
+  }, [onOpenSavedSiteContent, savedSiteContentTarget]);
 
   const handleToggleExpanded = useCallback(() => {
     hasUserToggledExpandedRef.current = true;
@@ -844,6 +1097,34 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
               ))}
             </div>
           ) : null}
+          {siteResultNotices.length > 0 ? (
+            <div className="space-y-1 text-[11px]">
+              {siteResultNotices.map((notice) => (
+                <div
+                  key={notice.key}
+                  className={cn(
+                    notice.tone === "success" && "text-emerald-700",
+                    notice.tone === "warning" && "text-amber-700",
+                    notice.tone === "error" && "text-rose-700",
+                    notice.tone === "neutral" && "text-slate-500",
+                  )}
+                >
+                  {notice.text}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {savedSiteContentTarget && onOpenSavedSiteContent ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-800 transition-colors hover:bg-emerald-50"
+                onClick={handleOpenSavedSiteContent}
+              >
+                打开已保存内容
+              </button>
+            </div>
+          ) : null}
           {resultPath ? (
             <div className="break-all text-[11px] text-slate-500">
               {resultPath.label}: {resultPath.value}
@@ -886,12 +1167,14 @@ interface ToolCallListProps {
   isMessageStreaming?: boolean;
   /** 文件点击回调 - 用于打开右边栏显示文件内容 */
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
 }
 
 export const ToolCallList: React.FC<ToolCallListProps> = ({
   toolCalls,
   isMessageStreaming = false,
   onFileClick,
+  onOpenSavedSiteContent,
 }) => {
   if (!toolCalls || toolCalls.length === 0) return null;
 
@@ -970,6 +1253,7 @@ export const ToolCallList: React.FC<ToolCallListProps> = ({
               toolCall={group.item}
               isMessageStreaming={isMessageStreaming}
               onFileClick={onFileClick}
+              onOpenSavedSiteContent={onOpenSavedSiteContent}
             />
           );
         }
@@ -982,6 +1266,7 @@ export const ToolCallList: React.FC<ToolCallListProps> = ({
                 toolCall={group.items[0]!}
                 isMessageStreaming={isMessageStreaming}
                 onFileClick={onFileClick}
+                onOpenSavedSiteContent={onOpenSavedSiteContent}
               />
             );
           }
@@ -992,6 +1277,7 @@ export const ToolCallList: React.FC<ToolCallListProps> = ({
               toolCalls={group.items}
               isMessageStreaming={isMessageStreaming}
               onFileClick={onFileClick}
+              onOpenSavedSiteContent={onOpenSavedSiteContent}
             />
           );
         }
@@ -1002,6 +1288,7 @@ export const ToolCallList: React.FC<ToolCallListProps> = ({
             toolCalls={group.items}
             isMessageStreaming={isMessageStreaming}
             onFileClick={onFileClick}
+            onOpenSavedSiteContent={onOpenSavedSiteContent}
           />
         );
       })}
@@ -1013,10 +1300,12 @@ function WorkToolCallGroup({
   toolCalls,
   isMessageStreaming,
   onFileClick,
+  onOpenSavedSiteContent,
 }: {
   toolCalls: ToolCallState[];
   isMessageStreaming: boolean;
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
 }) {
   const hasRunning = toolCalls.some((item) => item.status === "running");
   const hasFailed = toolCalls.some((item) => item.status === "failed");
@@ -1064,6 +1353,7 @@ function WorkToolCallGroup({
               toolCall={toolCall}
               isMessageStreaming={isMessageStreaming}
               onFileClick={onFileClick}
+              onOpenSavedSiteContent={onOpenSavedSiteContent}
               grouped={true}
               groupMarker={index === 0 ? "└" : "·"}
             />
@@ -1078,10 +1368,12 @@ function SearchToolCallGroup({
   toolCalls,
   isMessageStreaming,
   onFileClick,
+  onOpenSavedSiteContent,
 }: {
   toolCalls: ToolCallState[];
   isMessageStreaming: boolean;
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const semanticSummaries = summarizeSearchQuerySemantics(
@@ -1138,6 +1430,7 @@ function SearchToolCallGroup({
               toolCall={toolCall}
               isMessageStreaming={isMessageStreaming}
               onFileClick={onFileClick}
+              onOpenSavedSiteContent={onOpenSavedSiteContent}
               grouped={true}
               groupMarker={index === 0 ? "└" : "·"}
             />

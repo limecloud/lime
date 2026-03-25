@@ -13,12 +13,12 @@ describe("harnessRequestMetadata", () => {
         legacy_flag: true,
       },
       theme: "general",
-      creationMode: "guided",
-      chatMode: "general",
-      webSearchEnabled: true,
-      thinkingEnabled: false,
-      taskModeEnabled: true,
-      subagentModeEnabled: false,
+      preferences: {
+        webSearch: true,
+        thinking: false,
+        task: true,
+        subagent: false,
+      },
       sessionMode: "default",
       browserAssistProfileKey: "general_browser_assist",
       preferredTeamPresetId: "code-triage-team",
@@ -44,10 +44,12 @@ describe("harnessRequestMetadata", () => {
       trace_id: "trace-1",
       legacy_flag: true,
       theme: "general",
-      creation_mode: "guided",
-      chat_mode: "general",
-      web_search_enabled: true,
-      task_mode_enabled: true,
+      preferences: {
+        web_search: true,
+        thinking: false,
+        task: true,
+        subagent: false,
+      },
       preferred_team_preset_id: "code-triage-team",
       selected_team_id: "custom-team-1",
       selected_team_source: "custom",
@@ -69,17 +71,86 @@ describe("harnessRequestMetadata", () => {
         profile_key: "general_browser_assist",
       }),
     });
+    expect(metadata.creation_mode).toBeUndefined();
+    expect(metadata.chat_mode).toBeUndefined();
+    expect(metadata.web_search_enabled).toBeUndefined();
+    expect(metadata.task_mode_enabled).toBeUndefined();
+  });
+
+  it("应清理 base 中遗留的平铺状态字段", () => {
+    const metadata = buildHarnessRequestMetadata({
+      base: {
+        creation_mode: "guided",
+        chat_mode: "general",
+        web_search_enabled: false,
+        thinking_enabled: false,
+        task_mode_enabled: false,
+        subagent_mode_enabled: false,
+        creationMode: "hybrid",
+        chatMode: "creator",
+        webSearchEnabled: true,
+        thinkingEnabled: true,
+        taskModeEnabled: true,
+        subagentModeEnabled: true,
+        turn_team_decision: "team_prepared",
+        turn_team_reason: "runtime_team_prepared",
+        turn_team_blueprint: {
+          label: "旧 Team 蓝图",
+        },
+        turnTeamDecision: "single_agent",
+        turnTeamReason: "single_agent_direct",
+        turnTeamBlueprint: {
+          label: "legacy team blueprint",
+        },
+      },
+      theme: "document",
+      preferences: {
+        webSearch: true,
+        thinking: true,
+        task: false,
+        subagent: false,
+      },
+      sessionMode: "default",
+    });
+
+    expect(metadata).toMatchObject({
+      theme: "document",
+      preferences: {
+        web_search: true,
+        thinking: true,
+        task: false,
+        subagent: false,
+      },
+    });
+    expect(metadata.creation_mode).toBeUndefined();
+    expect(metadata.chat_mode).toBeUndefined();
+    expect(metadata.web_search_enabled).toBeUndefined();
+    expect(metadata.thinking_enabled).toBeUndefined();
+    expect(metadata.task_mode_enabled).toBeUndefined();
+    expect(metadata.subagent_mode_enabled).toBeUndefined();
+    expect(metadata.creationMode).toBeUndefined();
+    expect(metadata.chatMode).toBeUndefined();
+    expect(metadata.webSearchEnabled).toBeUndefined();
+    expect(metadata.thinkingEnabled).toBeUndefined();
+    expect(metadata.taskModeEnabled).toBeUndefined();
+    expect(metadata.subagentModeEnabled).toBeUndefined();
+    expect(metadata.turn_team_decision).toBeUndefined();
+    expect(metadata.turn_team_reason).toBeUndefined();
+    expect(metadata.turn_team_blueprint).toBeUndefined();
+    expect(metadata.turnTeamDecision).toBeUndefined();
+    expect(metadata.turnTeamReason).toBeUndefined();
+    expect(metadata.turnTeamBlueprint).toBeUndefined();
   });
 
   it("默认会话模式不应写入 gate_key", () => {
     const metadata = buildHarnessRequestMetadata({
       theme: "document",
-      creationMode: "fast",
-      chatMode: "agent",
-      webSearchEnabled: false,
-      thinkingEnabled: true,
-      taskModeEnabled: false,
-      subagentModeEnabled: false,
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: false,
+        subagent: false,
+      },
       sessionMode: "default",
       gateKey: "topic_select",
     });
@@ -87,15 +158,31 @@ describe("harnessRequestMetadata", () => {
     expect(metadata.gate_key).toBeUndefined();
   });
 
+  it("应透传当前发送用途，供后端统一决策运行时行为", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "document",
+      turnPurpose: "content_review",
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: false,
+        subagent: false,
+      },
+      sessionMode: "theme_workbench",
+    });
+
+    expect(metadata.turn_purpose).toBe("content_review");
+  });
+
   it("应保留 Team 角色的 profileId、roleKey 与 skillIds", () => {
     const metadata = buildHarnessRequestMetadata({
       theme: "general",
-      creationMode: "guided",
-      chatMode: "agent",
-      webSearchEnabled: false,
-      thinkingEnabled: true,
-      taskModeEnabled: true,
-      subagentModeEnabled: true,
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: true,
+      },
       sessionMode: "default",
       selectedTeamRoles: [
         {
@@ -121,73 +208,32 @@ describe("harnessRequestMetadata", () => {
     ]);
   });
 
-  it("应写入当前 Team 决策与预编队蓝图", () => {
+  it("不应再写入旧 turn_team compat 字段", () => {
     const metadata = buildHarnessRequestMetadata({
       theme: "general",
-      creationMode: "guided",
-      chatMode: "agent",
-      webSearchEnabled: false,
-      thinkingEnabled: true,
-      taskModeEnabled: true,
-      subagentModeEnabled: true,
-      sessionMode: "default",
-      turnTeamDecision: "team_prepared",
-      turnTeamReason: "runtime_team_prepared",
-      turnTeamBlueprint: {
-        label: "当前调试 Team",
-        description: "先分析，再实现，最后验证。",
-        roles: [
-          {
-            id: "explorer",
-            label: "分析",
-            summary: "负责定位问题。",
-            profileId: "code-explorer",
-            roleKey: "explorer",
-            skillIds: ["repo-exploration"],
-          },
-          {
-            id: "executor",
-            label: "执行",
-            summary: "负责提交修复。",
-          },
-        ],
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: true,
       },
+      sessionMode: "default",
     });
 
-    expect(metadata).toMatchObject({
-      turn_team_decision: "team_prepared",
-      turn_team_reason: "runtime_team_prepared",
-      turn_team_blueprint: {
-        label: "当前调试 Team",
-        description: "先分析，再实现，最后验证。",
-        roles: [
-          {
-            id: "explorer",
-            label: "分析",
-            summary: "负责定位问题。",
-            profile_id: "code-explorer",
-            role_key: "explorer",
-            skill_ids: ["repo-exploration"],
-          },
-          {
-            id: "executor",
-            label: "执行",
-            summary: "负责提交修复。",
-          },
-        ],
-      },
-    });
+    expect(metadata.turn_team_decision).toBeUndefined();
+    expect(metadata.turn_team_reason).toBeUndefined();
+    expect(metadata.turn_team_blueprint).toBeUndefined();
   });
 
   it("需要人工确认的浏览器任务应标记 user step", () => {
     const metadata = buildHarnessRequestMetadata({
       theme: "general",
-      creationMode: "hybrid",
-      chatMode: "general",
-      webSearchEnabled: true,
-      thinkingEnabled: true,
-      taskModeEnabled: true,
-      subagentModeEnabled: true,
+      preferences: {
+        webSearch: true,
+        thinking: true,
+        task: true,
+        subagent: true,
+      },
       sessionMode: "theme_workbench",
       gateKey: "publish_confirm",
       browserRequirement: "required_with_user_step",

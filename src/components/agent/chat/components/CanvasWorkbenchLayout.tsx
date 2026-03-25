@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import { Badge } from "@/components/ui/badge";
 import { CompactRightDockButton } from "@/components/ui/compact-right-dock-button";
 import {
@@ -299,22 +300,14 @@ function resolvePreviousArtifactContent(
   artifact: Artifact,
   artifacts: Artifact[],
 ): string | null {
-  const currentPath = normalizePath(
-    typeof artifact.meta.filePath === "string"
-      ? artifact.meta.filePath
-      : artifact.meta.filename || artifact.title,
-  );
+  const currentPath = normalizePath(resolveArtifactProtocolFilePath(artifact));
 
   for (let index = artifacts.length - 1; index >= 0; index -= 1) {
     const candidate = artifacts[index];
     if (candidate.id === artifact.id) {
       continue;
     }
-    const candidatePath = normalizePath(
-      typeof candidate.meta.filePath === "string"
-        ? candidate.meta.filePath
-        : candidate.meta.filename || candidate.title,
-    );
+    const candidatePath = normalizePath(resolveArtifactProtocolFilePath(candidate));
     if (candidatePath === currentPath && candidate.content.trim()) {
       return candidate.content;
     }
@@ -352,9 +345,7 @@ function resolveMappedPreviousContentForPath(
   const matchedArtifact = artifacts.find((artifact) => {
     const artifactPath = resolveAbsoluteWorkspacePath(
       workspaceRoot,
-      typeof artifact.meta.filePath === "string"
-        ? artifact.meta.filePath
-        : artifact.meta.filename || artifact.title,
+      resolveArtifactProtocolFilePath(artifact),
     );
     return artifactPath ? normalizePath(artifactPath) === normalizedTarget : false;
   });
@@ -374,10 +365,7 @@ function buildEntries(
     .slice()
     .reverse()
     .map((artifact) => {
-      const filePath =
-        typeof artifact.meta.filePath === "string"
-          ? artifact.meta.filePath
-          : artifact.meta.filename || artifact.title;
+      const filePath = resolveArtifactProtocolFilePath(artifact);
       const writePhase = resolveArtifactWritePhase(artifact);
       return {
         key: `artifact:${artifact.id}`,

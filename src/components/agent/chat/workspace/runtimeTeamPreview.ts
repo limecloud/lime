@@ -12,6 +12,34 @@ export interface RuntimeTeamDispatchPreviewSnapshot {
   failureMessage?: string | null;
 }
 
+export function resolveRuntimeTeamDispatchPreviewState(
+  snapshot: RuntimeTeamDispatchPreviewSnapshot | null | undefined,
+): TeamWorkspaceRuntimeFormationState | null {
+  const formationState = snapshot?.formationState ?? null;
+  if (!snapshot || !formationState) {
+    return null;
+  }
+
+  const normalizedFailureMessage = snapshot.failureMessage?.trim() || null;
+  if (
+    snapshot.status === formationState.status &&
+    !(snapshot.status === "failed" && normalizedFailureMessage)
+  ) {
+    return formationState;
+  }
+
+  return {
+    ...formationState,
+    status: snapshot.status,
+    errorMessage:
+      snapshot.status === "failed"
+        ? normalizedFailureMessage ||
+          formationState.errorMessage?.trim() ||
+          null
+        : null,
+  };
+}
+
 function buildRuntimeTeamMemberPlanLines(
   state: TeamWorkspaceRuntimeFormationState,
 ): string[] {

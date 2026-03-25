@@ -1,4 +1,9 @@
 import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
+import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
+import {
+  extractFilesystemEventLocationHintsFromValue,
+  extractFilesystemEventPathsFromValue,
+} from "@/lib/filesystem-event-protocol";
 import type { AgentThreadItem, AgentThreadItemStatus } from "../types";
 import { resolveInternalImageTaskDisplayName } from "./internalImagePlaceholder";
 import { resolveToolDisplayLabel } from "./toolDisplayInfo";
@@ -174,11 +179,19 @@ function resolvePathFromItem(item: AgentThreadItem): string | null {
     return null;
   }
 
-  const metadata = asRecord(item.metadata);
-  const args = asRecord(item.arguments);
+  const protocolPath =
+    extractArtifactProtocolPathsFromValue(item.arguments)[0] ||
+    extractArtifactProtocolPathsFromValue(item.metadata)[0];
+  if (protocolPath) {
+    return protocolPath;
+  }
+
   return (
-    readString(args, ["path", "file_path", "filePath", "directory", "cwd"]) ||
-    readString(metadata, ["path", "file_path", "filePath", "output_file", "offload_file"])
+    extractFilesystemEventPathsFromValue(item.arguments)[0] ||
+    extractFilesystemEventPathsFromValue(item.metadata)[0] ||
+    extractFilesystemEventLocationHintsFromValue(item.arguments)[0] ||
+    extractFilesystemEventLocationHintsFromValue(item.metadata)[0] ||
+    null
   );
 }
 

@@ -1,0 +1,132 @@
+import { describe, expect, it } from "vitest";
+
+import type { Artifact } from "@/lib/artifact/types";
+import { ARTIFACT_DOCUMENT_SCHEMA_VERSION } from "@/lib/artifact-document";
+import { buildArtifactFromWrite } from "./messageArtifacts";
+
+function createArtifact(overrides: Partial<Artifact> = {}): Artifact {
+  const content = overrides.content ?? "";
+  return {
+    id: overrides.id ?? "artifact-1",
+    type: overrides.type ?? "document",
+    title: overrides.title ?? "report.artifact.json",
+    content,
+    status: overrides.status ?? "streaming",
+    meta: {
+      filePath:
+        overrides.meta?.filePath ??
+        ".lime/artifacts/thread-1/report.artifact.json",
+      filename: overrides.meta?.filename ?? "report.artifact.json",
+      ...overrides.meta,
+    },
+    position: overrides.position ?? { start: 0, end: content.length },
+    createdAt: overrides.createdAt ?? 1,
+    updatedAt: overrides.updatedAt ?? 1,
+    error: overrides.error,
+  };
+}
+
+describe("messageArtifacts.buildArtifactFromWrite", () => {
+  it("应从 artifactDocument metadata 直接构建结构化文档 artifact", () => {
+    const artifactDocument = {
+      schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+      artifactId: "artifact-doc-1",
+      kind: "analysis",
+      title: "自动落盘报告",
+      status: "ready",
+      language: "zh-CN",
+      summary: "这是结构化摘要。",
+      blocks: [
+        {
+          id: "hero-1",
+          type: "hero_summary",
+          summary: "这是结构化摘要。",
+        },
+      ],
+      sources: [],
+      metadata: {
+        theme: "knowledge",
+      },
+    };
+
+    const artifact = buildArtifactFromWrite({
+      filePath: ".lime/artifacts/thread-1/report.artifact.json",
+      content: "",
+      context: {
+        artifactId: "artifact-snapshot-1",
+        source: "artifact_snapshot",
+        sourceMessageId: "assistant-1",
+        status: "streaming",
+        metadata: {
+          complete: true,
+          artifactSchema: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+          artifactDocument,
+        },
+      },
+    });
+
+    expect(artifact.type).toBe("document");
+    expect(artifact.meta.language).toBe("json");
+    expect(artifact.meta.previewText).toBe("这是结构化摘要。");
+    expect(artifact.meta.artifactTitle).toBe("自动落盘报告");
+    expect(artifact.meta.artifactKind).toBe("analysis");
+    expect(artifact.meta.artifactDocument).toMatchObject({
+      artifactId: "artifact-doc-1",
+      kind: "analysis",
+      title: "自动落盘报告",
+      summary: "这是结构化摘要。",
+    });
+  });
+
+  it("metadata 仅保留 schema 时应复用已有 artifactDocument", () => {
+    const previousArtifact = createArtifact({
+      meta: {
+        filePath: ".lime/artifacts/thread-1/report.artifact.json",
+        filename: "report.artifact.json",
+        artifactSchema: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+        artifactDocument: {
+          schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+          artifactId: "artifact-doc-2",
+          kind: "report",
+          title: "已有结构化文档",
+          status: "ready",
+          language: "zh-CN",
+          summary: "沿用已有结构摘要",
+          blocks: [
+            {
+              id: "hero-1",
+              type: "hero_summary",
+              summary: "沿用已有结构摘要",
+            },
+          ],
+          sources: [],
+          metadata: {},
+        },
+      },
+    });
+
+    const artifact = buildArtifactFromWrite({
+      filePath: ".lime/artifacts/thread-1/report.artifact.json",
+      content: "",
+      context: {
+        artifact: previousArtifact,
+        source: "artifact_snapshot",
+        sourceMessageId: "assistant-2",
+        status: "complete",
+        metadata: {
+          artifactSchema: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+          complete: true,
+        },
+      },
+    });
+
+    expect(artifact.meta.artifactTitle).toBe("已有结构化文档");
+    expect(artifact.meta.previewText).toBe("沿用已有结构摘要");
+    expect(artifact.meta.artifactDocument).toMatchObject({
+      artifactId: "artifact-doc-2",
+      kind: "report",
+      title: "已有结构化文档",
+      summary: "沿用已有结构摘要",
+    });
+  });
+});

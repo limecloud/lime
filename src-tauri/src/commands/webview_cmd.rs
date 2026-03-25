@@ -2152,6 +2152,7 @@ async fn execute_extension_backend_action(
                     target: None,
                     text: None,
                     url: action_arg_string(&args, &["url"]),
+                    payload: None,
                     wait_for_page_info: action_arg_bool(&args, "wait_for_page_info", true),
                     timeout_ms: Some(normalize_action_timeout(
                         action_arg_u64(&args, "timeout_ms").or(timeout_ms),
@@ -2165,6 +2166,7 @@ async fn execute_extension_backend_action(
                     target: None,
                     text: None,
                     url: None,
+                    payload: None,
                     wait_for_page_info: action_arg_bool(&args, "wait_for_page_info", true),
                     timeout_ms: Some(normalize_action_timeout(timeout_ms)),
                 })
@@ -2176,6 +2178,7 @@ async fn execute_extension_backend_action(
                     target: None,
                     text: None,
                     url: None,
+                    payload: None,
                     wait_for_page_info: action_arg_bool(&args, "wait_for_page_info", true),
                     timeout_ms: Some(normalize_action_timeout(timeout_ms)),
                 })
@@ -2187,6 +2190,7 @@ async fn execute_extension_backend_action(
                     target: None,
                     text: None,
                     url: None,
+                    payload: None,
                     wait_for_page_info: action_arg_bool(&args, "wait_for_page_info", true),
                     timeout_ms: Some(normalize_action_timeout(timeout_ms)),
                 })
@@ -2201,6 +2205,7 @@ async fn execute_extension_backend_action(
             target: None,
             text: None,
             url: None,
+            payload: None,
             wait_for_page_info: true,
             timeout_ms: Some(normalize_action_timeout(timeout_ms)),
         })
@@ -2215,6 +2220,7 @@ async fn execute_extension_backend_action(
                 target: None,
                 text: None,
                 url: None,
+                payload: None,
                 wait_for_page_info: true,
                 timeout_ms: Some(normalize_action_timeout(timeout_ms)),
             })
@@ -2244,6 +2250,7 @@ async fn execute_extension_backend_action(
             target: action_arg_string(&args, &["ref_id", "target"]),
             text: action_arg_string(&args, &["value", "text"]),
             url: None,
+            payload: None,
             wait_for_page_info: action_arg_bool(&args, "wait_for_page_info", false),
             timeout_ms: Some(normalize_action_timeout(timeout_ms)),
         })
@@ -2276,6 +2283,7 @@ async fn execute_extension_backend_action(
                 target: action_arg_string(&args, &["ref_id", "target"]),
                 text: text_payload,
                 url: action_arg_string(&args, &["url"]),
+                payload: None,
                 wait_for_page_info: action_arg_bool(
                     &args,
                     "wait_for_page_info",
@@ -2306,6 +2314,7 @@ async fn execute_extension_backend_action(
             target: None,
             text: None,
             url: None,
+            payload: None,
             wait_for_page_info: false,
             timeout_ms: Some(normalize_action_timeout(timeout_ms)),
         })
@@ -2319,6 +2328,7 @@ async fn execute_extension_backend_action(
                 target: action_arg_string(&args, &["target", "ref_id"]),
                 text: action_arg_string(&args, &["text", "value"]),
                 url: action_arg_string(&args, &["url"]),
+                payload: None,
                 wait_for_page_info: action_arg_bool(
                     &args,
                     "wait_for_page_info",

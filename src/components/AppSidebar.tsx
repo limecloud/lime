@@ -91,19 +91,81 @@ function scheduleSidebarPluginLoad(task: () => void): () => void {
   };
 }
 
-const Container = styled.aside<{ $collapsed?: boolean }>`
+const Container = styled.aside<{
+  $collapsed?: boolean;
+  $themeMode: "light" | "dark";
+}>`
+  --sidebar-surface-top: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#15202b" : "#eef6f0"};
+  --sidebar-surface-middle: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#17232d" : "#f5f5ef"};
+  --sidebar-surface-bottom: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#1a2530" : "#f4f8f8"};
+  --sidebar-foreground: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#eef4f7" : "#1f2937"};
+  --sidebar-muted: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#a1afbd" : "#60707d"};
+  --sidebar-border: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#2d3a46" : "#d8e4dc"};
+  --sidebar-divider: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "rgba(148, 163, 184, 0.14)" : "rgba(148, 163, 184, 0.18)"};
+  --sidebar-hover: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#22303c" : "#e4ede6"};
+  --sidebar-active: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#2a3e3b" : "#d9e9df"};
+  --sidebar-active-foreground: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#dff4ea" : "#1b4332"};
+  --sidebar-search-bg: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#1f2b36" : "#fbfcf9"};
+  --sidebar-search-hover: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#24313d" : "#f2f6f2"};
+  --sidebar-search-border-hover: ${({ $themeMode }) =>
+    $themeMode === "dark" ? "#3a4a57" : "#cfded4"};
   display: flex;
   flex-direction: column;
   width: ${({ $collapsed }) => ($collapsed ? "72px" : "248px")};
   min-width: ${({ $collapsed }) => ($collapsed ? "72px" : "248px")};
   height: 100vh;
   padding: ${({ $collapsed }) => ($collapsed ? "12px 6px" : "12px 10px")};
-  background-color: hsl(var(--card));
-  border-right: 1px solid hsl(var(--border));
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      180deg,
+      var(--sidebar-surface-top) 0%,
+      var(--sidebar-surface-middle) 34%,
+      var(--sidebar-surface-bottom) 100%
+    );
+  border-right: 1px solid var(--sidebar-border);
+  box-shadow: 16px 0 36px -34px rgba(15, 23, 42, 0.42);
   transition:
     width 180ms ease,
     min-width 180ms ease,
     padding 180ms ease;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(
+        circle at top left,
+        rgba(88, 160, 123, 0.14) 0%,
+        rgba(88, 160, 123, 0) 44%
+      ),
+      radial-gradient(
+        circle at bottom left,
+        rgba(109, 153, 219, 0.12) 0%,
+        rgba(109, 153, 219, 0) 36%
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
 `;
 
 const HeaderArea = styled.div<{ $collapsed?: boolean }>`
@@ -135,11 +197,14 @@ const UserButton = styled.button<{ $collapsed?: boolean }>`
   border-radius: 10px;
   padding: ${({ $collapsed }) => ($collapsed ? "8px" : "8px 10px")};
   cursor: pointer;
-  color: hsl(var(--foreground));
+  color: var(--sidebar-foreground);
   justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
 
   &:hover {
-    background: hsl(var(--muted) / 0.55);
+    background: var(--sidebar-hover);
   }
 `;
 
@@ -149,6 +214,9 @@ const Avatar = styled.div`
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
+  box-shadow:
+    0 8px 18px -14px rgba(15, 23, 42, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78);
 
   img {
     width: 100%;
@@ -174,21 +242,29 @@ const SearchButton = styled.button<{ $collapsed?: boolean }>`
   gap: 8px;
   width: 100%;
   height: 34px;
-  border-radius: 10px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--muted-foreground));
+  border-radius: 12px;
+  border: 1px solid var(--sidebar-border);
+  background: var(--sidebar-search-bg);
+  color: var(--sidebar-muted);
   padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 10px")};
   cursor: pointer;
   justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
   &:hover {
-    border-color: hsl(var(--primary) / 0.35);
-    color: hsl(var(--foreground));
+    border-color: var(--sidebar-search-border-hover);
+    background: var(--sidebar-search-hover);
+    color: var(--sidebar-foreground);
   }
 
   span {
     font-size: 13px;
+    font-weight: 500;
     display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
   }
 `;
@@ -209,7 +285,7 @@ const MenuScroll = styled.div`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
+    background: var(--sidebar-border);
     border-radius: 9999px;
   }
 `;
@@ -225,7 +301,7 @@ const SectionTitle = styled.div<{ $collapsed?: boolean }>`
   padding: 0 10px;
   font-size: 12px;
   font-weight: 500;
-  color: hsl(var(--muted-foreground));
+  color: var(--sidebar-muted);
   opacity: 0.9;
   display: ${({ $collapsed }) => ($collapsed ? "none" : "block")};
 `;
@@ -237,26 +313,31 @@ const NavButton = styled.button<{ $active?: boolean; $collapsed?: boolean }>`
   width: 100%;
   height: 38px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 10px")};
   background: ${({ $active }) =>
-    $active ? "hsl(var(--accent))" : "transparent"};
+    $active ? "var(--sidebar-active)" : "transparent"};
   color: ${({ $active }) =>
-    $active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
+    $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-muted)"};
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
   justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
 
   &:hover {
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    background: ${({ $active }) =>
+      $active ? "var(--sidebar-active)" : "var(--sidebar-hover)"};
+    color: ${({ $active }) =>
+      $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-foreground)"};
   }
 
   svg {
     width: 17px;
     height: 17px;
     flex-shrink: 0;
-    opacity: 0.9;
+    opacity: ${({ $active }) => ($active ? 1 : 0.92)};
   }
 `;
 
@@ -274,7 +355,7 @@ const NavLabel = styled.span<{ $collapsed?: boolean }>`
 const FooterArea = styled.div<{ $collapsed?: boolean }>`
   margin-top: auto;
   padding-top: 10px;
-  border-top: 1px solid hsl(var(--border));
+  border-top: 1px solid var(--sidebar-divider);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -291,19 +372,24 @@ const IconActionButton = styled.button<{ $active?: boolean }>`
   width: 30px;
   height: 30px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: ${({ $active }) =>
-    $active ? "hsl(var(--accent))" : "transparent"};
+    $active ? "var(--sidebar-active)" : "transparent"};
   color: ${({ $active }) =>
-    $active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
+    $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-muted)"};
   cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
 
   &:hover {
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    background: ${({ $active }) =>
+      $active ? "var(--sidebar-active)" : "var(--sidebar-hover)"};
+    color: ${({ $active }) =>
+      $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-foreground)"};
   }
 
   svg {
@@ -637,7 +723,7 @@ export function AppSidebar({
 
   return (
     <TooltipProvider>
-      <Container $collapsed={collapsed}>
+      <Container $collapsed={collapsed} $themeMode={theme}>
         <HeaderArea $collapsed={collapsed}>
           <HeaderTopRow $collapsed={collapsed}>
             {maybeWrapWithTooltip(

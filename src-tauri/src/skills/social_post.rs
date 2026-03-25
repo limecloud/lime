@@ -1,6 +1,6 @@
-use crate::agent::TauriAgentEvent;
+use crate::agent::AgentEvent as RuntimeAgentEvent;
 use chrono::Utc;
-use lime_agent::event_converter::{TauriArtifactSnapshot, TauriToolResult};
+use lime_agent::{build_write_tool_artifact_events, AgentToolResult};
 use tauri::{AppHandle, Emitter};
 
 const SOCIAL_POST_WITH_COVER_SKILL_NAME: &str = "social_post_with_cover";
@@ -10,6 +10,12 @@ const SOCIAL_POST_EMPTY_FALLBACK_CONTENT: &str = "# 社媒文案\n\n（生成结
 const SOCIAL_POST_FALLBACK_COVER_URL: &str = "cover-generation-failed";
 const SOCIAL_POST_FALLBACK_COVER_NOTE: &str = "封面图生成失败，可稍后仅重试配图。";
 const SOCIAL_POST_DEFAULT_IMAGE_SIZE: &str = "1024x1024";
+
+#[derive(Debug, Clone)]
+pub struct FinalizedSkillOutput {
+    pub final_output: String,
+    pub artifact_paths: Vec<String>,
+}
 
 #[derive(Debug, Clone)]
 struct SocialSkillOutputEnvelope {
@@ -50,13 +56,17 @@ pub fn finalize_skill_output(
     user_input: &str,
     execution_id: &str,
     raw_output: &str,
-) -> String {
+) -> FinalizedSkillOutput {
     let Some(social_output) =
         normalize_social_post_output(skill_name, user_input, execution_id, raw_output)
     else {
-        return raw_output.to_string();
+        return FinalizedSkillOutput {
+            final_output: raw_output.to_string(),
+            artifact_paths: Vec::new(),
+        };
     };
 
+    let artifact_paths = build_social_artifact_paths(&social_output.file_path);
     emit_social_write_file_events(
         app_handle,
         execution_id,
@@ -72,21 +82,10 @@ pub fn finalize_skill_output(
         emit_social_write_file_events(app_handle, execution_id, &artifact_path, &artifact_content);
     }
 
-    social_output.final_output
-}
-
-pub fn collect_social_artifact_paths_from_output(output: Option<&str>) -> Vec<String> {
-    let Some(raw_output) = output else {
-        return Vec::new();
-    };
-    let Some((_, maybe_path, _)) = extract_first_write_file_block(raw_output) else {
-        return Vec::new();
-    };
-    let Some(article_path) = maybe_path else {
-        return Vec::new();
-    };
-    let (cover_meta_path, publish_pack_path) = derive_social_auxiliary_paths(&article_path);
-    vec![article_path, cover_meta_path, publish_pack_path]
+    FinalizedSkillOutput {
+        final_output: social_output.final_output,
+        artifact_paths,
+    }
 }
 
 fn normalize_social_post_output(
@@ -243,6 +242,11 @@ fn derive_social_auxiliary_paths(article_path: &str) -> (String, String) {
     )
 }
 
+fn build_social_artifact_paths(article_path: &str) -> Vec<String> {
+    let (cover_meta_path, publish_pack_path) = derive_social_auxiliary_paths(article_path);
+    vec![article_path.to_string(), cover_meta_path, publish_pack_path]
+}
+
 fn summarize_social_content(content: &str) -> String {
     let compact = content
         .lines()
@@ -375,6 +379,28 @@ fn build_social_tool_event_id(execution_id: &str, file_path: &str) -> String {
     format!("social-write-{execution_id}-{hash:08x}")
 }
 
+fn build_social_write_tool_events(
+    execution_id: &str,
+    file_path: &str,
+    file_content: &str,
+) -> Vec<RuntimeAgentEvent> {
+    let tool_id = build_social_tool_event_id(execution_id, file_path);
+    build_write_tool_artifact_events(
+        &format!("skill-exec-{execution_id}"),
+        SOCIAL_POST_WRITE_TOOL_NAME,
+        &tool_id,
+        file_path,
+        file_content,
+        AgentToolResult {
+            success: true,
+            output: format!("写入社媒文稿: {file_path}"),
+            error: None,
+            images: None,
+            metadata: None,
+        },
+    )
+}
+
 fn emit_social_write_file_events(
     app_handle: &AppHandle,
     execution_id: &str,
@@ -382,78 +408,10 @@ fn emit_social_write_file_events(
     file_content: &str,
 ) {
     let event_name = format!("skill-exec-{execution_id}");
-    let tool_id = build_social_tool_event_id(execution_id, file_path);
-    let artifact_id = format!("{tool_id}:artifact");
-    let arguments = serde_json::json!({
-        "path": file_path,
-        "content": file_content,
-    })
-    .to_string();
-    let preview_text = file_content.trim().chars().take(480).collect::<String>();
-    let latest_chunk = file_content
-        .trim()
-        .chars()
-        .rev()
-        .take(240)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<String>();
-    let mut artifact_metadata = std::collections::HashMap::from([
-        ("complete".to_string(), serde_json::json!(true)),
-        ("writePhase".to_string(), serde_json::json!("persisted")),
-        ("isPartial".to_string(), serde_json::json!(false)),
-        (
-            "lastUpdateSource".to_string(),
-            serde_json::json!("tool_result"),
-        ),
-    ]);
-    if !preview_text.is_empty() {
-        artifact_metadata.insert("previewText".to_string(), serde_json::json!(preview_text));
-    }
-    if !latest_chunk.is_empty() {
-        artifact_metadata.insert("latestChunk".to_string(), serde_json::json!(latest_chunk));
-    }
-
-    let tool_start = TauriAgentEvent::ToolStart {
-        tool_name: SOCIAL_POST_WRITE_TOOL_NAME.to_string(),
-        tool_id: tool_id.clone(),
-        arguments: Some(arguments),
-    };
-    if let Err(err) = app_handle.emit(&event_name, &tool_start) {
-        tracing::warn!("[execute_skill] 发送社媒写入工具开始事件失败: {}", err);
-    }
-
-    let artifact_snapshot = TauriAgentEvent::ArtifactSnapshot {
-        artifact: TauriArtifactSnapshot {
-            artifact_id: artifact_id.clone(),
-            file_path: file_path.to_string(),
-            content: Some(file_content.to_string()),
-            metadata: Some(artifact_metadata.clone()),
-        },
-    };
-    if let Err(err) = app_handle.emit(&event_name, &artifact_snapshot) {
-        tracing::warn!("[execute_skill] 发送社媒产物快照事件失败: {}", err);
-    }
-
-    let mut tool_end_metadata = artifact_metadata;
-    tool_end_metadata.insert("artifact_streamed".to_string(), serde_json::json!(true));
-    tool_end_metadata.insert("artifact_id".to_string(), serde_json::json!(artifact_id));
-    tool_end_metadata.insert("artifact_path".to_string(), serde_json::json!(file_path));
-    tool_end_metadata.insert("path".to_string(), serde_json::json!(file_path));
-    tool_end_metadata.insert("file_path".to_string(), serde_json::json!(file_path));
-    let tool_end = TauriAgentEvent::ToolEnd {
-        tool_id,
-        result: TauriToolResult {
-            success: true,
-            output: format!("写入社媒文稿: {file_path}"),
-            error: None,
-            images: None,
-            metadata: Some(tool_end_metadata),
-        },
-    };
-    if let Err(err) = app_handle.emit(&event_name, &tool_end) {
-        tracing::warn!("[execute_skill] 发送社媒写入工具完成事件失败: {}", err);
+    for event in build_social_write_tool_events(execution_id, file_path, file_content) {
+        if let Err(err) = app_handle.emit(&event_name, &event) {
+            tracing::warn!("[execute_skill] 发送社媒写入事件失败: {}", err);
+        }
     }
 }
 
@@ -540,13 +498,79 @@ mod tests {
     }
 
     #[test]
-    fn test_collect_social_artifact_paths_from_output_should_expand_auxiliary_files() {
-        let output = "<write_file path=\"social-posts/demo.md\">\n# 标题\n\n正文\n</write_file>";
-        let paths = collect_social_artifact_paths_from_output(Some(output));
+    fn test_build_social_artifact_paths_should_expand_auxiliary_files() {
+        let paths = build_social_artifact_paths("social-posts/demo.md");
         assert_eq!(paths.len(), 3);
         assert_eq!(paths[0], "social-posts/demo.md");
         assert!(paths[1].ends_with(".cover.json"));
         assert!(paths[2].ends_with(".publish-pack.json"));
+    }
+
+    #[test]
+    fn test_build_social_write_tool_events_reuses_unified_artifact_emitter() {
+        let events =
+            build_social_write_tool_events("exec123", "social-posts/demo.md", "# 标题\n\n正文");
+
+        assert_eq!(events.len(), 4);
+
+        match &events[0] {
+            RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
+                assert_eq!(artifact.file_path, "social-posts/demo.md");
+                assert_eq!(
+                    artifact
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("writePhase"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("streaming")
+                );
+            }
+            other => panic!("expected ArtifactSnapshot, got {other:?}"),
+        }
+
+        match &events[1] {
+            RuntimeAgentEvent::ToolStart { tool_name, .. } => {
+                assert_eq!(tool_name, SOCIAL_POST_WRITE_TOOL_NAME);
+            }
+            other => panic!("expected ToolStart, got {other:?}"),
+        }
+
+        match &events[2] {
+            RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
+                assert_eq!(artifact.file_path, "social-posts/demo.md");
+                assert_eq!(
+                    artifact
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("writePhase"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("completed")
+                );
+            }
+            other => panic!("expected ArtifactSnapshot, got {other:?}"),
+        }
+
+        match &events[3] {
+            RuntimeAgentEvent::ToolEnd { result, .. } => {
+                assert_eq!(
+                    result
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("artifact_streamed"))
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true)
+                );
+                assert_eq!(
+                    result
+                        .metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("file_path"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("social-posts/demo.md")
+                );
+            }
+            other => panic!("expected ToolEnd, got {other:?}"),
+        }
     }
 
     #[test]

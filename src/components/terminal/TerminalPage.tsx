@@ -30,6 +30,7 @@ import {
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
 } from "@/lib/terminal/themes";
+import { resolveTerminalPageHotkeyAction } from "./terminalPageHotkeys";
 import "./terminal.css";
 
 // ============================================================================
@@ -546,27 +547,28 @@ export function TerminalPage() {
   // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+F 打开搜索
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-        setShowSearch(true);
+      const action = resolveTerminalPageHotkeyAction(e);
+      if (!action) {
+        return;
       }
-      // Ctrl++ 或 Ctrl+= 增大字体
-      // _Requirements: 8.8_
-      if ((e.ctrlKey || e.metaKey) && (e.key === "+" || e.key === "=")) {
-        e.preventDefault();
-        handleFontSizeChange(Math.min(fontSize + 1, MAX_FONT_SIZE));
-      }
-      // Ctrl+- 减小字体
-      // _Requirements: 8.8_
-      if ((e.ctrlKey || e.metaKey) && e.key === "-") {
-        e.preventDefault();
-        handleFontSizeChange(Math.max(fontSize - 1, MIN_FONT_SIZE));
-      }
-      // Ctrl+0 重置字体大小
-      if ((e.ctrlKey || e.metaKey) && e.key === "0") {
-        e.preventDefault();
-        handleFontSizeChange(14);
+
+      e.preventDefault();
+
+      switch (action) {
+        case "open-search":
+          setShowSearch(true);
+          break;
+        case "increase-font-size":
+          handleFontSizeChange(Math.min(fontSize + 1, MAX_FONT_SIZE));
+          break;
+        case "decrease-font-size":
+          handleFontSizeChange(Math.max(fontSize - 1, MIN_FONT_SIZE));
+          break;
+        case "reset-font-size":
+          handleFontSizeChange(14);
+          break;
+        default:
+          break;
       }
     };
 
@@ -608,88 +610,29 @@ export function TerminalPage() {
       const termWrap = getActiveTermWrap();
       if (!termWrap) return true;
 
-      const isMac = /mac/i.test(navigator.userAgent);
-
-      // Shift+End - 滚动到底部
-      if (
-        e.shiftKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.metaKey &&
-        e.key === "End"
-      ) {
+      const action = resolveTerminalPageHotkeyAction(e);
+      if (action === "scroll-to-bottom") {
         termWrap.terminal.scrollToBottom();
         e.preventDefault();
         e.stopPropagation();
         return false;
       }
 
-      // Shift+Home - 滚动到顶部
-      if (
-        e.shiftKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.metaKey &&
-        e.key === "Home"
-      ) {
+      if (action === "scroll-to-top") {
         termWrap.terminal.scrollToLine(0);
         e.preventDefault();
         e.stopPropagation();
         return false;
       }
 
-      // Cmd+End (macOS) - 滚动到底部
-      if (
-        isMac &&
-        e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.key === "End"
-      ) {
-        termWrap.terminal.scrollToBottom();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-
-      // Cmd+Home (macOS) - 滚动到顶部
-      if (
-        isMac &&
-        e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.key === "Home"
-      ) {
-        termWrap.terminal.scrollToLine(0);
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-
-      // Shift+PageDown - 向下滚动一页
-      if (
-        e.shiftKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.metaKey &&
-        e.key === "PageDown"
-      ) {
+      if (action === "scroll-page-down") {
         termWrap.terminal.scrollPages(1);
         e.preventDefault();
         e.stopPropagation();
         return false;
       }
 
-      // Shift+PageUp - 向上滚动一页
-      if (
-        e.shiftKey &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.metaKey &&
-        e.key === "PageUp"
-      ) {
+      if (action === "scroll-page-up") {
         termWrap.terminal.scrollPages(-1);
         e.preventDefault();
         e.stopPropagation();

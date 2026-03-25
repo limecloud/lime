@@ -30,7 +30,7 @@ pub(super) async fn try_handle(
     cmd: &str,
     args: Option<&JsonValue>,
 ) -> Result<Option<JsonValue>, DynError> {
-    if let Some(result) = queries::try_handle(state, cmd).await? {
+    if let Some(result) = queries::try_handle(state, cmd, args).await? {
         return Ok(Some(result));
     }
 

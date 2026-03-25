@@ -50,7 +50,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   subagentParentContext: TeamWorkbenchParams["subagentParentContext"];
   selectedTeamLabel: TeamWorkbenchParams["selectedTeamLabel"];
   selectedTeamSummary: TeamWorkbenchParams["selectedTeamSummary"];
-  runtimeTeamState: TeamWorkbenchParams["runtimeTeamState"];
+  teamDispatchPreviewState: TeamWorkbenchParams["teamDispatchPreviewState"];
   teamSessionRuntime: TeamSessionRuntime;
   teamSessionControlRuntime: TeamSessionControlRuntime;
   handleOpenSubagentSession: TeamWorkbenchParams["onOpenSubagentSession"];
@@ -70,6 +70,8 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   setProviderType: InputbarParams["setProviderType"];
   model: InputbarParams["model"];
   setModel: InputbarParams["setModel"];
+  sessionExecutionRuntime: InputbarParams["executionRuntime"];
+  isExecutionRuntimeActive: InputbarParams["isExecutionRuntimeActive"];
   projectId: InputbarParams["workspaceId"];
   executionStrategy: InputbarParams["executionStrategy"];
   setExecutionStrategy: InputbarParams["setExecutionStrategy"];
@@ -92,6 +94,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   threadItems: GeneralWorkbenchDialogParams["threadItems"];
   currentTurnId: GeneralWorkbenchDialogParams["currentTurnId"];
   threadRead: GeneralWorkbenchDialogParams["threadRead"];
+  activeExecutionRuntime: GeneralWorkbenchDialogParams["executionRuntime"];
   pendingActions: GeneralWorkbenchDialogParams["pendingActions"];
   submittedActionsInFlight: GeneralWorkbenchDialogParams["submittedActionsInFlight"];
   messages: Message[];
@@ -133,7 +136,7 @@ export function useWorkspaceInputbarSceneRuntime({
   subagentParentContext,
   selectedTeamLabel,
   selectedTeamSummary,
-  runtimeTeamState,
+  teamDispatchPreviewState,
   teamSessionRuntime,
   teamSessionControlRuntime,
   handleOpenSubagentSession,
@@ -153,6 +156,8 @@ export function useWorkspaceInputbarSceneRuntime({
   setProviderType,
   model,
   setModel,
+  sessionExecutionRuntime,
+  isExecutionRuntimeActive,
   projectId,
   executionStrategy,
   setExecutionStrategy,
@@ -175,6 +180,7 @@ export function useWorkspaceInputbarSceneRuntime({
   threadItems,
   currentTurnId,
   threadRead,
+  activeExecutionRuntime,
   pendingActions,
   submittedActionsInFlight,
   messages,
@@ -246,7 +252,7 @@ export function useWorkspaceInputbarSceneRuntime({
         selectedTeamLabel,
         selectedTeamSummary,
         selectedTeamRoles: selectedTeam?.roles,
-        runtimeTeamState,
+        teamDispatchPreviewState,
       },
       inputbar: {
         input,
@@ -267,6 +273,8 @@ export function useWorkspaceInputbarSceneRuntime({
         setProviderType,
         model,
         setModel,
+        executionRuntime: sessionExecutionRuntime,
+        isExecutionRuntimeActive,
         workspaceId: projectId,
         executionStrategy,
         setExecutionStrategy,
@@ -338,8 +346,9 @@ export function useWorkspaceInputbarSceneRuntime({
         diagnosticRuntimeContext: {
           sessionId: sessionIdForDiagnostics,
           workspaceId: projectId,
-          providerType: providerType || null,
-          model: model || null,
+          providerType:
+            activeExecutionRuntime?.provider_selector || providerType || null,
+          model: activeExecutionRuntime?.model_name || model || null,
           executionStrategy: executionStrategy || null,
           activeTheme: activeTheme || null,
           selectedTeamLabel: selectedTeamLabel || null,
@@ -351,6 +360,8 @@ export function useWorkspaceInputbarSceneRuntime({
         activeTheme: mappedTheme,
         toolPreferences: resolvedChatToolPreferences,
         isSending,
+        executionRuntime: sessionExecutionRuntime,
+        isExecutionRuntimeActive: Boolean(activeExecutionRuntime),
         runtimeStatusTitle: contextHarnessRuntime.activeRuntimeStatusTitle,
         selectedTeamRoleCount: selectedTeam?.roles.length || 0,
         onOpenSubagentSession: handleOpenSubagentSession,

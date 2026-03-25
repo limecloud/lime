@@ -30,12 +30,13 @@ import type {
   ParsedMessageContent,
 } from "@/components/content-creator/a2ui/types";
 import { CHAT_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
-import type { ToolCallState } from "@/lib/api/agentStream";
+import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type {
   AgentRuntimeStatus,
   ContentPart,
   ActionRequired,
   ConfirmResponse,
+  SiteSavedContentTarget,
   WriteArtifactContext,
 } from "../types";
 import {
@@ -550,6 +551,7 @@ interface StreamingRendererProps {
   ) => void;
   /** 文件点击回调 */
   onFileClick?: (fileName: string, content: string) => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
   /** 权限确认响应回调 */
   onPermissionResponse?: (response: ConfirmResponse) => void;
   /** 是否折叠代码块（当画布打开时） */
@@ -686,6 +688,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     renderA2UIInline = true,
     onWriteFile,
     onFileClick,
+    onOpenSavedSiteContent,
     onPermissionResponse,
     collapseCodeBlocks,
     shouldCollapseCodeBlock,
@@ -1011,6 +1014,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
                   toolCall={part.toolCall}
                   isMessageStreaming={isStreaming}
                   onFileClick={onFileClick}
+                  onOpenSavedSiteContent={onOpenSavedSiteContent}
                 />
               );
             } else if (part.type === "action_required") {
@@ -1191,6 +1195,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
             toolCalls={toolCalls}
             isMessageStreaming={isStreaming}
             onFileClick={onFileClick}
+            onOpenSavedSiteContent={onOpenSavedSiteContent}
           />
         )}
 

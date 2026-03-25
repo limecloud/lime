@@ -1,14 +1,18 @@
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
-import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type {
-  StreamEventActionRequired,
-  StreamEventArtifactSnapshot,
-  StreamEventContextTrace,
-  StreamEventToolEnd,
-  StreamEventToolStart,
-} from "@/lib/api/agentStream";
+  AgentEventActionRequired,
+  AgentEventArtifactSnapshot,
+  AgentEventContextTrace,
+  AgentEventToolEnd,
+  AgentEventToolStart,
+} from "@/lib/api/agentProtocol";
+import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type { Artifact } from "@/lib/artifact/types";
+import {
+  extractArtifactProtocolPaths,
+  extractArtifactProtocolPathsFromValue,
+} from "@/lib/artifact-protocol";
 import type { ActionRequired, Message, WriteArtifactContext } from "../types";
 import { activityLogger } from "@/components/content-creator/utils/activityLogger";
 import {
@@ -27,7 +31,6 @@ import {
 } from "./agentChatToolResult";
 import {
   buildArtifactFromWrite,
-  extractArtifactPathsFromMetadata,
   findMessageArtifact,
   upsertMessageArtifact,
 } from "../utils/messageArtifacts";
@@ -135,19 +138,9 @@ function extractToolArgPath(
     return undefined;
   }
 
-  for (const key of [
-    "path",
-    "file_path",
-    "filePath",
-    "target_path",
-    "targetPath",
-    "output_path",
-    "outputPath",
-  ]) {
-    const value = toolArgs[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
+  const protocolPath = extractArtifactProtocolPathsFromValue(toolArgs)[0];
+  if (protocolPath) {
+    return protocolPath;
   }
 
   return extractPatchPath(extractPatchText(toolArgs));
@@ -267,7 +260,7 @@ export function handleToolStartEvent({
 }: BaseProcessorContext &
   ArtifactWriteOptions &
   ToolTrackingContext & {
-    data: StreamEventToolStart;
+    data: AgentEventToolStart;
     setPendingActions: Dispatch<SetStateAction<ActionRequired[]>>;
   }) {
   const startedAt = Date.now();
@@ -423,7 +416,7 @@ export function handleToolEndEvent({
 }: BaseProcessorContext &
   ArtifactWriteOptions &
   ToolTrackingContext & {
-    data: StreamEventToolEnd;
+    data: AgentEventToolEnd;
   }) {
   const normalizedResult = normalizeIncomingToolResult(data.result) || data.result;
   const isSuccess = isToolResultSuccessful(normalizedResult);
@@ -500,7 +493,7 @@ export function handleToolEndEvent({
     }),
   );
 
-  const artifactPaths = extractArtifactPathsFromMetadata(
+  const artifactPaths = extractArtifactProtocolPaths(
     normalizedResult.metadata,
   );
   if (artifactPaths.length === 0) {
@@ -555,7 +548,7 @@ export function handleArtifactSnapshotEvent({
   assistantMsgId,
 }: BaseProcessorContext &
   ArtifactWriteOptions & {
-    data: StreamEventArtifactSnapshot;
+    data: AgentEventArtifactSnapshot;
   }) {
   const artifactPath = data.artifact.filePath;
   if (!artifactPath) {
@@ -616,7 +609,7 @@ export function handleActionRequiredEvent({
   activeSessionId,
   resolvedWorkspaceId,
 }: BaseProcessorContext & {
-  data: StreamEventActionRequired;
+  data: AgentEventActionRequired;
   actionLoggedKeys: Set<string>;
   effectiveExecutionStrategy: AsterExecutionStrategy;
   runtime: AgentRuntimeAdapter;
@@ -704,7 +697,7 @@ export function handleContextTraceEvent({
   setMessages,
   assistantMsgId,
 }: BaseProcessorContext & {
-  data: StreamEventContextTrace;
+  data: AgentEventContextTrace;
 }) {
   if (!Array.isArray(data.steps) || data.steps.length === 0) {
     return;

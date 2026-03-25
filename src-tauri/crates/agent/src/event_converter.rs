@@ -12,10 +12,16 @@ use lime_core::database::dao::agent_timeline::{
     AgentThreadItem, AgentThreadItemPayload, AgentThreadTurn,
 };
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 
+pub use crate::protocol::{
+    AgentActionRequiredScope as TauriActionRequiredScope,
+    AgentArtifactSignal as TauriArtifactSnapshot, AgentContextTraceStep as TauriContextTraceStep,
+    AgentEvent as TauriAgentEvent, AgentMessage as TauriMessage,
+    AgentMessageContent as TauriMessageContent, AgentRuntimeStatus as TauriRuntimeStatus,
+    AgentTokenUsage as TauriTokenUsage, AgentToolImage as TauriToolImage,
+    AgentToolResult as TauriToolResult,
+};
 use crate::tool_io_offload::{maybe_offload_tool_arguments, maybe_offload_tool_result_payload};
-use crate::QueuedTurnSnapshot;
 
 const JSON_RECURSION_LIMIT: usize = 50;
 const JSON_TRAVERSAL_NODE_LIMIT: usize = 4_096;
@@ -524,303 +530,34 @@ fn extract_tool_result_metadata<T: serde::Serialize>(
         .and_then(|value| find_metadata(&value, 0))
 }
 
-/// Tauri Agent 事件
-///
-/// 用于前端消费的事件格式，与现有的 StreamEvent 兼容
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum TauriAgentEvent {
-    /// 线程开始
-    #[serde(rename = "thread_started")]
-    ThreadStarted { thread_id: String },
-
-    /// turn 开始
-    #[serde(rename = "turn_started")]
-    TurnStarted { turn: AgentThreadTurn },
-
-    /// item 开始
-    #[serde(rename = "item_started")]
-    ItemStarted { item: AgentThreadItem },
-
-    /// item 更新
-    #[serde(rename = "item_updated")]
-    ItemUpdated { item: AgentThreadItem },
-
-    /// item 完成
-    #[serde(rename = "item_completed")]
-    ItemCompleted { item: AgentThreadItem },
-
-    /// turn 完成
-    #[serde(rename = "turn_completed")]
-    TurnCompleted { turn: AgentThreadTurn },
-
-    /// turn 失败
-    #[serde(rename = "turn_failed")]
-    TurnFailed { turn: AgentThreadTurn },
-
-    /// 文本增量
-    #[serde(rename = "text_delta")]
-    TextDelta { text: String },
-
-    /// 思考内容增量
-    #[serde(rename = "thinking_delta")]
-    ThinkingDelta { text: String },
-
-    /// 工具调用开始
-    #[serde(rename = "tool_start")]
-    ToolStart {
-        tool_name: String,
-        tool_id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        arguments: Option<String>,
-    },
-
-    /// 工具调用结束
-    #[serde(rename = "tool_end")]
-    ToolEnd {
-        tool_id: String,
-        result: TauriToolResult,
-    },
-
-    /// 文件产物快照
-    #[serde(rename = "artifact_snapshot")]
-    ArtifactSnapshot { artifact: TauriArtifactSnapshot },
-
-    /// 需要用户操作（权限确认、用户输入等）
-    #[serde(rename = "action_required")]
-    ActionRequired {
-        request_id: String,
-        action_type: String,
-        data: serde_json::Value,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        scope: Option<TauriActionRequiredScope>,
-    },
-
-    /// 模型变更
-    #[serde(rename = "model_change")]
-    ModelChange { model: String, mode: String },
-
-    /// 上下文准备轨迹
-    #[serde(rename = "context_trace")]
-    ContextTrace { steps: Vec<TauriContextTraceStep> },
-
-    /// 上下文压缩开始
-    #[serde(rename = "context_compaction_started")]
-    ContextCompactionStarted {
-        item_id: String,
-        trigger: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        detail: Option<String>,
-    },
-
-    /// 上下文压缩完成
-    #[serde(rename = "context_compaction_completed")]
-    ContextCompactionCompleted {
-        item_id: String,
-        trigger: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        detail: Option<String>,
-    },
-
-    /// 当前回合运行态摘要
-    #[serde(rename = "runtime_status")]
-    RuntimeStatus { status: TauriRuntimeStatus },
-
-    /// 队列新增
-    #[serde(rename = "queue_added")]
-    QueueAdded {
-        session_id: String,
-        queued_turn: QueuedTurnSnapshot,
-    },
-
-    /// 队列项移除
-    #[serde(rename = "queue_removed")]
-    QueueRemoved {
-        session_id: String,
-        queued_turn_id: String,
-    },
-
-    /// 队列项开始执行
-    #[serde(rename = "queue_started")]
-    QueueStarted {
-        session_id: String,
-        queued_turn_id: String,
-    },
-
-    /// 队列被清空
-    #[serde(rename = "queue_cleared")]
-    QueueCleared {
-        session_id: String,
-        queued_turn_ids: Vec<String>,
-    },
-
-    /// 完成（单次响应完成）
-    #[serde(rename = "done")]
-    Done {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        usage: Option<TauriTokenUsage>,
-    },
-
-    /// 最终完成（整个对话完成）
-    #[serde(rename = "final_done")]
-    FinalDone {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        usage: Option<TauriTokenUsage>,
-    },
-
-    /// 错误
-    #[serde(rename = "error")]
-    Error { message: String },
-
-    /// 告警（不中断流程）
-    #[serde(rename = "warning")]
-    Warning {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        code: Option<String>,
-        message: String,
-    },
-
-    /// 完整消息（用于历史记录）
-    #[serde(rename = "message")]
-    Message { message: TauriMessage },
-}
-
-/// 工具执行结果
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriToolImage {
-    pub src: String,
-    #[serde(rename = "mimeType", skip_serializing_if = "Option::is_none")]
-    pub mime_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin: Option<String>,
-}
-
-/// 工具执行结果
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriToolResult {
-    pub success: bool,
-    pub output: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub images: Option<Vec<TauriToolImage>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
-}
-
-/// 文件产物快照
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TauriArtifactSnapshot {
-    pub artifact_id: String,
-    pub file_path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
-}
-
-/// Token 使用量
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriTokenUsage {
-    pub input_tokens: u32,
-    pub output_tokens: u32,
-}
-
-/// 上下文准备轨迹步骤
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriContextTraceStep {
-    pub stage: String,
-    pub detail: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriRuntimeStatus {
-    pub phase: String,
-    pub title: String,
-    pub detail: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub checkpoints: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
-}
-
-/// 简化的消息结构
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriMessage {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    pub role: String,
-    pub content: Vec<TauriMessageContent>,
-    pub timestamp: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TauriActionRequiredScope {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thread_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub turn_id: Option<String>,
-}
-
-/// 简化的消息内容
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum TauriMessageContent {
-    #[serde(rename = "text")]
-    Text { text: String },
-
-    #[serde(rename = "thinking")]
-    Thinking { text: String },
-
-    #[serde(rename = "tool_request")]
-    ToolRequest {
-        id: String,
-        tool_name: String,
-        arguments: serde_json::Value,
-    },
-
-    #[serde(rename = "tool_response")]
-    ToolResponse {
-        id: String,
-        success: bool,
-        output: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        error: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        images: Option<Vec<TauriToolImage>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
-    },
-
-    #[serde(rename = "action_required")]
-    ActionRequired {
-        id: String,
-        action_type: String,
-        data: serde_json::Value,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        scope: Option<TauriActionRequiredScope>,
-    },
-
-    #[serde(rename = "image")]
-    Image { mime_type: String, data: String },
-}
-
 /// 将 Aster AgentEvent 转换为 TauriAgentEvent 列表
 ///
 /// 一个 AgentEvent 可能产生多个 TauriAgentEvent
 pub fn convert_agent_event(event: AgentEvent) -> Vec<TauriAgentEvent> {
     match event {
         AgentEvent::TurnStarted { turn } => {
+            let turn_context_event =
+                if turn.context_override.is_some() || turn.output_schema_runtime.is_some() {
+                    Some(TauriAgentEvent::TurnContext {
+                        session_id: turn.session_id.clone(),
+                        thread_id: turn.thread_id.clone(),
+                        turn_id: turn.id.clone(),
+                        output_schema_runtime: turn.output_schema_runtime.clone(),
+                    })
+                } else {
+                    None
+                };
             let thread_id = turn.thread_id.clone();
-            vec![
+            let mut events = vec![
                 TauriAgentEvent::ThreadStarted { thread_id },
                 TauriAgentEvent::TurnStarted {
                     turn: convert_turn_runtime(turn),
                 },
-            ]
+            ];
+            if let Some(turn_context_event) = turn_context_event {
+                events.push(turn_context_event);
+            }
+            events
         }
         AgentEvent::ItemStarted { item } => vec![TauriAgentEvent::ItemStarted {
             item: convert_item_runtime(item),
@@ -1563,6 +1300,48 @@ mod tests {
                 assert_eq!(turn.prompt_text, "帮我总结");
             }
             _ => panic!("Expected TurnStarted event"),
+        }
+    }
+
+    #[test]
+    fn test_convert_turn_started_with_output_schema_runtime_emits_turn_context() {
+        let turn = TurnRuntime::new(
+            "turn-2",
+            "session-2",
+            "thread-2",
+            Some("输出结构化结果".to_string()),
+            Some(aster::session::TurnContextOverride {
+                model: Some("gpt-5.4".to_string()),
+                ..aster::session::TurnContextOverride::default()
+            }),
+        )
+        .with_output_schema_runtime(Some(aster::session::TurnOutputSchemaRuntime {
+            source: aster::session::TurnOutputSchemaSource::Turn,
+            strategy: aster::session::TurnOutputSchemaStrategy::Native,
+            provider_name: Some("openai".to_string()),
+            model_name: Some("gpt-5.4".to_string()),
+        }));
+
+        let events = convert_agent_event(AgentEvent::TurnStarted { turn });
+
+        assert_eq!(events.len(), 3);
+        match &events[2] {
+            TauriAgentEvent::TurnContext {
+                session_id,
+                thread_id,
+                turn_id,
+                output_schema_runtime,
+            } => {
+                assert_eq!(session_id, "session-2");
+                assert_eq!(thread_id, "thread-2");
+                assert_eq!(turn_id, "turn-2");
+                let runtime = output_schema_runtime
+                    .as_ref()
+                    .expect("expected output schema runtime");
+                assert_eq!(runtime.provider_name.as_deref(), Some("openai"));
+                assert_eq!(runtime.model_name.as_deref(), Some("gpt-5.4"));
+            }
+            other => panic!("Expected TurnContext event, got {other:?}"),
         }
     }
 

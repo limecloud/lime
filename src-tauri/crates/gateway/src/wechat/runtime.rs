@@ -7,8 +7,7 @@ use super::types::{
     TypingStatus, WechatMessage, DEFAULT_BASE_URL, DEFAULT_CDN_BASE_URL, SESSION_EXPIRED_ERRCODE,
 };
 use chrono::Utc;
-use lime_agent::event_converter::TauriActionRequiredScope;
-use lime_agent::AsterAgentState;
+use lime_agent::{AgentActionRequiredScope, AsterAgentState};
 use lime_core::config::{
     Config, ConfigManager, WechatAccountConfig, WechatBotConfig, WechatGroupConfig,
 };
@@ -144,7 +143,7 @@ struct PendingWechatAction {
     action_type: PendingWechatActionType,
     prompt: String,
     options: Vec<String>,
-    scope: Option<TauriActionRequiredScope>,
+    scope: Option<AgentActionRequiredScope>,
 }
 
 enum WechatAgentOutcome {

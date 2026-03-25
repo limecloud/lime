@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getAgentRuntimeSession } from "@/lib/api/agentRuntime";
-import type { AgentThreadItem } from "@/lib/api/agentStream";
+import type { AgentThreadItem } from "@/lib/api/agentProtocol";
 import type {
   AsterSessionDetail,
   AsterSubagentSkillInfo,
@@ -118,7 +118,7 @@ interface TeamWorkspaceBoardProps {
   selectedTeamLabel?: string | null;
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
 }
 
 interface TeamSessionCard {
@@ -380,9 +380,22 @@ function extractMessageActivityEntries(
     }
 
     for (const content of message.content) {
-      const title = content.error ? "错误" : content.output ? "输出" : "回复";
+      const title =
+        content.type === "tool_response"
+          ? content.error
+            ? "错误"
+            : content.output
+              ? "输出"
+              : "回复"
+          : "回复";
+      const previewSource =
+        content.type === "tool_response"
+          ? content.error || content.output
+          : content.type === "text" || content.type === "thinking"
+            ? content.text
+            : undefined;
       const detailText = normalizeActivityPreviewText(
-        content.error || content.output || content.text,
+        previewSource,
         ACTIVITY_TIMELINE_DETAIL_MAX_LENGTH,
       );
 
@@ -787,16 +800,16 @@ function resolveSessionBlueprintRoleId(
 
 function orderSessionsByRuntimeRoles(
   sessions: TeamSessionCard[],
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null,
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null,
 ): TeamSessionCard[] {
-  if (sessions.length <= 1 || !runtimeTeamState) {
+  if (sessions.length <= 1 || !teamDispatchPreviewState) {
     return sessions;
   }
 
   const runtimeRoles = (
-    runtimeTeamState.members.length > 0
-      ? runtimeTeamState.members
-      : runtimeTeamState.blueprint?.roles ?? []
+    teamDispatchPreviewState.members.length > 0
+      ? teamDispatchPreviewState.members
+      : teamDispatchPreviewState.blueprint?.roles ?? []
   ).map((role) => ({
     id: role.id,
     label: role.label,
@@ -902,9 +915,9 @@ function buildFallbackSummary(params: {
 }
 
 function buildRuntimeFormationHint(
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null,
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null,
 ) {
-  switch (runtimeTeamState?.status) {
+  switch (teamDispatchPreviewState?.status) {
     case "forming":
       return "系统正在准备当前任务的协作分工，成员接入后会自动开始处理。";
     case "formed":
@@ -917,16 +930,16 @@ function buildRuntimeFormationHint(
 }
 
 function buildRuntimeFormationEmptyDetail(
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null,
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null,
 ) {
-  switch (runtimeTeamState?.status) {
+  switch (teamDispatchPreviewState?.status) {
     case "forming":
       return "系统正在根据当前任务准备协作分工。完成后，这里会先展示当前成员卡片，再接入真实处理进展。";
     case "formed":
       return "当前协作方案已经准备好。画布会先展示当前分工，等成员真正开始处理后，再自动切换为实时进展。";
     case "failed":
       return (
-        runtimeTeamState.errorMessage?.trim() ||
+        teamDispatchPreviewState.errorMessage?.trim() ||
         "当前协作准备失败，暂时无法展示当前成员。"
       );
     default:
@@ -1063,26 +1076,31 @@ function buildCanvasStageHint(params: {
   hasRealTeamGraph: boolean;
   hasRuntimeFormation: boolean;
   hasSelectedTeamPlan: boolean;
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
 }) {
-  const { hasRealTeamGraph, hasRuntimeFormation, hasSelectedTeamPlan, runtimeTeamState } =
+  const {
+    hasRealTeamGraph,
+    hasRuntimeFormation,
+    hasSelectedTeamPlan,
+    teamDispatchPreviewState,
+  } =
     params;
 
   if (hasRealTeamGraph) {
     return "拖动画布空白处可平移，滚轮配合 Ctrl/Cmd 可缩放，拖动成员卡片可调整布局。";
   }
 
-  if (runtimeTeamState?.status === "forming") {
+  if (teamDispatchPreviewState?.status === "forming") {
     return "当前协作分工正在准备中，成员加入后会接手这些位置。";
   }
 
-  if (runtimeTeamState?.status === "formed") {
+  if (teamDispatchPreviewState?.status === "formed") {
     return "当前协作分工已经准备好，成员加入后会自动接手这些位置。";
   }
 
-  if (runtimeTeamState?.status === "failed") {
+  if (teamDispatchPreviewState?.status === "failed") {
     return (
-      runtimeTeamState.errorMessage?.trim() ||
+      teamDispatchPreviewState.errorMessage?.trim() ||
       "当前协作准备失败，暂时无法生成成员画布。"
     );
   }
@@ -1374,8 +1392,9 @@ export function TeamWorkspaceBoard({
   selectedTeamLabel = null,
   selectedTeamSummary = null,
   selectedTeamRoles = [],
-  runtimeTeamState = null,
+  teamDispatchPreviewState = null,
 }: TeamWorkspaceBoardProps) {
+  const runtimeTeamState = teamDispatchPreviewState;
   const isChildSession = Boolean(subagentParentContext);
   const canvasStorageScopeId =
     currentSessionId?.trim() ||
@@ -1822,9 +1841,14 @@ export function TeamWorkspaceBoard({
         isChildSession
           ? dedupeSessions([currentChildSession, ...visibleSessions])
           : visibleSessions,
-        runtimeTeamState,
+        teamDispatchPreviewState,
       ),
-    [currentChildSession, isChildSession, runtimeTeamState, visibleSessions],
+    [
+      currentChildSession,
+      isChildSession,
+      teamDispatchPreviewState,
+      visibleSessions,
+    ],
   );
   const railSessions = useMemo(
     () =>
@@ -2906,9 +2930,14 @@ export function TeamWorkspaceBoard({
         hasRealTeamGraph,
         hasRuntimeFormation,
         hasSelectedTeamPlan,
-        runtimeTeamState,
+        teamDispatchPreviewState,
       }),
-    [hasRealTeamGraph, hasRuntimeFormation, hasSelectedTeamPlan, runtimeTeamState],
+    [
+      hasRealTeamGraph,
+      hasRuntimeFormation,
+      hasSelectedTeamPlan,
+      teamDispatchPreviewState,
+    ],
   );
 
   const statusSummary = useMemo(() => {

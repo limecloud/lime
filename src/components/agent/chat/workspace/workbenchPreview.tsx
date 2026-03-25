@@ -14,7 +14,11 @@ import type { Artifact } from "@/lib/artifact/types";
 import type { CanvasWorkbenchDefaultPreview } from "../components/CanvasWorkbenchLayout";
 import { ImageWorkbenchCanvas } from "../components/ImageWorkbenchCanvas";
 import { TeamWorkspaceBoard } from "../components/TeamWorkspaceBoard";
+import { ArtifactWorkbenchShell } from "./ArtifactWorkbenchShell";
 import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
+import { resolveArtifactProtocolDocumentPayload } from "@/lib/artifact-protocol";
+import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
+import type { AgentThreadItem } from "../types";
 
 interface ArtifactWorkbenchPreviewProps {
   artifact: Artifact;
@@ -30,6 +34,14 @@ interface ArtifactWorkbenchPreviewProps {
   onArtifactPreviewSizeChange: NonNullable<
     ComponentProps<typeof ArtifactToolbar>["onPreviewSizeChange"]
   >;
+  onSaveArtifactDocument?: (
+    artifact: Artifact,
+    document: ArtifactDocumentV1,
+  ) => Promise<void> | void;
+  threadItems?: AgentThreadItem[];
+  focusedBlockId?: string | null;
+  blockFocusRequestKey?: number;
+  onJumpToTimelineItem?: (itemId: string) => void;
   onCloseCanvas: () => void;
   stackedWorkbenchTrigger?: ReactNode;
 }
@@ -44,6 +56,11 @@ export function ArtifactWorkbenchPreview({
   onArtifactViewModeChange,
   artifactPreviewSize,
   onArtifactPreviewSizeChange,
+  onSaveArtifactDocument,
+  threadItems,
+  focusedBlockId,
+  blockFocusRequestKey,
+  onJumpToTimelineItem,
   onCloseCanvas,
   stackedWorkbenchTrigger,
 }: ArtifactWorkbenchPreviewProps) {
@@ -67,6 +84,10 @@ export function ArtifactWorkbenchPreview({
       currentCanvasArtifact.id === previewArtifact.id &&
       currentCanvasArtifact.status === "streaming",
   );
+  const artifactDocument = resolveArtifactProtocolDocumentPayload({
+    content: previewArtifact.content,
+    metadata: previewArtifact.meta,
+  });
 
   if (isBrowserAssistArtifact) {
     return wrapPreviewWithWorkbenchTrigger(
@@ -84,6 +105,28 @@ export function ArtifactWorkbenchPreview({
         ) : null}
       </div>,
       stackedWorkbenchTrigger,
+    );
+  }
+
+  if (artifactDocument) {
+    return (
+      <ArtifactWorkbenchShell
+        artifact={previewArtifact}
+        artifactOverlay={isLiveSelectedArtifact ? artifactOverlay : null}
+        isStreaming={isArtifactStreaming}
+        showPreviousVersionBadge={isLiveSelectedArtifact && showPreviousVersionBadge}
+        viewMode={artifactViewMode}
+        onViewModeChange={onArtifactViewModeChange}
+        previewSize={artifactPreviewSize}
+        onPreviewSizeChange={onArtifactPreviewSizeChange}
+        onSaveArtifactDocument={onSaveArtifactDocument}
+        threadItems={threadItems}
+        focusedBlockId={focusedBlockId}
+        blockFocusRequestKey={blockFocusRequestKey}
+        onJumpToTimelineItem={onJumpToTimelineItem}
+        onCloseCanvas={onCloseCanvas}
+        actionsSlot={stackedWorkbenchTrigger}
+      />
     );
   }
 

@@ -32,7 +32,7 @@ interface TeamWorkbenchSummaryPanelProps {
   selectedTeamLabel?: string | null;
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
-  runtimeTeamState?: TeamWorkspaceRuntimeFormationState | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
 }
 
 function buildOperationSummary(params: {
@@ -75,8 +75,9 @@ export function TeamWorkbenchSummaryPanel({
   selectedTeamLabel,
   selectedTeamSummary,
   selectedTeamRoles = [],
-  runtimeTeamState = null,
+  teamDispatchPreviewState = null,
 }: TeamWorkbenchSummaryPanelProps) {
+  const runtimeTeamState = teamDispatchPreviewState;
   const executionSummary = summarizeTeamWorkspaceExecution({
     currentSessionId,
     currentSessionRuntimeStatus,

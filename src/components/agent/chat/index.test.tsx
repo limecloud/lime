@@ -13,7 +13,6 @@ const {
   mockUseTopicBranchBoard,
   mockUseTeamWorkspaceRuntime,
   mockUseCompatSubagentRuntime,
-  mockGenerateEphemeralTeamWithModel,
   mockGetProject,
   mockGetDefaultProject,
   mockGetOrCreateDefaultProject,
@@ -58,7 +57,6 @@ const {
   mockUseTopicBranchBoard: vi.fn(),
   mockUseTeamWorkspaceRuntime: vi.fn(),
   mockUseCompatSubagentRuntime: vi.fn(),
-  mockGenerateEphemeralTeamWithModel: vi.fn(),
   mockGetProject: vi.fn(),
   mockGetDefaultProject: vi.fn(),
   mockGetOrCreateDefaultProject: vi.fn(),
@@ -171,10 +169,6 @@ vi.mock("./hooks", () => ({
   useTopicBranchBoard: mockUseTopicBranchBoard,
   useTeamWorkspaceRuntime: mockUseTeamWorkspaceRuntime,
   useCompatSubagentRuntime: mockUseCompatSubagentRuntime,
-}));
-
-vi.mock("./utils/teamAutoGeneration", () => ({
-  generateEphemeralTeamWithModel: mockGenerateEphemeralTeamWithModel,
 }));
 
 vi.mock("./hooks/useSessionFiles", () => ({
@@ -429,14 +423,14 @@ vi.mock("./components/TeamWorkspaceDock", () => ({
     withBottomOverlay,
     shellVisible,
     childSubagentSessions,
-    runtimeTeamState,
+    teamDispatchPreviewState,
     onActivateWorkbench,
   }: {
     placement?: "floating" | "inline";
     withBottomOverlay?: boolean;
     shellVisible?: boolean;
     childSubagentSessions?: Array<{ id: string }>;
-    runtimeTeamState?: {
+    teamDispatchPreviewState?: {
       status?: string;
       members?: Array<{ id: string }>;
     } | null;
@@ -448,8 +442,8 @@ vi.mock("./components/TeamWorkspaceDock", () => ({
       data-with-bottom-overlay={withBottomOverlay ? "true" : "false"}
       data-shell-visible={shellVisible ? "true" : "false"}
       data-child-count={String(childSubagentSessions?.length ?? 0)}
-      data-runtime-status={runtimeTeamState?.status || ""}
-      data-runtime-member-count={String(runtimeTeamState?.members?.length ?? 0)}
+      data-runtime-status={teamDispatchPreviewState?.status || ""}
+      data-runtime-member-count={String(teamDispatchPreviewState?.members?.length ?? 0)}
     >
       {onActivateWorkbench ? (
         <button
@@ -635,10 +629,17 @@ vi.mock("@/lib/api/skills", () => ({
   },
 }));
 
-vi.mock("@/lib/webview-api", () => ({
-  launchBrowserSession: mockLaunchBrowserSession,
-  browserExecuteAction: mockBrowserExecuteAction,
-}));
+vi.mock("@/lib/webview-api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/webview-api")>(
+    "@/lib/webview-api",
+  );
+
+  return {
+    ...actual,
+    launchBrowserSession: mockLaunchBrowserSession,
+    browserExecuteAction: mockBrowserExecuteAction,
+  };
+});
 
 vi.mock("@/lib/api/agentRuntime", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
@@ -821,6 +822,26 @@ async function flushEffects(times = 6) {
     });
     act(() => {});
   }
+}
+
+function getSendMessageCall(callIndex = 0) {
+  const call = sharedSendMessageMock.mock.calls[callIndex];
+  if (!call) {
+    throw new Error(`未找到第 ${callIndex + 1} 次 sendMessage 调用`);
+  }
+
+  return {
+    raw: call,
+    content: call[0],
+    images: call[1],
+    webSearch: call[2],
+    thinking: call[3],
+    skipUserMessage: call[4],
+    executionStrategy: call[5],
+    modelOverride: call[6],
+    autoContinue: call[7],
+    options: call[8],
+  };
 }
 
 function clickButton(container: HTMLElement, testId: string) {
@@ -1741,29 +1762,13 @@ describe("AgentChatPage 通用工作台", () => {
     ).not.toBeNull();
   });
 
-  it("Team 组建中先展示本地调度预览，编队完成后应携带 team_prepared metadata 再发送", async () => {
-    let resolveGeneratedTeam:
-      | ((value: {
-          id: string;
-          source: "ephemeral";
-          label: string;
-          description: string;
-          roles: Array<{
-            id: string;
-            label: string;
-            summary: string;
-            profileId: string;
-            roleKey: string;
-            skillIds: string[];
-          }>;
-        }) => void)
-      | null = null;
-
-    mockGenerateEphemeralTeamWithModel.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveGeneratedTeam = resolve;
-        }),
+  it("发送时不再先调用本地 Team 规划模型，而是直接发送并透传已选 Team 约束", async () => {
+    localStorage.setItem(
+      "lime.chat.team_selection.v1.general",
+      JSON.stringify({
+        id: "code-triage-team",
+        source: "builtin",
+      }),
     );
 
     const mounted = mountPage({
@@ -1800,128 +1805,38 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(8);
 
-    expect(mockGenerateEphemeralTeamWithModel).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: "project-team-runtime",
-        providerType: "kiro",
-        model: "mock-model",
-        input: "请帮我拆解并推进这个修复任务",
-      }),
-    );
-    expect(sharedSendMessageMock).not.toHaveBeenCalled();
-    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
-      | {
-          messages?: Array<{
-            role: string;
-            content: string;
-            runtimeStatus?: { title?: string };
-          }>;
-        }
-      | undefined;
-
-    expect(
-      mounted.container
-        .querySelector('[data-testid="layout-transition"]')
-        ?.getAttribute("data-mode"),
-    ).toBe("chat");
-    expect(
-      latestMessageListProps?.messages?.map((message) => ({
-        role: message.role,
-        content: message.content,
-        runtimeTitle: message.runtimeStatus?.title || null,
-      })),
-    ).toEqual([
-      {
-        role: "user",
-        content: "请帮我拆解并推进这个修复任务",
-        runtimeTitle: null,
-      },
-      {
-        role: "assistant",
-        content: "我会先安排协作分工，再把关键进展和结果汇总给你。",
-        runtimeTitle: "正在组建 Team",
-      },
-    ]);
-    const runtimeDock = mounted.container.querySelector(
-      '[data-testid="team-workspace-dock"]',
-    );
-    expect(runtimeDock).not.toBeNull();
-    expect(runtimeDock?.getAttribute("data-runtime-status")).toBe("forming");
-    expect(
-      (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                triggerState?: { label?: string | null };
-              } | null;
-            }
-          | undefined
-      )?.teamView?.triggerState?.label,
-    ).toBe("组建中");
-
-    act(() => {
-      resolveGeneratedTeam?.({
-        id: "ephemeral-team",
-        source: "ephemeral",
-        label: "修复 Team",
-        description: "分析、执行、验证协作闭环。",
-        roles: [
-          {
-            id: "explorer",
-            label: "分析",
-            summary: "负责定位问题边界。",
-            profileId: "code-explorer",
-            roleKey: "explorer",
-            skillIds: ["repo-exploration"],
-          },
-          {
-            id: "executor",
-            label: "执行",
-            summary: "负责落地修复方案。",
-            profileId: "code-executor",
-            roleKey: "executor",
-            skillIds: ["bounded-implementation"],
-          },
-        ],
-      });
-    });
-    await flushEffects(10);
-
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      "请帮我拆解并推进这个修复任务",
-      [],
-      false,
-      false,
-      false,
-      "auto",
-      "mock-model",
-      undefined,
-      expect.objectContaining({
-        assistantDraft: expect.objectContaining({
-          content: expect.stringContaining("修复 Team"),
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe("请帮我拆解并推进这个修复任务");
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBe("auto");
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    const sendOptions = sendCall.options;
+    expect(sendOptions?.requestMetadata?.harness).toMatchObject({
+      preferred_team_preset_id: "code-triage-team",
+      selected_team_id: "code-triage-team",
+      selected_team_source: "builtin",
+      selected_team_label: "代码排障团队",
+      selected_team_roles: expect.arrayContaining([
+        expect.objectContaining({
+          id: "explorer",
+          label: "分析",
+          profile_id: "code-explorer",
         }),
-        requestMetadata: expect.objectContaining({
-          harness: expect.objectContaining({
-            turn_team_decision: "team_prepared",
-            turn_team_reason: "runtime_team_prepared",
-            turn_team_blueprint: expect.objectContaining({
-              label: "修复 Team",
-              roles: expect.arrayContaining([
-                expect.objectContaining({
-                  id: "explorer",
-                  label: "分析",
-                }),
-                expect.objectContaining({
-                  id: "executor",
-                  label: "执行",
-                }),
-              ]),
-            }),
-          }),
+        expect.objectContaining({
+          id: "executor",
+          label: "执行",
+          profile_id: "code-executor",
         }),
-      }),
-    );
+      ]),
+    });
+    expect(sendOptions?.requestMetadata?.harness?.turn_team_decision).toBeUndefined();
+    expect(sendOptions?.requestMetadata?.harness?.turn_team_blueprint).toBeUndefined();
+    expect(sendOptions?.assistantDraft).toBeUndefined();
 
     expect(
       mounted.container
@@ -1931,58 +1846,14 @@ describe("AgentChatPage 通用工作台", () => {
     const formedRuntimeDock = mounted.container.querySelector(
       '[data-testid="team-workspace-dock"]',
     );
-    expect(formedRuntimeDock).not.toBeNull();
-    expect(formedRuntimeDock?.getAttribute("data-runtime-status")).toBe(
-      "formed",
-    );
-    expect(formedRuntimeDock?.getAttribute("data-runtime-member-count")).toBe(
-      "2",
-    );
-    expect(
-      (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                triggerState?: { label?: string | null };
-              } | null;
-            }
-          | undefined
-      )?.teamView?.triggerState?.label,
-    ).toBe("已就绪");
-    const updatedMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
-      | {
-          messages?: Array<{
-            role: string;
-            content: string;
-            runtimeStatus?: { title?: string };
-          }>;
-        }
-      | undefined;
-    expect(updatedMessageListProps?.messages?.at(-1)?.content).toContain(
-      "我已经为这项任务准备了「修复 Team」。",
-    );
-    expect(updatedMessageListProps?.messages?.at(-1)?.content).toContain(
-      "1. 分析：负责定位问题边界。",
-    );
+    if (formedRuntimeDock) {
+      expect(formedRuntimeDock.getAttribute("data-runtime-status")).not.toBe(
+        "forming",
+      );
+    }
   });
 
   it("用户手动关闭真实 Team 画布后，同一轮后续成员更新不应再次抢焦点", async () => {
-    let resolveGeneratedTeam:
-      | ((value: {
-          id: string;
-          source: "ephemeral";
-          label: string;
-          description: string;
-          roles: Array<{
-            id: string;
-            label: string;
-            summary: string;
-            profileId: string;
-            roleKey: string;
-            skillIds: string[];
-          }>;
-        }) => void)
-      | null = null;
     const runtimeState = {
       childSubagentSessions: [] as Array<{
         id: string;
@@ -1996,11 +1867,12 @@ describe("AgentChatPage 通用工作台", () => {
       }>,
     };
 
-    mockGenerateEphemeralTeamWithModel.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveGeneratedTeam = resolve;
-        }),
+    localStorage.setItem(
+      "lime.chat.team_selection.v1.general",
+      JSON.stringify({
+        id: "code-triage-team",
+        source: "builtin",
+      }),
     );
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
@@ -2089,34 +1961,6 @@ describe("AgentChatPage 通用工作台", () => {
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
     ).toBe("chat");
-
-    act(() => {
-      resolveGeneratedTeam?.({
-        id: "ephemeral-team-manual",
-        source: "ephemeral",
-        label: "修复 Team",
-        description: "分析、执行、验证协作闭环。",
-        roles: [
-          {
-            id: "explorer",
-            label: "分析",
-            summary: "负责定位问题边界。",
-            profileId: "code-explorer",
-            roleKey: "explorer",
-            skillIds: ["repo-exploration"],
-          },
-          {
-            id: "executor",
-            label: "执行",
-            summary: "负责落地修复方案。",
-            profileId: "code-executor",
-            roleKey: "executor",
-            skillIds: ["bounded-implementation"],
-          },
-        ],
-      });
-    });
-    await flushEffects(8);
 
     expect(
       mounted.container
@@ -2317,28 +2161,12 @@ describe("AgentChatPage 通用工作台", () => {
   });
 
   it("仅有 runtime Team 方案时，顶部展开与协作按钮都应能手动打开 Team 画布", async () => {
-    let resolveGeneratedTeam:
-      | ((value: {
-          id: string;
-          source: "ephemeral";
-          label: string;
-          description: string;
-          roles: Array<{
-            id: string;
-            label: string;
-            summary: string;
-            profileId: string;
-            roleKey: string;
-            skillIds: string[];
-          }>;
-        }) => void)
-      | null = null;
-
-    mockGenerateEphemeralTeamWithModel.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveGeneratedTeam = resolve;
-        }),
+    localStorage.setItem(
+      "lime.chat.team_selection.v1.general",
+      JSON.stringify({
+        id: "code-triage-team",
+        source: "builtin",
+      }),
     );
 
     const mounted = mountPage({
@@ -2375,26 +2203,6 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(8);
 
-    act(() => {
-      resolveGeneratedTeam?.({
-        id: "ephemeral-team-manual-open",
-        source: "ephemeral",
-        label: "修复 Team",
-        description: "分析、执行、验证协作闭环。",
-        roles: [
-          {
-            id: "explorer",
-            label: "分析",
-            summary: "负责定位问题边界。",
-            profileId: "code-explorer",
-            roleKey: "explorer",
-            skillIds: ["repo-exploration"],
-          },
-        ],
-      });
-    });
-    await flushEffects(8);
-
     expect(
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
@@ -2420,7 +2228,7 @@ describe("AgentChatPage 通用工作台", () => {
             }
           | undefined
       )?.teamView?.title,
-    ).toBe("修复 Team");
+    ).toBe("代码排障团队");
     expect(
       typeof (
         mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
@@ -2462,7 +2270,7 @@ describe("AgentChatPage 通用工作台", () => {
             }
           | undefined
       )?.teamView?.title,
-    ).toBe("修复 Team");
+    ).toBe("代码排障团队");
   });
 
   it("已安装 skills 但未显式激活时，通用工作台不应展示技能区块", async () => {
@@ -2907,15 +2715,17 @@ describe("AgentChatPage 通用工作台", () => {
       },
       timeout_ms: 20000,
     });
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      prompt,
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      "mock-model",
-      undefined,
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(prompt);
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
@@ -3068,15 +2878,17 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      prompt,
-      [],
-      false,
-      false,
-      false,
-      "auto",
-      "mock-model",
-      undefined,
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(prompt);
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBe("auto");
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         browserPreflightConfirmed: true,
         requestMetadata: expect.objectContaining({
@@ -3275,15 +3087,17 @@ describe("AgentChatPage 自动引导", () => {
     clickButton(container, "theme-workbench-entry-continue");
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      `/social_post_with_cover ${initialUserPrompt}`,
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      "mock-model",
-      undefined,
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(`/social_post_with_cover ${initialUserPrompt}`);
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
@@ -3321,15 +3135,19 @@ describe("AgentChatPage 自动引导", () => {
     clickButton(contextContainer, "theme-workbench-entry-continue");
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(
       `/social_post_with_cover [生效上下文]\n1. [素材] 品牌手册\n\n${initialUserPrompt}`,
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      "mock-model",
-      undefined,
+    );
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
@@ -3399,18 +3217,24 @@ describe("AgentChatPage 自动引导", () => {
     const selectedModelContainer = mountedRoots.at(-1)
       ?.container as HTMLDivElement;
     expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    const latestSelectedModelProps = mockInputbar.mock.calls.at(-1)?.[0] as
+      | { model?: string }
+      | undefined;
+    expect(latestSelectedModelProps?.model).toBe(selectedModel);
     clickButton(selectedModelContainer, "theme-workbench-entry-continue");
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      `/social_post_with_cover ${initialUserPrompt}`,
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      selectedModel,
-      undefined,
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(`/social_post_with_cover ${initialUserPrompt}`);
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
@@ -3480,15 +3304,19 @@ describe("AgentChatPage 自动引导", () => {
     clickButton(container, "theme-workbench-entry-continue");
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(
       "/social_post_with_cover 请基于当前文稿与已有上下文，继续推进上次未完成的任务。优先继续“撰写主稿”阶段，不要从头重复已经完成的内容。先简要确认当前进度，再继续执行。",
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      expect.any(String),
-      undefined,
+    );
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
@@ -3742,15 +3570,19 @@ describe("AgentChatPage 自动引导", () => {
     clickButton(mounted.container, "theme-workbench-entry-continue");
     await flushEffects(10);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(
       "/social_post_with_cover 请基于当前上下文直接开始生成首版社媒主稿。",
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      expect.any(String),
-      undefined,
+    );
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
@@ -3786,33 +3618,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(latestInputbarProps?.input || "").toBe("");
   });
 
-  it("附图发送时若当前模型不支持多模态应提示并阻止发送", async () => {
-    vi.spyOn(providerModelsModule, "loadProviderModels").mockResolvedValueOnce([
-      buildMockProviderModel({
-        capabilities: {
-          vision: false,
-          tools: true,
-          streaming: true,
-          json_mode: true,
-          function_calling: true,
-          reasoning: false,
-        },
-      }),
-      buildMockProviderModel({
-        id: "mock-model-vision",
-        display_name: "Mock Model Vision",
-        capabilities: {
-          vision: true,
-          tools: true,
-          streaming: true,
-          json_mode: true,
-          function_calling: true,
-          reasoning: false,
-        },
-        release_date: "2026-03-20",
-      }),
-    ]);
-
+  it("附图发送时应透传图片，由 Inputbar 独立负责多模态模型提醒", async () => {
     renderPage({
       projectId: "project-image-vision-block",
       theme: "general",
@@ -3832,20 +3638,23 @@ describe("AgentChatPage 自动引导", () => {
         }
       | undefined;
 
-    await act(async () => {
-      await latestInputbarProps?.onSend?.(
-        [{ data: "aGVsbG8=", mediaType: "image/png" }],
-        false,
-        false,
-        "请看图",
-        "auto",
-      );
+    const images = [{ data: "aGVsbG8=", mediaType: "image/png" }];
+    act(() => {
+      void latestInputbarProps?.onSend?.(images, false, false, "请看图", "auto");
     });
+    await flushEffects(8);
 
-    expect(sharedSendMessageMock).not.toHaveBeenCalled();
-    expect(mockToast.error).toHaveBeenCalledWith(
-      "当前模型 mock-model 不支持多模态图片理解，请切换到 mock-model-vision 或其他支持多模态的模型后再发送图片",
-    );
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe("请看图");
+    expect(sendCall.images).toEqual(images);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBe("auto");
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(mockToast.error).not.toHaveBeenCalled();
   });
 
   it("主题工作台空闲时应把 success 终态版本标记为 merged", async () => {
@@ -5251,15 +5060,17 @@ describe("AgentChatPage 小说主题工作台", () => {
     clickButton(container, "theme-workbench-entry-continue");
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      initialUserPrompt,
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      "mock-model",
-      undefined,
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(initialUserPrompt);
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.executionStrategy).toBeUndefined();
+    expect(sendCall.modelOverride).toBeUndefined();
+    expect(sendCall.autoContinue).toBeUndefined();
+    expect(sendCall.options).toEqual(
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({

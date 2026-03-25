@@ -24,10 +24,9 @@ pub use credential_bridge::{
     create_aster_provider, AsterProviderConfig, CredentialBridge, CredentialBridgeError,
 };
 pub use lime_agent::{
-    convert_agent_event, convert_to_tauri_message, initialize_aster_runtime,
-    ChildSubagentRuntimeStatus, ChildSubagentSession, QueuedTurnSnapshot, QueuedTurnTask,
-    SubagentControlState, SubagentParentContext, SubagentRuntimeStatus, SubagentRuntimeStatusKind,
-    TauriAgentEvent,
+    initialize_aster_runtime, AgentEvent, ChildSubagentRuntimeStatus, ChildSubagentSession,
+    QueuedTurnSnapshot, QueuedTurnTask, SubagentControlState, SubagentParentContext,
+    SubagentRuntimeStatus, SubagentRuntimeStatusKind,
 };
 pub use subagent_scheduler::{
     LimeScheduler, LimeSubAgentExecutor, SubAgentProgressEvent, SubAgentRole,

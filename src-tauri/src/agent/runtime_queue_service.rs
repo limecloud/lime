@@ -18,8 +18,9 @@ use lime_agent::{
     remove_runtime_queued_turn as remove_runtime_queued_turn_impl,
     resume_persisted_runtime_queues_on_startup as resume_persisted_runtime_queues_on_startup_impl,
     resume_runtime_queue_if_needed as resume_runtime_queue_if_needed_impl,
-    submit_runtime_turn as submit_runtime_turn_impl, QueuedTurnSnapshot, QueuedTurnTask,
-    RuntimeQueueEventEmitter, RuntimeQueueExecutor as SharedRuntimeQueueExecutor, TauriAgentEvent,
+    submit_runtime_turn as submit_runtime_turn_impl, AgentEvent as RuntimeAgentEvent,
+    QueuedTurnSnapshot, QueuedTurnTask, RuntimeQueueEventEmitter,
+    RuntimeQueueExecutor as SharedRuntimeQueueExecutor,
 };
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
@@ -78,7 +79,7 @@ fn build_runtime_queue_context(
 
 fn build_runtime_queue_event_emitter(app: &AppHandle) -> RuntimeQueueEventEmitter {
     let app = app.clone();
-    std::sync::Arc::new(move |event_name: String, event: TauriAgentEvent| {
+    std::sync::Arc::new(move |event_name: String, event: RuntimeAgentEvent| {
         if let Err(error) = app.emit(&event_name, &event) {
             tracing::warn!(
                 "[AsterAgent][Queue] 发送队列事件失败: event_name={}, error={}",
