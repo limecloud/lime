@@ -1725,16 +1725,7 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
     summaryText: displayModel.summaryText,
     actionableCount,
   });
-  const defaultDetailsExpanded = useMemo(
-    () =>
-      resolveTimelineDetailsDefaultExpanded({
-        turn,
-        items: visibleItems,
-        actionRequests,
-        isCurrentTurn,
-      }),
-    [actionRequests, isCurrentTurn, turn, visibleItems],
-  );
+  const defaultDetailsExpanded = true; // 强制始终展开，显示时间线
   const [detailsExpanded, setDetailsExpanded] = useState(defaultDetailsExpanded);
   const lastTurnIdRef = useRef(turn.id);
 
