@@ -6,8 +6,9 @@ use crate::services::site_adapter_registry::{
     get_site_adapter_catalog_status,
 };
 use crate::services::site_capability_service::{
-    get_site_adapter, list_site_adapters, run_site_adapter, run_site_adapter_with_optional_save,
-    save_existing_site_result_to_project, search_site_adapters,
+    get_site_adapter, list_site_adapters, recommend_site_adapters, run_site_adapter,
+    run_site_adapter_with_optional_save, save_existing_site_result_to_project,
+    search_site_adapters,
 };
 use serde_json::Value as JsonValue;
 
@@ -18,6 +19,12 @@ pub(super) async fn try_handle(
 ) -> Result<Option<JsonValue>, DynError> {
     let result = match cmd {
         "site_list_adapters" => serde_json::to_value(list_site_adapters())?,
+        "site_recommend_adapters" => {
+            let request: crate::commands::site_capability_cmd::SiteAdapterRecommendRequest =
+                parse_request(args)?;
+            let db = get_db(state)?.clone();
+            serde_json::to_value(recommend_site_adapters(&db, request.limit).await?)?
+        }
         "site_search_adapters" => {
             let request: crate::commands::site_capability_cmd::SiteAdapterSearchRequest =
                 parse_request(args)?;

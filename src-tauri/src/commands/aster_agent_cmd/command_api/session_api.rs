@@ -91,5 +91,21 @@ pub async fn agent_runtime_update_session(
         )?;
     }
 
+    if let Some(recent_preferences) = request.recent_preferences {
+        AsterAgentWrapper::persist_session_recent_preferences(
+            &trimmed_session_id,
+            recent_preferences,
+        )
+        .await?;
+    }
+
+    if let Some(recent_team_selection) = request.recent_team_selection {
+        AsterAgentWrapper::persist_session_recent_team_selection(
+            &trimmed_session_id,
+            recent_team_selection,
+        )
+        .await?;
+    }
+
     Ok(())
 }

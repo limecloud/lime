@@ -30,6 +30,24 @@ function buildRemoteCatalog(): ServiceSkillCatalog {
   };
 }
 
+function buildStaleRemoteCatalog(): ServiceSkillCatalog {
+  const seeded = getSeededServiceSkillCatalog();
+  return {
+    version: "tenant-2026-03-20",
+    tenantId: "tenant-demo",
+    syncedAt: "2026-03-20T12:00:00.000Z",
+    items: [
+      {
+        ...seeded.items[0]!,
+        id: "tenant-stale-bootstrap-skill",
+        title: "租户旧目录",
+        summary: "来自较旧 bootstrap 的目录项",
+        version: "tenant-2026-03-20",
+      },
+    ],
+  };
+}
+
 describe("serviceSkillCatalogBootstrap", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -109,6 +127,21 @@ describe("serviceSkillCatalogBootstrap", () => {
 
     expect(ignored).toBeNull();
     expect(stored.tenantId).toBe("tenant-demo");
+    expect(stored.items[0]?.id).toBe("tenant-bootstrap-skill");
+  });
+
+  it("较旧 bootstrap 目录不应覆盖当前已缓存版本", async () => {
+    syncServiceSkillCatalogFromBootstrapPayload({
+      serviceSkillCatalog: buildRemoteCatalog(),
+    });
+
+    const synced = syncServiceSkillCatalogFromBootstrapPayload({
+      serviceSkillCatalog: buildStaleRemoteCatalog(),
+    });
+    const stored = await getServiceSkillCatalog();
+
+    expect(synced?.version).toBe("tenant-2026-03-24");
+    expect(stored.version).toBe("tenant-2026-03-24");
     expect(stored.items[0]?.id).toBe("tenant-bootstrap-skill");
   });
 });

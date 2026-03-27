@@ -144,28 +144,59 @@ fn message_suggests_content_generation(message: &str) -> bool {
     .any(|keyword| normalized.contains(keyword))
 }
 
-pub(super) fn build_turn_runtime_statuses(
+fn resolve_request_thinking_enabled_from_sources(
+    request: &AsterChatRequest,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+) -> bool {
+    request
+        .thinking_enabled
+        .or_else(|| {
+            resolve_recent_preference_from_sources(
+                request.metadata.as_ref(),
+                &["thinking_enabled", "thinkingEnabled"],
+                session_recent_preferences.map(|preferences| preferences.thinking),
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn resolve_request_task_enabled_from_sources(
+    request: &AsterChatRequest,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+) -> bool {
+    resolve_recent_preference_from_sources(
+        request.metadata.as_ref(),
+        &["task_mode_enabled", "taskModeEnabled"],
+        session_recent_preferences.map(|preferences| preferences.task),
+    )
+    .unwrap_or(false)
+}
+
+fn resolve_request_subagent_enabled_from_sources(
+    request: &AsterChatRequest,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+) -> bool {
+    resolve_recent_preference_from_sources(
+        request.metadata.as_ref(),
+        &["subagent_mode_enabled", "subagentModeEnabled"],
+        session_recent_preferences.map(|preferences| preferences.subagent),
+    )
+    .unwrap_or(false)
+}
+
+pub(super) async fn build_turn_runtime_statuses(
     request: &AsterChatRequest,
     effective_strategy: AsterExecutionStrategy,
     request_tool_policy: &RequestToolPolicy,
     model_name: Option<&str>,
-) -> (AgentRuntimeStatus, AgentRuntimeStatus) {
-    let thinking_enabled = extract_harness_bool(
-        request.metadata.as_ref(),
-        &["thinking_enabled", "thinkingEnabled"],
-    )
-    .or(request.thinking_enabled)
-    .unwrap_or(false);
-    let task_enabled = extract_harness_bool(
-        request.metadata.as_ref(),
-        &["task_mode_enabled", "taskModeEnabled"],
-    )
-    .unwrap_or(false);
-    let subagent_enabled = extract_harness_bool(
-        request.metadata.as_ref(),
-        &["subagent_mode_enabled", "subagentModeEnabled"],
-    )
-    .unwrap_or(false);
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+) -> Result<(AgentRuntimeStatus, AgentRuntimeStatus), String> {
+    let thinking_enabled =
+        resolve_request_thinking_enabled_from_sources(request, session_recent_preferences);
+    let task_enabled =
+        resolve_request_task_enabled_from_sources(request, session_recent_preferences);
+    let subagent_enabled =
+        resolve_request_subagent_enabled_from_sources(request, session_recent_preferences);
     let reasoning_supported = model_supports_reasoning(model_name);
     let news_expansion_needed = request_tool_policy.allows_web_search()
         && message_suggests_news_expansion(&request.message);
@@ -306,7 +337,7 @@ pub(super) fn build_turn_runtime_statuses(
         )
     };
 
-    (
+    Ok((
         AgentRuntimeStatus {
             phase: "preparing".to_string(),
             title: "正在理解意图".to_string(),
@@ -322,7 +353,7 @@ pub(super) fn build_turn_runtime_statuses(
             checkpoints: decided.2,
             metadata: None,
         },
-    )
+    ))
 }
 
 fn emit_projected_runtime_item_event(

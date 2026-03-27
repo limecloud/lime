@@ -45,6 +45,7 @@ docs/roadmap/*
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/
+docs/tech/
 
 # Issues tracking (internal use only)
 .issues/

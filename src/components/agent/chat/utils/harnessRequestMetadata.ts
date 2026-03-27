@@ -23,6 +23,7 @@ export interface BuildHarnessRequestMetadataOptions {
   selectedTeamId?: string | null;
   selectedTeamSource?: TeamDefinitionSource | null;
   selectedTeamLabel?: string | null;
+  selectedTeamDescription?: string | null;
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
 }
@@ -89,6 +90,7 @@ export function buildHarnessRequestMetadata(
     selectedTeamId,
     selectedTeamSource,
     selectedTeamLabel,
+    selectedTeamDescription,
     selectedTeamSummary,
     selectedTeamRoles,
   } = options;
@@ -127,6 +129,7 @@ export function buildHarnessRequestMetadata(
     selected_team_id: selectedTeamId || undefined,
     selected_team_source: selectedTeamSource || undefined,
     selected_team_label: selectedTeamLabel || undefined,
+    selected_team_description: selectedTeamDescription || undefined,
     selected_team_summary: selectedTeamSummary || undefined,
     selected_team_roles: serializeTeamRoles(selectedTeamRoles),
     browser_requirement: browserRequirement || undefined,

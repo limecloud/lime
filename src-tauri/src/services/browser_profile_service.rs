@@ -7,6 +7,12 @@ use lime_core::database::dao::browser_profile::{
 use rusqlite::Connection;
 use url::Url;
 
+const DEFAULT_BROWSER_PROFILE_KEY: &str = "general_browser_assist";
+const DEFAULT_BROWSER_PROFILE_NAME: &str = "通用浏览器资料";
+const DEFAULT_BROWSER_PROFILE_DESCRIPTION: &str = "默认浏览器协助资料";
+const DEFAULT_BROWSER_PROFILE_SITE_SCOPE: &str = "通用";
+const DEFAULT_BROWSER_PROFILE_LAUNCH_URL: &str = "https://www.google.com/";
+
 #[derive(Debug, Clone)]
 pub struct SaveBrowserProfileInput {
     pub id: Option<String>,
@@ -61,6 +67,29 @@ pub fn list_browser_profiles(
 ) -> Result<Vec<BrowserProfileRecord>, String> {
     BrowserProfileDao::list(conn, include_archived)
         .map_err(|error| format!("读取浏览器资料失败: {error}"))
+}
+
+pub fn ensure_default_browser_profiles(conn: &Connection) -> Result<bool, String> {
+    let existing_profiles = BrowserProfileDao::list(conn, true)
+        .map_err(|error| format!("读取浏览器资料失败: {error}"))?;
+    if !existing_profiles.is_empty() {
+        return Ok(false);
+    }
+
+    save_browser_profile(
+        conn,
+        SaveBrowserProfileInput {
+            id: None,
+            profile_key: DEFAULT_BROWSER_PROFILE_KEY.to_string(),
+            name: DEFAULT_BROWSER_PROFILE_NAME.to_string(),
+            description: Some(DEFAULT_BROWSER_PROFILE_DESCRIPTION.to_string()),
+            site_scope: Some(DEFAULT_BROWSER_PROFILE_SITE_SCOPE.to_string()),
+            launch_url: Some(DEFAULT_BROWSER_PROFILE_LAUNCH_URL.to_string()),
+            transport_kind: BrowserProfileTransportKind::ManagedCdp,
+        },
+    )?;
+
+    Ok(true)
 }
 
 pub fn get_browser_profile(
@@ -305,5 +334,47 @@ mod tests {
         );
         assert_eq!(saved.profile_dir, "");
         assert_eq!(saved.managed_profile_dir, None);
+    }
+
+    #[test]
+    fn should_seed_default_profile_for_empty_table() {
+        let conn = setup_db();
+
+        let seeded = ensure_default_browser_profiles(&conn).unwrap();
+        let profiles = list_browser_profiles(&conn, false).unwrap();
+
+        assert!(seeded);
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].profile_key, DEFAULT_BROWSER_PROFILE_KEY);
+        assert_eq!(profiles[0].name, DEFAULT_BROWSER_PROFILE_NAME);
+        assert_eq!(
+            profiles[0].transport_kind,
+            BrowserProfileTransportKind::ManagedCdp
+        );
+    }
+
+    #[test]
+    fn should_not_seed_default_profile_when_table_has_records() {
+        let conn = setup_db();
+        save_browser_profile(
+            &conn,
+            SaveBrowserProfileInput {
+                id: None,
+                profile_key: "weibo_attach".to_string(),
+                name: "微博附着".to_string(),
+                description: Some("依赖当前 Chrome".to_string()),
+                site_scope: Some("weibo.com".to_string()),
+                launch_url: Some("https://weibo.com".to_string()),
+                transport_kind: BrowserProfileTransportKind::ExistingSession,
+            },
+        )
+        .unwrap();
+
+        let seeded = ensure_default_browser_profiles(&conn).unwrap();
+        let profiles = list_browser_profiles(&conn, false).unwrap();
+
+        assert!(!seeded);
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].profile_key, "weibo_attach");
     }
 }

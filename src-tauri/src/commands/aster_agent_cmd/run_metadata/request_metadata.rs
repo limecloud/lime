@@ -125,6 +125,8 @@ pub(in crate::commands::aster_agent_cmd) fn extend_map_with_harness_fields(
         ("selectedTeamSource", "selected_team_source"),
         ("selected_team_label", "selected_team_label"),
         ("selectedTeamLabel", "selected_team_label"),
+        ("selected_team_description", "selected_team_description"),
+        ("selectedTeamDescription", "selected_team_description"),
         ("selected_team_summary", "selected_team_summary"),
         ("selectedTeamSummary", "selected_team_summary"),
         ("selected_team_roles", "selected_team_roles"),
@@ -178,6 +180,7 @@ pub(in crate::commands::aster_agent_cmd) fn build_chat_run_metadata_base(
     request_tool_policy: &RequestToolPolicy,
     auto_continue_enabled: bool,
     auto_continue_metadata: Option<&AutoContinuePayload>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut metadata = serde_json::Map::new();
     metadata.insert("workspace_id".to_string(), serde_json::json!(workspace_id));
@@ -214,6 +217,34 @@ pub(in crate::commands::aster_agent_cmd) fn build_chat_run_metadata_base(
         serde_json::json!(auto_continue_metadata),
     );
     extend_map_with_harness_fields(&mut metadata, request.metadata.as_ref());
+    for (target_key, preference_keys, session_value) in [
+        (
+            "thinking_enabled",
+            &["thinking_enabled", "thinkingEnabled"][..],
+            session_recent_preferences.map(|preferences| preferences.thinking),
+        ),
+        (
+            "task_mode_enabled",
+            &["task_mode_enabled", "taskModeEnabled"][..],
+            session_recent_preferences.map(|preferences| preferences.task),
+        ),
+        (
+            "subagent_mode_enabled",
+            &["subagent_mode_enabled", "subagentModeEnabled"][..],
+            session_recent_preferences.map(|preferences| preferences.subagent),
+        ),
+    ] {
+        if metadata.contains_key(target_key) {
+            continue;
+        }
+        if let Some(value) = resolve_recent_preference_from_sources(
+            request.metadata.as_ref(),
+            preference_keys,
+            session_value,
+        ) {
+            metadata.insert(target_key.to_string(), serde_json::json!(value));
+        }
+    }
     metadata
 }
 

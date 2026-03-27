@@ -44,6 +44,50 @@ describe("homeShellEntry", () => {
     });
   });
 
+  it("仅携带 contentId 时也应允许进入已有交付物工作区", () => {
+    expect(
+      resolveHomeShellWorkspaceEntry({
+        projectId: "project-1",
+        activeTheme: "document",
+        creationMode: "guided",
+        defaultToolPreferences,
+        payload: {
+          contentId: "content-1",
+          themeOverride: "document",
+        },
+        now: () => 234,
+      }),
+    ).toEqual({
+      ok: true,
+      toolPreferences: defaultToolPreferences,
+      targetTheme: "document",
+      nextNewChatAt: 234,
+      navigationParams: {
+        agentEntry: "claw",
+        immersiveHome: false,
+        projectId: "project-1",
+        contentId: "content-1",
+        theme: "document",
+        initialCreationMode: "guided",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        openBrowserAssistOnMount: undefined,
+        newChatAt: 234,
+        lockTheme: false,
+      },
+      workspaceBootstrap: {
+        projectId: "project-1",
+        contentId: "content-1",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        theme: "document",
+        initialCreationMode: "guided",
+        openBrowserAssistOnMount: undefined,
+        newChatAt: 234,
+      },
+    });
+  });
+
   it("应生成导航参数与工作区 bootstrap", () => {
     expect(
       resolveHomeShellWorkspaceEntry({
@@ -59,6 +103,7 @@ describe("homeShellEntry", () => {
               artifact_mode: "draft",
             },
           },
+          autoRunInitialPromptOnMount: true,
           themeOverride: "social-media",
         },
         now: () => 456,
@@ -82,6 +127,7 @@ describe("homeShellEntry", () => {
             artifact_mode: "draft",
           },
         },
+        autoRunInitialPromptOnMount: true,
         openBrowserAssistOnMount: undefined,
         newChatAt: 456,
         lockTheme: false,
@@ -96,6 +142,7 @@ describe("homeShellEntry", () => {
             artifact_mode: "draft",
           },
         },
+        autoRunInitialPromptOnMount: true,
         theme: "social-media",
         initialCreationMode: "guided",
         openBrowserAssistOnMount: undefined,

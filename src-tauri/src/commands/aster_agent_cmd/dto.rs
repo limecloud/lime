@@ -140,7 +140,7 @@ pub struct AgentRuntimeSubmitTurnRequest {
     #[serde(default)]
     pub images: Option<Vec<ImageInput>>,
     #[serde(alias = "workspaceId")]
-    pub workspace_id: String,
+    pub workspace_id: Option<String>,
     #[serde(default, alias = "turnConfig")]
     pub turn_config: Option<AgentTurnConfigSnapshot>,
     #[serde(default, alias = "turnId")]
@@ -173,7 +173,7 @@ impl From<AgentRuntimeSubmitTurnRequest> for AsterChatRequest {
                 .as_ref()
                 .and_then(|config| config.thinking_enabled),
             project_id: None,
-            workspace_id: request.workspace_id,
+            workspace_id: request.workspace_id.unwrap_or_default(),
             web_search: turn_config.as_ref().and_then(|config| config.web_search),
             search_mode: turn_config.as_ref().and_then(|config| config.search_mode),
             execution_strategy: turn_config
@@ -1595,6 +1595,10 @@ pub struct AgentRuntimeUpdateSessionRequest {
     pub model_name: Option<String>,
     #[serde(default, alias = "executionStrategy")]
     pub execution_strategy: Option<AsterExecutionStrategy>,
+    #[serde(default, alias = "recentPreferences")]
+    pub recent_preferences: Option<lime_agent::SessionExecutionRuntimePreferences>,
+    #[serde(default, alias = "recentTeamSelection")]
+    pub recent_team_selection: Option<lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
 }
 
 /// 自动续写参数

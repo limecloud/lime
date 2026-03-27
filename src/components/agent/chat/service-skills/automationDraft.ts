@@ -29,6 +29,8 @@ interface BuildServiceSkillAutomationInitialValuesInput {
 
 interface BuildServiceSkillAutomationAgentTurnPayloadContextInput {
   skill: ServiceSkillItem;
+  slotValues?: ServiceSkillSlotValues;
+  userInput?: string;
   contentId?: string | null;
 }
 
@@ -41,6 +43,57 @@ function resolveSlotValue(
     return currentValue;
   }
   return slot.defaultValue?.trim() || "";
+}
+
+function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized ? normalized : undefined;
+}
+
+function resolveSlotDisplayValue(
+  slot: ServiceSkillSlotDefinition,
+  slotValues: ServiceSkillSlotValues,
+): string {
+  const resolved = resolveSlotValue(slot, slotValues);
+  if (!resolved) {
+    return "";
+  }
+
+  const matchedOption = slot.options?.find((option) => option.value === resolved);
+  return matchedOption?.label?.trim() || resolved;
+}
+
+function summarizeMetadataValue(value: string, maxLength = 120): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength).trim()}...`;
+}
+
+function buildServiceSkillAutomationSlotSummary(
+  skill: ServiceSkillItem,
+  slotValues: ServiceSkillSlotValues,
+): Array<{ key: string; label: string; value: string }> {
+  return skill.slotSchema
+    .map((slot) => {
+      const displayValue = resolveSlotDisplayValue(slot, slotValues);
+      if (!displayValue) {
+        return null;
+      }
+      return {
+        key: slot.key,
+        label: slot.label,
+        value: summarizeMetadataValue(displayValue),
+      };
+    })
+    .filter((item): item is { key: string; label: string; value: string } =>
+      Boolean(item),
+    );
 }
 
 function resolveLocalTimeZone(): string {
@@ -171,19 +224,48 @@ function buildServiceSkillAutomationDescription(
   return lines.join("\n");
 }
 
+function buildServiceSkillAutomationMetadata(input: {
+  skill: ServiceSkillItem;
+  slotValues?: ServiceSkillSlotValues;
+  userInput?: string;
+}): Record<string, unknown> {
+  const { skill, slotValues, userInput } = input;
+  const slotSummary = slotValues
+    ? buildServiceSkillAutomationSlotSummary(skill, slotValues)
+    : [];
+  const normalizedUserInput = normalizeOptionalText(userInput);
+
+  return {
+    id: skill.id,
+    title: skill.title,
+    runner_type: skill.runnerType,
+    execution_location: skill.executionLocation,
+    source: skill.source,
+    slot_values: slotSummary,
+    slot_summary: slotSummary.map((item) => `${item.label}: ${item.value}`),
+    user_input: normalizedUserInput ?? null,
+  };
+}
+
 function buildServiceSkillAutomationRequestMetadata(
-  skill: ServiceSkillItem,
-  contentId?: string | null,
+  input: {
+    skill: ServiceSkillItem;
+    slotValues?: ServiceSkillSlotValues;
+    userInput?: string;
+    contentId?: string | null;
+  },
 ): Record<string, unknown> | undefined {
+  const { skill, slotValues, userInput, contentId } = input;
   const targetTheme = skill.themeTarget?.trim();
   const workspaceSeed = buildServiceSkillWorkspaceSeed(skill, targetTheme);
 
-  if (!targetTheme && !workspaceSeed?.requestMetadata) {
-    return undefined;
-  }
-
   return {
     ...(workspaceSeed?.requestMetadata ?? {}),
+    service_skill: buildServiceSkillAutomationMetadata({
+      skill,
+      slotValues,
+      userInput,
+    }),
     harness: buildHarnessRequestMetadata({
       theme: targetTheme || "general",
       preferences: {
@@ -210,16 +292,20 @@ export function supportsServiceSkillLocalAutomation(
 
 export function buildServiceSkillAutomationAgentTurnPayloadContext({
   skill,
+  slotValues,
+  userInput,
   contentId,
 }: BuildServiceSkillAutomationAgentTurnPayloadContextInput): {
   content_id?: string | null;
   request_metadata?: Record<string, unknown> | null;
 } {
   const normalizedContentId = contentId?.trim() || null;
-  const requestMetadata = buildServiceSkillAutomationRequestMetadata(
+  const requestMetadata = buildServiceSkillAutomationRequestMetadata({
     skill,
-    normalizedContentId,
-  );
+    slotValues,
+    userInput,
+    contentId: normalizedContentId,
+  });
 
   return {
     content_id: normalizedContentId,
@@ -253,6 +339,8 @@ export function buildServiceSkillAutomationInitialValues({
     agent_content_id: "",
     agent_request_metadata: buildServiceSkillAutomationAgentTurnPayloadContext({
       skill,
+      slotValues,
+      userInput,
     }).request_metadata,
     max_retries: "2",
     delivery_mode: "none",

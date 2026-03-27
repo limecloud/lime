@@ -186,9 +186,30 @@ const mockSiteAdapters = [
   },
 ];
 
+const mockSiteRecommendations = [
+  {
+    adapter: mockSiteAdapters[0],
+    reason:
+      "已检测到资料 research_attach 当前停留在 github.com，可直接复用已连接的 Chrome 上下文。",
+    profile_key: "research_attach",
+    target_id: "mock-target-1",
+    entry_url:
+      "https://github.com/search?q=model%20context%20protocol&type=repositories",
+    score: 100,
+  },
+  {
+    adapter: mockSiteAdapters[1],
+    reason:
+      "资料 通用浏览器资料 已绑定站点范围 www.zhihu.com，可优先作为该适配器的执行上下文。",
+    profile_key: "general_browser_assist",
+    entry_url: "https://www.zhihu.com/hot",
+    score: 72,
+  },
+];
+
 let mockSiteAdapterCatalogStatus: {
   exists: boolean;
-  source_kind: "server_synced";
+  source_kind: "bundled" | "server_synced";
   registry_version: number;
   directory: string;
   catalog_version?: string;
@@ -197,10 +218,10 @@ let mockSiteAdapterCatalogStatus: {
   adapter_count: number;
 } = {
   exists: false,
-  source_kind: "server_synced",
+  source_kind: "bundled",
   registry_version: 1,
   directory: "/tmp/lime/site-adapters/server-synced",
-  adapter_count: 0,
+  adapter_count: mockSiteAdapters.length,
 };
 
 function upsertMockBrowserSessionState(launchResponse: any) {
@@ -758,6 +779,9 @@ const defaultMocks: Record<string, any> = {
       screenshot_chat: {
         enabled: false,
         shortcut: "",
+      },
+      webmcp: {
+        enabled: false,
       },
     },
     tool_calling: {
@@ -1370,6 +1394,15 @@ const defaultMocks: Record<string, any> = {
       stream_mode: args?.request?.stream_mode,
     }),
   site_list_adapters: () => mockSiteAdapters,
+  site_recommend_adapters: (args: any) => {
+    const rawLimit = Number(
+      args?.request?.limit ?? mockSiteRecommendations.length,
+    );
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(0, Math.floor(rawLimit))
+      : mockSiteRecommendations.length;
+    return mockSiteRecommendations.slice(0, limit);
+  },
   site_search_adapters: (args: any) => {
     const query = String(args?.request?.query ?? "")
       .trim()
@@ -1399,11 +1432,37 @@ const defaultMocks: Record<string, any> = {
       args?.request?.payload?.siteAdapterCatalog ??
       args?.request?.payload?.site_adapter_catalog ??
       args?.request?.payload;
-    const adapterCount = Array.isArray(payload?.adapters)
-      ? payload.adapters.length
-      : 0;
+    const syncedAdapters: Array<{ name?: unknown }> = Array.isArray(
+      payload?.adapters,
+    )
+      ? payload.adapters
+      : [];
+    const normalizedBundledNames = new Set(
+      mockSiteAdapters.map((adapter) =>
+        String(adapter.name).trim().toLowerCase(),
+      ),
+    );
+    const normalizedSyncedNames = new Set<string>(
+      syncedAdapters.reduce<string[]>((names, adapter) => {
+        if (typeof adapter?.name !== "string") {
+          return names;
+        }
+
+        const normalizedName = adapter.name.trim().toLowerCase();
+        if (normalizedName) {
+          names.push(normalizedName);
+        }
+
+        return names;
+      }, []),
+    );
+    const adapterCount =
+      mockSiteAdapters.length +
+      Array.from(normalizedSyncedNames).filter(
+        (name) => !normalizedBundledNames.has(name),
+      ).length;
     mockSiteAdapterCatalogStatus = {
-      exists: adapterCount > 0,
+      exists: syncedAdapters.length > 0,
       source_kind: "server_synced",
       registry_version:
         Number.isFinite(payload?.registry_version) &&
@@ -1422,20 +1481,30 @@ const defaultMocks: Record<string, any> = {
   site_clear_adapter_catalog_cache: () => {
     mockSiteAdapterCatalogStatus = {
       exists: false,
-      source_kind: "server_synced",
+      source_kind: "bundled",
       registry_version: 1,
       directory: "/tmp/lime/site-adapters/server-synced",
-      adapter_count: 0,
+      adapter_count: mockSiteAdapters.length,
     };
     return mockSiteAdapterCatalogStatus;
   },
   site_run_adapter: (args: any) => {
     const request = args?.request ?? {};
     const adapterName = String(request.adapter_name ?? "");
+    const targetContentId =
+      typeof request.content_id === "string" && request.content_id.trim()
+        ? request.content_id.trim()
+        : null;
+    const targetProjectId =
+      typeof request.project_id === "string" && request.project_id.trim()
+        ? request.project_id.trim()
+        : null;
     const title =
       typeof request.save_title === "string" && request.save_title.trim()
         ? request.save_title.trim()
-        : `站点采集 ${adapterName || "github/search"} 2026-03-25 12:00:00`;
+        : targetContentId
+          ? "当前主稿"
+          : `站点采集 ${adapterName || "github/search"} 2026-03-25 12:00:00`;
     return {
       ok: true,
       adapter: adapterName || "github/search",
@@ -1458,15 +1527,23 @@ const defaultMocks: Record<string, any> = {
         ],
         echo_args: request.args ?? {},
       },
-      saved_content: request.project_id
-        ? {
-            content_id: "mock-site-content-1",
-            project_id: String(request.project_id),
-            title,
-          }
-        : undefined,
-      saved_project_id: request.project_id ? String(request.project_id) : undefined,
-      saved_by: request.project_id ? "explicit_project" : undefined,
+      saved_content:
+        targetContentId || targetProjectId
+          ? {
+              content_id: targetContentId || "mock-site-content-1",
+              project_id: targetProjectId || "mock-current-project",
+              title,
+            }
+          : undefined,
+      saved_project_id:
+        targetContentId || targetProjectId
+          ? targetProjectId || "mock-current-project"
+          : undefined,
+      saved_by: targetContentId
+        ? "explicit_content"
+        : targetProjectId
+          ? "explicit_project"
+          : undefined,
     };
   },
   site_debug_run_adapter: (args: any) => {
@@ -1495,7 +1572,14 @@ const defaultMocks: Record<string, any> = {
   },
   site_save_adapter_result: (args: any) => {
     const request = args?.request ?? {};
-    const projectId = String(request.project_id ?? "mock-project");
+    const contentId =
+      typeof request.content_id === "string" && request.content_id.trim()
+        ? request.content_id.trim()
+        : null;
+    const projectId =
+      typeof request.project_id === "string" && request.project_id.trim()
+        ? request.project_id.trim()
+        : "mock-project";
     const adapterName = String(
       request.run_request?.adapter_name ??
         request.result?.adapter ??
@@ -1504,9 +1588,11 @@ const defaultMocks: Record<string, any> = {
     const title =
       typeof request.save_title === "string" && request.save_title.trim()
         ? request.save_title.trim()
-        : `站点采集 ${adapterName} 2026-03-25 12:00:00`;
+        : contentId
+          ? "当前主稿"
+          : `站点采集 ${adapterName} 2026-03-25 12:00:00`;
     return {
-      content_id: "mock-site-content-1",
+      content_id: contentId || "mock-site-content-1",
       project_id: projectId,
       title,
     };
@@ -1864,6 +1950,184 @@ const defaultMocks: Record<string, any> = {
   agent_runtime_create_session: () => "mock-aster-session",
   agent_runtime_list_sessions: () => [],
   agent_runtime_get_session: () => ({ id: "mock", messages: [] }),
+  agent_runtime_export_analysis_handoff: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    workspace_root: "/mock/workspace",
+    analysis_relative_root: ".lime/harness/sessions/mock-session/analysis",
+    analysis_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/analysis",
+    handoff_bundle_relative_root: ".lime/harness/sessions/mock-session",
+    evidence_pack_relative_root: ".lime/harness/sessions/mock-session/evidence",
+    replay_case_relative_root: ".lime/harness/sessions/mock-session/replay",
+    exported_at: "2026-03-27T00:00:00Z",
+    title: "确认当前失败会话应该如何交给外部 AI 诊断和修复",
+    thread_status: "waiting_request",
+    latest_turn_status: "action_required",
+    pending_request_count: 1,
+    queued_turn_count: 0,
+    sanitized_workspace_root: "/workspace/lime",
+    copy_prompt:
+      "# Lime 外部诊断与修复任务\n\n请先读取 analysis-brief.md 与 analysis-context.json。",
+    artifacts: [
+      {
+        kind: "analysis_brief",
+        title: "外部分析简报",
+        relative_path:
+          ".lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+        bytes: 512,
+      },
+      {
+        kind: "analysis_context",
+        title: "外部分析上下文",
+        relative_path:
+          ".lime/harness/sessions/mock-session/analysis/analysis-context.json",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/analysis/analysis-context.json",
+        bytes: 768,
+      },
+    ],
+  }),
+  agent_runtime_export_review_decision_template: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    workspace_root: "/mock/workspace",
+    review_relative_root: ".lime/harness/sessions/mock-session/review",
+    review_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/review",
+    analysis_relative_root: ".lime/harness/sessions/mock-session/analysis",
+    analysis_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/analysis",
+    handoff_bundle_relative_root: ".lime/harness/sessions/mock-session",
+    evidence_pack_relative_root: ".lime/harness/sessions/mock-session/evidence",
+    replay_case_relative_root: ".lime/harness/sessions/mock-session/replay",
+    exported_at: "2026-03-27T00:05:00Z",
+    title: "记录外部分析后的人工审核结论",
+    thread_status: "waiting_request",
+    latest_turn_status: "action_required",
+    pending_request_count: 1,
+    queued_turn_count: 0,
+    default_decision_status: "pending_review",
+    review_checklist: [
+      "先阅读 analysis-brief.md 与 analysis-context.json。",
+      "确认最终决策由人工审核者填写。",
+    ],
+    analysis_artifacts: [
+      {
+        kind: "analysis_brief",
+        title: "外部分析简报",
+        relative_path:
+          ".lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+        bytes: 512,
+      },
+    ],
+    artifacts: [
+      {
+        kind: "review_decision_markdown",
+        title: "人工审核记录",
+        relative_path:
+          ".lime/harness/sessions/mock-session/review/review-decision.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.md",
+        bytes: 512,
+      },
+      {
+        kind: "review_decision_json",
+        title: "人工审核记录 JSON",
+        relative_path:
+          ".lime/harness/sessions/mock-session/review/review-decision.json",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.json",
+        bytes: 768,
+      },
+    ],
+  }),
+  agent_runtime_export_handoff_bundle: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    workspace_root: "/mock/workspace",
+    bundle_relative_root: ".lime/harness/sessions/mock-session",
+    bundle_absolute_root: "/mock/workspace/.lime/harness/sessions/mock-session",
+    exported_at: "2026-03-27T00:00:00Z",
+    thread_status: "idle",
+    pending_request_count: 0,
+    queued_turn_count: 0,
+    active_subagent_count: 0,
+    todo_total: 0,
+    todo_pending: 0,
+    todo_in_progress: 0,
+    todo_completed: 0,
+    artifacts: [
+      {
+        kind: "plan",
+        title: "计划摘要",
+        relative_path: ".lime/harness/sessions/mock-session/plan.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/plan.md",
+        bytes: 128,
+      },
+    ],
+  }),
+  agent_runtime_export_evidence_pack: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    workspace_root: "/mock/workspace",
+    pack_relative_root: ".lime/harness/sessions/mock-session/evidence",
+    pack_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/evidence",
+    exported_at: "2026-03-27T00:00:00Z",
+    thread_status: "idle",
+    latest_turn_status: "idle",
+    turn_count: 0,
+    item_count: 0,
+    pending_request_count: 0,
+    queued_turn_count: 0,
+    recent_artifact_count: 0,
+    known_gaps: ["当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。"],
+    artifacts: [
+      {
+        kind: "summary",
+        title: "问题摘要",
+        relative_path:
+          ".lime/harness/sessions/mock-session/evidence/summary.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/evidence/summary.md",
+        bytes: 256,
+      },
+    ],
+  }),
+  agent_runtime_export_replay_case: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    workspace_root: "/mock/workspace",
+    replay_relative_root: ".lime/harness/sessions/mock-session/replay",
+    replay_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/replay",
+    handoff_bundle_relative_root: ".lime/harness/sessions/mock-session",
+    evidence_pack_relative_root: ".lime/harness/sessions/mock-session/evidence",
+    exported_at: "2026-03-27T00:00:00Z",
+    thread_status: "idle",
+    latest_turn_status: "idle",
+    pending_request_count: 0,
+    queued_turn_count: 0,
+    linked_handoff_artifact_count: 1,
+    linked_evidence_artifact_count: 1,
+    recent_artifact_count: 0,
+    artifacts: [
+      {
+        kind: "input",
+        title: "回放输入",
+        relative_path: ".lime/harness/sessions/mock-session/replay/input.json",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/replay/input.json",
+        bytes: 256,
+      },
+    ],
+  }),
   agent_runtime_get_tool_inventory: () => ({
     request: {
       caller: "assistant",
@@ -2598,6 +2862,7 @@ const defaultMocks: Record<string, any> = {
   // Experimental Features 相关
   get_experimental_config: () => ({
     screenshot_chat: { enabled: false, shortcut: "" },
+    webmcp: { enabled: false },
   }),
   get_screenshot_shortcut_runtime_status: () => ({
     shortcut_registered: false,

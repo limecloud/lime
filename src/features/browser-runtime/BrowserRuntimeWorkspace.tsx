@@ -29,6 +29,13 @@ interface BrowserRuntimeWorkspaceProps {
   initialProfileKey?: string;
   initialSessionId?: string;
   initialTargetId?: string;
+  initialAdapterName?: string;
+  initialArgs?: Record<string, unknown>;
+  initialAutoRun?: boolean;
+  initialRequireAttachedSession?: boolean;
+  initialSaveTitle?: string;
+  currentProjectId?: string;
+  currentContentId?: string;
   embedded?: boolean;
   active?: boolean;
   onNavigate?: (page: Page, params?: PageParams) => void;
@@ -40,6 +47,13 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
     initialProfileKey,
     initialSessionId,
     initialTargetId,
+    initialAdapterName,
+    initialArgs,
+    initialAutoRun,
+    initialRequireAttachedSession,
+    initialSaveTitle,
+    currentProjectId,
+    currentContentId,
     embedded = false,
     active = true,
     onNavigate,
@@ -227,7 +241,8 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
           </div>
           {attachObserverCount > 0 ? (
             <p className="text-xs text-muted-foreground">
-              附着当前 Chrome 复用的是你正在使用的浏览器页面，不会额外创建独立实时会话。
+              附着当前 Chrome
+              复用的是你正在使用的浏览器页面，不会额外创建独立实时会话。
             </p>
           ) : null}
         </div>
@@ -278,6 +293,13 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
           onMessage={showMessage}
           variant="workspace"
           onNavigate={onNavigate}
+          currentProjectId={currentProjectId}
+          currentContentId={currentContentId}
+          initialAdapterName={initialAdapterName}
+          initialArgs={initialArgs}
+          initialAutoRun={initialAutoRun}
+          initialRequireAttachedSession={initialRequireAttachedSession}
+          initialSaveTitle={initialSaveTitle}
         />
       ) : null}
 

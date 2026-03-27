@@ -3,6 +3,9 @@
 //! 负责在工作区内生成稳定路径、落盘 JSON 快照，并给前端 workbench
 //! 提供可直接消费的 snapshot metadata。
 
+use crate::commands::content_cmd::THEME_WORKBENCH_DOCUMENT_META_KEY;
+use crate::content::{ContentManager, ContentUpdateRequest};
+use crate::database::DbConnection;
 use crate::services::artifact_document_validator::{
     validate_or_fallback_artifact_document, validate_or_repair_artifact_document_value,
     ArtifactDocumentValidationContext, ArtifactDocumentValidationOutcome,
@@ -26,6 +29,8 @@ pub struct PersistedArtifactDocument {
     pub absolute_path: PathBuf,
     pub serialized_document: String,
     pub snapshot_metadata: Map<String, Value>,
+    pub theme_workbench_document_state: Map<String, Value>,
+    pub content_body: String,
     pub title: String,
     pub kind: String,
     pub status: String,
@@ -268,6 +273,9 @@ pub fn persist_artifact_document_from_text(
         &source_links,
         version_diff.as_ref(),
     );
+    let theme_workbench_document_state =
+        build_theme_workbench_document_state(&version_history, current_version.id.as_str());
+    let content_body = build_content_body_from_document(&enriched_document);
 
     Ok(PersistedArtifactDocument {
         artifact_id,
@@ -277,6 +285,8 @@ pub fn persist_artifact_document_from_text(
         absolute_path,
         serialized_document,
         snapshot_metadata,
+        theme_workbench_document_state,
+        content_body,
         title: outcome.title,
         kind: outcome.kind,
         status: outcome.status,
@@ -395,6 +405,198 @@ fn build_snapshot_metadata(
         );
     }
     metadata
+}
+
+fn parse_rfc3339_to_timestamp_millis(value: &str) -> Option<i64> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|parsed| parsed.timestamp_millis())
+}
+
+fn resolve_topic_branch_status(status: &str) -> Option<&'static str> {
+    match status.trim() {
+        "ready" | "success" => Some("merged"),
+        "draft" | "streaming" | "pending" | "queued" | "running" => Some("pending"),
+        "failed" | "error" | "timeout" | "canceled" => Some("candidate"),
+        _ => None,
+    }
+}
+
+fn build_theme_workbench_document_state(
+    version_history: &[ArtifactVersionSummary],
+    current_version_id: &str,
+) -> Map<String, Value> {
+    let mut state = Map::new();
+    state.insert(
+        "currentVersionId".to_string(),
+        Value::String(current_version_id.to_string()),
+    );
+    state.insert(
+        "versions".to_string(),
+        Value::Array(
+            version_history
+                .iter()
+                .rev()
+                .map(|version| {
+                    let mut record = Map::new();
+                    record.insert("id".to_string(), Value::String(version.id.clone()));
+                    record.insert(
+                        "createdAt".to_string(),
+                        Value::from(
+                            parse_rfc3339_to_timestamp_millis(version.created_at.as_str())
+                                .unwrap_or_default(),
+                        ),
+                    );
+                    record.insert(
+                        "description".to_string(),
+                        Value::String(
+                            version
+                                .summary
+                                .clone()
+                                .unwrap_or_else(|| format!("版本 {}", version.version_no)),
+                        ),
+                    );
+                    Value::Object(record)
+                })
+                .collect(),
+        ),
+    );
+    state.insert(
+        "versionStatusMap".to_string(),
+        Value::Object(
+            version_history
+                .iter()
+                .filter_map(|version| {
+                    resolve_topic_branch_status(version.status.as_str())
+                        .map(|status| (version.id.clone(), Value::String(status.to_string())))
+                })
+                .collect(),
+        ),
+    );
+    state
+}
+
+fn normalize_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn extract_block_text(block: &Map<String, Value>) -> Option<String> {
+    normalize_text(block.get("markdown").and_then(Value::as_str))
+        .or_else(|| normalize_text(block.get("text").and_then(Value::as_str)))
+        .or_else(|| normalize_text(block.get("content").and_then(Value::as_str)))
+        .or_else(|| normalize_text(block.get("summary").and_then(Value::as_str)))
+        .or_else(|| {
+            block.get("items").and_then(Value::as_array).map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        if let Some(text) = item.as_str() {
+                            return normalize_text(Some(text));
+                        }
+
+                        let item = item.as_object()?;
+                        normalize_text(item.get("label").and_then(Value::as_str))
+                            .or_else(|| normalize_text(item.get("text").and_then(Value::as_str)))
+                            .or_else(|| normalize_text(item.get("title").and_then(Value::as_str)))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+        })
+        .and_then(|value| normalize_text(Some(value.as_str())))
+}
+
+fn build_content_body_from_document(document: &Value) -> String {
+    let Some(record) = document.as_object() else {
+        return String::new();
+    };
+
+    let mut sections = Vec::new();
+    if let Some(title) = normalize_text(record.get("title").and_then(Value::as_str)) {
+        sections.push(format!("# {title}"));
+    }
+    if let Some(summary) = normalize_text(record.get("summary").and_then(Value::as_str)) {
+        sections.push(summary);
+    }
+
+    if let Some(blocks) = record.get("blocks").and_then(Value::as_array) {
+        for block in blocks.iter().filter_map(Value::as_object) {
+            let mut parts = Vec::new();
+            if let Some(title) = normalize_text(block.get("title").and_then(Value::as_str)) {
+                parts.push(format!("## {title}"));
+            }
+            if let Some(body) = extract_block_text(block) {
+                parts.push(body);
+            }
+            if !parts.is_empty() {
+                sections.push(parts.join("\n\n"));
+            }
+        }
+    }
+
+    sections.join("\n\n").trim().to_string()
+}
+
+fn extract_content_id_from_request_metadata(request_metadata: Option<&Value>) -> Option<String> {
+    let root = request_metadata?.as_object()?;
+    let harness = root
+        .get("harness")
+        .and_then(Value::as_object)
+        .unwrap_or(root);
+
+    ["content_id", "contentId"]
+        .iter()
+        .filter_map(|key| harness.get(*key))
+        .find_map(Value::as_str)
+        .and_then(|value| normalize_text(Some(value)))
+}
+
+fn should_sync_snapshot_metadata_key_to_content(key: &str) -> bool {
+    key.starts_with("artifact") || matches!(key, "previewText" | "lastUpdateSource")
+}
+
+pub fn sync_persisted_artifact_document_to_content(
+    db: &DbConnection,
+    request_metadata: Option<&Value>,
+    persisted: &PersistedArtifactDocument,
+) -> Result<(), String> {
+    let Some(content_id) = extract_content_id_from_request_metadata(request_metadata) else {
+        return Ok(());
+    };
+
+    let manager = ContentManager::new(db.clone());
+    let Some(content) = manager.get(&content_id)? else {
+        return Err(format!("未找到要同步的内容: {content_id}"));
+    };
+
+    let mut next_metadata = content
+        .metadata
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    for (key, value) in persisted.snapshot_metadata.iter() {
+        if should_sync_snapshot_metadata_key_to_content(key.as_str()) {
+            next_metadata.insert(key.clone(), value.clone());
+        }
+    }
+    next_metadata.insert(
+        THEME_WORKBENCH_DOCUMENT_META_KEY.to_string(),
+        Value::Object(persisted.theme_workbench_document_state.clone()),
+    );
+
+    manager.update(
+        &content_id,
+        ContentUpdateRequest {
+            body: (!persisted.content_body.trim().is_empty())
+                .then(|| persisted.content_body.clone()),
+            metadata: Some(Value::Object(next_metadata)),
+            ..Default::default()
+        },
+    )?;
+
+    Ok(())
 }
 
 fn build_version_id(artifact_id: &str, version_no: usize) -> String {
@@ -1075,6 +1277,131 @@ mod tests {
         assert!(persisted_second
             .serialized_document
             .contains("\"currentVersionDiff\""));
+        assert_eq!(
+            persisted_second
+                .theme_workbench_document_state
+                .get("currentVersionId")
+                .and_then(Value::as_str),
+            Some("artifact-document:artifact:analysis:demo:v2")
+        );
+        assert!(persisted_second.content_body.contains("# 结构化结论"));
+    }
+
+    #[test]
+    fn sync_persisted_artifact_document_to_content_should_update_body_and_metadata() {
+        use crate::content::{ContentCreateRequest, ContentManager};
+        use crate::database::init_database;
+        use crate::workspace::{WorkspaceManager, WorkspaceType};
+
+        let db = init_database().expect("db should init");
+        let workspace_root = tempdir().expect("tempdir").keep();
+        let workspace = WorkspaceManager::new(db.clone())
+            .create_with_type(
+                "自动化项目".to_string(),
+                workspace_root.clone(),
+                WorkspaceType::Document,
+            )
+            .expect("workspace should create");
+        let manager = ContentManager::new(db.clone());
+        let content = manager
+            .create(ContentCreateRequest {
+                project_id: workspace.id.clone(),
+                title: "自动化日报".to_string(),
+                content_type: None,
+                order: None,
+                body: Some(String::new()),
+                metadata: Some(serde_json::json!({
+                    "source": "service_skill"
+                })),
+            })
+            .expect("content should create");
+
+        let params = ArtifactDocumentPersistParams {
+            workspace_root,
+            workspace_id: Some(workspace.id.clone()),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            request_metadata: Some(serde_json::json!({
+                "artifact": {
+                    "artifact_mode": "draft",
+                    "artifact_stage": "stage2",
+                    "artifact_kind": "report",
+                    "artifact_request_id": format!("artifact:{}", content.id.clone())
+                },
+                "harness": {
+                    "content_id": content.id.clone()
+                }
+            })),
+        };
+
+        let persisted = persist_artifact_document_from_text(
+            r#"{
+              "type": "artifact_document_draft",
+              "schemaVersion": "artifact_document.v1",
+              "artifactId": "artifact-document:artifact:content",
+              "kind": "report",
+              "title": "自动化日报",
+              "status": "ready",
+              "summary": "最新日报已生成",
+              "blocks": [
+                { "id": "body-1", "type": "rich_text", "markdown": "日报正文内容" }
+              ]
+            }"#,
+            &params,
+        )
+        .expect("persist should succeed");
+
+        sync_persisted_artifact_document_to_content(
+            &db,
+            params.request_metadata.as_ref(),
+            &persisted,
+        )
+        .expect("sync should succeed");
+
+        let updated = manager
+            .get(&content.id)
+            .expect("get content should succeed")
+            .expect("updated content should exist");
+        assert!(updated.body.contains("日报正文内容"));
+        let metadata = updated.metadata.expect("metadata should exist");
+        assert_eq!(
+            metadata
+                .get(THEME_WORKBENCH_DOCUMENT_META_KEY)
+                .and_then(Value::as_object)
+                .and_then(|value| value.get("currentVersionId"))
+                .and_then(Value::as_str),
+            Some(format!("artifact-document:artifact:{}:v1", content.id).as_str())
+        );
+        assert_eq!(
+            metadata.get("artifactKind").and_then(Value::as_str),
+            Some("report")
+        );
+        assert_eq!(
+            metadata.get("artifactRequestId").and_then(Value::as_str),
+            Some(format!("artifact:{}", content.id).as_str())
+        );
+        assert_eq!(
+            metadata
+                .get("artifact_paths")
+                .and_then(Value::as_array)
+                .and_then(|paths| paths.first())
+                .and_then(Value::as_str),
+            Some(
+                format!(
+                    ".lime/artifacts/thread-1/{}.artifact.json",
+                    normalize_slug(format!("artifact:{}", content.id).as_str())
+                )
+                .as_str()
+            )
+        );
+        assert_eq!(
+            metadata
+                .get("artifactDocument")
+                .and_then(Value::as_object)
+                .and_then(|document| document.get("title"))
+                .and_then(Value::as_str),
+            Some("自动化日报")
+        );
     }
 
     #[test]

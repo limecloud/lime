@@ -151,10 +151,66 @@ fn is_meaningful_artifact_value(value: Option<&Value>) -> bool {
         .is_some_and(|value| !value.is_empty())
 }
 
+fn backfill_harness_string_if_missing(
+    request_metadata: Value,
+    keys: &[&str],
+    fallback: Option<&str>,
+) -> Value {
+    let Some(fallback) = normalize_text(fallback) else {
+        return request_metadata;
+    };
+    if extract_harness_string(Some(&request_metadata), keys).is_some() {
+        return request_metadata;
+    }
+
+    let mut request_metadata = request_metadata;
+    let Some(root) = request_metadata.as_object_mut() else {
+        return request_metadata;
+    };
+
+    if let Some(harness) = root.get_mut("harness").and_then(Value::as_object_mut) {
+        harness.insert(keys[0].to_string(), Value::String(fallback));
+        return request_metadata;
+    }
+
+    root.insert(keys[0].to_string(), Value::String(fallback));
+    request_metadata
+}
+
 pub fn normalize_request_metadata_with_artifact_defaults(
     request_metadata: Option<Value>,
+    theme_fallback: Option<&str>,
+    session_mode_fallback: Option<&str>,
+    gate_key_fallback: Option<&str>,
+    run_title_fallback: Option<&str>,
+    content_id_fallback: Option<&str>,
 ) -> Option<Value> {
     let request_metadata = request_metadata?;
+    let request_metadata = backfill_harness_string_if_missing(
+        request_metadata,
+        &["theme", "harness_theme", "harnessTheme"],
+        theme_fallback,
+    );
+    let request_metadata = backfill_harness_string_if_missing(
+        request_metadata,
+        &["session_mode", "sessionMode"],
+        session_mode_fallback,
+    );
+    let request_metadata = backfill_harness_string_if_missing(
+        request_metadata,
+        &["gate_key", "gateKey"],
+        gate_key_fallback,
+    );
+    let request_metadata = backfill_harness_string_if_missing(
+        request_metadata,
+        &["run_title", "runTitle", "title"],
+        run_title_fallback,
+    );
+    let request_metadata = backfill_harness_string_if_missing(
+        request_metadata,
+        &["content_id", "contentId"],
+        content_id_fallback,
+    );
     let Some(root) = request_metadata.as_object() else {
         return Some(request_metadata);
     };
@@ -250,8 +306,15 @@ mod tests {
             }
         });
 
-        let normalized = normalize_request_metadata_with_artifact_defaults(Some(metadata))
-            .expect("normalized metadata");
+        let normalized = normalize_request_metadata_with_artifact_defaults(
+            Some(metadata),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("normalized metadata");
 
         assert_eq!(
             normalized
@@ -302,8 +365,15 @@ mod tests {
             }
         });
 
-        let normalized = normalize_request_metadata_with_artifact_defaults(Some(metadata))
-            .expect("normalized metadata");
+        let normalized = normalize_request_metadata_with_artifact_defaults(
+            Some(metadata),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("normalized metadata");
 
         assert!(normalized.get("artifact").is_none());
     }
@@ -320,8 +390,15 @@ mod tests {
             }
         });
 
-        let normalized = normalize_request_metadata_with_artifact_defaults(Some(metadata))
-            .expect("normalized metadata");
+        let normalized = normalize_request_metadata_with_artifact_defaults(
+            Some(metadata),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("normalized metadata");
 
         assert_eq!(
             normalized
@@ -340,6 +417,109 @@ mod tests {
                 .pointer("/artifact/artifact_mode")
                 .and_then(Value::as_str),
             None
+        );
+    }
+
+    #[test]
+    fn should_backfill_content_id_before_infer_artifact_request_id() {
+        let metadata = json!({
+            "harness": {
+                "theme": "document",
+                "session_mode": "theme_workbench"
+            }
+        });
+
+        let normalized = normalize_request_metadata_with_artifact_defaults(
+            Some(metadata),
+            None,
+            None,
+            None,
+            None,
+            Some("content-from-session"),
+        )
+        .expect("normalized metadata");
+
+        assert_eq!(
+            normalized
+                .pointer("/harness/content_id")
+                .and_then(Value::as_str),
+            Some("content-from-session")
+        );
+        assert_eq!(
+            normalized
+                .pointer("/artifact/artifact_request_id")
+                .and_then(Value::as_str),
+            Some("artifact:content-from-session")
+        );
+    }
+
+    #[test]
+    fn should_backfill_theme_and_session_mode_before_infer_artifact_defaults() {
+        let metadata = json!({
+            "harness": {
+                "content_id": "content-1"
+            }
+        });
+
+        let normalized = normalize_request_metadata_with_artifact_defaults(
+            Some(metadata),
+            Some("document"),
+            Some("theme_workbench"),
+            None,
+            None,
+            None,
+        )
+        .expect("normalized metadata");
+
+        assert_eq!(
+            normalized.pointer("/harness/theme").and_then(Value::as_str),
+            Some("document")
+        );
+        assert_eq!(
+            normalized
+                .pointer("/harness/session_mode")
+                .and_then(Value::as_str),
+            Some("theme_workbench")
+        );
+        assert_eq!(
+            normalized
+                .pointer("/artifact/artifact_request_id")
+                .and_then(Value::as_str),
+            Some("artifact:content-1")
+        );
+    }
+
+    #[test]
+    fn should_backfill_gate_key_and_run_title_when_missing() {
+        let metadata = json!({
+            "harness": {
+                "theme": "social-media",
+                "session_mode": "theme_workbench",
+                "content_id": "content-social-1"
+            }
+        });
+
+        let normalized = normalize_request_metadata_with_artifact_defaults(
+            Some(metadata),
+            None,
+            None,
+            Some("write_mode"),
+            Some("社媒初稿"),
+            None,
+        )
+        .expect("normalized metadata");
+
+        assert_eq!(
+            normalized
+                .pointer("/harness/gate_key")
+                .and_then(Value::as_str),
+            Some("write_mode")
+        );
+        assert_eq!(
+            normalized
+                .pointer("/harness/run_title")
+                .and_then(Value::as_str),
+            Some("社媒初稿")
         );
     }
 }

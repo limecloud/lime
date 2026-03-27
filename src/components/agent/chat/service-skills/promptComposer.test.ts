@@ -18,6 +18,7 @@ const MOCK_SKILL: ServiceSkillItem = {
   runnerType: "scheduled",
   defaultExecutorBinding: "automation_job",
   executionLocation: "client_default",
+  promptTemplateKey: "trend_briefing",
   version: "seed-v1",
   slotSchema: [
     {
@@ -75,6 +76,7 @@ describe("service skill prompt composer", () => {
     expect(prompt).toContain("[服务型技能] 每日趋势摘要");
     expect(prompt).toContain("- 行业关键词: AI Agent，创作者工具");
     expect(prompt).toContain("[补充要求] 重点关注过去 24 小时的新增热点。");
+    expect(prompt).toContain("现在什么最热");
     expect(prompt).toContain("当前为客户端起步版");
   });
 
@@ -88,6 +90,24 @@ describe("service skill prompt composer", () => {
     });
 
     expect(prompt).toContain("[自动化执行要求]");
+    expect(prompt).toContain("对比上轮变化");
     expect(prompt).not.toContain("当前为客户端起步版");
+  });
+
+  it("远端目录缺少 promptTemplateKey 时应回退到 skillKey 推断模板", () => {
+    const prompt = composeServiceSkillPrompt({
+      skill: {
+        ...MOCK_SKILL,
+        id: "service-skill-0005",
+        skillKey: "daily-trend-briefing",
+        promptTemplateKey: undefined,
+      },
+      slotValues: {
+        platform: "x",
+        industry_keywords: "AI Agent，创作者工具",
+      },
+    });
+
+    expect(prompt).toContain("现在什么最热");
   });
 });

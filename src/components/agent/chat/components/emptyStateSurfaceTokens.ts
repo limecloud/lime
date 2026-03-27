@@ -69,7 +69,7 @@ export const EMPTY_STATE_ICON_TOOL_BUTTON_CLASSNAME =
 
 const EMPTY_STATE_TOOL_TOGGLE_TONE_CLASSNAMES: Record<EmptyStateTone, string> = {
   slate:
-    "border-slate-300 bg-slate-100 text-slate-700 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700",
+    "border-slate-400 bg-slate-200 text-slate-900 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.28)] hover:border-slate-400 hover:bg-slate-200 hover:text-slate-900",
   sky:
     "border-sky-300 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700",
   emerald:

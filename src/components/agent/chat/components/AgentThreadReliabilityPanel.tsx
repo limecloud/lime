@@ -757,6 +757,12 @@ export const AgentThreadReliabilityPanel: React.FC<
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
+              className="border-amber-200 bg-amber-50 text-amber-700"
+            >
+              compat 快速诊断
+            </Badge>
+            <Badge
+              variant="outline"
               className={resolveToneClassName(statusTone)}
             >
               {statusLabel}
@@ -789,7 +795,7 @@ export const AgentThreadReliabilityPanel: React.FC<
             data-testid="agent-thread-reliability-copy"
           >
             <Copy className="mr-2 h-3.5 w-3.5" />
-            复制给 AI
+            快速复制给 AI
           </Button>
           <Button
             type="button"
@@ -800,12 +806,15 @@ export const AgentThreadReliabilityPanel: React.FC<
             data-testid="agent-thread-reliability-copy-json"
           >
             <Copy className="mr-2 h-3.5 w-3.5" />
-            复制原始 JSON
+            复制原始 JSON（debug）
           </Button>
         </div>
       </div>
-      <div className="mt-2 text-[11px] leading-5 text-muted-foreground">
-        “复制给 AI” 会附带诊断任务说明、运行环境、过程信号与最近消息；“复制原始 JSON” 适合程序化分析、存档或二次处理。
+      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-900">
+        当前入口属于 `compat` 线程级快速诊断，只覆盖当前 thread 的运行信号。
+        正式交给外部 Claude Code / Codex 分析时，请优先使用工作台“交接制品
+        → 外部分析交接”的 `analysis-brief.md / analysis-context.json`
+        主链；这里的“快速复制给 AI”只适合临时排障，“复制原始 JSON（debug）”适合程序化分析、存档或二次处理。
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-3">

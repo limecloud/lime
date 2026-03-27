@@ -5,10 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Inputbar } from "./index";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 
 const mockCharacterMention =
   vi.fn<
-    (props: { characters?: Character[]; skills?: Skill[] }) => React.ReactNode
+    (props: {
+      characters?: Character[];
+      skills?: Skill[];
+      serviceSkills?: ServiceSkillHomeItem[];
+      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+    }) => React.ReactNode
   >();
 const mockInputbarCore = vi.fn(
   (props: {
@@ -32,6 +38,16 @@ const mockInputbarCore = vi.fn(
       </button>
       <span data-testid="web-search-state">
         {props.activeTools?.web_search ? "on" : "off"}
+      </span>
+      <button
+        type="button"
+        data-testid="toggle-subagent-mode"
+        onClick={() => props.onToolClick?.("subagent_mode")}
+      >
+        切换多代理
+      </button>
+      <span data-testid="subagent-state">
+        {props.activeTools?.subagent_mode ? "on" : "off"}
       </span>
       <button
         type="button"
@@ -62,7 +78,12 @@ vi.mock("./components/InputbarCore", () => ({
 }));
 
 vi.mock("./components/CharacterMention", () => ({
-  CharacterMention: (props: { characters?: Character[]; skills?: Skill[] }) => {
+  CharacterMention: (props: {
+    characters?: Character[];
+    skills?: Skill[];
+    serviceSkills?: ServiceSkillHomeItem[];
+    onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+  }) => {
     mockCharacterMention(props);
     return <div data-testid="character-mention-stub" />;
   },
@@ -228,6 +249,34 @@ describe("Inputbar", () => {
     expect(latestCall.skills).toEqual([]);
   });
 
+  it("应将服务型技能目录与选择回调透传给 CharacterMention", async () => {
+    const serviceSkills = [
+      {
+        id: "daily-trend-briefing",
+        title: "每日趋势摘要",
+      },
+    ] as ServiceSkillHomeItem[];
+    const onSelectServiceSkill = vi.fn();
+
+    renderInputbar({
+      serviceSkills,
+      onSelectServiceSkill,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockCharacterMention.mock.calls.length).toBeGreaterThan(0);
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+
+    expect(latestCall.serviceSkills).toBe(serviceSkills);
+    expect(latestCall.onSelectServiceSkill).toBe(onSelectServiceSkill);
+  });
+
   it("存在 executionRuntime 时应展示最近执行模型与结构化输出提示", async () => {
     const container = renderInputbar({
       providerType: "openai",
@@ -358,9 +407,6 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="team-selector-stub"]'),
     ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="team-mode-enable-button"]'),
-    ).toBeTruthy();
 
     const enabledContainer = renderInputbar({
       activeTheme: "general",
@@ -379,12 +425,9 @@ describe("Inputbar", () => {
     expect(
       enabledContainer.querySelector('[data-testid="team-selector-stub"]'),
     ).toBeTruthy();
-    expect(
-      enabledContainer.querySelector('[data-testid="team-mode-enable-button"]'),
-    ).toBeNull();
   });
 
-  it("未开启 Team mode 时应显示显式开启按钮，并可直接启用", async () => {
+  it("未开启 Team mode 时应只保留图标开关，并可直接启用", async () => {
     const onToolStatesChange = vi.fn();
     const container = renderInputbar({
       activeTheme: "general",
@@ -401,12 +444,15 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
+    expect(
+      container.querySelector('[data-testid="team-mode-enable-button"]'),
+    ).toBeNull();
+
     const enableButton = container.querySelector(
-      '[data-testid="team-mode-enable-button"]',
+      '[data-testid="toggle-subagent-mode"]',
     ) as HTMLButtonElement | null;
 
     expect(enableButton).toBeTruthy();
-    expect(enableButton?.textContent).toContain("开启 Team");
 
     act(() => {
       enableButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -420,7 +466,7 @@ describe("Inputbar", () => {
     });
   });
 
-  it("点击开启 Team 后应自动透传 Team 配置面板打开令牌", async () => {
+  it("点击多代理图标后应自动透传 Team 配置面板打开令牌", async () => {
     const container = renderInputbar({
       activeTheme: "general",
     });
@@ -431,7 +477,7 @@ describe("Inputbar", () => {
     });
 
     const enableButton = container.querySelector(
-      '[data-testid="team-mode-enable-button"]',
+      '[data-testid="toggle-subagent-mode"]',
     ) as HTMLButtonElement | null;
 
     expect(enableButton).toBeTruthy();
@@ -453,7 +499,7 @@ describe("Inputbar", () => {
     expect(teamSelector?.getAttribute("data-auto-open-token")).toBe("1");
   });
 
-  it("复杂任务但未开启 Team 时，开启按钮应显示推荐态", async () => {
+  it("复杂任务但未开启 Team 时，保留推荐提示但不再渲染重复入口", async () => {
     const container = renderInputbar({
       activeTheme: "general",
       input: "请把这个跨模块问题拆分成分析、实现、验证三个并行子任务再汇总",
@@ -469,13 +515,18 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    const enableButton = container.querySelector(
-      '[data-testid="team-mode-enable-button"]',
-    ) as HTMLButtonElement | null;
+    const recommendationButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("启用 Team"));
 
-    expect(enableButton).toBeTruthy();
-    expect(enableButton?.textContent).toContain("开启 Team");
-    expect(enableButton?.textContent).toContain("推荐");
+    expect(
+      container.querySelector('[data-testid="team-mode-enable-button"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="toggle-subagent-mode"]'),
+    ).toBeTruthy();
+    expect(recommendationButton).toBeTruthy();
+    expect(container.textContent).toContain("当前任务更适合 Team 协作");
   });
 
   it("社媒主题默认应自动注入 social_post_with_cover skill", async () => {

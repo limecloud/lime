@@ -35,6 +35,7 @@ import { ComponentDebugOverlay } from "./components/dev";
 import {
   AgentPageParams,
   AutomationPageParams,
+  BrowserRuntimePageParams,
   getThemeByWorkspacePage,
   getThemeWorkspacePage,
   isThemeWorkspacePage,
@@ -705,9 +706,25 @@ function AppContent() {
     }
 
     if (currentPage === "browser-runtime") {
+      const browserRuntimeParams = pageParams as BrowserRuntimePageParams;
       return (
         <PageWrapper $isActive={true}>
-          <BrowserRuntimeWorkspace active={true} onNavigate={handleNavigate} />
+          <BrowserRuntimeWorkspace
+            active={true}
+            onNavigate={handleNavigate}
+            initialProfileKey={browserRuntimeParams.initialProfileKey}
+            initialSessionId={browserRuntimeParams.initialSessionId}
+            initialTargetId={browserRuntimeParams.initialTargetId}
+            currentProjectId={browserRuntimeParams.projectId}
+            currentContentId={browserRuntimeParams.contentId}
+            initialAdapterName={browserRuntimeParams.initialAdapterName}
+            initialArgs={browserRuntimeParams.initialArgs}
+            initialAutoRun={browserRuntimeParams.initialAutoRun}
+            initialRequireAttachedSession={
+              browserRuntimeParams.initialRequireAttachedSession
+            }
+            initialSaveTitle={browserRuntimeParams.initialSaveTitle}
+          />
         </PageWrapper>
       );
     }

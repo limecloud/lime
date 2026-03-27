@@ -84,6 +84,34 @@ describe("service skill automation draft", () => {
           artifact_mode: "draft",
           artifact_kind: "analysis",
         }),
+        service_skill: expect.objectContaining({
+          id: "daily-trend-briefing",
+          title: "每日趋势摘要",
+          runner_type: "scheduled",
+          slot_values: [
+            {
+              key: "platform",
+              label: "监测平台",
+              value: "X / Twitter",
+            },
+            {
+              key: "industry_keywords",
+              label: "行业关键词",
+              value: "AI Agent，创作者工具",
+            },
+            {
+              key: "schedule_time",
+              label: "推送时间",
+              value: "每天 09:00",
+            },
+          ],
+          slot_summary: [
+            "监测平台: X / Twitter",
+            "行业关键词: AI Agent，创作者工具",
+            "推送时间: 每天 09:00",
+          ],
+          user_input: "重点关注新增热点与异常波动。",
+        }),
         harness: expect.objectContaining({
           theme: "social-media",
           session_mode: "theme_workbench",
@@ -106,6 +134,14 @@ describe("service skill automation draft", () => {
           artifact: expect.objectContaining({
             artifact_mode: "draft",
             artifact_kind: "analysis",
+          }),
+          service_skill: expect.objectContaining({
+            id: "daily-trend-briefing",
+            title: "每日趋势摘要",
+            runner_type: "scheduled",
+            slot_values: [],
+            slot_summary: [],
+            user_input: null,
           }),
           harness: expect.objectContaining({
             theme: "social-media",

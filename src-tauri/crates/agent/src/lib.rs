@@ -102,7 +102,11 @@ pub use runtime_queue::{
     RuntimeQueueExecutor,
 };
 pub use session_execution_runtime::{
-    build_session_execution_runtime, SessionExecutionRuntime, SessionExecutionRuntimeSource,
+    build_session_execution_runtime, extract_recent_content_id_from_runtime_snapshot,
+    persist_session_recent_preferences, persist_session_recent_team_selection,
+    SessionExecutionRuntime, SessionExecutionRuntimePreferences,
+    SessionExecutionRuntimeRecentTeamRole, SessionExecutionRuntimeRecentTeamSelection,
+    SessionExecutionRuntimeSource,
 };
 pub use session_query::{
     collect_subagent_cascade_session_ids, list_child_subagent_sessions,
@@ -115,7 +119,8 @@ pub use session_store::{
     list_title_preview_messages_sync, rename_session_sync, update_session_execution_strategy_sync,
     update_session_provider_config_sync, update_session_working_dir_sync,
     ChildSubagentRuntimeStatus, ChildSubagentSession, PersistedSessionMetadata, SessionDetail,
-    SessionInfo, SessionTitlePreviewMessage, SessionTodoItem, SubagentParentContext,
+    SessionInfo, SessionTitlePreviewMessage, SessionTodoItem, SessionTodoStatus,
+    SubagentParentContext,
 };
 pub use session_update::{
     create_subagent_session, persist_compaction_session_metrics_update,

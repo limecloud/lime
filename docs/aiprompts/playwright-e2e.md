@@ -129,6 +129,18 @@ npm run test:contracts
 6. 点击 `确认生成`
 7. 验证页面出现 `Theme Workbench` 或相关工作台内容
 8. 再次检查控制台 error
+9. 如能查看运行时摘要，继续确认当前 gate 与任务标题恢复自该话题最近一次 `execution_runtime.recent_gate_key / recent_run_title`
+
+### 浏览器工作台站点采集验证
+
+1. 进入带有 browser assist 的工作区或浏览器运行时面板
+2. 打开 `站点采集工作台` 或对应调试面板
+3. 先确认推荐区已出现，并至少看到一个推荐适配器卡片
+4. 点击一个推荐项，确认适配器、资料提示和标签页提示同步变化
+5. 触发一次执行失败场景时，确认结果区展示业务级错误码与 `report_hint`
+6. 如当前页面带有 `contentId` 上下文，再确认执行成功后默认是“写回当前主稿”，而不是新建资源文档
+7. 如工作台模式开启自动保存，再确认执行成功后保存态文案与打开入口正常
+8. 打开控制台并确认浏览器资料 / 环境预设读取没有落回 web mock，尤其不应出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`
 
 ### 话题模型恢复验证
 
@@ -137,6 +149,71 @@ npm run test:contracts
 3. 在两个话题之间来回切换
 4. 验证模型选择器恢复的是该话题最近一次 session runtime，而不是陈旧的 localStorage 默认值
 5. 如页面暴露运行时摘要条，再确认 provider/model 文案与选择器一致
+
+### 话题工具偏好恢复验证
+
+1. 进入同一工作区中的两个话题
+2. 分别切换 `联网 / 深度思考 / 任务模式 / 子代理` 开关组合
+3. 在两个话题之间来回切换，必要时新建一个空白话题再切回
+4. 验证工具开关恢复的是该话题最近一次 session runtime，而不是主题级 localStorage 默认值
+5. 如首次切回旧话题时只能命中 fallback，再继续切换一次，确认第二次开始已优先走 runtime 恢复
+
+### 话题 Team 恢复验证
+
+1. 进入同一工作区中的两个话题
+2. 在话题 A 里选择一个 builtin Team，在话题 B 里选择另一个 builtin 或 custom Team
+3. 在两个话题之间来回切换，必要时新建一个空白话题再切回
+4. 验证 Team 选择器、摘要区和 Team Workbench 展示恢复的是该话题最近一次 `recent_team_selection`，而不是主题级 localStorage 的旧值
+5. 对 custom Team 额外确认：切回后 label / description / roles 没丢；如果本轮是从 fallback 回填，继续切换一次确认第二次开始已优先走 runtime 恢复
+
+### 运行时交接制品验证
+
+1. 进入带有 `HarnessStatusPanel` 的对话工作区，并确保当前话题已经拿到 `sessionId`
+2. 展开 `交接制品` 区块，点击 `导出交接制品`
+3. 验证区块内出现：
+   - 导出时间
+   - 线程状态 / 最新 Turn 状态
+   - Todo 统计
+   - `plan / progress / handoff / review` 文件列表
+4. 继续点击单个制品的 `预览`，确认预览弹窗能打开，并能看到对应绝对路径
+5. 如页面桥接到了真实后端，再点击 `打开目录` 或单文件 `打开`，确认不会落回 mock，且工作区内确实生成 `.lime/harness/sessions/<session_id>/...`
+6. 如果这轮继续开发问题证据包，再把同一条续测链扩展为“先导出 handoff，再导出 evidence pack”，确认两者目录与状态卡不会串线
+7. 如果这轮继续开发 replay 样本导出，再点击 `导出 Replay 样本`，确认：
+   - `input / expected / grader / evidence-links` 文件列表出现
+   - replay 区块能显示 handoff / evidence 的关联根路径
+   - 打开目录后工作区内确实生成 `.lime/harness/sessions/<session_id>/replay`
+8. 如果这轮继续开发外部分析交接，再点击 `导出分析交接` 与 `一键复制给 AI`，确认：
+   - `analysis-brief.md / analysis-context.json` 文件列表出现
+   - 复制内容直接来自后端 `copy_prompt`，不需要前端再手写 prompt
+   - analysis 区块能显示 handoff / evidence / replay 的关联目录
+9. 如果这轮继续开发人工审核记录，再点击 `导出人工审核记录`，确认：
+   - `review-decision.md / review-decision.json` 文件列表出现
+   - 区块能显示默认状态、审核清单与关联 analysis 文件
+   - 打开目录后工作区内确实生成 `.lime/harness/sessions/<session_id>/review`
+
+### 话题内容上下文恢复验证
+
+1. 进入带 `contentId` 的工作台话题并完成至少一次发送
+2. 留在同一话题下再次发送，保持目标主稿不变
+3. 验证本轮仍写回当前主稿，没有误新建资源文档或切到其他内容
+4. 如能查看调试面板或运行时摘要，继续确认恢复依据是当前话题最近一次 `execution_runtime.recent_content_id`，而不是页面一次性参数或陈旧缓存
+5. 再切到另一个 `contentId` 后立即发送一次，确认同步窗口内仍能命中新主稿，而不是被旧 runtime 误覆盖
+
+### 话题主题上下文恢复验证
+
+1. 进入普通对话话题完成一次发送，再切到 `Theme Workbench` 话题完成一次发送
+2. 在两个话题之间来回切换，必要时新建一个空白话题再切回
+3. 验证 UI 恢复的是该话题最近一次主题上下文，而不是页面一次性参数或主题级缓存
+4. 如能查看调试面板或运行时摘要，继续确认依据是当前话题最近一次 `execution_runtime.recent_theme / recent_session_mode`
+5. 再从普通对话切到新的 `theme_workbench` 后立即发送一次，确认同步窗口内仍命中新 theme / session mode，而不是被旧 runtime 误覆盖
+
+### Theme Workbench 运行阶段恢复验证
+
+1. 进入同一个 Theme Workbench 话题，至少完成一次 `write_mode` 或 `publish_confirm` 阶段发送
+2. 留在同一话题下再次发送，保持当前 gate 和任务标题不变
+3. 验证本轮仍衔接当前 gate / 任务标题，而不是掉回旧阶段或空标题
+4. 如能查看调试面板或运行时摘要，继续确认恢复依据是当前话题最近一次 `execution_runtime.recent_gate_key / recent_run_title`
+5. 再切到新的 gate 或新的运行标题后立即发送一次，确认同步窗口内仍命中新 gate / run title，而不是被旧 runtime 误覆盖
 
 ### 服务型技能自动化交付链
 
@@ -228,6 +305,7 @@ npm run test:contracts
 
 - 如果该命令属于浏览器模式可接受的降级能力，加入 mock 优先列表
 - 如果该命令属于当前主路径必须能力，补真实 bridge
+- 对浏览器资料 / 环境预设这类已桥接命令，优先排查真实 DevBridge 或默认种子，不要再把它们加回 mock 优先集合
 
 ## 何时补 mock，何时补真实 bridge
 

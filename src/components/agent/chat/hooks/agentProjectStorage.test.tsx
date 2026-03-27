@@ -3,8 +3,11 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   LAST_PROJECT_ID_KEY,
+  getSessionWorkspaceStorageKey,
   loadPersistedProjectId,
+  loadPersistedSessionWorkspaceId,
   savePersistedProjectId,
+  savePersistedSessionWorkspaceId,
   usePersistedProjectId,
 } from "./agentProjectStorage";
 
@@ -73,6 +76,15 @@ describe("agentProjectStorage", () => {
     savePersistedProjectId(LAST_PROJECT_ID_KEY, "project-a");
 
     expect(loadPersistedProjectId(LAST_PROJECT_ID_KEY)).toBe("project-a");
+  });
+
+  it("应保存并读取会话绑定工作区影子缓存", () => {
+    savePersistedSessionWorkspaceId("session-a", "project-a");
+
+    expect(getSessionWorkspaceStorageKey("session-a")).toBe(
+      "agent_session_workspace_session-a",
+    );
+    expect(loadPersistedSessionWorkspaceId("session-a")).toBe("project-a");
   });
 
   it("hook 应优先使用 externalProjectId，否则回退最近项目", () => {

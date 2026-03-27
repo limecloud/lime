@@ -55,6 +55,7 @@ async fn navigate(session: &CdpSessionHandle, args: &Value) -> Result<Value, Str
     }
     let url = get_string_arg(args, &["url"]).ok_or_else(|| "navigate 需要提供 url".to_string())?;
     let wait_timeout_ms = get_u64_arg(args, &["timeout_ms"]).unwrap_or(DEFAULT_ACTION_TIMEOUT_MS);
+    let command_timeout_ms = resolve_navigation_command_timeout_ms(wait_timeout_ms);
     let previous_url = session
         .state()
         .await
@@ -64,11 +65,7 @@ async fn navigate(session: &CdpSessionHandle, args: &Value) -> Result<Value, Str
         .filter(|value| !value.trim().is_empty());
     let mut event_rx = session.subscribe();
     let response = session
-        .send_command(
-            "Page.navigate",
-            json!({ "url": url }),
-            DEFAULT_ACTION_TIMEOUT_MS,
-        )
+        .send_command("Page.navigate", json!({ "url": url }), command_timeout_ms)
         .await?;
     if let Some(error_text) = response
         .get("errorText")
@@ -416,9 +413,22 @@ fn get_u64_arg(args: &Value, keys: &[&str]) -> Option<u64> {
         .find_map(|key| args.get(*key).and_then(Value::as_u64))
 }
 
+fn resolve_navigation_command_timeout_ms(wait_timeout_ms: u64) -> u64 {
+    wait_timeout_ms.max(DEFAULT_ACTION_TIMEOUT_MS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_keep_navigation_command_timeout_at_least_default() {
+        assert_eq!(
+            resolve_navigation_command_timeout_ms(5_000),
+            DEFAULT_ACTION_TIMEOUT_MS
+        );
+        assert_eq!(resolve_navigation_command_timeout_ms(20_000), 20_000);
+    }
 
     #[test]
     fn should_accept_exact_expected_url_even_when_previous_matches() {

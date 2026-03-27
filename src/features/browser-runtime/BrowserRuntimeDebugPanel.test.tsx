@@ -14,6 +14,7 @@ const {
   mockGetChromeBridgeStatus,
   mockBrowserExecuteAction,
   mockSiteListAdapters,
+  mockSiteRecommendAdapters,
   mockSiteGetAdapterCatalogStatus,
   mockSiteRunAdapter,
 } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const {
   mockGetChromeBridgeStatus: vi.fn(),
   mockBrowserExecuteAction: vi.fn(),
   mockSiteListAdapters: vi.fn(),
+  mockSiteRecommendAdapters: vi.fn(),
   mockSiteGetAdapterCatalogStatus: vi.fn(),
   mockSiteRunAdapter: vi.fn(),
 }));
@@ -73,6 +75,7 @@ vi.mock("./api", () => ({
     getChromeBridgeStatus: mockGetChromeBridgeStatus,
     browserExecuteAction: mockBrowserExecuteAction,
     siteListAdapters: mockSiteListAdapters,
+    siteRecommendAdapters: mockSiteRecommendAdapters,
     siteGetAdapterCatalogStatus: mockSiteGetAdapterCatalogStatus,
     siteRunAdapter: mockSiteRunAdapter,
     openBrowserRuntimeDebuggerWindow: vi.fn(async () => undefined),
@@ -137,6 +140,38 @@ beforeEach(() => {
       },
       example: 'github/search {"query":"model context protocol","limit":5}',
       auth_hint: "若需要完整结果，请先在浏览器中登录 GitHub。",
+    },
+  ]);
+  mockSiteRecommendAdapters.mockResolvedValue([
+    {
+      adapter: {
+        name: "github/search",
+        domain: "github.com",
+        description: "按关键词采集 GitHub 仓库搜索结果。",
+        read_only: true,
+        capabilities: ["search", "repository", "research"],
+        input_schema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            limit: { type: "integer" },
+          },
+          required: ["query"],
+        },
+        example_args: {
+          query: "model context protocol",
+          limit: 5,
+        },
+        example: 'github/search {"query":"model context protocol","limit":5}',
+        auth_hint: "若需要完整结果，请先在浏览器中登录 GitHub。",
+      },
+      reason:
+        "已检测到资料 general_browser_assist 当前停留在 github.com，可直接复用已连接的浏览器上下文。",
+      profile_key: "general_browser_assist",
+      target_id: "mock-target-1",
+      entry_url:
+        "https://github.com/search?q=model%20context%20protocol&type=repositories",
+      score: 100,
     },
   ]);
   mockSiteGetAdapterCatalogStatus.mockResolvedValue({

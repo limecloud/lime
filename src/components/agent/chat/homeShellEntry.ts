@@ -10,6 +10,7 @@ export interface AgentChatWorkspaceBootstrap {
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
   initialRequestMetadata?: Record<string, unknown>;
+  autoRunInitialPromptOnMount?: boolean;
   theme?: string;
   initialCreationMode?: CreationMode;
   openBrowserAssistOnMount?: boolean;
@@ -21,6 +22,7 @@ export interface HomeShellEnterWorkspacePayload {
   images?: MessageImage[];
   contentId?: string;
   initialRequestMetadata?: Record<string, unknown>;
+  autoRunInitialPromptOnMount?: boolean;
   openBrowserAssistOnMount?: boolean;
   toolPreferences?: ChatToolPreferences;
   themeOverride?: string;
@@ -67,9 +69,11 @@ export function resolveHomeShellWorkspaceEntry(
 
   const hasPrompt = Boolean(payload.prompt?.trim());
   const hasImages = Boolean(payload.images?.length);
+  const hasContentId = Boolean(payload.contentId?.trim());
   const toolPreferences = payload.toolPreferences ?? defaultToolPreferences;
   const targetTheme = payload.themeOverride ?? activeTheme;
   const openBrowserAssistOnMount = payload.openBrowserAssistOnMount;
+  const autoRunInitialPromptOnMount = payload.autoRunInitialPromptOnMount;
 
   if (!openBrowserAssistOnMount && !projectId) {
     return {
@@ -78,7 +82,7 @@ export function resolveHomeShellWorkspaceEntry(
     };
   }
 
-  if (!openBrowserAssistOnMount && !hasPrompt && !hasImages) {
+  if (!openBrowserAssistOnMount && !hasPrompt && !hasImages && !hasContentId) {
     return {
       ok: false,
       reason: "empty_payload",
@@ -94,6 +98,9 @@ export function resolveHomeShellWorkspaceEntry(
     initialUserPrompt: payload.prompt,
     initialUserImages: payload.images,
     initialRequestMetadata: payload.initialRequestMetadata,
+    ...(autoRunInitialPromptOnMount !== undefined
+      ? { autoRunInitialPromptOnMount }
+      : {}),
     openBrowserAssistOnMount,
     newChatAt: nextNewChatAt,
   } satisfies AgentPageParams;
@@ -110,6 +117,7 @@ export function resolveHomeShellWorkspaceEntry(
       initialUserPrompt: payload.prompt,
       initialUserImages: payload.images,
       initialRequestMetadata: payload.initialRequestMetadata,
+      autoRunInitialPromptOnMount,
       theme: targetTheme,
       initialCreationMode: creationMode,
       openBrowserAssistOnMount,

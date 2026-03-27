@@ -105,6 +105,9 @@ beforeEach(() => {
       enabled: true,
       shortcut: "CommandOrControl+Shift+4",
     },
+    webmcp: {
+      enabled: false,
+    },
   });
 
   mockGetVoiceInputConfig.mockResolvedValue({
@@ -189,6 +192,9 @@ describe("HotkeysSettings", () => {
           enabled: true,
           shortcut: "CommandOrControl+Shift+4",
         },
+        webmcp: {
+          enabled: false,
+        },
       });
 
     const container = renderComponent();
@@ -208,6 +214,9 @@ describe("HotkeysSettings", () => {
       screenshot_chat: {
         enabled: false,
         shortcut: "",
+      },
+      webmcp: {
+        enabled: false,
       },
     });
     mockGetVoiceInputConfig.mockResolvedValue({

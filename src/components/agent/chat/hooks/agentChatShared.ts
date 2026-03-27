@@ -9,6 +9,8 @@ import type {
   MessageImage,
   WriteArtifactContext,
 } from "../types";
+import type { ChatToolPreferences } from "../utils/chatToolPreferences";
+import { normalizeProjectId } from "../utils/topicProjectResolution";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 import { sanitizeMessageTextForPreview } from "../utils/internalImagePlaceholder";
 
@@ -27,6 +29,7 @@ export interface Topic {
   title: string;
   createdAt: Date;
   updatedAt: Date;
+  workspaceId?: string | null;
   messagesCount: number;
   executionStrategy: AsterExecutionStrategy;
   status: TaskStatus;
@@ -47,6 +50,9 @@ export interface UseAsterAgentChatOptions {
   ) => void;
   workspaceId: string;
   disableSessionRestore?: boolean;
+  getSyncedSessionRecentPreferences?: (
+    sessionId: string,
+  ) => ChatToolPreferences | null;
 }
 
 export interface SendMessageObserver {
@@ -398,6 +404,7 @@ export const mapSessionToTopic = (session: AsterSessionInfo): Topic => {
       `任务 ${new Date(session.created_at * 1000).toLocaleDateString("zh-CN")}`,
     createdAt: new Date(session.created_at * 1000),
     updatedAt: new Date(updatedAtEpoch * 1000),
+    workspaceId: normalizeProjectId(session.workspace_id),
     messagesCount,
     executionStrategy: normalizeExecutionStrategy(session.execution_strategy),
     status: messagesCount > 0 ? "done" : "draft",

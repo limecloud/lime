@@ -17,6 +17,7 @@ interface HookProps {
   contentId?: string;
   sessionId?: string;
   isThemeWorkbench: boolean;
+  autoRunInitialPromptOnMount: boolean;
   shouldUseCompactThemeWorkbench: boolean;
   messagesCount: number;
   initialDispatchKey: string | null;
@@ -45,6 +46,7 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     contentId: "content-1",
     sessionId: "session-1",
     isThemeWorkbench: true,
+    autoRunInitialPromptOnMount: false,
     shouldUseCompactThemeWorkbench: false,
     messagesCount: 0,
     initialDispatchKey: null,
@@ -137,6 +139,22 @@ describe("useThemeWorkbenchEntryPrompt", () => {
     }
   });
 
+  it("启用自动执行时不应进入预填提示态", async () => {
+    const harness = mountHook({
+      initialDispatchKey: "initial-dispatch",
+      initialUserPrompt: "请先生成社媒主稿",
+      autoRunInitialPromptOnMount: true,
+    });
+
+    try {
+      await flushEffects();
+      expect(harness.onHydrateInitialPrompt).not.toHaveBeenCalled();
+      expect(harness.getValue().themeWorkbenchEntryPrompt).toBeNull();
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("无初始意图时应查询 resume prompt", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -191,6 +209,7 @@ describe("useThemeWorkbenchEntryPrompt", () => {
         contentId: "content-1",
         sessionId: "session-1",
         isThemeWorkbench: true,
+        autoRunInitialPromptOnMount: false,
         shouldUseCompactThemeWorkbench: false,
         messagesCount: 0,
         initialDispatchKey: null,

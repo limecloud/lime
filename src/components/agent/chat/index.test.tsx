@@ -1,6 +1,14 @@
 import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   resolveBrowserAssistSessionScopeKey,
   resolveBrowserAssistSessionStorageKey,
@@ -660,6 +668,8 @@ import * as configuredProvidersModule from "@/hooks/useConfiguredProviders";
 import * as providerModelsModule from "@/hooks/useProviderModels";
 import { AgentChatPage } from "./index";
 
+const preloadAgentChatWorkspaceModule = import("./AgentChatWorkspace");
+
 interface MountedHarness {
   container: HTMLDivElement;
   root: Root;
@@ -687,6 +697,7 @@ const observedWorkspaceIds: string[] = [];
 let sharedSwitchTopicMock: ReturnType<typeof vi.fn>;
 let sharedSendMessageMock: ReturnType<typeof vi.fn>;
 let sharedTriggerAIGuideMock: ReturnType<typeof vi.fn>;
+const FIXED_TOPIC_UPDATED_AT = 1710385200000;
 
 function buildMockProviderModel(
   overrides: Partial<
@@ -857,6 +868,52 @@ function clickButton(container: HTMLElement, testId: string) {
   });
 }
 
+function createMockAgentChatUnifiedState(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    providerType: "kiro",
+    setProviderType: vi.fn(),
+    model: "mock-model",
+    setModel: vi.fn(),
+    executionStrategy: "auto",
+    setExecutionStrategy: vi.fn(),
+    messages: [],
+    isSending: false,
+    sendMessage: sharedSendMessageMock,
+    stopSending: vi.fn(async () => undefined),
+    clearMessages: vi.fn(),
+    deleteMessage: vi.fn(),
+    editMessage: vi.fn(),
+    handlePermissionResponse: vi.fn(),
+    triggerAIGuide: sharedTriggerAIGuideMock,
+    topics: [
+      {
+        id: "topic-a",
+        title: "话题 A",
+        updatedAt: FIXED_TOPIC_UPDATED_AT,
+      },
+    ],
+    sessionId: "session-1",
+    switchTopic: sharedSwitchTopicMock,
+    deleteTopic: vi.fn(),
+    renameTopic: vi.fn(),
+    workspacePathMissing: false,
+    fixWorkspacePathAndRetry: vi.fn(),
+    dismissWorkspacePathError: vi.fn(),
+    ...overrides,
+  };
+}
+
+function installMockAgentChatUnifiedState(state: Record<string, unknown>) {
+  mockUseAgentChatUnified.mockImplementation(
+    ({ workspaceId }: { workspaceId: string }) => {
+      observedWorkspaceIds.push(workspaceId);
+      return state;
+    },
+  );
+}
+
 function getHookCallOrderForWorkspace(workspaceId: string): number {
   const index = mockUseAgentChatUnified.mock.calls.findIndex(
     (args: unknown[]) =>
@@ -870,85 +927,58 @@ function getHookCallOrderForWorkspace(workspaceId: string): number {
 }
 
 function mockBrowserAssistCompletedSession() {
-  mockUseAgentChatUnified.mockImplementation(
-    ({ workspaceId }: { workspaceId: string }) => {
-      observedWorkspaceIds.push(workspaceId);
-      return {
-        providerType: "kiro",
-        setProviderType: vi.fn(),
-        model: "mock-model",
-        setModel: vi.fn(),
-        executionStrategy: "auto",
-        setExecutionStrategy: vi.fn(),
-        messages: [
+  const state = createMockAgentChatUnifiedState({
+    messages: [
+      {
+        id: "msg-browser-user",
+        role: "user",
+        content: "打开浏览器并访问官网",
+        timestamp: new Date("2026-03-14T03:00:00.000Z"),
+      },
+      {
+        id: "msg-browser-assistant",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-03-14T03:00:01.000Z"),
+        toolCalls: [
           {
-            id: "msg-browser-user",
-            role: "user",
-            content: "打开浏览器并访问官网",
-            timestamp: new Date("2026-03-14T03:00:00.000Z"),
-          },
-          {
-            id: "msg-browser-assistant",
-            role: "assistant",
-            content: "",
-            timestamp: new Date("2026-03-14T03:00:01.000Z"),
-            toolCalls: [
-              {
-                id: "tool-browser-open",
-                name: "mcp__lime-browser__browser_navigate",
-                arguments: JSON.stringify({
-                  url: "https://www.rokid.com",
-                  profile_key: "general_browser_assist",
-                }),
-                status: "completed",
-                startTime: new Date("2026-03-14T03:00:01.100Z"),
-                endTime: new Date("2026-03-14T03:00:02.000Z"),
+            id: "tool-browser-open",
+            name: "mcp__lime-browser__browser_navigate",
+            arguments: JSON.stringify({
+              url: "https://www.rokid.com",
+              profile_key: "general_browser_assist",
+            }),
+            status: "completed",
+            startTime: new Date("2026-03-14T03:00:01.100Z"),
+            endTime: new Date("2026-03-14T03:00:02.000Z"),
+            result: {
+              success: true,
+              output: "已连接浏览器会话并完成首屏加载",
+              metadata: {
                 result: {
-                  success: true,
-                  output: "已连接浏览器会话并完成首屏加载",
-                  metadata: {
-                    result: {
-                      session_id: "browser-session-1",
-                      profile_key: "general_browser_assist",
-                      page_info: {
-                        title: "Rokid",
-                        url: "https://www.rokid.com",
-                      },
-                    },
+                  session_id: "browser-session-1",
+                  profile_key: "general_browser_assist",
+                  page_info: {
+                    title: "Rokid",
+                    url: "https://www.rokid.com",
                   },
                 },
               },
-            ],
+            },
           },
         ],
-        isSending: false,
-        sendMessage: sharedSendMessageMock,
-        stopSending: vi.fn(async () => undefined),
-        clearMessages: vi.fn(),
-        deleteMessage: vi.fn(),
-        editMessage: vi.fn(),
-        handlePermissionResponse: vi.fn(),
-        triggerAIGuide: sharedTriggerAIGuideMock,
-        topics: [
-          {
-            id: "topic-a",
-            title: "话题 A",
-            updatedAt: Date.now(),
-          },
-        ],
-        sessionId: "session-1",
-        switchTopic: sharedSwitchTopicMock,
-        deleteTopic: vi.fn(),
-        renameTopic: vi.fn(),
-        workspacePathMissing: false,
-        fixWorkspacePathAndRetry: vi.fn(),
-        dismissWorkspacePathError: vi.fn(),
-      };
-    },
-  );
+      },
+    ],
+  });
+
+  installMockAgentChatUnifiedState(state);
 }
 
-beforeEach(async () => {
+beforeAll(async () => {
+  await preloadAgentChatWorkspaceModule;
+});
+
+beforeEach(() => {
   (
     globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -1214,41 +1244,8 @@ beforeEach(async () => {
   sharedSwitchTopicMock = vi.fn(async () => undefined);
   sharedSendMessageMock = vi.fn(async () => undefined);
   sharedTriggerAIGuideMock = vi.fn();
-  mockUseAgentChatUnified.mockImplementation(
-    ({ workspaceId }: { workspaceId: string }) => {
-      observedWorkspaceIds.push(workspaceId);
-      return {
-        providerType: "kiro",
-        setProviderType: vi.fn(),
-        model: "mock-model",
-        setModel: vi.fn(),
-        executionStrategy: "auto",
-        setExecutionStrategy: vi.fn(),
-        messages: [],
-        isSending: false,
-        sendMessage: sharedSendMessageMock,
-        stopSending: vi.fn(async () => undefined),
-        clearMessages: vi.fn(),
-        deleteMessage: vi.fn(),
-        editMessage: vi.fn(),
-        handlePermissionResponse: vi.fn(),
-        triggerAIGuide: sharedTriggerAIGuideMock,
-        topics: [
-          {
-            id: "topic-a",
-            title: "话题 A",
-            updatedAt: Date.now(),
-          },
-        ],
-        sessionId: "session-1",
-        switchTopic: sharedSwitchTopicMock,
-        deleteTopic: vi.fn(),
-        renameTopic: vi.fn(),
-      };
-    },
-  );
+  installMockAgentChatUnifiedState(createMockAgentChatUnifiedState());
 
-  await import("./AgentChatWorkspace");
 });
 
 afterEach(() => {
@@ -1272,67 +1269,37 @@ describe("AgentChatPage 停止 Team 协作", () => {
   it("点击停止时应一并暂停仍在运行或排队的 Team 子会话", async () => {
     const stopSendingMock = vi.fn(async () => undefined);
 
-    mockUseAgentChatUnified.mockImplementation(
-      ({ workspaceId }: { workspaceId: string }) => {
-        observedWorkspaceIds.push(workspaceId);
-        return {
-          providerType: "kiro",
-          setProviderType: vi.fn(),
-          model: "mock-model",
-          setModel: vi.fn(),
-          executionStrategy: "auto",
-          setExecutionStrategy: vi.fn(),
-          messages: [],
-          isSending: true,
-          sendMessage: sharedSendMessageMock,
-          stopSending: stopSendingMock,
-          clearMessages: vi.fn(),
-          deleteMessage: vi.fn(),
-          editMessage: vi.fn(),
-          handlePermissionResponse: vi.fn(),
-          triggerAIGuide: sharedTriggerAIGuideMock,
-          topics: [
-            {
-              id: "topic-a",
-              title: "话题 A",
-              updatedAt: Date.now(),
-            },
-          ],
-          sessionId: "session-1",
-          childSubagentSessions: [
-            {
-              id: "child-session-running",
-              name: "运行中成员",
-              created_at: 1700000000,
-              updated_at: 1700000001,
-              session_type: "sub_agent",
-              runtime_status: "running",
-            },
-            {
-              id: "child-session-queued",
-              name: "排队中成员",
-              created_at: 1700000002,
-              updated_at: 1700000003,
-              session_type: "sub_agent",
-              runtime_status: "queued",
-            },
-            {
-              id: "child-session-done",
-              name: "已完成成员",
-              created_at: 1700000004,
-              updated_at: 1700000005,
-              session_type: "sub_agent",
-              runtime_status: "completed",
-            },
-          ],
-          switchTopic: sharedSwitchTopicMock,
-          deleteTopic: vi.fn(),
-          renameTopic: vi.fn(),
-          workspacePathMissing: false,
-          fixWorkspacePathAndRetry: vi.fn(),
-          dismissWorkspacePathError: vi.fn(),
-        };
-      },
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        isSending: true,
+        stopSending: stopSendingMock,
+        childSubagentSessions: [
+          {
+            id: "child-session-running",
+            name: "运行中成员",
+            created_at: 1700000000,
+            updated_at: 1700000001,
+            session_type: "sub_agent",
+            runtime_status: "running",
+          },
+          {
+            id: "child-session-queued",
+            name: "排队中成员",
+            created_at: 1700000002,
+            updated_at: 1700000003,
+            session_type: "sub_agent",
+            runtime_status: "queued",
+          },
+          {
+            id: "child-session-done",
+            name: "已完成成员",
+            created_at: 1700000004,
+            updated_at: 1700000005,
+            session_type: "sub_agent",
+            runtime_status: "completed",
+          },
+        ],
+      }),
     );
     mockCloseAgentRuntimeSubagent
       .mockResolvedValueOnce({
@@ -3106,6 +3073,51 @@ describe("AgentChatPage 自动引导", () => {
         }),
       }),
     );
+    expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
+    expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
+  });
+
+  it("启用自动执行首条意图时应直接发送而不是等待确认", async () => {
+    mockIsContentCreationTheme.mockReturnValue(true);
+    mockUseThemeContextWorkspace.mockReturnValue(
+      createMockThemeContextWorkspaceState({
+        enabled: true,
+      }),
+    );
+
+    const initialUserPrompt = "请先帮我写一篇社媒文案提纲。";
+    const onInitialUserPromptConsumed = vi.fn();
+    const container = renderPage({
+      projectId: "project-social-intent-autorun",
+      contentId: "content-social-intent-autorun",
+      theme: "social-media",
+      lockTheme: true,
+      initialUserPrompt,
+      autoRunInitialPromptOnMount: true,
+      onInitialUserPromptConsumed,
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.content).toBe(`/social_post_with_cover ${initialUserPrompt}`);
+    expect(sendCall.images).toEqual([]);
+    expect(sendCall.webSearch).toBe(false);
+    expect(sendCall.thinking).toBe(false);
+    expect(sendCall.skipUserMessage).toBe(false);
+    expect(sendCall.options).toEqual(
+      expect.objectContaining({
+        requestMetadata: expect.objectContaining({
+          harness: expect.objectContaining({
+            theme: "social-media",
+            session_mode: "theme_workbench",
+          }),
+        }),
+      }),
+    );
+    expect(
+      container.querySelector('[data-testid="theme-workbench-entry-prompt"]'),
+    ).toBeNull();
     expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });

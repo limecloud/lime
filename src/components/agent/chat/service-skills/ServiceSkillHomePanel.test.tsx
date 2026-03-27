@@ -72,6 +72,55 @@ describe("ServiceSkillHomePanel", () => {
           detail: "下次 03/24 09:00",
         },
       },
+      {
+        id: "local-growth-playbook",
+        title: "本地增长打法模版",
+        summary: "项目级的离线补充服务技能。",
+        category: "本地打法",
+        outputHint: "增长打法草案",
+        source: "local_custom",
+        runnerType: "managed",
+        defaultExecutorBinding: "automation_job",
+        executionLocation: "client_default",
+        slotSchema: [],
+        version: "local-v1",
+        badge: "本地技能",
+        recentUsedAt: null,
+        isRecent: false,
+        runnerLabel: "本地持续跟踪",
+        runnerTone: "amber",
+        runnerDescription: "可直接创建本地持续跟踪任务，并回流到任务中心与工作区。",
+        actionLabel: "创建跟踪",
+        automationStatus: null,
+      },
+      {
+        id: "cloud-video-dubbing",
+        title: "云端视频配音",
+        summary: "提交到 OEM 云端执行，并在成功后回流本地工作区。",
+        category: "视频创作",
+        outputHint: "配音文案 + 云端结果摘要",
+        source: "cloud_catalog",
+        runnerType: "instant",
+        defaultExecutorBinding: "cloud_scene",
+        executionLocation: "cloud_required",
+        slotSchema: [],
+        version: "cloud-v1",
+        badge: "云目录",
+        recentUsedAt: null,
+        isRecent: false,
+        runnerLabel: "云端托管执行",
+        runnerTone: "slate",
+        runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
+        actionLabel: "提交云端",
+        automationStatus: null,
+        cloudStatus: {
+          runId: "cloud-run-1",
+          statusLabel: "成功",
+          tone: "emerald",
+          detail: "云端结果已生成",
+          updatedAt: 1,
+        },
+      },
     ];
     const onSelect = vi.fn();
     const onOpenAutomationJob = vi.fn();
@@ -82,7 +131,7 @@ describe("ServiceSkillHomePanel", () => {
         tenantId: "tenant-demo",
         version: "tenant-2026-03-24",
         syncedAt: "2026-03-24T12:00:00.000Z",
-        itemCount: 1,
+        itemCount: 2,
         sourceLabel: "租户云目录",
         isSeeded: false,
       },
@@ -94,7 +143,8 @@ describe("ServiceSkillHomePanel", () => {
     expect(container.textContent).toContain("租户云目录");
     expect(container.textContent).toContain("tenant-demo");
     expect(container.textContent).toContain("tenant-2026-03-24");
-    expect(container.textContent).toContain("1 项");
+    expect(container.textContent).toContain("云目录 2 项");
+    expect(container.textContent).toContain("本地补充 1 项");
     expect(container.textContent).toContain("同步于");
     expect(container.textContent).toContain("复制短视频脚本");
     expect(container.textContent).toContain("产出：脚本大纲 + 镜头节奏");
@@ -102,6 +152,13 @@ describe("ServiceSkillHomePanel", () => {
     expect(container.textContent).toContain("下次 03/24 09:00");
     expect(container.textContent).toContain("本地即时执行");
     expect(container.textContent).toContain("填写参数");
+    expect(container.textContent).toContain("云端视频配音");
+    expect(container.textContent).toContain("云端状态 · 成功");
+    expect(container.textContent).toContain("云端结果已生成");
+    expect(container.textContent).toContain("本地技能 / 自定义技能");
+    expect(container.textContent).toContain("本地增长打法模版");
+    expect(container.textContent).toContain("本地持续跟踪");
+    expect(container.textContent).toContain("创建跟踪");
 
     const button = container.querySelector(
       '[data-testid="service-skill-short-video-script-replication"]',
@@ -126,5 +183,23 @@ describe("ServiceSkillHomePanel", () => {
     });
 
     expect(onOpenAutomationJob).toHaveBeenCalledWith(skills[0]);
+
+    const localButton = container.querySelector(
+      '[data-testid="service-skill-local-growth-playbook"]',
+    ) as HTMLButtonElement | null;
+
+    expect(localButton).toBeTruthy();
+
+    act(() => {
+      localButton?.click();
+    });
+
+    expect(onSelect).toHaveBeenLastCalledWith(skills[1]);
+
+    const cloudStatusButton = container.querySelector(
+      '[data-testid="service-skill-cloud-video-dubbing-secondary-status"]',
+    ) as HTMLButtonElement | null;
+
+    expect(cloudStatusButton).toBeNull();
   });
 });

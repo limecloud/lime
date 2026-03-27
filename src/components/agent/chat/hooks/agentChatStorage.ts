@@ -1,4 +1,5 @@
 import type { Message } from "../types";
+import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type {
   AgentPreferenceKeys,
   AgentPreferences,
@@ -8,6 +9,7 @@ import {
   hasLegacyFallbackToolNames,
   normalizeHistoryMessages,
 } from "./agentChatHistory";
+import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 
 export const DEFAULT_AGENT_PROVIDER = "claude";
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-5";
@@ -157,6 +159,30 @@ export const getSessionModelPreferenceKey = (
     return `agent_topic_model_pref_global_${sessionId}`;
   }
   return `agent_topic_model_pref_${resolvedWorkspaceId}_${sessionId}`;
+};
+
+export const getExecutionStrategyStorageKey = (
+  workspaceId?: string | null,
+): string | null => {
+  const resolvedWorkspaceId = workspaceId?.trim();
+  if (!resolvedWorkspaceId) {
+    return null;
+  }
+
+  return `aster_execution_strategy_${resolvedWorkspaceId}`;
+};
+
+export const resolvePersistedExecutionStrategy = (
+  workspaceId?: string | null,
+): AsterExecutionStrategy => {
+  const storageKey = getExecutionStrategyStorageKey(workspaceId);
+  if (!storageKey) {
+    return "react";
+  }
+
+  return normalizeExecutionStrategy(
+    loadPersisted<string | null>(storageKey, "react"),
+  );
 };
 
 export const loadSessionModelPreference = (

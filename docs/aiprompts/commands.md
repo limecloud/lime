@@ -145,8 +145,9 @@ npm run verify:local
 
 如果命令边界改动影响会话运行时恢复语义，例如：
 
-- `agent_runtime_update_session` 新增或调整 `provider_name / model_name / execution_strategy`
-- 话题切换时的 provider/model 恢复从本地 fallback 向 `execution_runtime` 收敛
+- `agent_runtime_update_session` 新增或调整 `provider_name / model_name / execution_strategy / recent_preferences / recent_team_selection`
+- `getSession/listSessions` 的 `execution_runtime` 新增或调整 `recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id`
+- 话题切换时的 provider/model、工具偏好、Team 选择，或 `theme / session_mode / gate_key / run_title / content_id` 恢复从本地 fallback 向 `execution_runtime` 收敛
 
 除了契约检查，还应补对应 Hook / UI 稳定回归，确认切换话题后模型选择器恢复的是会话 runtime，而不是陈旧本地缓存。
 
@@ -188,7 +189,15 @@ npm run verify:local
 以下是仓库当前已经明确收敛的几个方向：
 
 - **Agent / Codex 主命令**：继续收敛到 `agent_runtime_*`
-- **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略以及 session provider/model 的轻量持久化回写
+- **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略、session provider/model、`recent_preferences` 以及 `recent_team_selection` 的轻量持久化回写
+- **运行时交接导出主链**：继续收敛到 `agent_runtime_export_handoff_bundle`；前端统一通过 `src/lib/api/agentRuntime.ts` 网关进入，当前 GUI 入口位于 `HarnessStatusPanel`
+- **运行时证据导出主链**：继续收敛到 `agent_runtime_export_evidence_pack`，用于把 runtime / timeline / artifacts 打包成最小问题证据
+- **运行时 replay 样本主链**：继续收敛到 `agent_runtime_export_replay_case`，复用 handoff bundle + evidence pack 生成 `input / expected / grader / evidence-links`
+- **运行时外部分析交接主链**：继续收敛到 `agent_runtime_export_analysis_handoff`，复用 handoff bundle + evidence pack + replay case 生成 `analysis-brief.md / analysis-context.json / copy_prompt`，供外部 Claude Code / Codex 直接诊断与最小修复；当前 GUI 入口位于 `HarnessStatusPanel`
+- **运行时人工审核记录主链**：继续收敛到 `agent_runtime_export_review_decision_template`，复用 `analysis handoff` 生成 `review-decision.md / review-decision.json`，把开发者的接受 / 延后 / 拒绝与回归要求回挂到工作区；当前 GUI 入口位于 `HarnessStatusPanel`
+- **会话主题上下文主链**：`getSession` 返回的 `execution_runtime.recent_theme / recent_session_mode` 负责承接最近一次运行态主题上下文；当前端已命中同一 steady-state theme/workbench mode 时，不应继续每回合重复携带 `harness.theme / harness.session_mode`
+- **会话运行阶段上下文主链**：`getSession` 返回的 `execution_runtime.recent_gate_key / recent_run_title` 负责承接最近一次 Theme Workbench 运行阶段上下文；当前端已命中同一 steady-state gate/run 时，不应继续每回合重复携带 `harness.gate_key / harness.run_title`
+- **会话内容上下文主链**：`getSession` 返回的 `execution_runtime.recent_content_id` 负责承接最近一次运行态 `content_id`；当前端已命中同一 steady-state 内容时，不应继续每回合重复携带 `harness.content_id`
 - **运行态摘要主链**：Aster `runtime_status` item -> timeline `turn_summary`
 - **旧 `chat_*` 命令**：已停止注册，不应重新回到 `commands::mod` 或 `generate_handler!`
 - **旧 `general_chat_*` 边界**：前端 compat 网关与 Rust 命令都已移除，不应重新接入
@@ -197,6 +206,14 @@ npm run verify:local
 这些示例的意义不是列清单，而是提醒：
 
 **不要再造第三套入口，优先继续把能力收敛到已存在的主链。**
+
+补充约定：
+
+- **站点能力主链**：继续收敛到 `site_list_adapters / site_recommend_adapters / site_search_adapters / site_get_adapter_info / site_run_adapter`
+- **站点 Agent 工具主链**：继续收敛到 `lime_site_list / lime_site_recommend / lime_site_search / lime_site_info / lime_site_run`
+- **站点结果沉淀主线**：`site_run_adapter` / `lime_site_run` 优先透传 `content_id` 写回当前主稿；只有缺少 `content_id` 时，才回退到 `project_id` 新建结果文档
+- **站点运行失败语义**：`SiteAdapterRunResult` 至少统一输出 `auth_required / no_matching_context / adapter_runtime_error`，并在前端与 Agent 结果里保留 `report_hint`
+- **浏览器资料 / 环境预设主链**：`list/save/archive/restore_browser_profile_cmd` 与 `list/save/archive/restore_browser_environment_preset_cmd` 已进入真实 DevBridge 主路径；浏览器模式下不应再默认放进 `mockPriorityCommands`，仅在 DevBridge 不可用时才允许回落 `defaultMocks`
 
 ## 相关检查脚本
 

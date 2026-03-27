@@ -19,6 +19,7 @@
 - `quality-workflow.md` - 本地校验、GUI smoke、契约检查、CI 门禁
 - `project-heatmap.md` - 仓库热力图与治理候选分析
 - `limecore-collaboration-entry.md` - 跨仓库联动入口
+- `../tech/harness/README.md` - Lime Harness Engineering 总入口与实施蓝图
 
 ### GUI 与前端
 

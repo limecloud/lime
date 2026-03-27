@@ -3,8 +3,13 @@ export interface SmartInputConfig {
   shortcut: string;
 }
 
+export interface WebMcpConfig {
+  enabled: boolean;
+}
+
 export interface ExperimentalFeatures {
   screenshot_chat: SmartInputConfig;
+  webmcp: WebMcpConfig;
 }
 
 export interface ToolCallingConfig {
@@ -12,3 +17,13 @@ export interface ToolCallingConfig {
   dynamic_filtering: boolean;
   native_input_examples: boolean;
 }
+
+export const DEFAULT_EXPERIMENTAL_FEATURES: ExperimentalFeatures = {
+  screenshot_chat: {
+    enabled: false,
+    shortcut: "CommandOrControl+Alt+Q",
+  },
+  webmcp: {
+    enabled: false,
+  },
+};

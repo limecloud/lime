@@ -35,8 +35,8 @@ import { CharacterMention } from "./Inputbar/components/CharacterMention";
 import { SkillBadge } from "./Inputbar/components/SkillBadge";
 import { SkillSelector } from "./Inputbar/components/SkillSelector";
 import { TeamSelector } from "./Inputbar/components/TeamSelector";
-import { TeamModeEntryButton } from "./Inputbar/components/TeamModeEntryButton";
 import { StableProcessingNotice } from "./StableProcessingNotice";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { WorkspaceSettings } from "@/types/workspace";
 import { CREATION_MODE_CONFIG } from "./constants";
 import type {
@@ -378,8 +378,7 @@ const GridItem = styled.div<{ $active?: boolean }>`
   padding: 10px;
   border-radius: 8px;
   border: 1px solid
-    ${(props) =>
-      props.$active ? "rgba(148, 163, 184, 0.82)" : "transparent"};
+    ${(props) => (props.$active ? "rgba(148, 163, 184, 0.82)" : "transparent")};
   background-color: ${(props) =>
     props.$active ? "rgba(241, 245, 249, 0.96)" : "rgba(248, 250, 252, 0.92)"};
   cursor: pointer;
@@ -416,11 +415,8 @@ const EntryTaskTab = styled.button<{ $active?: boolean }>`
   font-size: 12px;
   border: 1px solid
     ${(props) =>
-      props.$active
-        ? "rgba(203, 213, 225, 0.92)"
-        : "rgba(226, 232, 240, 0.9)"};
-  color: ${(props) =>
-    props.$active ? "#0f172a" : "#64748b"};
+      props.$active ? "rgba(203, 213, 225, 0.92)" : "rgba(226, 232, 240, 0.9)"};
+  color: ${(props) => (props.$active ? "#0f172a" : "#64748b")};
   background: ${(props) =>
     props.$active ? "rgba(255, 255, 255, 0.96)" : "rgba(255, 255, 255, 0.78)"};
   box-shadow: ${(props) =>
@@ -501,8 +497,10 @@ interface EmptyStateComposerPanelProps {
   onEntrySlotChange: (key: string, value: string) => void;
   characters: Character[];
   skills: Skill[];
+  serviceSkills?: ServiceSkillHomeItem[];
   activeSkill?: Skill | null;
   setActiveSkill: (skill: Skill) => void;
+  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   clearActiveSkill: () => void;
   isSkillsLoading: boolean;
   onNavigateToSettings?: () => void;
@@ -570,8 +568,10 @@ export function EmptyStateComposerPanel({
   onEntrySlotChange,
   characters,
   skills,
+  serviceSkills = [],
   activeSkill,
   setActiveSkill,
+  onSelectServiceSkill,
   clearActiveSkill,
   isSkillsLoading,
   onNavigateToSettings,
@@ -644,6 +644,7 @@ export function EmptyStateComposerPanel({
     Boolean(onSubagentEnabledChange) &&
     teamSuggestion.shouldSuggest &&
     dismissedSuggestionKey !== suggestionKey;
+  const shouldShowTeamSelector = isGeneralTheme && subagentEnabled;
 
   const handleEnableTeamSuggestion = () => {
     onSubagentEnabledChange?.(true);
@@ -653,13 +654,6 @@ export function EmptyStateComposerPanel({
 
   const handleContinueSingleAgent = () => {
     setDismissedSuggestionKey(suggestionKey);
-  };
-
-  const handleEnableTeamMode = () => {
-    if (!subagentEnabled && !selectedTeam) {
-      setTeamSelectorAutoOpenToken((current) => (current ?? 0) + 1);
-    }
-    onSubagentEnabledChange?.(true);
   };
 
   const handleToggleSubagentMode = () => {
@@ -740,10 +734,12 @@ export function EmptyStateComposerPanel({
       <CharacterMention
         characters={characters}
         skills={skills}
+        serviceSkills={serviceSkills}
         inputRef={textareaRef}
         value={input}
         onChange={setInput}
         onSelectSkill={setActiveSkill}
+        onSelectServiceSkill={onSelectServiceSkill}
         onNavigateToSettings={onNavigateToSettings}
       />
 
@@ -814,7 +810,7 @@ export function EmptyStateComposerPanel({
               onRefreshSkills={onRefreshSkills}
             />
           ) : null}
-          {subagentEnabled ? (
+          {shouldShowTeamSelector ? (
             <TeamSelector
               activeTheme={activeTheme}
               input={input}
@@ -827,14 +823,6 @@ export function EmptyStateComposerPanel({
               workspaceSettings={teamWorkspaceSettings}
               onPersistCustomTeams={onPersistCustomTeams}
               onSelectTeam={(team) => onSelectTeam?.(team)}
-            />
-          ) : isGeneralTheme && onSubagentEnabledChange ? (
-            <TeamModeEntryButton
-              selectedTeamLabel={selectedTeam?.label}
-              dataTestId="empty-state-team-mode-enable-button"
-              recommended={teamSuggestion.shouldSuggest}
-              hint={teamSuggestion.reasons[0]}
-              onClick={handleEnableTeamMode}
             />
           ) : null}
 
@@ -1109,6 +1097,7 @@ export function EmptyStateComposerPanel({
                 )}
                 onClick={handleToggleSubagentMode}
                 aria-pressed={subagentEnabled}
+                data-state={subagentEnabled ? "on" : "off"}
                 title={subagentEnabled ? "关闭多代理偏好" : "开启多代理偏好"}
               >
                 <Workflow className="h-4 w-4 opacity-70" />
@@ -1177,7 +1166,9 @@ export function EmptyStateComposerPanel({
           <LaunchButton
             size="sm"
             onClick={onSend}
-            disabled={!input.trim() && !isEntryTheme && pendingImages.length === 0}
+            disabled={
+              !input.trim() && !isEntryTheme && pendingImages.length === 0
+            }
           >
             开始生成
             <ArrowRight className="ml-2 h-4 w-4" />

@@ -25,6 +25,7 @@ describe("harnessRequestMetadata", () => {
       selectedTeamId: "custom-team-1",
       selectedTeamSource: "custom",
       selectedTeamLabel: "前端联调团队",
+      selectedTeamDescription: "分析、实现、验证三段式推进。",
       selectedTeamSummary: "分析、实现、验证三段式推进。",
       selectedTeamRoles: [
         {
@@ -54,6 +55,7 @@ describe("harnessRequestMetadata", () => {
       selected_team_id: "custom-team-1",
       selected_team_source: "custom",
       selected_team_label: "前端联调团队",
+      selected_team_description: "分析、实现、验证三段式推进。",
       selected_team_summary: "分析、实现、验证三段式推进。",
       selected_team_roles: [
         expect.objectContaining({

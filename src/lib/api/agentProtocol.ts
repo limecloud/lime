@@ -5,7 +5,6 @@ import {
 import type { AsterTurnOutputSchemaRuntime } from "./agentExecutionRuntime";
 import type {
   AgentRuntimeSubmitTurnRequest,
-  AgentSearchMode,
   AsterExecutionStrategy,
   AutoContinueRequestPayload,
   ImageInput,
@@ -521,7 +520,6 @@ export interface AgentUserPreferences {
   modelPreference?: string;
   thinking?: boolean;
   webSearch?: boolean;
-  searchMode?: AgentSearchMode;
   executionStrategy?: AsterExecutionStrategy;
   autoContinue?: AutoContinueRequestPayload;
 }
@@ -531,7 +529,7 @@ export interface AgentUserInputOp {
   text: string;
   sessionId: string;
   eventName: string;
-  workspaceId: string;
+  workspaceId?: string;
   turnId?: string;
   images?: ImageInput[];
   preferences?: AgentUserPreferences;
@@ -926,7 +924,7 @@ export function createSubmitTurnRequestFromAgentOp(
     message: op.text,
     session_id: op.sessionId,
     event_name: op.eventName,
-    workspace_id: op.workspaceId,
+    ...(op.workspaceId ? { workspace_id: op.workspaceId } : {}),
     turn_id: op.turnId,
     images: op.images,
     turn_config: {
@@ -935,7 +933,6 @@ export function createSubmitTurnRequestFromAgentOp(
       thinking_enabled: preferences?.thinking,
       execution_strategy: preferences?.executionStrategy,
       web_search: preferences?.webSearch,
-      search_mode: preferences?.searchMode,
       auto_continue: preferences?.autoContinue,
       system_prompt: op.systemPrompt,
       metadata: op.metadata,

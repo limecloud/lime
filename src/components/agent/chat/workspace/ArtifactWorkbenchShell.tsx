@@ -1316,7 +1316,10 @@ export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = mem
       [artifact, document, threadItems],
     );
     const canEditDocument = Boolean(
-      document && onSaveArtifactDocument && editableBlocks.length > 0,
+      document &&
+        document.status !== "archived" &&
+        onSaveArtifactDocument &&
+        editableBlocks.length > 0,
     );
     const defaultInspectorTab =
       currentVersionDiff?.changedBlocks.length

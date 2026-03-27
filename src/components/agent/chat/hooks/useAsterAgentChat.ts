@@ -42,6 +42,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     onWriteFile,
     workspaceId,
     disableSessionRestore = false,
+    getSyncedSessionRecentPreferences,
     runtimeAdapter,
     preserveRestoredMessages = false,
   } = options;
@@ -88,6 +89,9 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     persistSessionModelPreference: context.persistSessionModelPreference,
     loadSessionModelPreference: context.loadSessionModelPreference,
     applySessionModelPreference: context.applySessionModelPreference,
+    markSessionModelPreferenceSynced: context.markSessionModelPreferenceSynced,
+    markSessionExecutionStrategySynced:
+      context.markSessionExecutionStrategySynced,
     filterSessionsByWorkspace: context.filterSessionsByWorkspace,
     setExecutionStrategyState: context.setExecutionStrategyState,
   });
@@ -114,6 +118,10 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     executionStrategy: context.executionStrategy,
     providerTypeRef: context.providerTypeRef,
     modelRef: context.modelRef,
+    getSyncedSessionModelPreference: context.getSyncedSessionModelPreference,
+    getSyncedSessionExecutionStrategy:
+      context.getSyncedSessionExecutionStrategy,
+    getSyncedSessionRecentPreferences,
     currentAssistantMsgIdRef,
     currentStreamingSessionIdRef,
     currentStreamingEventNameRef,

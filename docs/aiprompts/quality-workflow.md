@@ -32,6 +32,19 @@
 4. **用户可见回归已补齐** - 用户可见 UI 改动有稳定断言或既有 snapshot 回归
 5. **文档与锁文件不掉队** - 相关文档、schema、锁文件与实际实现保持一致
 
+## 路线图任务防跑偏
+
+如果任务明确绑定路线图主线，质量校验除了回答“是否通过”，还必须回答“这次改动是否真的推进了路线图目标”。
+
+执行时额外遵守：
+
+1. 校验前先确认本轮改动对应路线图哪一项
+2. 如果本轮改动只是清理 dead surface、补 README 或局部整理，但没有直接推进主链，不能把“校验通过”当作完成目标
+3. 汇报时必须同时给出：
+   - 本轮改动对应的路线图节点
+   - 本轮校验覆盖了哪条主线风险
+   - 当前距离该路线图阶段完成还差什么
+
 ## 执行硬规则
 
 ### 1. 不要继续扩展 compat / deprecated 路径
@@ -120,6 +133,8 @@ npm run verify:gui-smoke
 - 启动或复用 `headless Tauri`
 - 等待 `DevBridge` 健康检查通过
 - 验证默认 workspace 的准备态可用
+- 验证 `browser runtime` 的启动、状态读取与审计主链可用
+- 验证 `site adapter catalog` 的状态、列表与推荐主链可读
 
 它解决的是 GUI 产品特有风险：
 
@@ -142,13 +157,17 @@ npm run bridge:health -- --timeout-ms 120000
 作用：
 
 - 检查前端命令调用与 Rust 注册表是否一致
+- 检查 harness metadata / execution runtime / 后端 request metadata 的关键字段是否漂移
 - 检查浏览器桥接 / mock 优先路径是否同步
 - 检查 `DevBridge` 是否可用
 
 高频场景：
 
 - 修改 `safeInvoke` / `invoke`
-- 修改 `agent_runtime_update_session` 或会话 provider/model 恢复语义
+- 修改 `agent_runtime_update_session` 或会话 provider/model / recent_preferences / recent_team_selection 恢复语义
+- 修改 `execution_runtime.recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id` 恢复语义，或前端 `harness.theme / harness.session_mode / harness.gate_key / harness.run_title / harness.content_id` steady-state 去重逻辑
+- 修改 `site_*` 站点适配器命令族，例如 `site_recommend_adapters`、`site_run_adapter`
+- 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
@@ -172,19 +191,35 @@ npm run bridge:health -- --timeout-ms 120000
 
 ## 改动类型与最低门槛
 
-| 改动类型                            | 至少运行                                           | 额外要求                                    |
-| ----------------------------------- | -------------------------------------------------- | ------------------------------------------- |
-| 普通前端改动                        | `npm run verify:local`                             | 如有用户可见变化，补稳定回归                |
-| Tauri 命令 / Bridge / mock 改动     | `npm run verify:local`、`npm run test:contracts`   | 必要时补 `npm run governance:legacy-report` |
-| GUI 壳 / Workspace / 页面主路径改动 | `npm run verify:local`、`npm run verify:gui-smoke` | 必须补对应 UI 回归                          |
-| 配置结构改动                        | `npm run verify:local`                             | 同步 schema、消费者、文档                   |
-| 版本相关改动                        | `npm run verify:app-version`                       | 与发布配置一起核对                          |
-| Rust 模块改动                       | 受影响 crate / 模块定向测试                        | 再决定是否跑全量 `cargo test`               |
-| 真实页面交互验证                    | 先跑 `npm run verify:gui-smoke`                    | 再进入 `playwright-e2e.md`                  |
+| 改动类型                            | 至少运行                                               | 额外要求                                    |
+| ----------------------------------- | ------------------------------------------------------ | ------------------------------------------- |
+| 普通前端改动                        | `npm run verify:local`                                 | 如有用户可见变化，补稳定回归                |
+| Tauri 命令 / Bridge / mock 改动     | `npm run verify:local`、`npm run test:contracts`       | 必要时补 `npm run governance:legacy-report` |
+| GUI 壳 / Workspace / 页面主路径改动 | `npm run verify:local`、`npm run verify:gui-smoke`     | 必须补对应 UI 回归                          |
+| 运行时 handoff / 证据包导出改动     | `npm run test:contracts`、相关 `vitest`、Rust 定向测试 | 如入口落在工作台 UI，再补最小 GUI 续测      |
+| 配置结构改动                        | `npm run verify:local`                                 | 同步 schema、消费者、文档                   |
+| 版本相关改动                        | `npm run verify:app-version`                           | 与发布配置一起核对                          |
+| Rust 模块改动                       | 受影响 crate / 模块定向测试                            | 再决定是否跑全量 `cargo test`               |
+| 真实页面交互验证                    | 先跑 `npm run verify:gui-smoke`                        | 再进入 `playwright-e2e.md`                  |
 
 补充说明：
 
 - 如果这次改动把 `ServiceSkill -> automation_job -> agent_turn` 接到 Artifact 主线，除了常规 `verify:local` / `test:contracts` 之外，还应至少补一条稳定回归，证明 `content_id + request_metadata.artifact` 没在表单编辑或执行链路里丢失。
+- 如果这次改动把 `content_id` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
+  - session 已有 `execution_runtime.recent_content_id` 时，前端不会重复提交相同 `harness.content_id`
+  - 切换到新 content 但 runtime 尚未同步时，前端仍会保留显式 `content_id`
+- 如果这次改动把 `theme / session_mode` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
+  - session 已有 `execution_runtime.recent_theme / recent_session_mode` 时，前端不会重复提交相同 `harness.theme / harness.session_mode`
+  - 切换到新 theme 或 `theme_workbench` 但 runtime 尚未同步时，前端仍会保留显式 `theme / session_mode`
+- 如果这次改动把 `gate_key / run_title` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
+  - session 已有 `execution_runtime.recent_gate_key / recent_run_title` 时，前端不会重复提交相同 `harness.gate_key / harness.run_title`
+  - 切换到新的 Theme Workbench gate 或运行标题、但 runtime 尚未同步时，前端仍会保留显式 `gate_key / run_title`
+- 如果这次改动影响浏览器工作台里的站点采集链路，例如推荐区、资料自动选择、`report_hint` 展示、`lime_site_recommend`，或“优先写回当前 `content_id` 而不是新建资源文档”的主线收敛，除了契约检查，还应补对应 `*.test.tsx` 回归并执行 `verify:gui-smoke`。
+- 如果这次改动影响浏览器资料 / 环境预设的真实来源，还应补一次浏览器模式实测，确认控制台不再出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`。
+- 如果这次改动影响 `agent_runtime_export_handoff_bundle`、`agent_runtime_export_evidence_pack`、`agent_runtime_export_analysis_handoff`、`agent_runtime_export_review_decision_template` 或 `agent_runtime_export_replay_case` 这条 Harness 导出主链，除了契约检查，还应至少补：
+  - `src/lib/api/agent.test.ts` 一类的网关回归，确认仍走统一 `agent_runtime_*` 主命令
+  - `HarnessStatusPanel.test.tsx` 一类的 UI 回归，确认导出入口、状态与制品展示正常
+  - 受影响 Rust 服务 / 命令的定向测试，确认 `.lime/harness/sessions/<session_id>/...` 一类制品仍能生成
 
 ## CI 事实源
 
@@ -223,6 +258,9 @@ npm run verify:local:full
 
 # GUI 最小冒烟
 npm run verify:gui-smoke
+npm run smoke:workspace-ready
+npm run smoke:browser-runtime
+npm run smoke:site-adapters
 
 # 前端 / 桥接 / 契约
 npm test

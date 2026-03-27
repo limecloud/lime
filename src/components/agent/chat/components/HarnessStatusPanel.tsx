@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Copy,
   Eye,
   FileArchive,
   FileCode2,
@@ -34,6 +35,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type {
+  AgentRuntimeAnalysisHandoff,
+  AgentRuntimeEvidencePack,
+  AgentRuntimeHandoffBundle,
+  AgentRuntimeReplayCase,
+  AgentRuntimeReviewDecisionTemplate,
   AgentRuntimeToolInventory,
   AgentRuntimeToolInventoryCatalogEntry,
   AgentRuntimeToolInventoryRegistryEntry,
@@ -41,6 +47,13 @@ import type {
   AgentToolExecutionPolicySource,
   AsterSubagentSessionInfo,
   QueuedTurnSnapshot,
+} from "@/lib/api/agentRuntime";
+import {
+  exportAgentRuntimeAnalysisHandoff,
+  exportAgentRuntimeEvidencePack,
+  exportAgentRuntimeHandoffBundle,
+  exportAgentRuntimeReplayCase,
+  exportAgentRuntimeReviewDecisionTemplate,
 } from "@/lib/api/agentRuntime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -143,9 +156,7 @@ interface HarnessStatusPanelProps {
   onInterruptCurrentTurn?: () => void | Promise<void>;
   onResumeThread?: () => boolean | Promise<boolean>;
   onReplayPendingRequest?: (requestId: string) => boolean | Promise<boolean>;
-  onPromoteQueuedTurn?: (
-    queuedTurnId: string,
-  ) => boolean | Promise<boolean>;
+  onPromoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
   messages?: Message[];
   diagnosticRuntimeContext?: {
     sessionId?: string | null;
@@ -180,6 +191,7 @@ type ToolInventoryFilterValue = "all" | "runtime" | "persisted" | "default";
 type HarnessSectionKey =
   | "team_config"
   | "runtime"
+  | "handoff"
   | "reliability"
   | "inventory"
   | "approvals"
@@ -239,6 +251,24 @@ function formatUnixTimestamp(value?: number): string {
   }
 
   return new Date(value * 1000).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatIsoDateTime(value?: string): string {
+  if (!value) {
+    return "未知";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -319,9 +349,7 @@ function joinDisplayParts(
   return normalized.length > 0 ? normalized.join(" · ") : undefined;
 }
 
-function summarizeChildSubagentSessions(
-  sessions: AsterSubagentSessionInfo[],
-): {
+function summarizeChildSubagentSessions(sessions: AsterSubagentSessionInfo[]): {
   total: number;
   running: number;
   queued: number;
@@ -370,6 +398,130 @@ function formatSize(value?: number): string | null {
     return `${Math.round(value / 1024)} KB`;
   }
   return `${value} B`;
+}
+
+function formatHandoffStatusLabel(value?: string | null): string {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return "未知";
+  }
+
+  switch (normalized) {
+    case "idle":
+      return "空闲";
+    case "pending":
+      return "待处理";
+    case "queued":
+      return "排队中";
+    case "running":
+      return "处理中";
+    case "waiting_request":
+      return "等待请求";
+    case "completed":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "interrupting":
+      return "中断中";
+    case "interrupted":
+      return "已中断";
+    default:
+      return normalized;
+  }
+}
+
+function formatHandoffArtifactKindLabel(
+  kind: AgentRuntimeHandoffBundle["artifacts"][number]["kind"],
+): string {
+  switch (kind) {
+    case "plan":
+      return "计划";
+    case "progress":
+      return "进度";
+    case "handoff":
+      return "交接";
+    case "review_summary":
+      return "审查";
+    default:
+      return kind;
+  }
+}
+
+function formatEvidenceArtifactKindLabel(
+  kind: AgentRuntimeEvidencePack["artifacts"][number]["kind"],
+): string {
+  switch (kind) {
+    case "summary":
+      return "摘要";
+    case "runtime":
+      return "运行时";
+    case "timeline":
+      return "时间线";
+    case "artifacts":
+      return "产物";
+    default:
+      return kind;
+  }
+}
+
+function formatReplayArtifactKindLabel(
+  kind: AgentRuntimeReplayCase["artifacts"][number]["kind"],
+): string {
+  switch (kind) {
+    case "input":
+      return "输入";
+    case "expected":
+      return "期望";
+    case "grader":
+      return "评分";
+    case "evidence_links":
+      return "证据链接";
+    default:
+      return kind;
+  }
+}
+
+function formatAnalysisArtifactKindLabel(
+  kind: AgentRuntimeAnalysisHandoff["artifacts"][number]["kind"],
+): string {
+  switch (kind) {
+    case "analysis_brief":
+      return "简报";
+    case "analysis_context":
+      return "上下文";
+    default:
+      return kind;
+  }
+}
+
+function formatReviewDecisionArtifactKindLabel(
+  kind: AgentRuntimeReviewDecisionTemplate["artifacts"][number]["kind"],
+): string {
+  switch (kind) {
+    case "review_decision_markdown":
+      return "Markdown";
+    case "review_decision_json":
+      return "JSON";
+    default:
+      return kind;
+  }
+}
+
+function formatReviewDecisionStatusLabel(status?: string): string {
+  switch (status?.trim()) {
+    case "accepted":
+      return "接受";
+    case "deferred":
+      return "延后";
+    case "rejected":
+      return "拒绝";
+    case "needs_more_evidence":
+      return "需要更多证据";
+    case "pending_review":
+      return "待人工审核";
+    default:
+      return status?.trim() || "未知";
+  }
 }
 
 function describeAction(action: HarnessFileAction): string {
@@ -1329,7 +1481,9 @@ function InventoryStatCard({
   return (
     <div className="rounded-xl border border-border bg-background p-3">
       <div className="text-xs font-medium text-muted-foreground">{title}</div>
-      <div className="mt-1 text-base font-semibold text-foreground">{value}</div>
+      <div className="mt-1 text-base font-semibold text-foreground">
+        {value}
+      </div>
       <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
     </div>
   );
@@ -1418,10 +1572,60 @@ export function HarnessStatusPanel({
     isBinary: false,
     loading: false,
   });
+  const [handoffBundle, setHandoffBundle] =
+    useState<AgentRuntimeHandoffBundle | null>(null);
+  const [handoffExporting, setHandoffExporting] = useState(false);
+  const [handoffExportError, setHandoffExportError] = useState<string | null>(
+    null,
+  );
+  const [evidencePack, setEvidencePack] =
+    useState<AgentRuntimeEvidencePack | null>(null);
+  const [evidenceExporting, setEvidenceExporting] = useState(false);
+  const [evidenceExportError, setEvidenceExportError] = useState<string | null>(
+    null,
+  );
+  const [replayCase, setReplayCase] = useState<AgentRuntimeReplayCase | null>(
+    null,
+  );
+  const [replayExporting, setReplayExporting] = useState(false);
+  const [replayExportError, setReplayExportError] = useState<string | null>(
+    null,
+  );
+  const [analysisHandoff, setAnalysisHandoff] =
+    useState<AgentRuntimeAnalysisHandoff | null>(null);
+  const [analysisExporting, setAnalysisExporting] = useState(false);
+  const [analysisExportError, setAnalysisExportError] = useState<string | null>(
+    null,
+  );
+  const [reviewDecisionTemplate, setReviewDecisionTemplate] =
+    useState<AgentRuntimeReviewDecisionTemplate | null>(null);
+  const [reviewDecisionExporting, setReviewDecisionExporting] = useState(false);
+  const [reviewDecisionExportError, setReviewDecisionExportError] = useState<
+    string | null
+  >(null);
   const previewRequestIdRef = useRef(0);
   const sectionRefs = useRef<
     Partial<Record<HarnessSectionKey, HTMLElement | null>>
   >({});
+  const currentSessionId = diagnosticRuntimeContext?.sessionId?.trim() || null;
+
+  useEffect(() => {
+    setHandoffBundle(null);
+    setHandoffExportError(null);
+    setHandoffExporting(false);
+    setEvidencePack(null);
+    setEvidenceExportError(null);
+    setEvidenceExporting(false);
+    setReplayCase(null);
+    setReplayExportError(null);
+    setReplayExporting(false);
+    setAnalysisHandoff(null);
+    setAnalysisExportError(null);
+    setAnalysisExporting(false);
+    setReviewDecisionTemplate(null);
+    setReviewDecisionExportError(null);
+    setReviewDecisionExporting(false);
+  }, [currentSessionId]);
 
   const registerSectionRef = useCallback(
     (key: HarnessSectionKey, node: HTMLElement | null) => {
@@ -1438,8 +1642,148 @@ export function HarnessStatusPanel({
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  const handleExportHandoffBundle = useCallback(async () => {
+    if (!currentSessionId) {
+      toast.error("当前没有可导出的会话上下文");
+      return;
+    }
+
+    setHandoffExporting(true);
+    setHandoffExportError(null);
+    try {
+      const bundle = await exportAgentRuntimeHandoffBundle(currentSessionId);
+      setHandoffBundle(bundle);
+      toast.success(`已导出 ${bundle.artifacts.length} 个交接制品`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "导出交接制品失败";
+      setHandoffExportError(message);
+      toast.error(message);
+    } finally {
+      setHandoffExporting(false);
+    }
+  }, [currentSessionId]);
+
+  const handleExportEvidencePack = useCallback(async () => {
+    if (!currentSessionId) {
+      toast.error("当前没有可导出的会话上下文");
+      return;
+    }
+
+    setEvidenceExporting(true);
+    setEvidenceExportError(null);
+    try {
+      const pack = await exportAgentRuntimeEvidencePack(currentSessionId);
+      setEvidencePack(pack);
+      toast.success(`已导出 ${pack.artifacts.length} 个问题证据文件`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "导出问题证据包失败";
+      setEvidenceExportError(message);
+      toast.error(message);
+    } finally {
+      setEvidenceExporting(false);
+    }
+  }, [currentSessionId]);
+
+  const handleExportReplayCase = useCallback(async () => {
+    if (!currentSessionId) {
+      toast.error("当前没有可导出的会话上下文");
+      return;
+    }
+
+    setReplayExporting(true);
+    setReplayExportError(null);
+    try {
+      const replay = await exportAgentRuntimeReplayCase(currentSessionId);
+      setReplayCase(replay);
+      toast.success(`已导出 ${replay.artifacts.length} 个 Replay 样本文件`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "导出 Replay 样本失败";
+      setReplayExportError(message);
+      toast.error(message);
+    } finally {
+      setReplayExporting(false);
+    }
+  }, [currentSessionId]);
+
+  const handleExportAnalysisHandoff = useCallback(async () => {
+    if (!currentSessionId) {
+      toast.error("当前没有可导出的会话上下文");
+      return null;
+    }
+
+    setAnalysisExporting(true);
+    setAnalysisExportError(null);
+    try {
+      const analysis =
+        await exportAgentRuntimeAnalysisHandoff(currentSessionId);
+      setAnalysisHandoff(analysis);
+      toast.success(`已导出 ${analysis.artifacts.length} 个外部分析文件`);
+      return analysis;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "导出外部分析交接失败";
+      setAnalysisExportError(message);
+      toast.error(message);
+      return null;
+    } finally {
+      setAnalysisExporting(false);
+    }
+  }, [currentSessionId]);
+
+  const handleCopyAnalysisPrompt = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      toast.error("当前环境不支持剪贴板复制");
+      return;
+    }
+
+    const analysis = analysisHandoff || (await handleExportAnalysisHandoff());
+    if (!analysis?.copy_prompt) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(analysis.copy_prompt);
+      toast.success("已复制 AI 诊断与修复指令");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "复制 AI 诊断与修复指令失败",
+      );
+    }
+  }, [analysisHandoff, handleExportAnalysisHandoff]);
+
+  const handleExportReviewDecisionTemplate = useCallback(async () => {
+    if (!currentSessionId) {
+      toast.error("当前没有可导出的会话上下文");
+      return null;
+    }
+
+    setReviewDecisionExporting(true);
+    setReviewDecisionExportError(null);
+    try {
+      const template =
+        await exportAgentRuntimeReviewDecisionTemplate(currentSessionId);
+      setReviewDecisionTemplate(template);
+      toast.success(`已导出 ${template.artifacts.length} 个人工审核文件`);
+      return template;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "导出人工审核记录失败";
+      setReviewDecisionExportError(message);
+      toast.error(message);
+      return null;
+    } finally {
+      setReviewDecisionExporting(false);
+    }
+  }, [currentSessionId]);
+
   const hasToolInventorySection =
-    toolInventoryLoading || Boolean(toolInventoryError) || Boolean(toolInventory);
+    toolInventoryLoading ||
+    Boolean(toolInventoryError) ||
+    Boolean(toolInventory);
+  const hasHandoffSection = Boolean(currentSessionId);
   const toolInventorySourceStats = useMemo(
     () => buildToolInventorySourceStats(toolInventory?.catalog_tools || []),
     [toolInventory],
@@ -1463,7 +1807,8 @@ export function HarnessStatusPanel({
     [childSubagentSessions],
   );
   const hasCompatSchedulerSignals = compatSubagentRuntime.hasSignals;
-  const hasSelectedTeamConfig = Boolean(selectedTeamLabel?.trim()) ||
+  const hasSelectedTeamConfig =
+    Boolean(selectedTeamLabel?.trim()) ||
     Boolean(selectedTeamSummary?.trim()) ||
     (selectedTeamRoles?.length ?? 0) > 0;
   const threadReliabilityView = useMemo(
@@ -1632,6 +1977,9 @@ export function HarnessStatusPanel({
     if (harnessState.runtimeStatus) {
       sections.push({ key: "runtime", label: "任务进展" });
     }
+    if (hasHandoffSection) {
+      sections.push({ key: "handoff", label: "交接制品" });
+    }
     if (threadReliabilityView.shouldRender) {
       sections.push({ key: "reliability", label: "可靠性" });
     }
@@ -1684,6 +2032,7 @@ export function HarnessStatusPanel({
     harnessState.plan.phase,
     harnessState.recentFileEvents.length,
     harnessState.runtimeStatus,
+    hasHandoffSection,
     hasSelectedTeamConfig,
     hasCompatSchedulerSignals,
     realTeamSummary.total,
@@ -1701,6 +2050,20 @@ export function HarnessStatusPanel({
         hint:
           harnessState.runtimeStatus.detail || harnessState.runtimeStatus.title,
         icon: Loader2,
+      });
+    }
+
+    if (hasHandoffSection) {
+      cards.push({
+        sectionKey: "handoff",
+        title: "交接制品",
+        value: handoffBundle
+          ? `${handoffBundle.artifacts.length} 个文件`
+          : "待导出",
+        hint: handoffBundle
+          ? `最近导出 ${formatIsoDateTime(handoffBundle.exported_at)}`
+          : "导出当前会话的 plan / progress / handoff / review 四件套",
+        icon: HardDriveDownload,
       });
     }
 
@@ -1825,6 +2188,8 @@ export function HarnessStatusPanel({
     environment.activeContextCount,
     environment.contextEnabled,
     environment.contextItemsCount,
+    handoffBundle,
+    hasHandoffSection,
     hasToolInventorySection,
     hasSelectedTeamConfig,
     harnessState.activeFileWrites,
@@ -2298,6 +2663,1269 @@ export function HarnessStatusPanel({
                 </Section>
               ) : null}
 
+              {hasHandoffSection ? (
+                <Section
+                  sectionKey="handoff"
+                  title="交接制品"
+                  badge={
+                    handoffBundle
+                      ? `已导出 ${handoffBundle.artifacts.length} 个文件`
+                      : "待导出"
+                  }
+                  registerRef={registerSectionRef}
+                >
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <HardDriveDownload className="h-4 w-4 text-sky-600" />
+                            <span>会话交接四件套</span>
+                          </div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                            把当前 session 的 plan / progress / handoff / review
+                            摘要落到工作区 `.lime/harness/sessions`
+                            下，便于下一次恢复和审查。
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            当前会话：{currentSessionId}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={handoffBundle ? "outline" : "default"}
+                            className="gap-2"
+                            aria-label="导出交接制品"
+                            disabled={handoffExporting}
+                            onClick={() => void handleExportHandoffBundle()}
+                          >
+                            {handoffExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <HardDriveDownload className="h-4 w-4" />
+                            )}
+                            {handoffBundle ? "刷新导出" : "导出交接制品"}
+                          </Button>
+                          {handoffBundle ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              aria-label="打开交接目录"
+                              onClick={() =>
+                                void handleOpenPathValue(
+                                  handoffBundle.bundle_absolute_root,
+                                )
+                              }
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                              打开目录
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    {handoffExportError ? (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                        {handoffExportError}
+                      </div>
+                    ) : null}
+
+                    {handoffBundle ? (
+                      <>
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                          <InventoryStatCard
+                            title="线程状态"
+                            value={formatHandoffStatusLabel(
+                              handoffBundle.thread_status,
+                            )}
+                            hint={`最近导出 ${formatIsoDateTime(handoffBundle.exported_at)}`}
+                          />
+                          <InventoryStatCard
+                            title="最新 Turn"
+                            value={formatHandoffStatusLabel(
+                              handoffBundle.latest_turn_status,
+                            )}
+                            hint={`待处理请求 ${handoffBundle.pending_request_count} · 排队 ${handoffBundle.queued_turn_count}`}
+                          />
+                          <InventoryStatCard
+                            title="Todo"
+                            value={`${handoffBundle.todo_completed}/${handoffBundle.todo_total}`}
+                            hint={`待开始 ${handoffBundle.todo_pending} · 进行中 ${handoffBundle.todo_in_progress}`}
+                          />
+                          <InventoryStatCard
+                            title="协作成员"
+                            value={`${handoffBundle.active_subagent_count}`}
+                            hint={`workspace ${handoffBundle.workspace_id || "未绑定"}`}
+                          />
+                        </div>
+
+                        <div className="rounded-xl border border-border bg-background p-3">
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                            <span>导出目录</span>
+                          </div>
+                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <div>
+                              相对路径：
+                              <span className="ml-1 break-all font-mono text-foreground">
+                                {handoffBundle.bundle_relative_root}
+                              </span>
+                            </div>
+                            <div>
+                              绝对路径：
+                              <PathTextLink
+                                path={handoffBundle.bundle_absolute_root}
+                                className="ml-1"
+                                onOpenPath={handleOpenPathValue}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {handoffBundle.artifacts.map((artifact) => {
+                            const sizeLabel = formatSize(artifact.bytes);
+                            return (
+                              <div
+                                key={artifact.absolute_path}
+                                className="rounded-xl border border-border bg-background p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <FileText className="h-4 w-4 text-muted-foreground" />
+                                      <span className="text-sm font-medium text-foreground">
+                                        {artifact.title}
+                                      </span>
+                                      <Badge variant="outline">
+                                        {formatHandoffArtifactKindLabel(
+                                          artifact.kind,
+                                        )}
+                                      </Badge>
+                                      {sizeLabel ? (
+                                        <Badge variant="secondary">
+                                          {sizeLabel}
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                      <div>
+                                        相对路径：
+                                        <span className="ml-1 break-all font-mono text-foreground">
+                                          {artifact.relative_path}
+                                        </span>
+                                      </div>
+                                      <div className="mt-1">
+                                        绝对路径：
+                                        <PathTextLink
+                                          path={artifact.absolute_path}
+                                          className="ml-1"
+                                          onOpenPath={handleOpenPathValue}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 flex-wrap gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-2"
+                                      aria-label={`预览交接制品：${artifact.title}`}
+                                      onClick={() =>
+                                        void openPreview({
+                                          title: artifact.title,
+                                          description: `交接制品 · ${formatHandoffArtifactKindLabel(
+                                            artifact.kind,
+                                          )}`,
+                                          path: artifact.absolute_path,
+                                        })
+                                      }
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      预览
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      className="gap-2"
+                                      aria-label={`系统打开交接制品：${artifact.absolute_path}`}
+                                      onClick={() =>
+                                        void handleOpenPathValue(
+                                          artifact.absolute_path,
+                                        )
+                                      }
+                                    >
+                                      <FolderOpen className="h-4 w-4" />
+                                      打开
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                        尚未导出交接制品。建议在需要跨会话接手、准备审查或切换执行人前先导出一次。
+                      </div>
+                    )}
+
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <ShieldAlert className="h-4 w-4 text-amber-600" />
+                            <span>问题证据包</span>
+                          </div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                            把当前
+                            runtime、timeline、最近产物和已知缺口导出为最小证据包，为后续
+                            replay、eval 和故障复盘提供输入。
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={evidencePack ? "outline" : "default"}
+                            className="gap-2"
+                            aria-label="导出问题证据包"
+                            disabled={evidenceExporting}
+                            onClick={() => void handleExportEvidencePack()}
+                          >
+                            {evidenceExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ShieldAlert className="h-4 w-4" />
+                            )}
+                            {evidencePack ? "刷新证据包" : "导出问题证据包"}
+                          </Button>
+                          {evidencePack ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              aria-label="打开问题证据目录"
+                              onClick={() =>
+                                void handleOpenPathValue(
+                                  evidencePack.pack_absolute_root,
+                                )
+                              }
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                              打开目录
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {evidenceExportError ? (
+                        <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                          {evidenceExportError}
+                        </div>
+                      ) : null}
+
+                      {evidencePack ? (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <InventoryStatCard
+                              title="线程状态"
+                              value={formatHandoffStatusLabel(
+                                evidencePack.thread_status,
+                              )}
+                              hint={`最近导出 ${formatIsoDateTime(evidencePack.exported_at)}`}
+                            />
+                            <InventoryStatCard
+                              title="时间线"
+                              value={`${evidencePack.turn_count} / ${evidencePack.item_count}`}
+                              hint="turns / items"
+                            />
+                            <InventoryStatCard
+                              title="阻塞线索"
+                              value={`${evidencePack.pending_request_count} / ${evidencePack.queued_turn_count}`}
+                              hint="pending request / queued turn"
+                            />
+                            <InventoryStatCard
+                              title="已知缺口"
+                              value={`${evidencePack.known_gaps.length}`}
+                              hint={`最近产物 ${evidencePack.recent_artifact_count} 个`}
+                            />
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                              <span>证据目录</span>
+                            </div>
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              <div>
+                                相对路径：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {evidencePack.pack_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                绝对路径：
+                                <PathTextLink
+                                  path={evidencePack.pack_absolute_root}
+                                  className="ml-1"
+                                  onOpenPath={handleOpenPathValue}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {evidencePack.known_gaps.length > 0 ? (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3">
+                              <div className="text-sm font-medium text-amber-900">
+                                当前已知缺口
+                              </div>
+                              <div className="mt-2 space-y-1 text-xs text-amber-800">
+                                {evidencePack.known_gaps.map((gap, index) => (
+                                  <div key={`${gap}-${index}`}>{gap}</div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <div className="space-y-3">
+                            {evidencePack.artifacts.map((artifact) => {
+                              const sizeLabel = formatSize(artifact.bytes);
+                              return (
+                                <div
+                                  key={artifact.absolute_path}
+                                  className="rounded-xl border border-border bg-background p-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <FileText className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-sm font-medium text-foreground">
+                                          {artifact.title}
+                                        </span>
+                                        <Badge variant="outline">
+                                          {formatEvidenceArtifactKindLabel(
+                                            artifact.kind,
+                                          )}
+                                        </Badge>
+                                        {sizeLabel ? (
+                                          <Badge variant="secondary">
+                                            {sizeLabel}
+                                          </Badge>
+                                        ) : null}
+                                      </div>
+                                      <div className="mt-2 text-xs text-muted-foreground">
+                                        <div>
+                                          相对路径：
+                                          <span className="ml-1 break-all font-mono text-foreground">
+                                            {artifact.relative_path}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1">
+                                          绝对路径：
+                                          <PathTextLink
+                                            path={artifact.absolute_path}
+                                            className="ml-1"
+                                            onOpenPath={handleOpenPathValue}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-2"
+                                        aria-label={`预览问题证据：${artifact.title}`}
+                                        onClick={() =>
+                                          void openPreview({
+                                            title: artifact.title,
+                                            description: `问题证据 · ${formatEvidenceArtifactKindLabel(
+                                              artifact.kind,
+                                            )}`,
+                                            path: artifact.absolute_path,
+                                          })
+                                        }
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        预览
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="gap-2"
+                                        aria-label={`系统打开问题证据：${artifact.absolute_path}`}
+                                        onClick={() =>
+                                          void handleOpenPathValue(
+                                            artifact.absolute_path,
+                                          )
+                                        }
+                                      >
+                                        <FolderOpen className="h-4 w-4" />
+                                        打开
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                          尚未导出问题证据包。建议在出现阻塞、需要复盘失败链路，或准备把真实案例沉淀成
+                          replay / eval 样本前导出一次。
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <FileCode2 className="h-4 w-4 text-emerald-600" />
+                            <span>Replay 样本</span>
+                          </div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                            基于当前 session 复用 handoff bundle 与 evidence
+                            pack，导出 `input / expected / grader /
+                            evidence-links`
+                            四件套，把真实失败转成可回放、可评分、可回归的最小样本。
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={replayCase ? "outline" : "default"}
+                            className="gap-2"
+                            aria-label="导出 Replay 样本"
+                            disabled={replayExporting}
+                            onClick={() => void handleExportReplayCase()}
+                          >
+                            {replayExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <FileCode2 className="h-4 w-4" />
+                            )}
+                            {replayCase
+                              ? "刷新 Replay 样本"
+                              : "导出 Replay 样本"}
+                          </Button>
+                          {replayCase ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              aria-label="打开 Replay 样本目录"
+                              onClick={() =>
+                                void handleOpenPathValue(
+                                  replayCase.replay_absolute_root,
+                                )
+                              }
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                              打开目录
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {replayExportError ? (
+                        <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                          {replayExportError}
+                        </div>
+                      ) : null}
+
+                      {replayCase ? (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <InventoryStatCard
+                              title="线程状态"
+                              value={formatHandoffStatusLabel(
+                                replayCase.thread_status,
+                              )}
+                              hint={`最近导出 ${formatIsoDateTime(replayCase.exported_at)}`}
+                            />
+                            <InventoryStatCard
+                              title="阻塞线索"
+                              value={`${replayCase.pending_request_count} / ${replayCase.queued_turn_count}`}
+                              hint="pending request / queued turn"
+                            />
+                            <InventoryStatCard
+                              title="关联证据"
+                              value={`${replayCase.linked_handoff_artifact_count} / ${replayCase.linked_evidence_artifact_count}`}
+                              hint="handoff / evidence"
+                            />
+                            <InventoryStatCard
+                              title="最近产物"
+                              value={`${replayCase.recent_artifact_count}`}
+                              hint={`workspace ${replayCase.workspace_id || "未绑定"}`}
+                            />
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                              <span>Replay 目录</span>
+                            </div>
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              <div>
+                                相对路径：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {replayCase.replay_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                绝对路径：
+                                <PathTextLink
+                                  path={replayCase.replay_absolute_root}
+                                  className="ml-1"
+                                  onOpenPath={handleOpenPathValue}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                            <div className="text-sm font-medium text-emerald-900">
+                              关联证据主链
+                            </div>
+                            <div className="mt-2 space-y-1 text-xs text-emerald-800">
+                              <div>
+                                handoff：
+                                <span className="ml-1 break-all font-mono text-emerald-950">
+                                  {replayCase.handoff_bundle_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                evidence：
+                                <span className="ml-1 break-all font-mono text-emerald-950">
+                                  {replayCase.evidence_pack_relative_root}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            {replayCase.artifacts.map((artifact) => {
+                              const sizeLabel = formatSize(artifact.bytes);
+                              return (
+                                <div
+                                  key={artifact.absolute_path}
+                                  className="rounded-xl border border-border bg-background p-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <FileText className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-sm font-medium text-foreground">
+                                          {artifact.title}
+                                        </span>
+                                        <Badge variant="outline">
+                                          {formatReplayArtifactKindLabel(
+                                            artifact.kind,
+                                          )}
+                                        </Badge>
+                                        {sizeLabel ? (
+                                          <Badge variant="secondary">
+                                            {sizeLabel}
+                                          </Badge>
+                                        ) : null}
+                                      </div>
+                                      <div className="mt-2 text-xs text-muted-foreground">
+                                        <div>
+                                          相对路径：
+                                          <span className="ml-1 break-all font-mono text-foreground">
+                                            {artifact.relative_path}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1">
+                                          绝对路径：
+                                          <PathTextLink
+                                            path={artifact.absolute_path}
+                                            className="ml-1"
+                                            onOpenPath={handleOpenPathValue}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-2"
+                                        aria-label={`预览 Replay 样本：${artifact.title}`}
+                                        onClick={() =>
+                                          void openPreview({
+                                            title: artifact.title,
+                                            description: `Replay 样本 · ${formatReplayArtifactKindLabel(
+                                              artifact.kind,
+                                            )}`,
+                                            path: artifact.absolute_path,
+                                          })
+                                        }
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        预览
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="gap-2"
+                                        aria-label={`系统打开 Replay 样本：${artifact.absolute_path}`}
+                                        onClick={() =>
+                                          void handleOpenPathValue(
+                                            artifact.absolute_path,
+                                          )
+                                        }
+                                      >
+                                        <FolderOpen className="h-4 w-4" />
+                                        打开
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                          尚未导出 Replay 样本。建议在 handoff 和 evidence
+                          都稳定后，再把真实失败沉淀成 `input / expected /
+                          grader / evidence-links` 四件套。
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <Sparkles className="h-4 w-4 text-violet-600" />
+                            <span>外部分析交接</span>
+                          </div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                            把 handoff / evidence / replay 主链重新包装成外部
+                            Claude Code / Codex
+                            可直接消费的分析交接；复制后可直接粘贴给 AI，
+                            不需要你再手写补充 prompt。
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={analysisHandoff ? "outline" : "default"}
+                            className="gap-2"
+                            aria-label="导出外部分析交接"
+                            disabled={analysisExporting}
+                            onClick={() => void handleExportAnalysisHandoff()}
+                          >
+                            {analysisExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-4 w-4" />
+                            )}
+                            {analysisHandoff ? "刷新分析交接" : "导出分析交接"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="gap-2"
+                            aria-label="一键复制给 AI"
+                            disabled={analysisExporting}
+                            onClick={() => void handleCopyAnalysisPrompt()}
+                          >
+                            {analysisExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                            一键复制给 AI
+                          </Button>
+                          {analysisHandoff ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              aria-label="打开外部分析目录"
+                              onClick={() =>
+                                void handleOpenPathValue(
+                                  analysisHandoff.analysis_absolute_root,
+                                )
+                              }
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                              打开目录
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {analysisExportError ? (
+                        <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                          {analysisExportError}
+                        </div>
+                      ) : null}
+
+                      {analysisHandoff ? (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <InventoryStatCard
+                              title="线程状态"
+                              value={formatHandoffStatusLabel(
+                                analysisHandoff.thread_status,
+                              )}
+                              hint={`最近导出 ${formatIsoDateTime(analysisHandoff.exported_at)}`}
+                            />
+                            <InventoryStatCard
+                              title="最新 Turn"
+                              value={formatHandoffStatusLabel(
+                                analysisHandoff.latest_turn_status,
+                              )}
+                              hint={`待处理请求 ${analysisHandoff.pending_request_count} · 排队 ${analysisHandoff.queued_turn_count}`}
+                            />
+                            <InventoryStatCard
+                              title="分析标题"
+                              value={analysisHandoff.title || "未命名"}
+                              hint={`工作区 ${analysisHandoff.workspace_id || "未绑定"}`}
+                            />
+                            <InventoryStatCard
+                              title="分析文件"
+                              value={`${analysisHandoff.artifacts.length}`}
+                              hint="analysis brief / context"
+                            />
+                          </div>
+
+                          <div className="rounded-xl border border-violet-200 bg-violet-50/80 p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-violet-950">
+                              <Copy className="h-4 w-4 text-violet-700" />
+                              <span>复制说明</span>
+                            </div>
+                            <div className="mt-2 text-xs leading-5 text-violet-900">
+                              复制内容来自后端导出的
+                              `copy_prompt`，已经包含分析入口文件、关联目录和输出要求；
+                              外部 AI
+                              可直接开始诊断，证据足够明确时也可直接实施最小修复。
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                              <span>分析目录</span>
+                            </div>
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              <div>
+                                相对路径：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {analysisHandoff.analysis_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                绝对路径：
+                                <PathTextLink
+                                  path={analysisHandoff.analysis_absolute_root}
+                                  className="ml-1"
+                                  onOpenPath={handleOpenPathValue}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="text-sm font-medium text-foreground">
+                              关联主链目录
+                            </div>
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              <div>
+                                handoff：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {analysisHandoff.handoff_bundle_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                evidence：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {analysisHandoff.evidence_pack_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                replay：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {analysisHandoff.replay_case_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                路径占位根：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {analysisHandoff.sanitized_workspace_root}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            {analysisHandoff.artifacts.map((artifact) => {
+                              const sizeLabel = formatSize(artifact.bytes);
+                              return (
+                                <div
+                                  key={artifact.absolute_path}
+                                  className="rounded-xl border border-border bg-background p-3"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <FileText className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-sm font-medium text-foreground">
+                                          {artifact.title}
+                                        </span>
+                                        <Badge variant="outline">
+                                          {formatAnalysisArtifactKindLabel(
+                                            artifact.kind,
+                                          )}
+                                        </Badge>
+                                        {sizeLabel ? (
+                                          <Badge variant="secondary">
+                                            {sizeLabel}
+                                          </Badge>
+                                        ) : null}
+                                      </div>
+                                      <div className="mt-2 text-xs text-muted-foreground">
+                                        <div>
+                                          相对路径：
+                                          <span className="ml-1 break-all font-mono text-foreground">
+                                            {artifact.relative_path}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1">
+                                          绝对路径：
+                                          <PathTextLink
+                                            path={artifact.absolute_path}
+                                            className="ml-1"
+                                            onOpenPath={handleOpenPathValue}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-2"
+                                        aria-label={`预览外部分析文件：${artifact.title}`}
+                                        onClick={() =>
+                                          void openPreview({
+                                            title: artifact.title,
+                                            description: `外部分析交接 · ${formatAnalysisArtifactKindLabel(
+                                              artifact.kind,
+                                            )}`,
+                                            path: artifact.absolute_path,
+                                          })
+                                        }
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        预览
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="gap-2"
+                                        aria-label={`系统打开外部分析文件：${artifact.absolute_path}`}
+                                        onClick={() =>
+                                          void handleOpenPathValue(
+                                            artifact.absolute_path,
+                                          )
+                                        }
+                                      >
+                                        <FolderOpen className="h-4 w-4" />
+                                        打开
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                          尚未导出外部分析交接。点击“一键复制给
+                          AI”时会自动先导出再复制， 用于把当前 Lime
+                          证据链直接交给外部 Claude Code / Codex
+                          做诊断与最小修复。
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <ListChecks className="h-4 w-4 text-emerald-600" />
+                            <span>人工审核记录</span>
+                          </div>
+                          <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                            把外部 Claude Code / Codex 的分析结论回挂为
+                            `review-decision.md/json`
+                            模板，固定接受、延后、拒绝与回归要求；最终决策仍由开发者审核，不是
+                            Lime 自动闭环。
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                              reviewDecisionTemplate ? "outline" : "default"
+                            }
+                            className="gap-2"
+                            aria-label="导出人工审核记录"
+                            disabled={reviewDecisionExporting}
+                            onClick={() =>
+                              void handleExportReviewDecisionTemplate()
+                            }
+                          >
+                            {reviewDecisionExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ListChecks className="h-4 w-4" />
+                            )}
+                            {reviewDecisionTemplate
+                              ? "刷新人工审核记录"
+                              : "导出人工审核记录"}
+                          </Button>
+                          {reviewDecisionTemplate ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              aria-label="打开人工审核目录"
+                              onClick={() =>
+                                void handleOpenPathValue(
+                                  reviewDecisionTemplate.review_absolute_root,
+                                )
+                              }
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                              打开目录
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {reviewDecisionExportError ? (
+                        <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                          {reviewDecisionExportError}
+                        </div>
+                      ) : null}
+
+                      {reviewDecisionTemplate ? (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <InventoryStatCard
+                              title="默认状态"
+                              value={formatReviewDecisionStatusLabel(
+                                reviewDecisionTemplate.default_decision_status,
+                              )}
+                              hint={`最近导出 ${formatIsoDateTime(reviewDecisionTemplate.exported_at)}`}
+                            />
+                            <InventoryStatCard
+                              title="线程状态"
+                              value={formatHandoffStatusLabel(
+                                reviewDecisionTemplate.thread_status,
+                              )}
+                              hint={`待处理请求 ${reviewDecisionTemplate.pending_request_count} · 排队 ${reviewDecisionTemplate.queued_turn_count}`}
+                            />
+                            <InventoryStatCard
+                              title="分析文件"
+                              value={`${reviewDecisionTemplate.analysis_artifacts.length}`}
+                              hint="沿用 analysis handoff 主链"
+                            />
+                            <InventoryStatCard
+                              title="审核文件"
+                              value={`${reviewDecisionTemplate.artifacts.length}`}
+                              hint="review-decision.md / json"
+                            />
+                          </div>
+
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+                              <ShieldAlert className="h-4 w-4 text-emerald-700" />
+                              <span>职责边界</span>
+                            </div>
+                            <div className="mt-2 text-xs leading-5 text-emerald-900">
+                              运行时事实继续以 aster-rust 的 session / thread /
+                              turn 为准，外部分析形状对齐 Codex
+                              的交接习惯，但最终是否接受修复、补哪些回归，必须由开发者写入
+                              review decision。
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                              <span>审核目录</span>
+                            </div>
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              <div>
+                                相对路径：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {reviewDecisionTemplate.review_relative_root}
+                                </span>
+                              </div>
+                              <div>
+                                绝对路径：
+                                <PathTextLink
+                                  path={
+                                    reviewDecisionTemplate.review_absolute_root
+                                  }
+                                  className="ml-1"
+                                  onOpenPath={handleOpenPathValue}
+                                />
+                              </div>
+                              <div>
+                                关联 analysis：
+                                <span className="ml-1 break-all font-mono text-foreground">
+                                  {
+                                    reviewDecisionTemplate.analysis_relative_root
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="text-sm font-medium text-foreground">
+                              人工审核清单
+                            </div>
+                            <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                              {reviewDecisionTemplate.review_checklist.map(
+                                (item) => (
+                                  <div
+                                    key={item}
+                                    className="rounded-lg border border-dashed border-border px-3 py-2"
+                                  >
+                                    {item}
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="text-sm font-medium text-foreground">
+                              关联分析文件
+                            </div>
+                            {reviewDecisionTemplate.analysis_artifacts.map(
+                              (artifact) => {
+                                const sizeLabel = formatSize(artifact.bytes);
+                                return (
+                                  <div
+                                    key={artifact.absolute_path}
+                                    className="rounded-xl border border-border bg-background p-3"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <FileText className="h-4 w-4 text-muted-foreground" />
+                                          <span className="text-sm font-medium text-foreground">
+                                            {artifact.title}
+                                          </span>
+                                          <Badge variant="outline">
+                                            {formatAnalysisArtifactKindLabel(
+                                              artifact.kind,
+                                            )}
+                                          </Badge>
+                                          {sizeLabel ? (
+                                            <Badge variant="secondary">
+                                              {sizeLabel}
+                                            </Badge>
+                                          ) : null}
+                                        </div>
+                                        <div className="mt-2 text-xs text-muted-foreground">
+                                          <div>
+                                            相对路径：
+                                            <span className="ml-1 break-all font-mono text-foreground">
+                                              {artifact.relative_path}
+                                            </span>
+                                          </div>
+                                          <div className="mt-1">
+                                            绝对路径：
+                                            <PathTextLink
+                                              path={artifact.absolute_path}
+                                              className="ml-1"
+                                              onOpenPath={handleOpenPathValue}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex shrink-0 flex-wrap gap-2">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          className="gap-2"
+                                          aria-label={`预览关联分析文件：${artifact.title}`}
+                                          onClick={() =>
+                                            void openPreview({
+                                              title: artifact.title,
+                                              description: `关联分析文件 · ${formatAnalysisArtifactKindLabel(
+                                                artifact.kind,
+                                              )}`,
+                                              path: artifact.absolute_path,
+                                            })
+                                          }
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          预览
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          className="gap-2"
+                                          aria-label={`系统打开关联分析文件：${artifact.absolute_path}`}
+                                          onClick={() =>
+                                            void handleOpenPathValue(
+                                              artifact.absolute_path,
+                                            )
+                                          }
+                                        >
+                                          <FolderOpen className="h-4 w-4" />
+                                          打开
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="text-sm font-medium text-foreground">
+                              审核记录模板文件
+                            </div>
+                            {reviewDecisionTemplate.artifacts.map(
+                              (artifact) => {
+                                const sizeLabel = formatSize(artifact.bytes);
+                                return (
+                                  <div
+                                    key={artifact.absolute_path}
+                                    className="rounded-xl border border-border bg-background p-3"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <FileText className="h-4 w-4 text-muted-foreground" />
+                                          <span className="text-sm font-medium text-foreground">
+                                            {artifact.title}
+                                          </span>
+                                          <Badge variant="outline">
+                                            {formatReviewDecisionArtifactKindLabel(
+                                              artifact.kind,
+                                            )}
+                                          </Badge>
+                                          {sizeLabel ? (
+                                            <Badge variant="secondary">
+                                              {sizeLabel}
+                                            </Badge>
+                                          ) : null}
+                                        </div>
+                                        <div className="mt-2 text-xs text-muted-foreground">
+                                          <div>
+                                            相对路径：
+                                            <span className="ml-1 break-all font-mono text-foreground">
+                                              {artifact.relative_path}
+                                            </span>
+                                          </div>
+                                          <div className="mt-1">
+                                            绝对路径：
+                                            <PathTextLink
+                                              path={artifact.absolute_path}
+                                              className="ml-1"
+                                              onOpenPath={handleOpenPathValue}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex shrink-0 flex-wrap gap-2">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          className="gap-2"
+                                          aria-label={`预览人工审核文件：${artifact.title}`}
+                                          onClick={() =>
+                                            void openPreview({
+                                              title: artifact.title,
+                                              description: `人工审核记录 · ${formatReviewDecisionArtifactKindLabel(
+                                                artifact.kind,
+                                              )}`,
+                                              path: artifact.absolute_path,
+                                            })
+                                          }
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          预览
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          className="gap-2"
+                                          aria-label={`系统打开人工审核文件：${artifact.absolute_path}`}
+                                          onClick={() =>
+                                            void handleOpenPathValue(
+                                              artifact.absolute_path,
+                                            )
+                                          }
+                                        >
+                                          <FolderOpen className="h-4 w-4" />
+                                          打开
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                          尚未导出人工审核记录。建议在外部 AI 完成诊断后立刻导出
+                          `review-decision.md/json`，把接受、延后、拒绝和回归要求回挂到工作区，
+                          而不是散落在聊天窗口或临时笔记里。
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Section>
+              ) : null}
+
               {threadReliabilityView.shouldRender ? (
                 <Section
                   sectionKey="reliability"
@@ -2671,9 +4299,7 @@ export function HarnessStatusPanel({
                               ["default", "默认策略"],
                               ["persisted", "持久化覆盖"],
                               ["runtime", "运行时覆盖"],
-                            ] as Array<
-                              [AgentToolExecutionPolicySource, string]
-                            >
+                            ] as Array<[AgentToolExecutionPolicySource, string]>
                           ).map(([source, label]) => (
                             <InventoryStatCard
                               key={source}
@@ -2710,14 +4336,18 @@ export function HarnessStatusPanel({
                           <div className="flex flex-wrap gap-2">
                             {[
                               { value: "all" as const, label: "全部" },
-                              { value: "runtime" as const, label: "运行时覆盖" },
+                              {
+                                value: "runtime" as const,
+                                label: "运行时覆盖",
+                              },
                               {
                                 value: "persisted" as const,
                                 label: "持久化覆盖",
                               },
                               { value: "default" as const, label: "纯默认" },
                             ].map((option) => {
-                              const active = option.value === toolInventoryFilter;
+                              const active =
+                                option.value === toolInventoryFilter;
                               const count = countCatalogToolsByInventoryFilter(
                                 toolInventoryCatalogTools,
                                 option.value,
@@ -2763,7 +4393,9 @@ export function HarnessStatusPanel({
                                         )}
                                       </Badge>
                                       <Badge variant="outline">
-                                        {formatToolSourceKindLabel(entry.source)}
+                                        {formatToolSourceKindLabel(
+                                          entry.source,
+                                        )}
                                       </Badge>
                                       <Badge variant="outline">
                                         {formatToolPermissionPlaneLabel(
@@ -2942,7 +4574,8 @@ export function HarnessStatusPanel({
                                   </div>
                                 </div>
 
-                                {collectRegistryExecutionSources(entry).length > 0 ? (
+                                {collectRegistryExecutionSources(entry).length >
+                                0 ? (
                                   <div className="mt-3 flex flex-wrap gap-2">
                                     {entry.catalog_execution_warning_policy &&
                                     entry.catalog_execution_warning_policy_source ? (
@@ -3032,9 +4665,7 @@ export function HarnessStatusPanel({
                                   <div>
                                     常驻工具：{entry.always_expose_tools.length}
                                   </div>
-                                  <div>
-                                    已加载：{entry.loaded_tools.length}
-                                  </div>
+                                  <div>已加载：{entry.loaded_tools.length}</div>
                                   <div>
                                     可搜索：{entry.searchable_tools.length}
                                   </div>
@@ -3058,7 +4689,9 @@ export function HarnessStatusPanel({
                                   <span className="text-sm font-medium text-foreground">
                                     {entry.name}
                                   </span>
-                                  <Badge variant="outline">{entry.status}</Badge>
+                                  <Badge variant="outline">
+                                    {entry.status}
+                                  </Badge>
                                   <Badge variant="outline">
                                     {formatExtensionSourceKindLabel(
                                       entry.source_kind,
@@ -3411,8 +5044,9 @@ export function HarnessStatusPanel({
                                 <span>{formatTime(event.timestamp)}</span>
                                 <span>·</span>
                                 <span>
-                                  {resolveFriendlyToolLabel(event.sourceToolName) ||
-                                    event.sourceToolName}
+                                  {resolveFriendlyToolLabel(
+                                    event.sourceToolName,
+                                  ) || event.sourceToolName}
                                 </span>
                               </div>
                               {event.preview ? (
@@ -3503,8 +5137,8 @@ export function HarnessStatusPanel({
                       : realTeamSummary.total > 0
                         ? `${realTeamSummary.total} 个协作`
                         : harnessState.delegatedTasks.length > 0
-                        ? `${harnessState.delegatedTasks.length} 条`
-                        : undefined
+                          ? `${harnessState.delegatedTasks.length} 条`
+                          : undefined
                   }
                   registerRef={registerSectionRef}
                 >
@@ -3633,8 +5267,8 @@ export function HarnessStatusPanel({
                                   {session.provider_parallel_budget === 1 &&
                                   session.provider_concurrency_group ? (
                                     <span>
-                                      {resolveTeamWorkspaceStableProcessingLabel()}：
-                                      当前服务按顺序处理
+                                      {resolveTeamWorkspaceStableProcessingLabel()}
+                                      ： 当前服务按顺序处理
                                     </span>
                                   ) : null}
                                   {session.origin_tool ? (
@@ -3645,7 +5279,10 @@ export function HarnessStatusPanel({
                                       ) || session.origin_tool}
                                     </span>
                                   ) : null}
-                                  <span>更新：{formatUnixTimestamp(session.updated_at)}</span>
+                                  <span>
+                                    更新：
+                                    {formatUnixTimestamp(session.updated_at)}
+                                  </span>
                                 </div>
                                 {session.task_summary ? (
                                   <InteractiveText

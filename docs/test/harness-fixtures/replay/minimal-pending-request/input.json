@@ -1,0 +1,102 @@
+{
+  "replayCaseVersion": "v1",
+  "source": "lime.fixture.replay_case",
+  "exportedAt": "2026-03-27T11:30:00Z",
+  "session": {
+    "sessionId": "fixture-session-minimal-pending-request",
+    "threadId": "fixture-thread-minimal-pending-request",
+    "workspaceId": "fixture-workspace",
+    "workspaceRoot": "/workspace/lime",
+    "model": "fixture-model",
+    "executionStrategy": "agent_runtime"
+  },
+  "task": {
+    "goalSummary": "确认评估链不会把仍存在 approval request 的会话误判为已完成。",
+    "latestPlan": "先导出 handoff bundle，再导出 evidence pack，最后生成 replay case。",
+    "latestTurnSummary": "当前会话已生成 replay case，但还有一个待处理审批请求。",
+    "latestTurnPrompt": "请把这次 pending request 会话导出为可回放样本。",
+    "latestTurnId": "turn-fixture-001",
+    "latestTurnStatus": "action_required",
+    "threadStatus": "waiting_request",
+    "primaryBlockingSummary": "存在待审批写文件请求，需要在评分时显式说明是否已处理。"
+  },
+  "classification": {
+    "sourceKind": "repo_fixture",
+    "suiteTags": [
+      "conversation-runtime",
+      "replay",
+      "pending-request",
+      "handoff",
+      "evidence"
+    ],
+    "failureModes": ["pending_request", "unfinished_todo"],
+    "primaryBlockingKind": "pending_request"
+  },
+  "runtimeContext": {
+    "pendingRequests": [
+      {
+        "requestId": "approval-fixture-001",
+        "requestType": "approval_request",
+        "title": "允许写入 replay 样本目录",
+        "actionType": "write_file",
+        "prompt": "需要确认是否允许写入 `.lime/harness/sessions/.../replay`。"
+      }
+    ],
+    "queuedTurns": [],
+    "todoItems": [
+      {
+        "content": "导出 replay case",
+        "status": "completed"
+      },
+      {
+        "content": "评估 pending request 风险",
+        "status": "in_progress"
+      }
+    ],
+    "activeSubagents": [],
+    "recentArtifacts": [
+      "docs/tech/harness/implementation-blueprint.md",
+      ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff/handoff.md"
+    ],
+    "recentTimeline": [
+      {
+        "itemId": "timeline-fixture-001",
+        "turnId": "turn-fixture-001",
+        "payloadKind": "plan",
+        "status": "completed",
+        "summary": "产出 replay 导出计划",
+        "updatedAt": "2026-03-27T11:20:00Z"
+      },
+      {
+        "itemId": "timeline-fixture-002",
+        "turnId": "turn-fixture-001",
+        "payloadKind": "approval_request",
+        "status": "pending",
+        "summary": "等待写文件审批",
+        "updatedAt": "2026-03-27T11:24:00Z"
+      }
+    ],
+    "lastOutcome": {
+      "thread_id": "fixture-thread-minimal-pending-request",
+      "turn_id": "turn-fixture-001",
+      "outcome_type": "partial_success",
+      "summary": "handoff 与 evidence 已导出，replay 样本待审批确认",
+      "primary_cause": "pending_request",
+      "retryable": true
+    },
+    "incidents": []
+  },
+  "linkedArtifacts": {
+    "handoffBundle": {
+      "relativeRoot": ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff",
+      "artifactCount": 4
+    },
+    "evidencePack": {
+      "relativeRoot": ".lime/harness/sessions/fixture-session-minimal-pending-request/evidence",
+      "artifactCount": 4,
+      "knownGaps": [
+        "当前 fixture 不包含真实浏览器快照，只验证 replay 样本结构与 grader 约定。"
+      ]
+    }
+  }
+}

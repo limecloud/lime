@@ -4,6 +4,7 @@ import {
   buildServiceSkillAutomationStatusMap,
   listServiceSkillAutomationLinks,
   recordServiceSkillAutomationLink,
+  resolveServiceSkillAutomationLinks,
   subscribeServiceSkillAutomationLinksChanged,
 } from "./automationLinkStorage";
 
@@ -27,6 +28,13 @@ function buildJob(
       prompt: "prompt",
       system_prompt: null,
       web_search: false,
+      request_metadata: {
+        service_skill: {
+          id: "daily-trend-briefing",
+          title: "每日趋势摘要",
+          runner_type: "scheduled",
+        },
+      },
     },
     delivery: {
       mode: "none",
@@ -122,5 +130,29 @@ describe("automationLinkStorage", () => {
       }),
     );
     expect(statusMap["daily-trend-briefing"]?.detail).toContain("下次");
+  });
+
+  it("应从任务 request_metadata 恢复持久化的服务型技能关联", () => {
+    const links = resolveServiceSkillAutomationLinks([buildJob()]);
+
+    expect(links).toEqual([
+      expect.objectContaining({
+        skillId: "daily-trend-briefing",
+        jobId: "automation-job-1",
+        jobName: "每日趋势摘要｜定时执行",
+      }),
+    ]);
+  });
+
+  it("没有本地 link 时也应根据持久化关联构建首页状态", () => {
+    const statusMap = buildServiceSkillAutomationStatusMap([buildJob()]);
+
+    expect(statusMap["daily-trend-briefing"]).toEqual(
+      expect.objectContaining({
+        jobId: "automation-job-1",
+        statusLabel: "成功",
+        tone: "emerald",
+      }),
+    );
   });
 });

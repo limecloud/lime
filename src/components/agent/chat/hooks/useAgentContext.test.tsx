@@ -6,6 +6,7 @@ const {
   mockNotifyProjectRuntimeAgentsGuide,
   mockSetSessionExecutionStrategy,
   mockSetSessionProviderSelection,
+  mockTopicsUpdater,
   mockToastError,
   mockUpdateProject,
   mockWechatChannelSetRuntimeModel,
@@ -13,6 +14,7 @@ const {
   mockNotifyProjectRuntimeAgentsGuide: vi.fn(),
   mockSetSessionExecutionStrategy: vi.fn(async () => undefined),
   mockSetSessionProviderSelection: vi.fn(async () => undefined),
+  mockTopicsUpdater: vi.fn(),
   mockToastError: vi.fn(),
   mockUpdateProject: vi.fn(async () => undefined),
   mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
@@ -37,6 +39,7 @@ vi.mock("@/lib/api/channelsRuntime", () => ({
 }));
 
 import { useAgentContext } from "./useAgentContext";
+import { loadPersistedSessionWorkspaceId } from "./agentProjectStorage";
 
 interface HookHarness {
   getValue: () => ReturnType<typeof useAgentContext>;
@@ -59,7 +62,7 @@ function mountHook(
     hookValue = useAgentContext({
       workspaceId,
       sessionIdRef: { current: sessionId },
-      topicsUpdaterRef: { current: null },
+      topicsUpdaterRef: { current: mockTopicsUpdater },
       sendMessageRef: { current: sendMessage },
       runtime: {
         setSessionExecutionStrategy: mockSetSessionExecutionStrategy,
@@ -100,6 +103,7 @@ describe("useAgentContext", () => {
     mockNotifyProjectRuntimeAgentsGuide.mockReset();
     mockSetSessionExecutionStrategy.mockClear();
     mockSetSessionProviderSelection.mockClear();
+    mockTopicsUpdater.mockReset();
     mockToastError.mockReset();
     mockUpdateProject.mockReset();
     mockWechatChannelSetRuntimeModel.mockReset();
@@ -142,6 +146,102 @@ describe("useAgentContext", () => {
       "session-1",
       "deepseek",
       "deepseek-reasoner",
+    );
+    expect(
+      harness.getValue().getSyncedSessionModelPreference("session-1"),
+    ).toEqual({
+      providerType: "deepseek",
+      model: "deepseek-reasoner",
+    });
+
+    harness.unmount();
+  });
+
+  it("当前会话连续切换执行策略时应批量回写 session 并同步话题快照", async () => {
+    const harness = mountHook("workspace-1", "session-1");
+
+    await act(async () => {
+      harness.getValue().setExecutionStrategy("auto");
+      harness.getValue().setExecutionStrategy("code_orchestrated");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSetSessionExecutionStrategy).toHaveBeenCalledTimes(1);
+    expect(mockSetSessionExecutionStrategy).toHaveBeenCalledWith(
+      "session-1",
+      "code_orchestrated",
+    );
+    expect(mockTopicsUpdater).toHaveBeenCalledWith(
+      "session-1",
+      "code_orchestrated",
+    );
+    expect(
+      harness.getValue().getSyncedSessionExecutionStrategy("session-1"),
+    ).toBe("code_orchestrated");
+    expect(
+      JSON.parse(
+        localStorage.getItem("aster_execution_strategy_workspace-1") || "null",
+      ),
+    ).toBe("code_orchestrated");
+
+    harness.unmount();
+  });
+
+  it("无当前会话时切换执行策略应只更新影子缓存", async () => {
+    const harness = mountHook("workspace-shadow");
+
+    await act(async () => {
+      harness.getValue().setExecutionStrategy("auto");
+      await Promise.resolve();
+    });
+
+    expect(mockSetSessionExecutionStrategy).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(
+        localStorage.getItem("aster_execution_strategy_workspace-shadow") ||
+          "null",
+      ),
+    ).toBe("auto");
+
+    harness.unmount();
+  });
+
+  it("过滤会话时应优先使用 runtime workspace_id 并回填影子缓存", () => {
+    localStorage.setItem(
+      "agent_session_workspace_session-runtime-current",
+      JSON.stringify("workspace-stale"),
+    );
+    localStorage.setItem(
+      "agent_session_workspace_session-runtime-other",
+      JSON.stringify("workspace-1"),
+    );
+
+    const harness = mountHook("workspace-1");
+
+    expect(
+      harness
+        .getValue()
+        .filterSessionsByWorkspace([
+          {
+            id: "session-runtime-current",
+            workspace_id: "workspace-1",
+          },
+          {
+            id: "session-runtime-other",
+            workspace_id: "workspace-2",
+          },
+          {
+            id: "session-legacy-fallback",
+          },
+        ])
+        .map((session) => session.id),
+    ).toEqual(["session-runtime-current", "session-legacy-fallback"]);
+    expect(loadPersistedSessionWorkspaceId("session-runtime-current")).toBe(
+      "workspace-1",
+    );
+    expect(loadPersistedSessionWorkspaceId("session-runtime-other")).toBe(
+      "workspace-2",
     );
 
     harness.unmount();

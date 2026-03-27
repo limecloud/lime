@@ -22,6 +22,21 @@ interface UseWorkspaceGeneralResourceSyncParams {
   projectRootPath?: string | null;
 }
 
+export interface GeneralArtifactSyncResult {
+  status:
+    | "uploaded"
+    | "duplicate"
+    | "inactive"
+    | "missing_project"
+    | "unsupported"
+    | "missing_file"
+    | "error";
+  projectId?: string;
+  filePath?: string;
+  materialId?: string;
+  errorMessage?: string;
+}
+
 export function useWorkspaceGeneralResourceSync({
   activeTheme,
   projectId,
@@ -46,29 +61,33 @@ export function useWorkspaceGeneralResourceSync({
     [],
   );
 
-  const ensureGeneralResourceHashes = useCallback(async (targetProjectId: string) => {
-    const existingHashes = generalResourceHashesRef.current.get(targetProjectId);
-    if (existingHashes) {
-      return existingHashes;
-    }
+  const ensureGeneralResourceHashes = useCallback(
+    async (targetProjectId: string) => {
+      const existingHashes =
+        generalResourceHashesRef.current.get(targetProjectId);
+      if (existingHashes) {
+        return existingHashes;
+      }
 
-    const nextHashes = new Set<string>();
+      const nextHashes = new Set<string>();
 
-    try {
-      const materials = await listMaterials(targetProjectId);
-      materials.forEach((material) => {
-        const hash = extractGeneralChatResourceHash(material);
-        if (hash) {
-          nextHashes.add(hash);
-        }
-      });
-    } catch (error) {
-      console.warn("[AgentChatPage] 读取资源去重缓存失败:", error);
-    }
+      try {
+        const materials = await listMaterials(targetProjectId);
+        materials.forEach((material) => {
+          const hash = extractGeneralChatResourceHash(material);
+          if (hash) {
+            nextHashes.add(hash);
+          }
+        });
+      } catch (error) {
+        console.warn("[AgentChatPage] 读取资源去重缓存失败:", error);
+      }
 
-    generalResourceHashesRef.current.set(targetProjectId, nextHashes);
-    return nextHashes;
-  }, []);
+      generalResourceHashesRef.current.set(targetProjectId, nextHashes);
+      return nextHashes;
+    },
+    [],
+  );
 
   const resolveGeneralArtifactSyncPath = useCallback(
     async (rawFilePath: string): Promise<string | null> => {
@@ -95,7 +114,8 @@ export function useWorkspaceGeneralResourceSync({
       }
 
       return (
-        resolveAbsoluteWorkspacePath(projectRootPath, normalizedFilePath) || null
+        resolveAbsoluteWorkspacePath(projectRootPath, normalizedFilePath) ||
+        null
       );
     },
     [projectRootPath, sessionId],
@@ -104,20 +124,27 @@ export function useWorkspaceGeneralResourceSync({
   const syncGeneralArtifactToResource = useCallback(
     async (input: { rawFilePath: string; preferredName?: string }) => {
       if (activeTheme !== "general") {
-        return;
+        return {
+          status: "inactive",
+        } satisfies GeneralArtifactSyncResult;
       }
 
       const normalizedProjectId = normalizeProjectId(projectId);
       const normalizedRawFilePath = input.rawFilePath.trim();
       if (!normalizedProjectId || !normalizedRawFilePath) {
-        return;
+        return {
+          status: "missing_project",
+        } satisfies GeneralArtifactSyncResult;
       }
 
       const materialType = inferGeneralChatResourceMaterialType(
         normalizedRawFilePath,
       );
       if (!materialType) {
-        return;
+        return {
+          status: "unsupported",
+          projectId: normalizedProjectId,
+        } satisfies GeneralArtifactSyncResult;
       }
 
       const resolvedFilePath = await resolveGeneralArtifactSyncPath(
@@ -125,23 +152,37 @@ export function useWorkspaceGeneralResourceSync({
       );
       const normalizedResolvedFilePath = resolvedFilePath?.trim();
       if (!normalizedResolvedFilePath) {
-        return;
+        return {
+          status: "missing_file",
+          projectId: normalizedProjectId,
+        } satisfies GeneralArtifactSyncResult;
       }
 
       const pathHash = buildGeneralChatResourceHash(normalizedResolvedFilePath);
       const dedupeKey = `${normalizedProjectId}:${pathHash}`;
       if (generalResourceSyncInFlightRef.current.has(dedupeKey)) {
-        return;
+        syncResourceProjectSelection(normalizedProjectId);
+        return {
+          status: "duplicate",
+          projectId: normalizedProjectId,
+          filePath: normalizedResolvedFilePath,
+        } satisfies GeneralArtifactSyncResult;
       }
 
-      const knownHashes = await ensureGeneralResourceHashes(normalizedProjectId);
+      const knownHashes =
+        await ensureGeneralResourceHashes(normalizedProjectId);
       if (knownHashes.has(pathHash)) {
-        return;
+        syncResourceProjectSelection(normalizedProjectId);
+        return {
+          status: "duplicate",
+          projectId: normalizedProjectId,
+          filePath: normalizedResolvedFilePath,
+        } satisfies GeneralArtifactSyncResult;
       }
 
       generalResourceSyncInFlightRef.current.add(dedupeKey);
       try {
-        await uploadMaterial({
+        const material = await uploadMaterial({
           projectId: normalizedProjectId,
           name:
             input.preferredName?.trim() ||
@@ -157,8 +198,20 @@ export function useWorkspaceGeneralResourceSync({
 
         knownHashes.add(pathHash);
         syncResourceProjectSelection(normalizedProjectId);
+        return {
+          status: "uploaded",
+          projectId: normalizedProjectId,
+          filePath: normalizedResolvedFilePath,
+          materialId: material.id,
+        } satisfies GeneralArtifactSyncResult;
       } catch (error) {
         console.warn("[AgentChatPage] 自动补录资源失败:", error);
+        return {
+          status: "error",
+          projectId: normalizedProjectId,
+          filePath: normalizedResolvedFilePath,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        } satisfies GeneralArtifactSyncResult;
       } finally {
         generalResourceSyncInFlightRef.current.delete(dedupeKey);
       }

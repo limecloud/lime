@@ -40,6 +40,14 @@ async (args, helpers) => {
     limit,
   );
 
+  if (items.length === 0 && helpers.looksLikeLoginWall()) {
+    return {
+      ok: false,
+      error_code: "auth_required",
+      error_message: `B 站没有返回 "${query}" 的搜索结果，可能需要先登录。`,
+    };
+  }
+
   return {
     ok: true,
     data: {

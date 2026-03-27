@@ -708,9 +708,11 @@ describe("AgentThreadReliabilityPanel", () => {
       expect.stringContaining("浏览器工具执行失败"),
     );
     expect(mockToast.success).toHaveBeenCalledWith("AI 诊断内容已复制");
-    expect(container.textContent).toContain("复制给 AI");
-    expect(container.textContent).toContain("复制原始 JSON");
-    expect(container.textContent).toContain("会附带诊断任务说明");
+    expect(container.textContent).toContain("compat 快速诊断");
+    expect(container.textContent).toContain("快速复制给 AI");
+    expect(container.textContent).toContain("复制原始 JSON（debug）");
+    expect(container.textContent).toContain("外部分析交接");
+    expect(container.textContent).toContain("analysis-brief.md / analysis-context.json");
   });
 
   it("应支持复制原始 JSON 诊断数据", async () => {

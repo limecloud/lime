@@ -1,4 +1,5 @@
 use super::*;
+use aster::session::load_shared_session_runtime_snapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionProviderRoutingState {
@@ -39,6 +40,15 @@ impl SessionProviderRoutingState {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SessionRecentHarnessContext {
+    pub(crate) theme: Option<String>,
+    pub(crate) session_mode: Option<String>,
+    pub(crate) gate_key: Option<String>,
+    pub(crate) run_title: Option<String>,
+    pub(crate) content_id: Option<String>,
+}
+
 pub(crate) async fn persist_session_provider_routing(
     session_id: &str,
     provider_selector: &str,
@@ -57,6 +67,88 @@ pub(crate) fn resolve_session_provider_selector(
     session: &aster::session::Session,
 ) -> Option<String> {
     SessionProviderRoutingState::from_session(session).map(|state| state.provider_selector)
+}
+
+pub(crate) async fn resolve_session_recent_preferences(
+    session_id: &str,
+) -> Result<Option<lime_agent::SessionExecutionRuntimePreferences>, String> {
+    let session = read_session(session_id, false, "读取会话 recent_preferences 失败").await?;
+    Ok(lime_agent::build_session_execution_runtime(
+        session_id,
+        Some(&session),
+        None,
+        None,
+        resolve_session_provider_selector(&session),
+    )
+    .and_then(|runtime| runtime.recent_preferences))
+}
+
+pub(crate) async fn resolve_session_recent_team_selection(
+    session_id: &str,
+) -> Result<Option<lime_agent::SessionExecutionRuntimeRecentTeamSelection>, String> {
+    let session = read_session(session_id, false, "读取会话 recent_team_selection 失败").await?;
+    Ok(lime_agent::build_session_execution_runtime(
+        session_id,
+        Some(&session),
+        None,
+        None,
+        resolve_session_provider_selector(&session),
+    )
+    .and_then(|runtime| runtime.recent_team_selection))
+}
+
+pub(crate) async fn resolve_session_recent_harness_context(
+    session_id: &str,
+) -> Result<SessionRecentHarnessContext, String> {
+    let trimmed_session_id = session_id.trim();
+    if trimmed_session_id.is_empty() {
+        return Ok(SessionRecentHarnessContext::default());
+    }
+
+    match load_shared_session_runtime_snapshot(trimmed_session_id).await {
+        Ok(snapshot) => {
+            let runtime = lime_agent::build_session_execution_runtime(
+                trimmed_session_id,
+                None,
+                None,
+                Some(&snapshot),
+                None,
+            );
+            Ok(SessionRecentHarnessContext {
+                theme: runtime
+                    .as_ref()
+                    .and_then(|value| value.recent_theme.clone()),
+                session_mode: runtime
+                    .as_ref()
+                    .and_then(|value| value.recent_session_mode.clone()),
+                gate_key: runtime
+                    .as_ref()
+                    .and_then(|value| value.recent_gate_key.clone()),
+                run_title: runtime
+                    .as_ref()
+                    .and_then(|value| value.recent_run_title.clone()),
+                content_id: runtime
+                    .as_ref()
+                    .and_then(|value| value.recent_content_id.clone()),
+            })
+        }
+        Err(error) => {
+            tracing::debug!(
+                "[AsterAgent] 读取 runtime snapshot 失败，跳过 recent harness context 回退: session_id={}, error={}",
+                trimmed_session_id,
+                error
+            );
+            Ok(SessionRecentHarnessContext::default())
+        }
+    }
+}
+
+pub(crate) fn resolve_recent_preference_from_sources(
+    request_metadata: Option<&serde_json::Value>,
+    keys: &[&str],
+    session_recent_preference: Option<bool>,
+) -> Option<bool> {
+    extract_harness_bool(request_metadata, keys).or(session_recent_preference)
 }
 
 pub(crate) async fn create_runtime_session_internal(

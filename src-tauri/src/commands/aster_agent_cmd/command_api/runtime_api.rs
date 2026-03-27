@@ -1,5 +1,21 @@
 use super::*;
+use crate::services::runtime_analysis_handoff_service::{
+    export_runtime_analysis_handoff, RuntimeAnalysisHandoffExportResult,
+};
+use crate::services::runtime_evidence_pack_service::{
+    export_runtime_evidence_pack, RuntimeEvidencePackExportResult,
+};
+use crate::services::runtime_handoff_artifact_service::{
+    export_runtime_handoff_bundle, RuntimeHandoffBundleExportResult,
+};
+use crate::services::runtime_replay_case_service::{
+    export_runtime_replay_case, RuntimeReplayCaseExportResult,
+};
+use crate::services::runtime_review_decision_service::{
+    export_runtime_review_decision_template, RuntimeReviewDecisionTemplateExportResult,
+};
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub async fn agent_runtime_submit_turn(
@@ -203,6 +219,274 @@ pub async fn agent_runtime_get_thread_read(
         projection.incidents,
         interrupt_marker.as_ref(),
     ))
+}
+
+struct RuntimeExportContext {
+    detail: SessionDetail,
+    thread_read: AgentRuntimeThreadReadModel,
+    workspace_root: PathBuf,
+}
+
+fn resolve_runtime_export_workspace_root(
+    db: &DbConnection,
+    detail: &SessionDetail,
+) -> Result<PathBuf, String> {
+    if let Some(workspace_id) = detail
+        .workspace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let manager = WorkspaceManager::new(db.clone());
+        let workspace_id = workspace_id.to_string();
+        let workspace = manager
+            .get(&workspace_id)
+            .map_err(|error| format!("读取 workspace 失败: {error}"))?
+            .ok_or_else(|| format!("Workspace 不存在: {workspace_id}"))?;
+        let ensured = ensure_workspace_ready_with_auto_relocate(&manager, &workspace)?;
+        return Ok(ensured.root_path);
+    }
+
+    if let Some(working_dir) = detail
+        .working_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(PathBuf::from(working_dir));
+    }
+
+    Err("当前会话缺少 workspace / working_dir，无法导出运行时制品".to_string())
+}
+
+async fn load_runtime_export_context(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    logs: &LogState,
+    config_manager: &GlobalConfigManagerState,
+    mcp_manager: &McpManagerState,
+    automation_state: &AutomationServiceState,
+    session_id: &str,
+    action_label: &str,
+) -> Result<RuntimeExportContext, String> {
+    if let Err(error) = resume_runtime_queue_if_needed_service(
+        app.clone(),
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+        session_id.to_string(),
+        build_runtime_queue_executor(),
+    )
+    .await
+    {
+        tracing::warn!(
+            "[AsterAgent][Queue] {} 前恢复排队执行失败: session_id={}, error={}",
+            action_label,
+            session_id,
+            error
+        );
+    }
+
+    let detail = AsterAgentWrapper::get_runtime_session_detail(db, session_id).await?;
+    let queued_turns = list_runtime_queue_snapshots_service(session_id).await?;
+    let projection = sync_thread_reliability_projection(db, &detail)?;
+    let interrupt_marker = state.get_interrupt_marker(session_id).await;
+    let thread_read = AgentRuntimeThreadReadModel::from_parts(
+        &detail,
+        &queued_turns,
+        projection.pending_requests,
+        projection.last_outcome,
+        projection.incidents,
+        interrupt_marker.as_ref(),
+    );
+    let workspace_root = resolve_runtime_export_workspace_root(db, &detail)?;
+
+    Ok(RuntimeExportContext {
+        detail,
+        thread_read,
+        workspace_root,
+    })
+}
+
+/// 统一运行时：导出当前会话的交接制品 bundle。
+#[tauri::command]
+pub async fn agent_runtime_export_handoff_bundle(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    session_id: String,
+) -> Result<RuntimeHandoffBundleExportResult, String> {
+    tracing::info!("[AsterAgent] 导出 handoff bundle: {}", session_id);
+    let context = load_runtime_export_context(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+        &session_id,
+        "导出 handoff bundle",
+    )
+    .await?;
+
+    export_runtime_handoff_bundle(
+        &context.detail,
+        &context.thread_read,
+        &context.workspace_root,
+    )
+}
+
+/// 统一运行时：导出当前会话的最小问题证据包。
+#[tauri::command]
+pub async fn agent_runtime_export_evidence_pack(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    session_id: String,
+) -> Result<RuntimeEvidencePackExportResult, String> {
+    tracing::info!("[AsterAgent] 导出 evidence pack: {}", session_id);
+    let context = load_runtime_export_context(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+        &session_id,
+        "导出 evidence pack",
+    )
+    .await?;
+
+    export_runtime_evidence_pack(
+        &context.detail,
+        &context.thread_read,
+        &context.workspace_root,
+    )
+}
+
+/// 统一运行时：导出当前会话的外部分析交接包。
+#[tauri::command]
+pub async fn agent_runtime_export_analysis_handoff(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    session_id: String,
+) -> Result<RuntimeAnalysisHandoffExportResult, String> {
+    tracing::info!("[AsterAgent] 导出 analysis handoff: {}", session_id);
+    let context = load_runtime_export_context(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+        &session_id,
+        "导出 analysis handoff",
+    )
+    .await?;
+
+    export_runtime_analysis_handoff(
+        &context.detail,
+        &context.thread_read,
+        &context.workspace_root,
+    )
+}
+
+/// 统一运行时：导出当前会话的人工审核记录模板。
+#[tauri::command]
+pub async fn agent_runtime_export_review_decision_template(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    session_id: String,
+) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
+    tracing::info!("[AsterAgent] 导出 review decision 模板: {}", session_id);
+    let context = load_runtime_export_context(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+        &session_id,
+        "导出 review decision 模板",
+    )
+    .await?;
+
+    export_runtime_review_decision_template(
+        &context.detail,
+        &context.thread_read,
+        &context.workspace_root,
+    )
+}
+
+/// 统一运行时：导出当前会话的 replay case。
+#[tauri::command]
+pub async fn agent_runtime_export_replay_case(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    session_id: String,
+) -> Result<RuntimeReplayCaseExportResult, String> {
+    tracing::info!("[AsterAgent] 导出 replay case: {}", session_id);
+    let context = load_runtime_export_context(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+        &session_id,
+        "导出 replay case",
+    )
+    .await?;
+
+    export_runtime_replay_case(
+        &context.detail,
+        &context.thread_read,
+        &context.workspace_root,
+    )
 }
 
 /// 统一运行时：重新拉起指定 pending request 的前端交互载荷。

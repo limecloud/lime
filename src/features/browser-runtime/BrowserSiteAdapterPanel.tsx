@@ -1,29 +1,53 @@
 import { RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listProjects, type Project } from "@/lib/api/project";
 import {
   getStoredResourceProjectId,
   onResourceProjectChange,
   setStoredResourceProjectId,
 } from "@/lib/resourceProjectSelection";
+import { subscribeSiteAdapterCatalogChanged } from "@/lib/siteAdapterCatalogBootstrap";
 import type {
   BrowserProfileRecord,
+  ChromeBridgeStatusSnapshot,
   RunSiteAdapterRequest,
   SavedSiteAdapterContent,
   SiteAdapterDefinition,
   SiteAdapterCatalogStatus,
+  SiteAdapterRecommendation,
   SiteAdapterRunResult,
 } from "./api";
+import {
+  buildEffectiveSiteProfileKey,
+  pickPreferredAttachedSiteAdapterProfile,
+  pickPreferredSiteAdapterProfile,
+} from "./siteProfileSelection";
 import type { Page, PageParams } from "@/types/page";
 import { browserRuntimeApi } from "./api";
 
 type BrowserSiteAdapterPanelVariant = "workspace" | "debug";
+const SITE_RECOMMENDATION_LIMIT = 4;
 
 interface BrowserSiteAdapterPanelProps {
   selectedProfileKey?: string;
   onMessage?: (message: { type: "success" | "error"; text: string }) => void;
   variant?: BrowserSiteAdapterPanelVariant;
   onNavigate?: (page: Page, params?: PageParams) => void;
+  currentProjectId?: string;
+  currentContentId?: string;
+  initialAdapterName?: string;
+  initialArgs?: Record<string, unknown>;
+  initialAutoRun?: boolean;
+  initialRequireAttachedSession?: boolean;
+  initialSaveTitle?: string;
+}
+
+interface PendingInitialLaunchState {
+  signature: string;
+  adapterName: string;
+  args?: Record<string, unknown>;
+  autoRun: boolean;
+  saveTitle?: string;
 }
 
 function stringifyJson(value: unknown) {
@@ -117,16 +141,59 @@ function formatCatalogSyncedAt(value?: string) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function getCatalogSourceLabel(status: SiteAdapterCatalogStatus | null) {
+  if (!status) {
+    return "加载中";
+  }
+
+  return status.exists || status.source_kind === "server_synced"
+    ? "服务端同步"
+    : "应用内置";
+}
+
+function buildInitialLaunchSignature(input: {
+  initialAdapterName?: string;
+  initialArgs?: Record<string, unknown>;
+  initialAutoRun?: boolean;
+  initialRequireAttachedSession?: boolean;
+  initialSaveTitle?: string;
+}) {
+  if (!input.initialAdapterName) {
+    return "";
+  }
+
+  return JSON.stringify({
+    adapterName: input.initialAdapterName,
+    args: input.initialArgs ?? null,
+    autoRun: Boolean(input.initialAutoRun),
+    requireAttachedSession: Boolean(input.initialRequireAttachedSession),
+    saveTitle: input.initialSaveTitle?.trim() || null,
+  });
+}
+
 export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
   const {
     selectedProfileKey,
     onMessage,
     variant = "debug",
     onNavigate,
+    currentProjectId,
+    currentContentId,
+    initialAdapterName,
+    initialArgs,
+    initialAutoRun,
+    initialRequireAttachedSession = false,
+    initialSaveTitle,
   } = props;
   const [adapters, setAdapters] = useState<SiteAdapterDefinition[]>([]);
+  const [recommendations, setRecommendations] = useState<
+    SiteAdapterRecommendation[]
+  >([]);
   const [profiles, setProfiles] = useState<BrowserProfileRecord[]>([]);
-  const [catalogStatus, setCatalogStatus] = useState<SiteAdapterCatalogStatus | null>(null);
+  const [bridgeStatus, setBridgeStatus] =
+    useState<ChromeBridgeStatusSnapshot | null>(null);
+  const [catalogStatus, setCatalogStatus] =
+    useState<SiteAdapterCatalogStatus | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -146,62 +213,101 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
   const [savedDocument, setSavedDocument] =
     useState<SavedSiteAdapterContent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pendingInitialLaunchRef = useRef<PendingInitialLaunchState | null>(
+    null,
+  );
+  const appliedInitialLaunchSignatureRef = useRef("");
+  const completedAutoRunSignatureRef = useRef("");
+  const [pendingAutoRunSignature, setPendingAutoRunSignature] = useState<
+    string | null
+  >(null);
+  const normalizedCurrentProjectId = currentProjectId?.trim() || "";
+  const normalizedCurrentContentId = currentContentId?.trim() || "";
+  const shouldWriteToCurrentContent =
+    variant === "workspace" && !!normalizedCurrentContentId;
+  const initialLaunchSignature = useMemo(
+    () =>
+      buildInitialLaunchSignature({
+        initialAdapterName,
+        initialArgs,
+        initialAutoRun,
+        initialRequireAttachedSession,
+        initialSaveTitle,
+      }),
+    [
+      initialAdapterName,
+      initialArgs,
+      initialAutoRun,
+      initialRequireAttachedSession,
+      initialSaveTitle,
+    ],
+  );
 
   useEffect(() => {
     setProfileInput(selectedProfileKey || "");
   }, [selectedProfileKey]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadPanelData = useCallback(async (showRefreshingState: boolean) => {
+    if (showRefreshingState) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
-    const loadPanelData = async (showRefreshingState: boolean) => {
-      if (showRefreshingState) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+    try {
+      const [
+        nextAdapters,
+        nextRecommendations,
+        nextProfiles,
+        nextCatalogStatus,
+        nextBridgeStatus,
+      ] = await Promise.all([
+        browserRuntimeApi.siteListAdapters(),
+        browserRuntimeApi.siteRecommendAdapters(SITE_RECOMMENDATION_LIMIT),
+        browserRuntimeApi.listBrowserProfiles({ include_archived: false }),
+        browserRuntimeApi.siteGetAdapterCatalogStatus(),
+        browserRuntimeApi.getChromeBridgeStatus().catch(() => null),
+      ]);
 
-      try {
-        const [nextAdapters, nextProfiles, nextCatalogStatus] = await Promise.all([
-          browserRuntimeApi.siteListAdapters(),
-          browserRuntimeApi.listBrowserProfiles({ include_archived: false }),
-          browserRuntimeApi.siteGetAdapterCatalogStatus(),
-        ]);
-        if (cancelled) {
-          return;
-        }
-
-        setAdapters(nextAdapters);
-        setCatalogStatus(nextCatalogStatus);
-        setProfiles(
-          nextProfiles.filter((profile) => profile.archived_at === null),
+      setAdapters(nextAdapters);
+      setRecommendations(nextRecommendations);
+      setCatalogStatus(nextCatalogStatus);
+      setBridgeStatus(nextBridgeStatus);
+      setProfiles(
+        nextProfiles.filter((profile) => profile.archived_at === null),
+      );
+      if (nextAdapters.length > 0) {
+        setSelectedAdapterName(
+          (current) =>
+            pendingInitialLaunchRef.current?.adapterName ||
+            (current && nextAdapters.some((adapter) => adapter.name === current)
+              ? current
+              : nextRecommendations[0]?.adapter.name || nextAdapters[0].name),
         );
-        if (nextAdapters.length > 0) {
-          setSelectedAdapterName((current) => current || nextAdapters[0].name);
-        }
-      } catch (nextError) {
-        if (cancelled) {
-          return;
-        }
-        const message =
-          nextError instanceof Error ? nextError.message : String(nextError);
-        setError(message);
-      } finally {
-        if (!cancelled) {
-          if (showRefreshingState) {
-            setRefreshing(false);
-          } else {
-            setLoading(false);
-          }
-        }
       }
-    };
-
-    void loadPanelData(false);
-    return () => {
-      cancelled = true;
-    };
+    } catch (nextError) {
+      const message =
+        nextError instanceof Error ? nextError.message : String(nextError);
+      setError(message);
+    } finally {
+      if (showRefreshingState) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    void loadPanelData(false);
+    return () => undefined;
+  }, [loadPanelData]);
+
+  useEffect(() => {
+    return subscribeSiteAdapterCatalogChanged(() => {
+      void loadPanelData(true);
+    });
+  }, [loadPanelData]);
 
   useEffect(() => {
     if (variant !== "workspace") {
@@ -225,6 +331,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
           includeLegacy: true,
         });
         const preferredProject =
+          availableProjects.find(
+            (project) => project.id === normalizedCurrentProjectId,
+          ) ||
           availableProjects.find((project) => project.id === storedProjectId) ||
           availableProjects.find((project) => project.isDefault) ||
           availableProjects[0] ||
@@ -250,7 +359,7 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [variant]);
+  }, [normalizedCurrentProjectId, variant]);
 
   useEffect(() => {
     if (variant !== "workspace") {
@@ -274,6 +383,17 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     () => adapters.filter((adapter) => matchesAdapter(adapter, searchKeyword)),
     [adapters, searchKeyword],
   );
+  const visibleRecommendations = useMemo(
+    () =>
+      recommendations.filter((recommendation) =>
+        matchesAdapter(recommendation.adapter, searchKeyword),
+      ),
+    [recommendations, searchKeyword],
+  );
+  const profilesByKey = useMemo(
+    () => new Map(profiles.map((profile) => [profile.profile_key, profile])),
+    [profiles],
+  );
 
   const selectedAdapter = useMemo(
     () =>
@@ -285,12 +405,89 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     [adapters, filteredAdapters, selectedAdapterName],
   );
 
-  const selectedProfile = useMemo(
+  const recommendedProfile = useMemo(
     () =>
-      profiles.find((profile) => profile.profile_key === profileInput.trim()) ||
-      null,
-    [profileInput, profiles],
+      pickPreferredSiteAdapterProfile({
+        profiles,
+        adapterDomain: selectedAdapter?.domain,
+        bridgeStatus,
+      }),
+    [bridgeStatus, profiles, selectedAdapter?.domain],
   );
+
+  const attachedProfile = useMemo(
+    () =>
+      pickPreferredAttachedSiteAdapterProfile({
+        profiles,
+        adapterDomain: selectedAdapter?.domain,
+        bridgeStatus,
+      }),
+    [bridgeStatus, profiles, selectedAdapter?.domain],
+  );
+
+  const effectiveProfileKey = useMemo(
+    () =>
+      buildEffectiveSiteProfileKey({
+        manualProfileKey: profileInput,
+        selectedProfileKey,
+        recommendedProfile,
+      }),
+    [profileInput, recommendedProfile, selectedProfileKey],
+  );
+
+  const hasAttachedChromeObserver = (bridgeStatus?.observer_count ?? 0) > 0;
+  const hasAttachedSessionAvailable =
+    hasAttachedChromeObserver || attachedProfile !== null;
+
+  const runProfileKey = useMemo(() => {
+    if (!initialRequireAttachedSession) {
+      return effectiveProfileKey || undefined;
+    }
+
+    if (!hasAttachedSessionAvailable) {
+      return undefined;
+    }
+
+    const effectiveProfile = effectiveProfileKey
+      ? profilesByKey.get(effectiveProfileKey) || null
+      : null;
+    if (effectiveProfile?.transport_kind === "existing_session") {
+      return effectiveProfile.profile_key;
+    }
+
+    return attachedProfile?.profile_key || undefined;
+  }, [
+    attachedProfile,
+    effectiveProfileKey,
+    hasAttachedSessionAvailable,
+    initialRequireAttachedSession,
+    profilesByKey,
+  ]);
+
+  const executionProfileLabel = useMemo(() => {
+    if (!initialRequireAttachedSession) {
+      return effectiveProfileKey || "default";
+    }
+
+    if (!hasAttachedSessionAvailable) {
+      return "需要先附着当前 Chrome";
+    }
+
+    return runProfileKey || "自动选择已连接会话";
+  }, [
+    effectiveProfileKey,
+    hasAttachedSessionAvailable,
+    initialRequireAttachedSession,
+    runProfileKey,
+  ]);
+
+  const executionProfile = useMemo(() => {
+    if (!runProfileKey) {
+      return null;
+    }
+
+    return profilesByKey.get(runProfileKey) || null;
+  }, [profilesByKey, runProfileKey]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) || null,
@@ -301,6 +498,53 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
   const catalogSyncedAtText = useMemo(
     () => formatCatalogSyncedAt(catalogStatus?.synced_at),
     [catalogStatus?.synced_at],
+  );
+  const catalogSourceLabel = useMemo(
+    () => getCatalogSourceLabel(catalogStatus),
+    [catalogStatus],
+  );
+  const effectiveAdapterCount = adapters.length;
+  const syncedAdapterCount = catalogStatus?.exists
+    ? catalogStatus.adapter_count
+    : 0;
+
+  const updateSuggestedSaveTitle = useCallback(
+    (nextSuggestedTitle: string) => {
+      setSaveTitleInput((currentTitle) => {
+        const normalizedCurrentTitle = currentTitle.trim();
+        if (
+          !normalizedCurrentTitle ||
+          normalizedCurrentTitle === lastSuggestedSaveTitle
+        ) {
+          return nextSuggestedTitle;
+        }
+        return currentTitle;
+      });
+      setLastSuggestedSaveTitle(nextSuggestedTitle);
+    },
+    [lastSuggestedSaveTitle],
+  );
+
+  const applyInitialLaunchState = useCallback(
+    (launch: PendingInitialLaunchState) => {
+      setArgsInput(stringifyJson(launch.args ?? {}));
+      if (shouldWriteToCurrentContent) {
+        setSaveTitleInput("");
+        setLastSuggestedSaveTitle("");
+      } else {
+        const nextSaveTitle = launch.saveTitle?.trim() || "";
+        setSaveTitleInput(nextSaveTitle);
+        setLastSuggestedSaveTitle(nextSaveTitle);
+      }
+      setResult(null);
+      setLastRunRequest(null);
+      setSavedDocument(null);
+      setError(null);
+      if (launch.autoRun) {
+        setPendingAutoRunSignature(launch.signature);
+      }
+    },
+    [shouldWriteToCurrentContent],
   );
 
   useEffect(() => {
@@ -316,9 +560,82 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
   }, [filteredAdapters, selectedAdapterName]);
 
   useEffect(() => {
+    if (!initialLaunchSignature || !initialAdapterName) {
+      return;
+    }
+
+    if (appliedInitialLaunchSignatureRef.current === initialLaunchSignature) {
+      return;
+    }
+
+    const launch: PendingInitialLaunchState = {
+      signature: initialLaunchSignature,
+      adapterName: initialAdapterName,
+      args: initialArgs,
+      autoRun: Boolean(initialAutoRun),
+      saveTitle: initialSaveTitle,
+    };
+
+    appliedInitialLaunchSignatureRef.current = initialLaunchSignature;
+    completedAutoRunSignatureRef.current = "";
+    setPendingAutoRunSignature(null);
+    setSearchKeyword("");
+
+    if (selectedAdapterName === initialAdapterName) {
+      pendingInitialLaunchRef.current = null;
+      applyInitialLaunchState(launch);
+      return;
+    }
+
+    pendingInitialLaunchRef.current = launch;
+    setSelectedAdapterName(initialAdapterName);
+    setResult(null);
+    setLastRunRequest(null);
+    setSavedDocument(null);
+    setError(null);
+  }, [
+    applyInitialLaunchState,
+    initialAdapterName,
+    initialArgs,
+    initialAutoRun,
+    initialLaunchSignature,
+    initialSaveTitle,
+    selectedAdapterName,
+  ]);
+
+  useEffect(() => {
+    if (
+      !loading &&
+      initialAdapterName &&
+      adapters.length > 0 &&
+      !adapters.some((adapter) => adapter.name === initialAdapterName)
+    ) {
+      setError(`当前目录未找到站点脚本：${initialAdapterName}`);
+    }
+  }, [adapters, initialAdapterName, loading]);
+
+  useEffect(() => {
     if (!selectedAdapter) {
       return;
     }
+
+    const pendingLaunch = pendingInitialLaunchRef.current;
+    if (pendingLaunch) {
+      if (pendingLaunch.adapterName === selectedAdapter.name) {
+        pendingInitialLaunchRef.current = null;
+        applyInitialLaunchState(pendingLaunch);
+        return;
+      }
+
+      if (
+        adapters.some((adapter) => adapter.name === pendingLaunch.adapterName) &&
+        selectedAdapterName !== pendingLaunch.adapterName
+      ) {
+        setSelectedAdapterName(pendingLaunch.adapterName);
+        return;
+      }
+    }
+
     setArgsInput(stringifyJson(selectedAdapter.example_args));
     setSaveTitleInput("");
     setLastSuggestedSaveTitle("");
@@ -326,25 +643,25 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     setLastRunRequest(null);
     setSavedDocument(null);
     setError(null);
-  }, [selectedAdapter]);
+  }, [adapters, applyInitialLaunchState, selectedAdapter, selectedAdapterName]);
 
   const savedDocumentTitle = savedDocument?.title ?? null;
+  const selectedProjectName = selectedProject?.name || selectedProjectId;
 
-  const updateSuggestedSaveTitle = (nextSuggestedTitle: string) => {
-    setSaveTitleInput((currentTitle) => {
-      const normalizedCurrentTitle = currentTitle.trim();
-      if (
-        !normalizedCurrentTitle ||
-        normalizedCurrentTitle === lastSuggestedSaveTitle
-      ) {
-        return nextSuggestedTitle;
-      }
-      return currentTitle;
-    });
-    setLastSuggestedSaveTitle(nextSuggestedTitle);
+  const handleSelectRecommendation = (
+    recommendation: SiteAdapterRecommendation,
+  ) => {
+    setSelectedAdapterName(recommendation.adapter.name);
+    if (recommendation.profile_key) {
+      setProfileInput(recommendation.profile_key);
+    }
+    setError(null);
+    setResult(null);
+    setLastRunRequest(null);
+    setSavedDocument(null);
   };
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
     if (!selectedAdapter) {
       return;
     }
@@ -360,15 +677,34 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
         adapterName: selectedAdapter.name,
         args: parsedArgs,
       });
-      const autoSaveEnabled = variant === "workspace" && !!selectedProjectId;
-      const selectedProjectName = selectedProject?.name || selectedProjectId;
+      const autoSaveEnabled =
+        variant === "workspace" &&
+        (shouldWriteToCurrentContent || !!selectedProjectId);
       const saveTitleForRun =
-        autoSaveEnabled && (saveTitleInput.trim() || suggestedSaveTitle);
+        autoSaveEnabled &&
+        !shouldWriteToCurrentContent &&
+        (saveTitleInput.trim() || suggestedSaveTitle);
+      if (initialRequireAttachedSession && !hasAttachedSessionAvailable) {
+        const message =
+          "当前技能要求复用已附着的 Chrome 会话，请先连接当前 Chrome 并保持目标站点登录态。";
+        setError(message);
+        onMessage?.({
+          type: "error",
+          text: message,
+        });
+        return;
+      }
       const request: RunSiteAdapterRequest = {
         adapter_name: selectedAdapter.name,
         args: parsedArgs,
-        profile_key: profileInput.trim() || selectedProfileKey || undefined,
-        project_id: autoSaveEnabled ? selectedProjectId : undefined,
+        profile_key: runProfileKey,
+        content_id: shouldWriteToCurrentContent
+          ? normalizedCurrentContentId
+          : undefined,
+        project_id:
+          autoSaveEnabled && !shouldWriteToCurrentContent
+            ? selectedProjectId
+            : undefined,
         save_title: saveTitleForRun || undefined,
       };
       const nextResult = await browserRuntimeApi.siteRunAdapter(request);
@@ -383,7 +719,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
           });
         }
         if (nextResult.save_error_message) {
-          setError(`执行成功，但自动保存失败：${nextResult.save_error_message}`);
+          setError(
+            `执行成功，但自动保存失败：${nextResult.save_error_message}`,
+          );
         }
       }
       setLastRunRequest(request);
@@ -394,7 +732,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
           text: nextResult.save_error_message
             ? `站点命令 ${nextResult.adapter} 执行完成，但自动保存失败: ${nextResult.save_error_message}`
             : nextResult.saved_content
-              ? `站点命令 ${nextResult.adapter} 执行完成，已保存到资源项目：${selectedProjectName}`
+              ? shouldWriteToCurrentContent
+                ? `站点命令 ${nextResult.adapter} 执行完成，已写回当前主稿`
+                : `站点命令 ${nextResult.adapter} 执行完成，已保存到资源项目：${selectedProjectName}`
               : `站点命令 ${nextResult.adapter} 执行完成`,
         });
       } else {
@@ -416,7 +756,53 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     } finally {
       setRunning(false);
     }
-  };
+  }, [
+    argsInput,
+    hasAttachedSessionAvailable,
+    initialRequireAttachedSession,
+    normalizedCurrentContentId,
+    onMessage,
+    runProfileKey,
+    saveTitleInput,
+    selectedAdapter,
+    selectedProjectId,
+    selectedProjectName,
+    shouldWriteToCurrentContent,
+    updateSuggestedSaveTitle,
+    variant,
+  ]);
+
+  useEffect(() => {
+    if (!pendingAutoRunSignature || loading || running || !selectedAdapter) {
+      return;
+    }
+
+    if (completedAutoRunSignatureRef.current === pendingAutoRunSignature) {
+      setPendingAutoRunSignature(null);
+      return;
+    }
+
+    if (
+      variant === "workspace" &&
+      !shouldWriteToCurrentContent &&
+      !selectedProjectId
+    ) {
+      return;
+    }
+
+    completedAutoRunSignatureRef.current = pendingAutoRunSignature;
+    setPendingAutoRunSignature(null);
+    void handleRun();
+  }, [
+    handleRun,
+    loading,
+    pendingAutoRunSignature,
+    running,
+    selectedAdapter,
+    selectedProjectId,
+    shouldWriteToCurrentContent,
+    variant,
+  ]);
 
   const handleProjectChange = (nextProjectId: string) => {
     setSelectedProjectId(nextProjectId);
@@ -430,21 +816,28 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     setError(null);
     setRefreshing(true);
     try {
-      const tasks: [
-        Promise<SiteAdapterDefinition[]>,
-        Promise<BrowserProfileRecord[]>,
-        Promise<Project[]>?,
-      ] = [
-        browserRuntimeApi.siteListAdapters(),
-        browserRuntimeApi.listBrowserProfiles({ include_archived: false }),
-      ];
       if (variant === "workspace") {
-        tasks.push(listProjects());
         setProjectLoading(true);
       }
-      const [nextAdapters, nextProfiles, nextProjects] =
-        await Promise.all(tasks);
+      const [
+        nextAdapters,
+        nextRecommendations,
+        nextProfiles,
+        nextCatalogStatus,
+        nextBridgeStatus,
+        nextProjects,
+      ] = await Promise.all([
+        browserRuntimeApi.siteListAdapters(),
+        browserRuntimeApi.siteRecommendAdapters(SITE_RECOMMENDATION_LIMIT),
+        browserRuntimeApi.listBrowserProfiles({ include_archived: false }),
+        browserRuntimeApi.siteGetAdapterCatalogStatus(),
+        browserRuntimeApi.getChromeBridgeStatus().catch(() => null),
+        variant === "workspace" ? listProjects() : Promise.resolve(null),
+      ]);
       setAdapters(nextAdapters);
+      setRecommendations(nextRecommendations);
+      setCatalogStatus(nextCatalogStatus);
+      setBridgeStatus(nextBridgeStatus);
       setProfiles(
         nextProfiles.filter((profile) => profile.archived_at === null),
       );
@@ -464,6 +857,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
             includeLegacy: true,
           });
           return (
+            availableProjects.find(
+              (project) => project.id === normalizedCurrentProjectId,
+            )?.id ||
             availableProjects.find((project) => project.id === storedProjectId)
               ?.id ||
             availableProjects.find((project) => project.isDefault)?.id ||
@@ -480,7 +876,7 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
           ) {
             return current;
           }
-          return nextAdapters[0].name;
+          return nextRecommendations[0]?.adapter.name || nextAdapters[0].name;
         });
       }
     } catch (nextError) {
@@ -494,7 +890,12 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
   };
 
   const handleSaveResult = async () => {
-    if (!result || !result.ok || !selectedProjectId || !lastRunRequest) {
+    if (
+      !result ||
+      !result.ok ||
+      !lastRunRequest ||
+      (!shouldWriteToCurrentContent && !selectedProjectId)
+    ) {
       return;
     }
 
@@ -502,20 +903,27 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
     setError(null);
     try {
       const savedContent = await browserRuntimeApi.siteSaveAdapterResult({
-        project_id: selectedProjectId,
-        save_title: saveTitleInput.trim() || undefined,
+        content_id: shouldWriteToCurrentContent
+          ? normalizedCurrentContentId
+          : undefined,
+        project_id: shouldWriteToCurrentContent ? undefined : selectedProjectId,
+        save_title: shouldWriteToCurrentContent
+          ? undefined
+          : saveTitleInput.trim() || undefined,
         run_request: lastRunRequest,
         result,
       });
 
       setSavedDocument(savedContent);
-      setStoredResourceProjectId(selectedProjectId, {
+      setStoredResourceProjectId(savedContent.project_id, {
         source: "browser-runtime",
         emitEvent: true,
       });
       onMessage?.({
         type: "success",
-        text: `已保存站点结果到资源项目：${selectedProject?.name || selectedProjectId}`,
+        text: shouldWriteToCurrentContent
+          ? "已写回当前主稿"
+          : `已保存站点结果到资源项目：${selectedProject?.name || selectedProjectId}`,
       });
     } catch (nextError) {
       const message =
@@ -539,7 +947,7 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
       projectId: savedDocument.project_id,
       contentId: savedDocument.content_id,
       lockTheme: true,
-      fromResources: true,
+      fromResources: savedDocument.content_id !== normalizedCurrentContentId,
     });
   };
 
@@ -589,6 +997,69 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
         </div>
       ) : (
         <div className="space-y-3">
+          {visibleRecommendations.length > 0 ? (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="mb-2">
+                <div className="text-sm font-medium text-foreground">
+                  推荐适配器
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  基于当前浏览器资料、已连接标签页和站点范围排序，优先复用现有登录态。
+                </p>
+              </div>
+              <div className="grid gap-2 xl:grid-cols-2">
+                {visibleRecommendations.map((recommendation) => {
+                  const recommendedProfile = recommendation.profile_key
+                    ? profilesByKey.get(recommendation.profile_key) || null
+                    : null;
+                  const isActive =
+                    recommendation.adapter.name === selectedAdapterName;
+                  return (
+                    <button
+                      key={`${recommendation.adapter.name}:${recommendation.profile_key || "auto"}`}
+                      type="button"
+                      className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                        isActive
+                          ? "border-slate-900 bg-white shadow-sm"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                      onClick={() => handleSelectRecommendation(recommendation)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-medium text-foreground">
+                          {recommendation.adapter.name}
+                        </div>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                          评分 {recommendation.score}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        {recommendation.reason}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                          {recommendedProfile
+                            ? `资料 ${recommendedProfile.name}`
+                            : recommendation.profile_key
+                              ? `资料 ${recommendation.profile_key}`
+                              : "自动选择资料"}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                          {recommendation.target_id
+                            ? "已匹配标签页"
+                            : "将打开入口页"}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                          {recommendation.adapter.domain}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_260px]">
             <label className="space-y-1 text-xs">
               <span className="text-muted-foreground">适配器</span>
@@ -651,7 +1122,7 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                   list="browser-site-adapter-profile-options"
                   value={profileInput}
                   onChange={(event) => setProfileInput(event.target.value)}
-                  placeholder={selectedProfileKey || "default"}
+                  placeholder={effectiveProfileKey || "default"}
                 />
                 <datalist id="browser-site-adapter-profile-options">
                   {profiles.map((profile) => (
@@ -662,15 +1133,24 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                 </datalist>
               </label>
               <div className="mt-2 text-[11px] text-muted-foreground">
-                当前将使用：
-                {profileInput.trim() || selectedProfileKey || "default"}
+                当前将使用：{executionProfileLabel}
               </div>
+              {!profileInput.trim() &&
+              !selectedProfileKey &&
+              recommendedProfile ? (
+                <div className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-muted-foreground">
+                  未手动指定资料，已优先选择：
+                  <span className="ml-1 font-medium text-foreground">
+                    {recommendedProfile.name}
+                  </span>
+                  <span className="ml-1">
+                    ({recommendedProfile.profile_key})
+                  </span>
+                </div>
+              ) : null}
               {catalogStatus ? (
                 <div className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-muted-foreground">
-                  <div>
-                    目录来源：
-                    {catalogStatus.exists ? "服务端同步" : "应用内置"}
-                  </div>
+                  <div>目录来源：{catalogSourceLabel}</div>
                   {catalogStatus.catalog_version ? (
                     <div>目录版本：{catalogStatus.catalog_version}</div>
                   ) : null}
@@ -680,15 +1160,18 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                   {catalogSyncedAtText ? (
                     <div>同步时间：{catalogSyncedAtText}</div>
                   ) : null}
-                  <div>适配器数量：{catalogStatus.adapter_count}</div>
+                  <div>生效适配器：{effectiveAdapterCount}</div>
+                  {catalogStatus.exists ? (
+                    <div>服务端目录项：{syncedAdapterCount}</div>
+                  ) : null}
                 </div>
               ) : null}
-              {selectedProfile ? (
+              {executionProfile ? (
                 <div className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-muted-foreground">
                   <div className="font-medium text-foreground">
-                    {selectedProfile.name}
+                    {executionProfile.name}
                   </div>
-                  <div>模式：{selectedProfile.transport_kind}</div>
+                  <div>模式：{executionProfile.transport_kind}</div>
                   {selectedAdapter?.source_kind ? (
                     <div>
                       脚本来源：
@@ -700,15 +1183,30 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                         : ""}
                     </div>
                   ) : null}
-                  {selectedProfile.site_scope ? (
-                    <div>站点：{selectedProfile.site_scope}</div>
+                  {executionProfile.site_scope ? (
+                    <div>站点：{executionProfile.site_scope}</div>
                   ) : null}
                 </div>
               ) : null}
-              {selectedProfile?.transport_kind === "existing_session" ? (
+              {executionProfile?.transport_kind === "existing_session" ? (
                 <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
                   当前站点适配器会通过 Lime Browser Bridge 在你正在使用的 Chrome
                   中执行脚本，优先复用真实登录态。
+                </div>
+              ) : null}
+              {initialRequireAttachedSession ? (
+                <div
+                  className={`mt-2 rounded-md border px-2 py-1.5 text-[11px] ${
+                    hasAttachedSessionAvailable
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-rose-200 bg-rose-50 text-rose-700"
+                  }`}
+                >
+                  {hasAttachedSessionAvailable
+                    ? runProfileKey
+                      ? "当前技能要求附着会话，执行时会优先复用已连接的 existing_session。"
+                      : "当前技能要求附着会话，执行时会忽略托管资料，自动选择已连接的 Chrome 会话。"
+                    : "当前技能要求附着会话；如果还没连接当前 Chrome，自动执行会被阻止。"}
                 </div>
               ) : null}
             </div>
@@ -770,6 +1268,11 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                   {result.error_message}
                 </div>
               ) : null}
+              {result.report_hint ? (
+                <div className="mb-2 text-muted-foreground">
+                  建议：{result.report_hint}
+                </div>
+              ) : null}
               {result.auth_hint ? (
                 <div className="mb-2 text-amber-700 dark:text-amber-300">
                   {result.auth_hint}
@@ -789,77 +1292,126 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
           {variant === "workspace" ? (
             <div className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-3 text-xs">
               <div className="mb-2 text-sm font-medium text-foreground">
-                保存到资源项目
+                {shouldWriteToCurrentContent
+                  ? "写回当前主稿"
+                  : "保存到资源项目"}
               </div>
               <p className="mb-3 text-muted-foreground">
-                工作台模式下，执行成功后会自动保存为文档资源；你也可以在这里补自定义标题或再次另存为。
+                {shouldWriteToCurrentContent
+                  ? "工作台模式下，执行成功后会优先写回当前主稿；如果需要手动重写一次，也可以在这里再次写回。"
+                  : "工作台模式下，执行成功后会自动保存为文档资源；你也可以在这里补自定义标题或再次另存为。"}
               </p>
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                <label className="space-y-1">
-                  <span className="text-muted-foreground">目标项目</span>
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={selectedProjectId}
-                    onChange={(event) =>
-                      handleProjectChange(event.target.value)
-                    }
-                    disabled={projectLoading}
+              {shouldWriteToCurrentContent ? (
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                  <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-[11px] text-muted-foreground">
+                    <div>
+                      当前主稿：
+                      <span className="ml-1 font-medium text-foreground">
+                        {savedDocumentTitle || "未命名内容"}
+                      </span>
+                    </div>
+                    {normalizedCurrentProjectId ? (
+                      <div>
+                        所属项目：
+                        {selectedProject?.name || normalizedCurrentProjectId}
+                      </div>
+                    ) : null}
+                    <div className="break-all">
+                      内容 ID：{normalizedCurrentContentId}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+                    onClick={() => void handleSaveResult()}
+                    disabled={savingResult || !result?.ok || !lastRunRequest}
                   >
-                    {projects.length === 0 ? (
-                      <option value="">
-                        {projectLoading ? "正在加载项目..." : "暂无可用项目"}
-                      </option>
-                    ) : (
-                      projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
+                    {savingResult
+                      ? "写回中..."
+                      : savedDocumentTitle
+                        ? "再次写回当前主稿"
+                        : "写回当前主稿"}
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+                  <label className="space-y-1">
+                    <span className="text-muted-foreground">目标项目</span>
+                    <select
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={selectedProjectId}
+                      onChange={(event) =>
+                        handleProjectChange(event.target.value)
+                      }
+                      disabled={projectLoading}
+                    >
+                      {projects.length === 0 ? (
+                        <option value="">
+                          {projectLoading ? "正在加载项目..." : "暂无可用项目"}
                         </option>
-                      ))
-                    )}
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-muted-foreground">保存标题</span>
-                  <input
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={saveTitleInput}
-                    onChange={(event) => setSaveTitleInput(event.target.value)}
-                    placeholder="留空则自动生成标题"
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
-                  onClick={() => void handleSaveResult()}
-                  disabled={
-                    savingResult ||
-                    projectLoading ||
-                    !selectedProjectId ||
-                    !result?.ok ||
-                    !lastRunRequest
-                  }
-                >
-                  {savingResult
-                    ? "保存中..."
-                    : savedDocumentTitle
-                      ? "另存为结果文档"
-                      : "保存结果文档"}
-                </button>
-              </div>
+                      ) : (
+                        projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-muted-foreground">保存标题</span>
+                    <input
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={saveTitleInput}
+                      onChange={(event) =>
+                        setSaveTitleInput(event.target.value)
+                      }
+                      placeholder="留空则自动生成标题"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+                    onClick={() => void handleSaveResult()}
+                    disabled={
+                      savingResult ||
+                      projectLoading ||
+                      !selectedProjectId ||
+                      !result?.ok ||
+                      !lastRunRequest
+                    }
+                  >
+                    {savingResult
+                      ? "保存中..."
+                      : savedDocumentTitle
+                        ? "另存为结果文档"
+                        : "保存结果文档"}
+                  </button>
+                </div>
+              )}
               {!result ? (
                 <div className="mt-2 text-[11px] text-muted-foreground">
-                  先执行一次站点采集，成功后会自动沉淀到当前资源项目。
+                  {shouldWriteToCurrentContent
+                    ? "先执行一次站点采集，成功后会自动沉淀到当前主稿。"
+                    : "先执行一次站点采集，成功后会自动沉淀到当前资源项目。"}
                 </div>
               ) : null}
               {result && !result.ok ? (
                 <div className="mt-2 text-[11px] text-muted-foreground">
-                  当前执行失败，暂不支持直接保存失败结果文档。
+                  {shouldWriteToCurrentContent
+                    ? "当前执行失败，暂不支持把失败结果直接写回当前主稿。"
+                    : "当前执行失败，暂不支持直接保存失败结果文档。"}
                 </div>
               ) : null}
               {savedDocumentTitle ? (
                 <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-800">
-                  已保存：{savedDocumentTitle}
-                  {selectedProject ? ` · ${selectedProject.name}` : ""}
+                  {shouldWriteToCurrentContent ? "已写回：" : "已保存："}
+                  {savedDocumentTitle}
+                  {shouldWriteToCurrentContent
+                    ? " · 当前主稿"
+                    : selectedProject
+                      ? ` · ${selectedProject.name}`
+                      : ""}
                 </div>
               ) : null}
               {savedDocument && onNavigate ? (
@@ -869,7 +1421,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                     className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
                     onClick={handleOpenSavedDocument}
                   >
-                    打开已保存内容
+                    {shouldWriteToCurrentContent
+                      ? "打开当前主稿"
+                      : "打开已保存内容"}
                   </button>
                 </div>
               ) : null}

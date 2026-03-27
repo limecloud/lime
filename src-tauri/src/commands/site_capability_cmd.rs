@@ -4,9 +4,10 @@ use crate::services::site_adapter_registry::{
     get_site_adapter_catalog_status, SiteAdapterCatalogStatus,
 };
 use crate::services::site_capability_service::{
-    get_site_adapter, list_site_adapters, run_site_adapter, run_site_adapter_with_optional_save,
-    save_existing_site_result_to_project, search_site_adapters, RunSiteAdapterRequest,
-    SaveSiteAdapterResultRequest, SavedSiteAdapterContent, SiteAdapterDefinition,
+    get_site_adapter, list_site_adapters, recommend_site_adapters, run_site_adapter,
+    run_site_adapter_with_optional_save, save_existing_site_result_to_project,
+    search_site_adapters, RunSiteAdapterRequest, SaveSiteAdapterResultRequest,
+    SavedSiteAdapterContent, SiteAdapterDefinition, SiteAdapterRecommendation,
     SiteAdapterRunResult,
 };
 use serde::Deserialize;
@@ -28,9 +29,23 @@ pub struct SiteAdapterCatalogBootstrapRequest {
     pub payload: Value,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SiteAdapterRecommendRequest {
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
 #[tauri::command]
 pub fn site_list_adapters() -> Result<Vec<SiteAdapterDefinition>, String> {
     Ok(list_site_adapters())
+}
+
+#[tauri::command]
+pub async fn site_recommend_adapters(
+    db: State<'_, DbConnection>,
+    request: SiteAdapterRecommendRequest,
+) -> Result<Vec<SiteAdapterRecommendation>, String> {
+    recommend_site_adapters(db.inner(), request.limit).await
 }
 
 #[tauri::command]

@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WriteArtifactContext } from "../types";
+import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 
 const {
   mockInitAsterAgent,
@@ -117,6 +118,9 @@ function mountHook(
       fileName: string,
       context?: WriteArtifactContext,
     ) => void;
+    getSyncedSessionRecentPreferences?: (
+      sessionId: string,
+    ) => ChatToolPreferences | null;
   } = {},
 ): HookHarness {
   const container = document.createElement("div");
@@ -131,6 +135,8 @@ function mountHook(
     hookValue = useAsterAgentChat({
       workspaceId,
       onWriteFile: currentOptions.onWriteFile,
+      getSyncedSessionRecentPreferences:
+        currentOptions.getSyncedSessionRecentPreferences,
     });
     return null;
   }
@@ -575,6 +581,13 @@ describe("useAsterAgentChat 任务快照", () => {
     const workspaceId = "ws-stop-refresh";
     const sessionId = "session-stop-refresh";
     seedSession(workspaceId, sessionId);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      messages: [],
+      turns: [],
+      items: [],
+      queued_turns: [],
+    });
     mockGetAgentRuntimeThreadRead.mockResolvedValueOnce({
       thread_id: "thread-stop-refresh",
       status: "interrupted",
@@ -588,11 +601,13 @@ describe("useAsterAgentChat 任务快照", () => {
 
     try {
       await flushEffects();
+      await flushEffects();
 
       await act(async () => {
         await harness.getValue().stopSending();
       });
 
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
       expect(mockInterruptAgentRuntimeTurn).toHaveBeenCalledWith({
         session_id: sessionId,
       });
@@ -661,6 +676,88 @@ describe("useAsterAgentChat 任务快照", () => {
     }
   });
 
+  it("恢复带本地时间线缓存的会话时仍应向后端刷新详情", async () => {
+    const workspaceId = "ws-hydrate-timeline-cache";
+    const sessionId = "session-hydrate-timeline-cache";
+    sessionStorage.setItem(
+      `aster_curr_sessionId_${workspaceId}`,
+      JSON.stringify(sessionId),
+    );
+    sessionStorage.setItem(
+      `aster_messages_${workspaceId}`,
+      JSON.stringify([
+        {
+          id: "msg-local-cache",
+          role: "assistant",
+          content: "本地缓存里的旧草稿",
+          timestamp: new Date().toISOString(),
+        },
+      ]),
+    );
+    sessionStorage.setItem(
+      `aster_thread_turns_${workspaceId}`,
+      JSON.stringify([
+        {
+          id: "turn-local-cache",
+          thread_id: "thread-local-cache",
+          prompt_text: "旧的本地缓存 turn",
+          status: "completed",
+          started_at: "2026-03-26T00:00:00.000Z",
+          completed_at: "2026-03-26T00:00:05.000Z",
+          created_at: "2026-03-26T00:00:00.000Z",
+          updated_at: "2026-03-26T00:00:05.000Z",
+        },
+      ]),
+    );
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: sessionId,
+        name: "缓存恢复会话",
+        created_at: 1700000100,
+        updated_at: 1700000101,
+        messages_count: 1,
+      },
+    ]);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      messages: [],
+      turns: [],
+      items: [],
+      queued_turns: [
+        {
+          queuedTurnId: "queued-hydrated-1",
+          messagePreview: "以后端详情为准继续执行",
+          messageText: "以后端详情为准继续执行，并刷新运行态缓存",
+          createdAt: 1700000200000,
+          imageCount: 0,
+          position: 1,
+        },
+      ],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+      await flushEffects();
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(harness.getValue().queuedTurns).toEqual([
+        {
+          queued_turn_id: "queued-hydrated-1",
+          message_preview: "以后端详情为准继续执行",
+          message_text: "以后端详情为准继续执行，并刷新运行态缓存",
+          created_at: 1700000200000,
+          image_count: 0,
+          position: 1,
+        },
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("应将当前任务的真实摘要与状态回写到任务列表", async () => {
     const workspaceId = "ws-task-snapshot";
     const sessionId = "session-task-snapshot";
@@ -679,6 +776,24 @@ describe("useAsterAgentChat 任务快照", () => {
         },
       ]),
     );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      messages: [
+        {
+          role: "assistant",
+          timestamp: 1700000001,
+          content: [
+            {
+              type: "output_text",
+              text: "请先整理需求清单，再拆出里程碑。",
+            },
+          ],
+        },
+      ],
+      turns: [],
+      items: [],
+      queued_turns: [],
+    });
     mockListAgentRuntimeSessions.mockResolvedValue([
       {
         id: sessionId,
@@ -694,10 +809,17 @@ describe("useAsterAgentChat 任务快照", () => {
     try {
       await flushEffects();
       await flushEffects();
-
-      const topic = harness
+      let topic = harness
         .getValue()
         .topics.find((item) => item.id === sessionId);
+      for (
+        let attempt = 0;
+        (!topic || topic.status !== "done") && attempt < 5;
+        attempt += 1
+      ) {
+        await flushEffects();
+        topic = harness.getValue().topics.find((item) => item.id === sessionId);
+      }
       expect(topic).toBeTruthy();
       expect(topic?.status).toBe("done");
       expect(topic?.messagesCount).toBe(1);
@@ -828,7 +950,7 @@ describe("useAsterAgentChat team 订阅", () => {
       expect(listeners.map((item) => item.eventName)).toContain(
         `agent_subagent_status:${sessionId}`,
       );
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
 
       const listener = listeners
         .filter(
@@ -849,7 +971,7 @@ describe("useAsterAgentChat team 订阅", () => {
       });
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(3);
     } finally {
       harness.unmount();
     }
@@ -911,7 +1033,7 @@ describe("useAsterAgentChat team 订阅", () => {
       expect(listeners.map((item) => item.eventName)).toContain(
         `agent_subagent_status:${sessionId}`,
       );
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
 
       const listener = listeners
         .filter(
@@ -932,7 +1054,7 @@ describe("useAsterAgentChat team 订阅", () => {
       });
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(3);
     } finally {
       harness.unmount();
     }
@@ -1897,7 +2019,7 @@ describe("useAsterAgentChat thread timeline", () => {
 });
 
 describe("useAsterAgentChat runtime routing", () => {
-  it("开启搜索能力时应提交 allowed 模式，而不是强制 required", async () => {
+  it("开启搜索能力时应提交 web_search，但不再重复提交 search_mode", async () => {
     const workspaceId = "ws-search-mode-allowed";
     seedSession(workspaceId, "session-search-mode-allowed");
     const harness = mountHook(workspaceId);
@@ -1924,11 +2046,13 @@ describe("useAsterAgentChat runtime routing", () => {
           message: "帮我看看今天的黄金价格",
           turn_config: expect.objectContaining({
             web_search: true,
-            search_mode: "allowed",
           }),
           queue_if_busy: true,
         }),
       );
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.search_mode,
+      ).toBeUndefined();
     } finally {
       harness.unmount();
     }
@@ -2266,11 +2390,38 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
   it("命中 /clear 时应清空当前任务且不发送 chat_stream", async () => {
     const workspaceId = "ws-slash-clear";
     seedSession(workspaceId, "session-slash-clear");
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: "session-slash-clear",
+      messages: [
+        {
+          role: "assistant",
+          timestamp: 1700000001,
+          content: [
+            {
+              type: "output_text",
+              text: "hello",
+            },
+          ],
+        },
+      ],
+      turns: [],
+      items: [],
+      queued_turns: [],
+    });
     const harness = mountHook(workspaceId);
 
     try {
       await flushEffects();
-      expect(harness.getValue().messages).toHaveLength(1);
+      let messages = harness.getValue().messages;
+      for (
+        let attempt = 0;
+        messages.length !== 1 && attempt < 5;
+        attempt += 1
+      ) {
+        await flushEffects();
+        messages = harness.getValue().messages;
+      }
+      expect(messages).toHaveLength(1);
 
       await act(async () => {
         await harness
@@ -3986,6 +4137,13 @@ describe("useAsterAgentChat 偏好持久化", () => {
     const workspaceId = "ws-current";
     const sessionId = "session-invalid-placeholder";
     seedSession(workspaceId, sessionId);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      messages: [],
+      turns: [],
+      items: [],
+      queued_turns: [],
+    });
     localStorage.setItem(
       `agent_session_workspace_${sessionId}`,
       JSON.stringify("__invalid__"),
@@ -3995,12 +4153,46 @@ describe("useAsterAgentChat 偏好持久化", () => {
 
     try {
       await flushEffects();
+      await flushEffects();
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
       expect(
         JSON.parse(
           localStorage.getItem(`agent_session_workspace_${sessionId}`) ||
             "null",
         ),
       ).toBe(workspaceId);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("恢复候选会话时应先由 runtime 确认工作区归属", async () => {
+    const workspaceId = "ws-restore-runtime-guard";
+    const sessionId = "session-restore-runtime-guard";
+    seedSession(workspaceId, sessionId);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      workspace_id: "ws-other-runtime",
+      messages: [],
+      turns: [],
+      items: [],
+      queued_turns: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(harness.getValue().sessionId).toBeNull();
+      expect(
+        sessionStorage.getItem(`aster_curr_sessionId_${workspaceId}`),
+      ).toBe("null");
+      expect(localStorage.getItem(`aster_last_sessionId_${workspaceId}`)).toBe(
+        "null",
+      );
     } finally {
       harness.unmount();
     }
@@ -4057,12 +4249,14 @@ describe("useAsterAgentChat 偏好持久化", () => {
         name: "当前项目话题",
         created_at: createdAt,
         messages_count: 2,
+        workspace_id: workspaceId,
       },
       {
         id: "topic-other",
         name: "其他项目话题",
         created_at: createdAt,
         messages_count: 3,
+        workspace_id: "ws-filter-other",
       },
       {
         id: "topic-legacy",
@@ -4074,11 +4268,11 @@ describe("useAsterAgentChat 偏好持久化", () => {
 
     localStorage.setItem(
       "agent_session_workspace_topic-current",
-      JSON.stringify(workspaceId),
+      JSON.stringify("ws-stale-current"),
     );
     localStorage.setItem(
       "agent_session_workspace_topic-other",
-      JSON.stringify("ws-filter-other"),
+      JSON.stringify(workspaceId),
     );
 
     const harness = mountHook(workspaceId);
@@ -4091,6 +4285,17 @@ describe("useAsterAgentChat 偏好持久化", () => {
         "topic-current",
         "topic-legacy",
       ]);
+      expect(
+        JSON.parse(
+          localStorage.getItem("agent_session_workspace_topic-current") ||
+            "null",
+        ),
+      ).toBe(workspaceId);
+      expect(
+        JSON.parse(
+          localStorage.getItem("agent_session_workspace_topic-other") || "null",
+        ),
+      ).toBe("ws-filter-other");
     } finally {
       harness.unmount();
     }
@@ -4339,6 +4544,38 @@ describe("useAsterAgentChat 偏好持久化", () => {
         session_id: topicId,
         provider_name: "gemini",
         model_name: "gemini-2.5-pro",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换话题时 execution_strategy 缺失应回退工作区影子缓存并回写 session", async () => {
+    const workspaceId = "ws-topic-strategy-fallback";
+    const topicId = "topic-strategy-fallback";
+    localStorage.setItem(
+      `aster_execution_strategy_${workspaceId}`,
+      JSON.stringify("auto"),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      messages: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+
+      expect(harness.getValue().executionStrategy).toBe("auto");
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: topicId,
+        execution_strategy: "auto",
       });
     } finally {
       harness.unmount();
@@ -4944,6 +5181,632 @@ describe("useAsterAgentChat 兼容接口", () => {
     }
   });
 
+  it("已有会话时不应重复随 turn 提交 workspace_id", async () => {
+    const workspaceId = "ws-runtime-workspace-reuse";
+    const topicId = "topic-runtime-workspace-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      workspace_id: workspaceId,
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续沿用当前会话工作区", [], false, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]).not.toHaveProperty(
+        "workspace_id",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("首次创建新会话发送时仍应提交 workspace_id", async () => {
+    const workspaceId = "ws-runtime-workspace-bootstrap";
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("首条消息需要绑定工作区", [], false, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.workspace_id).toBe(
+        workspaceId,
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_content_id 且 metadata 显式携带时，不应重复保留 content_id metadata", async () => {
+    const workspaceId = "ws-runtime-content-id-reuse";
+    const topicId = "topic-runtime-content-id-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_content_id: "content-current-1",
+        source: "runtime_snapshot",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "继续写当前主稿",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                content_id: "content-current-1",
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("content_id 已变更但 session 仍是旧值时，应保留 content_id metadata", async () => {
+    const workspaceId = "ws-runtime-content-id-pending-sync";
+    const topicId = "topic-runtime-content-id-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_content_id: "content-old-1",
+        source: "runtime_snapshot",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "切到新主稿后立即发送",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                content_id: "content-new-1",
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { content_id?: string };
+          } | null
+        )?.harness?.content_id,
+      ).toBe("content-new-1");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_theme/recent_session_mode 且 metadata 显式携带时，不应重复保留 theme/session_mode metadata", async () => {
+    const workspaceId = "ws-runtime-theme-reuse";
+    const topicId = "topic-runtime-theme-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_theme: "general",
+        recent_session_mode: "default",
+        source: "runtime_snapshot",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "继续沿用当前主题会话",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                theme: "general",
+                session_mode: "default",
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("theme/session_mode 已变更但 session 仍是旧值时，应保留 theme/session_mode metadata", async () => {
+    const workspaceId = "ws-runtime-theme-pending-sync";
+    const topicId = "topic-runtime-theme-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_theme: "general",
+        recent_session_mode: "default",
+        source: "runtime_snapshot",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "切到工作台后立即发送",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                theme: "document",
+                session_mode: "theme_workbench",
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { theme?: string; session_mode?: string };
+          } | null
+        )?.harness,
+      ).toEqual({
+        theme: "document",
+        session_mode: "theme_workbench",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_gate_key/recent_run_title 且 metadata 显式携带时，不应重复保留 gate/run metadata", async () => {
+    const workspaceId = "ws-runtime-gate-reuse";
+    const topicId = "topic-runtime-gate-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_gate_key: "write_mode",
+        recent_run_title: "社媒初稿",
+        source: "runtime_snapshot",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "继续当前社媒运行",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                gate_key: "write_mode",
+                run_title: "社媒初稿",
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("gate_key/run_title 已变更但 session 仍是旧值时，应保留 gate/run metadata", async () => {
+    const workspaceId = "ws-runtime-gate-pending-sync";
+    const topicId = "topic-runtime-gate-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_gate_key: "topic_select",
+        recent_run_title: "旧任务标题",
+        source: "runtime_snapshot",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "切到新 gate 后立即发送",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                gate_key: "publish_confirm",
+                run_title: "发布确认",
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { gate_key?: string; run_title?: string };
+          } | null
+        )?.harness,
+      ).toEqual({
+        gate_key: "publish_confirm",
+        run_title: "发布确认",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_team_selection 且 metadata 显式携带时，不应重复保留 Team 选择 metadata", async () => {
+    const workspaceId = "ws-runtime-team-selection-reuse";
+    const topicId = "topic-runtime-team-selection-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_team_selection: {
+          disabled: false,
+          theme: "general",
+          preferredTeamPresetId: "code-triage-team",
+          selectedTeamId: "custom-team-1",
+          selectedTeamSource: "custom",
+          selectedTeamLabel: "前端联调团队",
+          selectedTeamDescription: "分析、实现、验证三段式推进。",
+          selectedTeamSummary: "分析、实现、验证三段式推进。",
+          selectedTeamRoles: [
+            {
+              id: "explorer",
+              label: "分析",
+              summary: "负责定位问题与影响范围。",
+              profileId: "code-explorer",
+              roleKey: "explorer",
+              skillIds: ["repo-exploration"],
+            },
+          ],
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "继续沿用当前 Team 选择",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                preferred_team_preset_id: "code-triage-team",
+                selected_team_id: "custom-team-1",
+                selected_team_source: "custom",
+                selected_team_label: "前端联调团队",
+                selected_team_description: "分析、实现、验证三段式推进。",
+                selected_team_summary: "分析、实现、验证三段式推进。",
+                selected_team_roles: [
+                  {
+                    id: "explorer",
+                    label: "分析",
+                    summary: "负责定位问题与影响范围。",
+                    profile_id: "code-explorer",
+                    role_key: "explorer",
+                    skill_ids: ["repo-exploration"],
+                  },
+                ],
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("Team 选择已变更但 session 仍是旧值时，应保留 Team 选择 metadata", async () => {
+    const workspaceId = "ws-runtime-team-selection-pending-sync";
+    const topicId = "topic-runtime-team-selection-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_team_selection: {
+          disabled: false,
+          theme: "general",
+          preferredTeamPresetId: "research-team",
+          selectedTeamId: "runtime-team",
+          selectedTeamSource: "builtin",
+          selectedTeamLabel: "旧 Team",
+          selectedTeamDescription: "旧 Team 描述。",
+          selectedTeamSummary: "旧 Team 摘要。",
+          selectedTeamRoles: [
+            {
+              id: "writer",
+              label: "写作",
+              summary: "负责整理文稿。",
+              profileId: "writing-agent",
+              roleKey: "writer",
+              skillIds: ["drafting"],
+            },
+          ],
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "切换 Team 后立即发送",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                preferred_team_preset_id: "code-triage-team",
+                selected_team_id: "custom-team-1",
+                selected_team_source: "custom",
+                selected_team_label: "前端联调团队",
+                selected_team_description: "分析、实现、验证三段式推进。",
+                selected_team_summary: "分析、实现、验证三段式推进。",
+                selected_team_roles: [
+                  {
+                    id: "explorer",
+                    label: "分析",
+                    summary: "负责定位问题与影响范围。",
+                    profile_id: "code-explorer",
+                    role_key: "explorer",
+                    skill_ids: ["repo-exploration"],
+                  },
+                ],
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: {
+              selected_team_label?: string;
+              selected_team_roles?: Array<{ profile_id?: string }>;
+            };
+          } | null
+        )?.harness?.selected_team_label,
+      ).toBe("前端联调团队");
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: {
+              selected_team_roles?: Array<{ profile_id?: string }>;
+            };
+          } | null
+        )?.harness?.selected_team_roles?.[0]?.profile_id,
+      ).toBe("code-explorer");
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("已有 executionRuntime 且 provider/model 未变化时不应重复提交偏好", async () => {
     const workspaceId = "ws-runtime-model-reuse";
     const selectedProvider = "openai";
@@ -5008,7 +5871,7 @@ describe("useAsterAgentChat 兼容接口", () => {
     }
   });
 
-  it("同 provider 切模型时应只提交 model 偏好", async () => {
+  it("同 provider 切模型且 session 已同步时不应重复提交 model 偏好", async () => {
     const workspaceId = "ws-runtime-model-switch-same-provider";
     const selectedProvider = "openai";
     const currentModel = "gpt-5.4-mini";
@@ -5074,8 +5937,851 @@ describe("useAsterAgentChat 兼容接口", () => {
       expect(
         mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
           ?.model_preference,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("同 provider 切模型但 session 同步未完成时仍应提交 model 偏好", async () => {
+    const workspaceId = "ws-runtime-model-switch-pending-sync";
+    const selectedProvider = "openai";
+    const currentModel = "gpt-5.4-mini";
+    const nextModel = "gpt-5.4";
+    let resolveProviderSync: (() => void) | null = null;
+    localStorage.setItem(
+      `agent_pref_provider_${workspaceId}`,
+      JSON.stringify(selectedProvider),
+    );
+    localStorage.setItem(
+      `agent_pref_model_${workspaceId}`,
+      JSON.stringify(currentModel),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: "topic-runtime-model-switch-pending-sync",
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: "topic-runtime-model-switch-pending-sync",
+        provider_selector: selectedProvider,
+        provider_name: "openai",
+        model_name: currentModel,
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+    mockUpdateAgentRuntimeSession.mockImplementation((request) => {
+      if (request?.provider_name || request?.model_name) {
+        return new Promise<void>((resolve) => {
+          resolveProviderSync = resolve;
+        });
+      }
+      return Promise.resolve();
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness
+          .getValue()
+          .switchTopic("topic-runtime-model-switch-pending-sync");
+      });
+
+      act(() => {
+        harness.getValue().setModel(nextModel);
+      });
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage(
+            "切换到同 provider 的另一个模型，但 session 还没同步完",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.provider_preference,
+      ).toBeUndefined();
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.model_preference,
       ).toBe(nextModel);
     } finally {
+      (resolveProviderSync as (() => void) | null)?.();
+      harness.unmount();
+    }
+  });
+
+  it("execution_runtime 缺失但 session provider/model 已迁移回写后，不应重复随 turn 提交", async () => {
+    const workspaceId = "ws-runtime-model-shadow-reuse";
+    const topicId = "topic-runtime-model-shadow-reuse";
+    localStorage.setItem(
+      `agent_topic_model_pref_${workspaceId}_${topicId}`,
+      JSON.stringify({
+        providerType: "gemini",
+        model: "gemini-2.5-pro",
+      }),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      messages: [],
+      execution_strategy: "react",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续沿用刚迁移回写的模型处理",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.provider_preference,
+      ).toBeUndefined();
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.model_preference,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_preferences.thinking 时不应重复随 turn 提交 thinking_enabled", async () => {
+    const workspaceId = "ws-runtime-thinking-reuse";
+    const topicId = "topic-runtime-thinking-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: true,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续沿用深度思考配置", [], false, true, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.thinking_enabled,
+      ).toBeUndefined();
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { preferences?: { thinking?: boolean } };
+          } | null
+        )?.harness?.preferences?.thinking,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("execution_runtime 缺失但 session recent_preferences 已同步时，不应重复随 turn 提交 thinking_enabled", async () => {
+    const workspaceId = "ws-runtime-thinking-shadow-reuse";
+    const topicId = "topic-runtime-thinking-shadow-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId, {
+      getSyncedSessionRecentPreferences: (sessionId) =>
+        sessionId === topicId
+          ? {
+              webSearch: false,
+              thinking: true,
+              task: false,
+              subagent: false,
+            }
+          : null,
+    });
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续沿用已同步的 thinking", [], false, true, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.thinking_enabled,
+      ).toBeUndefined();
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { preferences?: { thinking?: boolean } };
+          } | null
+        )?.harness?.preferences?.thinking,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("thinking 已变更但 session 仍是旧值时，仍应随 turn 提交 thinking_enabled", async () => {
+    const workspaceId = "ws-runtime-thinking-pending-sync";
+    const topicId = "topic-runtime-thinking-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("切换 thinking 后立即发送", [], false, true, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.thinking_enabled,
+      ).toBe(true);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_preferences.thinking 且 metadata 显式携带时，不应重复保留 thinking 偏好", async () => {
+    const workspaceId = "ws-runtime-thinking-metadata-reuse";
+    const topicId = "topic-runtime-thinking-metadata-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: true,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "继续沿用已保存的 thinking metadata 偏好",
+          [],
+          false,
+          true,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                preferences: {
+                  thinking: true,
+                },
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { preferences?: { thinking?: boolean } };
+          } | null
+        )?.harness?.preferences?.thinking,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("thinking 已变更且 metadata 显式携带时，session 仍是旧值应保留 thinking 偏好", async () => {
+    const workspaceId = "ws-runtime-thinking-metadata-pending-sync";
+    const topicId = "topic-runtime-thinking-metadata-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "切换 thinking metadata 后立即发送",
+          [],
+          false,
+          true,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                preferences: {
+                  thinking: true,
+                },
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { preferences?: { thinking?: boolean } };
+          } | null
+        )?.harness?.preferences?.thinking,
+      ).toBe(true);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_preferences.webSearch 时不应重复随 turn 提交 web_search", async () => {
+    const workspaceId = "ws-runtime-websearch-reuse";
+    const topicId = "topic-runtime-websearch-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: true,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续按已保存的联网偏好处理", [], true, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.web_search,
+      ).toBeUndefined();
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.search_mode,
+      ).toBeUndefined();
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { preferences?: { web_search?: boolean } };
+          } | null
+        )?.harness?.preferences?.web_search,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("execution_runtime 缺失但 session recent_preferences 已同步时，不应重复随 turn 提交 web_search", async () => {
+    const workspaceId = "ws-runtime-websearch-shadow-reuse";
+    const topicId = "topic-runtime-websearch-shadow-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId, {
+      getSyncedSessionRecentPreferences: (sessionId) =>
+        sessionId === topicId
+          ? {
+              webSearch: true,
+              thinking: false,
+              task: false,
+              subagent: false,
+            }
+          : null,
+    });
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续沿用已同步的联网偏好", [], true, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.web_search,
+      ).toBeUndefined();
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: { preferences?: { web_search?: boolean } };
+          } | null
+        )?.harness?.preferences?.web_search,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("webSearch 已变更但 session 仍是旧值时，仍应随 turn 提交 web_search", async () => {
+    const workspaceId = "ws-runtime-websearch-pending-sync";
+    const topicId = "topic-runtime-websearch-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("切换联网偏好后立即发送", [], true, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.web_search,
+      ).toBe(true);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 recent_preferences.task/subagent 时不应重复随 turn 提交 metadata 偏好", async () => {
+    const workspaceId = "ws-runtime-task-subagent-reuse";
+    const topicId = "topic-runtime-task-subagent-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: true,
+          subagent: true,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "继续沿用已保存的 task/subagent 偏好",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                preferences: {
+                  task: true,
+                  subagent: true,
+                },
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: {
+              preferences?: { task?: boolean; subagent?: boolean };
+            };
+          } | null
+        )?.harness?.preferences?.task,
+      ).toBeUndefined();
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: {
+              preferences?: { task?: boolean; subagent?: boolean };
+            };
+          } | null
+        )?.harness?.preferences?.subagent,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("task/subagent 已变更但 session 仍是旧值时，仍应保留 metadata 偏好", async () => {
+    const workspaceId = "ws-runtime-task-subagent-pending-sync";
+    const topicId = "topic-runtime-task-subagent-pending-sync";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: topicId,
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+        source: "session",
+      },
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness.getValue().sendMessage(
+          "切换 task/subagent 后立即发送",
+          [],
+          false,
+          false,
+          false,
+          "react",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                preferences: {
+                  task: true,
+                  subagent: true,
+                },
+              },
+            },
+          },
+        );
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: {
+              preferences?: { task?: boolean; subagent?: boolean };
+            };
+          } | null
+        )?.harness?.preferences?.task,
+      ).toBe(true);
+      expect(
+        (
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+            harness?: {
+              preferences?: { task?: boolean; subagent?: boolean };
+            };
+          } | null
+        )?.harness?.preferences?.subagent,
+      ).toBe(true);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有 session execution_strategy 时不应重复随 turn 提交 execution_strategy", async () => {
+    const workspaceId = "ws-runtime-strategy-reuse";
+    const topicId = "topic-runtime-strategy-reuse";
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      messages: [],
+      turns: [],
+      items: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续沿用当前执行策略", [], false, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.execution_strategy,
+      ).toBeUndefined();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换 executionStrategy 但 session 同步未完成时仍应提交 execution_strategy", async () => {
+    const workspaceId = "ws-runtime-strategy-pending-sync";
+    const topicId = "topic-runtime-strategy-pending-sync";
+    let resolveStrategySync: (() => void) | null = null;
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      execution_strategy: "react",
+      messages: [],
+      turns: [],
+      items: [],
+    });
+    mockUpdateAgentRuntimeSession.mockImplementation((request) => {
+      if (request?.execution_strategy) {
+        return new Promise<void>((resolve) => {
+          resolveStrategySync = resolve;
+        });
+      }
+      return Promise.resolve();
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+
+      act(() => {
+        harness.getValue().setExecutionStrategy("auto");
+      });
+      await flushEffects();
+      mockSubmitAgentRuntimeTurn.mockClear();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("切换执行策略后立即发送", [], false, false, false);
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(
+        mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+          ?.execution_strategy,
+      ).toBe("auto");
+    } finally {
+      (resolveStrategySync as (() => void) | null)?.();
       harness.unmount();
     }
   });

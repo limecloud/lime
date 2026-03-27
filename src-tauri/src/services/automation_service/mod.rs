@@ -1085,34 +1085,79 @@ pub(super) fn append_payload_tracking_metadata(metadata: &mut Map<String, Value>
         Value::String(parsed_payload.kind().to_string()),
     );
 
-    if let AutomationPayload::BrowserSession {
-        profile_id,
-        profile_key,
-        url,
-        environment_preset_id,
-        target_id,
-        open_window,
-        stream_mode,
-    } = parsed_payload
-    {
-        metadata.insert("profile_id".to_string(), Value::String(profile_id));
-        if let Some(profile_key) = profile_key {
-            metadata.insert("profile_key".to_string(), Value::String(profile_key));
+    match parsed_payload {
+        AutomationPayload::AgentTurn {
+            request_metadata,
+            content_id,
+            ..
+        } => {
+            if let Some(content_id) = content_id.clone() {
+                metadata.insert("content_id".to_string(), Value::String(content_id));
+            }
+
+            let request_metadata = request_metadata.as_ref().and_then(Value::as_object);
+            if let Some(service_skill) = request_metadata.and_then(|value| {
+                value
+                    .get("service_skill")
+                    .or_else(|| value.get("serviceSkill"))
+            }) {
+                metadata.insert("service_skill".to_string(), service_skill.clone());
+            }
+
+            let harness = request_metadata
+                .and_then(|value| value.get("harness"))
+                .and_then(Value::as_object)
+                .map(|value| {
+                    let mut next = value.clone();
+                    if let Some(content_id) = content_id.as_ref() {
+                        if !next.contains_key("content_id") && !next.contains_key("contentId") {
+                            next.insert(
+                                "content_id".to_string(),
+                                Value::String(content_id.clone()),
+                            );
+                        }
+                    }
+                    Value::Object(next)
+                })
+                .or_else(|| {
+                    content_id.map(|value| {
+                        json!({
+                            "content_id": value
+                        })
+                    })
+                });
+            if let Some(harness) = harness {
+                metadata.insert("harness".to_string(), harness);
+            }
         }
-        if let Some(url) = url {
-            metadata.insert("url".to_string(), Value::String(url));
+        AutomationPayload::BrowserSession {
+            profile_id,
+            profile_key,
+            url,
+            environment_preset_id,
+            target_id,
+            open_window,
+            stream_mode,
+        } => {
+            metadata.insert("profile_id".to_string(), Value::String(profile_id));
+            if let Some(profile_key) = profile_key {
+                metadata.insert("profile_key".to_string(), Value::String(profile_key));
+            }
+            if let Some(url) = url {
+                metadata.insert("url".to_string(), Value::String(url));
+            }
+            if let Some(environment_preset_id) = environment_preset_id {
+                metadata.insert(
+                    "environment_preset_id".to_string(),
+                    Value::String(environment_preset_id),
+                );
+            }
+            if let Some(target_id) = target_id {
+                metadata.insert("target_id".to_string(), Value::String(target_id));
+            }
+            metadata.insert("open_window".to_string(), Value::Bool(open_window));
+            metadata.insert("stream_mode".to_string(), json!(stream_mode));
         }
-        if let Some(environment_preset_id) = environment_preset_id {
-            metadata.insert(
-                "environment_preset_id".to_string(),
-                Value::String(environment_preset_id),
-            );
-        }
-        if let Some(target_id) = target_id {
-            metadata.insert("target_id".to_string(), Value::String(target_id));
-        }
-        metadata.insert("open_window".to_string(), Value::Bool(open_window));
-        metadata.insert("stream_mode".to_string(), json!(stream_mode));
     }
 }
 
@@ -1332,6 +1377,95 @@ mod tests {
                 .and_then(Value::as_object)
                 .and_then(|delivery| delivery.get("delivery_attempt_id")),
             Some(&json!("dlv-run-1"))
+        );
+    }
+
+    #[test]
+    fn build_tracker_finish_metadata_should_include_agent_turn_service_skill_context() {
+        let job = AutomationJob {
+            id: "job-1".to_string(),
+            name: "每日趋势摘要".to_string(),
+            description: Some("围绕指定平台输出趋势摘要".to_string()),
+            enabled: true,
+            workspace_id: "workspace-1".to_string(),
+            execution_mode: AutomationExecutionMode::Skill,
+            schedule: TaskSchedule::Cron {
+                expr: "0 9 * * *".to_string(),
+                tz: Some("Asia/Shanghai".to_string()),
+            },
+            payload: json!({
+                "kind": "agent_turn",
+                "prompt": "[服务型技能] 每日趋势摘要",
+                "web_search": false,
+                "content_id": "content-1",
+                "request_metadata": {
+                    "service_skill": {
+                        "id": "daily-trend-briefing",
+                        "title": "每日趋势摘要",
+                        "runner_type": "scheduled",
+                        "execution_location": "client_default",
+                        "source": "cloud_catalog",
+                        "slot_values": [
+                            {
+                                "key": "platform",
+                                "label": "监测平台",
+                                "value": "小红书"
+                            }
+                        ],
+                        "user_input": "关注增长最快的话题"
+                    },
+                    "harness": {
+                        "theme": "social-media"
+                    }
+                }
+            }),
+            delivery: DeliveryConfig::default(),
+            timeout_secs: None,
+            max_retries: 3,
+            next_run_at: None,
+            last_status: None,
+            last_error: None,
+            last_run_at: None,
+            last_finished_at: None,
+            running_started_at: None,
+            consecutive_failures: 0,
+            last_retry_count: 0,
+            auto_disabled_until: None,
+            last_delivery: None,
+            created_at: "2026-03-15T00:00:00Z".to_string(),
+            updated_at: "2026-03-15T00:00:00Z".to_string(),
+        };
+
+        let metadata = build_tracker_finish_metadata(
+            &job,
+            Some("session-1"),
+            "success",
+            "success",
+            0,
+            1200,
+            None,
+        );
+
+        assert_eq!(metadata.get("content_id"), Some(&json!("content-1")));
+        assert_eq!(
+            metadata.pointer("/service_skill/title"),
+            Some(&json!("每日趋势摘要"))
+        );
+        assert_eq!(
+            metadata.pointer("/service_skill/slot_values/0/label"),
+            Some(&json!("监测平台"))
+        );
+        assert_eq!(
+            metadata.pointer("/service_skill/user_input"),
+            Some(&json!("关注增长最快的话题"))
+        );
+        assert_eq!(
+            metadata.pointer("/harness/theme"),
+            Some(&json!("social-media"))
+        );
+        assert_eq!(
+            metadata.pointer("/harness/content_id"),
+            Some(&json!("content-1"))
         );
     }
 

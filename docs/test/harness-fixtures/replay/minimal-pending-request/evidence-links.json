@@ -1,0 +1,43 @@
+{
+  "replayCaseVersion": "v1",
+  "exportedAt": "2026-03-27T11:30:00Z",
+  "handoffBundle": {
+    "relativeRoot": ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff",
+    "absoluteRoot": "/workspace/lime/.lime/harness/sessions/fixture-session-minimal-pending-request/handoff",
+    "artifacts": [
+      {
+        "kind": "plan",
+        "title": "执行计划",
+        "relativePath": ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff/plan.md"
+      },
+      {
+        "kind": "handoff",
+        "title": "交接摘要",
+        "relativePath": ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff/handoff.md"
+      }
+    ]
+  },
+  "evidencePack": {
+    "relativeRoot": ".lime/harness/sessions/fixture-session-minimal-pending-request/evidence",
+    "absoluteRoot": "/workspace/lime/.lime/harness/sessions/fixture-session-minimal-pending-request/evidence",
+    "knownGaps": [
+      "当前 fixture 不包含真实浏览器快照，只验证 replay 样本结构与 grader 约定。"
+    ],
+    "artifacts": [
+      {
+        "kind": "summary",
+        "title": "证据摘要",
+        "relativePath": ".lime/harness/sessions/fixture-session-minimal-pending-request/evidence/summary.md"
+      },
+      {
+        "kind": "runtime",
+        "title": "运行时快照",
+        "relativePath": ".lime/harness/sessions/fixture-session-minimal-pending-request/evidence/runtime.json"
+      }
+    ]
+  },
+  "recentArtifacts": [
+    "docs/tech/harness/implementation-blueprint.md",
+    ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff/handoff.md"
+  ]
+}

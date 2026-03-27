@@ -19,6 +19,9 @@ interface UseAgentChatUnifiedOptions {
   ) => void;
   workspaceId: string;
   disableSessionRestore?: boolean;
+  getSyncedSessionRecentPreferences?: (
+    sessionId: string,
+  ) => import("../utils/chatToolPreferences").ChatToolPreferences | null;
 }
 
 /**

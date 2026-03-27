@@ -14,6 +14,8 @@ import type {
 import type {
   AsterExecutionStrategy,
   AsterSessionExecutionRuntime,
+  AsterSessionExecutionRuntimePreferences,
+  AsterSessionExecutionRuntimeRecentTeamSelection,
 } from "./agentExecutionRuntime";
 import {
   normalizeQueuedTurnSnapshots,
@@ -24,6 +26,10 @@ export type { QueuedTurnSnapshot } from "./queuedTurn";
 export type {
   AsterExecutionStrategy,
   AsterSessionExecutionRuntime,
+  AsterSessionExecutionRuntimePreferences,
+  AsterSessionExecutionRuntimeRecentTeamRole,
+  AsterSessionExecutionRuntimeRecentTeamSelection,
+  AsterSessionExecutionRuntimeRecentTeamSource,
   AsterSessionExecutionRuntimeSource,
   AsterTurnOutputSchemaRuntime,
   AsterTurnOutputSchemaSource,
@@ -86,8 +92,6 @@ export interface AutoContinueRequestPayload {
   sensitivity: number;
   source?: string;
 }
-
-export type AgentSearchMode = "disabled" | "allowed" | "required";
 
 /**
  * Aster 会话信息（匹配后端 SessionInfo 结构）
@@ -335,6 +339,416 @@ export interface AsterSessionDetail {
   subagent_parent_context?: AsterSubagentParentContext;
 }
 
+export type AgentRuntimeHandoffArtifactKind =
+  | "plan"
+  | "progress"
+  | "handoff"
+  | "review_summary";
+
+export interface AgentRuntimeHandoffArtifact {
+  kind: AgentRuntimeHandoffArtifactKind;
+  title: string;
+  relative_path: string;
+  absolute_path: string;
+  bytes: number;
+}
+
+export interface AgentRuntimeHandoffBundle {
+  session_id: string;
+  thread_id: string;
+  workspace_id?: string;
+  workspace_root: string;
+  bundle_relative_root: string;
+  bundle_absolute_root: string;
+  exported_at: string;
+  thread_status: string;
+  latest_turn_status?: string;
+  pending_request_count: number;
+  queued_turn_count: number;
+  active_subagent_count: number;
+  todo_total: number;
+  todo_pending: number;
+  todo_in_progress: number;
+  todo_completed: number;
+  artifacts: AgentRuntimeHandoffArtifact[];
+}
+
+export type AgentRuntimeEvidenceArtifactKind =
+  | "summary"
+  | "runtime"
+  | "timeline"
+  | "artifacts";
+
+export interface AgentRuntimeEvidenceArtifact {
+  kind: AgentRuntimeEvidenceArtifactKind;
+  title: string;
+  relative_path: string;
+  absolute_path: string;
+  bytes: number;
+}
+
+export interface AgentRuntimeEvidencePack {
+  session_id: string;
+  thread_id: string;
+  workspace_id?: string;
+  workspace_root: string;
+  pack_relative_root: string;
+  pack_absolute_root: string;
+  exported_at: string;
+  thread_status: string;
+  latest_turn_status?: string;
+  turn_count: number;
+  item_count: number;
+  pending_request_count: number;
+  queued_turn_count: number;
+  recent_artifact_count: number;
+  known_gaps: string[];
+  artifacts: AgentRuntimeEvidenceArtifact[];
+}
+
+export type AgentRuntimeReplayArtifactKind =
+  | "input"
+  | "expected"
+  | "grader"
+  | "evidence_links";
+
+export interface AgentRuntimeReplayArtifact {
+  kind: AgentRuntimeReplayArtifactKind;
+  title: string;
+  relative_path: string;
+  absolute_path: string;
+  bytes: number;
+}
+
+export interface AgentRuntimeReplayCase {
+  session_id: string;
+  thread_id: string;
+  workspace_id?: string;
+  workspace_root: string;
+  replay_relative_root: string;
+  replay_absolute_root: string;
+  handoff_bundle_relative_root: string;
+  evidence_pack_relative_root: string;
+  exported_at: string;
+  thread_status: string;
+  latest_turn_status?: string;
+  pending_request_count: number;
+  queued_turn_count: number;
+  linked_handoff_artifact_count: number;
+  linked_evidence_artifact_count: number;
+  recent_artifact_count: number;
+  artifacts: AgentRuntimeReplayArtifact[];
+}
+
+export type AgentRuntimeAnalysisArtifactKind =
+  | "analysis_brief"
+  | "analysis_context";
+
+export interface AgentRuntimeAnalysisArtifact {
+  kind: AgentRuntimeAnalysisArtifactKind;
+  title: string;
+  relative_path: string;
+  absolute_path: string;
+  bytes: number;
+}
+
+export interface AgentRuntimeAnalysisHandoff {
+  session_id: string;
+  thread_id: string;
+  workspace_id?: string;
+  workspace_root: string;
+  analysis_relative_root: string;
+  analysis_absolute_root: string;
+  handoff_bundle_relative_root: string;
+  evidence_pack_relative_root: string;
+  replay_case_relative_root: string;
+  exported_at: string;
+  title: string;
+  thread_status: string;
+  latest_turn_status?: string;
+  pending_request_count: number;
+  queued_turn_count: number;
+  sanitized_workspace_root: string;
+  copy_prompt: string;
+  artifacts: AgentRuntimeAnalysisArtifact[];
+}
+
+export type AgentRuntimeReviewDecisionArtifactKind =
+  | "review_decision_markdown"
+  | "review_decision_json";
+
+export interface AgentRuntimeReviewDecisionArtifact {
+  kind: AgentRuntimeReviewDecisionArtifactKind;
+  title: string;
+  relative_path: string;
+  absolute_path: string;
+  bytes: number;
+}
+
+export interface AgentRuntimeReviewDecisionTemplate {
+  session_id: string;
+  thread_id: string;
+  workspace_id?: string;
+  workspace_root: string;
+  review_relative_root: string;
+  review_absolute_root: string;
+  analysis_relative_root: string;
+  analysis_absolute_root: string;
+  handoff_bundle_relative_root: string;
+  evidence_pack_relative_root: string;
+  replay_case_relative_root: string;
+  exported_at: string;
+  title: string;
+  thread_status: string;
+  latest_turn_status?: string;
+  pending_request_count: number;
+  queued_turn_count: number;
+  default_decision_status: string;
+  review_checklist: string[];
+  analysis_artifacts: AgentRuntimeAnalysisArtifact[];
+  artifacts: AgentRuntimeReviewDecisionArtifact[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readStringField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): string {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return typeof value === "string" ? value : "";
+}
+
+function readOptionalStringField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): string | undefined {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function readNumberField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): number {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return typeof value === "number" ? value : 0;
+}
+
+function readStringListField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): string[] {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function normalizeAnalysisArtifact(
+  value: unknown,
+): AgentRuntimeAnalysisArtifact | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    kind:
+      readStringField(value, "kind") === "analysis_context"
+        ? "analysis_context"
+        : "analysis_brief",
+    title: readStringField(value, "title"),
+    relative_path: readStringField(value, "relativePath", "relative_path"),
+    absolute_path: readStringField(value, "absolutePath", "absolute_path"),
+    bytes: readNumberField(value, "bytes"),
+  };
+}
+
+function normalizeAnalysisHandoff(value: unknown): AgentRuntimeAnalysisHandoff {
+  const record = isRecord(value) ? value : {};
+  const rawArtifacts = Array.isArray(record.artifacts) ? record.artifacts : [];
+
+  return {
+    session_id: readStringField(record, "sessionId", "session_id"),
+    thread_id: readStringField(record, "threadId", "thread_id"),
+    workspace_id: readOptionalStringField(
+      record,
+      "workspaceId",
+      "workspace_id",
+    ),
+    workspace_root: readStringField(record, "workspaceRoot", "workspace_root"),
+    analysis_relative_root: readStringField(
+      record,
+      "analysisRelativeRoot",
+      "analysis_relative_root",
+    ),
+    analysis_absolute_root: readStringField(
+      record,
+      "analysisAbsoluteRoot",
+      "analysis_absolute_root",
+    ),
+    handoff_bundle_relative_root: readStringField(
+      record,
+      "handoffBundleRelativeRoot",
+      "handoff_bundle_relative_root",
+    ),
+    evidence_pack_relative_root: readStringField(
+      record,
+      "evidencePackRelativeRoot",
+      "evidence_pack_relative_root",
+    ),
+    replay_case_relative_root: readStringField(
+      record,
+      "replayCaseRelativeRoot",
+      "replay_case_relative_root",
+    ),
+    exported_at: readStringField(record, "exportedAt", "exported_at"),
+    title: readStringField(record, "title"),
+    thread_status: readStringField(record, "threadStatus", "thread_status"),
+    latest_turn_status: readOptionalStringField(
+      record,
+      "latestTurnStatus",
+      "latest_turn_status",
+    ),
+    pending_request_count: readNumberField(
+      record,
+      "pendingRequestCount",
+      "pending_request_count",
+    ),
+    queued_turn_count: readNumberField(
+      record,
+      "queuedTurnCount",
+      "queued_turn_count",
+    ),
+    sanitized_workspace_root: readStringField(
+      record,
+      "sanitizedWorkspaceRoot",
+      "sanitized_workspace_root",
+    ),
+    copy_prompt: readStringField(record, "copyPrompt", "copy_prompt"),
+    artifacts: rawArtifacts
+      .map((artifact) => normalizeAnalysisArtifact(artifact))
+      .filter(Boolean) as AgentRuntimeAnalysisArtifact[],
+  };
+}
+
+function normalizeReviewDecisionArtifact(
+  value: unknown,
+): AgentRuntimeReviewDecisionArtifact | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    kind:
+      readStringField(value, "kind") === "review_decision_json"
+        ? "review_decision_json"
+        : "review_decision_markdown",
+    title: readStringField(value, "title"),
+    relative_path: readStringField(value, "relativePath", "relative_path"),
+    absolute_path: readStringField(value, "absolutePath", "absolute_path"),
+    bytes: readNumberField(value, "bytes"),
+  };
+}
+
+function normalizeReviewDecisionTemplate(
+  value: unknown,
+): AgentRuntimeReviewDecisionTemplate {
+  const record = isRecord(value) ? value : {};
+  const rawArtifacts = Array.isArray(record.artifacts) ? record.artifacts : [];
+  const rawAnalysisArtifacts = Array.isArray(record.analysisArtifacts)
+    ? record.analysisArtifacts
+    : Array.isArray(record.analysis_artifacts)
+      ? record.analysis_artifacts
+      : [];
+
+  return {
+    session_id: readStringField(record, "sessionId", "session_id"),
+    thread_id: readStringField(record, "threadId", "thread_id"),
+    workspace_id: readOptionalStringField(
+      record,
+      "workspaceId",
+      "workspace_id",
+    ),
+    workspace_root: readStringField(record, "workspaceRoot", "workspace_root"),
+    review_relative_root: readStringField(
+      record,
+      "reviewRelativeRoot",
+      "review_relative_root",
+    ),
+    review_absolute_root: readStringField(
+      record,
+      "reviewAbsoluteRoot",
+      "review_absolute_root",
+    ),
+    analysis_relative_root: readStringField(
+      record,
+      "analysisRelativeRoot",
+      "analysis_relative_root",
+    ),
+    analysis_absolute_root: readStringField(
+      record,
+      "analysisAbsoluteRoot",
+      "analysis_absolute_root",
+    ),
+    handoff_bundle_relative_root: readStringField(
+      record,
+      "handoffBundleRelativeRoot",
+      "handoff_bundle_relative_root",
+    ),
+    evidence_pack_relative_root: readStringField(
+      record,
+      "evidencePackRelativeRoot",
+      "evidence_pack_relative_root",
+    ),
+    replay_case_relative_root: readStringField(
+      record,
+      "replayCaseRelativeRoot",
+      "replay_case_relative_root",
+    ),
+    exported_at: readStringField(record, "exportedAt", "exported_at"),
+    title: readStringField(record, "title"),
+    thread_status: readStringField(record, "threadStatus", "thread_status"),
+    latest_turn_status: readOptionalStringField(
+      record,
+      "latestTurnStatus",
+      "latest_turn_status",
+    ),
+    pending_request_count: readNumberField(
+      record,
+      "pendingRequestCount",
+      "pending_request_count",
+    ),
+    queued_turn_count: readNumberField(
+      record,
+      "queuedTurnCount",
+      "queued_turn_count",
+    ),
+    default_decision_status: readStringField(
+      record,
+      "defaultDecisionStatus",
+      "default_decision_status",
+    ),
+    review_checklist: readStringListField(
+      record,
+      "reviewChecklist",
+      "review_checklist",
+    ),
+    analysis_artifacts: rawAnalysisArtifacts
+      .map((artifact) => normalizeAnalysisArtifact(artifact))
+      .filter(Boolean) as AgentRuntimeAnalysisArtifact[],
+    artifacts: rawArtifacts
+      .map((artifact) => normalizeReviewDecisionArtifact(artifact))
+      .filter(Boolean) as AgentRuntimeReviewDecisionArtifact[],
+  };
+}
+
 function normalizeThreadReadModel(
   threadRead?: AgentRuntimeThreadReadModel | null,
 ): AgentRuntimeThreadReadModel | null | undefined {
@@ -355,7 +769,6 @@ export interface AgentTurnConfigSnapshot {
   thinking_enabled?: boolean;
   execution_strategy?: AsterExecutionStrategy;
   web_search?: boolean;
-  search_mode?: AgentSearchMode;
   auto_continue?: AutoContinueRequestPayload;
   system_prompt?: string;
   metadata?: Record<string, unknown>;
@@ -365,7 +778,7 @@ export interface AgentRuntimeSubmitTurnRequest {
   message: string;
   session_id: string;
   event_name: string;
-  workspace_id: string;
+  workspace_id?: string;
   turn_id?: string;
   images?: ImageInput[];
   turn_config?: AgentTurnConfigSnapshot;
@@ -440,6 +853,8 @@ export interface AgentRuntimeUpdateSessionRequest {
   provider_name?: string;
   model_name?: string;
   execution_strategy?: AsterExecutionStrategy;
+  recent_preferences?: AsterSessionExecutionRuntimePreferences;
+  recent_team_selection?: AsterSessionExecutionRuntimeRecentTeamSelection;
 }
 
 export interface AgentRuntimeSpawnSubagentRequest {
@@ -825,9 +1240,7 @@ export async function getAgentRuntimeSession(
   const normalizedDetail = detail as AsterSessionDetail | null | undefined;
   return {
     ...(detail as AsterSessionDetail),
-    queued_turns: normalizeQueuedTurnSnapshots(
-      normalizedDetail?.queued_turns,
-    ),
+    queued_turns: normalizeQueuedTurnSnapshots(normalizedDetail?.queued_turns),
     thread_read: normalizeThreadReadModel(normalizedDetail?.thread_read),
   };
 }
@@ -841,6 +1254,50 @@ export async function getAgentRuntimeThreadRead(
   return normalizeThreadReadModel(
     threadRead as AgentRuntimeThreadReadModel | null | undefined,
   ) as AgentRuntimeThreadReadModel;
+}
+
+export async function exportAgentRuntimeHandoffBundle(
+  sessionId: string,
+): Promise<AgentRuntimeHandoffBundle> {
+  return (await safeInvoke("agent_runtime_export_handoff_bundle", {
+    sessionId,
+  })) as AgentRuntimeHandoffBundle;
+}
+
+export async function exportAgentRuntimeAnalysisHandoff(
+  sessionId: string,
+): Promise<AgentRuntimeAnalysisHandoff> {
+  return normalizeAnalysisHandoff(
+    await safeInvoke("agent_runtime_export_analysis_handoff", {
+      sessionId,
+    }),
+  );
+}
+
+export async function exportAgentRuntimeReviewDecisionTemplate(
+  sessionId: string,
+): Promise<AgentRuntimeReviewDecisionTemplate> {
+  return normalizeReviewDecisionTemplate(
+    await safeInvoke("agent_runtime_export_review_decision_template", {
+      sessionId,
+    }),
+  );
+}
+
+export async function exportAgentRuntimeEvidencePack(
+  sessionId: string,
+): Promise<AgentRuntimeEvidencePack> {
+  return (await safeInvoke("agent_runtime_export_evidence_pack", {
+    sessionId,
+  })) as AgentRuntimeEvidencePack;
+}
+
+export async function exportAgentRuntimeReplayCase(
+  sessionId: string,
+): Promise<AgentRuntimeReplayCase> {
+  return (await safeInvoke("agent_runtime_export_replay_case", {
+    sessionId,
+  })) as AgentRuntimeReplayCase;
 }
 
 export async function getAgentRuntimeToolInventory(

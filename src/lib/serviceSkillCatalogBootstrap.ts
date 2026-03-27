@@ -1,6 +1,6 @@
 import {
+  applyServerSyncedServiceSkillCatalog,
   parseServiceSkillCatalog,
-  saveServiceSkillCatalog,
   type ServiceSkillCatalog,
 } from "@/lib/api/serviceSkills";
 
@@ -55,7 +55,7 @@ export function syncServiceSkillCatalogFromBootstrapPayload(
     return null;
   }
 
-  return saveServiceSkillCatalog(catalog, "bootstrap_sync");
+  return applyServerSyncedServiceSkillCatalog(catalog, "bootstrap_sync");
 }
 
 export function applyInitialServiceSkillCatalogBootstrap(): ServiceSkillCatalog | null {

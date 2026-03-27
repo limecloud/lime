@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EmptyState } from "./EmptyState";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 import { composeEntryPrompt } from "../utils/entryPromptComposer";
 
 const { mockGetConfig } = vi.hoisted(() => ({
@@ -16,7 +17,9 @@ const mockCharacterMention =
     (props: {
       characters?: Character[];
       skills?: Skill[];
+      serviceSkills?: ServiceSkillHomeItem[];
       onSelectSkill?: (skill: Skill) => void;
+      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
       value: string;
       onChange: (value: string) => void;
     }) => React.ReactNode
@@ -52,7 +55,9 @@ vi.mock("./Inputbar/components/CharacterMention", () => ({
   CharacterMention: (props: {
     characters?: Character[];
     skills?: Skill[];
+    serviceSkills?: ServiceSkillHomeItem[];
     onSelectSkill?: (skill: Skill) => void;
+    onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
     value: string;
     onChange: (value: string) => void;
   }) => {
@@ -252,6 +257,60 @@ describe("EmptyState", () => {
       latestCall.onChange("@技能A");
     });
     expect(setInput).toHaveBeenCalledWith("@技能A");
+  });
+
+  it("应把服务型技能与选择回调透传给 CharacterMention", async () => {
+    const serviceSkills: ServiceSkillHomeItem[] = [
+      {
+        id: "daily-trend-briefing",
+        title: "每日趋势摘要",
+        summary: "围绕指定平台与关键词输出趋势摘要。",
+        entryHint: "把平台和关键词给我，我先整理一份趋势报告。",
+        aliases: ["趋势报告"],
+        category: "社媒运营",
+        outputHint: "趋势摘要 + 调度建议",
+        source: "cloud_catalog",
+        runnerType: "scheduled",
+        defaultExecutorBinding: "automation_job",
+        executionLocation: "client_default",
+        slotSchema: [],
+        surfaceScopes: ["home", "mention", "workspace"],
+        promptTemplateKey: "trend_briefing",
+        version: "seed-v1",
+        badge: "云目录",
+        recentUsedAt: null,
+        isRecent: false,
+        runnerLabel: "本地计划任务",
+        runnerTone: "sky",
+        runnerDescription:
+          "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
+        actionLabel: "先做方案",
+        automationStatus: null,
+      },
+    ];
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+
+    renderEmptyState({
+      input: "@",
+      serviceSkills,
+      onSelectServiceSkill,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+    expect(latestCall.serviceSkills).toEqual(serviceSkills);
+    expect(typeof latestCall.onSelectServiceSkill).toBe("function");
+
+    act(() => {
+      latestCall.onSelectServiceSkill?.(serviceSkills[0]!);
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkills[0]!);
   });
 
   it("选择技能后发送应自动附加 skill 前缀，且发送后清除激活技能", async () => {

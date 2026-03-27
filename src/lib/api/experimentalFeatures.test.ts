@@ -20,15 +20,20 @@ describe("experimentalFeatures API", () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce({
         screenshot_chat: { enabled: true, shortcut: "Cmd+Shift+4" },
+        webmcp: { enabled: false },
       })
       .mockResolvedValueOnce(undefined);
 
     await expect(getExperimentalConfig()).resolves.toEqual(
-      expect.objectContaining({ screenshot_chat: expect.any(Object) }),
+      expect.objectContaining({
+        screenshot_chat: expect.any(Object),
+        webmcp: expect.any(Object),
+      }),
     );
     await expect(
       saveExperimentalConfig({
         screenshot_chat: { enabled: true, shortcut: "Cmd+Shift+4" },
+        webmcp: { enabled: true },
       } as never),
     ).resolves.toBeUndefined();
   });

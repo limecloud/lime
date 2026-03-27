@@ -5,10 +5,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import {
-  ArtifactCanvasOverlay,
-  ArtifactToolbar,
-} from "@/components/artifact";
+import { ArtifactCanvasOverlay, ArtifactToolbar } from "@/components/artifact";
 import { CanvasFactory } from "@/components/content-creator/canvas/CanvasFactory";
 import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
 import type { ThemeType } from "@/components/content-creator/types";
@@ -16,7 +13,10 @@ import {
   CanvasPanel as GeneralCanvasPanel,
   type CanvasState as GeneralCanvasState,
 } from "@/components/general-chat/bridge";
-import { openPathWithDefaultApp, revealPathInFinder } from "@/lib/api/fileSystem";
+import {
+  openPathWithDefaultApp,
+  revealPathInFinder,
+} from "@/lib/api/fileSystem";
 import type { Artifact } from "@/lib/artifact/types";
 import { ImageWorkbenchCanvas } from "../components/ImageWorkbenchCanvas";
 import type {
@@ -59,7 +59,9 @@ interface WorkspaceCanvasDefaultPreviewParams {
 interface WorkspaceCanvasPreviewArtifactParams {
   currentCanvasArtifact: Artifact | null;
   displayedCanvasArtifact: Artifact | null;
-  artifactOverlay: ComponentProps<typeof ArtifactCanvasOverlay>["overlay"] | null;
+  artifactOverlay:
+    | ComponentProps<typeof ArtifactCanvasOverlay>["overlay"]
+    | null;
   showPreviousVersionBadge: boolean;
   artifactViewMode: ComponentProps<typeof ArtifactToolbar>["viewMode"];
   onArtifactViewModeChange: NonNullable<
@@ -77,6 +79,9 @@ interface WorkspaceCanvasPreviewArtifactParams {
   blockFocusRequestKey?: number;
   onJumpToTimelineItem?: (itemId: string) => void;
   onCloseCanvas: () => void;
+  renderToolbarActions?: ComponentProps<
+    typeof ArtifactWorkbenchPreview
+  >["renderToolbarActions"];
 }
 
 interface WorkspaceCanvasPreviewImageWorkbenchParams {
@@ -162,8 +167,10 @@ interface WorkspaceCanvasPreviewFactoryParams {
   onNovelChapterListCollapsedChange: (collapsed: boolean) => void;
 }
 
-interface WorkspaceCanvasPreviewTeamWorkbenchParams
-  extends Omit<UseTeamWorkbenchPresentationParams, "surfaceProps"> {
+interface WorkspaceCanvasPreviewTeamWorkbenchParams extends Omit<
+  UseTeamWorkbenchPresentationParams,
+  "surfaceProps"
+> {
   surfaceProps: TeamWorkbenchSurfaceProps;
 }
 
@@ -253,6 +260,7 @@ export function useWorkspaceCanvasPreviewPresentation({
       blockFocusRequestKey: artifactPreview.blockFocusRequestKey,
       onJumpToTimelineItem: artifactPreview.onJumpToTimelineItem,
       onCloseCanvas: artifactPreview.onCloseCanvas,
+      renderToolbarActions: artifactPreview.renderToolbarActions,
     }),
     [
       artifactPreview.artifactOverlay,
@@ -267,6 +275,7 @@ export function useWorkspaceCanvasPreviewPresentation({
       artifactPreview.onArtifactViewModeChange,
       artifactPreview.onJumpToTimelineItem,
       artifactPreview.onCloseCanvas,
+      artifactPreview.renderToolbarActions,
       artifactPreview.showPreviousVersionBadge,
       artifactPreview.threadItems,
     ],
@@ -333,7 +342,11 @@ export function useWorkspaceCanvasPreviewPresentation({
       onClose: generalCanvas.onCloseCanvas,
       onContentChange: generalCanvas.onContentChange,
     }),
-    [generalCanvas.onCloseCanvas, generalCanvas.onContentChange, generalCanvas.state],
+    [
+      generalCanvas.onCloseCanvas,
+      generalCanvas.onContentChange,
+      generalCanvas.state,
+    ],
   );
 
   const canvasLoadingLabel = useMemo(
@@ -344,7 +357,9 @@ export function useWorkspaceCanvasPreviewPresentation({
     [loading.initialContentLoadError, loading.isInitialContentLoading],
   );
 
-  const canvasFactoryProps = useMemo<ComponentProps<typeof CanvasFactory> | null>(
+  const canvasFactoryProps = useMemo<ComponentProps<
+    typeof CanvasFactory
+  > | null>(
     () =>
       canvasFactory.resolvedCanvasState
         ? {
@@ -358,8 +373,7 @@ export function useWorkspaceCanvasPreviewPresentation({
             projectId: canvasFactory.projectId,
             contentId: canvasFactory.contentId,
             autoImageTopic: canvasFactory.autoImageTopic,
-            autoContinueProviderType:
-              canvasFactory.autoContinueProviderType,
+            autoContinueProviderType: canvasFactory.autoContinueProviderType,
             onAutoContinueProviderTypeChange:
               canvasFactory.onAutoContinueProviderTypeChange,
             autoContinueModel: canvasFactory.autoContinueModel,
@@ -437,13 +451,13 @@ export function useWorkspaceCanvasPreviewPresentation({
       return Boolean(
         (artifactPreview.currentCanvasArtifact &&
           artifactPreview.displayedCanvasArtifact) ||
-          defaultPreview.generalCanvasState.isOpen,
+        defaultPreview.generalCanvasState.isOpen,
       );
     }
 
     return Boolean(
       loading.shouldShowCanvasLoadingState ||
-        defaultPreview.resolvedCanvasState,
+      defaultPreview.resolvedCanvasState,
     );
   }, [
     artifactPreview.currentCanvasArtifact,

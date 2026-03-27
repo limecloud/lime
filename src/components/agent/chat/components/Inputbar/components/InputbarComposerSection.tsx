@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type {
   AsterSessionExecutionRuntime,
   QueuedTurnSnapshot,
@@ -12,7 +13,6 @@ import { InputbarCore } from "./InputbarCore";
 import { SkillSelector } from "./SkillSelector";
 import type { BuiltinInputCommand } from "./builtinCommands";
 import { TeamSelector } from "./TeamSelector";
-import { TeamModeEntryButton } from "./TeamModeEntryButton";
 import { ThemeWorkbenchStatusPanel } from "./ThemeWorkbenchStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
 import { InputbarVisionCapabilityNotice } from "./InputbarVisionCapabilityNotice";
@@ -20,7 +20,6 @@ import { InputbarExecutionStrategySelect } from "./InputbarExecutionStrategySele
 import { StableProcessingNotice } from "../../StableProcessingNotice";
 import { isGeneralResearchTheme } from "../../../utils/generalAgentPrompt";
 import type { TeamDefinition } from "../../../utils/teamDefinitions";
-import { getTeamSuggestion } from "../../../utils/teamSuggestion";
 import { shouldShowStableProcessingNotice } from "../../../utils/stableProcessingExperience";
 import type { WorkspaceSettings } from "@/types/workspace";
 import type {
@@ -37,12 +36,14 @@ interface InputbarComposerSectionProps {
   inputAdapter: ChatInputAdapter;
   characters: Character[];
   skills: Skill[];
+  serviceSkills?: ServiceSkillHomeItem[];
   isSkillsLoading?: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   input: string;
   activeSkill?: Skill | null;
   onSelectCharacter?: (character: Character) => void;
   onSelectSkill: (skill: Skill) => void;
+  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   onSelectBuiltinCommand: (command: BuiltinInputCommand | null) => void;
   onClearSkill?: () => void;
   onNavigateToSettings?: () => void;
@@ -88,12 +89,14 @@ export const InputbarComposerSection: React.FC<
   inputAdapter,
   characters,
   skills,
+  serviceSkills = [],
   isSkillsLoading,
   textareaRef,
   input,
   activeSkill,
   onSelectCharacter,
   onSelectSkill,
+  onSelectServiceSkill,
   onSelectBuiltinCommand,
   onClearSkill,
   onNavigateToSettings,
@@ -131,15 +134,6 @@ export const InputbarComposerSection: React.FC<
   >(null);
   const showSkillSelector =
     !isThemeWorkbenchVariant && isGeneralResearchTheme(activeTheme);
-  const teamSuggestion =
-    !activeTools["subagent_mode"] && isGeneralResearchTheme(activeTheme)
-      ? getTeamSuggestion({
-          input,
-          activeTheme,
-          subagentEnabled: false,
-        })
-      : null;
-  const shouldRecommendTeamEntry = Boolean(teamSuggestion?.shouldSuggest);
   const currentPendingImages =
     (inputAdapter.state.attachments as MessageImage[] | undefined) ||
     pendingImages;
@@ -177,11 +171,15 @@ export const InputbarComposerSection: React.FC<
         ) : null}
       </>
     ) : undefined;
-  const handleEnableTeamMode = () => {
-    if (!selectedTeam) {
+  const handleToolAction = (tool: string) => {
+    if (
+      tool === "subagent_mode" &&
+      !activeTools["subagent_mode"] &&
+      !selectedTeam
+    ) {
       setTeamSelectorAutoOpenToken((current) => (current ?? 0) + 1);
     }
-    onToolClick("subagent_mode");
+    onToolClick(tool);
   };
 
   if (renderThemeWorkbenchGeneratingPanel) {
@@ -210,11 +208,13 @@ export const InputbarComposerSection: React.FC<
       <CharacterMention
         characters={characters}
         skills={skills}
+        serviceSkills={serviceSkills}
         inputRef={textareaRef}
         value={input}
         onChange={inputAdapter.actions.setText}
         onSelectCharacter={onSelectCharacter}
         onSelectSkill={onSelectSkill}
+        onSelectServiceSkill={onSelectServiceSkill}
         onSelectBuiltinCommand={onSelectBuiltinCommand}
         onNavigateToSettings={onNavigateToSettings}
       />
@@ -226,7 +226,7 @@ export const InputbarComposerSection: React.FC<
         onStop={inputAdapter.actions.stop}
         isLoading={inputAdapter.state.isSending}
         disabled={inputAdapter.state.disabled}
-        onToolClick={onToolClick}
+        onToolClick={handleToolAction}
         activeTools={activeTools}
         executionStrategy={executionStrategy}
         showExecutionStrategy={false}
@@ -282,15 +282,7 @@ export const InputbarComposerSection: React.FC<
                   onPersistCustomTeams={onPersistCustomTeams}
                   onSelectTeam={(team) => onSelectTeam?.(team)}
                 />
-              ) : (
-                <TeamModeEntryButton
-                  selectedTeamLabel={selectedTeam?.label}
-                  dataTestId="team-mode-enable-button"
-                  recommended={shouldRecommendTeamEntry}
-                  hint={teamSuggestion?.reasons?.[0]}
-                  onClick={handleEnableTeamMode}
-                />
-              )
+              ) : null
             ) : null}
             <InputbarModelExtra
               isFullscreen={isFullscreen}

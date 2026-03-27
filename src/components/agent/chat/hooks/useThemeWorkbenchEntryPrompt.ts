@@ -25,6 +25,7 @@ interface UseThemeWorkbenchEntryPromptOptions {
   contentId?: string;
   sessionId?: string;
   isThemeWorkbench: boolean;
+  autoRunInitialPromptOnMount: boolean;
   shouldUseCompactThemeWorkbench: boolean;
   messagesCount: number;
   initialDispatchKey: string | null;
@@ -167,6 +168,7 @@ export function useThemeWorkbenchEntryPrompt({
   contentId,
   sessionId,
   isThemeWorkbench,
+  autoRunInitialPromptOnMount,
   shouldUseCompactThemeWorkbench,
   messagesCount,
   initialDispatchKey,
@@ -200,6 +202,7 @@ export function useThemeWorkbenchEntryPrompt({
     const pendingInitialImages = initialUserImages || [];
     if (
       !isThemeWorkbench ||
+      autoRunInitialPromptOnMount ||
       !contentId ||
       !initialDispatchKey ||
       !pendingInitialPrompt ||
@@ -235,6 +238,7 @@ export function useThemeWorkbenchEntryPrompt({
     isThemeWorkbench,
     messagesCount,
     onHydrateInitialPrompt,
+    autoRunInitialPromptOnMount,
     shouldUseCompactThemeWorkbench,
   ]);
 

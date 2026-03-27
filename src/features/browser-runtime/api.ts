@@ -9,6 +9,7 @@ import {
   siteGetAdapterInfo,
   siteGetAdapterCatalogStatus,
   siteListAdapters,
+  siteRecommendAdapters,
   siteRunAdapter,
   siteSaveAdapterResult,
   siteSearchAdapters,
@@ -58,6 +59,7 @@ import {
   type SiteAdapterDefinition,
   type SiteAdapterCatalogStatus,
   type SiteAdapterRunResult,
+  type SiteAdapterRecommendation,
 } from "@/lib/webview-api";
 import {
   hasNativeTauriEventSupport,
@@ -90,6 +92,7 @@ export type {
   SavedSiteAdapterContent,
   SiteAdapterDefinition,
   SiteAdapterCatalogStatus,
+  SiteAdapterRecommendation,
   SiteAdapterRunResult,
 };
 
@@ -120,6 +123,7 @@ export const browserRuntimeApi = {
   launchBrowserRuntimeAssist,
   browserExecuteAction,
   siteListAdapters,
+  siteRecommendAdapters,
   siteSearchAdapters,
   siteGetAdapterInfo,
   siteGetAdapterCatalogStatus,

@@ -48,6 +48,7 @@ docs/test/
 ├── integration-tests.md        # 集成测试指南
 ├── e2e-tests.md               # 浏览器续测与 E2E 总览
 ├── agent-evaluation.md        # Agent 评估指南（核心文档）
+├── harness-evals.md           # Harness eval 任务集与 runner 入口
 └── test-cases/                # 测试用例模板
     ├── converter-tests.md     # 协议转换器测试用例
     ├── provider-tests.md      # Provider 测试用例
@@ -56,17 +57,18 @@ docs/test/
 
 ## 文档索引
 
-| 文档                                                             | 说明                       | 适用场景                              |
-| ---------------------------------------------------------------- | -------------------------- | ------------------------------------- |
-| [testing-strategy-2026.md](testing-strategy-2026.md)             | 当前 Lime 测试体系建设建议 | 建立分层门禁、规划演进                |
-| [unit-tests.md](unit-tests.md)                                   | 单元测试指南               | 独立模块测试                          |
-| [integration-tests.md](integration-tests.md)                     | 集成测试指南               | 模块间协作测试                        |
-| [e2e-tests.md](e2e-tests.md)                                     | 当前浏览器续测与 E2E 入口  | Playwright MCP / DevBridge 主路径验证 |
-| [../aiprompts/playwright-e2e.md](../aiprompts/playwright-e2e.md) | 浏览器续测详细事实源       | 继续测试、复现、控制台与 Bridge 排障  |
-| [agent-evaluation.md](agent-evaluation.md)                       | Agent 评估指南             | AI Agent 行为评估                     |
-| [test-cases/converter-tests.md](test-cases/converter-tests.md)   | 转换器测试用例             | OpenAI ↔ Claude 转换                  |
-| [test-cases/provider-tests.md](test-cases/provider-tests.md)     | Provider 测试用例          | OAuth 和 API 调用                     |
-| [test-cases/agent-tests.md](test-cases/agent-tests.md)           | Agent 测试用例             | Aster Agent 集成                      |
+| 文档                                                             | 说明                         | 适用场景                              |
+| ---------------------------------------------------------------- | ---------------------------- | ------------------------------------- |
+| [testing-strategy-2026.md](testing-strategy-2026.md)             | 当前 Lime 测试体系建设建议   | 建立分层门禁、规划演进                |
+| [unit-tests.md](unit-tests.md)                                   | 单元测试指南                 | 独立模块测试                          |
+| [integration-tests.md](integration-tests.md)                     | 集成测试指南                 | 模块间协作测试                        |
+| [e2e-tests.md](e2e-tests.md)                                     | 当前浏览器续测与 E2E 入口    | Playwright MCP / DevBridge 主路径验证 |
+| [../aiprompts/playwright-e2e.md](../aiprompts/playwright-e2e.md) | 浏览器续测详细事实源         | 继续测试、复现、控制台与 Bridge 排障  |
+| [agent-evaluation.md](agent-evaluation.md)                       | Agent 评估指南               | AI Agent 行为评估                     |
+| [harness-evals.md](harness-evals.md)                             | Harness eval 任务集与 runner | Replay 样本、grader、nightly 摘要     |
+| [test-cases/converter-tests.md](test-cases/converter-tests.md)   | 转换器测试用例               | OpenAI ↔ Claude 转换                  |
+| [test-cases/provider-tests.md](test-cases/provider-tests.md)     | Provider 测试用例            | OAuth 和 API 调用                     |
+| [test-cases/agent-tests.md](test-cases/agent-tests.md)           | Agent 测试用例               | Aster Agent 集成                      |
 
 ## 快速开始
 
@@ -104,6 +106,24 @@ npm run bridge:health -- --timeout-ms 120000
 
 ```bash
 npm run smoke:workspace-ready
+```
+
+### 运行 Harness eval 摘要
+
+```bash
+npm run harness:eval
+```
+
+### 提升工作区 Replay 为仓库样本
+
+```bash
+npm run harness:eval:promote -- --session-id "session-123" --slug "pending-request-runtime"
+```
+
+### 运行 Harness eval 趋势报告
+
+```bash
+npm run harness:eval:trend
 ```
 
 ### 当前浏览器续测入口

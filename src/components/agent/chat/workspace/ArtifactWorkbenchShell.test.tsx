@@ -70,13 +70,20 @@ interface MountedShell {
 
 const mountedShells: MountedShell[] = [];
 
-function createArtifactDocumentArtifact(): Artifact {
+function createArtifactDocumentArtifact(
+  options: {
+    status?: "ready" | "archived";
+    currentVersionStatus?: "ready" | "archived";
+  } = {},
+): Artifact {
+  const status = options.status || "ready";
+  const currentVersionStatus = options.currentVersionStatus || status;
   const content = JSON.stringify({
     schemaVersion: "artifact_document.v1",
     artifactId: "artifact-document:demo",
     kind: "analysis",
     title: "董事会季度复盘",
-    status: "ready",
+    status,
     language: "zh-CN",
     summary: "需要优先补齐来源与版本线索。",
     blocks: [
@@ -134,7 +141,7 @@ function createArtifactDocumentArtifact(): Artifact {
           versionNo: 2,
           title: "董事会季度复盘",
           summary: "补齐来源与版本信息",
-          status: "ready",
+          status: currentVersionStatus,
         },
       ],
     },
@@ -267,7 +274,10 @@ function renderShell(
   return container;
 }
 
-function setTextControlValue(element: HTMLInputElement | HTMLTextAreaElement, value: string) {
+function setTextControlValue(
+  element: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+) {
   const descriptor = Object.getOwnPropertyDescriptor(
     element instanceof HTMLInputElement
       ? HTMLInputElement.prototype
@@ -322,9 +332,9 @@ describe("ArtifactWorkbenchShell", () => {
     expect(container.textContent).toContain("差异");
     expect(container.textContent).toContain("更新 block 内容");
 
-    const sourcesTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("来源"),
-    );
+    const sourcesTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("来源"));
     expect(sourcesTrigger).not.toBeUndefined();
 
     await act(async () => {
@@ -343,9 +353,9 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const sourcesTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("来源"),
-    );
+    const sourcesTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("来源"));
     expect(sourcesTrigger).not.toBeUndefined();
 
     await act(async () => {
@@ -377,9 +387,9 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const diffJumpButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("跳到 block"),
-    );
+    const diffJumpButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("跳到 block"));
     expect(diffJumpButton).not.toBeUndefined();
 
     await act(async () => {
@@ -411,9 +421,9 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const bodyBlockTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("正文块 1"),
-    );
+    const bodyBlockTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("正文块 1"));
     expect(bodyBlockTrigger).not.toBeUndefined();
 
     await act(async () => {
@@ -464,6 +474,41 @@ describe("ArtifactWorkbenchShell", () => {
         ]),
       }),
     );
+  });
+
+  it("已归档文档不应继续展示编辑页签", async () => {
+    const container = renderShell(
+      createArtifactDocumentArtifact({
+        status: "archived",
+        currentVersionStatus: "archived",
+      }),
+      {
+        onSaveArtifactDocument: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("编辑"),
+    );
+    expect(editTrigger).toBeUndefined();
+
+    const overviewTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("概览"));
+    expect(overviewTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      overviewTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("已归档");
   });
 
   it("应支持在 workbench 中编辑结构化摘要块并回写 highlights", async () => {
@@ -564,9 +609,9 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const bodyBlockTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("正文块 1"),
-    );
+    const bodyBlockTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("正文块 1"));
     expect(bodyBlockTrigger).not.toBeUndefined();
 
     await act(async () => {
@@ -609,9 +654,9 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const calloutTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("风险提示"),
-    );
+    const calloutTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("风险提示"));
     expect(calloutTrigger).not.toBeUndefined();
 
     await act(async () => {

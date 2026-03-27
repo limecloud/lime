@@ -1,38 +1,42 @@
-## Lime v0.96.0
+## Lime v0.97.0
 
 ### ✨ 主要更新
 
-- **Aster Agent 运行时与 Artifact 工作台继续落主链**：桌面端补齐了新的运行时协议、Artifact 文档处理链路与工作台渲染入口，产物预览、自动持久化、运行态元数据和时间线展示现在统一走同一套事实源
-- **Browser Runtime 新增站点适配器目录与调试能力**：内置站点适配器注册表开始随应用打包，Browser Runtime 可以列出、搜索、调试、执行并保存站点适配结果，为后续站点自动化与内容采集提供统一入口
-- **云端账户与 Provider 消费态完成收口**：设置页新增云端 Offer / 模型目录 / 本地 Provider 的分层视图，OAuth / 会话 / 控制面 bootstrap / 默认来源切换都统一到 OEM Cloud 运行时链路
-- **快捷键与工作区交互体验更完整**：快捷键设置页改成“已审计、已接入、可测试”的目录视图，工作台、终端、文档画布、海报画布与系统能力的可用热键与运行时状态都能集中查看
-- **发布质量入口与 GUI 冒烟主线收敛**：仓库新增 `verify:tasks`、`verify:gui-smoke` 与统一质量工作流，版本发布不再只看静态检查，而是把契约、Bridge 与 GUI 壳准备态一起纳入门槛
+- **Harness 导出链路补齐四类制品**：处理工作台与统一运行时接通 `handoff bundle`、`evidence pack`、`replay case`、`analysis handoff` 导出，支持 pending request 重放、外部诊断交接和问题复盘闭环
+- **Replay Eval / Nightly 骨架进入 current 主线**：仓库新增 `docs/test/harness-evals.*`、固定 replay fixture、`harness-eval-runner`、`harness-eval-trend-report`、`harness-replay-promote` 与 nightly workflow，把 replay 样本、grader 合同和趋势摘要收口到统一入口
+- **Service Skill 到 Automation 的落地链路更完整**：Home Shell、Workspace 与自动化设置页现在可以直接从服务技能创建本地 automation job，保留技能与任务关联，并回填 workspace/content 上下文
+- **Browser Runtime 站点采集继续收口**：站点采集工作台补齐推荐适配器、资料自动选择、目录状态展示和结果回写当前内容/项目的主链，优先复用已连接 Chrome 的真实登录态
+- **Agent Chat 提交流程与处理面板继续瘦身**：slash skill、selected team、session/runtime steady-state 与 Harness 状态面板的交互拆分重组，关键回归测试同步补齐
 
 ### ⚠️ 兼容性说明
 
-- 现网包发布仍由 `v*` tag 触发，`RELEASE_NOTES.md` 会直接作为 GitHub Release 正文；只推 `main` 不会自动出包
-- `src-tauri/Cargo.toml` 中的 `aster-rust` 依赖已同步到 `v0.22.0`；如本地仍在用 `.cargo/config.toml` 覆盖本地 Aster，请确认覆盖版本与本次发布一致
-- 站点适配器目录现在会随桌面端资源一起打包，同时支持服务端同步目录；打包前请确认目标环境允许下发对应的站点脚本与运行时配置
-- 云端 Provider、服务技能目录与站点适配目录都依赖 OEM 控制面 bootstrap；发布到不同品牌/环境前，请确认 `public/oem-runtime-config.js` 已替换为目标环境值
+- 正式发布仍由 `v*` tag 触发 `.github/workflows/release.yml`；`RELEASE_NOTES.md` 会直接作为 GitHub Release 正文
+- 本地如果启用了 `.cargo/config.toml` 的 Aster 覆盖，请确认它指向的是干净的 `v0.22.0` 仓库；GitHub Release runner 不会带本地绝对路径覆盖
+- 站点适配器与 Browser Runtime 冒烟现在默认依赖已就绪的 `DevBridge`、浏览器资料和服务端同步目录；发布到目标环境前请确认对应控制面与 Browser Bridge 状态可用
+- Harness 新增 handoff/evidence/replay/analysis 导出后，会在工作区 `.lime/harness/sessions/<session_id>/...` 下沉淀更多制品；如有路径清理策略，请同步评估磁盘与归档规则
 
 ### 🔗 依赖同步
 
-- 应用版本已同步提升到 `v0.96.0`，覆盖 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 与 `src-tauri/tauri.conf.headless.json`
-- Lime 内置的 `aster-rust` 依赖已从 `v0.21.0` 升级到 `v0.22.0`
-- `src-tauri/Cargo.lock` 已随本次 Rust 校验更新，确保发布时依赖解析结果可复现
+- 应用版本已同步提升到 `v0.97.0`，覆盖 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json` 与 `src-tauri/Cargo.lock`
+- 当前仓库声明的 `aster-rust` 依赖仍为 `v0.22.0`；本地覆盖仓库已核对为干净 `v0.22.0` 状态
+- `src-tauri/Cargo.lock` 已随本次 Rust 校验刷新，确保工作区 crate 的版本快照与 `0.97.0` 对齐
 
 ### 🧪 测试
 
-- 发布前执行：`cargo fmt --manifest-path src-tauri/Cargo.toml --all`
 - 发布前执行：`npm run verify:app-version`
-- 发布前执行：`CARGO_TARGET_DIR=/tmp/lime-target-v0.96.0 npm run verify:local`
-- 发布前执行：`CARGO_TARGET_DIR=/tmp/lime-target-v0.96.0 cargo clippy --manifest-path src-tauri/Cargo.toml`
+- 发布前执行：`npm run lint`
+- 发布前执行：`npm run test:contracts`
+- 发布前执行：`cargo fmt --manifest-path src-tauri/Cargo.toml --all`
+- 发布前执行：`CARGO_TARGET_DIR=/tmp/lime-target-v0.97.0 cargo test --manifest-path src-tauri/Cargo.toml`
+- 发布前执行：`CARGO_TARGET_DIR=/tmp/lime-target-v0.97.0 cargo clippy --manifest-path src-tauri/Cargo.toml`
+- 发布前执行：`CARGO_TARGET_DIR=/tmp/lime-target-v0.97.0 npm run verify:gui-smoke -- --timeout-ms 480000`
+- 格式状态：已执行 `cargo fmt --manifest-path src-tauri/Cargo.toml --all`
 
 ### 📝 文档
 
-- 发布说明随 `RELEASE_NOTES.md` 更新，供 GitHub Release 工作流直接读取
-- 工程质量与命令边界文档已同步更新到新的 GUI 冒烟 / 契约 / 版本校验主线
+- 发布说明已切换到 `v0.97.0`，供 GitHub Release 工作流直接读取
+- Harness eval / 工程质量 / 命令边界与 GUI 冒烟相关文档已在当前工作区同步演进
 
 ---
 
-**完整变更**: v0.95.0...v0.96.0
+**完整变更**: v0.96.0...v0.97.0

@@ -24,8 +24,8 @@ use crate::agent_tools::catalog::{
     LIME_CREATE_IMAGE_TASK_TOOL_NAME, LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME,
     LIME_CREATE_TYPESETTING_TASK_TOOL_NAME, LIME_CREATE_URL_PARSE_TASK_TOOL_NAME,
     LIME_CREATE_VIDEO_TASK_TOOL_NAME, LIME_SITE_INFO_TOOL_NAME, LIME_SITE_LIST_TOOL_NAME,
-    LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME, SOCIAL_IMAGE_TOOL_NAME,
-    TOOL_SEARCH_TOOL_NAME,
+    LIME_SITE_RECOMMEND_TOOL_NAME, LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME,
+    SOCIAL_IMAGE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME,
 };
 #[cfg(test)]
 use crate::agent_tools::execution::build_workspace_shell_allow_pattern;
@@ -301,6 +301,8 @@ pub(crate) use browser_assist::{
 #[allow(unused_imports)]
 pub(crate) use command_api::{
     agent_runtime_close_subagent, agent_runtime_compact_session, agent_runtime_create_session,
+    agent_runtime_export_analysis_handoff, agent_runtime_export_evidence_pack,
+    agent_runtime_export_handoff_bundle, agent_runtime_export_replay_case,
     agent_runtime_get_session, agent_runtime_get_thread_read, agent_runtime_get_tool_inventory,
     agent_runtime_interrupt_turn, agent_runtime_list_sessions, agent_runtime_promote_queued_turn,
     agent_runtime_remove_queued_turn, agent_runtime_replay_request, agent_runtime_resume_subagent,
@@ -309,21 +311,23 @@ pub(crate) use command_api::{
     aster_agent_configure_from_pool, aster_agent_configure_provider, aster_agent_init,
     aster_agent_reset, aster_agent_status,
 };
+#[allow(unused_imports)]
 pub(crate) use dto::{
     build_incidents, build_last_outcome, build_pending_requests, AgentRuntimeActionType,
     AgentRuntimeCloseSubagentRequest, AgentRuntimeCloseSubagentResponse,
-    AgentRuntimeCompactSessionRequest, AgentRuntimeIncidentView, AgentRuntimeInterruptTurnRequest,
-    AgentRuntimeOutcomeView, AgentRuntimePromoteQueuedTurnRequest,
-    AgentRuntimeRemoveQueuedTurnRequest, AgentRuntimeReplayRequestRequest,
-    AgentRuntimeReplayedActionRequiredView, AgentRuntimeRequestView,
-    AgentRuntimeRespondActionRequest, AgentRuntimeResumeSubagentRequest,
+    AgentRuntimeCompactSessionRequest, AgentRuntimeDiagnosticPendingRequestSample,
+    AgentRuntimeDiagnosticWarningSample, AgentRuntimeIncidentView,
+    AgentRuntimeInterruptTurnRequest, AgentRuntimeOutcomeView,
+    AgentRuntimePromoteQueuedTurnRequest, AgentRuntimeRemoveQueuedTurnRequest,
+    AgentRuntimeReplayRequestRequest, AgentRuntimeReplayedActionRequiredView,
+    AgentRuntimeRequestView, AgentRuntimeRespondActionRequest, AgentRuntimeResumeSubagentRequest,
     AgentRuntimeResumeSubagentResponse, AgentRuntimeResumeThreadRequest,
     AgentRuntimeSendSubagentInputRequest, AgentRuntimeSendSubagentInputResponse,
     AgentRuntimeSessionDetail, AgentRuntimeSpawnSubagentRequest, AgentRuntimeSpawnSubagentResponse,
-    AgentRuntimeSubmitTurnRequest, AgentRuntimeThreadReadModel, AgentRuntimeToolInventoryRequest,
-    AgentRuntimeUpdateSessionRequest, AgentRuntimeWaitSubagentsRequest,
-    AgentRuntimeWaitSubagentsResponse, AsterAgentStatus, AsterChatRequest, AutoContinuePayload,
-    ConfigureFromPoolRequest, ConfigureProviderRequest,
+    AgentRuntimeSubmitTurnRequest, AgentRuntimeThreadDiagnostics, AgentRuntimeThreadReadModel,
+    AgentRuntimeToolInventoryRequest, AgentRuntimeUpdateSessionRequest,
+    AgentRuntimeWaitSubagentsRequest, AgentRuntimeWaitSubagentsResponse, AsterAgentStatus,
+    AsterChatRequest, AutoContinuePayload, ConfigureFromPoolRequest, ConfigureProviderRequest,
 };
 pub(crate) use mcp_bridge::{ensure_lime_mcp_servers_running, inject_mcp_extensions};
 #[cfg(test)]
@@ -351,9 +355,15 @@ use run_metadata::{
     resolve_social_run_artifact_descriptor,
 };
 pub(crate) use runtime_turn::{build_queued_turn_task, build_runtime_queue_executor};
+#[cfg(test)]
+pub(crate) use runtime_turn::{
+    resolve_request_web_search_preference_from_sources, resolve_workspace_id_from_sources,
+};
 pub(crate) use session_runtime::{
     delete_runtime_session_internal, persist_session_provider_routing,
-    resolve_session_provider_selector,
+    resolve_recent_preference_from_sources, resolve_session_provider_selector,
+    resolve_session_recent_harness_context, resolve_session_recent_preferences,
+    resolve_session_recent_team_selection, SessionRecentHarnessContext,
 };
 pub(crate) use subagent_runtime::{
     agent_runtime_close_subagent_internal, agent_runtime_resume_subagent_internal,

@@ -67,6 +67,12 @@ import {
   AutomationJobDialogSubmit,
   type AutomationJobDialogInitialValues,
 } from "./AutomationJobDialog";
+import {
+  mergeAutomationServiceSkillContexts,
+  resolveServiceSkillAutomationContext,
+  resolveServiceSkillContextFromMetadataRecord,
+  type AutomationServiceSkillContext,
+} from "./serviceSkillContext";
 import type { AutomationWorkspaceTab } from "@/types/page";
 
 function formatTime(value?: string | null): string {
@@ -432,6 +438,45 @@ function deliveryToneClass(
     : "border-rose-200 bg-rose-50/80 text-rose-700";
 }
 
+function describeServiceSkillTaskLine(
+  serviceSkillContext: AutomationServiceSkillContext,
+): string {
+  return `服务项: ${serviceSkillContext.title}`;
+}
+
+function describeServiceSkillSlotPreview(
+  serviceSkillContext: AutomationServiceSkillContext,
+  limit: number = 2,
+): string | null {
+  const preview = serviceSkillContext.slotSummary
+    .slice(0, limit)
+    .map((item) => `${item.label}: ${item.value}`);
+  if (preview.length > 0) {
+    const suffix =
+      serviceSkillContext.slotSummary.length > limit
+        ? ` 等 ${serviceSkillContext.slotSummary.length} 项`
+        : "";
+    return `${preview.join(" · ")}${suffix}`;
+  }
+
+  if (serviceSkillContext.userInput) {
+    return serviceSkillContext.userInput;
+  }
+
+  return null;
+}
+
+function resolveRunServiceSkillContext(
+  run: AgentRun,
+  fallbackContext: AutomationServiceSkillContext | null,
+): AutomationServiceSkillContext | null {
+  const metadata = parseRunMetadata(run);
+  const runContext = metadata
+    ? resolveServiceSkillContextFromMetadataRecord(metadata)
+    : null;
+  return mergeAutomationServiceSkillContexts(runContext, fallbackContext);
+}
+
 type AutomationWorkspaceTemplate = {
   id: string;
   tag: string;
@@ -565,6 +610,21 @@ export function AutomationSettings({
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? null,
     [jobs, selectedJobId],
+  );
+  const serviceSkillContextByJobId = useMemo(() => {
+    const mapping = new Map<string, AutomationServiceSkillContext>();
+    jobs.forEach((job) => {
+      const context = resolveServiceSkillAutomationContext(job.payload);
+      if (context) {
+        mapping.set(job.id, context);
+      }
+    });
+    return mapping;
+  }, [jobs]);
+  const selectedServiceSkillContext = useMemo(
+    () =>
+      selectedJobId ? serviceSkillContextByJobId.get(selectedJobId) ?? null : null,
+    [selectedJobId, serviceSkillContextByJobId],
   );
   const selectedBrowserRun = useMemo(
     () =>
@@ -1189,13 +1249,23 @@ export function AutomationSettings({
                           <TableHead>调度</TableHead>
                           <TableHead>模式</TableHead>
                           <TableHead>状态</TableHead>
-                          <TableHead>下次执行</TableHead>
+                          <TableHead>执行窗口</TableHead>
                           <TableHead className="text-right">操作</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {jobs.map((job) => {
                           const jobDetailMessage = riskyJobMessageMap.get(job.id);
+                          const serviceSkillContext =
+                            serviceSkillContextByJobId.get(job.id) ?? null;
+                          const serviceSkillTaskLine = serviceSkillContext
+                            ? describeServiceSkillTaskLine(serviceSkillContext)
+                            : null;
+                          const serviceSkillSlotPreview = serviceSkillContext
+                            ? describeServiceSkillSlotPreview(
+                                serviceSkillContext,
+                              )
+                            : null;
                           return (
                             <TableRow
                               key={job.id}
@@ -1212,6 +1282,42 @@ export function AutomationSettings({
                                   <div className="max-w-[320px] text-xs leading-5 text-slate-500">
                                     {job.description || "未填写任务描述"}
                                   </div>
+                                  {serviceSkillContext ? (
+                                    <div
+                                      data-testid={`automation-job-service-skill-summary-${job.id}`}
+                                      className="space-y-1.5 pt-1"
+                                    >
+                                      <div className="flex flex-wrap gap-2">
+                                        <Badge
+                                          variant="outline"
+                                          className="border-sky-200 bg-sky-50 text-sky-700"
+                                        >
+                                          服务技能
+                                        </Badge>
+                                        <Badge variant="outline">
+                                          {serviceSkillContext.runnerLabel}
+                                        </Badge>
+                                        <Badge variant="outline">
+                                          {
+                                            serviceSkillContext.executionLocationLabel
+                                          }
+                                        </Badge>
+                                        <Badge variant="outline">
+                                          {serviceSkillContext.sourceLabel}
+                                        </Badge>
+                                      </div>
+                                      {serviceSkillTaskLine ? (
+                                        <div className="max-w-[360px] text-xs leading-5 text-slate-600">
+                                          {serviceSkillTaskLine}
+                                        </div>
+                                      ) : null}
+                                      {serviceSkillSlotPreview ? (
+                                        <div className="max-w-[360px] text-xs leading-5 text-slate-500">
+                                          参数摘要: {serviceSkillSlotPreview}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </TableCell>
                               <TableCell className="align-top text-sm text-slate-500">
@@ -1250,7 +1356,15 @@ export function AutomationSettings({
                                 </div>
                               </TableCell>
                               <TableCell className="align-top text-sm text-slate-500">
-                                {formatTime(job.next_run_at)}
+                                <div
+                                  data-testid={`automation-job-run-window-${job.id}`}
+                                  className="space-y-1"
+                                >
+                                  <div>下次: {formatTime(job.next_run_at)}</div>
+                                  <div className="text-xs text-slate-400">
+                                    最近: {formatTime(job.last_run_at)}
+                                  </div>
+                                </div>
                               </TableCell>
                               <TableCell className="align-top">
                                 <div className="flex justify-end gap-2">
@@ -1382,6 +1496,71 @@ export function AutomationSettings({
                               <div className="mt-2">
                                 {selectedBrowserInfoMessage}
                               </div>
+                            </div>
+                          ) : null}
+                          {selectedServiceSkillContext ? (
+                            <div className="mt-4 rounded-[18px] border border-sky-200/80 bg-sky-50/70 px-4 py-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-sm font-medium text-slate-900">
+                                  服务型技能上下文
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge variant="secondary">
+                                    {selectedServiceSkillContext.runnerLabel}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {
+                                      selectedServiceSkillContext.executionLocationLabel
+                                    }
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+                                <div>
+                                  服务项: {selectedServiceSkillContext.title}
+                                </div>
+                                <div>
+                                  目录来源:{" "}
+                                  {selectedServiceSkillContext.sourceLabel}
+                                </div>
+                                <div>
+                                  工作主题:{" "}
+                                  {selectedServiceSkillContext.theme || "-"}
+                                </div>
+                                <div>
+                                  主稿绑定:{" "}
+                                  {selectedServiceSkillContext.contentId || "-"}
+                                </div>
+                              </div>
+                              {selectedServiceSkillContext.slotSummary.length ? (
+                                <div className="mt-3 rounded-[16px] border border-white/80 bg-white/85 px-3 py-3">
+                                  <div className="text-xs font-medium text-slate-700">
+                                    参数摘要
+                                  </div>
+                                  <div className="mt-2 grid gap-2 text-xs leading-5 text-slate-600 md:grid-cols-2">
+                                    {selectedServiceSkillContext.slotSummary.map(
+                                      (item) => (
+                                        <div key={item.key}>
+                                          <span className="font-medium text-slate-700">
+                                            {item.label}
+                                          </span>
+                                          : {item.value}
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                </div>
+                              ) : null}
+                              {selectedServiceSkillContext.userInput ? (
+                                <div className="mt-3 rounded-[16px] border border-white/80 bg-white/85 px-3 py-3 text-sm leading-6 text-slate-600">
+                                  <div className="text-xs font-medium text-slate-700">
+                                    补充要求
+                                  </div>
+                                  <div className="mt-1">
+                                    {selectedServiceSkillContext.userInput}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                           <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
@@ -1610,6 +1789,23 @@ export function AutomationSettings({
                             jobRuns.map((run) => {
                               const infoMessage = resolveRunInfoMessage(run);
                               const delivery = resolveRunDelivery(run);
+                              const runServiceSkillContext =
+                                resolveRunServiceSkillContext(
+                                  run,
+                                  selectedServiceSkillContext,
+                                );
+                              const runServiceSkillTaskLine =
+                                runServiceSkillContext
+                                  ? describeServiceSkillTaskLine(
+                                      runServiceSkillContext,
+                                    )
+                                  : null;
+                              const runServiceSkillSlotPreview =
+                                runServiceSkillContext
+                                  ? describeServiceSkillSlotPreview(
+                                      runServiceSkillContext,
+                                    )
+                                  : null;
                               return (
                                 <div
                                   key={run.id}
@@ -1639,6 +1835,41 @@ export function AutomationSettings({
                                       {infoMessage}
                                     </div>
                                   ) : null}
+                                  {runServiceSkillContext ? (
+                                    <div
+                                      data-testid={`automation-run-service-skill-summary-${run.id}`}
+                                      className="mt-3 rounded-[16px] border border-sky-200/80 bg-sky-50/70 px-3 py-3"
+                                    >
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <div className="text-xs font-medium text-slate-900">
+                                          服务技能运行上下文
+                                        </div>
+                                        <Badge variant="outline">
+                                          {runServiceSkillContext.runnerLabel}
+                                        </Badge>
+                                        <Badge variant="outline">
+                                          {
+                                            runServiceSkillContext.executionLocationLabel
+                                          }
+                                        </Badge>
+                                      </div>
+                                      {runServiceSkillTaskLine ? (
+                                        <div className="mt-2 text-xs leading-5 text-slate-700">
+                                          {runServiceSkillTaskLine}
+                                        </div>
+                                      ) : null}
+                                      {runServiceSkillSlotPreview ? (
+                                        <div className="mt-1 text-xs leading-5 text-slate-600">
+                                          参数摘要: {runServiceSkillSlotPreview}
+                                        </div>
+                                      ) : null}
+                                      {runServiceSkillContext.userInput ? (
+                                        <div className="mt-1 text-xs leading-5 text-slate-500">
+                                          补充要求: {runServiceSkillContext.userInput}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                   {delivery ? (
                                     <div
                                       className={`mt-3 rounded-[16px] border px-3 py-2 ${deliveryToneClass(
@@ -1665,7 +1896,10 @@ export function AutomationSettings({
                                   ) : null}
                                   {run.error_message ? (
                                     <div className="mt-3 rounded-[16px] border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-600">
-                                      {run.error_message}
+                                      <div className="font-medium">失败原因</div>
+                                      <div className="mt-1">
+                                        {run.error_message}
+                                      </div>
                                     </div>
                                   ) : null}
                                 </div>

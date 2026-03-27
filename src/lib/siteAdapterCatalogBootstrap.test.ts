@@ -4,6 +4,7 @@ import {
   clearSiteAdapterCatalogCache,
   emitSiteAdapterCatalogBootstrap,
   extractSiteAdapterCatalogFromBootstrapPayload,
+  subscribeSiteAdapterCatalogChanged,
   subscribeSiteAdapterCatalogBootstrap,
   syncSiteAdapterCatalogFromBootstrapPayload,
 } from "./siteAdapterCatalogBootstrap";
@@ -130,6 +131,26 @@ describe("siteAdapterCatalogBootstrap", () => {
     }
   });
 
+  it("同步目录成功后应广播目录变更事件", async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeSiteAdapterCatalogChanged(listener);
+
+    try {
+      await syncSiteAdapterCatalogFromBootstrapPayload({
+        siteAdapterCatalog: buildCatalogPayload(),
+      });
+
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          catalog_version: "tenant-sync-1",
+          adapter_count: 1,
+        }),
+      );
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it("非法 payload 不应触发目录同步", async () => {
     const synced = await syncSiteAdapterCatalogFromBootstrapPayload({
       invalid: true,
@@ -140,14 +161,26 @@ describe("siteAdapterCatalogBootstrap", () => {
   });
 
   it("应支持清理本地站点适配器缓存", async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeSiteAdapterCatalogChanged(listener);
     const status = await clearSiteAdapterCatalogCache();
 
-    expect(status).toEqual(
-      expect.objectContaining({
-        exists: false,
-        adapter_count: 0,
-      }),
-    );
-    expect(mockSiteClearAdapterCatalogCache).toHaveBeenCalledTimes(1);
+    try {
+      expect(status).toEqual(
+        expect.objectContaining({
+          exists: false,
+          adapter_count: 0,
+        }),
+      );
+      expect(mockSiteClearAdapterCatalogCache).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          exists: false,
+          adapter_count: 0,
+        }),
+      );
+    } finally {
+      unsubscribe();
+    }
   });
 });

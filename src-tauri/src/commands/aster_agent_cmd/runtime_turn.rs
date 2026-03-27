@@ -56,6 +56,64 @@ fn merge_turn_context_with_artifact_output_schema(
     )
 }
 
+fn normalize_runtime_turn_request_metadata(
+    request: &mut AsterChatRequest,
+    session_recent_theme: Option<&str>,
+    session_recent_session_mode: Option<&str>,
+    session_recent_gate_key: Option<&str>,
+    session_recent_run_title: Option<&str>,
+    session_recent_content_id: Option<&str>,
+) {
+    request.metadata = crate::services::artifact_request_metadata_service::
+        normalize_request_metadata_with_artifact_defaults(
+            request.metadata.take(),
+            session_recent_theme,
+            session_recent_session_mode,
+            session_recent_gate_key,
+            session_recent_run_title,
+            session_recent_content_id,
+        );
+}
+
+pub(crate) fn resolve_workspace_id_from_sources(
+    request_workspace_id: Option<String>,
+    session_workspace_id: Option<String>,
+) -> Option<String> {
+    normalize_optional_text(request_workspace_id)
+        .or_else(|| normalize_optional_text(session_workspace_id))
+}
+
+fn resolve_runtime_turn_workspace_id(
+    db: &DbConnection,
+    request: &AsterChatRequest,
+) -> Result<String, String> {
+    if let Some(workspace_id) =
+        resolve_workspace_id_from_sources(Some(request.workspace_id.clone()), None)
+    {
+        return Ok(workspace_id);
+    }
+
+    let session_workspace_id =
+        AsterAgentWrapper::get_session_sync(db, &request.session_id)?.workspace_id;
+
+    resolve_workspace_id_from_sources(None, session_workspace_id)
+        .ok_or_else(|| "workspace_id 必填，请先选择项目工作区".to_string())
+}
+
+pub(crate) fn resolve_request_web_search_preference_from_sources(
+    request_web_search: Option<bool>,
+    request_metadata: Option<&serde_json::Value>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+) -> Option<bool> {
+    request_web_search.or_else(|| {
+        resolve_recent_preference_from_sources(
+            request_metadata,
+            &["web_search_enabled", "webSearchEnabled"],
+            session_recent_preferences.map(|preferences| preferences.web_search),
+        )
+    })
+}
+
 fn should_skip_artifact_document_autopersist(
     run_observation: &Arc<Mutex<ChatRunObservation>>,
     final_text_output: &str,
@@ -75,6 +133,7 @@ fn should_skip_artifact_document_autopersist(
 
 fn maybe_persist_artifact_document_after_stream(
     app: &AppHandle,
+    db: &DbConnection,
     event_name: &str,
     timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
     run_observation: &Arc<Mutex<ChatRunObservation>>,
@@ -136,6 +195,19 @@ fn maybe_persist_artifact_document_after_stream(
                     },
                 },
             );
+
+            if let Err(error) =
+                crate::services::artifact_document_service::sync_persisted_artifact_document_to_content(
+                    db,
+                    request_metadata,
+                    &persisted,
+                )
+            {
+                tracing::warn!(
+                    "[AsterAgent] ArtifactDocument 已落盘，但同步内容版本状态失败: {}",
+                    error
+                );
+            }
 
             if persisted.repaired || persisted.status == "failed" {
                 let (code, prefix) = if persisted.status == "failed" {
@@ -218,20 +290,49 @@ async fn execute_aster_chat_request(
     {
         request.provider_config = Some(resolved_provider_config);
     }
+    let should_resolve_session_recent_harness_context = extract_harness_string(
+        request.metadata.as_ref(),
+        &["theme", "harness_theme", "harnessTheme"],
+    )
+    .is_none()
+        || extract_harness_string(request.metadata.as_ref(), &["session_mode", "sessionMode"])
+            .is_none()
+        || extract_harness_string(request.metadata.as_ref(), &["gate_key", "gateKey"]).is_none()
+        || extract_harness_string(
+            request.metadata.as_ref(),
+            &["run_title", "runTitle", "title"],
+        )
+        .is_none()
+        || extract_harness_string(request.metadata.as_ref(), &["content_id", "contentId"])
+            .is_none();
+    let session_recent_harness_context = if should_resolve_session_recent_harness_context {
+        resolve_session_recent_harness_context(&request.session_id).await?
+    } else {
+        SessionRecentHarnessContext::default()
+    };
+    normalize_runtime_turn_request_metadata(
+        &mut request,
+        session_recent_harness_context.theme.as_deref(),
+        session_recent_harness_context.session_mode.as_deref(),
+        session_recent_harness_context.gate_key.as_deref(),
+        session_recent_harness_context.run_title.as_deref(),
+        session_recent_harness_context.content_id.as_deref(),
+    );
 
     // 直接使用前端传递的 session_id
     // LimeSessionStore 会在 add_message 时自动创建不存在的 session
     // 同时 get_session 也会自动创建不存在的 session
     let session_id = &request.session_id;
 
-    let workspace_id = request.workspace_id.trim().to_string();
-    if workspace_id.is_empty() {
-        let message = "workspace_id 必填，请先选择项目工作区".to_string();
-        logs.write()
-            .await
-            .add("error", &format!("[AsterAgent] {}", message));
-        return Err(message);
-    }
+    let workspace_id = match resolve_runtime_turn_workspace_id(db, &request) {
+        Ok(workspace_id) => workspace_id,
+        Err(message) => {
+            logs.write()
+                .await
+                .add("error", &format!("[AsterAgent] {}", message));
+            return Err(message);
+        }
+    };
 
     let manager = WorkspaceManager::new(db.clone());
     let workspace = match manager.get(&workspace_id) {
@@ -336,12 +437,19 @@ async fn execute_aster_chat_request(
         );
     }
 
+    let session_recent_preferences = resolve_session_recent_preferences(session_id).await?;
+    let session_recent_team_selection = resolve_session_recent_team_selection(session_id).await?;
     let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
     let mode_default_web_search = default_web_search_enabled_for_chat_mode(runtime_chat_mode);
+    let resolved_request_web_search = resolve_request_web_search_preference_from_sources(
+        request.web_search,
+        request.metadata.as_ref(),
+        session_recent_preferences.as_ref(),
+    );
     let (request_web_search, request_search_mode) =
         apply_browser_requirement_to_request_tool_policy(
             request.metadata.as_ref(),
-            request.web_search,
+            resolved_request_web_search,
             request.search_mode,
         );
 
@@ -497,6 +605,15 @@ async fn execute_aster_chat_request(
     let prompt_with_team_preference = merge_system_prompt_with_team_preference(
         prompt_with_elicitation,
         request.metadata.as_ref(),
+        session_recent_team_selection.as_ref(),
+        resolve_recent_preference_from_sources(
+            request.metadata.as_ref(),
+            &["subagent_mode_enabled", "subagentModeEnabled"],
+            session_recent_preferences
+                .as_ref()
+                .map(|preferences| preferences.subagent),
+        )
+        .unwrap_or(false),
     );
     turn_input_builder.apply_prompt_stage(
         TurnPromptAugmentationStageKind::TeamPreference,
@@ -698,8 +815,6 @@ async fn execute_aster_chat_request(
     let tracker = ExecutionTracker::new(db.clone());
     let cancel_token = state.create_cancel_token(session_id).await;
     let auto_continue_metadata = auto_continue_config.clone();
-    request.metadata = crate::services::artifact_request_metadata_service::
-        normalize_request_metadata_with_artifact_defaults(request.metadata.take());
     let request_metadata = request.metadata.clone();
     sync_browser_assist_runtime_hint(session_id, request_metadata.as_ref()).await;
     let model_skill_tool_enabled = should_enable_model_skill_tool(request_metadata.as_ref());
@@ -768,6 +883,7 @@ async fn execute_aster_chat_request(
         &request_tool_policy,
         auto_continue_enabled,
         auto_continue_metadata.as_ref(),
+        session_recent_preferences.as_ref(),
     );
     if let Ok(session_state_value) = serde_json::to_value(&session_state_snapshot) {
         run_start_metadata.insert("session_state".to_string(), session_state_value);
@@ -830,7 +946,9 @@ async fn execute_aster_chat_request(
             .provider_config
             .as_ref()
             .map(|config| config.model_name.as_str()),
-    );
+        session_recent_preferences.as_ref(),
+    )
+    .await?;
     for status in [initial_runtime_status, decided_runtime_status] {
         emit_runtime_status_with_projection(
             agent,
@@ -936,6 +1054,7 @@ async fn execute_aster_chat_request(
                     Ok(execution) => {
                         maybe_persist_artifact_document_after_stream(
                             &app,
+                            db,
                             &request.event_name,
                             &timeline_recorder,
                             &run_observation,
@@ -1026,6 +1145,7 @@ async fn execute_aster_chat_request(
                         .map(|execution| {
                             maybe_persist_artifact_document_after_stream(
                                 &app,
+                                db,
                                 &request.event_name,
                                 &timeline_recorder,
                                 &run_observation,
@@ -1813,6 +1933,7 @@ mod tests {
     use lime_core::database::schema::create_tables;
     use lime_services::aster_session_store::LimeSessionStore;
     use rusqlite::Connection;
+    use serde_json::{json, Value};
     use std::fs;
     use tokio::sync::OnceCell;
 
@@ -1837,6 +1958,270 @@ mod tests {
                 .expect("初始化测试 session manager 失败");
         })
         .await;
+    }
+
+    #[test]
+    fn normalize_runtime_turn_request_metadata_should_enable_artifact_prompt_before_turn_build() {
+        let mut request = AsterChatRequest {
+            message: "请基于目标先生成一版演示提纲".to_string(),
+            session_id: "session-artifact".to_string(),
+            event_name: "agent_stream".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            project_id: None,
+            workspace_id: "workspace-artifact".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(json!({
+                "harness": {
+                    "theme": "document",
+                    "session_mode": "theme_workbench",
+                    "content_id": "content-1"
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        let raw_prompt = merge_system_prompt_with_artifact_context(
+            Some("基础系统提示".to_string()),
+            request.metadata.as_ref(),
+        )
+        .expect("raw prompt");
+        assert!(!raw_prompt.contains("【Artifact 交付策略】"));
+
+        normalize_runtime_turn_request_metadata(&mut request, None, None, None, None, None);
+
+        let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
+        assert_eq!(
+            normalized_metadata
+                .pointer("/artifact/artifact_mode")
+                .and_then(Value::as_str),
+            Some("draft")
+        );
+
+        let prompt = merge_system_prompt_with_artifact_context(
+            Some("基础系统提示".to_string()),
+            Some(normalized_metadata),
+        )
+        .expect("normalized prompt");
+        assert!(prompt.contains("【Artifact 交付策略】"));
+        assert!(prompt.contains("【Artifact Stage 2 合同】"));
+        assert!(prompt.contains("artifact:content-1"));
+
+        let mut turn_input_builder =
+            TurnInputEnvelopeBuilder::new(&request.session_id, &request.workspace_id);
+        turn_input_builder
+            .set_base_system_prompt(
+                TurnSystemPromptSource::Frontend,
+                Some("基础系统提示".to_string()),
+            )
+            .set_turn_context_metadata_from_value(request.metadata.as_ref())
+            .set_effective_user_message(&request.message)
+            .apply_prompt_stage(TurnPromptAugmentationStageKind::Artifact, Some(prompt));
+
+        let envelope = turn_input_builder.build();
+        let diagnostics = envelope.diagnostics_snapshot();
+        let turn_context = envelope.turn_context_override().expect("turn context");
+
+        assert!(diagnostics.has_turn_context_metadata);
+        assert!(diagnostics
+            .turn_context_metadata_keys
+            .contains(&"artifact".to_string()));
+        assert_eq!(
+            turn_context
+                .metadata
+                .get("artifact")
+                .and_then(|artifact| artifact.get("artifact_stage"))
+                .and_then(Value::as_str),
+            Some("stage2")
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_turn_request_metadata_should_backfill_content_id_from_session_runtime() {
+        let mut request = AsterChatRequest {
+            message: "继续完善当前文档".to_string(),
+            session_id: "session-artifact-content-fallback".to_string(),
+            event_name: "agent_stream".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            project_id: None,
+            workspace_id: "workspace-artifact".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(json!({
+                "harness": {
+                    "theme": "document",
+                    "session_mode": "theme_workbench"
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        normalize_runtime_turn_request_metadata(
+            &mut request,
+            Some("document"),
+            Some("theme_workbench"),
+            None,
+            None,
+            Some("content-from-session"),
+        );
+
+        let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/theme")
+                .and_then(Value::as_str),
+            Some("document")
+        );
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/session_mode")
+                .and_then(Value::as_str),
+            Some("theme_workbench")
+        );
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/content_id")
+                .and_then(Value::as_str),
+            Some("content-from-session")
+        );
+        assert_eq!(
+            normalized_metadata
+                .pointer("/artifact/artifact_request_id")
+                .and_then(Value::as_str),
+            Some("artifact:content-from-session")
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_turn_request_metadata_should_backfill_theme_and_session_mode_from_session_runtime(
+    ) {
+        let mut request = AsterChatRequest {
+            message: "继续推进当前主题工作台".to_string(),
+            session_id: "session-artifact-theme-fallback".to_string(),
+            event_name: "agent_stream".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            project_id: None,
+            workspace_id: "workspace-artifact".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(json!({
+                "harness": {
+                    "content_id": "content-from-session"
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        normalize_runtime_turn_request_metadata(
+            &mut request,
+            Some("social-media"),
+            Some("theme_workbench"),
+            None,
+            None,
+            Some("content-from-session"),
+        );
+
+        let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/theme")
+                .and_then(Value::as_str),
+            Some("social-media")
+        );
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/session_mode")
+                .and_then(Value::as_str),
+            Some("theme_workbench")
+        );
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/content_id")
+                .and_then(Value::as_str),
+            Some("content-from-session")
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_turn_request_metadata_should_backfill_gate_key_and_run_title_from_session_runtime(
+    ) {
+        let mut request = AsterChatRequest {
+            message: "继续当前社媒运行".to_string(),
+            session_id: "session-social-gate-fallback".to_string(),
+            event_name: "agent_stream".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            project_id: None,
+            workspace_id: "workspace-social".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(json!({
+                "harness": {
+                    "theme": "social-media",
+                    "session_mode": "theme_workbench",
+                    "content_id": "content-social-1"
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        normalize_runtime_turn_request_metadata(
+            &mut request,
+            Some("social-media"),
+            Some("theme_workbench"),
+            Some("write_mode"),
+            Some("社媒初稿"),
+            Some("content-social-1"),
+        );
+
+        let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/gate_key")
+                .and_then(Value::as_str),
+            Some("write_mode")
+        );
+        assert_eq!(
+            normalized_metadata
+                .pointer("/harness/run_title")
+                .and_then(Value::as_str),
+            Some("社媒初稿")
+        );
     }
 
     #[tokio::test]

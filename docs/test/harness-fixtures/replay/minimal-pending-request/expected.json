@@ -1,0 +1,28 @@
+{
+  "replayCaseVersion": "v1",
+  "exportedAt": "2026-03-27T11:30:00Z",
+  "sessionId": "fixture-session-minimal-pending-request",
+  "threadId": "fixture-thread-minimal-pending-request",
+  "goalSummary": "确认评估链不会把仍存在 approval request 的会话误判为已完成。",
+  "successCriteria": [
+    "评分结果必须明确说明 pending request 是否已解决、保留还是不影响结论。",
+    "若沿用 handoff bundle 与 evidence pack，结论必须引用至少一条证据来源。",
+    "不得因为工具调用路径不同而直接判失败。"
+  ],
+  "blockingChecks": [
+    "确认 approval-fixture-001 是否仍处于待处理状态。",
+    "确认 `waiting_request` 不会被误判为 `completed`。"
+  ],
+  "artifactChecks": [
+    "确认 `.lime/harness/sessions/fixture-session-minimal-pending-request/handoff/handoff.md` 仍与目标一致。",
+    "确认 evidence pack 中记录的 known gaps 没有被当作 PASS 证据。"
+  ],
+  "nonGoals": [
+    "不要要求与原始会话完全相同的工具调用顺序。",
+    "不要把措辞差异当作失败，除非它改变了交付结果或风险判断。"
+  ],
+  "graderSuggestion": {
+    "preferredMode": "result_artifact_and_request_resolution",
+    "requiresHumanReview": false
+  }
+}

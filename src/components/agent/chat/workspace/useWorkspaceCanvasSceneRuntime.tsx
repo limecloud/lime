@@ -42,7 +42,9 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   projectRootPath: CanvasPreviewPresentationParams["defaultPreview"]["workspaceRoot"];
   generalCanvasState: CanvasPreviewPresentationParams["defaultPreview"]["generalCanvasState"];
   setGeneralCanvasState: Dispatch<
-    SetStateAction<CanvasPreviewPresentationParams["defaultPreview"]["generalCanvasState"]>
+    SetStateAction<
+      CanvasPreviewPresentationParams["defaultPreview"]["generalCanvasState"]
+    >
   >;
   currentCanvasArtifact: ArtifactPreviewParams["currentCanvasArtifact"];
   displayedCanvasArtifact: ArtifactPreviewParams["displayedCanvasArtifact"];
@@ -55,6 +57,7 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   artifactPreviewSize: ArtifactPreviewParams["artifactPreviewSize"];
   setArtifactPreviewSize: ArtifactPreviewParams["onArtifactPreviewSizeChange"];
   onSaveArtifactDocument: ArtifactPreviewParams["onSaveArtifactDocument"];
+  renderArtifactWorkbenchToolbarActions: ArtifactPreviewParams["renderToolbarActions"];
   threadItems: AgentThreadItem[];
   focusedBlockId: string | null;
   blockFocusRequestKey: number;
@@ -112,6 +115,7 @@ export function useWorkspaceCanvasSceneRuntime({
   artifactPreviewSize,
   setArtifactPreviewSize,
   onSaveArtifactDocument,
+  renderArtifactWorkbenchToolbarActions,
   threadItems,
   focusedBlockId,
   blockFocusRequestKey,
@@ -169,13 +173,13 @@ export function useWorkspaceCanvasSceneRuntime({
         currentCanvasArtifact,
         displayedCanvasArtifact,
         artifactOverlay: artifactDisplayState.overlay,
-        showPreviousVersionBadge:
-          artifactDisplayState.showPreviousVersionBadge,
+        showPreviousVersionBadge: artifactDisplayState.showPreviousVersionBadge,
         artifactViewMode,
         onArtifactViewModeChange: setArtifactViewMode,
         artifactPreviewSize,
         onArtifactPreviewSizeChange: setArtifactPreviewSize,
         onSaveArtifactDocument,
+        renderToolbarActions: renderArtifactWorkbenchToolbarActions,
         threadItems,
         focusedBlockId,
         blockFocusRequestKey,

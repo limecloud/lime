@@ -134,6 +134,7 @@ export interface AgentPageParams {
   projectId?: string;
   contentId?: string;
   initialRequestMetadata?: Record<string, unknown>;
+  autoRunInitialPromptOnMount?: boolean;
   /** Agent 入口模式：新建任务或任务中心 */
   agentEntry?: "new-task" | "claw";
   /** 首页沉浸模式提交后透传的首条图片 */
@@ -222,12 +223,26 @@ export interface AutomationPageParams {
   workspaceTab?: AutomationWorkspaceTab;
 }
 
+export interface BrowserRuntimePageParams {
+  projectId?: string;
+  contentId?: string;
+  initialProfileKey?: string;
+  initialSessionId?: string;
+  initialTargetId?: string;
+  initialAdapterName?: string;
+  initialArgs?: Record<string, unknown>;
+  initialAutoRun?: boolean;
+  initialRequireAttachedSession?: boolean;
+  initialSaveTitle?: string;
+}
+
 /**
  * 页面参数联合类型
  */
 export type PageParams =
   | AgentPageParams
   | AutomationPageParams
+  | BrowserRuntimePageParams
   | ProjectDetailPageParams
   | SettingsPageParams
   | OpenClawPageParams

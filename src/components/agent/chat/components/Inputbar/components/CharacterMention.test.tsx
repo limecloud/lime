@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CharacterMention } from "./CharacterMention";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { BuiltinInputCommand } from "./builtinCommands";
 
 vi.mock("sonner", () => ({
@@ -35,29 +37,34 @@ vi.mock("@/components/ui/popover", () => {
       sideOffset?: number;
       onOpenAutoFocus?: (event: Event) => void;
     }
-  >(({
-    children,
-    className,
-    style,
-    side,
-    align,
-    avoidCollisions,
-    sideOffset: _sideOffset,
-    onOpenAutoFocus: _onOpenAutoFocus,
-    ...props
-  }, ref) => (
-    <div
-      ref={ref}
-      className={className}
-      style={style}
-      data-side={side}
-      data-align={align}
-      data-avoid-collisions={String(avoidCollisions)}
-      {...props}
-    >
-      {children}
-    </div>
-  ));
+  >(
+    (
+      {
+        children,
+        className,
+        style,
+        side,
+        align,
+        avoidCollisions,
+        sideOffset: _sideOffset,
+        onOpenAutoFocus: _onOpenAutoFocus,
+        ...props
+      },
+      ref,
+    ) => (
+      <div
+        ref={ref}
+        className={className}
+        style={style}
+        data-side={side}
+        data-align={align}
+        data-avoid-collisions={String(avoidCollisions)}
+        {...props}
+      >
+        {children}
+      </div>
+    ),
+  );
 
   return { Popover, PopoverTrigger, PopoverContent };
 });
@@ -157,19 +164,23 @@ afterEach(() => {
 interface HarnessProps {
   characters?: Character[];
   skills?: Skill[];
+  serviceSkills?: ServiceSkillHomeItem[];
   syncValue?: boolean;
   onNavigateToSettings?: () => void;
   onChangeSpy?: (value: string) => void;
   onSelectBuiltinCommand?: (command: BuiltinInputCommand) => void;
+  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
 }
 
 const Harness: React.FC<HarnessProps> = ({
   characters = [],
   skills = [],
+  serviceSkills = [],
   syncValue = true,
   onNavigateToSettings,
   onChangeSpy,
   onSelectBuiltinCommand,
+  onSelectServiceSkill,
 }) => {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -189,6 +200,7 @@ const Harness: React.FC<HarnessProps> = ({
       <CharacterMention
         characters={characters}
         skills={skills}
+        serviceSkills={serviceSkills}
         inputRef={inputRef}
         value={value}
         onChange={(next) => {
@@ -198,6 +210,7 @@ const Harness: React.FC<HarnessProps> = ({
           }
         }}
         onSelectBuiltinCommand={onSelectBuiltinCommand}
+        onSelectServiceSkill={onSelectServiceSkill}
         onNavigateToSettings={onNavigateToSettings}
       />
     </div>
@@ -256,10 +269,7 @@ async function typeAtAndWait(textarea: HTMLTextAreaElement) {
   });
 }
 
-async function typeSlashAndWait(
-  textarea: HTMLTextAreaElement,
-  value = "/",
-) {
+async function typeSlashAndWait(textarea: HTMLTextAreaElement, value = "/") {
   await act(async () => {
     await import("./CharacterMentionPanel");
   });
@@ -302,6 +312,37 @@ function createCharacter(name: string): Character {
   };
 }
 
+function createServiceSkill(
+  overrides: Partial<ServiceSkillHomeItem> = {},
+): ServiceSkillHomeItem {
+  return {
+    id: "daily-trend-briefing",
+    title: "每日趋势摘要",
+    summary: "围绕指定平台与关键词输出趋势摘要。",
+    entryHint: "把平台和关键词给我，我先整理一份趋势报告。",
+    aliases: ["趋势报告", "热点摘要"],
+    category: "社媒运营",
+    outputHint: "趋势摘要 + 调度建议",
+    source: "cloud_catalog",
+    runnerType: "scheduled",
+    defaultExecutorBinding: "automation_job",
+    executionLocation: "client_default",
+    slotSchema: [],
+    surfaceScopes: ["home", "mention", "workspace"],
+    promptTemplateKey: "trend_briefing",
+    version: "seed-v1",
+    badge: "云目录",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "本地计划任务",
+    runnerTone: "sky",
+    runnerDescription: "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
+    actionLabel: "先做方案",
+    automationStatus: null,
+    ...overrides,
+  };
+}
+
 describe("CharacterMention", () => {
   it("输入 @ 当次应弹出提及面板（不依赖受控 value 同步）", async () => {
     const container = renderHarness({
@@ -329,7 +370,8 @@ describe("CharacterMention", () => {
   });
 
   it("提供 onSelectBuiltinCommand 时，选择配图命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand = vi.fn<(command: BuiltinInputCommand) => void>();
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
     const container = renderHarness({
       onSelectBuiltinCommand,
     });
@@ -337,9 +379,9 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    const builtinButton = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("@配图"),
-    );
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@配图"));
     expect(builtinButton).toBeTruthy();
 
     act(() => {
@@ -354,6 +396,84 @@ describe("CharacterMention", () => {
     );
   });
 
+  it("服务技能应出现在 @ 面板里", async () => {
+    const container = renderHarness({
+      serviceSkills: [
+        createServiceSkill(),
+        createServiceSkill({
+          id: "carousel-post-replication",
+          title: "复制轮播帖",
+          entryHint: "拆结构并输出一版可继续改的轮播帖。",
+          aliases: ["轮播帖", "小红书轮播"],
+          runnerType: "instant",
+          defaultExecutorBinding: "agent_turn",
+          runnerLabel: "本地即时执行",
+          runnerTone: "emerald",
+          runnerDescription: "客户端起步版可直接进入工作区执行。",
+          actionLabel: "填写参数",
+          promptTemplateKey: "replication",
+        }),
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    expect(document.body.textContent).toContain("服务技能");
+    expect(document.body.textContent).toContain("每日趋势摘要");
+    expect(document.body.textContent).toContain("复制轮播帖");
+  });
+
+  it("服务技能过滤应支持命中别名", () => {
+    const filtered = filterMentionableServiceSkills(
+      [
+        createServiceSkill(),
+        createServiceSkill({
+          id: "carousel-post-replication",
+          title: "复制轮播帖",
+          aliases: ["轮播帖", "小红书轮播"],
+          runnerType: "instant",
+          defaultExecutorBinding: "agent_turn",
+          runnerLabel: "本地即时执行",
+          runnerTone: "emerald",
+          runnerDescription: "客户端起步版可直接进入工作区执行。",
+          actionLabel: "填写参数",
+          promptTemplateKey: "replication",
+        }),
+      ],
+      "轮播",
+    );
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("carousel-post-replication");
+  });
+
+  it("提供 onSelectServiceSkill 时，选择服务技能应交给父组件接管", async () => {
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const serviceSkill = createServiceSkill();
+    const container = renderHarness({
+      serviceSkills: [serviceSkill],
+      onSelectServiceSkill,
+      onChangeSpy,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const serviceSkillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("每日趋势摘要"));
+    expect(serviceSkillButton).toBeTruthy();
+
+    act(() => {
+      serviceSkillButton?.click();
+    });
+
+    expect(onChangeSpy).toHaveBeenCalledWith("");
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkill);
+  });
+
   it("未提供 onSelectSkill 时，选择已安装技能应回填到输入框", async () => {
     const onChangeSpy = vi.fn<(value: string) => void>();
     const container = renderHarness({
@@ -364,9 +484,9 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    const skillButton = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("技能A"),
-    );
+    const skillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("技能A"));
     expect(skillButton).toBeTruthy();
 
     act(() => {
@@ -418,9 +538,9 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea, "/ski");
 
-    const skillButton = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("技能A"),
-    );
+    const skillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("技能A"));
     expect(skillButton).toBeTruthy();
 
     act(() => {

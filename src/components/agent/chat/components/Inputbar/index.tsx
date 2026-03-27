@@ -2,6 +2,7 @@ import React from "react";
 import type { MessageImage } from "../../types";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type {
   AsterSessionExecutionRuntime,
   QueuedTurnSnapshot,
@@ -59,10 +60,14 @@ interface InputbarProps {
   characters?: Character[];
   /** 技能列表（用于 @ 引用） */
   skills?: Skill[];
+  /** 服务型技能列表（用于 @ 引用） */
+  serviceSkills?: ServiceSkillHomeItem[];
   /** 技能列表加载状态 */
   isSkillsLoading?: boolean;
   /** 选择角色回调 */
   onSelectCharacter?: (character: Character) => void;
+  /** 选择服务型技能回调 */
+  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   /** 跳转到设置页安装技能 */
   onNavigateToSettings?: () => void;
   /** 导入本地技能 */
@@ -122,8 +127,10 @@ export const Inputbar: React.FC<InputbarProps> = ({
   overlayAccessory,
   characters = [],
   skills = [],
+  serviceSkills = [],
   isSkillsLoading = false,
   onSelectCharacter,
+  onSelectServiceSkill,
   onNavigateToSettings,
   onImportSkill,
   onRefreshSkills,
@@ -248,12 +255,14 @@ export const Inputbar: React.FC<InputbarProps> = ({
         inputAdapter={inputAdapter}
         characters={characters}
         skills={skills}
+        serviceSkills={serviceSkills}
         isSkillsLoading={isSkillsLoading}
         textareaRef={textareaRef}
         input={input}
         activeSkill={activeSkill}
         onSelectCharacter={onSelectCharacter}
         onSelectSkill={setActiveSkill}
+        onSelectServiceSkill={onSelectServiceSkill}
         onSelectBuiltinCommand={setActiveBuiltinCommand}
         onClearSkill={clearActiveSkill}
         onNavigateToSettings={onNavigateToSettings}

@@ -17,6 +17,7 @@ import {
   formatServiceSkillPromptPreview,
   validateServiceSkillSlotValues,
 } from "./promptComposer";
+import { isServiceSkillSiteCapabilityBound } from "./siteCapabilityBinding";
 import { supportsServiceSkillLocalAutomation } from "./automationDraft";
 import type {
   ServiceSkillHomeItem,
@@ -132,11 +133,16 @@ export function ServiceSkillLaunchDialog({
   const canCreateAutomation =
     supportsAutomation && typeof onCreateAutomation === "function";
   const isCloudRequired = skill?.executionLocation === "cloud_required";
+  const isSiteCapabilityBound = !!(
+    skill && isServiceSkillSiteCapabilityBound(skill)
+  );
   const primaryActionLabel = canCreateAutomation
     ? "创建任务并进入工作区"
     : isCloudRequired
       ? "提交云端运行"
-      : "进入工作区";
+      : isSiteCapabilityBound
+        ? "进入浏览器工作台"
+        : "进入工作区";
 
   if (!skill) {
     return null;
@@ -165,7 +171,11 @@ export function ServiceSkillLaunchDialog({
           ) : skill.executionLocation === "cloud_required" ? (
             <div className="mt-2 text-[11px] text-slate-500">
               该任务会直接提交到 OEM
-              云端执行，不会进入本地工作区，也不会创建本地自动化草稿。
+              云端执行；成功后会把结果回流到本地工作区，但不会创建本地自动化草稿。
+            </div>
+          ) : isSiteCapabilityBound ? (
+            <div className="mt-2 text-[11px] text-slate-500">
+              该任务会直接进入浏览器工作台，预填站点脚本参数，并优先复用当前浏览器登录态执行。
             </div>
           ) : null}
         </div>

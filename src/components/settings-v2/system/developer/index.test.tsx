@@ -67,6 +67,25 @@ const {
   mockExtractServiceSkillCatalogFromBootstrapPayload: vi.fn(),
 }));
 
+const {
+  mockClearSiteAdapterCatalogCache,
+  mockEmitSiteAdapterCatalogBootstrap,
+  mockExtractSiteAdapterCatalogFromBootstrapPayload,
+  mockSubscribeSiteAdapterCatalogChanged,
+} = vi.hoisted(() => ({
+  mockClearSiteAdapterCatalogCache: vi.fn(),
+  mockEmitSiteAdapterCatalogBootstrap: vi.fn(),
+  mockExtractSiteAdapterCatalogFromBootstrapPayload: vi.fn(),
+  mockSubscribeSiteAdapterCatalogChanged: vi.fn(),
+}));
+
+const { mockSiteGetAdapterCatalogStatus, mockSiteListAdapters } = vi.hoisted(
+  () => ({
+    mockSiteGetAdapterCatalogStatus: vi.fn(),
+    mockSiteListAdapters: vi.fn(),
+  }),
+);
+
 vi.mock("@/contexts/ComponentDebugContext", () => ({
   useComponentDebug: mockUseComponentDebug,
 }));
@@ -104,13 +123,27 @@ vi.mock("@/lib/crashDiagnostic", () => ({
   exportCrashDiagnosticToJson: mockExportCrashDiagnosticToJson,
   isClipboardPermissionDeniedError: mockIsClipboardPermissionDeniedError,
   normalizeCrashReportingConfig: mockNormalizeCrashReportingConfig,
-  openCrashDiagnosticDownloadDirectory: mockOpenCrashDiagnosticDownloadDirectory,
+  openCrashDiagnosticDownloadDirectory:
+    mockOpenCrashDiagnosticDownloadDirectory,
 }));
 
 vi.mock("@/lib/serviceSkillCatalogBootstrap", () => ({
   emitServiceSkillCatalogBootstrap: mockEmitServiceSkillCatalogBootstrap,
   extractServiceSkillCatalogFromBootstrapPayload:
     mockExtractServiceSkillCatalogFromBootstrapPayload,
+}));
+
+vi.mock("@/lib/siteAdapterCatalogBootstrap", () => ({
+  clearSiteAdapterCatalogCache: mockClearSiteAdapterCatalogCache,
+  emitSiteAdapterCatalogBootstrap: mockEmitSiteAdapterCatalogBootstrap,
+  extractSiteAdapterCatalogFromBootstrapPayload:
+    mockExtractSiteAdapterCatalogFromBootstrapPayload,
+  subscribeSiteAdapterCatalogChanged: mockSubscribeSiteAdapterCatalogChanged,
+}));
+
+vi.mock("@/lib/webview-api", () => ({
+  siteGetAdapterCatalogStatus: mockSiteGetAdapterCatalogStatus,
+  siteListAdapters: mockSiteListAdapters,
 }));
 
 vi.mock("../shared/ClipboardPermissionGuideCard", () => ({
@@ -156,6 +189,39 @@ const seededCatalog = {
   ],
 };
 
+const siteCatalogStatus = {
+  exists: false,
+  source_kind: "bundled" as const,
+  registry_version: 1,
+  directory: "/tmp/lime/site-adapters/server-synced",
+  adapter_count: 2,
+};
+
+const siteAdapters = [
+  {
+    name: "github/search",
+    domain: "github.com",
+    description: "GitHub 搜索",
+    read_only: true,
+    capabilities: ["search"],
+    input_schema: { type: "object" },
+    example_args: {},
+    example: 'github/search {"query":"lime"}',
+    source_kind: "bundled" as const,
+  },
+  {
+    name: "zhihu/hot",
+    domain: "www.zhihu.com",
+    description: "知乎热榜",
+    read_only: true,
+    capabilities: ["hot"],
+    input_schema: { type: "object" },
+    example_args: {},
+    example: 'zhihu/hot {"limit":10}',
+    source_kind: "bundled" as const,
+  },
+];
+
 const mounted: Mounted[] = [];
 
 function renderComponent(): HTMLDivElement {
@@ -187,7 +253,10 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   return button as HTMLButtonElement;
 }
 
-function findSwitch(container: HTMLElement, ariaLabel: string): HTMLButtonElement {
+function findSwitch(
+  container: HTMLElement,
+  ariaLabel: string,
+): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>(
     `button[aria-label="${ariaLabel}"]`,
   );
@@ -259,7 +328,9 @@ beforeEach(() => {
     },
   });
   mockGetLogs.mockResolvedValue([{ level: "error", message: "boom" }]);
-  mockGetPersistedLogsTail.mockResolvedValue([{ level: "info", message: "ok" }]);
+  mockGetPersistedLogsTail.mockResolvedValue([
+    { level: "info", message: "ok" },
+  ]);
   mockGetServerDiagnostics.mockResolvedValue({ ok: true });
   mockGetLogStorageDiagnostics.mockResolvedValue({ ok: true });
   mockGetWindowsStartupDiagnostics.mockResolvedValue({ ok: true });
@@ -290,6 +361,20 @@ beforeEach(() => {
   mockExtractServiceSkillCatalogFromBootstrapPayload.mockReturnValue(
     remoteCatalog,
   );
+  mockSiteGetAdapterCatalogStatus.mockResolvedValue(siteCatalogStatus);
+  mockSiteListAdapters.mockResolvedValue(siteAdapters);
+  mockClearSiteAdapterCatalogCache.mockResolvedValue(siteCatalogStatus);
+  mockSubscribeSiteAdapterCatalogChanged.mockImplementation(() => vi.fn());
+  mockExtractSiteAdapterCatalogFromBootstrapPayload.mockImplementation(
+    (payload) =>
+      (
+        payload as {
+          siteAdapterCatalog?: {
+            adapters?: unknown[];
+          };
+        }
+      ).siteAdapterCatalog ?? null,
+  );
 });
 
 afterEach(() => {
@@ -316,6 +401,7 @@ describe("DeveloperSettings", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("DEVELOPER DESK");
     expect(text).toContain("服务型技能目录联调");
+    expect(text).toContain("站点脚本目录联调");
     expect(text).toContain("组件视图调试");
     expect(text).toContain("崩溃诊断日志（开发协作）");
     expect(text).toContain("诊断建议");
@@ -376,12 +462,13 @@ describe("DeveloperSettings", () => {
     await flushEffects();
 
     const textarea = findTextarea(container, "服务型技能目录调试输入");
-    expect(textarea.value).toContain("\"tenantId\": \"tenant-demo\"");
+    expect(textarea.value).toContain('"tenantId": "tenant-demo"');
     expect(container.textContent).toContain("已把当前目录写入调试编辑器");
   });
 
   it("输入 JSON 后通过事件注入应调用 bootstrap 桥接", async () => {
     const container = renderComponent();
+    await flushEffects();
     const textarea = findTextarea(container, "服务型技能目录调试输入");
 
     await inputTextarea(
@@ -397,7 +484,9 @@ describe("DeveloperSettings", () => {
     await clickButton(findButton(container, "通过事件注入"));
     await flushEffects();
 
-    expect(mockExtractServiceSkillCatalogFromBootstrapPayload).toHaveBeenCalledWith(
+    expect(
+      mockExtractServiceSkillCatalogFromBootstrapPayload,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         serviceSkillCatalog: expect.objectContaining({
           tenantId: "tenant-demo",
@@ -411,7 +500,9 @@ describe("DeveloperSettings", () => {
         }),
       }),
     );
-    expect(container.textContent).toContain("已通过 bootstrap 事件注入目录：2 项");
+    expect(container.textContent).toContain(
+      "已通过 bootstrap 事件注入目录：2 项",
+    );
   });
 
   it("清空目录缓存后应回退 seeded 目录并展示提示", async () => {
@@ -419,6 +510,7 @@ describe("DeveloperSettings", () => {
     mockGetServiceSkillCatalog.mockResolvedValueOnce(seededCatalog);
 
     const container = renderComponent();
+    await flushEffects();
 
     await clickButton(findButton(container, "清空目录缓存"));
     await flushEffects();
@@ -427,5 +519,121 @@ describe("DeveloperSettings", () => {
     expect(container.textContent).toContain(
       "已清空远端目录缓存，当前回退到 seeded：1 项",
     );
+  });
+
+  it("应展示站点脚本目录摘要", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    expect(container.textContent).toContain("站点脚本目录联调");
+    expect(container.textContent).toContain("应用内置");
+    expect(container.textContent).toContain("github/search");
+    expect(container.textContent).toContain("zhihu/hot");
+  });
+
+  it("输入 JSON 后注入站点脚本目录应调用 bootstrap 桥接", async () => {
+    const container = renderComponent();
+    await flushEffects();
+    const textarea = findTextarea(container, "站点脚本目录调试输入");
+
+    await inputTextarea(
+      textarea,
+      JSON.stringify(
+        {
+          siteAdapterCatalog: {
+            adapters: [{ name: "github/search" }, { name: "zhihu/hot" }],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await clickButton(findButton(container, "注入站点目录"));
+    await flushEffects();
+
+    expect(
+      mockExtractSiteAdapterCatalogFromBootstrapPayload,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        siteAdapterCatalog: expect.objectContaining({
+          adapters: expect.any(Array),
+        }),
+      }),
+    );
+    expect(mockEmitSiteAdapterCatalogBootstrap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        siteAdapterCatalog: expect.objectContaining({
+          adapters: expect.any(Array),
+        }),
+      }),
+    );
+    expect(container.textContent).toContain(
+      "已通过 bootstrap 事件注入站点脚本目录：2 项",
+    );
+  });
+
+  it("清空站点脚本目录缓存后应提示回退到应用内置", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    await clickButton(findButton(container, "清空站点目录缓存"));
+    await flushEffects();
+
+    expect(mockClearSiteAdapterCatalogCache).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain(
+      "已清空站点脚本目录缓存，当前回退到应用内置：2 项",
+    );
+  });
+
+  it("站点目录变更事件后应自动刷新开发页摘要", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    expect(mockSiteGetAdapterCatalogStatus).toHaveBeenCalledTimes(1);
+    expect(mockSiteListAdapters).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("应用内置");
+
+    mockSiteGetAdapterCatalogStatus.mockResolvedValueOnce({
+      exists: true,
+      source_kind: "server_synced",
+      registry_version: 2,
+      directory: "/tmp/lime/site-adapters/server-synced",
+      catalog_version: "tenant-site-2026-03-27",
+      tenant_id: "tenant-demo",
+      synced_at: "2026-03-27T08:00:00.000Z",
+      adapter_count: 1,
+    });
+    mockSiteListAdapters.mockResolvedValueOnce([
+      {
+        name: "bilibili/hot",
+        domain: "www.bilibili.com",
+        description: "B 站热榜",
+        read_only: true,
+        capabilities: ["hot"],
+        input_schema: { type: "object" },
+        example_args: {},
+        example: 'bilibili/hot {"limit":10}',
+        source_kind: "server_synced" as const,
+      },
+    ]);
+
+    const changedListener =
+      mockSubscribeSiteAdapterCatalogChanged.mock.calls[0]?.[0];
+    expect(changedListener).toBeTypeOf("function");
+
+    await act(async () => {
+      changedListener?.({
+        exists: true,
+        source_kind: "server_synced",
+        adapter_count: 1,
+      });
+      await flushEffects();
+    });
+
+    expect(mockSiteGetAdapterCatalogStatus).toHaveBeenCalledTimes(2);
+    expect(mockSiteListAdapters).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain("服务端同步");
+    expect(container.textContent).toContain("bilibili/hot");
+    expect(container.textContent).toContain("tenant-site-2026-03-27");
   });
 });

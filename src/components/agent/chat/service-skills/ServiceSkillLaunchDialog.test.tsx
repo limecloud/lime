@@ -272,6 +272,41 @@ describe("ServiceSkillLaunchDialog", () => {
     );
   });
 
+  it("站点型服务技能应展示浏览器工作台入口文案", async () => {
+    renderDialog({
+      skill: {
+        ...MOCK_SKILL,
+        id: "github-repo-radar",
+        title: "GitHub 仓库线索检索",
+        defaultExecutorBinding: "browser_assist",
+        summary:
+          "复用你当前浏览器里的 GitHub 登录态，直接检索主题仓库并沉淀成结构化线索。",
+        runnerLabel: "浏览器站点执行",
+        runnerDescription:
+          "直接进入浏览器工作台，复用真实登录态执行站点脚本并沉淀结果。",
+        actionLabel: "启动采集",
+        siteCapabilityBinding: {
+          adapterName: "github/search",
+          autoRun: true,
+          saveMode: "current_content",
+          slotArgMap: {
+            reference_video: "query",
+          },
+        },
+      },
+    });
+
+    await flushEffects();
+
+    expect(document.body.textContent).toContain(
+      "该任务会直接进入浏览器工作台，预填站点脚本参数，并优先复用当前浏览器登录态执行。",
+    );
+    const launchButton = document.body.querySelector(
+      '[data-testid="service-skill-launch"]',
+    ) as HTMLButtonElement | null;
+    expect(launchButton?.textContent).toBe("进入浏览器工作台");
+  });
+
   it("云端托管技能应显示云端运行文案且不暴露本地自动化入口", async () => {
     const onLaunch = vi.fn();
     const onCreateAutomation = vi.fn();
@@ -296,7 +331,7 @@ describe("ServiceSkillLaunchDialog", () => {
 
     expect(document.body.textContent).toContain("提交云端运行");
     expect(document.body.textContent).toContain(
-      "不会进入本地工作区，也不会创建本地自动化草稿",
+      "成功后会把结果回流到本地工作区，但不会创建本地自动化草稿",
     );
     expect(
       document.body.querySelector(

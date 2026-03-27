@@ -2,6 +2,8 @@ import { getProviderLabel } from "@/lib/constants/providerMappings";
 import type {
   AsterSessionExecutionRuntime,
   AsterSessionExecutionRuntimePreferences,
+  AsterSessionExecutionRuntimeRecentTeamRole,
+  AsterSessionExecutionRuntimeRecentTeamSelection,
   AsterSessionExecutionRuntimeSource,
   AsterTurnOutputSchemaRuntime,
 } from "@/lib/api/agentExecutionRuntime";
@@ -12,6 +14,12 @@ import type {
 } from "@/lib/api/agentProtocol";
 import type { SessionModelPreference } from "../hooks/agentChatShared";
 import type { ChatToolPreferences } from "./chatToolPreferences";
+import {
+  buildTeamDefinitionSummary,
+  createTeamDefinitionFromPreset,
+  normalizeTeamDefinition,
+  type TeamDefinition,
+} from "./teamDefinitions";
 
 function mergeExecutionRuntime(
   current: AsterSessionExecutionRuntime | null,
@@ -29,6 +37,17 @@ function mergeExecutionRuntime(
     updates.output_schema_runtime ?? current?.output_schema_runtime ?? null;
   const recentPreferences =
     updates.recent_preferences ?? current?.recent_preferences ?? null;
+  const recentTeamSelection =
+    updates.recent_team_selection ?? current?.recent_team_selection ?? null;
+  const recentTheme = updates.recent_theme ?? current?.recent_theme ?? null;
+  const recentSessionMode =
+    updates.recent_session_mode ?? current?.recent_session_mode ?? null;
+  const recentGateKey =
+    updates.recent_gate_key ?? current?.recent_gate_key ?? null;
+  const recentRunTitle =
+    updates.recent_run_title ?? current?.recent_run_title ?? null;
+  const recentContentId =
+    updates.recent_content_id ?? current?.recent_content_id ?? null;
   const mode = updates.mode ?? current?.mode ?? null;
   const latestTurnId = updates.latest_turn_id ?? current?.latest_turn_id ?? null;
   const latestTurnStatus =
@@ -44,7 +63,13 @@ function mergeExecutionRuntime(
     !modelName &&
     !outputSchemaRuntime &&
     !executionStrategy &&
-    !recentPreferences
+    !recentPreferences &&
+    !recentTeamSelection &&
+    !recentTheme &&
+    !recentSessionMode &&
+    !recentGateKey &&
+    !recentRunTitle &&
+    !recentContentId
   ) {
     return null;
   }
@@ -57,6 +82,12 @@ function mergeExecutionRuntime(
     execution_strategy: executionStrategy,
     output_schema_runtime: outputSchemaRuntime,
     recent_preferences: recentPreferences,
+    recent_team_selection: recentTeamSelection,
+    recent_theme: recentTheme,
+    recent_session_mode: recentSessionMode,
+    recent_gate_key: recentGateKey,
+    recent_run_title: recentRunTitle,
+    recent_content_id: recentContentId,
     source,
     mode,
     latest_turn_id: latestTurnId,
@@ -126,6 +157,130 @@ export function createChatToolPreferencesFromExecutionRuntime(
     thinking: thinking ?? false,
     task: task ?? false,
     subagent: subagent ?? false,
+  };
+}
+
+export function createSessionRecentPreferencesFromChatToolPreferences(
+  preferences: ChatToolPreferences,
+): AsterSessionExecutionRuntimePreferences {
+  return {
+    webSearch: preferences.webSearch,
+    thinking: preferences.thinking,
+    task: preferences.task,
+    subagent: preferences.subagent,
+  };
+}
+
+function normalizeRuntimeText(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeRuntimeSkillIds(
+  value?: string[] | null,
+): string[] | undefined {
+  const skillIds =
+    value
+      ?.map((skillId) => normalizeRuntimeText(skillId))
+      .filter((skillId): skillId is string => Boolean(skillId)) || [];
+  return skillIds.length > 0 ? skillIds : undefined;
+}
+
+function createTeamRoleDefinitionsFromRuntimeSelection(
+  roles?: AsterSessionExecutionRuntimeRecentTeamRole[] | null,
+) {
+  return (roles || [])
+    .map((role, index) => {
+      const label = normalizeRuntimeText(role.label) || `角色 ${index + 1}`;
+      const summary =
+        normalizeRuntimeText(role.summary) || `${label}负责当前子任务。`;
+      return {
+        id: normalizeRuntimeText(role.id) || `runtime-role-${index + 1}`,
+        label,
+        summary,
+        profileId: normalizeRuntimeText(role.profileId) || undefined,
+        roleKey: normalizeRuntimeText(role.roleKey) || undefined,
+        skillIds: normalizeRuntimeSkillIds(role.skillIds),
+      };
+    })
+    .filter((role) => role.label.trim().length > 0);
+}
+
+export function createTeamDefinitionFromExecutionRuntimeRecentTeamSelection(
+  selection?: AsterSessionExecutionRuntimeRecentTeamSelection | null,
+): TeamDefinition | null {
+  if (!selection || selection.disabled) {
+    return null;
+  }
+
+  const selectedTeamSource = normalizeRuntimeText(selection.selectedTeamSource);
+  const selectedTeamId = normalizeRuntimeText(selection.selectedTeamId);
+  const preferredTeamPresetId = normalizeRuntimeText(
+    selection.preferredTeamPresetId,
+  );
+
+  if (
+    selectedTeamSource === "builtin" ||
+    (!selectedTeamSource && preferredTeamPresetId)
+  ) {
+    return createTeamDefinitionFromPreset(
+      selectedTeamId || preferredTeamPresetId || "",
+    );
+  }
+
+  const normalizedTeam = normalizeTeamDefinition({
+    id: selectedTeamId || undefined,
+    source:
+      selectedTeamSource === "ephemeral"
+        ? "ephemeral"
+        : selectedTeamSource === "custom"
+          ? "custom"
+          : "custom",
+    label: normalizeRuntimeText(selection.selectedTeamLabel) || "",
+    description:
+      normalizeRuntimeText(selection.selectedTeamDescription) || undefined,
+    theme: normalizeRuntimeText(selection.theme) || undefined,
+    presetId: preferredTeamPresetId || undefined,
+    roles: createTeamRoleDefinitionsFromRuntimeSelection(
+      selection.selectedTeamRoles,
+    ),
+  });
+
+  return normalizedTeam;
+}
+
+export function createSessionRecentTeamSelectionFromTeamDefinition(
+  team: TeamDefinition | null,
+  theme?: string | null,
+): AsterSessionExecutionRuntimeRecentTeamSelection {
+  if (!team) {
+    return {
+      disabled: true,
+      theme: normalizeRuntimeText(theme) || undefined,
+    };
+  }
+
+  return {
+    disabled: false,
+    theme: normalizeRuntimeText(theme) || normalizeRuntimeText(team.theme),
+    preferredTeamPresetId:
+      normalizeRuntimeText(team.presetId) ||
+      (team.source === "builtin" ? normalizeRuntimeText(team.id) : null) ||
+      undefined,
+    selectedTeamId: normalizeRuntimeText(team.id) || undefined,
+    selectedTeamSource: team.source,
+    selectedTeamLabel: normalizeRuntimeText(team.label) || undefined,
+    selectedTeamDescription:
+      normalizeRuntimeText(team.description) || undefined,
+    selectedTeamSummary: buildTeamDefinitionSummary(team) || undefined,
+    selectedTeamRoles: team.roles.map((role) => ({
+      id: normalizeRuntimeText(role.id) || undefined,
+      label: normalizeRuntimeText(role.label) || undefined,
+      summary: normalizeRuntimeText(role.summary) || undefined,
+      profileId: normalizeRuntimeText(role.profileId) || undefined,
+      roleKey: normalizeRuntimeText(role.roleKey) || undefined,
+      skillIds: normalizeRuntimeSkillIds(role.skillIds) || undefined,
+    })),
   };
 }
 

@@ -386,7 +386,7 @@ fn load_site_adapters_from_str(
     document
         .adapters
         .into_iter()
-        .map(|entry| manifest_entry_to_spec(entry, dir, source_kind))
+        .map(|entry| manifest_entry_to_spec(normalize_manifest_entry(entry), dir, source_kind))
         .collect()
 }
 
@@ -427,6 +427,40 @@ fn manifest_entry_to_spec(
         source_kind,
         source_version: entry.source_version,
     })
+}
+
+fn normalize_manifest_entry(mut entry: SiteAdapterManifestEntry) -> SiteAdapterManifestEntry {
+    if should_upgrade_legacy_github_search_entry(&entry) {
+        entry.entry = SiteAdapterEntryManifest::UrlTemplate {
+            template: "https://github.com/search?q={{query|urlencode}}&type=repositories"
+                .to_string(),
+        };
+    }
+
+    entry
+}
+
+fn should_upgrade_legacy_github_search_entry(entry: &SiteAdapterManifestEntry) -> bool {
+    if normalize_site_adapter_name(&entry.name) != "github/search" {
+        return false;
+    }
+
+    let has_query_arg = entry.args.iter().any(|arg| {
+        arg.name == "query" && matches!(arg.arg_type, SiteAdapterArgTypeManifest::String)
+    });
+    if !has_query_arg {
+        return false;
+    }
+
+    matches!(
+        &entry.entry,
+        SiteAdapterEntryManifest::FixedUrl { url }
+            if normalize_fixed_url(url) == "https://github.com/search"
+    )
+}
+
+fn normalize_fixed_url(url: &str) -> String {
+    url.trim().trim_end_matches('/').to_ascii_lowercase()
 }
 
 fn extract_site_adapter_catalog_from_bootstrap_payload<'a>(
@@ -502,7 +536,7 @@ fn write_server_synced_catalog_to_dir(
             format!("写入站点适配器脚本失败 {}: {error}", script_path.display())
         })?;
 
-        adapters.push(SiteAdapterManifestEntry {
+        adapters.push(normalize_manifest_entry(SiteAdapterManifestEntry {
             name: normalize_required_text(&entry.name, "name")?,
             domain: normalize_required_text(&entry.domain, "domain")?,
             description: normalize_required_text(&entry.description, "description")?,
@@ -514,7 +548,7 @@ fn write_server_synced_catalog_to_dir(
             entry: entry.entry,
             script_file,
             source_version: normalize_optional_text(entry.source_version),
-        });
+        }));
     }
 
     let document = SiteAdapterRegistryDocument {
@@ -840,6 +874,64 @@ mod tests {
         assert_eq!(adapters[0].name, "github/search");
         assert_eq!(adapters[0].source_kind, SiteAdapterSourceKind::ServerSynced);
         assert_eq!(adapters[0].source_version.as_deref(), Some("sync-1"));
+    }
+
+    #[test]
+    fn should_upgrade_legacy_server_synced_github_search_fixed_url_to_template() {
+        let temp_dir = tempdir().expect("temp dir should exist");
+        let dir = temp_dir.path();
+        fs::create_dir_all(dir.join("scripts")).expect("scripts dir should exist");
+        fs::write(
+            dir.join("index.json"),
+            r#"
+            {
+              "adapters": [
+                {
+                  "name": "github/search",
+                  "domain": "github.com",
+                  "description": "server synced",
+                  "read_only": true,
+                  "capabilities": ["search"],
+                  "args": [
+                    {
+                      "name": "query",
+                      "description": "搜索关键词",
+                      "required": true,
+                      "arg_type": "string",
+                      "example": "mcp"
+                    }
+                  ],
+                  "example": "github/search {\"query\":\"mcp\"}",
+                  "entry": {
+                    "kind": "fixed_url",
+                    "url": "https://github.com/search"
+                  },
+                  "script_file": "scripts/github-search.js",
+                  "source_version": "sync-legacy"
+                }
+              ]
+            }
+            "#,
+        )
+        .expect("index should write");
+        fs::write(
+            dir.join("scripts/github-search.js"),
+            "async () => ({ ok: true })",
+        )
+        .expect("script should write");
+
+        let adapters = load_site_adapters_from_dir(dir, SiteAdapterSourceKind::ServerSynced)
+            .expect("server synced adapters should load");
+        let github = adapters
+            .iter()
+            .find(|adapter| adapter.name == "github/search")
+            .expect("github/search should exist");
+
+        let mut args = Map::new();
+        args.insert("query".to_string(), Value::String("mcp".to_string()));
+
+        let url = build_entry_url(github, &args).expect("entry url should build");
+        assert_eq!(url, "https://github.com/search?q=mcp&type=repositories");
     }
 
     #[test]

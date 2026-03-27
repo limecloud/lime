@@ -6,8 +6,15 @@
  * 需求: 6.1, 6.2, 6.3, 6.5 - 实验室标签页，截图对话功能开关，快捷键设置，权限警告
  */
 
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
+import {
+  Globe,
   AlertCircle,
   FlaskConical,
   Camera,
@@ -30,6 +37,7 @@ import {
   type ToolCallingConfig,
 } from "@/lib/api/appConfig";
 import {
+  DEFAULT_EXPERIMENTAL_FEATURES,
   getExperimentalConfig,
   saveExperimentalConfig,
   updateScreenshotShortcut,
@@ -201,13 +209,7 @@ export function ExperimentalSettings() {
     } catch (err) {
       console.error("加载实验室配置失败:", err);
       setError(err instanceof Error ? err.message : "加载配置失败");
-      // 设置默认配置
-      setConfig({
-        screenshot_chat: {
-          enabled: false,
-          shortcut: "CommandOrControl+Alt+Q",
-        },
-      });
+      setConfig(DEFAULT_EXPERIMENTAL_FEATURES);
       setVoiceConfig({
         enabled: false,
         shortcut: "CommandOrControl+Shift+V",
@@ -261,6 +263,39 @@ export function ExperimentalSettings() {
       setTimeout(() => setMessage(null), 2000);
     } catch (err) {
       console.error("保存配置失败:", err);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "保存失败",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [config]);
+
+  const handleToggleWebMcp = useCallback(async () => {
+    if (!config) return;
+
+    const newEnabled = !(config.webmcp?.enabled ?? false);
+    const newConfig: ExperimentalFeatures = {
+      ...config,
+      webmcp: {
+        enabled: newEnabled,
+      },
+    };
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      await saveExperimentalConfig(newConfig);
+      setConfig(newConfig);
+      setMessage({
+        type: "success",
+        text: newEnabled ? "WebMCP 预留入口已启用" : "WebMCP 预留入口已禁用",
+      });
+      setTimeout(() => setMessage(null), 2000);
+    } catch (err) {
+      console.error("保存 WebMCP 配置失败:", err);
       setMessage({
         type: "error",
         text: err instanceof Error ? err.message : "保存失败",
@@ -712,6 +747,11 @@ export function ExperimentalSettings() {
                 inactiveLabel="截图对话未启用"
               />
               <StatusPill
+                active={Boolean(config?.webmcp?.enabled)}
+                activeLabel="WebMCP 预留已启用"
+                inactiveLabel="WebMCP 预留未启用"
+              />
+              <StatusPill
                 active={Boolean(crashConfig.enabled)}
                 activeLabel="崩溃上报已启用"
                 inactiveLabel="崩溃上报未启用"
@@ -743,7 +783,8 @@ export function ExperimentalSettings() {
           >
             <div className="space-y-4">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-                这部分更适合用于调优复杂工具调用链路。若当前主要排查 UI 或 Provider 问题，不建议先改这里。
+                这部分更适合用于调优复杂工具调用链路。若当前主要排查 UI 或
+                Provider 问题，不建议先改这里。
               </div>
 
               <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
@@ -861,7 +902,8 @@ export function ExperimentalSettings() {
                         type="button"
                         onClick={async () => {
                           try {
-                            const { open } = await import("@tauri-apps/plugin-shell");
+                            const { open } =
+                              await import("@tauri-apps/plugin-shell");
                             await open(
                               "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
                             );
@@ -881,6 +923,44 @@ export function ExperimentalSettings() {
           </ExperimentalPanel>
 
           <ExperimentalPanel
+            icon={Globe}
+            title="WebMCP（预留）"
+            description="面向未来浏览器原生结构化工具协议的预留入口，当前默认关闭，不参与实际执行链。"
+            aside={
+              <StatusPill
+                active={Boolean(config?.webmcp?.enabled)}
+                activeLabel="已启用"
+                inactiveLabel="未启用"
+              />
+            }
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    允许未来接入 WebMCP
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    当前版本开启后也不会切换执行链，只保留实验配置位，供后续小范围验证使用。
+                  </p>
+                </div>
+                <Switch
+                  checked={config?.webmcp?.enabled ?? false}
+                  onCheckedChange={handleToggleWebMcp}
+                  disabled={saving}
+                  aria-label="切换 WebMCP 预留入口"
+                />
+              </div>
+
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
+                现阶段浏览器业务仍走 Bridge / CDP
+                主线。这里不做运行时检测，也不接入任何 WebMCP
+                执行能力，避免把当前主线做散。
+              </div>
+            </div>
+          </ExperimentalPanel>
+
+          <ExperimentalPanel
             icon={Bug}
             title="崩溃上报与诊断"
             description="收集前端错误、崩溃信息与运行态诊断，用于定位闪退和异常启动问题。"
@@ -894,7 +974,8 @@ export function ExperimentalSettings() {
           >
             <div className="space-y-4">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-                DSN 为空时会自动退化为仅本地记录。导出诊断包前建议先完成复现，减少历史噪音。
+                DSN
+                为空时会自动退化为仅本地记录。导出诊断包前建议先完成复现，减少历史噪音。
               </div>
 
               <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
@@ -916,7 +997,9 @@ export function ExperimentalSettings() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium text-slate-700">DSN</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    DSN
+                  </label>
                   <input
                     value={crashConfig.dsn ?? ""}
                     onChange={(event) =>
@@ -985,7 +1068,8 @@ export function ExperimentalSettings() {
 
               <div className="space-y-3">
                 <p className="text-xs leading-5 text-slate-500">
-                  复制、导出与打开目录的用途不同。直接发给开发者时优先“复制诊断信息”；需要归档或程序化比对时再选 JSON。
+                  复制、导出与打开目录的用途不同。直接发给开发者时优先“复制诊断信息”；需要归档或程序化比对时再选
+                  JSON。
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -1058,7 +1142,8 @@ export function ExperimentalSettings() {
                   排障时减少变量
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  如果问题和工具链无关，不要同时改 Tool Calling、截图和语音配置。
+                  如果问题和工具链无关，不要同时改 Tool
+                  Calling、截图和语音配置。
                 </p>
               </div>
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">

@@ -564,14 +564,24 @@ fn resolve_provider_model_compatibility(provider_key: &str, model_id: &str) -> S
     model_id.to_string()
 }
 
-fn extract_request_thinking_enabled(request: &AsterChatRequest) -> bool {
-    request.thinking_enabled.unwrap_or_else(|| {
+fn extract_request_thinking_enabled(request: &AsterChatRequest) -> Option<bool> {
+    request.thinking_enabled.or_else(|| {
         extract_harness_bool(
             request.metadata.as_ref(),
             &["thinking_enabled", "thinkingEnabled"],
         )
-        .unwrap_or(false)
     })
+}
+
+async fn resolve_request_thinking_enabled(request: &AsterChatRequest) -> Result<bool, String> {
+    if let Some(thinking_enabled) = extract_request_thinking_enabled(request) {
+        return Ok(thinking_enabled);
+    }
+
+    Ok(resolve_session_recent_preferences(&request.session_id)
+        .await?
+        .map(|preferences| preferences.thinking)
+        .unwrap_or(false))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -699,7 +709,7 @@ pub(super) async fn resolve_runtime_request_provider_config(
     let context =
         build_provider_resolution_context(db, api_key_provider_service, &provider_selector)?;
     let (catalog, _alias_config) = load_model_registry_catalog(app, &context).await;
-    let thinking_enabled = extract_request_thinking_enabled(request);
+    let thinking_enabled = resolve_request_thinking_enabled(request).await?;
     let has_images = request
         .images
         .as_ref()

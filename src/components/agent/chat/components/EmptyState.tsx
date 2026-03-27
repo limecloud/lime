@@ -57,6 +57,7 @@ import {
   getClipboardImageCandidates,
   readImageAttachment,
 } from "../utils/imageAttachments";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 
 // Import Assets
 import capabilitySkillsPlaceholder from "@/assets/claw-home/capability-skills-placeholder.svg";
@@ -212,8 +213,12 @@ interface EmptyStateProps {
   characters?: Character[];
   /** 技能列表（用于 @ 引用） */
   skills?: Skill[];
+  /** 服务型技能列表（用于 @ 引用） */
+  serviceSkills?: ServiceSkillHomeItem[];
   /** 技能列表加载状态 */
   isSkillsLoading?: boolean;
+  /** 选择服务型技能回调 */
+  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   /** 跳转到设置页安装技能 */
   onNavigateToSettings?: () => void;
   /** 导入本地技能 */
@@ -402,7 +407,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   selectedText = "",
   characters = [],
   skills = [],
+  serviceSkills = [],
   isSkillsLoading = false,
+  onSelectServiceSkill,
   onNavigateToSettings,
   onImportSkill,
   onRefreshSkills,
@@ -1127,8 +1134,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       onEntrySlotChange={handleEntrySlotChange}
       characters={characters}
       skills={skills}
+      serviceSkills={serviceSkills}
       activeSkill={activeSkill}
       setActiveSkill={setActiveSkill}
+      onSelectServiceSkill={onSelectServiceSkill}
       clearActiveSkill={clearActiveSkill}
       isSkillsLoading={isSkillsLoading}
       onNavigateToSettings={onNavigateToSettings}

@@ -26,7 +26,89 @@ const EXECUTION_LOCATION_LABELS = {
   cloud_required: "服务端特例执行",
 } as const;
 
-function resolveSlotValue(
+function resolvePromptTemplateKey(
+  skill: Pick<ServiceSkillItem, "id" | "skillKey" | "promptTemplateKey">,
+): NonNullable<ServiceSkillItem["promptTemplateKey"]> {
+  if (skill.promptTemplateKey) {
+    return skill.promptTemplateKey;
+  }
+
+  const identity = skill.skillKey ?? skill.id;
+  if (
+    identity === "carousel-post-replication" ||
+    identity === "short-video-script-replication"
+  ) {
+    return "replication";
+  }
+  if (identity === "daily-trend-briefing") {
+    return "trend_briefing";
+  }
+  if (identity === "account-performance-tracking") {
+    return "account_growth";
+  }
+  return "generic";
+}
+
+function appendServiceSkillTemplateRequirements(
+  lines: string[],
+  skill: ServiceSkillItem,
+): void {
+  switch (resolvePromptTemplateKey(skill)) {
+    case "replication":
+      lines.push(
+        "[执行重点] 先拆解参考样本的结构、节奏、卖点与语言风格，再给出一版贴近原逻辑但可继续调整的结果。",
+      );
+      lines.push(
+        "[输出结构] 先写拆解结论，再写首版内容，最后列出最值得继续微调的 3 个点。",
+      );
+      break;
+    case "trend_briefing":
+      lines.push(
+        "[执行重点] 先判断现在什么最热、为什么会火、哪些变化最值得跟进，再整理建议动作。",
+      );
+      lines.push(
+        "[输出结构] 结论摘要、热点变化、原因判断、建议动作、后续跟踪建议。",
+      );
+      break;
+    case "account_growth":
+      lines.push(
+        "[执行重点] 先拆参考账号的内容策略、节奏和增长抓手，再输出可执行的增长方案与跟踪指标。",
+      );
+      lines.push(
+        "[输出结构] 现状判断、对标拆解、增长动作、发布节奏、监测指标与告警条件。",
+      );
+      break;
+    default:
+      break;
+  }
+}
+
+function appendServiceSkillAutomationTemplateRequirements(
+  lines: string[],
+  skill: ServiceSkillItem,
+): void {
+  switch (resolvePromptTemplateKey(skill)) {
+    case "trend_briefing":
+      lines.push(
+        "[自动化执行重点] 每轮先对比上轮变化，再明确新增热点、回落话题、值得跟进的信号和建议动作。",
+      );
+      break;
+    case "account_growth":
+      lines.push(
+        "[自动化执行重点] 每轮先比较账号表现与目标差距，再输出增长异常、原因判断、行动建议与告警项。",
+      );
+      break;
+    case "replication":
+      lines.push(
+        "[自动化执行重点] 每轮都要先提炼参考样本的新变化，再给出贴近当前样本的最新版内容建议。",
+      );
+      break;
+    default:
+      break;
+  }
+}
+
+export function resolveServiceSkillSlotValue(
   slot: ServiceSkillSlotDefinition,
   slotValues: ServiceSkillSlotValues,
 ): string {
@@ -52,7 +134,9 @@ function buildServiceSkillPromptLines(
   ];
 
   for (const slot of skill.slotSchema) {
-    lines.push(`- ${slot.label}: ${resolveSlotValue(slot, slotValues) || "未提供"}`);
+    lines.push(
+      `- ${slot.label}: ${resolveServiceSkillSlotValue(slot, slotValues) || "未提供"}`,
+    );
   }
 
   if (userInput?.trim()) {
@@ -79,7 +163,7 @@ export function validateServiceSkillSlotValues(
     if (!slot.required) {
       return false;
     }
-    return !resolveSlotValue(slot, slotValues);
+    return !resolveServiceSkillSlotValue(slot, slotValues);
   });
 
   return {
@@ -93,7 +177,10 @@ export function formatServiceSkillPromptPreview(
   slotValues: ServiceSkillSlotValues,
 ): string {
   const resolvedValues = skill.slotSchema
-    .map((slot) => `${slot.label}：${resolveSlotValue(slot, slotValues) || "待补充"}`)
+    .map(
+      (slot) =>
+        `${slot.label}：${resolveServiceSkillSlotValue(slot, slotValues) || "待补充"}`,
+    )
     .slice(0, 3);
 
   return `${skill.title}｜${resolvedValues.join("｜")}`;
@@ -105,6 +192,8 @@ export function composeServiceSkillPrompt({
   userInput,
 }: ComposeServiceSkillPromptInput): string {
   const lines = buildServiceSkillPromptLines(skill, slotValues, userInput);
+
+  appendServiceSkillTemplateRequirements(lines, skill);
 
   if (skill.runnerType === "instant") {
     lines.push(
@@ -133,6 +222,8 @@ export function composeServiceSkillAutomationPrompt({
   userInput,
 }: ComposeServiceSkillPromptInput): string {
   const lines = buildServiceSkillPromptLines(skill, slotValues, userInput);
+
+  appendServiceSkillAutomationTemplateRequirements(lines, skill);
 
   if (skill.runnerType === "scheduled") {
     lines.push(

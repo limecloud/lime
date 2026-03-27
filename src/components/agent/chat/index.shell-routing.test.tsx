@@ -29,6 +29,7 @@ vi.mock("./AgentChatHomeShell", () => ({
           onEnterWorkspace({
             projectId: "project-shell",
             theme: "general",
+            autoRunInitialPromptOnMount: true,
             newChatAt: 123,
           })
         }
@@ -192,6 +193,7 @@ describe("AgentChatPage 首页壳路由", () => {
     expect(latestWorkspaceProps.value).toMatchObject({
       projectId: "project-shell",
       theme: "general",
+      autoRunInitialPromptOnMount: true,
       newChatAt: 123,
       agentEntry: "claw",
       showChatPanel: true,

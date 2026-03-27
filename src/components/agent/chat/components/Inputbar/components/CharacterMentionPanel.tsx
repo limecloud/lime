@@ -1,5 +1,11 @@
 import React from "react";
-import { Command as CommandIcon, ImagePlus, User, Zap } from "lucide-react";
+import {
+  Command as CommandIcon,
+  ImagePlus,
+  Sparkles,
+  User,
+  Zap,
+} from "lucide-react";
 import {
   Command,
   CommandGroup,
@@ -9,6 +15,8 @@ import {
 } from "@/components/ui/command";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import { resolveServiceSkillEntryDescription } from "@/components/agent/chat/service-skills/entryAdapter";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { CodexSlashCommandDefinition } from "../../../commands";
 import type { BuiltinInputCommand } from "./builtinCommands";
 
@@ -17,12 +25,14 @@ interface CharacterMentionPanelProps {
   mentionQuery: string;
   builtinCommands: BuiltinInputCommand[];
   slashCommands: CodexSlashCommandDefinition[];
+  mentionServiceSkills: ServiceSkillHomeItem[];
   filteredCharacters: Character[];
   installedSkills: Skill[];
   availableSkills: Skill[];
   commandRef: React.RefObject<HTMLDivElement>;
   onQueryChange: (query: string) => void;
   onSelectBuiltinCommand: (command: BuiltinInputCommand) => void;
+  onSelectServiceSkill: (skill: ServiceSkillHomeItem) => void;
   onSelectSlashCommand: (command: CodexSlashCommandDefinition) => void;
   onSelectCharacter: (character: Character) => void;
   onSelectInstalledSkill: (skill: Skill) => void;
@@ -35,12 +45,14 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   mentionQuery,
   builtinCommands,
   slashCommands,
+  mentionServiceSkills,
   filteredCharacters,
   installedSkills,
   availableSkills,
   commandRef,
   onQueryChange,
   onSelectBuiltinCommand,
+  onSelectServiceSkill,
   onSelectSlashCommand,
   onSelectCharacter,
   onSelectInstalledSkill,
@@ -48,11 +60,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   onNavigateToSettings,
 }) => {
   const visibleBuiltinCommands = mode === "mention" ? builtinCommands : [];
+  const visibleServiceSkills = mode === "mention" ? mentionServiceSkills : [];
   const visibleCharacters = mode === "mention" ? filteredCharacters : [];
   const visibleSlashCommands = mode === "slash" ? slashCommands : [];
   const hasFilteredResults =
     visibleSlashCommands.length > 0 ||
     visibleBuiltinCommands.length > 0 ||
+    visibleServiceSkills.length > 0 ||
     visibleCharacters.length > 0 ||
     installedSkills.length > 0 ||
     availableSkills.length > 0;
@@ -60,14 +74,18 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   return (
     <Command ref={commandRef} className="bg-background">
       <CommandInput
-        placeholder={mode === "slash" ? "搜索命令或技能..." : "搜索角色或技能..."}
+        placeholder={
+          mode === "slash" ? "搜索命令或技能..." : "搜索角色或技能..."
+        }
         value={mentionQuery}
         onValueChange={onQueryChange}
       />
       <CommandList>
         {!hasFilteredResults ? (
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            <div>{mode === "slash" ? "暂无可用命令或技能" : "暂无可用角色或技能"}</div>
+            <div>
+              {mode === "slash" ? "暂无可用命令或技能" : "暂无可用角色或技能"}
+            </div>
             {onNavigateToSettings ? (
               <button
                 type="button"
@@ -119,6 +137,25 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                   <div className="font-medium">{command.commandPrefix}</div>
                   <div className="text-xs text-muted-foreground line-clamp-1">
                     {command.description}
+                  </div>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ) : null}
+        {visibleServiceSkills.length > 0 ? (
+          <CommandGroup heading="服务技能">
+            {visibleServiceSkills.map((skill) => (
+              <CommandItem
+                key={skill.id}
+                onSelect={() => onSelectServiceSkill(skill)}
+                className="cursor-pointer"
+              >
+                <Sparkles className="mr-2 h-4 w-4 text-emerald-600" />
+                <div className="flex-1">
+                  <div className="font-medium">{skill.title}</div>
+                  <div className="text-xs text-muted-foreground line-clamp-1">
+                    {resolveServiceSkillEntryDescription(skill)}
                   </div>
                 </div>
               </CommandItem>
@@ -191,4 +228,4 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       </CommandList>
     </Command>
   );
-}
+};

@@ -14,6 +14,7 @@ interface UseWorkspaceAutoGuideRuntimeParams {
   sessionId?: string | null;
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
+  autoRunInitialPromptOnMount: boolean;
   initialDispatchKey: string | null;
   messagesCount: number;
   projectReady: boolean;
@@ -41,6 +42,7 @@ export function useWorkspaceAutoGuideRuntime({
   sessionId,
   initialUserPrompt,
   initialUserImages,
+  autoRunInitialPromptOnMount,
   initialDispatchKey,
   messagesCount,
   projectReady,
@@ -94,7 +96,11 @@ export function useWorkspaceAutoGuideRuntime({
     }
 
     if (initialDispatchKey) {
-      if (isThemeWorkbench && pendingInitialImages.length === 0) {
+      if (
+        isThemeWorkbench &&
+        pendingInitialImages.length === 0 &&
+        !autoRunInitialPromptOnMount
+      ) {
         return;
       }
       if (consumedInitialPromptRef.current === initialDispatchKey) {
@@ -179,6 +185,7 @@ export function useWorkspaceAutoGuideRuntime({
     initialDispatchKey,
     initialUserImages,
     initialUserPrompt,
+    autoRunInitialPromptOnMount,
     isSending,
     isThemeWorkbench,
     mappedTheme,

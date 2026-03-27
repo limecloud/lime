@@ -13,6 +13,26 @@ function hasWindow(): boolean {
   return typeof window !== "undefined";
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeNonEmptyText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function parseLinkedAt(value?: string | null): number {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 function isValidAutomationLinkRecord(
   value: unknown,
 ): value is ServiceSkillAutomationLinkRecord {
@@ -180,6 +200,67 @@ function resolveStatusDetail(job: AutomationJobRecord): string | null {
   return null;
 }
 
+function extractPersistedServiceSkillLink(
+  job: AutomationJobRecord,
+): ServiceSkillAutomationLinkRecord | null {
+  if (job.payload.kind !== "agent_turn") {
+    return null;
+  }
+
+  const requestMetadata = job.payload.request_metadata;
+  if (!isPlainRecord(requestMetadata)) {
+    return null;
+  }
+
+  const serviceSkillValue =
+    requestMetadata.service_skill ?? requestMetadata.serviceSkill;
+  if (!isPlainRecord(serviceSkillValue)) {
+    return null;
+  }
+
+  const skillId =
+    normalizeNonEmptyText(serviceSkillValue.id) ??
+    normalizeNonEmptyText(serviceSkillValue.skill_id) ??
+    normalizeNonEmptyText(serviceSkillValue.skillId);
+  if (!skillId) {
+    return null;
+  }
+
+  return {
+    skillId,
+    jobId: job.id,
+    jobName: job.name,
+    linkedAt: parseLinkedAt(job.updated_at) || parseLinkedAt(job.created_at),
+  };
+}
+
+export function resolveServiceSkillAutomationLinks(
+  jobs: AutomationJobRecord[],
+): ServiceSkillAutomationLinkRecord[] {
+  const merged = new Map<string, ServiceSkillAutomationLinkRecord>();
+
+  jobs.forEach((job) => {
+    const persistedLink = extractPersistedServiceSkillLink(job);
+    if (!persistedLink) {
+      return;
+    }
+
+    const current = merged.get(persistedLink.skillId);
+    if (!current || persistedLink.linkedAt >= current.linkedAt) {
+      merged.set(persistedLink.skillId, persistedLink);
+    }
+  });
+
+  listServiceSkillAutomationLinks().forEach((link) => {
+    const current = merged.get(link.skillId);
+    if (!current || link.linkedAt > current.linkedAt) {
+      merged.set(link.skillId, link);
+    }
+  });
+
+  return [...merged.values()].sort((left, right) => right.linkedAt - left.linkedAt);
+}
+
 export function listServiceSkillAutomationLinks(): ServiceSkillAutomationLinkRecord[] {
   if (!hasWindow()) {
     return [];
@@ -266,7 +347,7 @@ export function buildServiceSkillAutomationStatusMap(
 ): Record<string, ServiceSkillAutomationStatus> {
   const jobsById = new Map(jobs.map((job) => [job.id, job]));
 
-  return listServiceSkillAutomationLinks().reduce<
+  return resolveServiceSkillAutomationLinks(jobs).reduce<
     Record<string, ServiceSkillAutomationStatus>
   >((result, link) => {
     const job = jobsById.get(link.jobId);

@@ -16,8 +16,13 @@ import React, {
 import { createPortal } from "react-dom";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import { toast } from "sonner";
-import { filterCodexSlashCommands, type CodexSlashCommandDefinition } from "../../../commands";
+import {
+  filterCodexSlashCommands,
+  type CodexSlashCommandDefinition,
+} from "../../../commands";
 import { scheduleIdleModulePreload } from "./scheduleIdleModulePreload";
 import {
   filterBuiltinCommands,
@@ -36,6 +41,8 @@ interface CharacterMentionProps {
   characters: Character[];
   /** 技能列表 */
   skills?: Skill[];
+  /** 服务型技能列表 */
+  serviceSkills?: ServiceSkillHomeItem[];
   /** 输入框 ref */
   inputRef: React.RefObject<HTMLTextAreaElement>;
   /** 当前输入值 */
@@ -46,6 +53,8 @@ interface CharacterMentionProps {
   onSelectCharacter?: (character: Character) => void;
   /** 选择已安装技能回调 */
   onSelectSkill?: (skill: Skill) => void;
+  /** 选择服务型技能回调 */
+  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   /** 选择内建命令回调 */
   onSelectBuiltinCommand?: (command: BuiltinInputCommand) => void;
   /** 跳转到设置页安装技能 */
@@ -116,11 +125,13 @@ function resolveActiveTrigger(
 export function CharacterMention({
   characters,
   skills = [],
+  serviceSkills = [],
   inputRef,
   value,
   onChange,
   onSelectCharacter,
   onSelectSkill,
+  onSelectServiceSkill,
   onSelectBuiltinCommand,
   onNavigateToSettings,
 }: CharacterMentionProps) {
@@ -146,6 +157,10 @@ export function CharacterMention({
   const filteredBuiltinCommands = useMemo(
     () => filterBuiltinCommands(mentionQuery),
     [mentionQuery],
+  );
+  const filteredServiceSkills = useMemo(
+    () => filterMentionableServiceSkills(serviceSkills, mentionQuery),
+    [mentionQuery, serviceSkills],
   );
   const filteredSlashCommands = useMemo(
     () => filterCodexSlashCommands(mentionQuery),
@@ -276,7 +291,10 @@ export function CharacterMention({
       if (!(target instanceof Node)) {
         return;
       }
-      if (panelRef.current?.contains(target) || inputRef.current?.contains(target)) {
+      if (
+        panelRef.current?.contains(target) ||
+        inputRef.current?.contains(target)
+      ) {
         return;
       }
       setShowMentions(false);
@@ -311,7 +329,8 @@ export function CharacterMention({
 
     setTimeout(() => {
       textarea.focus();
-      const newCursorPos = activeTrigger.triggerIndex + character.name.length + 2;
+      const newCursorPos =
+        activeTrigger.triggerIndex + character.name.length + 2;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };
@@ -424,6 +443,47 @@ export function CharacterMention({
       textarea.focus();
       const newCursorPos =
         activeTrigger.triggerIndex + command.commandPrefix.length + 1;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
+  const handleSelectServiceSkill = (skill: ServiceSkillHomeItem) => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    const currentValue = textarea.value || value;
+    const cursorPos = textarea.selectionStart ?? currentValue.length;
+    const textAfterCursor = currentValue.slice(cursorPos);
+    const activeTrigger = resolveActiveTrigger(currentValue, cursorPos);
+    if (!activeTrigger || activeTrigger.mode !== "mention") {
+      return;
+    }
+
+    if (onSelectServiceSkill) {
+      const newValue =
+        currentValue.slice(0, activeTrigger.triggerIndex) + textAfterCursor;
+      onChange(newValue.trimEnd() === "" ? "" : newValue);
+      setShowMentions(false);
+      onSelectServiceSkill(skill);
+
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPos = Math.max(0, activeTrigger.triggerIndex);
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+      return;
+    }
+
+    const newValue =
+      currentValue.slice(0, activeTrigger.triggerIndex) +
+      `@${skill.title} ` +
+      textAfterCursor;
+    onChange(newValue);
+    setShowMentions(false);
+
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = activeTrigger.triggerIndex + skill.title.length + 2;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };
@@ -541,12 +601,14 @@ export function CharacterMention({
             mentionQuery={mentionQuery}
             builtinCommands={filteredBuiltinCommands}
             slashCommands={filteredSlashCommands}
+            mentionServiceSkills={filteredServiceSkills}
             filteredCharacters={filteredCharacters}
             installedSkills={installedSkills}
             availableSkills={availableSkills}
             commandRef={commandRef}
             onQueryChange={setMentionQuery}
             onSelectBuiltinCommand={handleSelectBuiltinCommand}
+            onSelectServiceSkill={handleSelectServiceSkill}
             onSelectSlashCommand={handleSelectSlashCommand}
             onSelectCharacter={handleSelectCharacter}
             onSelectInstalledSkill={handleSelectInstalledSkill}

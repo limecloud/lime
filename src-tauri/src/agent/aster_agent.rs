@@ -228,6 +228,20 @@ impl AsterAgentWrapper {
         lime_agent::update_session_provider_config_sync(db, session_id, provider_name, model_name)
     }
 
+    pub async fn persist_session_recent_preferences(
+        session_id: &str,
+        preferences: lime_agent::SessionExecutionRuntimePreferences,
+    ) -> Result<(), String> {
+        lime_agent::persist_session_recent_preferences(session_id, preferences).await
+    }
+
+    pub async fn persist_session_recent_team_selection(
+        session_id: &str,
+        recent_team_selection: lime_agent::SessionExecutionRuntimeRecentTeamSelection,
+    ) -> Result<(), String> {
+        lime_agent::persist_session_recent_team_selection(session_id, recent_team_selection).await
+    }
+
     /// 删除会话
     pub async fn delete_session(db: &DbConnection, session_id: &str) -> Result<(), String> {
         lime_agent::delete_session(db, session_id).await

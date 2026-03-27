@@ -508,6 +508,8 @@ impl BrowserRuntimeAuditRecord {
         profile_key: Option<String>,
         requested_backend: Option<BrowserBackendType>,
         selected_backend: Option<BrowserBackendType>,
+        session_id: Option<String>,
+        target_id: Option<String>,
         success: bool,
         error: Option<String>,
         attempts: Vec<BrowserActionAttempt>,
@@ -526,8 +528,8 @@ impl BrowserRuntimeAuditRecord {
             attempts,
             environment_preset_id: None,
             environment_preset_name: None,
-            target_id: None,
-            session_id: None,
+            target_id,
+            session_id,
             url: None,
             reused: None,
             open_window: None,
@@ -1678,6 +1680,8 @@ pub async fn browser_execute_action_with_manager(
                     profile_key.clone(),
                     request.backend.clone(),
                     result.backend.clone(),
+                    result.session_id.clone(),
+                    result.target_id.clone(),
                     true,
                     None,
                     attempts,
@@ -1709,6 +1713,8 @@ pub async fn browser_execute_action_with_manager(
                         profile_key.clone(),
                         request.backend.clone(),
                         None,
+                        None,
+                        None,
                         false,
                         Some(error),
                         attempts,
@@ -1736,6 +1742,8 @@ pub async fn browser_execute_action_with_manager(
         action,
         profile_key,
         request.backend,
+        None,
+        None,
         None,
         false,
         result.error.clone(),
@@ -3417,6 +3425,44 @@ mod tests {
         assert!(matches!(record.stream_mode, Some(BrowserStreamMode::Both)));
         assert_eq!(record.browser_source.as_deref(), Some("system"));
         assert_eq!(record.remote_debugging_port, Some(13001));
+
+        BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
+    }
+
+    #[tokio::test]
+    async fn browser_runtime_audit_should_store_action_session_keys() {
+        BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
+
+        append_browser_runtime_audit(BrowserRuntimeAuditRecord::action(
+            "browser-action-1".to_string(),
+            "read_page".to_string(),
+            Some("general_browser_assist".to_string()),
+            Some(BrowserBackendType::CdpDirect),
+            Some(BrowserBackendType::CdpDirect),
+            Some("session-42".to_string()),
+            Some("target-42".to_string()),
+            true,
+            None,
+            vec![BrowserActionAttempt {
+                backend: BrowserBackendType::CdpDirect,
+                success: true,
+                message: "执行成功".to_string(),
+            }],
+        ))
+        .await;
+
+        let logs = get_browser_action_audit_logs(Some(5))
+            .await
+            .expect("audit logs should be readable");
+        let record = logs.first().expect("action audit must exist");
+        assert!(matches!(record.kind, BrowserRuntimeAuditKind::Action));
+        assert_eq!(record.id, "browser-action-1");
+        assert_eq!(record.session_id.as_deref(), Some("session-42"));
+        assert_eq!(record.target_id.as_deref(), Some("target-42"));
+        assert_eq!(
+            record.profile_key.as_deref(),
+            Some("general_browser_assist")
+        );
 
         BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
     }

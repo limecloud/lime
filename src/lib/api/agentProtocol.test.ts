@@ -19,7 +19,6 @@ describe("agentProtocol", () => {
           modelPreference: "gpt-5.4",
           thinking: true,
           webSearch: false,
-          searchMode: "disabled",
           executionStrategy: "react",
           autoContinue: {
             enabled: true,
@@ -49,7 +48,6 @@ describe("agentProtocol", () => {
         thinking_enabled: true,
         execution_strategy: "react",
         web_search: false,
-        search_mode: "disabled",
         auto_continue: {
           enabled: true,
           fast_mode_enabled: false,
@@ -65,6 +63,38 @@ describe("agentProtocol", () => {
       },
       queue_if_busy: true,
       queued_turn_id: "queued-1",
+    });
+  });
+
+  it("缺少 workspaceId 时不应在 runtime submit request 中生成 workspace_id", () => {
+    expect(
+      createSubmitTurnRequestFromAgentOp({
+        type: "user_input",
+        text: "继续处理这段对话",
+        sessionId: "session-1",
+        eventName: "aster_stream_session-1",
+        preferences: {
+          webSearch: true,
+        },
+      }),
+    ).toEqual({
+      message: "继续处理这段对话",
+      session_id: "session-1",
+      event_name: "aster_stream_session-1",
+      turn_config: {
+        web_search: true,
+        system_prompt: undefined,
+        metadata: undefined,
+        provider_preference: undefined,
+        model_preference: undefined,
+        thinking_enabled: undefined,
+        execution_strategy: undefined,
+        auto_continue: undefined,
+      },
+      queue_if_busy: undefined,
+      queued_turn_id: undefined,
+      turn_id: undefined,
+      images: undefined,
     });
   });
 

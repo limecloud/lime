@@ -5,7 +5,7 @@
 `docs/` 是 Lime 文档中心，分为两类受众：
 
 - 普通创作者：优先阅读 `content/` 下的入门与用户指南
-- 开发者与维护者：阅读 `aiprompts/`、`develop/`、`tests/` 等工程文档
+- 开发者与维护者：阅读 `aiprompts/`、`develop/`、`tech/`、`tests/` 等工程文档
 
 文档站基于 Nuxt Content 构建。
 
@@ -13,6 +13,7 @@
 
 - `content/`：对外文档站正文（产品介绍、用户指南、进阶能力）
 - `aiprompts/`：模块级工程文档（前后端组件、服务、命令、数据层）
+- `tech/`：跨模块技术蓝图与专题工程文档（当前已包含 Harness Engineering 指导文档）
 - `bussniss/`：商务合作与代理运营方案
 - `develop/`：开发流程与协作规范
 - `plugins/`：插件与扩展相关文档
@@ -24,6 +25,8 @@
 - `develop/execution-tracker-deprecation-plan.md`：统一执行追踪旧路径退场计划（P0 收口）
 - `develop/execution-tracker-p0-acceptance-report.md`：统一执行追踪 P0 验收报告
 - `develop/execution-tracker-p1-p2-roadmap.md`：统一执行追踪后续路线（P1/P2）
+- `tech/harness/README.md`：Lime Harness Engineering 总入口
+- `tech/harness/implementation-blueprint.md`：Lime Harness 分阶段实施蓝图
 - `develop/scheduler-task-governance-p1.md`：调度任务治理 P1（连续失败、自动停用、冷却恢复）
 - `roadmap/lime-skills-standardization-roadmap.md`：Skills 标准化与产品化路线图
 - `roadmap/lime-service-skill-cloud-config-prd.md`：服务型技能的端优先执行与云配置同步 PRD

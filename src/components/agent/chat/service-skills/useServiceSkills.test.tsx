@@ -8,6 +8,7 @@ import {
   type ServiceSkillCatalog,
 } from "@/lib/api/serviceSkills";
 import { recordServiceSkillAutomationLink } from "./automationLinkStorage";
+import { recordServiceSkillCloudRun } from "./cloudRunStorage";
 import { useServiceSkills } from "./useServiceSkills";
 
 interface HookHarness {
@@ -28,6 +29,35 @@ function buildRemoteCatalog(): ServiceSkillCatalog {
         title: "租户日报摘要",
         summary: "远端同步后的目录项",
         version: "tenant-2026-03-24",
+      },
+      {
+        ...seeded.items[1]!,
+        id: "local-playbook-template",
+        title: "本地增长打法模版",
+        summary: "项目内维护的本地补充技能。",
+        source: "local_custom",
+        version: "local-2026-03-24",
+      },
+    ],
+  };
+}
+
+function buildCloudCatalog(): ServiceSkillCatalog {
+  const seeded = getSeededServiceSkillCatalog();
+  return {
+    version: "tenant-2026-03-27",
+    tenantId: "tenant-demo",
+    syncedAt: "2026-03-27T12:00:00.000Z",
+    items: [
+      {
+        ...seeded.items[1]!,
+        id: "cloud-video-dubbing",
+        title: "云端视频配音",
+        summary: "把参考视频与文案提交到 OEM 云端执行，并把结果回流到本地工作区。",
+        executionLocation: "cloud_required",
+        defaultExecutorBinding: "cloud_scene",
+        themeTarget: "video",
+        version: "tenant-2026-03-27",
       },
     ],
   };
@@ -122,6 +152,16 @@ describe("useServiceSkills", () => {
           isSeeded: true,
         }),
       );
+      expect(
+        harness
+          .getValue()
+          .skills.find((skill) => skill.id === "github-repo-radar"),
+      ).toEqual(
+        expect.objectContaining({
+          runnerLabel: "浏览器站点执行",
+          actionLabel: "启动采集",
+        }),
+      );
 
       act(() => {
         recordServiceSkillAutomationLink({
@@ -158,9 +198,11 @@ describe("useServiceSkills", () => {
 
       await flushEffects();
 
-      expect(harness.getValue().skills).toHaveLength(1);
+      expect(harness.getValue().skills).toHaveLength(2);
       expect(harness.getValue().skills[0]?.id).toBe("tenant-daily-briefing");
+      expect(harness.getValue().skills[1]?.id).toBe("local-playbook-template");
       expect(harness.getValue().skills[0]?.badge).toBe("云目录");
+      expect(harness.getValue().skills[1]?.badge).toBe("本地技能");
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "tenant-demo",
@@ -239,8 +281,9 @@ describe("useServiceSkills", () => {
 
       await flushEffects(4);
 
-      expect(harness.getValue().skills).toHaveLength(1);
+      expect(harness.getValue().skills).toHaveLength(2);
       expect(harness.getValue().skills[0]?.id).toBe("tenant-daily-briefing");
+      expect(harness.getValue().skills[1]?.id).toBe("local-playbook-template");
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "tenant-demo",
@@ -249,6 +292,54 @@ describe("useServiceSkills", () => {
           isSeeded: false,
         }),
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("cloud_required 技能状态变更后应回灌到首页技能列表", async () => {
+    const harness = mountHook();
+
+    try {
+      await flushEffects();
+
+      act(() => {
+        saveServiceSkillCatalog(buildCloudCatalog(), "manual_override");
+      });
+
+      await flushEffects();
+
+      act(() => {
+        recordServiceSkillCloudRun("cloud-video-dubbing", {
+          id: "cloud-run-1",
+          status: "success",
+          outputSummary: "云端结果已生成",
+          finishedAt: "2026-03-27T12:03:00.000Z",
+          updatedAt: "2026-03-27T12:03:00.000Z",
+        });
+      });
+
+      await flushEffects();
+
+      expect(
+        harness
+          .getValue()
+          .skills.find((skill) => skill.id === "cloud-video-dubbing")
+          ?.cloudStatus,
+      ).toEqual(
+        expect.objectContaining({
+          runId: "cloud-run-1",
+          statusLabel: "成功",
+          tone: "emerald",
+          detail: "云端结果已生成",
+        }),
+      );
+      expect(
+        harness
+          .getValue()
+          .skills.find((skill) => skill.id === "cloud-video-dubbing")
+          ?.runnerLabel,
+      ).toBe("云端托管执行");
     } finally {
       harness.unmount();
     }

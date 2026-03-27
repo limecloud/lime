@@ -210,7 +210,7 @@ describe("SurfaceManager", () => {
     test.prop([
       identifierArb,
       identifierArb,
-      fc.array(identifierArb, { minLength: 1, maxLength: 3 }),
+      fc.uniqueArray(identifierArb, { minLength: 1, maxLength: 3 }),
     ])("多个插件可以注册不同的 Surface", (pluginId1, pluginId2, surfaceIds) => {
       // 假设两个不同的插件
       fc.pre(pluginId1 !== pluginId2);

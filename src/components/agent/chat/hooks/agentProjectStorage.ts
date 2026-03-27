@@ -2,6 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 
 export const LAST_PROJECT_ID_KEY = "agent_last_project_id";
+export const SESSION_WORKSPACE_STORAGE_KEY_PREFIX = "agent_session_workspace_";
+
+export function getSessionWorkspaceStorageKey(sessionId: string): string | null {
+  const normalizedSessionId = sessionId.trim();
+  if (!normalizedSessionId) {
+    return null;
+  }
+
+  return `${SESSION_WORKSPACE_STORAGE_KEY_PREFIX}${normalizedSessionId}`;
+}
 
 export function loadPersistedProjectId(key: string): string | null {
   try {
@@ -32,6 +42,29 @@ export function savePersistedProjectId(key: string, projectId: string): void {
   } catch {
     // ignore write errors
   }
+}
+
+export function loadPersistedSessionWorkspaceId(
+  sessionId: string,
+): string | null {
+  const key = getSessionWorkspaceStorageKey(sessionId);
+  if (!key) {
+    return null;
+  }
+
+  return loadPersistedProjectId(key);
+}
+
+export function savePersistedSessionWorkspaceId(
+  sessionId: string,
+  projectId: string,
+): void {
+  const key = getSessionWorkspaceStorageKey(sessionId);
+  if (!key) {
+    return;
+  }
+
+  savePersistedProjectId(key, projectId);
 }
 
 export function usePersistedProjectId(

@@ -14,6 +14,7 @@ const {
   mockHomeShellExecutionStrategy,
   mockHomeShellModel,
   mockHomeShellProviderType,
+  mockHomeShellRecentExecutionRuntime,
   mockListProjects,
   mockSetExecutionStrategy,
   mockSetModel,
@@ -148,9 +149,8 @@ const {
       isRecent: false,
       runnerLabel: "本地计划任务",
       runnerTone: "sky",
-      runnerDescription:
-        "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
-      actionLabel: "先做方案",
+      runnerDescription: "可直接创建本地定时任务，并回流到任务中心与工作区。",
+      actionLabel: "创建任务",
       automationStatus: {
         jobId: "automation-job-daily-trend",
         jobName: "每日趋势摘要",
@@ -158,6 +158,56 @@ const {
         tone: "emerald",
         detail: "下次 03/24 09:00",
       },
+    },
+    {
+      id: "github-repo-radar",
+      title: "GitHub 仓库线索检索",
+      summary:
+        "复用你当前浏览器里的 GitHub 登录态，直接检索主题仓库并沉淀成结构化线索。",
+      category: "情报研究",
+      outputHint: "仓库列表 + 关键线索",
+      source: "cloud_catalog",
+      runnerType: "instant",
+      defaultExecutorBinding: "browser_assist",
+      executionLocation: "client_default",
+      defaultArtifactKind: "analysis",
+      themeTarget: "knowledge",
+      version: "seed-v1",
+      readinessRequirements: {
+        requiresBrowser: true,
+        requiresProject: true,
+      },
+      siteCapabilityBinding: {
+        adapterName: "github/search",
+        autoRun: true,
+        requireAttachedSession: true,
+        saveMode: "current_content",
+        slotArgMap: {
+          repository_query: "query",
+        },
+        fixedArgs: {
+          limit: 10,
+        },
+        suggestedTitleTemplate: "GitHub 仓库线索 · {{repository_query}}",
+      },
+      slotSchema: [
+        {
+          key: "repository_query",
+          label: "检索主题",
+          type: "text",
+          required: true,
+          placeholder: "例如 MCP agent browser automation",
+        },
+      ],
+      badge: "云目录",
+      recentUsedAt: null,
+      isRecent: false,
+      runnerLabel: "浏览器站点执行",
+      runnerTone: "emerald",
+      runnerDescription:
+        "直接进入浏览器工作台，复用真实登录态执行站点脚本并沉淀结果。",
+      actionLabel: "启动采集",
+      automationStatus: null,
     },
   ];
 
@@ -202,6 +252,7 @@ const {
     mockHomeShellProviderType: { current: "mock-provider" },
     mockHomeShellModel: { current: "mock-model" },
     mockHomeShellExecutionStrategy: { current: "react" },
+    mockHomeShellRecentExecutionRuntime: { current: null as unknown },
     mockListProjects: vi.fn(async () => [
       {
         id: "project-1",
@@ -276,6 +327,8 @@ vi.mock("./components/EmptyState", () => ({
     onSend,
     onRecommendationClick,
     supportingSlotOverride,
+    serviceSkills,
+    onSelectServiceSkill,
   }: {
     onSend: (
       value: string,
@@ -284,6 +337,8 @@ vi.mock("./components/EmptyState", () => ({
     ) => void;
     onRecommendationClick?: (shortLabel: string, fullPrompt: string) => void;
     supportingSlotOverride?: React.ReactNode;
+    serviceSkills?: Array<{ id: string; title: string }>;
+    onSelectServiceSkill?: (skill: { id: string; title: string }) => void;
   }) => (
     <>
       <button
@@ -305,6 +360,15 @@ vi.mock("./components/EmptyState", () => ({
       >
         Team 推荐
       </button>
+      {serviceSkills?.[0] && onSelectServiceSkill ? (
+        <button
+          type="button"
+          data-testid="home-shell-empty-state-service-skill"
+          onClick={() => onSelectServiceSkill(serviceSkills[0]!)}
+        >
+          通过 @ 选择服务技能
+        </button>
+      ) : null}
       {supportingSlotOverride}
     </>
   ),
@@ -353,6 +417,7 @@ vi.mock("./hooks/useHomeShellAgentPreferences", () => ({
     setModel: mockSetModel,
     executionStrategy: mockHomeShellExecutionStrategy.current,
     setExecutionStrategy: mockSetExecutionStrategy,
+    recentExecutionRuntime: mockHomeShellRecentExecutionRuntime.current,
   })),
 }));
 
@@ -534,9 +599,13 @@ vi.mock("./service-skills/ServiceSkillLaunchDialog", () => ({
                     industry_keywords: "AI Agent，创作者工具",
                     schedule_time: "每天 09:00",
                   }
-                : {
-                    reference_video: "https://example.com/video",
-                  },
+                : skill.id === "github-repo-radar"
+                  ? {
+                      repository_query: "browser assist mcp",
+                    }
+                  : {
+                      reference_video: "https://example.com/video",
+                    },
             )
           }
         >
@@ -677,6 +746,7 @@ beforeEach(() => {
   mockHomeShellProviderType.current = "mock-provider";
   mockHomeShellModel.current = "mock-model";
   mockHomeShellExecutionStrategy.current = "react";
+  mockHomeShellRecentExecutionRuntime.current = null;
   mockUseClawSolutions.mockImplementation(() => ({
     solutions: mockClawSolutions,
     isLoading: false,
@@ -875,6 +945,53 @@ describe("AgentChatHomeShell", () => {
         initialUserPrompt:
           "请按 team runtime 方式做一次冒烟测试：主线程先拆成两个子任务，再创建 explorer 与 executor 两个子代理并行处理；至少等待一个子代理完成，必要时继续 send_input，最后回到主线程输出 team workspace 总结。",
         newChatAt: expect.any(Number),
+      }),
+    );
+  });
+
+  it("最近 session runtime 的工具偏好应先回灌首页壳，再参与 team 推荐", async () => {
+    mockHomeShellRecentExecutionRuntime.current = {
+      recent_preferences: {
+        webSearch: true,
+        thinking: true,
+        task: false,
+        subagent: false,
+      },
+      recent_team_selection: null,
+    };
+    const onEnterWorkspace = vi.fn();
+    const { container } = renderShell({
+      onNavigate: undefined,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const teamRecommendationButton = container.querySelector(
+      '[data-testid="home-shell-team-recommendation"]',
+    ) as HTMLButtonElement | null;
+
+    expect(teamRecommendationButton).toBeTruthy();
+
+    act(() => {
+      teamRecommendationButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(mockSaveChatToolPreferences).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        webSearch: true,
+        thinking: true,
+        task: false,
+        subagent: true,
+      }),
+      "general",
+    );
+    expect(onEnterWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        theme: "general",
       }),
     );
   });
@@ -1182,6 +1299,7 @@ describe("AgentChatHomeShell", () => {
         contentId: "content-service-skill-1",
         theme: "video",
         initialCreationMode: "guided",
+        autoRunInitialPromptOnMount: true,
         initialRequestMetadata: {
           artifact: {
             artifact_mode: "draft",
@@ -1206,8 +1324,99 @@ describe("AgentChatHomeShell", () => {
     });
   });
 
-  it("cloud_required 服务型技能应提交云端运行且不进入本地工作区", async () => {
+  it("通过首页输入区 @ 选择服务型技能时应打开补参弹窗", async () => {
+    const { container } = renderShell();
+
+    await flushEffects();
+
+    const mentionServiceSkillButton = container.querySelector(
+      '[data-testid="home-shell-empty-state-service-skill"]',
+    ) as HTMLButtonElement | null;
+
+    expect(mentionServiceSkillButton).toBeTruthy();
+
+    act(() => {
+      mentionServiceSkillButton?.click();
+    });
+
+    await flushEffects();
+
+    const launchButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-launch"]',
+    ) as HTMLButtonElement | null;
+
+    expect(launchButton).toBeTruthy();
+  });
+
+  it("站点型服务技能应直接导航到浏览器工作台并预填自动执行参数", async () => {
+    const onNavigate = vi.fn();
     const onEnterWorkspace = vi.fn();
+    const { container } = renderShell({
+      onNavigate,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const serviceSkillButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-github-repo-radar"]',
+    ) as HTMLButtonElement | null;
+
+    expect(serviceSkillButton).toBeTruthy();
+
+    act(() => {
+      serviceSkillButton?.click();
+    });
+
+    await flushEffects();
+
+    const launchButton = container.querySelector(
+      '[data-testid="home-shell-service-skill-launch"]',
+    ) as HTMLButtonElement | null;
+
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(mockCreateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: "project-1",
+        title: "GitHub 仓库线索检索",
+        content_type: "document",
+      }),
+    );
+    expect(onNavigate).toHaveBeenCalledWith("browser-runtime", {
+      projectId: "project-1",
+      contentId: "content-service-skill-1",
+      initialAdapterName: "github/search",
+      initialArgs: {
+        query: "browser assist mcp",
+        limit: 10,
+      },
+      initialAutoRun: true,
+      initialRequireAttachedSession: true,
+      initialSaveTitle: undefined,
+    });
+    expect(onEnterWorkspace).not.toHaveBeenCalled();
+    expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
+      skillId: "github-repo-radar",
+      runnerType: "instant",
+    });
+  });
+
+  it("cloud_required 服务型技能成功后应回流本地工作区", async () => {
+    const onEnterWorkspace = vi.fn();
+    mockCreateServiceSkillRun.mockResolvedValue({
+      id: "service-skill-run-cloud-1",
+      status: "success",
+      outputSummary: "云端结果已生成",
+      outputText: "# 云端视频配音\n\n第一版成稿",
+      finishedAt: "2026-03-26T01:02:03.000Z",
+    });
     mockUseServiceSkills.mockImplementation(() => ({
       skills: [
         {
@@ -1268,7 +1477,43 @@ describe("AgentChatHomeShell", () => {
       "cloud-video-dubbing",
       expect.stringContaining("- 参考视频链接/素材: https://example.com/video"),
     );
-    expect(onEnterWorkspace).not.toHaveBeenCalled();
+    expect(mockCreateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: "project-1",
+        title: "云端视频配音",
+        content_type: "episode",
+        body: "# 云端视频配音\n\n第一版成稿",
+        metadata: expect.objectContaining({
+          source: "service_skill",
+          serviceSkill: expect.objectContaining({
+            id: "cloud-video-dubbing",
+            executionLocation: "cloud_required",
+            themeTarget: "video",
+          }),
+          cloudRun: expect.objectContaining({
+            id: "service-skill-run-cloud-1",
+            status: "success",
+            outputSummary: "云端结果已生成",
+            finishedAt: "2026-03-26T01:02:03.000Z",
+          }),
+        }),
+      }),
+    );
+    expect(onEnterWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        contentId: "content-service-skill-1",
+        theme: "video",
+        initialCreationMode: "guided",
+        initialRequestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+            artifact_kind: "brief",
+            workbench_surface: "right_panel",
+          },
+        },
+      }),
+    );
     expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "cloud-video-dubbing",
       runnerType: "instant",
@@ -1277,7 +1522,7 @@ describe("AgentChatHomeShell", () => {
       "正在提交 云端视频配音 到云端...",
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "云端视频配音 云端运行完成：云端结果已生成",
+      "云端视频配音 云端运行完成：云端结果已生成，正在回流本地工作区。",
       {
         id: "toast-loading",
       },
@@ -1354,6 +1599,34 @@ describe("AgentChatHomeShell", () => {
               artifact_mode: "draft",
               artifact_kind: "analysis",
             }),
+            service_skill: expect.objectContaining({
+              id: "daily-trend-briefing",
+              title: "每日趋势摘要",
+              runner_type: "scheduled",
+              slot_values: [
+                {
+                  key: "platform",
+                  label: "监测平台",
+                  value: "X / Twitter",
+                },
+                {
+                  key: "industry_keywords",
+                  label: "行业关键词",
+                  value: "AI Agent，创作者工具",
+                },
+                {
+                  key: "schedule_time",
+                  label: "推送时间",
+                  value: "每天 09:00",
+                },
+              ],
+              slot_summary: [
+                "监测平台: X / Twitter",
+                "行业关键词: AI Agent，创作者工具",
+                "推送时间: 每天 09:00",
+              ],
+              user_input: null,
+            }),
             harness: expect.objectContaining({
               theme: "social-media",
               session_mode: "theme_workbench",
@@ -1381,6 +1654,7 @@ describe("AgentChatHomeShell", () => {
         contentId: "content-service-skill-1",
         theme: "social-media",
         initialCreationMode: "guided",
+        autoRunInitialPromptOnMount: true,
         initialRequestMetadata: {
           artifact: {
             artifact_mode: "draft",

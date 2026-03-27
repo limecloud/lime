@@ -4,8 +4,8 @@ mod tests {
     use crate::commands::aster_agent_cmd::action_runtime::build_runtime_action_scope;
     use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
     use async_trait::async_trait;
-    use lime_agent::AgentEvent as RuntimeAgentEvent;
     use lime_agent::request_tool_policy::resolve_request_tool_policy;
+    use lime_agent::AgentEvent as RuntimeAgentEvent;
     use regex::Regex;
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
@@ -138,6 +138,28 @@ mod tests {
         assert!(!message_suggests_live_search(
             "帮我解释一下什么是向量数据库"
         ));
+    }
+
+    #[test]
+    fn test_resolve_workspace_id_from_sources_prefers_request_value() {
+        assert_eq!(
+            resolve_workspace_id_from_sources(
+                Some("workspace-request".to_string()),
+                Some("workspace-session".to_string()),
+            ),
+            Some("workspace-request".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_workspace_id_from_sources_falls_back_to_session_value() {
+        assert_eq!(
+            resolve_workspace_id_from_sources(
+                Some("   ".to_string()),
+                Some("workspace-session".to_string()),
+            ),
+            Some("workspace-session".to_string())
+        );
     }
 
     #[test]
@@ -583,6 +605,30 @@ mod tests {
     }
 
     #[test]
+    fn test_agent_runtime_submit_turn_request_allows_missing_workspace_id() {
+        let json = r#"{
+            "message": "Hello runtime",
+            "session_id": "runtime-session",
+            "event_name": "runtime_stream",
+            "turn_config": {
+                "execution_strategy": "auto",
+                "web_search": true
+            }
+        }"#;
+
+        let request: AgentRuntimeSubmitTurnRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.workspace_id, None);
+
+        let mapped: AsterChatRequest = request.into();
+        assert_eq!(mapped.workspace_id, "");
+        assert_eq!(
+            mapped.execution_strategy,
+            Some(AsterExecutionStrategy::Auto)
+        );
+        assert_eq!(mapped.web_search, Some(true));
+    }
+
+    #[test]
     fn test_build_runtime_user_message_includes_images() {
         let message = build_runtime_user_message(
             "这个是什么",
@@ -750,6 +796,91 @@ mod tests {
     }
 
     #[test]
+    fn test_agent_runtime_update_session_request_deserializes_recent_preferences_aliases() {
+        let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
+            "sessionId": "session-1",
+            "providerName": "openai",
+            "modelName": "gpt-5.4",
+            "recentPreferences": {
+                "webSearch": true,
+                "thinking": false,
+                "task": true,
+                "subagent": true
+            }
+        }))
+        .expect("request should deserialize");
+
+        assert_eq!(request.session_id, "session-1");
+        assert_eq!(request.provider_name.as_deref(), Some("openai"));
+        assert_eq!(request.model_name.as_deref(), Some("gpt-5.4"));
+        assert_eq!(
+            request.recent_preferences,
+            Some(lime_agent::SessionExecutionRuntimePreferences {
+                web_search: true,
+                thinking: false,
+                task: true,
+                subagent: true,
+            })
+        );
+    }
+
+    #[test]
+    fn test_agent_runtime_update_session_request_deserializes_recent_team_selection_aliases() {
+        let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
+            "sessionId": "session-1",
+            "recentTeamSelection": {
+                "disabled": false,
+                "theme": "general",
+                "preferredTeamPresetId": "code-triage-team",
+                "selectedTeamId": "custom-team-1",
+                "selectedTeamSource": "custom",
+                "selectedTeamLabel": "前端联调团队",
+                "selectedTeamDescription": "分析、实现、验证三段式推进。",
+                "selectedTeamSummary": "分析、实现、验证三段式推进。 角色分工：分析：负责定位问题与影响范围。",
+                "selectedTeamRoles": [
+                    {
+                        "id": "explorer",
+                        "label": "分析",
+                        "summary": "负责定位问题与影响范围。",
+                        "profileId": "code-explorer",
+                        "roleKey": "explorer",
+                        "skillIds": ["repo-exploration"]
+                    }
+                ]
+            }
+        }))
+        .expect("request should deserialize");
+
+        assert_eq!(request.session_id, "session-1");
+        assert_eq!(
+            request.recent_team_selection,
+            Some(lime_agent::SessionExecutionRuntimeRecentTeamSelection {
+                disabled: false,
+                theme: Some("general".to_string()),
+                preferred_team_preset_id: Some("code-triage-team".to_string()),
+                selected_team_id: Some("custom-team-1".to_string()),
+                selected_team_source: Some("custom".to_string()),
+                selected_team_label: Some("前端联调团队".to_string()),
+                selected_team_description: Some("分析、实现、验证三段式推进。".to_string()),
+                selected_team_summary: Some(
+                    "分析、实现、验证三段式推进。 角色分工：分析：负责定位问题与影响范围。"
+                        .to_string(),
+                ),
+                selected_team_roles: Some(vec![
+                    lime_agent::SessionExecutionRuntimeRecentTeamRole {
+                        id: "explorer".to_string(),
+                        label: "分析".to_string(),
+                        summary: "负责定位问题与影响范围。".to_string(),
+                        profile_id: Some("code-explorer".to_string()),
+                        role_key: Some("explorer".to_string()),
+                        skill_ids: vec!["repo-exploration".to_string()],
+                    },
+                ]),
+            })
+        );
+    }
+
+    #[test]
     fn test_extract_artifact_path_from_tool_start_reads_write_file_path() {
         let path = extract_artifact_path_from_tool_start(
             "write_file",
@@ -825,6 +956,7 @@ mod tests {
             },
             false,
             None,
+            None,
         );
         let mut observation = ChatRunObservation::default();
         observation.record_artifact_path(
@@ -898,6 +1030,77 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_request_web_search_preference_from_sources_prefers_request_flag() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "preferences": {
+                    "web_search": false
+                }
+            }
+        });
+        let session_recent_preferences = lime_agent::SessionExecutionRuntimePreferences {
+            web_search: false,
+            thinking: true,
+            task: false,
+            subagent: true,
+        };
+
+        assert_eq!(
+            resolve_request_web_search_preference_from_sources(
+                Some(true),
+                Some(&metadata),
+                Some(&session_recent_preferences),
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn test_resolve_request_web_search_preference_from_sources_reads_nested_metadata() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "preferences": {
+                    "web_search": true
+                }
+            }
+        });
+        let session_recent_preferences = lime_agent::SessionExecutionRuntimePreferences {
+            web_search: false,
+            thinking: true,
+            task: false,
+            subagent: true,
+        };
+
+        assert_eq!(
+            resolve_request_web_search_preference_from_sources(
+                None,
+                Some(&metadata),
+                Some(&session_recent_preferences),
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn test_resolve_request_web_search_preference_from_sources_falls_back_to_session_runtime() {
+        let session_recent_preferences = lime_agent::SessionExecutionRuntimePreferences {
+            web_search: true,
+            thinking: true,
+            task: false,
+            subagent: true,
+        };
+
+        assert_eq!(
+            resolve_request_web_search_preference_from_sources(
+                None,
+                None,
+                Some(&session_recent_preferences),
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
     fn test_build_chat_run_metadata_base_flattens_nested_preferences() {
         let metadata = build_chat_run_metadata_base(
             &AsterChatRequest {
@@ -941,6 +1144,7 @@ mod tests {
             },
             false,
             None,
+            None,
         );
 
         assert_eq!(
@@ -960,6 +1164,74 @@ mod tests {
                 .get("subagent_mode_enabled")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
+        );
+    }
+
+    #[test]
+    fn test_build_chat_run_metadata_base_falls_back_to_session_recent_preferences() {
+        let session_recent_preferences = lime_agent::SessionExecutionRuntimePreferences {
+            web_search: false,
+            thinking: true,
+            task: true,
+            subagent: false,
+        };
+        let metadata = build_chat_run_metadata_base(
+            &AsterChatRequest {
+                message: "hello".to_string(),
+                session_id: "session-1".to_string(),
+                event_name: "event-1".to_string(),
+                images: None,
+                provider_config: None,
+                provider_preference: None,
+                model_preference: None,
+                thinking_enabled: None,
+                project_id: Some("project-1".to_string()),
+                workspace_id: "workspace-1".to_string(),
+                web_search: None,
+                search_mode: None,
+                execution_strategy: Some(AsterExecutionStrategy::React),
+                auto_continue: None,
+                system_prompt: None,
+                metadata: Some(serde_json::json!({
+                    "harness": {
+                        "theme": "general",
+                    }
+                })),
+                turn_id: None,
+                queue_if_busy: None,
+                queued_turn_id: None,
+            },
+            "workspace-1",
+            AsterExecutionStrategy::React,
+            &RequestToolPolicy {
+                search_mode: RequestToolPolicyMode::Disabled,
+                effective_web_search: false,
+                required_tools: vec![],
+                allowed_tools: vec![],
+                disallowed_tools: vec![],
+            },
+            false,
+            None,
+            Some(&session_recent_preferences),
+        );
+
+        assert_eq!(
+            metadata
+                .get("thinking_enabled")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            metadata
+                .get("task_mode_enabled")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            metadata
+                .get("subagent_mode_enabled")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
         );
     }
 
@@ -1493,7 +1765,7 @@ mod tests {
                 "subagent_mode_enabled": true,
                 "preferred_team_preset_id": "code-triage-team",
             }
-        })))
+        })), None, true)
         .expect("team prompt should exist");
 
         assert!(prompt.contains(TEAM_PREFERENCE_PROMPT_MARKER));
@@ -1505,7 +1777,7 @@ mod tests {
                 "subagent_mode_enabled": false,
                 "preferred_team_preset_id": "code-triage-team",
             }
-        })));
+        })), None, false);
         assert!(disabled.is_none());
     }
 
@@ -1531,7 +1803,7 @@ mod tests {
                     }
                 ]
             }
-        })))
+        })), None, true)
         .expect("team prompt should exist");
 
         assert!(prompt.contains("前端联调团队"));
@@ -1561,7 +1833,7 @@ mod tests {
                     }
                 ]
             }
-        })))
+        })), None, true)
         .expect("team prompt should exist");
 
         assert!(prompt.contains("当前调试 Team"));
@@ -1569,6 +1841,94 @@ mod tests {
         assert!(prompt.contains("blueprintRoleId"));
         assert!(prompt.contains("主对话需要承担协调职责"));
         assert!(prompt.contains("主动汇总关键进展、风险和下一步"));
+    }
+
+    #[test]
+    fn test_build_team_preference_system_prompt_accepts_session_fallback_flag() {
+        let prompt = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "preferred_team_preset_id": "code-triage-team",
+                }
+            })),
+            None,
+            true,
+        )
+        .expect("team prompt should exist");
+
+        assert!(prompt.contains("代码排障团队"));
+        assert!(prompt.contains("spawn_agent"));
+    }
+
+    #[test]
+    fn test_build_team_preference_system_prompt_falls_back_to_session_recent_team_selection() {
+        let prompt = build_team_preference_system_prompt(
+            None,
+            Some(&lime_agent::SessionExecutionRuntimeRecentTeamSelection {
+                disabled: false,
+                theme: Some("general".to_string()),
+                preferred_team_preset_id: Some("code-triage-team".to_string()),
+                selected_team_id: Some("custom-team-1".to_string()),
+                selected_team_source: Some("custom".to_string()),
+                selected_team_label: Some("前端联调团队".to_string()),
+                selected_team_description: Some("分析、实现、验证三段式推进。".to_string()),
+                selected_team_summary: Some("分析、实现、验证三段式推进。".to_string()),
+                selected_team_roles: Some(vec![
+                    lime_agent::SessionExecutionRuntimeRecentTeamRole {
+                        id: "explorer".to_string(),
+                        label: "分析".to_string(),
+                        summary: "负责定位问题与影响范围。".to_string(),
+                        profile_id: Some("code-explorer".to_string()),
+                        role_key: Some("explorer".to_string()),
+                        skill_ids: vec!["repo-exploration".to_string()],
+                    },
+                ]),
+            }),
+            true,
+        )
+        .expect("team prompt should exist");
+
+        assert!(prompt.contains("代码排障团队"));
+        assert!(prompt.contains("前端联调团队"));
+        assert!(prompt.contains("来源：custom"));
+        assert!(prompt.contains("分析、实现、验证三段式推进。"));
+        assert!(prompt.contains("分析：负责定位问题与影响范围。"));
+        assert!(prompt.contains("profile: code-explorer"));
+        assert!(prompt.contains("roleKey: explorer"));
+        assert!(prompt.contains("skills: repo-exploration"));
+    }
+
+    #[test]
+    fn test_build_team_preference_system_prompt_prefers_request_metadata_over_session_recent_team_selection()
+    {
+        let prompt = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "selected_team_source": "builtin",
+                    "selected_team_label": "请求内 Team",
+                    "selected_team_summary": "以本次请求为准。",
+                }
+            })),
+            Some(&lime_agent::SessionExecutionRuntimeRecentTeamSelection {
+                disabled: false,
+                theme: Some("general".to_string()),
+                preferred_team_preset_id: Some("research-team".to_string()),
+                selected_team_id: Some("runtime-team".to_string()),
+                selected_team_source: Some("custom".to_string()),
+                selected_team_label: Some("会话 Team".to_string()),
+                selected_team_description: Some("旧会话描述".to_string()),
+                selected_team_summary: Some("旧会话摘要".to_string()),
+                selected_team_roles: None,
+            }),
+            true,
+        )
+        .expect("team prompt should exist");
+
+        assert!(prompt.contains("请求内 Team"));
+        assert!(prompt.contains("来源：builtin"));
+        assert!(prompt.contains("以本次请求为准。"));
+        assert!(!prompt.contains("会话 Team"));
+        assert!(!prompt.contains("旧会话摘要"));
     }
 
     #[test]

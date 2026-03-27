@@ -8,6 +8,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 const DEFAULT_CDP_TIMEOUT_MS: u64 = 10_000;
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_ID: &str = "browser-environment-us-desktop";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_NAME: &str = "美区桌面";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_DESCRIPTION: &str = "美国住宅代理 + 桌面视口";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_PROXY_SERVER: &str = "http://127.0.0.1:7890";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_TIMEZONE_ID: &str = "America/Los_Angeles";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_LOCALE: &str = "en-US";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_USER_AGENT: &str = "Mozilla/5.0";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_PLATFORM: &str = "MacIntel";
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_VIEWPORT_WIDTH: i64 = 1440;
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_VIEWPORT_HEIGHT: i64 = 900;
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_DEVICE_SCALE_FACTOR: f64 = 2.0;
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_LAT: f64 = 37.7749;
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_LNG: f64 = -122.4194;
+const DEFAULT_BROWSER_ENVIRONMENT_PRESET_GEO_ACCURACY_M: f64 = 100.0;
 
 #[derive(Debug, Clone)]
 pub struct SaveBrowserEnvironmentPresetInput {
@@ -103,6 +118,37 @@ pub fn list_browser_environment_presets(
 ) -> Result<Vec<BrowserEnvironmentPresetRecord>, String> {
     BrowserEnvironmentPresetDao::list(conn, include_archived)
         .map_err(|error| format!("读取浏览器环境预设失败: {error}"))
+}
+
+pub fn ensure_default_browser_environment_presets(conn: &Connection) -> Result<bool, String> {
+    let existing_presets = BrowserEnvironmentPresetDao::list(conn, true)
+        .map_err(|error| format!("读取浏览器环境预设失败: {error}"))?;
+    if !existing_presets.is_empty() {
+        return Ok(false);
+    }
+
+    save_browser_environment_preset(
+        conn,
+        SaveBrowserEnvironmentPresetInput {
+            id: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_ID.to_string()),
+            name: DEFAULT_BROWSER_ENVIRONMENT_PRESET_NAME.to_string(),
+            description: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_DESCRIPTION.to_string()),
+            proxy_server: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_PROXY_SERVER.to_string()),
+            timezone_id: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_TIMEZONE_ID.to_string()),
+            locale: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_LOCALE.to_string()),
+            accept_language: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_ACCEPT_LANGUAGE.to_string()),
+            geolocation_lat: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_LAT),
+            geolocation_lng: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_LNG),
+            geolocation_accuracy_m: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_GEO_ACCURACY_M),
+            user_agent: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_USER_AGENT.to_string()),
+            platform: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_PLATFORM.to_string()),
+            viewport_width: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_VIEWPORT_WIDTH),
+            viewport_height: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_VIEWPORT_HEIGHT),
+            device_scale_factor: Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_DEVICE_SCALE_FACTOR),
+        },
+    )?;
+
+    Ok(true)
 }
 
 pub fn get_browser_environment_preset(
@@ -405,6 +451,14 @@ fn extract_runtime_value(response: Value) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::schema::create_tables;
+    use rusqlite::Connection;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        create_tables(&conn).expect("创建数据表失败");
+        conn
+    }
 
     #[test]
     fn should_require_complete_geolocation_pair() {
@@ -440,5 +494,55 @@ mod tests {
     fn should_require_complete_viewport_pair() {
         let error = normalize_viewport(Some(1440), None).unwrap_err();
         assert!(error.contains("必须同时填写"));
+    }
+
+    #[test]
+    fn should_seed_default_environment_preset_for_empty_table() {
+        let conn = setup_db();
+
+        let seeded = ensure_default_browser_environment_presets(&conn).unwrap();
+        let presets = list_browser_environment_presets(&conn, false).unwrap();
+
+        assert!(seeded);
+        assert_eq!(presets.len(), 1);
+        assert_eq!(presets[0].id, DEFAULT_BROWSER_ENVIRONMENT_PRESET_ID);
+        assert_eq!(presets[0].name, DEFAULT_BROWSER_ENVIRONMENT_PRESET_NAME);
+        assert_eq!(
+            presets[0].proxy_server.as_deref(),
+            Some(DEFAULT_BROWSER_ENVIRONMENT_PRESET_PROXY_SERVER)
+        );
+    }
+
+    #[test]
+    fn should_not_seed_default_environment_preset_when_table_has_records() {
+        let conn = setup_db();
+        save_browser_environment_preset(
+            &conn,
+            SaveBrowserEnvironmentPresetInput {
+                id: None,
+                name: "日本桌面".to_string(),
+                description: None,
+                proxy_server: None,
+                timezone_id: Some("Asia/Tokyo".to_string()),
+                locale: Some("ja-JP".to_string()),
+                accept_language: Some("ja-JP,ja;q=0.9".to_string()),
+                geolocation_lat: None,
+                geolocation_lng: None,
+                geolocation_accuracy_m: None,
+                user_agent: None,
+                platform: Some("MacIntel".to_string()),
+                viewport_width: Some(1440),
+                viewport_height: Some(900),
+                device_scale_factor: Some(2.0),
+            },
+        )
+        .unwrap();
+
+        let seeded = ensure_default_browser_environment_presets(&conn).unwrap();
+        let presets = list_browser_environment_presets(&conn, false).unwrap();
+
+        assert!(!seeded);
+        assert_eq!(presets.len(), 1);
+        assert_eq!(presets[0].name, "日本桌面");
     }
 }

@@ -27,6 +27,7 @@ import {
   isThemeWorkbenchPrimaryDocumentArtifact,
   resolveTaskFileType,
 } from "./themeWorkbenchHelpers";
+import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 
 interface ThemeWorkbenchActiveQueueSummary {
   run_id?: string | null;
@@ -55,7 +56,7 @@ interface UseWorkspaceWriteFileActionParams {
   syncGeneralArtifactToResource: (input: {
     rawFilePath: string;
     preferredName?: string;
-  }) => Promise<void>;
+  }) => Promise<GeneralArtifactSyncResult>;
   upsertGeneralArtifact: (artifact: Artifact) => void;
   setSelectedArtifactId: (artifactId: string | null) => void;
   setArtifactViewMode: Dispatch<SetStateAction<"source" | "preview">>;
@@ -346,7 +347,9 @@ export function useWorkspaceWriteFileAction({
       }
 
       setTaskFiles((previous) => {
-        const existingIndex = previous.findIndex((file) => file.name === fileName);
+        const existingIndex = previous.findIndex(
+          (file) => file.name === fileName,
+        );
 
         if (existingIndex >= 0) {
           const existing = previous[existingIndex];

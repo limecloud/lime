@@ -924,6 +924,16 @@ impl Default for ScreenshotChatConfig {
     }
 }
 
+/// WebMCP 预留配置
+///
+/// 当前仅作为实验开关预留，不参与实际执行链。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct WebMcpConfig {
+    /// 是否允许未来接入 WebMCP 实验能力
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 /// 实验室功能配置
 ///
 /// 管理所有实验性功能的开关和配置
@@ -932,6 +942,9 @@ pub struct ExperimentalFeatures {
     /// 截图对话功能配置
     #[serde(default)]
     pub screenshot_chat: ScreenshotChatConfig,
+    /// WebMCP 预留配置
+    #[serde(default)]
+    pub webmcp: WebMcpConfig,
     /// 自动更新检查配置
     #[serde(default)]
     pub update_check: UpdateCheckConfig,
@@ -3158,10 +3171,17 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_webmcp_config_default() {
+        let config = WebMcpConfig::default();
+        assert!(!config.enabled);
+    }
+
+    #[test]
     fn test_experimental_features_default() {
         let config = ExperimentalFeatures::default();
         assert!(!config.screenshot_chat.enabled);
         assert_eq!(config.screenshot_chat.shortcut, "CommandOrControl+Alt+Q");
+        assert!(!config.webmcp.enabled);
     }
 
     #[test]
@@ -3171,10 +3191,12 @@ mod unit_tests {
                 enabled: true,
                 shortcut: "CommandOrControl+Alt+X".to_string(),
             },
+            webmcp: WebMcpConfig { enabled: true },
             ..Default::default()
         };
 
         let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("webmcp"));
         assert!(yaml.contains("enabled: true"));
         assert!(yaml.contains("shortcut: CommandOrControl+Alt+X"));
 
@@ -3215,6 +3237,7 @@ mod unit_tests {
             config.experimental.screenshot_chat.shortcut,
             "CommandOrControl+Alt+Q"
         );
+        assert!(!config.experimental.webmcp.enabled);
         // 语音输入测试
         assert!(!config.experimental.voice_input.enabled);
         assert_eq!(

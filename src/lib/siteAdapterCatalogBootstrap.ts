@@ -6,6 +6,8 @@ import {
 
 export const SITE_ADAPTER_CATALOG_BOOTSTRAP_EVENT =
   "lime:site-adapter-catalog-bootstrap";
+export const SITE_ADAPTER_CATALOG_CHANGED_EVENT =
+  "lime:site-adapter-catalog-changed";
 
 declare global {
   interface Window {
@@ -16,6 +18,23 @@ declare global {
 
 function hasWindow(): boolean {
   return typeof window !== "undefined";
+}
+
+function emitSiteAdapterCatalogChanged(
+  status: SiteAdapterCatalogStatus | null,
+): void {
+  if (!hasWindow()) {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<SiteAdapterCatalogStatus | null>(
+      SITE_ADAPTER_CATALOG_CHANGED_EVENT,
+      {
+        detail: status,
+      },
+    ),
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,7 +85,9 @@ export async function syncSiteAdapterCatalogFromBootstrapPayload(
   }
 
   try {
-    return await siteApplyAdapterCatalogBootstrap(catalog);
+    const status = await siteApplyAdapterCatalogBootstrap(catalog);
+    emitSiteAdapterCatalogChanged(status);
+    return status;
   } catch (error) {
     console.warn("[siteAdapterCatalogBootstrap] 同步站点适配器目录失败", error);
     return null;
@@ -75,7 +96,9 @@ export async function syncSiteAdapterCatalogFromBootstrapPayload(
 
 export async function clearSiteAdapterCatalogCache(): Promise<SiteAdapterCatalogStatus | null> {
   try {
-    return await siteClearAdapterCatalogCache();
+    const status = await siteClearAdapterCatalogCache();
+    emitSiteAdapterCatalogChanged(status);
+    return status;
   } catch (error) {
     console.warn("[siteAdapterCatalogBootstrap] 清理站点适配器目录失败", error);
     return null;
@@ -133,5 +156,26 @@ export function subscribeSiteAdapterCatalogBootstrap(
   window.addEventListener(SITE_ADAPTER_CATALOG_BOOTSTRAP_EVENT, handler);
   return () => {
     window.removeEventListener(SITE_ADAPTER_CATALOG_BOOTSTRAP_EVENT, handler);
+  };
+}
+
+export function subscribeSiteAdapterCatalogChanged(
+  listener?: (status: SiteAdapterCatalogStatus | null) => void,
+): () => void {
+  if (!hasWindow()) {
+    return () => undefined;
+  }
+
+  const handler = (event: Event) => {
+    if (!(event instanceof CustomEvent)) {
+      return;
+    }
+
+    listener?.(event.detail as SiteAdapterCatalogStatus | null);
+  };
+
+  window.addEventListener(SITE_ADAPTER_CATALOG_CHANGED_EVENT, handler);
+  return () => {
+    window.removeEventListener(SITE_ADAPTER_CATALOG_CHANGED_EVENT, handler);
   };
 }

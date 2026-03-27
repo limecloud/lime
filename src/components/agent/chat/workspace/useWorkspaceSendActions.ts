@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
-import type { Character } from "@/lib/api/memory";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
-import { preheatBrowserAssistInBackground } from "../utils/browserAssistPreheat";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
-import {
-  buildHarnessRequestMetadata,
-  extractExistingHarnessMetadata,
-} from "../utils/harnessRequestMetadata";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
 import {
   saveChatToolPreferences,
@@ -19,24 +13,24 @@ import type { ThemeWorkbenchSendBoundaryState } from "../hooks/useThemeWorkbench
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
 import type { SendMessageFn } from "../hooks/agentChatShared";
 import type { MessageImage } from "../types";
-import type { ThemeType } from "@/components/content-creator/types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
-
-const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
+import {
+  buildRuntimeTeamDispatchPreview,
+  buildWorkspaceRequestMetadata,
+  buildWorkspaceSendText,
+  primeBrowserAssistBeforeSend,
+  type ContextWorkspaceSummary,
+  type EnsureBrowserAssistCanvasOptions,
+} from "./workspaceSendHelpers";
+import type { Character } from "@/lib/api/memory";
+import type { ThemeType } from "@/components/content-creator/types";
 
 type ExecutionStrategy = "react" | "code_orchestrated" | "auto";
 type SetStringState = (value: string) => void;
-
-interface ContextWorkspaceSummary {
-  enabled: boolean;
-  prepareActiveContextPrompt: () => Promise<string>;
-}
-
-interface EnsureBrowserAssistCanvasOptions {
-  silent?: boolean;
-  navigationMode?: "none" | "explicit-url" | "best-effort";
-}
+type ParsedImageWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseImageWorkbenchCommand>
+>;
 
 interface UseWorkspaceSendActionsParams {
   input: string;
@@ -88,63 +82,36 @@ interface UseWorkspaceSendActionsParams {
   ) => Promise<boolean>;
   handleImageWorkbenchCommand: (input: {
     rawText: string;
-    parsedCommand: NonNullable<ReturnType<typeof parseImageWorkbenchCommand>>;
+    parsedCommand: ParsedImageWorkbenchCommand;
     images: MessageImage[];
   }) => Promise<boolean>;
 }
 
-function applyActiveContextPrompt(
-  text: string,
-  activeContextPrompt: string,
-): string {
-  if (!activeContextPrompt.trim()) {
-    return text;
-  }
-
-  const slashCommandMatch = text.match(/^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/);
-  if (slashCommandMatch) {
-    const [, skillName, skillArgs] = slashCommandMatch;
-    const mergedArgs = [activeContextPrompt, skillArgs.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n\n");
-    return `/${skillName} ${mergedArgs}`.trim();
-  }
-
-  return `${activeContextPrompt}\n\n${text}`;
+interface WorkspaceResolvedSendState {
+  sourceText: string;
+  sendBoundary: ThemeWorkbenchSendBoundaryState;
+  effectiveToolPreferences: ChatToolPreferences;
+  effectiveWebSearch?: boolean;
+  effectiveThinking?: boolean;
 }
 
-function applyMentionedCharacterContext(
-  text: string,
-  mentionedCharacters: Character[],
-): string {
-  if (mentionedCharacters.length === 0) {
-    return text;
-  }
-
-  const characterContext = mentionedCharacters
-    .map((char) => {
-      let context = `角色：${char.name}`;
-      if (char.description) context += `\n简介：${char.description}`;
-      if (char.personality) context += `\n性格：${char.personality}`;
-      if (char.background) context += `\n背景：${char.background}`;
-      return context;
-    })
-    .join("\n\n");
-
-  return `[角色上下文]\n${characterContext}\n\n[用户输入]\n${text}`;
+interface WorkspaceSendPlan extends WorkspaceResolvedSendState {
+  text: string;
+  images: MessageImage[];
+  sendExecutionStrategy?: ExecutionStrategy;
+  autoContinuePayload?: AutoContinueRequestPayload;
+  sendOptions?: HandleSendOptions;
 }
 
-function applyRuntimeStyleMessagePrompt(
-  text: string,
-  runtimeStyleMessagePrompt: string,
-  sendOptions?: HandleSendOptions,
-): string {
-  if (sendOptions?.purpose || !runtimeStyleMessagePrompt.trim()) {
-    return text;
-  }
-
-  return `[本次任务风格要求]\n${runtimeStyleMessagePrompt}\n\n[用户输入]\n${text}`;
-}
+type WorkspaceSendResolution =
+  | {
+      kind: "done";
+      result: boolean;
+    }
+  | {
+      kind: "ready";
+      plan: WorkspaceSendPlan;
+    };
 
 export type WorkspaceHandleSend = (
   images?: MessageImage[],
@@ -190,19 +157,19 @@ export function useWorkspaceSendActions({
   ensureBrowserAssistCanvas,
   handleImageWorkbenchCommand,
 }: UseWorkspaceSendActionsParams) {
-  const handleSend = useCallback<WorkspaceHandleSend>(
+  const resolveSendExecutionPlan = useCallback(
     async (
-      images,
-      webSearch,
-      thinking,
-      textOverride,
-      sendExecutionStrategy,
-      autoContinuePayload,
-      sendOptions,
-    ) => {
+      images?: MessageImage[],
+      webSearch?: boolean,
+      thinking?: boolean,
+      textOverride?: string,
+      sendExecutionStrategy?: ExecutionStrategy,
+      autoContinuePayload?: AutoContinueRequestPayload,
+      sendOptions?: HandleSendOptions,
+    ): Promise<WorkspaceSendResolution> => {
       let sourceText = textOverride ?? input;
       if (!sourceText.trim() && (!images || images.length === 0)) {
-        return false;
+        return { kind: "done", result: false };
       }
 
       const sendBoundary = resolveSendBoundary({
@@ -213,7 +180,7 @@ export function useWorkspaceSendActions({
 
       if (isBlockedByBrowserPreflight(sendOptions)) {
         toast.info("请先完成当前浏览器准备后，再继续发送新的任务");
-        return false;
+        return { kind: "done", result: false };
       }
 
       const effectiveToolPreferences =
@@ -231,7 +198,7 @@ export function useWorkspaceSendActions({
       if (!projectId) {
         sendOptions?.observer?.onError?.("请先选择项目后再开始对话");
         toast.error("请先选择项目后再开始对话");
-        return false;
+        return { kind: "done", result: false };
       }
 
       const parsedImageWorkbenchCommand =
@@ -239,11 +206,14 @@ export function useWorkspaceSendActions({
           ? parseImageWorkbenchCommand(sourceText)
           : null;
       if (parsedImageWorkbenchCommand) {
-        return handleImageWorkbenchCommand({
-          rawText: sourceText,
-          parsedCommand: parsedImageWorkbenchCommand,
-          images: images || [],
-        });
+        return {
+          kind: "done",
+          result: await handleImageWorkbenchCommand({
+            rawText: sourceText,
+            parsedCommand: parsedImageWorkbenchCommand,
+            images: images || [],
+          }),
+        };
       }
 
       if (
@@ -257,54 +227,70 @@ export function useWorkspaceSendActions({
           sendOptions,
         })
       ) {
-        return true;
+        return { kind: "done", result: true };
       }
 
-      let text = sourceText;
-      const preparedActiveContextPrompt = contextWorkspace.enabled
-        ? await contextWorkspace.prepareActiveContextPrompt()
-        : "";
-      if (contextWorkspace.enabled && preparedActiveContextPrompt) {
-        text = applyActiveContextPrompt(text, preparedActiveContextPrompt);
-      }
-
-      text = applyMentionedCharacterContext(text, mentionedCharacters);
-      text = applyRuntimeStyleMessagePrompt(
-        text,
+      const text = await buildWorkspaceSendText({
+        sourceText,
+        contextWorkspace,
+        mentionedCharacters,
         runtimeStyleMessagePrompt,
         sendOptions,
-      );
+      });
 
-      if (browserRequirementMatch) {
-        void ensureBrowserAssistCanvas(
-          browserRequirementMatch.launchUrl || sourceText,
-          {
-            silent: true,
-            navigationMode:
-              browserRequirementMatch.launchUrl &&
-              browserRequirementMatch.launchUrl !== sourceText
-                ? "explicit-url"
-                : "best-effort",
-          },
-        ).catch((error) => {
-          console.warn(
-            "[AgentChatPage] 强浏览器任务发送前准备浏览器失败，继续由主流程处理:",
-            error,
-          );
-        });
-      } else {
-        preheatBrowserAssistInBackground({
-          activeTheme,
+      primeBrowserAssistBeforeSend({
+        activeTheme,
+        sourceText,
+        browserRequirementMatch,
+        ensureBrowserAssistCanvas,
+      });
+
+      return {
+        kind: "ready",
+        plan: {
           sourceText,
-          ensureBrowserAssistCanvas,
-          onError: (error) => {
-            console.warn(
-              "[AgentChatPage] 发送前预热浏览器协助失败，继续发送消息:",
-              error,
-            );
-          },
-        });
-      }
+          text,
+          images: images || [],
+          sendBoundary,
+          effectiveToolPreferences,
+          effectiveWebSearch,
+          effectiveThinking,
+          sendExecutionStrategy,
+          autoContinuePayload,
+          sendOptions,
+        },
+      };
+    },
+    [
+      activeTheme,
+      chatToolPreferences,
+      contextWorkspace,
+      ensureBrowserAssistCanvas,
+      handleImageWorkbenchCommand,
+      input,
+      isBlockedByBrowserPreflight,
+      maybeStartBrowserTaskPreflight,
+      mentionedCharacters,
+      projectId,
+      resolveSendBoundary,
+      runtimeStyleMessagePrompt,
+    ],
+  );
+
+  const executeSendPlan = useCallback(
+    async (plan: WorkspaceSendPlan): Promise<boolean> => {
+      const {
+        sourceText,
+        text,
+        images,
+        sendBoundary,
+        effectiveToolPreferences,
+        effectiveWebSearch,
+        effectiveThinking,
+        sendExecutionStrategy,
+        autoContinuePayload,
+        sendOptions,
+      } = plan;
 
       setRuntimeTeamDispatchPreview(null);
 
@@ -315,57 +301,37 @@ export function useWorkspaceSendActions({
           subagentEnabled: effectiveToolPreferences.subagent,
         });
         if (preparedRuntimeTeamState) {
-          setRuntimeTeamDispatchPreview({
-            key: preparedRuntimeTeamState.requestId,
-            prompt: sourceText,
-            images: images || [],
-            baseMessageCount: messagesCount,
-            status: preparedRuntimeTeamState.status,
-            formationState: preparedRuntimeTeamState,
-            failureMessage:
-              preparedRuntimeTeamState.errorMessage?.trim() || null,
-          });
+          setRuntimeTeamDispatchPreview(
+            buildRuntimeTeamDispatchPreview(
+              preparedRuntimeTeamState,
+              sourceText,
+              images,
+              messagesCount,
+            ),
+          );
         }
 
         setInput("");
         setMentionedCharacters([]);
 
-        const existingHarnessMetadata = extractExistingHarnessMetadata({
-          ...(workspaceRequestMetadataBase || {}),
-          ...(sendOptions?.requestMetadata || {}),
+        const nextRequestMetadata = buildWorkspaceRequestMetadata({
+          workspaceRequestMetadataBase,
+          sendOptions: {
+            ...(sendOptions || {}),
+            toolPreferencesOverride: effectiveToolPreferences,
+          },
+          effectiveToolPreferences,
+          mappedTheme,
+          isThemeWorkbench,
+          currentGateKey,
+          themeWorkbenchActiveQueueTitle,
+          contentId,
+          browserRequirementMatch: sendBoundary.browserRequirementMatch,
+          preferredTeamPresetId,
+          selectedTeam,
+          selectedTeamLabel,
+          selectedTeamSummary,
         });
-        const nextRequestMetadata: Record<string, unknown> = {
-          ...(workspaceRequestMetadataBase || {}),
-          ...(sendOptions?.requestMetadata || {}),
-          harness: buildHarnessRequestMetadata({
-            base: existingHarnessMetadata,
-            theme: mappedTheme,
-            turnPurpose: sendOptions?.purpose,
-            preferences: {
-              webSearch: effectiveWebSearch,
-              thinking: effectiveThinking,
-              task: effectiveToolPreferences.task,
-              subagent: effectiveToolPreferences.subagent,
-            },
-            sessionMode: isThemeWorkbench ? "theme_workbench" : "default",
-            gateKey: isThemeWorkbench ? currentGateKey : undefined,
-            runTitle: themeWorkbenchActiveQueueTitle?.trim() || undefined,
-            contentId: contentId || undefined,
-            browserRequirement: browserRequirementMatch?.requirement,
-            browserRequirementReason: browserRequirementMatch?.reason,
-            browserLaunchUrl: browserRequirementMatch?.launchUrl,
-            browserAssistProfileKey:
-              mappedTheme === "general"
-                ? GENERAL_BROWSER_ASSIST_PROFILE_KEY
-                : undefined,
-            preferredTeamPresetId,
-            selectedTeamId: selectedTeam?.id,
-            selectedTeamSource: selectedTeam?.source,
-            selectedTeamLabel,
-            selectedTeamSummary,
-            selectedTeamRoles: selectedTeam?.roles,
-          }),
-        };
         const nextSendOptions: HandleSendOptions = {
           ...(sendOptions || {}),
           requestMetadata: nextRequestMetadata,
@@ -373,7 +339,7 @@ export function useWorkspaceSendActions({
 
         await sendMessage(
           text,
-          images || [],
+          images,
           effectiveWebSearch,
           effectiveThinking,
           false,
@@ -406,37 +372,52 @@ export function useWorkspaceSendActions({
       }
     },
     [
-      activeTheme,
-      chatToolPreferences,
+      _prepareRuntimeTeamBeforeSend,
       contentId,
-      contextWorkspace,
       currentGateKey,
-      ensureBrowserAssistCanvas,
       finalizeAfterSendSuccess,
-      handleImageWorkbenchCommand,
-      input,
-      isBlockedByBrowserPreflight,
       isThemeWorkbench,
       mappedTheme,
-      maybeStartBrowserTaskPreflight,
-      mentionedCharacters,
       messagesCount,
       preferredTeamPresetId,
-      _prepareRuntimeTeamBeforeSend,
-      projectId,
-      resolveSendBoundary,
       rollbackAfterSendFailure,
-      runtimeStyleMessagePrompt,
       selectedTeam,
       selectedTeamLabel,
       selectedTeamSummary,
       sendMessage,
-      setMentionedCharacters,
       setInput,
+      setMentionedCharacters,
       setRuntimeTeamDispatchPreview,
       themeWorkbenchActiveQueueTitle,
       workspaceRequestMetadataBase,
     ],
+  );
+
+  const handleSend = useCallback<WorkspaceHandleSend>(
+    async (
+      images,
+      webSearch,
+      thinking,
+      textOverride,
+      sendExecutionStrategy,
+      autoContinuePayload,
+      sendOptions,
+    ) => {
+      const resolution = await resolveSendExecutionPlan(
+        images,
+        webSearch,
+        thinking,
+        textOverride,
+        sendExecutionStrategy,
+        autoContinuePayload,
+        sendOptions,
+      );
+      if (resolution.kind === "done") {
+        return resolution.result;
+      }
+      return executeSendPlan(resolution.plan);
+    },
+    [executeSendPlan, resolveSendExecutionPlan],
   );
 
   const handleRecommendationClick = useCallback(

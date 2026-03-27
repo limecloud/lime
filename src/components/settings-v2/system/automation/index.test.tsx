@@ -601,4 +601,166 @@ describe("AutomationSettings", () => {
       15,
     );
   });
+
+  it("服务型技能自动化任务应展示参数摘要与主稿绑定", async () => {
+    mockGetAutomationJobs.mockResolvedValueOnce([
+      {
+        id: "job-service-skill-1",
+        name: "每日趋势摘要｜定时执行",
+        description: "围绕指定平台与关键词输出趋势摘要。",
+        enabled: true,
+        workspace_id: "workspace-default",
+        execution_mode: "skill",
+        schedule: { kind: "cron", expr: "0 9 * * *", tz: "Asia/Shanghai" },
+        payload: {
+          kind: "agent_turn",
+          prompt: "[服务型技能] 每日趋势摘要",
+          system_prompt: null,
+          web_search: false,
+          content_id: "content-service-skill-1",
+          request_metadata: {
+            service_skill: {
+              id: "daily-trend-briefing",
+              title: "每日趋势摘要",
+              runner_type: "scheduled",
+              execution_location: "client_default",
+              source: "cloud_catalog",
+              slot_values: [
+                {
+                  key: "platform",
+                  label: "监测平台",
+                  value: "X / Twitter",
+                },
+                {
+                  key: "industry_keywords",
+                  label: "行业关键词",
+                  value: "AI Agent，创作者工具",
+                },
+              ],
+              user_input: "重点关注新增热点与异常波动。",
+            },
+            harness: {
+              theme: "social-media",
+              content_id: "content-service-skill-1",
+            },
+          },
+        },
+        delivery: {
+          mode: "none",
+          channel: null,
+          target: null,
+          best_effort: true,
+          output_schema: "text",
+          output_format: "text",
+        },
+        timeout_secs: 120,
+        max_retries: 2,
+        next_run_at: "2026-03-16T09:00:00Z",
+        last_status: "error",
+        last_error: "模型返回空结果",
+        last_run_at: "2026-03-16T08:59:00Z",
+        last_finished_at: "2026-03-16T09:00:10Z",
+        running_started_at: null,
+        consecutive_failures: 1,
+        last_retry_count: 0,
+        auto_disabled_until: null,
+        last_delivery: null,
+        created_at: "2026-03-16T00:00:00Z",
+        updated_at: "2026-03-16T00:00:00Z",
+      },
+    ]);
+    mockGetAutomationRunHistory.mockResolvedValueOnce([
+      {
+        id: "run-service-skill-1",
+        source: "automation",
+        source_ref: "job-service-skill-1",
+        session_id: "session-service-skill-1",
+        status: "error",
+        started_at: "2026-03-16T08:59:00Z",
+        finished_at: "2026-03-16T09:00:10Z",
+        duration_ms: 70_000,
+        error_code: "empty_result",
+        error_message: "模型返回空结果",
+        metadata: JSON.stringify({
+          service_skill: {
+            id: "daily-trend-briefing",
+            title: "每日趋势摘要",
+            runner_type: "scheduled",
+            execution_location: "client_default",
+            source: "cloud_catalog",
+            slot_values: [
+              {
+                key: "platform",
+                label: "监测平台",
+                value: "小红书",
+              },
+              {
+                key: "industry_keywords",
+                label: "行业关键词",
+                value: "AI 短视频",
+              },
+            ],
+            user_input: "优先记录增速最快的话题。",
+          },
+          content_id: "content-service-skill-run-1",
+          harness: {
+            theme: "social-media",
+          },
+        }),
+        created_at: "2026-03-16T08:59:00Z",
+        updated_at: "2026-03-16T09:00:10Z",
+      },
+    ]);
+
+    const container = await renderSettings({
+      mode: "workspace",
+      initialSelectedJobId: "job-service-skill-1",
+    });
+    const serviceSkillSummary = container.querySelector(
+      "[data-testid='automation-job-service-skill-summary-job-service-skill-1']",
+    );
+    const runWindow = container.querySelector(
+      "[data-testid='automation-job-run-window-job-service-skill-1']",
+    );
+    const runServiceSkillSummary = container.querySelector(
+      "[data-testid='automation-run-service-skill-summary-run-service-skill-1']",
+    );
+
+    expect(serviceSkillSummary?.textContent).toContain("服务技能");
+    expect(serviceSkillSummary?.textContent).toContain("定时任务");
+    expect(serviceSkillSummary?.textContent).toContain("客户端执行");
+    expect(serviceSkillSummary?.textContent).toContain("云目录");
+    expect(serviceSkillSummary?.textContent).toContain("服务项: 每日趋势摘要");
+    expect(serviceSkillSummary?.textContent).toContain(
+      "参数摘要: 监测平台: X / Twitter · 行业关键词: AI Agent，创作者工具",
+    );
+    expect(runWindow?.textContent).toContain("下次:");
+    expect(runWindow?.textContent).toContain("最近:");
+    expect(runServiceSkillSummary?.textContent).toContain("服务技能运行上下文");
+    expect(runServiceSkillSummary?.textContent).toContain("定时任务");
+    expect(runServiceSkillSummary?.textContent).toContain("客户端执行");
+    expect(runServiceSkillSummary?.textContent).toContain("服务项: 每日趋势摘要");
+    expect(runServiceSkillSummary?.textContent).toContain(
+      "参数摘要: 监测平台: 小红书 · 行业关键词: AI 短视频",
+    );
+    expect(runServiceSkillSummary?.textContent).toContain(
+      "补充要求: 优先记录增速最快的话题。",
+    );
+    expect(container.textContent).toContain("服务型技能上下文");
+    expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).toContain("定时任务");
+    expect(container.textContent).toContain("客户端执行");
+    expect(container.textContent).toContain("云目录");
+    expect(container.textContent).toContain("工作主题: social-media");
+    expect(container.textContent).toContain("主稿绑定: content-service-skill-1");
+    expect(container.textContent).toContain("参数摘要");
+    expect(container.textContent).toContain("监测平台: X / Twitter");
+    expect(container.textContent).toContain(
+      "行业关键词: AI Agent，创作者工具",
+    );
+    expect(container.textContent).toContain("补充要求");
+    expect(container.textContent).toContain("重点关注新增热点与异常波动。");
+    expect(container.textContent).toContain("失败原因");
+    expect(container.textContent).toContain("模型返回空结果");
+  });
 });

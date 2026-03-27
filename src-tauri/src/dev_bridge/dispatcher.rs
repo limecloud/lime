@@ -312,4 +312,220 @@ mod tests {
         assert!(status_value["shortcut_registered"].is_boolean());
         assert!(status_value["translate_shortcut_registered"].is_boolean());
     }
+
+    #[tokio::test]
+    async fn browser_profile_commands_roundtrip() {
+        let state = make_test_state();
+
+        let saved_value = handle_command(
+            &state,
+            "save_browser_profile_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "profile_key": "github-attached",
+                    "name": "GitHub 已登录 Chrome",
+                    "description": "复用当前 Chrome",
+                    "site_scope": "github.com",
+                    "launch_url": "https://github.com/",
+                    "transport_kind": "existing_session"
+                }
+            })),
+        )
+        .await
+        .unwrap();
+
+        let profile_id = saved_value["id"].as_str().unwrap().to_string();
+        assert_eq!(saved_value["profile_key"], "github-attached");
+        assert_eq!(saved_value["transport_kind"], "existing_session");
+
+        let active_list = handle_command(
+            &state,
+            "list_browser_profiles_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": false
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(active_list.as_array().unwrap().len(), 1);
+
+        let archived = handle_command(
+            &state,
+            "archive_browser_profile_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "id": profile_id
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(archived, serde_json::json!(true));
+
+        let active_list_after_archive = handle_command(
+            &state,
+            "list_browser_profiles_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": false
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert!(active_list_after_archive.as_array().unwrap().is_empty());
+
+        let archived_list = handle_command(
+            &state,
+            "list_browser_profiles_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": true
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(archived_list.as_array().unwrap().len(), 1);
+        assert!(archived_list.as_array().unwrap()[0]["archived_at"]
+            .as_str()
+            .is_some());
+
+        let restored = handle_command(
+            &state,
+            "restore_browser_profile_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "id": archived_list.as_array().unwrap()[0]["id"]
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(restored, serde_json::json!(true));
+
+        let active_list_after_restore = handle_command(
+            &state,
+            "list_browser_profiles_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": false
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(active_list_after_restore.as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn browser_environment_preset_commands_roundtrip() {
+        let state = make_test_state();
+
+        let saved_value = handle_command(
+            &state,
+            "save_browser_environment_preset_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "name": "GitHub 搜索环境",
+                    "description": "用于仓库线索检索",
+                    "timezone_id": "Asia/Shanghai",
+                    "locale": "zh_CN",
+                    "accept_language": "zh-CN,zh;q=0.9",
+                    "viewport_width": 1440,
+                    "viewport_height": 960,
+                    "device_scale_factor": 1.25
+                }
+            })),
+        )
+        .await
+        .unwrap();
+
+        let preset_id = saved_value["id"].as_str().unwrap().to_string();
+        assert_eq!(saved_value["name"], "GitHub 搜索环境");
+        assert_eq!(saved_value["timezone_id"], "Asia/Shanghai");
+
+        let active_list = handle_command(
+            &state,
+            "list_browser_environment_presets_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": false
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(active_list.as_array().unwrap().len(), 1);
+
+        let archived = handle_command(
+            &state,
+            "archive_browser_environment_preset_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "id": preset_id
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(archived, serde_json::json!(true));
+
+        let active_list_after_archive = handle_command(
+            &state,
+            "list_browser_environment_presets_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": false
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert!(active_list_after_archive.as_array().unwrap().is_empty());
+
+        let archived_list = handle_command(
+            &state,
+            "list_browser_environment_presets_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": true
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(archived_list.as_array().unwrap().len(), 1);
+        assert!(archived_list.as_array().unwrap()[0]["archived_at"]
+            .as_str()
+            .is_some());
+
+        let restored = handle_command(
+            &state,
+            "restore_browser_environment_preset_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "id": archived_list.as_array().unwrap()[0]["id"]
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(restored, serde_json::json!(true));
+
+        let active_list_after_restore = handle_command(
+            &state,
+            "list_browser_environment_presets_cmd",
+            Some(serde_json::json!({
+                "request": {
+                    "include_archived": false
+                }
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(active_list_after_restore.as_array().unwrap().len(), 1);
+    }
 }

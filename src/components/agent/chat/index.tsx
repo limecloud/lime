@@ -61,6 +61,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
     initialSessionName,
     entryBannerMessage,
     newChatAt,
+    autoRunInitialPromptOnMount = false,
     onHasMessagesChange,
     onSessionChange,
     onWorkflowProgressChange,
@@ -171,6 +172,10 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
         initialRequestMetadata={
           activeBootstrap?.initialRequestMetadata ??
           props.initialRequestMetadata
+        }
+        autoRunInitialPromptOnMount={
+          activeBootstrap?.autoRunInitialPromptOnMount ??
+          autoRunInitialPromptOnMount
         }
         newChatAt={activeBootstrap?.newChatAt ?? newChatAt}
         openBrowserAssistOnMount={

@@ -9,9 +9,14 @@ vi.mock("@/lib/dev-bridge", () => ({
 }));
 
 import {
+  exportAgentRuntimeAnalysisHandoff,
   closeAgentRuntimeSubagent,
   createAgentRuntimeSession,
   deleteAgentRuntimeSession,
+  exportAgentRuntimeEvidencePack,
+  exportAgentRuntimeHandoffBundle,
+  exportAgentRuntimeReplayCase,
+  exportAgentRuntimeReviewDecisionTemplate,
   getAsterAgentStatus,
   generateAgentRuntimeSessionTitle,
   getAgentRuntimeSession,
@@ -111,7 +116,7 @@ describe("Agent API 治理护栏", () => {
     });
   });
 
-  it("submitAgentRuntimeTurn 应透传 search_mode 与 queue_if_busy", async () => {
+  it("submitAgentRuntimeTurn 应透传 web_search 与 queue_if_busy", async () => {
     mockSafeInvoke.mockResolvedValueOnce(undefined);
 
     await submitAgentRuntimeTurn({
@@ -124,7 +129,6 @@ describe("Agent API 治理护栏", () => {
       turn_config: {
         execution_strategy: "auto",
         web_search: true,
-        search_mode: "allowed",
       },
     });
 
@@ -139,7 +143,6 @@ describe("Agent API 治理护栏", () => {
         turn_config: {
           execution_strategy: "auto",
           web_search: true,
-          search_mode: "allowed",
         },
       },
     });
@@ -277,14 +280,11 @@ describe("Agent API 治理护栏", () => {
       }),
     ).resolves.toBe(true);
 
-    expect(mockSafeInvoke).toHaveBeenCalledWith(
-      "agent_runtime_resume_thread",
-      {
-        request: {
-          session_id: "session-runtime-resume",
-        },
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_resume_thread", {
+      request: {
+        session_id: "session-runtime-resume",
       },
-    );
+    });
   });
 
   it("replayAgentRuntimeRequest 应走统一 runtime replay 命令", async () => {
@@ -345,7 +345,9 @@ describe("Agent API 治理护栏", () => {
       ],
     });
 
-    await expect(getAgentRuntimeThreadRead("session-runtime")).resolves.toMatchObject({
+    await expect(
+      getAgentRuntimeThreadRead("session-runtime"),
+    ).resolves.toMatchObject({
       thread_id: "thread-runtime",
       status: "waiting_request",
       diagnostics: {
@@ -372,6 +374,44 @@ describe("Agent API 治理护栏", () => {
       "agent_runtime_get_thread_read",
       {
         sessionId: "session-runtime",
+      },
+    );
+  });
+
+  it("exportAgentRuntimeReplayCase 应走统一 runtime replay case 命令", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      session_id: "session-runtime-replay-case",
+      thread_id: "thread-runtime-replay-case",
+      replay_relative_root:
+        ".lime/harness/sessions/session-runtime-replay-case/replay",
+      replay_absolute_root:
+        "/tmp/workspace/.lime/harness/sessions/session-runtime-replay-case/replay",
+      handoff_bundle_relative_root:
+        ".lime/harness/sessions/session-runtime-replay-case",
+      evidence_pack_relative_root:
+        ".lime/harness/sessions/session-runtime-replay-case/evidence",
+      exported_at: "2026-03-27T09:50:00.000Z",
+      thread_status: "waiting_request",
+      pending_request_count: 1,
+      queued_turn_count: 1,
+      linked_handoff_artifact_count: 4,
+      linked_evidence_artifact_count: 4,
+      recent_artifact_count: 2,
+      artifacts: [],
+    });
+
+    await expect(
+      exportAgentRuntimeReplayCase("session-runtime-replay-case"),
+    ).resolves.toMatchObject({
+      replay_relative_root:
+        ".lime/harness/sessions/session-runtime-replay-case/replay",
+      linked_handoff_artifact_count: 4,
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_export_replay_case",
+      {
+        sessionId: "session-runtime-replay-case",
       },
     );
   });
@@ -629,6 +669,250 @@ describe("Agent API 治理护栏", () => {
     expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_get_session", {
       sessionId: "session-runtime-2",
     });
+  });
+
+  it("exportAgentRuntimeHandoffBundle 应走统一 runtime handoff 导出命令", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      session_id: "session-runtime-3",
+      thread_id: "thread-runtime-3",
+      workspace_root: "/tmp/workspace-3",
+      bundle_relative_root: ".lime/harness/sessions/session-runtime-3",
+      bundle_absolute_root:
+        "/tmp/workspace-3/.lime/harness/sessions/session-runtime-3",
+      exported_at: "2026-03-27T10:00:00Z",
+      thread_status: "running",
+      latest_turn_status: "completed",
+      pending_request_count: 1,
+      queued_turn_count: 0,
+      active_subagent_count: 2,
+      todo_total: 3,
+      todo_pending: 1,
+      todo_in_progress: 1,
+      todo_completed: 1,
+      artifacts: [
+        {
+          kind: "handoff",
+          title: "交接摘要",
+          relative_path: ".lime/harness/sessions/session-runtime-3/handoff.md",
+          absolute_path:
+            "/tmp/workspace-3/.lime/harness/sessions/session-runtime-3/handoff.md",
+          bytes: 512,
+        },
+      ],
+    });
+
+    await expect(
+      exportAgentRuntimeHandoffBundle("session-runtime-3"),
+    ).resolves.toMatchObject({
+      session_id: "session-runtime-3",
+      thread_status: "running",
+      pending_request_count: 1,
+      artifacts: [
+        expect.objectContaining({
+          kind: "handoff",
+          relative_path: ".lime/harness/sessions/session-runtime-3/handoff.md",
+        }),
+      ],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_export_handoff_bundle",
+      {
+        sessionId: "session-runtime-3",
+      },
+    );
+  });
+
+  it("exportAgentRuntimeEvidencePack 应走统一 runtime evidence 导出命令", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      session_id: "session-runtime-4",
+      thread_id: "thread-runtime-4",
+      workspace_root: "/tmp/workspace-4",
+      pack_relative_root: ".lime/harness/sessions/session-runtime-4/evidence",
+      pack_absolute_root:
+        "/tmp/workspace-4/.lime/harness/sessions/session-runtime-4/evidence",
+      exported_at: "2026-03-27T10:05:00Z",
+      thread_status: "running",
+      latest_turn_status: "running",
+      turn_count: 2,
+      item_count: 6,
+      pending_request_count: 1,
+      queued_turn_count: 1,
+      recent_artifact_count: 2,
+      known_gaps: [
+        "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。",
+      ],
+      artifacts: [
+        {
+          kind: "summary",
+          title: "问题摘要",
+          relative_path:
+            ".lime/harness/sessions/session-runtime-4/evidence/summary.md",
+          absolute_path:
+            "/tmp/workspace-4/.lime/harness/sessions/session-runtime-4/evidence/summary.md",
+          bytes: 256,
+        },
+      ],
+    });
+
+    await expect(
+      exportAgentRuntimeEvidencePack("session-runtime-4"),
+    ).resolves.toMatchObject({
+      session_id: "session-runtime-4",
+      thread_status: "running",
+      turn_count: 2,
+      artifacts: [
+        expect.objectContaining({
+          kind: "summary",
+          relative_path:
+            ".lime/harness/sessions/session-runtime-4/evidence/summary.md",
+        }),
+      ],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_export_evidence_pack",
+      {
+        sessionId: "session-runtime-4",
+      },
+    );
+  });
+
+  it("exportAgentRuntimeAnalysisHandoff 应兼容 camelCase / snake_case 并走统一 analysis 导出命令", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      sessionId: "session-runtime-4a",
+      threadId: "thread-runtime-4a",
+      workspaceRoot: "/tmp/workspace-4a",
+      analysisRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4a/analysis",
+      analysisAbsoluteRoot:
+        "/tmp/workspace-4a/.lime/harness/sessions/session-runtime-4a/analysis",
+      handoffBundleRelativeRoot: ".lime/harness/sessions/session-runtime-4a",
+      evidencePackRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4a/evidence",
+      replayCaseRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4a/replay",
+      exportedAt: "2026-03-27T10:08:00Z",
+      title: "确认当前失败案例如何交给外部 AI 修复",
+      threadStatus: "waiting_request",
+      latestTurnStatus: "action_required",
+      pendingRequestCount: 1,
+      queuedTurnCount: 0,
+      sanitizedWorkspaceRoot: "/workspace/lime",
+      copyPrompt: "# Lime 外部诊断与修复任务",
+      artifacts: [
+        {
+          kind: "analysis_brief",
+          title: "外部分析简报",
+          relativePath:
+            ".lime/harness/sessions/session-runtime-4a/analysis/analysis-brief.md",
+          absolutePath:
+            "/tmp/workspace-4a/.lime/harness/sessions/session-runtime-4a/analysis/analysis-brief.md",
+          bytes: 320,
+        },
+      ],
+    });
+
+    await expect(
+      exportAgentRuntimeAnalysisHandoff("session-runtime-4a"),
+    ).resolves.toMatchObject({
+      session_id: "session-runtime-4a",
+      thread_status: "waiting_request",
+      copy_prompt: "# Lime 外部诊断与修复任务",
+      artifacts: [
+        expect.objectContaining({
+          kind: "analysis_brief",
+          relative_path:
+            ".lime/harness/sessions/session-runtime-4a/analysis/analysis-brief.md",
+        }),
+      ],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_export_analysis_handoff",
+      {
+        sessionId: "session-runtime-4a",
+      },
+    );
+  });
+
+  it("exportAgentRuntimeReviewDecisionTemplate 应兼容 camelCase / snake_case 并走统一 review decision 导出命令", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      sessionId: "session-runtime-4b",
+      threadId: "thread-runtime-4b",
+      workspaceRoot: "/tmp/workspace-4b",
+      reviewRelativeRoot: ".lime/harness/sessions/session-runtime-4b/review",
+      reviewAbsoluteRoot:
+        "/tmp/workspace-4b/.lime/harness/sessions/session-runtime-4b/review",
+      analysisRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4b/analysis",
+      analysisAbsoluteRoot:
+        "/tmp/workspace-4b/.lime/harness/sessions/session-runtime-4b/analysis",
+      handoffBundleRelativeRoot: ".lime/harness/sessions/session-runtime-4b",
+      evidencePackRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4b/evidence",
+      replayCaseRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4b/replay",
+      exportedAt: "2026-03-27T10:18:00Z",
+      title: "记录人工审核决策",
+      threadStatus: "waiting_request",
+      latestTurnStatus: "action_required",
+      pendingRequestCount: 1,
+      queuedTurnCount: 0,
+      defaultDecisionStatus: "pending_review",
+      reviewChecklist: ["先阅读 analysis-brief.md"],
+      analysisArtifacts: [
+        {
+          kind: "analysis_brief",
+          title: "外部分析简报",
+          relativePath:
+            ".lime/harness/sessions/session-runtime-4b/analysis/analysis-brief.md",
+          absolutePath:
+            "/tmp/workspace-4b/.lime/harness/sessions/session-runtime-4b/analysis/analysis-brief.md",
+          bytes: 320,
+        },
+      ],
+      artifacts: [
+        {
+          kind: "review_decision_json",
+          title: "人工审核记录 JSON",
+          relativePath:
+            ".lime/harness/sessions/session-runtime-4b/review/review-decision.json",
+          absolutePath:
+            "/tmp/workspace-4b/.lime/harness/sessions/session-runtime-4b/review/review-decision.json",
+          bytes: 256,
+        },
+      ],
+    });
+
+    await expect(
+      exportAgentRuntimeReviewDecisionTemplate("session-runtime-4b"),
+    ).resolves.toMatchObject({
+      session_id: "session-runtime-4b",
+      default_decision_status: "pending_review",
+      review_checklist: ["先阅读 analysis-brief.md"],
+      analysis_artifacts: [
+        expect.objectContaining({
+          kind: "analysis_brief",
+          relative_path:
+            ".lime/harness/sessions/session-runtime-4b/analysis/analysis-brief.md",
+        }),
+      ],
+      artifacts: [
+        expect.objectContaining({
+          kind: "review_decision_json",
+          relative_path:
+            ".lime/harness/sessions/session-runtime-4b/review/review-decision.json",
+        }),
+      ],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_export_review_decision_template",
+      {
+        sessionId: "session-runtime-4b",
+      },
+    );
   });
 
   it("getAgentRuntimeToolInventory 应走统一 runtime inventory 命令", async () => {

@@ -7,7 +7,6 @@ Agent 聊天界面的 UI 组件集合。
 | 文件 | 说明 |
 |------|------|
 | `ChatNavbar.tsx` | 聊天顶部导航栏 |
-| `ChatSettings.tsx` | 聊天设置面板 |
 | `ChatSidebar.tsx` | 聊天侧边栏（会话列表） |
 | `CanvasWorkbenchLayout.tsx` | 画布内工作台布局，宽屏侧栏/窄屏底部工作台均支持产物、全部文件、变更、预览与下载动作 |
 | `EmptyState.tsx` | 空状态占位组件 |

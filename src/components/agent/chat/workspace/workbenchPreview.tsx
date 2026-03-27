@@ -24,7 +24,9 @@ interface ArtifactWorkbenchPreviewProps {
   artifact: Artifact;
   currentCanvasArtifact: Artifact | null;
   displayedCanvasArtifact: Artifact | null;
-  artifactOverlay: ComponentProps<typeof ArtifactCanvasOverlay>["overlay"] | null;
+  artifactOverlay:
+    | ComponentProps<typeof ArtifactCanvasOverlay>["overlay"]
+    | null;
   showPreviousVersionBadge: boolean;
   artifactViewMode: ComponentProps<typeof ArtifactToolbar>["viewMode"];
   onArtifactViewModeChange: NonNullable<
@@ -44,6 +46,10 @@ interface ArtifactWorkbenchPreviewProps {
   onJumpToTimelineItem?: (itemId: string) => void;
   onCloseCanvas: () => void;
   stackedWorkbenchTrigger?: ReactNode;
+  renderToolbarActions?: (params: {
+    artifact: Artifact;
+    document: ArtifactDocumentV1 | null;
+  }) => ReactNode;
 }
 
 export function ArtifactWorkbenchPreview({
@@ -63,6 +69,7 @@ export function ArtifactWorkbenchPreview({
   onJumpToTimelineItem,
   onCloseCanvas,
   stackedWorkbenchTrigger,
+  renderToolbarActions,
 }: ArtifactWorkbenchPreviewProps) {
   const isLiveSelectedArtifact =
     currentCanvasArtifact?.id === artifact.id &&
@@ -78,16 +85,25 @@ export function ArtifactWorkbenchPreview({
   const isBrowserAssistArtifact = previewArtifact.type === "browser_assist";
   const isArtifactStreaming = Boolean(
     isLiveSelectedArtifact &&
-      currentCanvasArtifact &&
-      displayedCanvasArtifact &&
-      currentCanvasArtifact.id === displayedCanvasArtifact.id &&
-      currentCanvasArtifact.id === previewArtifact.id &&
-      currentCanvasArtifact.status === "streaming",
+    currentCanvasArtifact &&
+    displayedCanvasArtifact &&
+    currentCanvasArtifact.id === displayedCanvasArtifact.id &&
+    currentCanvasArtifact.id === previewArtifact.id &&
+    currentCanvasArtifact.status === "streaming",
   );
   const artifactDocument = resolveArtifactProtocolDocumentPayload({
     content: previewArtifact.content,
     metadata: previewArtifact.meta,
   });
+  const combinedActionsSlot = (
+    <>
+      {renderToolbarActions?.({
+        artifact: previewArtifact,
+        document: artifactDocument,
+      })}
+      {stackedWorkbenchTrigger}
+    </>
+  );
 
   if (isBrowserAssistArtifact) {
     return wrapPreviewWithWorkbenchTrigger(
@@ -114,7 +130,9 @@ export function ArtifactWorkbenchPreview({
         artifact={previewArtifact}
         artifactOverlay={isLiveSelectedArtifact ? artifactOverlay : null}
         isStreaming={isArtifactStreaming}
-        showPreviousVersionBadge={isLiveSelectedArtifact && showPreviousVersionBadge}
+        showPreviousVersionBadge={
+          isLiveSelectedArtifact && showPreviousVersionBadge
+        }
         viewMode={artifactViewMode}
         onViewModeChange={onArtifactViewModeChange}
         previewSize={artifactPreviewSize}
@@ -125,7 +143,7 @@ export function ArtifactWorkbenchPreview({
         blockFocusRequestKey={blockFocusRequestKey}
         onJumpToTimelineItem={onJumpToTimelineItem}
         onCloseCanvas={onCloseCanvas}
-        actionsSlot={stackedWorkbenchTrigger}
+        actionsSlot={combinedActionsSlot}
       />
     );
   }
@@ -137,7 +155,8 @@ export function ArtifactWorkbenchPreview({
           artifact={toolbarArtifact}
           onClose={onCloseCanvas}
           isStreaming={Boolean(
-            isLiveSelectedArtifact && currentCanvasArtifact?.status === "streaming",
+            isLiveSelectedArtifact &&
+            currentCanvasArtifact?.status === "streaming",
           )}
           viewMode={artifactViewMode}
           onViewModeChange={onArtifactViewModeChange}
@@ -149,7 +168,7 @@ export function ArtifactWorkbenchPreview({
               ? "预览上一版本"
               : undefined
           }
-          actionsSlot={stackedWorkbenchTrigger}
+          actionsSlot={combinedActionsSlot}
         />
         <div className="relative flex-1 overflow-auto bg-white">
           <ArtifactRenderer

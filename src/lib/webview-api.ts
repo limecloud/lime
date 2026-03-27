@@ -344,9 +344,18 @@ export interface SiteAdapterDefinition {
   source_version?: string;
 }
 
+export interface SiteAdapterRecommendation {
+  adapter: SiteAdapterDefinition;
+  reason: string;
+  profile_key?: string;
+  target_id?: string;
+  entry_url: string;
+  score: number;
+}
+
 export interface SiteAdapterCatalogStatus {
   exists: boolean;
-  source_kind: "server_synced";
+  source_kind: "bundled" | "server_synced";
   registry_version: number;
   directory?: string;
   catalog_version?: string;
@@ -361,6 +370,7 @@ export interface RunSiteAdapterRequest {
   profile_key?: string;
   target_id?: string;
   timeout_ms?: number;
+  content_id?: string;
   project_id?: string;
   save_title?: string;
 }
@@ -378,16 +388,26 @@ export interface SiteAdapterRunResult {
   error_code?: string;
   error_message?: string;
   auth_hint?: string;
+  report_hint?: string;
   saved_content?: SavedSiteAdapterContent;
   saved_project_id?: string;
-  saved_by?: "explicit_project";
+  saved_by?:
+    | "explicit_project"
+    | "context_project"
+    | "explicit_content"
+    | "context_content";
   save_skipped_project_id?: string;
-  save_skipped_by?: "explicit_project";
+  save_skipped_by?:
+    | "explicit_project"
+    | "context_project"
+    | "explicit_content"
+    | "context_content";
   save_error_message?: string;
 }
 
 export interface SaveSiteAdapterResultRequest {
-  project_id: string;
+  project_id?: string;
+  content_id?: string;
   save_title?: string;
   run_request: RunSiteAdapterRequest;
   result: SiteAdapterRunResult;
@@ -955,6 +975,14 @@ export async function browserExecuteAction(
 
 export async function siteListAdapters(): Promise<SiteAdapterDefinition[]> {
   return safeInvoke<SiteAdapterDefinition[]>("site_list_adapters");
+}
+
+export async function siteRecommendAdapters(
+  limit?: number,
+): Promise<SiteAdapterRecommendation[]> {
+  return safeInvoke<SiteAdapterRecommendation[]>("site_recommend_adapters", {
+    request: { limit },
+  });
 }
 
 export async function siteSearchAdapters(

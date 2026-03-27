@@ -242,7 +242,7 @@ async function executeRemoteCommand(commandData) {
     return;
   }
 
-  const tabId = await resolveTargetTabId();
+  const tabId = await resolveCommandTargetTabId(commandData.target);
   if (!tabId) {
     sendCommandResult({
       requestId,
@@ -288,6 +288,26 @@ async function executeRemoteCommand(commandData) {
       error: error?.message || String(error),
     });
   }
+}
+
+async function resolveCommandTargetTabId(rawTarget) {
+  const normalizedTarget = String(rawTarget || "").trim();
+  if (!normalizedTarget) {
+    return await resolveTargetTabId();
+  }
+
+  const byId = Number(normalizedTarget);
+  if (Number.isInteger(byId) && byId > 0) {
+    try {
+      const tab = await chrome.tabs.get(byId);
+      if (tab?.id) {
+        activeTabId = tab.id;
+        return tab.id;
+      }
+    } catch (_) {}
+  }
+
+  return await resolveTargetTabId();
 }
 
 async function handleOpenUrl(commandData, waitForPageInfo) {

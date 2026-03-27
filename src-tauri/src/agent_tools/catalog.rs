@@ -12,6 +12,7 @@ pub const LIME_CREATE_IMAGE_TASK_TOOL_NAME: &str = "lime_create_image_generation
 pub const LIME_CREATE_URL_PARSE_TASK_TOOL_NAME: &str = "lime_create_url_parse_task";
 pub const LIME_CREATE_TYPESETTING_TASK_TOOL_NAME: &str = "lime_create_typesetting_task";
 pub const LIME_SITE_LIST_TOOL_NAME: &str = "lime_site_list";
+pub const LIME_SITE_RECOMMEND_TOOL_NAME: &str = "lime_site_recommend";
 pub const LIME_SITE_SEARCH_TOOL_NAME: &str = "lime_site_search";
 pub const LIME_SITE_INFO_TOOL_NAME: &str = "lime_site_info";
 pub const LIME_SITE_RUN_TOOL_NAME: &str = "lime_site_run";
@@ -452,6 +453,15 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
+        name: LIME_SITE_RECOMMEND_TOOL_NAME,
+        profiles: BROWSER_PROFILES,
+        capabilities: SITE_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
         name: LIME_SITE_SEARCH_TOOL_NAME,
         profiles: BROWSER_PROFILES,
         capabilities: SITE_CAP,
@@ -714,14 +724,14 @@ mod tests {
             .any(|entry| entry.name == BROWSER_RUNTIME_TOOL_PREFIX));
 
         let browser = tool_catalog_entries_for_surface(WorkspaceToolSurface::browser_assist());
-        assert_eq!(browser.len(), 31);
+        assert_eq!(browser.len(), 32);
         assert!(browser
             .iter()
             .any(|entry| entry.name == BROWSER_RUNTIME_TOOL_PREFIX));
 
         let combined =
             tool_catalog_entries_for_surface(WorkspaceToolSurface::creator_with_browser_assist());
-        assert_eq!(combined.len(), 39);
+        assert_eq!(combined.len(), 40);
     }
 
     #[test]
@@ -740,9 +750,10 @@ mod tests {
         let names = workspace_default_allowed_tool_names(
             WorkspaceToolSurface::creator_with_browser_assist(),
         );
-        assert_eq!(names.len(), 26);
+        assert_eq!(names.len(), 27);
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&"tool_search"));
+        assert!(names.contains(&LIME_SITE_RECOMMEND_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));
         assert!(!names
             .iter()

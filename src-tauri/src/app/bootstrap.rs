@@ -127,6 +127,22 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         }
     }
 
+    {
+        let conn = database::lock_db(&db).map_err(|e| format!("Failed to lock database: {e}"))?;
+        let seeded_profiles =
+            crate::services::browser_profile_service::ensure_default_browser_profiles(&conn)
+                .map_err(|error| format!("初始化默认浏览器资料失败: {error}"))?;
+        let seeded_environment_presets = crate::services::browser_environment_service::ensure_default_browser_environment_presets(&conn)
+            .map_err(|error| format!("初始化默认浏览器环境预设失败: {error}"))?;
+        if seeded_profiles || seeded_environment_presets {
+            tracing::info!(
+                "[Bootstrap] 默认浏览器资源已就绪: profiles_seeded={}, presets_seeded={}",
+                seeded_profiles,
+                seeded_environment_presets
+            );
+        }
+    }
+
     initialize_aster_runtime(db.clone()).map_err(|e| format!("Aster 运行时初始化失败: {e}"))?;
 
     // 服务状态

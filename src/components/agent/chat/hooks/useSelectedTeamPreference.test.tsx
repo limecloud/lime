@@ -294,4 +294,161 @@ describe("useSelectedTeamPreference", () => {
       harness.unmount();
     }
   });
+
+  it("recent team runtime 应优先 hydrate，并把 custom Team 降级成可回退的影子缓存", async () => {
+    const syncSpy = vi.fn().mockResolvedValue(undefined);
+    const harness = mountHook("general", {
+      runtimeSelection: {
+        disabled: false,
+        theme: "general",
+        preferredTeamPresetId: "code-triage-team",
+        selectedTeamId: "custom-team-1",
+        selectedTeamSource: "custom",
+        selectedTeamLabel: "前端联调团队",
+        selectedTeamDescription: "分析、实现、验证三段式推进。",
+        selectedTeamRoles: [
+          {
+            id: "explorer",
+            label: "分析",
+            summary: "负责定位问题与影响范围。",
+            profileId: "code-explorer",
+            roleKey: "explorer",
+            skillIds: ["repo-exploration"],
+          },
+        ],
+      },
+      sessionSync: {
+        getSessionId: () => "session-1",
+        setSessionRecentTeamSelection: syncSpy,
+      },
+    });
+
+    try {
+      await flushEffects();
+      expect(harness.getValue().selectedTeam?.id).toBe("custom-team-1");
+      expect(harness.getValue().selectedTeam?.label).toBe("前端联调团队");
+      expect(loadSelectedTeamReference("general")).toEqual({
+        id: "custom-team-1",
+        source: "custom",
+      });
+
+      harness.rerender("general", {
+        runtimeSelection: null,
+        sessionSync: {
+          getSessionId: () => "session-1",
+          setSessionRecentTeamSelection: syncSpy,
+        },
+      });
+      await flushEffects();
+
+      expect(harness.getValue().selectedTeam?.id).toBe("custom-team-1");
+      expect(harness.getValue().selectedTeam?.label).toBe("前端联调团队");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("runtime 明确 disabled 时应清空当前 Team 与本地影子缓存", async () => {
+    const engineeringTeam = createTeamDefinitionFromPreset(
+      "code-triage-team",
+    ) as TeamDefinition;
+    persistSelectedTeam(engineeringTeam, "general");
+
+    const harness = mountHook("general", {
+      runtimeSelection: {
+        disabled: true,
+        theme: "general",
+      },
+      sessionSync: {
+        getSessionId: () => "session-1",
+        setSessionRecentTeamSelection: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    try {
+      await flushEffects();
+      expect(harness.getValue().selectedTeam).toBeNull();
+      expect(loadSelectedTeamReference("general")).toBeNull();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("手动切换 Team 时应回写当前会话 recent_team_selection", async () => {
+    const researchTeam = createTeamDefinitionFromPreset(
+      "research-team",
+    ) as TeamDefinition;
+    const syncSpy = vi.fn().mockResolvedValue(undefined);
+    const harness = mountHook("general", {
+      sessionSync: {
+        getSessionId: () => "session-1",
+        setSessionRecentTeamSelection: syncSpy,
+      },
+    });
+
+    try {
+      await flushEffects();
+      syncSpy.mockClear();
+
+      act(() => {
+        harness.getValue().setSelectedTeam(researchTeam);
+      });
+      await flushEffects();
+
+      expect(syncSpy).toHaveBeenCalledWith("session-1", researchTeam, "general");
+      expect(loadSelectedTeamReference("general")).toEqual({
+        id: "research-team",
+        source: "builtin",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("同一 session 用户手动切换后，晚到 runtime 不应覆盖当前 Team", async () => {
+    const engineeringTeam = createTeamDefinitionFromPreset(
+      "code-triage-team",
+    ) as TeamDefinition;
+    const researchTeam = createTeamDefinitionFromPreset(
+      "research-team",
+    ) as TeamDefinition;
+    const syncSpy = vi.fn().mockResolvedValue(undefined);
+    const sessionSync = {
+      getSessionId: () => "session-1",
+      setSessionRecentTeamSelection: syncSpy,
+    };
+    const harness = mountHook("general", {
+      runtimeSelection: null,
+      sessionSync,
+    });
+
+    try {
+      await flushEffects();
+      syncSpy.mockClear();
+
+      act(() => {
+        harness.getValue().setSelectedTeam(researchTeam);
+      });
+      await flushEffects();
+
+      harness.rerender("general", {
+        runtimeSelection: {
+          disabled: false,
+          theme: "general",
+          selectedTeamId: engineeringTeam.id,
+          selectedTeamSource: "builtin",
+          selectedTeamLabel: engineeringTeam.label,
+          selectedTeamDescription: engineeringTeam.description,
+          selectedTeamRoles: engineeringTeam.roles,
+        },
+        sessionSync,
+      });
+      await flushEffects();
+
+      expect(harness.getValue().selectedTeam?.id).toBe("research-team");
+      expect(syncSpy).toHaveBeenCalledWith("session-1", researchTeam, "general");
+    } finally {
+      harness.unmount();
+    }
+  });
 });

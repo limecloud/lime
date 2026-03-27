@@ -10,6 +10,9 @@ describe("hotkey catalog", () => {
           enabled: true,
           shortcut: "CommandOrControl+Shift+4",
         },
+        webmcp: {
+          enabled: false,
+        },
       },
       voiceConfig: {
         enabled: true,
@@ -37,7 +40,9 @@ describe("hotkey catalog", () => {
       attention: 0,
       globalReady: 3,
     });
-    expect(catalog.sections.find((section) => section.scene === "terminal")?.hotkeys).toHaveLength(10);
+    expect(
+      catalog.sections.find((section) => section.scene === "terminal")?.hotkeys,
+    ).toHaveLength(10);
     expect(
       catalog.sections
         .find((section) => section.scene === "terminal")
@@ -52,6 +57,9 @@ describe("hotkey catalog", () => {
         screenshot_chat: {
           enabled: false,
           shortcut: "",
+        },
+        webmcp: {
+          enabled: false,
         },
       },
       voiceConfig: {

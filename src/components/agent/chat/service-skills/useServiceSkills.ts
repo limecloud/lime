@@ -6,17 +6,25 @@ import {
   refreshServiceSkillCatalogFromRemote,
   subscribeServiceSkillCatalogChanged,
 } from "@/lib/api/serviceSkills";
+import { isServiceSkillSiteCapabilityBound } from "./siteCapabilityBinding";
 import {
   buildServiceSkillAutomationStatusMap,
   listServiceSkillAutomationLinks,
+  resolveServiceSkillAutomationLinks,
   subscribeServiceSkillAutomationLinksChanged,
 } from "./automationLinkStorage";
+import {
+  getServiceSkillCloudRunStatusMap,
+  subscribeServiceSkillCloudRunsChanged,
+} from "./cloudRunStorage";
+import { supportsServiceSkillLocalAutomation } from "./automationDraft";
 import { getServiceSkillUsageMap, recordServiceSkillUsage } from "./storage";
 import type {
   RecordServiceSkillUsageInput,
   ServiceSkillAutomationStatus,
   ServiceSkillCatalog,
   ServiceSkillCatalogMeta,
+  ServiceSkillCloudRunStatus,
   ServiceSkillHomeItem,
   ServiceSkillItem,
   ServiceSkillRunnerType,
@@ -37,19 +45,22 @@ const RUNNER_TONES: Record<ServiceSkillRunnerType, ServiceSkillTone> = {
 
 const RUNNER_DESCRIPTIONS: Record<ServiceSkillRunnerType, string> = {
   instant: "客户端起步版可直接进入工作区执行。",
-  scheduled: "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
-  managed: "当前先进入工作区生成首版跟踪方案，后续再接本地持续任务。",
+  scheduled: "可直接创建本地定时任务，并回流到任务中心与工作区。",
+  managed: "可直接创建本地持续跟踪任务，并回流到任务中心与工作区。",
 };
 
 const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
   instant: "填写参数",
-  scheduled: "先做方案",
-  managed: "先定指标",
+  scheduled: "创建任务",
+  managed: "创建跟踪",
 };
 
 function getRunnerLabel(item: ServiceSkillItem): string {
   if (item.executionLocation === "cloud_required") {
     return "云端托管执行";
+  }
+  if (isServiceSkillSiteCapabilityBound(item)) {
+    return "浏览器站点执行";
   }
   return RUNNER_LABELS[item.runnerType];
 }
@@ -65,12 +76,18 @@ function getRunnerDescription(item: ServiceSkillItem): string {
   if (item.executionLocation === "cloud_required") {
     return "提交到 OEM 云端执行，结果由服务端异步返回。";
   }
+  if (isServiceSkillSiteCapabilityBound(item)) {
+    return "直接进入浏览器工作台，复用真实登录态执行站点脚本并沉淀结果。";
+  }
   return RUNNER_DESCRIPTIONS[item.runnerType];
 }
 
 function getActionLabel(item: ServiceSkillItem): string {
   if (item.executionLocation === "cloud_required") {
     return "提交云端";
+  }
+  if (isServiceSkillSiteCapabilityBound(item)) {
+    return "启动采集";
   }
   return LOCAL_ACTION_LABELS[item.runnerType];
 }
@@ -88,6 +105,7 @@ function getSkillBadge(item: ServiceSkillItem, isRecent: boolean): string {
 function buildHomeItems(
   items: ServiceSkillItem[],
   automationStatusMap: Record<string, ServiceSkillAutomationStatus>,
+  cloudRunStatusMap: Record<string, ServiceSkillCloudRunStatus>,
 ): ServiceSkillHomeItem[] {
   const usageMap = getServiceSkillUsageMap();
   const mapped: Array<ServiceSkillHomeItem & { _sortIndex: number }> = items.map(
@@ -106,6 +124,10 @@ function buildHomeItems(
         runnerDescription: getRunnerDescription(item),
         actionLabel: getActionLabel(item),
         automationStatus: automationStatusMap[item.id] ?? null,
+        cloudStatus:
+          item.executionLocation === "cloud_required"
+            ? cloudRunStatusMap[item.id] ?? null
+            : null,
         _sortIndex: index,
       };
     },
@@ -157,6 +179,9 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
   const [automationStatusMap, setAutomationStatusMap] = useState<
     Record<string, ServiceSkillAutomationStatus>
   >({});
+  const [cloudRunStatusMap, setCloudRunStatusMap] = useState<
+    Record<string, ServiceSkillCloudRunStatus>
+  >({});
   const [catalogMeta, setCatalogMeta] = useState<ServiceSkillCatalogMeta | null>(
     null,
   );
@@ -168,19 +193,25 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
   const applyCatalogSnapshot = useCallback(async (catalog: ServiceSkillCatalog) => {
     const automationLinks = listServiceSkillAutomationLinks();
     let automationStatuses: Record<string, ServiceSkillAutomationStatus> = {};
+    let resolvedAutomationLinkCount = automationLinks.length;
 
-    if (automationLinks.length > 0) {
+    const hasLocalAutomationSkills = catalog.items.some((item) =>
+      supportsServiceSkillLocalAutomation(item),
+    );
+
+    if (automationLinks.length > 0 || hasLocalAutomationSkills) {
       try {
-        automationStatuses = buildServiceSkillAutomationStatusMap(
-          await getAutomationJobs(),
-        );
+        const automationJobs = await getAutomationJobs();
+        automationStatuses = buildServiceSkillAutomationStatusMap(automationJobs);
+        resolvedAutomationLinkCount =
+          resolveServiceSkillAutomationLinks(automationJobs).length;
       } catch {
         automationStatuses = {};
       }
     }
 
-    setItems(catalog.items.filter((item) => item.source === "cloud_catalog"));
-    setAutomationLinkCount(automationLinks.length);
+    setItems(catalog.items);
+    setAutomationLinkCount(resolvedAutomationLinkCount);
     setAutomationStatusMap(automationStatuses);
     setCatalogMeta(buildCatalogMeta(catalog));
   }, []);
@@ -255,6 +286,26 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
   }, [enabled, loadCurrentCatalog]);
 
   useEffect(() => {
+    if (!enabled) {
+      setCloudRunStatusMap({});
+      return;
+    }
+
+    const syncCloudRuns = () => {
+      setCloudRunStatusMap(getServiceSkillCloudRunStatusMap());
+    };
+
+    syncCloudRuns();
+    const unsubscribeCloudRuns = subscribeServiceSkillCloudRunsChanged(() => {
+      syncCloudRuns();
+    });
+
+    return () => {
+      unsubscribeCloudRuns();
+    };
+  }, [enabled]);
+
+  useEffect(() => {
     if (!enabled || automationLinkCount === 0) {
       return;
     }
@@ -278,8 +329,8 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
 
   const skills = useMemo(() => {
     void usageVersion;
-    return buildHomeItems(items, automationStatusMap);
-  }, [items, usageVersion, automationStatusMap]);
+    return buildHomeItems(items, automationStatusMap, cloudRunStatusMap);
+  }, [items, usageVersion, automationStatusMap, cloudRunStatusMap]);
 
   return {
     skills,

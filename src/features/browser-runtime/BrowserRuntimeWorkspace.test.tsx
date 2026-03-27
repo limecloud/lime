@@ -93,11 +93,27 @@ vi.mock("./BrowserEnvironmentPresetManager", () => ({
 vi.mock("./BrowserSiteAdapterPanel", () => ({
   BrowserSiteAdapterPanel: ({
     selectedProfileKey,
+    currentProjectId,
+    currentContentId,
+    initialAdapterName,
+    initialAutoRun,
+    initialRequireAttachedSession,
+    initialSaveTitle,
   }: {
     selectedProfileKey?: string;
+    currentProjectId?: string;
+    currentContentId?: string;
+    initialAdapterName?: string;
+    initialAutoRun?: boolean;
+    initialRequireAttachedSession?: boolean;
+    initialSaveTitle?: string;
   }) => (
     <div data-testid="browser-site-adapter-panel">
-      {selectedProfileKey || "default"}
+      {selectedProfileKey || "default"}|{currentProjectId || "-"}|
+      {currentContentId || "-"}|{initialAdapterName || "-"}|
+      {initialAutoRun ? "auto" : "manual"}|
+      {initialRequireAttachedSession ? "attached" : "free"}|
+      {initialSaveTitle || "-"}
     </div>
   ),
 }));
@@ -203,7 +219,7 @@ describe("BrowserRuntimeWorkspace", () => {
     expect(
       container.querySelector("[data-testid='browser-site-adapter-panel']")
         ?.textContent,
-    ).toContain("default");
+    ).toContain("default|-|-|-|manual|free|-");
     expect(
       container.querySelector("[data-testid='browser-runtime-debug-panel']")
         ?.textContent,
@@ -321,5 +337,52 @@ describe("BrowserRuntimeWorkspace", () => {
     });
 
     expect(container.textContent).toContain("已创建环境预设：美区桌面");
+  });
+
+  it("应把当前项目与内容上下文透传给站点面板", async () => {
+    const container = await renderWorkspaceWithProps({
+      currentProjectId: "project-1",
+      currentContentId: "content-1",
+    });
+
+    expect(
+      container.querySelector("[data-testid='browser-site-adapter-panel']")
+        ?.textContent,
+    ).toContain("default|project-1|content-1|-|manual|free|-");
+  });
+
+  it("应把初始站点脚本参数透传给站点面板", async () => {
+    const container = await renderWorkspaceWithProps({
+      currentProjectId: "project-9",
+      currentContentId: "content-9",
+      initialAdapterName: "github/search",
+      initialArgs: {
+        query: "mcp browser",
+      },
+      initialAutoRun: true,
+      initialSaveTitle: "GitHub 仓库线索 · mcp browser",
+    });
+
+    expect(
+      container.querySelector("[data-testid='browser-site-adapter-panel']")
+        ?.textContent,
+    ).toContain(
+      "default|project-9|content-9|github/search|auto|free|GitHub 仓库线索 · mcp browser",
+    );
+  });
+
+  it("应把附着会话要求透传给站点面板", async () => {
+    const container = await renderWorkspaceWithProps({
+      currentProjectId: "project-9",
+      currentContentId: "content-9",
+      initialAdapterName: "github/search",
+      initialAutoRun: true,
+      initialRequireAttachedSession: true,
+    });
+
+    expect(
+      container.querySelector("[data-testid='browser-site-adapter-panel']")
+        ?.textContent,
+    ).toContain("default|project-9|content-9|github/search|auto|attached|-");
   });
 });

@@ -234,32 +234,97 @@ fn render_team_roles(role_items: &[serde_json::Value]) -> Vec<String> {
 
 pub(crate) fn build_team_preference_system_prompt(
     request_metadata: Option<&serde_json::Value>,
+    session_recent_team_selection: Option<&lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
+    subagent_mode_enabled: bool,
 ) -> Option<String> {
-    let subagent_mode_enabled = extract_harness_bool(
-        request_metadata,
-        &["subagent_mode_enabled", "subagentModeEnabled"],
-    )
-    .unwrap_or(false);
-    let preferred_team_preset_id = extract_harness_string(
+    let request_has_team_selection = extract_harness_string(
         request_metadata,
         &["preferred_team_preset_id", "preferredTeamPresetId"],
-    );
-    let selected_team_source = extract_harness_string(
-        request_metadata,
-        &["selected_team_source", "selectedTeamSource"],
-    );
-    let selected_team_label = extract_harness_string(
-        request_metadata,
-        &["selected_team_label", "selectedTeamLabel"],
-    );
-    let selected_team_summary = extract_harness_string(
-        request_metadata,
-        &["selected_team_summary", "selectedTeamSummary"],
-    );
-    let selected_team_roles = extract_harness_array(
-        request_metadata,
-        &["selected_team_roles", "selectedTeamRoles"],
-    );
+    )
+    .is_some()
+        || extract_harness_string(request_metadata, &["selected_team_id", "selectedTeamId"])
+            .is_some()
+        || extract_harness_string(
+            request_metadata,
+            &["selected_team_source", "selectedTeamSource"],
+        )
+        .is_some()
+        || extract_harness_string(
+            request_metadata,
+            &["selected_team_label", "selectedTeamLabel"],
+        )
+        .is_some()
+        || extract_harness_string(
+            request_metadata,
+            &["selected_team_summary", "selectedTeamSummary"],
+        )
+        .is_some()
+        || extract_harness_array(
+            request_metadata,
+            &["selected_team_roles", "selectedTeamRoles"],
+        )
+        .is_some();
+
+    let preferred_team_preset_id = if request_has_team_selection {
+        extract_harness_string(
+            request_metadata,
+            &["preferred_team_preset_id", "preferredTeamPresetId"],
+        )
+    } else {
+        session_recent_team_selection
+            .and_then(|selection| selection.preferred_team_preset_id.clone())
+    };
+    let selected_team_source = if request_has_team_selection {
+        extract_harness_string(
+            request_metadata,
+            &["selected_team_source", "selectedTeamSource"],
+        )
+    } else {
+        session_recent_team_selection.and_then(|selection| selection.selected_team_source.clone())
+    };
+    let selected_team_label = if request_has_team_selection {
+        extract_harness_string(
+            request_metadata,
+            &["selected_team_label", "selectedTeamLabel"],
+        )
+    } else {
+        session_recent_team_selection.and_then(|selection| selection.selected_team_label.clone())
+    };
+    let selected_team_summary = if request_has_team_selection {
+        extract_harness_string(
+            request_metadata,
+            &["selected_team_summary", "selectedTeamSummary"],
+        )
+    } else {
+        session_recent_team_selection.and_then(|selection| selection.selected_team_summary.clone())
+    };
+    let selected_team_roles = if request_has_team_selection {
+        extract_harness_array(
+            request_metadata,
+            &["selected_team_roles", "selectedTeamRoles"],
+        )
+        .cloned()
+        .filter(|roles| !roles.is_empty())
+    } else {
+        session_recent_team_selection
+            .and_then(|selection| selection.selected_team_roles.as_ref())
+            .map(|roles| {
+                roles
+                    .iter()
+                    .map(|role| {
+                        serde_json::json!({
+                            "id": role.id,
+                            "label": role.label,
+                            "summary": role.summary,
+                            "profile_id": role.profile_id,
+                            "role_key": role.role_key,
+                            "skill_ids": role.skill_ids,
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .filter(|roles| !roles.is_empty())
+    };
 
     if !subagent_mode_enabled {
         return None;
@@ -299,7 +364,7 @@ pub(crate) fn build_team_preference_system_prompt(
         lines.push(format!("- Team 摘要：{team_summary}"));
     }
 
-    if let Some(role_items) = selected_team_roles {
+    if let Some(role_items) = selected_team_roles.as_ref() {
         let rendered_roles = render_team_roles(role_items);
         if !rendered_roles.is_empty() {
             lines.push("- 当前 Team 角色参考：".to_string());
@@ -330,8 +395,14 @@ pub(crate) fn build_team_preference_system_prompt(
 pub(crate) fn merge_system_prompt_with_team_preference(
     base_prompt: Option<String>,
     request_metadata: Option<&serde_json::Value>,
+    session_recent_team_selection: Option<&lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
+    subagent_mode_enabled: bool,
 ) -> Option<String> {
-    let Some(team_prompt) = build_team_preference_system_prompt(request_metadata) else {
+    let Some(team_prompt) = build_team_preference_system_prompt(
+        request_metadata,
+        session_recent_team_selection,
+        subagent_mode_enabled,
+    ) else {
         return base_prompt;
     };
 

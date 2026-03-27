@@ -86,7 +86,9 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   handleTaskFileClick: InputbarParams["onTaskFileClick"];
   characters: InputbarParams["characters"];
   skills: InputbarParams["skills"];
+  serviceSkills: InputbarParams["serviceSkills"];
   skillsLoading: InputbarParams["isSkillsLoading"];
+  onSelectServiceSkill: InputbarParams["onSelectServiceSkill"];
   setChatToolPreferences: InputbarParams["onToolStatesChange"];
   handleNavigateToSkillSettings: InputbarParams["onNavigateToSettings"];
   handleRefreshSkills: InputbarParams["onRefreshSkills"];
@@ -172,7 +174,9 @@ export function useWorkspaceInputbarSceneRuntime({
   handleTaskFileClick,
   characters,
   skills,
+  serviceSkills,
   skillsLoading,
+  onSelectServiceSkill,
   setChatToolPreferences,
   handleNavigateToSkillSettings,
   handleRefreshSkills,
@@ -290,7 +294,9 @@ export function useWorkspaceInputbarSceneRuntime({
         onTaskFileClick: handleTaskFileClick,
         characters,
         skills,
+        serviceSkills,
         isSkillsLoading: skillsLoading,
+        onSelectServiceSkill,
         toolStates: resolvedChatToolPreferences,
         onToolStatesChange: setChatToolPreferences,
         onNavigateToSettings: handleNavigateToSkillSettings,

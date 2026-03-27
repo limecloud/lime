@@ -1,0 +1,89 @@
+{
+  "manifestVersion": "v1",
+  "title": "Lime Harness Eval Manifest",
+  "defaults": {
+    "requiredArtifacts": [
+      "input.json",
+      "expected.json",
+      "grader.md",
+      "evidence-links.json"
+    ],
+    "requiredInputFields": [
+      "session.sessionId",
+      "session.threadId",
+      "task.goalSummary",
+      "classification.suiteTags",
+      "classification.failureModes",
+      "linkedArtifacts.handoffBundle.relativeRoot",
+      "linkedArtifacts.evidencePack.relativeRoot"
+    ],
+    "requiredExpectedFields": [
+      "successCriteria",
+      "blockingChecks",
+      "artifactChecks",
+      "graderSuggestion.preferredMode"
+    ],
+    "requiredEvidenceFields": [
+      "handoffBundle.relativeRoot",
+      "evidencePack.relativeRoot"
+    ]
+  },
+  "suites": [
+    {
+      "id": "repo-fixtures",
+      "title": "仓库固定 Replay 样本",
+      "priority": "P0",
+      "roadmap": "P3-2 Eval runner",
+      "description": "固定一条可在 CI 和 nightly 中稳定运行的 replay fixture，先验证 grader 合同与样本结构，而不是等真实工作区样本才能开始。",
+      "upstream": {
+        "codex": "沿用 Codex evidence-first 的 replay / grader 形状。",
+        "aster": "沿用 Aster runtime / thread / turn 的会话事实边界。",
+        "lime": "把样本、脚本和摘要统一落在 Lime 仓库 current 主线。"
+      },
+      "cases": [
+        {
+          "id": "fixture-minimal-pending-request",
+          "title": "最小 pending request Replay 样本",
+          "source": "repo_fixture",
+          "caseDir": "docs/test/harness-fixtures/replay/minimal-pending-request",
+          "tags": ["conversation-runtime", "replay", "handoff", "evidence"]
+        }
+      ]
+    },
+    {
+      "id": "repo-promoted-replays",
+      "title": "仓库沉淀 Replay 样本",
+      "priority": "P1",
+      "roadmap": "P3-6 Replay 样本沉淀",
+      "description": "把工作区导出的高价值 replay case 提升为仓库 current 样本，用于固定回归入口与 nightly 趋势对比。",
+      "upstream": {
+        "codex": "沿用 Codex 把真实失败沉淀为 replay 资产的做法。",
+        "aster": "继续复用 Aster runtime 导出的 thread / turn / evidence 边界。",
+        "lime": "由 Lime 持有 promotion 命令、repo fixture 目录与 current manifest。"
+      },
+      "cases": []
+    },
+    {
+      "id": "workspace-replay-discovery",
+      "title": "工作区 Replay 自动发现",
+      "priority": "P1",
+      "roadmap": "P3-2 Eval runner",
+      "description": "扫描当前工作区 `.lime/harness/sessions/*/replay`，把真实会话导出的 replay case 接进固定摘要格式。",
+      "upstream": {
+        "codex": "参考 Codex 把真实失败沉淀为 replay / eval 样本的习惯。",
+        "aster": "复用 Aster session runtime 导出的 thread / turn 上下文。",
+        "lime": "让 Lime 的 handoff bundle 与 evidence pack 成为 eval 的事实源。"
+      },
+      "cases": [
+        {
+          "id": "workspace-session-replays",
+          "title": "工作区会话 Replay 样本",
+          "source": "workspace_replay_discovery",
+          "root": ".lime/harness/sessions",
+          "allowZeroMatches": true,
+          "tags": ["workspace", "replay", "runtime-export"]
+        }
+      ]
+    }
+  ]
+}

@@ -112,6 +112,7 @@ export interface EmptyStateQuickActionItem {
   secondaryStatusLabel?: string;
   secondaryStatusTone?: "slate" | "sky" | "emerald" | "amber";
   secondaryStatusDescription?: string;
+  secondaryStatusActionable?: boolean;
   testId?: string;
   solutionId?: string;
 }
@@ -257,7 +258,8 @@ export function EmptyStateQuickActions({
                 ) : null}
                 {item.secondaryStatusLabel ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {onSecondaryStatusAction ? (
+                    {onSecondaryStatusAction &&
+                    item.secondaryStatusActionable !== false ? (
                       <button
                         type="button"
                         data-testid={

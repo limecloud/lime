@@ -4,12 +4,14 @@ import type {
   ServiceSkillExecutionLocation,
   ServiceSkillExecutorBinding,
   ServiceSkillItem,
+  ServiceSkillPromptTemplateKey,
   ServiceSkillReadinessRequirements,
   ServiceSkillRunnerType,
   ServiceSkillSlotDefinition,
   ServiceSkillSlotOption,
   ServiceSkillSlotType,
   ServiceSkillSource,
+  ServiceSkillSurfaceScope,
 } from "@/lib/api/serviceSkills";
 
 export type {
@@ -18,12 +20,14 @@ export type {
   ServiceSkillExecutionLocation,
   ServiceSkillExecutorBinding,
   ServiceSkillItem,
+  ServiceSkillPromptTemplateKey,
   ServiceSkillReadinessRequirements,
   ServiceSkillRunnerType,
   ServiceSkillSlotDefinition,
   ServiceSkillSlotOption,
   ServiceSkillSlotType,
   ServiceSkillSource,
+  ServiceSkillSurfaceScope,
 };
 
 export type ServiceSkillTone = "slate" | "sky" | "emerald" | "amber";
@@ -45,6 +49,14 @@ export interface ServiceSkillAutomationLinkRecord {
   linkedAt: number;
 }
 
+export interface ServiceSkillCloudRunStatus {
+  runId: string;
+  statusLabel: string;
+  tone: ServiceSkillTone;
+  detail: string | null;
+  updatedAt: number;
+}
+
 export interface ServiceSkillHomeItem extends ServiceSkillItem {
   badge: string;
   recentUsedAt: number | null;
@@ -54,6 +66,7 @@ export interface ServiceSkillHomeItem extends ServiceSkillItem {
   runnerDescription: string;
   actionLabel: string;
   automationStatus: ServiceSkillAutomationStatus | null;
+  cloudStatus?: ServiceSkillCloudRunStatus | null;
 }
 
 export interface ServiceSkillCatalogMeta {

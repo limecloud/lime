@@ -1,0 +1,62 @@
+name: Harness Nightly
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness_eval_summary:
+    name: Harness Eval Summary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore harness eval history cache
+        id: restore-harness-history
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/history
+          key: harness-nightly-history-${{ github.run_id }}
+          restore-keys: |
+            harness-nightly-history-
+
+      - name: Generate harness eval summary
+        run: |
+          mkdir -p "./artifacts/history"
+          node scripts/harness-eval-runner.mjs \
+            --output-json "./artifacts/harness-eval-summary.json" \
+            --output-markdown "./artifacts/harness-eval-summary.md"
+          cp "./artifacts/harness-eval-summary.json" "./artifacts/history/$(date -u +%Y%m%dT%H%M%SZ)-harness-eval-summary.json"
+          ls -1t "./artifacts/history"/*.json 2>/dev/null | tail -n +31 | xargs -r rm -f
+
+      - name: Generate harness eval trend
+        run: |
+          node scripts/harness-eval-trend-report.mjs \
+            --history-dir "./artifacts/history" \
+            --output-json "./artifacts/harness-eval-trend.json" \
+            --output-markdown "./artifacts/harness-eval-trend.md"
+
+      - name: Upload harness eval artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-eval-nightly
+          path: artifacts
+          if-no-files-found: error
+
+      - name: Save harness eval history cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/history
+          key: harness-nightly-history-${{ github.run_id }}
