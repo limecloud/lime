@@ -31,6 +31,7 @@ function parseArgs(argv) {
     help: false,
     docFreshnessInput: "",
     legacyInput: "",
+    manifest: "",
     outputJson: "",
     outputMarkdown: "",
     trendHistoryDir: "",
@@ -43,6 +44,12 @@ function parseArgs(argv) {
 
     if (arg === "--trend-input" && argv[index + 1]) {
       result.trendInput = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--manifest" && argv[index + 1]) {
+      result.manifest = String(argv[index + 1]).trim();
       index += 1;
       continue;
     }
@@ -103,6 +110,7 @@ Lime Harness Cleanup / Slop Report
 
 用法:
   node scripts/report-generated-slop.mjs
+  node scripts/report-generated-slop.mjs --manifest "./tmp/harness-evals.manifest.json"
   node scripts/report-generated-slop.mjs --trend-input "./tmp/harness-eval-trend.json"
   node scripts/report-generated-slop.mjs --doc-freshness-input "./tmp/doc-freshness.json"
   node scripts/report-generated-slop.mjs --legacy-input "./tmp/legacy-surface-report.json"
@@ -110,6 +118,7 @@ Lime Harness Cleanup / Slop Report
   node scripts/report-generated-slop.mjs --output-json "./tmp/harness-cleanup-report.json" --output-markdown "./tmp/harness-cleanup-report.md"
 
 选项:
+  --manifest PATH         透传给 harness eval trend/runner，覆盖默认 manifest
   --trend-input PATH        显式指定 harness eval trend JSON
   --doc-freshness-input PATH 显式指定 doc freshness JSON
   --legacy-input PATH       显式指定 governance / legacy surface report JSON
@@ -164,6 +173,10 @@ function buildTrendReport(repoRoot, options) {
   const args = [trendScriptPath, "--format", "json"];
   const effectiveHistoryDir =
     options.trendHistoryDir || detectDefaultTrendHistoryDir(repoRoot);
+
+  if (options.manifest) {
+    args.push("--manifest", options.manifest);
+  }
 
   if (effectiveHistoryDir) {
     args.push("--history-dir", effectiveHistoryDir);
@@ -271,14 +284,12 @@ function runGeneratedSlopReportCli() {
     const targetPath = resolvePath(repoRoot, options.outputJson);
     ensureParentDirectory(targetPath);
     fs.writeFileSync(targetPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-    console.log(`[lime] cleanup/slop report JSON: ${targetPath}`);
   }
 
   if (options.outputMarkdown) {
     const targetPath = resolvePath(repoRoot, options.outputMarkdown);
     ensureParentDirectory(targetPath);
     fs.writeFileSync(targetPath, renderGeneratedSlopMarkdown(report), "utf8");
-    console.log(`[lime] cleanup/slop report Markdown: ${targetPath}`);
   }
 
   process.stdout.write(renderOutput(report, options.format));
