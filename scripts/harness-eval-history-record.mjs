@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 const RUNNER_PATH = "scripts/harness-eval-runner.mjs";
 const TREND_PATH = "scripts/harness-eval-trend-report.mjs";
@@ -334,10 +335,15 @@ function runHistoryRecordCli() {
   if (options.outputJson) {
     const outputPath = resolvePath(repoRoot, options.outputJson);
     writeJsonFile(outputPath, result);
-    console.log(`[lime] harness eval history record JSON: ${outputPath}`);
-  } else {
-    process.stdout.write(rendered);
   }
+
+  process.stdout.write(rendered);
 }
 
-runHistoryRecordCli();
+const isMainModule =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  runHistoryRecordCli();
+}
