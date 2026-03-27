@@ -370,7 +370,10 @@ jobs:
         run: |
           set -euxo pipefail
           echo "macOS target: ${{ matrix.target }}"
-          echo "bundle dir: src-tauri/target/${{ matrix.target }}/release/bundle"
+          echo "bundle candidates:"
+          echo " - src-tauri/target/${{ matrix.target }}/release/bundle"
+          echo " - src-tauri/src-tauri/target/${{ matrix.target }}/release/bundle"
+          echo " - target/${{ matrix.target }}/release/bundle"
           pnpm tauri build --target "${{ matrix.target }}"
 
       - name: Inspect macOS outputs after attempt 1
@@ -378,12 +381,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
-          if [ -d "$BUNDLE_DIR" ]; then
-            find "$BUNDLE_DIR" -maxdepth 4 -type f | sort
-          else
-            echo "Bundle dir not created yet: $BUNDLE_DIR"
+          TARGET_TRIPLE="${{ matrix.target }}"
+          mapfile -t bundle_dirs < <(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort)
+          if [ "${#bundle_dirs[@]}" -eq 0 ]; then
+            echo "Bundle dir not created yet for ${TARGET_TRIPLE}"
+            exit 0
           fi
+
+          printf 'Detected macOS bundle dirs after attempt 1:\n'
+          printf ' - %s\n' "${bundle_dirs[@]}"
+          for bundle_dir in "${bundle_dirs[@]}"; do
+            find "$bundle_dir" -maxdepth 4 -type f | sort
+          done
 
       - name: Build macOS app (retry, verbose)
         id: build_macos_retry
@@ -413,12 +422,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
-          if [ -d "$BUNDLE_DIR" ]; then
-            find "$BUNDLE_DIR" -maxdepth 4 -type f | sort
-          else
-            echo "Bundle dir not created yet: $BUNDLE_DIR"
+          TARGET_TRIPLE="${{ matrix.target }}"
+          mapfile -t bundle_dirs < <(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort)
+          if [ "${#bundle_dirs[@]}" -eq 0 ]; then
+            echo "Bundle dir not created yet for ${TARGET_TRIPLE}"
+            exit 0
           fi
+
+          printf 'Detected macOS bundle dirs after retry:\n'
+          printf ' - %s\n' "${bundle_dirs[@]}"
+          for bundle_dir in "${bundle_dirs[@]}"; do
+            find "$bundle_dir" -maxdepth 4 -type f | sort
+          done
 
       - name: Build macOS app (fallback without notarization, verbose)
         id: build_macos_fallback
@@ -444,13 +459,52 @@ jobs:
         run: |
           echo "::warning::macOS notarization failed twice; fallback build skipped notarization and produced a signed-only artifact."
 
+      - name: Resolve macOS bundle dir
+        id: resolve_macos_bundle_dir
+        if: matrix.platform == 'macos-latest' && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_TRIPLE="${{ matrix.target }}"
+          candidates=(
+            "src-tauri/target/${TARGET_TRIPLE}/release/bundle"
+            "src-tauri/src-tauri/target/${TARGET_TRIPLE}/release/bundle"
+            "target/${TARGET_TRIPLE}/release/bundle"
+          )
+
+          bundle_dir=""
+          for candidate in "${candidates[@]}"; do
+            if [ -d "$candidate" ]; then
+              bundle_dir="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$bundle_dir" ]; then
+            bundle_dir="$(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort | head -n 1)"
+          fi
+
+          if [ -z "$bundle_dir" ]; then
+            echo "Unable to resolve macOS bundle dir for ${TARGET_TRIPLE}" >&2
+            find . -type d -path "*/target/${TARGET_TRIPLE}/release*" | sort || true
+            exit 1
+          fi
+
+          echo "Resolved macOS bundle dir: $bundle_dir"
+          echo "bundle_dir=$bundle_dir" >> "$GITHUB_OUTPUT"
+
       - name: Inspect final macOS outputs
         if: matrix.platform == 'macos-latest' && always()
         shell: bash
         run: |
           set -euo pipefail
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          BUNDLE_DIR="${{ steps.resolve_macos_bundle_dir.outputs.bundle_dir }}"
+          if [ -z "$BUNDLE_DIR" ]; then
+            echo "Bundle dir missing for ${{ matrix.target }}"
+            exit 0
+          fi
           if [ -d "$BUNDLE_DIR" ]; then
+            echo "Resolved bundle dir: $BUNDLE_DIR"
             find "$BUNDLE_DIR" -maxdepth 4 -type f | sort
           else
             echo "Bundle dir missing: $BUNDLE_DIR"
@@ -464,9 +518,9 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ github.event.inputs.version || github.ref_name }}"
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+          BUNDLE_DIR="${{ steps.resolve_macos_bundle_dir.outputs.bundle_dir }}"
 
-          if [ ! -d "$BUNDLE_DIR" ]; then
+          if [ -z "$BUNDLE_DIR" ] || [ ! -d "$BUNDLE_DIR" ]; then
             echo "Expected bundle dir missing: $BUNDLE_DIR" >&2
             exit 1
           fi
