@@ -12,7 +12,8 @@ use crate::services::runtime_replay_case_service::{
     export_runtime_replay_case, RuntimeReplayCaseExportResult,
 };
 use crate::services::runtime_review_decision_service::{
-    export_runtime_review_decision_template, RuntimeReviewDecisionTemplateExportResult,
+    export_runtime_review_decision_template, save_runtime_review_decision,
+    RuntimeReviewDecisionContent, RuntimeReviewDecisionTemplateExportResult,
 };
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use std::path::PathBuf;
@@ -451,6 +452,54 @@ pub async fn agent_runtime_export_review_decision_template(
         &context.detail,
         &context.thread_read,
         &context.workspace_root,
+    )
+}
+
+/// 统一运行时：保存当前会话的人工审核结果。
+#[tauri::command]
+pub async fn agent_runtime_save_review_decision(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    request: AgentRuntimeSaveReviewDecisionRequest,
+) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
+    let session_id = request.session_id.trim().to_string();
+    tracing::info!("[AsterAgent] 保存 review decision: {}", session_id);
+    let context = load_runtime_export_context(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+        &session_id,
+        "保存 review decision",
+    )
+    .await?;
+
+    save_runtime_review_decision(
+        &context.detail,
+        &context.thread_read,
+        &context.workspace_root,
+        RuntimeReviewDecisionContent {
+            decision_status: request.decision_status,
+            decision_summary: request.decision_summary,
+            chosen_fix_strategy: request.chosen_fix_strategy,
+            risk_level: request.risk_level,
+            risk_tags: request.risk_tags,
+            human_reviewer: request.human_reviewer,
+            reviewed_at: request.reviewed_at,
+            followup_actions: request.followup_actions,
+            regression_requirements: request.regression_requirements,
+            notes: request.notes,
+        },
     )
 }
 

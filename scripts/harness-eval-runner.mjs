@@ -5,14 +5,33 @@ import path from "node:path";
 import process from "node:process";
 
 const DEFAULT_MANIFEST_PATH = "docs/test/harness-evals.manifest.json";
+const REVIEW_DECISION_JSON_CANDIDATES = [
+  "review-decision.json",
+  "../review/review-decision.json",
+];
+const REVIEW_DECISION_STATUS_SET = new Set([
+  "accepted",
+  "deferred",
+  "rejected",
+  "needs_more_evidence",
+  "pending_review",
+]);
+const REVIEW_DECISION_RISK_LEVEL_SET = new Set([
+  "low",
+  "medium",
+  "high",
+  "unknown",
+]);
 
 function parseArgs(argv) {
   const result = {
     format: "text",
     help: false,
+    historyRetain: 30,
     manifest: DEFAULT_MANIFEST_PATH,
     outputJson: "",
     outputMarkdown: "",
+    recordHistoryDir: "",
     strict: true,
     workspaceRoot: process.cwd(),
   };
@@ -50,6 +69,18 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--record-history-dir" && argv[index + 1]) {
+      result.recordHistoryDir = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--history-retain" && argv[index + 1]) {
+      result.historyRetain = Number.parseInt(String(argv[index + 1]), 10);
+      index += 1;
+      continue;
+    }
+
     if (arg === "--no-strict") {
       result.strict = false;
       continue;
@@ -77,6 +108,7 @@ Lime Harness Eval Runner
   node scripts/harness-eval-runner.mjs --format json
   node scripts/harness-eval-runner.mjs --workspace-root "/path/to/workspace"
   node scripts/harness-eval-runner.mjs --output-json "./tmp/harness-eval-summary.json" --output-markdown "./tmp/harness-eval-summary.md"
+  node scripts/harness-eval-runner.mjs --record-history-dir "./artifacts/history"
 
 选项:
   --manifest PATH        指定 manifest，默认 docs/test/harness-evals.manifest.json
@@ -84,6 +116,8 @@ Lime Harness Eval Runner
   --format FMT           控制标准输出格式：text | json | markdown
   --output-json PATH     将 JSON 摘要写入指定路径
   --output-markdown PATH 将 Markdown 摘要写入指定路径
+  --record-history-dir PATH 将当前 summary 追加写入历史目录，供 trend/nightly 复用
+  --history-retain N     历史目录最多保留多少条 summary，默认 30
   --strict               严格模式（默认），发现 invalid case 时返回非 0
   --no-strict            非严格模式，只输出摘要，不因 invalid case 退出失败
   -h, --help             显示帮助
@@ -102,6 +136,56 @@ function ensureParentDirectory(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function ensureDirectory(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function toHistoryTimestamp(generatedAt) {
+  const parsed = new Date(generatedAt);
+  const normalized = Number.isNaN(parsed.getTime())
+    ? new Date().toISOString()
+    : parsed.toISOString();
+  return normalized.replace(/[-:]/g, "").replace(/\.(\d{3})Z$/, "$1Z");
+}
+
+function trimHistoryDirectory(historyDir, retainCount) {
+  const normalizedRetainCount =
+    Number.isInteger(retainCount) && retainCount > 0 ? retainCount : 30;
+  const historyFiles = fs
+    .readdirSync(historyDir, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.endsWith("-harness-eval-summary.json"),
+    )
+    .map((entry) => path.join(historyDir, entry.name))
+    .sort((left, right) => right.localeCompare(left));
+
+  for (const staleFile of historyFiles.slice(normalizedRetainCount)) {
+    fs.rmSync(staleFile, { force: true });
+  }
+}
+
+function recordSummaryHistory(repoRoot, summary, options) {
+  if (!options.recordHistoryDir) {
+    return "";
+  }
+
+  const historyDir = resolvePath(repoRoot, options.recordHistoryDir);
+  ensureDirectory(historyDir);
+  const historyFilePath = path.join(
+    historyDir,
+    `${toHistoryTimestamp(summary.generatedAt)}-harness-eval-summary.json`,
+  );
+  fs.writeFileSync(
+    historyFilePath,
+    `${JSON.stringify(summary, null, 2)}\n`,
+    "utf8",
+  );
+  trimHistoryDirectory(historyDir, options.historyRetain);
+  return historyFilePath;
+}
+
 function normalizeStringList(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -113,6 +197,20 @@ function normalizeStringList(value) {
 
 function mergeUniqueStrings(...groups) {
   return [...new Set(groups.flatMap((group) => normalizeStringList(group)))];
+}
+
+function normalizeOptionalString(value) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : "";
+}
+
+function normalizeEnumString(value, allowedValues, fallback = "") {
+  const normalized = normalizeOptionalString(value);
+  if (allowedValues.has(normalized)) {
+    return normalized;
+  }
+  return fallback;
 }
 
 function createBreakdownEntry(name) {
@@ -208,6 +306,88 @@ function listReplayDirectories(rootPath) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+function resolveExistingReviewDecisionPath(caseDir) {
+  for (const relativePath of REVIEW_DECISION_JSON_CANDIDATES) {
+    const candidate = path.resolve(caseDir, relativePath);
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function normalizeReviewDecisionPayload(payload) {
+  const decision =
+    payload && typeof payload === "object" && payload.decision
+      ? payload.decision
+      : {};
+
+  return {
+    decisionStatus: normalizeEnumString(
+      decision.decisionStatus ??
+        decision.decision_status ??
+        payload?.decisionStatus ??
+        payload?.decision_status,
+      REVIEW_DECISION_STATUS_SET,
+      "pending_review",
+    ),
+    riskLevel: normalizeEnumString(
+      decision.riskLevel ??
+        decision.risk_level ??
+        payload?.riskLevel ??
+        payload?.risk_level,
+      REVIEW_DECISION_RISK_LEVEL_SET,
+      "unknown",
+    ),
+    humanReviewer: normalizeOptionalString(
+      decision.humanReviewer ??
+        decision.human_reviewer ??
+        payload?.humanReviewer ??
+        payload?.human_reviewer,
+    ),
+    reviewedAt: normalizeOptionalString(
+      decision.reviewedAt ??
+        decision.reviewed_at ??
+        payload?.reviewedAt ??
+        payload?.reviewed_at,
+    ),
+  };
+}
+
+function loadReviewDecisionForCase(caseDir, inlineReviewDecision) {
+  const reviewDecisionPath = resolveExistingReviewDecisionPath(caseDir);
+
+  if (reviewDecisionPath) {
+    try {
+      return {
+        reviewDecision: normalizeReviewDecisionPayload(
+          readJsonFile(reviewDecisionPath),
+        ),
+        issues: [],
+      };
+    } catch (error) {
+      return {
+        reviewDecision: null,
+        issues: [
+          `review-decision.json 解析失败: ${String(error.message ?? error)}`,
+        ],
+      };
+    }
+  }
+
+  if (inlineReviewDecision && typeof inlineReviewDecision === "object") {
+    return {
+      reviewDecision: normalizeReviewDecisionPayload(inlineReviewDecision),
+      issues: [],
+    };
+  }
+
+  return {
+    reviewDecision: null,
+    issues: [],
+  };
+}
+
 function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
   const requiredArtifacts = normalizeStringList(
     caseConfig.requiredArtifacts ?? defaults.requiredArtifacts,
@@ -237,6 +417,7 @@ function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
   let inputPayload = null;
   let expectedPayload = null;
   let evidencePayload = null;
+  let reviewDecision = null;
 
   if (fs.existsSync(files["input.json"] ?? "")) {
     try {
@@ -281,6 +462,13 @@ function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
     }
   }
 
+  const reviewDecisionResult = loadReviewDecisionForCase(
+    resolvedCaseDir,
+    caseConfig.reviewDecision,
+  );
+  reviewDecision = reviewDecisionResult.reviewDecision;
+  issues.push(...reviewDecisionResult.issues);
+
   const pendingRequestCount = Array.isArray(
     inputPayload?.runtimeContext?.pendingRequests,
   )
@@ -303,6 +491,7 @@ function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
     typeof expectedPayload?.graderSuggestion?.preferredMode === "string"
       ? expectedPayload.graderSuggestion.preferredMode
       : "";
+  const reviewDecisionRecorded = reviewDecision != null;
 
   return {
     caseId: context.caseId,
@@ -326,6 +515,11 @@ function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
       inputPayload?.task?.goalSummary ?? expectedPayload?.goalSummary ?? "",
     pendingRequestCount,
     requiresHumanReview,
+    reviewDecisionRecorded,
+    reviewDecisionStatus: reviewDecision?.decisionStatus ?? "",
+    reviewRiskLevel: reviewDecision?.riskLevel ?? "",
+    reviewHumanReviewer: reviewDecision?.humanReviewer ?? "",
+    reviewReviewedAt: reviewDecision?.reviewedAt ?? "",
     preferredMode,
     status: issues.length === 0 ? "ready" : "invalid",
     issues,
@@ -385,6 +579,11 @@ function expandSuiteCases(suiteConfig, defaults, repoRoot, workspaceRoot) {
           goalSummary: "",
           pendingRequestCount: 0,
           requiresHumanReview: false,
+          reviewDecisionRecorded: false,
+          reviewDecisionStatus: "",
+          reviewRiskLevel: "",
+          reviewHumanReviewer: "",
+          reviewReviewedAt: "",
           preferredMode: "",
           status: "invalid",
           issues: [
@@ -429,6 +628,11 @@ function expandSuiteCases(suiteConfig, defaults, repoRoot, workspaceRoot) {
       goalSummary: "",
       pendingRequestCount: 0,
       requiresHumanReview: false,
+      reviewDecisionRecorded: false,
+      reviewDecisionStatus: "",
+      reviewRiskLevel: "",
+      reviewHumanReviewer: "",
+      reviewReviewedAt: "",
       preferredMode: "",
       status: "invalid",
       issues: [`不支持的 case source: ${source || "(empty)"}`],
@@ -469,6 +673,9 @@ function buildSummary(manifest, suites, options) {
   const pendingCases = allCases.filter(
     (entry) => entry.pendingRequestCount > 0,
   );
+  const recordedReviewDecisionCases = allCases.filter(
+    (entry) => entry.reviewDecisionRecorded,
+  );
 
   return {
     manifestVersion: String(manifest.manifestVersion ?? "unknown"),
@@ -484,12 +691,19 @@ function buildSummary(manifest, suites, options) {
       invalidCount: invalidCases.length,
       needsHumanReviewCount: reviewCases.length,
       pendingRequestCaseCount: pendingCases.length,
+      reviewDecisionRecordedCount: recordedReviewDecisionCases.length,
     },
     breakdowns: {
       suiteTags: aggregateCaseBreakdown(allCases, (entry) => entry.tags),
       failureModes: aggregateCaseBreakdown(
         allCases,
         (entry) => entry.failureModes,
+      ),
+      reviewDecisionStatuses: aggregateCaseBreakdown(allCases, (entry) =>
+        entry.reviewDecisionStatus ? [entry.reviewDecisionStatus] : [],
+      ),
+      reviewRiskLevels: aggregateCaseBreakdown(allCases, (entry) =>
+        entry.reviewRiskLevel ? [entry.reviewRiskLevel] : [],
       ),
     },
     suites,
@@ -506,6 +720,7 @@ function renderText(summary) {
     `[harness-eval] invalid: ${summary.totals.invalidCount}`,
     `[harness-eval] pending-request cases: ${summary.totals.pendingRequestCaseCount}`,
     `[harness-eval] needs-review cases : ${summary.totals.needsHumanReviewCount}`,
+    `[harness-eval] recorded review decisions: ${summary.totals.reviewDecisionRecordedCount}`,
   ];
 
   const topFailureModes = summary.breakdowns.failureModes.slice(0, 5);
@@ -528,6 +743,16 @@ function renderText(summary) {
     }
   }
 
+  const topReviewStatuses = summary.breakdowns.reviewDecisionStatuses.slice(0, 5);
+  if (topReviewStatuses.length > 0) {
+    lines.push("[harness-eval] review decision statuses:");
+    for (const entry of topReviewStatuses) {
+      lines.push(
+        `  - ${entry.name}: case=${entry.caseCount}, ready=${entry.readyCount}, invalid=${entry.invalidCount}`,
+      );
+    }
+  }
+
   for (const suite of summary.suites) {
     lines.push(
       `[harness-eval] suite ${suite.id}: ready ${suite.stats.readyCount} / ${suite.stats.caseCount}`,
@@ -541,6 +766,11 @@ function renderText(summary) {
       }
       if (entry.failureModes.length > 0) {
         lines.push(`    failure_modes: ${entry.failureModes.join(", ")}`);
+      }
+      if (entry.reviewDecisionStatus) {
+        lines.push(
+          `    review: ${entry.reviewDecisionStatus} / risk=${entry.reviewRiskLevel || "unknown"}`,
+        );
       }
       for (const issue of entry.issues) {
         lines.push(`    * ${issue}`);
@@ -564,6 +794,7 @@ function renderMarkdown(summary) {
     `- invalid：${summary.totals.invalidCount}`,
     `- pending request case：${summary.totals.pendingRequestCaseCount}`,
     `- needs review case：${summary.totals.needsHumanReviewCount}`,
+    `- 已记录人工审核：${summary.totals.reviewDecisionRecordedCount}`,
     "",
   ];
 
@@ -595,6 +826,32 @@ function renderMarkdown(summary) {
     lines.push("");
   }
 
+  if (summary.breakdowns.reviewDecisionStatuses.length > 0) {
+    lines.push("## 人工审核状态分布");
+    lines.push("");
+    lines.push("| 审核状态 | case | ready | invalid |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const entry of summary.breakdowns.reviewDecisionStatuses) {
+      lines.push(
+        `| ${entry.name} | ${entry.caseCount} | ${entry.readyCount} | ${entry.invalidCount} |`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (summary.breakdowns.reviewRiskLevels.length > 0) {
+    lines.push("## 风险等级分布");
+    lines.push("");
+    lines.push("| 风险等级 | case | ready | invalid |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const entry of summary.breakdowns.reviewRiskLevels) {
+      lines.push(
+        `| ${entry.name} | ${entry.caseCount} | ${entry.readyCount} | ${entry.invalidCount} |`,
+      );
+    }
+    lines.push("");
+  }
+
   for (const suite of summary.suites) {
     lines.push(`## ${suite.title}`);
     lines.push("");
@@ -613,8 +870,8 @@ function renderMarkdown(summary) {
       `- ready / total：${suite.stats.readyCount} / ${suite.stats.caseCount}`,
     );
     lines.push("");
-    lines.push("| Case | 状态 | 来源 | 分类 | 目录 | 问题 |");
-    lines.push("| --- | --- | --- | --- | --- | --- |");
+    lines.push("| Case | 状态 | 来源 | 分类 | 审核 | 目录 | 问题 |");
+    lines.push("| --- | --- | --- | --- | --- | --- | --- |");
     for (const entry of suite.cases) {
       const issueText =
         entry.issues.length === 0 ? "无" : entry.issues.join("<br>");
@@ -628,8 +885,19 @@ function renderMarkdown(summary) {
       if (entry.primaryBlockingKind) {
         classificationText.push(`blocking: ${entry.primaryBlockingKind}`);
       }
+      const reviewText = entry.reviewDecisionStatus
+        ? [
+            entry.reviewDecisionStatus,
+            entry.reviewRiskLevel ? `risk: ${entry.reviewRiskLevel}` : "",
+            entry.reviewHumanReviewer
+              ? `by: ${entry.reviewHumanReviewer}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("<br>")
+        : "无";
       lines.push(
-        `| ${entry.caseId} | ${entry.status} | ${entry.source} | ${classificationText.join("<br>") || "无"} | \`${entry.relativeCaseDir || "."}\` | ${issueText} |`,
+        `| ${entry.caseId} | ${entry.status} | ${entry.source} | ${classificationText.join("<br>") || "无"} | ${reviewText} | \`${entry.relativeCaseDir || "."}\` | ${issueText} |`,
       );
     }
     lines.push("");
@@ -670,6 +938,7 @@ function main() {
   const jsonOutput = `${JSON.stringify(summary, null, 2)}\n`;
   const markdownOutput = renderMarkdown(summary);
   const textOutput = renderText(summary);
+  const historyFilePath = recordSummaryHistory(repoRoot, summary, options);
 
   if (options.outputJson) {
     const outputPath = resolvePath(repoRoot, options.outputJson);
@@ -689,6 +958,11 @@ function main() {
     process.stdout.write(markdownOutput);
   } else {
     process.stdout.write(textOutput);
+    if (historyFilePath) {
+      process.stdout.write(
+        `[harness-eval] history snapshot: ${historyFilePath}\n`,
+      );
+    }
   }
 
   const exitCode = determineExitCode(summary, options);

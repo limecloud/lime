@@ -31,19 +31,31 @@ fn emit_runtime_side_event(
     }
 }
 
-fn summarize_artifact_document_issues(issues: &[String]) -> String {
-    let parts = issues
-        .iter()
-        .map(|issue| issue.trim())
-        .filter(|issue| !issue.is_empty())
-        .take(3)
-        .collect::<Vec<_>>();
-
-    if parts.is_empty() {
-        "结构已按最小可用方案落盘。".to_string()
-    } else {
-        parts.join("；")
+fn build_artifact_document_warning_message(
+    status: &str,
+    fallback_used: bool,
+    issues: &[String],
+) -> String {
+    if status == "failed" {
+        return "结构化文稿未完整生成，已保留一份可继续编辑的恢复稿。".to_string();
     }
+
+    if fallback_used
+        || issues
+            .iter()
+            .any(|issue| issue.contains("Markdown 正文自动恢复"))
+    {
+        return "已根据正文整理出一份可继续编辑的草稿。".to_string();
+    }
+
+    if issues
+        .iter()
+        .any(|issue| issue.contains("不完整的 ArtifactDocument JSON"))
+    {
+        return "已补全文稿结构，可继续查看和编辑。".to_string();
+    }
+
+    "已整理为可继续编辑的文稿。".to_string()
 }
 
 fn merge_turn_context_with_artifact_output_schema(
@@ -213,15 +225,19 @@ fn maybe_persist_artifact_document_after_stream(
                 let (code, prefix) = if persisted.status == "failed" {
                     (
                         ARTIFACT_DOCUMENT_FAILED_WARNING_CODE,
-                        "ArtifactDocument 未通过完整校验，已以失败态文档落盘",
+                        "ArtifactDocument 已落盘",
                     )
                 } else {
                     (
                         ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE,
-                        "ArtifactDocument 已自动修复后落盘",
+                        "ArtifactDocument 已落盘",
                     )
                 };
-                let detail = summarize_artifact_document_issues(&persisted.issues);
+                let detail = build_artifact_document_warning_message(
+                    persisted.status.as_str(),
+                    persisted.fallback_used,
+                    &persisted.issues,
+                );
                 emit_runtime_side_event(
                     app,
                     event_name,

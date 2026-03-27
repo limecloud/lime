@@ -13,6 +13,7 @@ function parseArgs(argv) {
     help: false,
     historyDir: "",
     inputs: [],
+    manifest: "",
     outputJson: "",
     outputMarkdown: "",
     workspaceRoot: process.cwd(),
@@ -23,6 +24,12 @@ function parseArgs(argv) {
 
     if (arg === "--input" && argv[index + 1]) {
       result.inputs.push(String(argv[index + 1]).trim());
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--manifest" && argv[index + 1]) {
+      result.manifest = String(argv[index + 1]).trim();
       index += 1;
       continue;
     }
@@ -71,11 +78,13 @@ Lime Harness Eval Trend Report
 
 用法:
   node scripts/harness-eval-trend-report.mjs
+  node scripts/harness-eval-trend-report.mjs --manifest "./tmp/harness-evals.manifest.json"
   node scripts/harness-eval-trend-report.mjs --input "./tmp/harness-eval-summary.json"
   node scripts/harness-eval-trend-report.mjs --history-dir "./artifacts/history"
   node scripts/harness-eval-trend-report.mjs --output-json "./tmp/harness-eval-trend.json" --output-markdown "./tmp/harness-eval-trend.md"
 
 选项:
+  --manifest PATH        透传给 harness eval runner，覆盖默认 manifest
   --input PATH           显式加入一个或多个 harness eval summary JSON
   --history-dir PATH     扫描目录下的历史 summary JSON
   --workspace-root PATH  未提供输入时，用该工作区生成当前 summary
@@ -138,12 +147,16 @@ function isHarnessEvalSummary(candidate) {
   );
 }
 
-function buildCurrentSummary(repoRoot, workspaceRoot) {
+function buildCurrentSummary(repoRoot, workspaceRoot, manifestPath) {
   const nodeCommand = process.execPath;
   const runnerPath = resolvePath(repoRoot, RUNNER_PATH);
+  const args = [runnerPath, "--format", "json", "--workspace-root", workspaceRoot];
+  if (manifestPath) {
+    args.push("--manifest", manifestPath);
+  }
   const output = execFileSync(
     nodeCommand,
-    [runnerPath, "--format", "json", "--workspace-root", workspaceRoot],
+    args,
     {
       cwd: repoRoot,
       encoding: "utf8",
@@ -403,6 +416,9 @@ function buildTrendReport(samples, repoRoot) {
       needsHumanReviewCount:
         normalizeNumber(latest?.totals?.needsHumanReviewCount) -
         normalizeNumber(baseline?.totals?.needsHumanReviewCount),
+      reviewDecisionRecordedCount:
+        normalizeNumber(latest?.totals?.reviewDecisionRecordedCount) -
+        normalizeNumber(baseline?.totals?.reviewDecisionRecordedCount),
       readyRate: readyRateDelta,
     },
     signals: buildStatusSignals(baseline, latest, sortedSamples.length),
@@ -415,6 +431,16 @@ function buildTrendReport(samples, repoRoot) {
     classificationDeltas: {
       suiteTags: buildBreakdownDeltas(baseline, latest, "suiteTags"),
       failureModes: buildBreakdownDeltas(baseline, latest, "failureModes"),
+      reviewDecisionStatuses: buildBreakdownDeltas(
+        baseline,
+        latest,
+        "reviewDecisionStatuses",
+      ),
+      reviewRiskLevels: buildBreakdownDeltas(
+        baseline,
+        latest,
+        "reviewRiskLevels",
+      ),
     },
   };
 }
@@ -428,6 +454,7 @@ function renderText(report) {
     `[harness-eval-trend] delta readyCount: ${report.delta.readyCount}`,
     `[harness-eval-trend] delta invalidCount: ${report.delta.invalidCount}`,
     `[harness-eval-trend] delta pendingRequestCaseCount: ${report.delta.pendingRequestCaseCount}`,
+    `[harness-eval-trend] delta reviewDecisionRecordedCount: ${report.delta.reviewDecisionRecordedCount}`,
     `[harness-eval-trend] delta readyRate: ${(report.delta.readyRate * 100).toFixed(1)}%`,
   ];
 
@@ -444,6 +471,17 @@ function renderText(report) {
     for (const entry of topFailureModeDeltas) {
       lines.push(
         `  - ${entry.name}: delta_case=${entry.delta.caseCount}, delta_invalid=${entry.delta.invalidCount}, delta_pending=${entry.delta.pendingRequestCaseCount}`,
+      );
+    }
+  }
+
+  const topReviewDecisionDeltas =
+    report.classificationDeltas.reviewDecisionStatuses.slice(0, 5);
+  if (topReviewDecisionDeltas.length > 0) {
+    lines.push("[harness-eval-trend] review decision deltas:");
+    for (const entry of topReviewDecisionDeltas) {
+      lines.push(
+        `  - ${entry.name}: delta_case=${entry.delta.caseCount}, delta_invalid=${entry.delta.invalidCount}`,
       );
     }
   }
@@ -468,6 +506,7 @@ function renderMarkdown(report) {
     `- invalid 数变化：${report.delta.invalidCount}`,
     `- pending request case 变化：${report.delta.pendingRequestCaseCount}`,
     `- needs review case 变化：${report.delta.needsHumanReviewCount}`,
+    `- 已记录人工审核变化：${report.delta.reviewDecisionRecordedCount}`,
     `- ready rate 变化：${(report.delta.readyRate * 100).toFixed(1)}%`,
     "",
     "## 信号",
@@ -502,6 +541,32 @@ function renderMarkdown(report) {
     );
     lines.push("| --- | --- | --- | --- | --- |");
     for (const entry of report.classificationDeltas.suiteTags) {
+      lines.push(
+        `| ${entry.name} | ${entry.baseline.caseCount} | ${entry.latest.caseCount} | ${entry.delta.caseCount} | ${entry.delta.invalidCount} |`,
+      );
+    }
+  }
+
+  if (report.classificationDeltas.reviewDecisionStatuses.length > 0) {
+    lines.push("");
+    lines.push("## 人工审核状态变化");
+    lines.push("");
+    lines.push("| 审核状态 | baseline case | latest case | delta case | delta invalid |");
+    lines.push("| --- | --- | --- | --- | --- |");
+    for (const entry of report.classificationDeltas.reviewDecisionStatuses) {
+      lines.push(
+        `| ${entry.name} | ${entry.baseline.caseCount} | ${entry.latest.caseCount} | ${entry.delta.caseCount} | ${entry.delta.invalidCount} |`,
+      );
+    }
+  }
+
+  if (report.classificationDeltas.reviewRiskLevels.length > 0) {
+    lines.push("");
+    lines.push("## 风险等级变化");
+    lines.push("");
+    lines.push("| 风险等级 | baseline case | latest case | delta case | delta invalid |");
+    lines.push("| --- | --- | --- | --- | --- |");
+    for (const entry of report.classificationDeltas.reviewRiskLevels) {
       lines.push(
         `| ${entry.name} | ${entry.baseline.caseCount} | ${entry.latest.caseCount} | ${entry.delta.caseCount} | ${entry.delta.invalidCount} |`,
       );
@@ -587,6 +652,7 @@ function loadSamples(options, repoRoot) {
     const currentSummary = buildCurrentSummary(
       repoRoot,
       path.resolve(options.workspaceRoot),
+      options.manifest,
     );
     sampleEntries.push({
       sourcePath: "(generated-current-summary)",

@@ -182,14 +182,27 @@ npm run test:contracts
    - `input / expected / grader / evidence-links` 文件列表出现
    - replay 区块能显示 handoff / evidence 的关联根路径
    - 打开目录后工作区内确实生成 `.lime/harness/sessions/<session_id>/replay`
-8. 如果这轮继续开发外部分析交接，再点击 `导出分析交接` 与 `一键复制给 AI`，确认：
+8. 如果这轮继续开发 replay -> eval 主链，再点击 `复制回归命令`，确认：
+   - 剪贴板内容同时包含 `npm run harness:eval:promote -- ...`、`npm run harness:eval` 与 `npm run harness:eval:trend`
+   - promote 命令里的 `session-id / slug / title` 已自动带出，不需要手工补参数
+   - 该入口只是复制仓库已有主命令，不是 Lime 内部自动 promotion
+9. 如果这轮继续开发外部分析交接，再点击 `导出分析交接` 与 `一键复制给 AI`，确认：
    - `analysis-brief.md / analysis-context.json` 文件列表出现
    - 复制内容直接来自后端 `copy_prompt`，不需要前端再手写 prompt
    - analysis 区块能显示 handoff / evidence / replay 的关联目录
-9. 如果这轮继续开发人工审核记录，再点击 `导出人工审核记录`，确认：
-   - `review-decision.md / review-decision.json` 文件列表出现
-   - 区块能显示默认状态、审核清单与关联 analysis 文件
-   - 打开目录后工作区内确实生成 `.lime/harness/sessions/<session_id>/review`
+10. 如果这轮继续开发人工审核记录，再点击 `导出人工审核记录`，确认：
+    - `review-decision.md / review-decision.json` 文件列表出现
+    - 区块能显示当前状态、审核清单与关联 analysis 文件
+    - 打开目录后工作区内确实生成 `.lime/harness/sessions/<session_id>/review`
+11. 如果这轮继续开发人工审核保存闭环，再点击 `填写人工审核结果`，至少填写：
+    - `决策状态`
+    - `决策摘要`
+    - `审核人`
+    - `风险等级`
+12. 保存后确认：
+    - 区块里的“当前人工审核结论”立即刷新为最新状态、审核人和摘要
+    - `review-decision.md / review-decision.json` 仍然保持同一目录，不会新开平级目录
+    - 如页面桥接到了真实后端，重新点击 `导出人工审核记录` 后，已保存结论不会被刷回 `pending_review`
 
 ### 话题内容上下文恢复验证
 

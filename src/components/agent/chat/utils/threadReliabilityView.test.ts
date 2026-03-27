@@ -212,4 +212,48 @@ describe("buildThreadReliabilityView", () => {
       "正在停止当前执行，请等待运行时回填最终状态",
     );
   });
+
+  it("应忽略 Artifact 自动恢复 warning，不把它升级为活跃 incident", () => {
+    const view = buildThreadReliabilityView({
+      threadRead: {
+        thread_id: "thread-1",
+        status: "completed",
+        active_turn_id: "turn-5",
+        pending_requests: [],
+        incidents: [],
+      },
+      turns: [
+        {
+          id: "turn-5",
+          thread_id: "thread-1",
+          prompt_text: "整理结构化文稿",
+          status: "completed",
+          created_at: "2026-03-23T09:58:00Z",
+          started_at: "2026-03-23T09:58:00Z",
+          updated_at: "2026-03-23T09:59:00Z",
+          completed_at: "2026-03-23T09:59:00Z",
+        },
+      ],
+      currentTurnId: "turn-5",
+      threadItems: [
+        {
+          id: "warning-artifact-repaired",
+          thread_id: "thread-1",
+          turn_id: "turn-5",
+          sequence: 3,
+          status: "completed",
+          started_at: "2026-03-23T09:58:30Z",
+          completed_at: "2026-03-23T09:58:30Z",
+          updated_at: "2026-03-23T09:58:30Z",
+          type: "warning",
+          code: "artifact_document_repaired",
+          message: "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
+        },
+      ],
+    });
+
+    expect(view.activeIncidentCount).toBe(0);
+    expect(view.incidents).toEqual([]);
+    expect(view.summary).not.toContain("警告");
+  });
 });

@@ -34,6 +34,7 @@ import {
   buildFailedAgentRuntimeStatus,
   formatAgentRuntimeStatusSummary,
 } from "../utils/agentRuntimeStatus";
+import { resolveRuntimeWarningToastPresentation } from "./runtimeWarningPresentation";
 import {
   applyModelChangeExecutionRuntime,
   applyTurnContextExecutionRuntime,
@@ -527,7 +528,25 @@ export function handleTurnStreamEvent({
       const warningKey = `${activeSessionId}:${data.code || data.message}`;
       if (!warnedKeysRef.current.has(warningKey)) {
         warnedKeysRef.current.add(warningKey);
-        toast.warning(data.message);
+        const presentation = resolveRuntimeWarningToastPresentation({
+          code: data.code,
+          message: data.message,
+        });
+        if (!presentation.shouldToast) {
+          break;
+        }
+        switch (presentation.level) {
+          case "info":
+            toast.info(presentation.message);
+            break;
+          case "error":
+            toast.error(presentation.message);
+            break;
+          case "warning":
+          default:
+            toast.warning(presentation.message);
+            break;
+        }
       }
       break;
     }

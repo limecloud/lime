@@ -132,10 +132,11 @@ npm run test:contracts
   - 扫描已被判定为 `deprecated` / `dead-candidate` 的前端入口
   - 检查旧 Tauri 命令是否仍被限制在指定 API 网关
   - 找出已经零引用、可进入删除候选的兼容壳
+  - 规则事实源优先看 `src/lib/governance/legacySurfaceCatalog.json`
 - `test:contracts`
   - 检查前端 `safeInvoke(...)` / `invoke(...)` 的实际调用
   - 检查 Rust `tauri::generate_handler!` 的实际注册
-  - 检查 `agentCommandCatalog` 中的治理口径
+  - 检查 `src/lib/governance/agentCommandCatalog.json` 中的命令治理口径
   - 检查 `mockPriorityCommands` 与 `defaultMocks` 是否同步
 
 原则只有一句：

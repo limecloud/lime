@@ -216,9 +216,9 @@ npm run bridge:health -- --timeout-ms 120000
   - 切换到新的 Theme Workbench gate 或运行标题、但 runtime 尚未同步时，前端仍会保留显式 `gate_key / run_title`
 - 如果这次改动影响浏览器工作台里的站点采集链路，例如推荐区、资料自动选择、`report_hint` 展示、`lime_site_recommend`，或“优先写回当前 `content_id` 而不是新建资源文档”的主线收敛，除了契约检查，还应补对应 `*.test.tsx` 回归并执行 `verify:gui-smoke`。
 - 如果这次改动影响浏览器资料 / 环境预设的真实来源，还应补一次浏览器模式实测，确认控制台不再出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`。
-- 如果这次改动影响 `agent_runtime_export_handoff_bundle`、`agent_runtime_export_evidence_pack`、`agent_runtime_export_analysis_handoff`、`agent_runtime_export_review_decision_template` 或 `agent_runtime_export_replay_case` 这条 Harness 导出主链，除了契约检查，还应至少补：
+- 如果这次改动影响 `agent_runtime_export_handoff_bundle`、`agent_runtime_export_evidence_pack`、`agent_runtime_export_analysis_handoff`、`agent_runtime_export_review_decision_template`、`agent_runtime_save_review_decision` 或 `agent_runtime_export_replay_case` 这条 Harness 导出 / 审核主链，除了契约检查，还应至少补：
   - `src/lib/api/agent.test.ts` 一类的网关回归，确认仍走统一 `agent_runtime_*` 主命令
-  - `HarnessStatusPanel.test.tsx` 一类的 UI 回归，确认导出入口、状态与制品展示正常
+  - `HarnessStatusPanel.test.tsx` 一类的 UI 回归，确认导出入口、保存弹窗、状态与制品展示正常
   - 受影响 Rust 服务 / 命令的定向测试，确认 `.lime/harness/sessions/<session_id>/...` 一类制品仍能生成
 
 ## CI 事实源

@@ -477,12 +477,43 @@ export type AgentRuntimeReviewDecisionArtifactKind =
   | "review_decision_markdown"
   | "review_decision_json";
 
+export type AgentRuntimeReviewDecisionStatus =
+  | "accepted"
+  | "deferred"
+  | "rejected"
+  | "needs_more_evidence"
+  | "pending_review";
+
+export type AgentRuntimeReviewDecisionRiskLevel =
+  | "low"
+  | "medium"
+  | "high"
+  | "unknown";
+
 export interface AgentRuntimeReviewDecisionArtifact {
   kind: AgentRuntimeReviewDecisionArtifactKind;
   title: string;
   relative_path: string;
   absolute_path: string;
   bytes: number;
+}
+
+export interface AgentRuntimeReviewDecision {
+  decision_status: AgentRuntimeReviewDecisionStatus;
+  decision_summary: string;
+  chosen_fix_strategy: string;
+  risk_level: AgentRuntimeReviewDecisionRiskLevel;
+  risk_tags: string[];
+  human_reviewer: string;
+  reviewed_at?: string;
+  followup_actions: string[];
+  regression_requirements: string[];
+  notes: string;
+}
+
+export interface AgentRuntimeSaveReviewDecisionRequest
+  extends AgentRuntimeReviewDecision {
+  session_id: string;
 }
 
 export interface AgentRuntimeReviewDecisionTemplate {
@@ -504,6 +535,9 @@ export interface AgentRuntimeReviewDecisionTemplate {
   pending_request_count: number;
   queued_turn_count: number;
   default_decision_status: string;
+  decision: AgentRuntimeReviewDecision;
+  decision_status_options: AgentRuntimeReviewDecisionStatus[];
+  risk_level_options: AgentRuntimeReviewDecisionRiskLevel[];
   review_checklist: string[];
   analysis_artifacts: AgentRuntimeAnalysisArtifact[];
   artifacts: AgentRuntimeReviewDecisionArtifact[];
@@ -657,6 +691,76 @@ function normalizeReviewDecisionArtifact(
   };
 }
 
+function normalizeReviewDecisionStatus(
+  value: string,
+): AgentRuntimeReviewDecisionStatus {
+  switch (value) {
+    case "accepted":
+    case "deferred":
+    case "rejected":
+    case "needs_more_evidence":
+    case "pending_review":
+      return value;
+    default:
+      return "pending_review";
+  }
+}
+
+function normalizeReviewDecisionRiskLevel(
+  value: string,
+): AgentRuntimeReviewDecisionRiskLevel {
+  switch (value) {
+    case "low":
+    case "medium":
+    case "high":
+    case "unknown":
+      return value;
+    default:
+      return "unknown";
+  }
+}
+
+function normalizeReviewDecision(value: unknown): AgentRuntimeReviewDecision {
+  const record = isRecord(value) ? value : {};
+
+  return {
+    decision_status: normalizeReviewDecisionStatus(
+      readStringField(record, "decisionStatus", "decision_status"),
+    ),
+    decision_summary: readStringField(
+      record,
+      "decisionSummary",
+      "decision_summary",
+    ),
+    chosen_fix_strategy: readStringField(
+      record,
+      "chosenFixStrategy",
+      "chosen_fix_strategy",
+    ),
+    risk_level: normalizeReviewDecisionRiskLevel(
+      readStringField(record, "riskLevel", "risk_level"),
+    ),
+    risk_tags: readStringListField(record, "riskTags", "risk_tags"),
+    human_reviewer: readStringField(
+      record,
+      "humanReviewer",
+      "human_reviewer",
+    ),
+    reviewed_at: readOptionalStringField(record, "reviewedAt", "reviewed_at"),
+    followup_actions: readStringListField(
+      record,
+      "followupActions",
+      "followup_actions",
+    ),
+    regression_requirements: readStringListField(
+      record,
+      "regressionRequirements",
+      "regression_requirements",
+    ),
+    notes: readStringField(record, "notes"),
+  };
+}
+
 function normalizeReviewDecisionTemplate(
   value: unknown,
 ): AgentRuntimeReviewDecisionTemplate {
@@ -735,6 +839,17 @@ function normalizeReviewDecisionTemplate(
       "defaultDecisionStatus",
       "default_decision_status",
     ),
+    decision: normalizeReviewDecision(record.decision),
+    decision_status_options: readStringListField(
+      record,
+      "decisionStatusOptions",
+      "decision_status_options",
+    ).map((status) => normalizeReviewDecisionStatus(status)),
+    risk_level_options: readStringListField(
+      record,
+      "riskLevelOptions",
+      "risk_level_options",
+    ).map((riskLevel) => normalizeReviewDecisionRiskLevel(riskLevel)),
     review_checklist: readStringListField(
       record,
       "reviewChecklist",
@@ -1280,6 +1395,16 @@ export async function exportAgentRuntimeReviewDecisionTemplate(
   return normalizeReviewDecisionTemplate(
     await safeInvoke("agent_runtime_export_review_decision_template", {
       sessionId,
+    }),
+  );
+}
+
+export async function saveAgentRuntimeReviewDecision(
+  request: AgentRuntimeSaveReviewDecisionRequest,
+): Promise<AgentRuntimeReviewDecisionTemplate> {
+  return normalizeReviewDecisionTemplate(
+    await safeInvoke("agent_runtime_save_review_decision", {
+      request,
     }),
   );
 }

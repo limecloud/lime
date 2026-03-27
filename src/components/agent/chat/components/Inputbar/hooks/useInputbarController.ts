@@ -8,6 +8,7 @@ import { useImageAttachments } from "./useImageAttachments";
 import { useInputbarAdapter } from "./useInputbarAdapter";
 import { useInputbarDisplayState } from "./useInputbarDisplayState";
 import { useInputbarSend } from "./useInputbarSend";
+import { useStickyA2UIForm } from "./useStickyA2UIForm";
 import {
   useInputbarToolState,
   type InputbarToolStates,
@@ -180,6 +181,11 @@ export function useInputbarController({
     a2uiSubmissionNotice,
   });
 
+  const { visibleForm: visiblePendingA2UIForm } = useStickyA2UIForm({
+    form: pendingA2UIForm,
+    clearImmediately: Boolean(a2uiSubmissionNotice),
+  });
+
   const [dismissedTeamSuggestionKey, setDismissedTeamSuggestionKey] = useState<
     string | null
   >(null);
@@ -265,6 +271,7 @@ export function useInputbarController({
     themeWorkbenchQuickActions,
     themeWorkbenchQueueItems,
     renderThemeWorkbenchGeneratingPanel,
+    visiblePendingA2UIForm,
     visibleA2UISubmissionNotice,
     isA2UISubmissionNoticeVisible,
     activeSkill,

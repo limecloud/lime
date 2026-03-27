@@ -8,12 +8,27 @@ const DEFAULT_MANIFEST_PATH = "docs/test/harness-evals.manifest.json";
 const DEFAULT_FIXTURES_ROOT = "docs/test/harness-fixtures/replay";
 const DEFAULT_SUITE_ID = "repo-promoted-replays";
 const DEFAULT_SANITIZED_WORKSPACE_ROOT = "/workspace/lime";
+const REVIEW_DECISION_JSON_FILE_NAME = "review-decision.json";
+const REVIEW_DECISION_MARKDOWN_FILE_NAME = "review-decision.md";
 const REQUIRED_ARTIFACTS = [
   "input.json",
   "expected.json",
   "grader.md",
   "evidence-links.json",
 ];
+const REVIEW_DECISION_STATUS_SET = new Set([
+  "accepted",
+  "deferred",
+  "rejected",
+  "needs_more_evidence",
+  "pending_review",
+]);
+const REVIEW_DECISION_RISK_LEVEL_SET = new Set([
+  "low",
+  "medium",
+  "high",
+  "unknown",
+]);
 
 function parseArgs(argv) {
   const result = {
@@ -150,6 +165,10 @@ function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+function readTextFile(filePath) {
+  return fs.readFileSync(filePath, "utf8");
+}
+
 function writeJsonFile(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
@@ -178,6 +197,20 @@ function normalizeStringList(value) {
 
 function mergeUniqueStrings(...groups) {
   return [...new Set(groups.flatMap((group) => normalizeStringList(group)))];
+}
+
+function normalizeEnumString(value, allowedValues, fallback = "") {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (allowedValues.has(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+function normalizeOptionalString(value) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : "";
 }
 
 function slugify(value) {
@@ -322,6 +355,7 @@ function getRelativeIfInside(rootPath, absolutePath) {
 function buildPromotionMetadata({
   promotedAt,
   replayDir,
+  reviewDecision,
   sessionId,
   workspaceRoot,
   sanitizedWorkspaceRoot,
@@ -336,6 +370,10 @@ function buildPromotionMetadata({
 
   if (replayRelativeDir && replayRelativeDir !== ".") {
     metadata.sourceReplayDir = replayRelativeDir;
+  }
+
+  if (reviewDecision) {
+    metadata.reviewDecision = reviewDecision;
   }
 
   return metadata;
@@ -382,9 +420,10 @@ function buildManifestCaseEntry({
   caseId,
   caseTitle,
   inputPayload,
+  reviewDecision,
   targetCaseDirValue,
 }) {
-  return {
+  const entry = {
     id: caseId,
     title: caseTitle,
     source: "repo_fixture",
@@ -394,6 +433,12 @@ function buildManifestCaseEntry({
       inputPayload?.classification?.suiteTags,
     ),
   };
+
+  if (reviewDecision) {
+    entry.reviewDecision = reviewDecision;
+  }
+
+  return entry;
 }
 
 function updateManifestCase({
@@ -448,6 +493,8 @@ function writePromotedArtifacts({
   expectedPayload,
   graderMarkdown,
   inputPayload,
+  reviewDecisionJson,
+  reviewDecisionMarkdown,
   targetDir,
 }) {
   ensureDirectory(targetDir);
@@ -455,6 +502,19 @@ function writePromotedArtifacts({
   writeJsonFile(path.join(targetDir, "expected.json"), expectedPayload);
   writeJsonFile(path.join(targetDir, "evidence-links.json"), evidencePayload);
   fs.writeFileSync(path.join(targetDir, "grader.md"), graderMarkdown, "utf8");
+  if (reviewDecisionJson) {
+    writeJsonFile(
+      path.join(targetDir, REVIEW_DECISION_JSON_FILE_NAME),
+      reviewDecisionJson,
+    );
+  }
+  if (reviewDecisionMarkdown) {
+    fs.writeFileSync(
+      path.join(targetDir, REVIEW_DECISION_MARKDOWN_FILE_NAME),
+      reviewDecisionMarkdown,
+      "utf8",
+    );
+  }
 }
 
 function toManifestCaseDirValue(repoRoot, targetDir) {
@@ -485,7 +545,98 @@ function renderText(result) {
     lines.push(`[harness-replay-promote] tags: ${result.tags.join(", ")}`);
   }
 
+  if (result.reviewDecisionStatus) {
+    lines.push(
+      `[harness-replay-promote] review decision: ${result.reviewDecisionStatus} / risk=${result.reviewRiskLevel || "unknown"}`,
+    );
+  }
+
   return `${lines.join("\n")}\n`;
+}
+
+function resolveSiblingReviewArtifactPath(replayDir, fileName) {
+  return path.resolve(replayDir, "..", "review", fileName);
+}
+
+function normalizeReviewDecisionMetadata(reviewDecisionPayload) {
+  const decision =
+    reviewDecisionPayload &&
+    typeof reviewDecisionPayload === "object" &&
+    reviewDecisionPayload.decision &&
+    typeof reviewDecisionPayload.decision === "object"
+      ? reviewDecisionPayload.decision
+      : {};
+  const decisionStatus = normalizeEnumString(
+    decision.decisionStatus ?? decision.decision_status,
+    REVIEW_DECISION_STATUS_SET,
+    "pending_review",
+  );
+  const riskLevel = normalizeEnumString(
+    decision.riskLevel ?? decision.risk_level,
+    REVIEW_DECISION_RISK_LEVEL_SET,
+    "unknown",
+  );
+  const humanReviewer = normalizeOptionalString(
+    decision.humanReviewer ?? decision.human_reviewer,
+  );
+  const reviewedAt = normalizeOptionalString(
+    decision.reviewedAt ?? decision.reviewed_at,
+  );
+
+  return {
+    decisionStatus,
+    riskLevel,
+    humanReviewer,
+    reviewedAt,
+  };
+}
+
+function loadOptionalReviewDecisionArtifacts({
+  replayDir,
+  sanitizedWorkspaceRoot,
+  workspaceRoot,
+}) {
+  const reviewDecisionJsonPath = resolveSiblingReviewArtifactPath(
+    replayDir,
+    REVIEW_DECISION_JSON_FILE_NAME,
+  );
+  const reviewDecisionMarkdownPath = resolveSiblingReviewArtifactPath(
+    replayDir,
+    REVIEW_DECISION_MARKDOWN_FILE_NAME,
+  );
+  const hasJson = fs.existsSync(reviewDecisionJsonPath);
+  const hasMarkdown = fs.existsSync(reviewDecisionMarkdownPath);
+
+  if (!hasJson && !hasMarkdown) {
+    return {
+      metadata: null,
+      reviewDecisionJson: null,
+      reviewDecisionMarkdown: "",
+    };
+  }
+
+  const reviewDecisionJson = hasJson
+    ? sanitizePayload(
+        readJsonFile(reviewDecisionJsonPath),
+        workspaceRoot,
+        sanitizedWorkspaceRoot,
+      )
+    : null;
+  const reviewDecisionMarkdown = hasMarkdown
+    ? replaceWorkspaceRootInString(
+        readTextFile(reviewDecisionMarkdownPath),
+        workspaceRoot,
+        sanitizedWorkspaceRoot,
+      )
+    : "";
+
+  return {
+    metadata: reviewDecisionJson
+      ? normalizeReviewDecisionMetadata(reviewDecisionJson)
+      : null,
+    reviewDecisionJson,
+    reviewDecisionMarkdown,
+  };
 }
 
 function main() {
@@ -531,6 +682,7 @@ function main() {
   const promotionMetadata = buildPromotionMetadata({
     promotedAt,
     replayDir,
+    reviewDecision: undefined,
     sanitizedWorkspaceRoot: options.sanitizedWorkspaceRoot,
     sessionId,
     workspaceRoot,
@@ -570,6 +722,18 @@ function main() {
     ),
     promotionMetadata,
   );
+  const {
+    metadata: reviewDecisionMetadata,
+    reviewDecisionJson,
+    reviewDecisionMarkdown,
+  } = loadOptionalReviewDecisionArtifacts({
+    replayDir,
+    sanitizedWorkspaceRoot: options.sanitizedWorkspaceRoot,
+    workspaceRoot,
+  });
+  if (reviewDecisionMetadata) {
+    promotionMetadata.reviewDecision = reviewDecisionMetadata;
+  }
 
   const fixturesRoot = resolvePath(repoRoot, options.fixturesRoot);
   const targetDir = path.join(fixturesRoot, slug);
@@ -584,6 +748,7 @@ function main() {
     caseId,
     caseTitle: title,
     inputPayload,
+    reviewDecision: reviewDecisionMetadata,
     targetCaseDirValue: manifestCaseDir,
   });
 
@@ -597,6 +762,8 @@ function main() {
       expectedPayload,
       graderMarkdown,
       inputPayload,
+      reviewDecisionJson,
+      reviewDecisionMarkdown,
       targetDir,
     });
     const manifestUpdate = updateManifestCase({
@@ -623,6 +790,10 @@ function main() {
     targetCaseDir: toPortablePath(targetDir),
     title,
   };
+  if (reviewDecisionMetadata) {
+    result.reviewDecisionStatus = reviewDecisionMetadata.decisionStatus;
+    result.reviewRiskLevel = reviewDecisionMetadata.riskLevel;
+  }
 
   if (options.format === "json") {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

@@ -306,10 +306,10 @@ pub(crate) use command_api::{
     agent_runtime_get_session, agent_runtime_get_thread_read, agent_runtime_get_tool_inventory,
     agent_runtime_interrupt_turn, agent_runtime_list_sessions, agent_runtime_promote_queued_turn,
     agent_runtime_remove_queued_turn, agent_runtime_replay_request, agent_runtime_resume_subagent,
-    agent_runtime_resume_thread, agent_runtime_send_subagent_input, agent_runtime_spawn_subagent,
-    agent_runtime_submit_turn, agent_runtime_update_session, agent_runtime_wait_subagents,
-    aster_agent_configure_from_pool, aster_agent_configure_provider, aster_agent_init,
-    aster_agent_reset, aster_agent_status,
+    agent_runtime_resume_thread, agent_runtime_save_review_decision,
+    agent_runtime_send_subagent_input, agent_runtime_spawn_subagent, agent_runtime_submit_turn,
+    agent_runtime_update_session, agent_runtime_wait_subagents, aster_agent_configure_from_pool,
+    aster_agent_configure_provider, aster_agent_init, aster_agent_reset, aster_agent_status,
 };
 #[allow(unused_imports)]
 pub(crate) use dto::{
@@ -322,8 +322,9 @@ pub(crate) use dto::{
     AgentRuntimeReplayRequestRequest, AgentRuntimeReplayedActionRequiredView,
     AgentRuntimeRequestView, AgentRuntimeRespondActionRequest, AgentRuntimeResumeSubagentRequest,
     AgentRuntimeResumeSubagentResponse, AgentRuntimeResumeThreadRequest,
-    AgentRuntimeSendSubagentInputRequest, AgentRuntimeSendSubagentInputResponse,
-    AgentRuntimeSessionDetail, AgentRuntimeSpawnSubagentRequest, AgentRuntimeSpawnSubagentResponse,
+    AgentRuntimeSaveReviewDecisionRequest, AgentRuntimeSendSubagentInputRequest,
+    AgentRuntimeSendSubagentInputResponse, AgentRuntimeSessionDetail,
+    AgentRuntimeSpawnSubagentRequest, AgentRuntimeSpawnSubagentResponse,
     AgentRuntimeSubmitTurnRequest, AgentRuntimeThreadDiagnostics, AgentRuntimeThreadReadModel,
     AgentRuntimeToolInventoryRequest, AgentRuntimeUpdateSessionRequest,
     AgentRuntimeWaitSubagentsRequest, AgentRuntimeWaitSubagentsResponse, AsterAgentStatus,

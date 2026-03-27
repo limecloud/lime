@@ -33,12 +33,11 @@ jobs:
 
       - name: Generate harness eval summary
         run: |
-          mkdir -p "./artifacts/history"
           node scripts/harness-eval-runner.mjs \
             --output-json "./artifacts/harness-eval-summary.json" \
-            --output-markdown "./artifacts/harness-eval-summary.md"
-          cp "./artifacts/harness-eval-summary.json" "./artifacts/history/$(date -u +%Y%m%dT%H%M%SZ)-harness-eval-summary.json"
-          ls -1t "./artifacts/history"/*.json 2>/dev/null | tail -n +31 | xargs -r rm -f
+            --output-markdown "./artifacts/harness-eval-summary.md" \
+            --record-history-dir "./artifacts/history" \
+            --history-retain 30
 
       - name: Generate harness eval trend
         run: |
@@ -46,6 +45,13 @@ jobs:
             --history-dir "./artifacts/history" \
             --output-json "./artifacts/harness-eval-trend.json" \
             --output-markdown "./artifacts/harness-eval-trend.md"
+
+      - name: Generate harness cleanup report
+        run: |
+          node scripts/report-generated-slop.mjs \
+            --trend-input "./artifacts/harness-eval-trend.json" \
+            --output-json "./artifacts/harness-cleanup-report.json" \
+            --output-markdown "./artifacts/harness-cleanup-report.md"
 
       - name: Upload harness eval artifact
         uses: actions/upload-artifact@v4

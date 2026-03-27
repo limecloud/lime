@@ -194,7 +194,7 @@ npm run verify:local
 - **运行时证据导出主链**：继续收敛到 `agent_runtime_export_evidence_pack`，用于把 runtime / timeline / artifacts 打包成最小问题证据
 - **运行时 replay 样本主链**：继续收敛到 `agent_runtime_export_replay_case`，复用 handoff bundle + evidence pack 生成 `input / expected / grader / evidence-links`
 - **运行时外部分析交接主链**：继续收敛到 `agent_runtime_export_analysis_handoff`，复用 handoff bundle + evidence pack + replay case 生成 `analysis-brief.md / analysis-context.json / copy_prompt`，供外部 Claude Code / Codex 直接诊断与最小修复；当前 GUI 入口位于 `HarnessStatusPanel`
-- **运行时人工审核记录主链**：继续收敛到 `agent_runtime_export_review_decision_template`，复用 `analysis handoff` 生成 `review-decision.md / review-decision.json`，把开发者的接受 / 延后 / 拒绝与回归要求回挂到工作区；当前 GUI 入口位于 `HarnessStatusPanel`
+- **运行时人工审核记录主链**：继续收敛到 `agent_runtime_export_review_decision_template` + `agent_runtime_save_review_decision`；前者复用 `analysis handoff` 生成 `review-decision.md / review-decision.json` 模板，后者把开发者的接受 / 延后 / 拒绝与回归要求回写到同一份工作区制品；当前 GUI 入口位于 `HarnessStatusPanel`
 - **会话主题上下文主链**：`getSession` 返回的 `execution_runtime.recent_theme / recent_session_mode` 负责承接最近一次运行态主题上下文；当前端已命中同一 steady-state theme/workbench mode 时，不应继续每回合重复携带 `harness.theme / harness.session_mode`
 - **会话运行阶段上下文主链**：`getSession` 返回的 `execution_runtime.recent_gate_key / recent_run_title` 负责承接最近一次 Theme Workbench 运行阶段上下文；当前端已命中同一 steady-state gate/run 时，不应继续每回合重复携带 `harness.gate_key / harness.run_title`
 - **会话内容上下文主链**：`getSession` 返回的 `execution_runtime.recent_content_id` 负责承接最近一次运行态 `content_id`；当前端已命中同一 steady-state 内容时，不应继续每回合重复携带 `harness.content_id`
@@ -233,3 +233,5 @@ npm run verify:local
 - `docs/aiprompts/governance.md`
 - `docs/aiprompts/quality-workflow.md`
 - `docs/aiprompts/credential-pool.md`
+- `src/lib/governance/agentCommandCatalog.json`
+- `src/lib/governance/legacySurfaceCatalog.json`

@@ -52,7 +52,8 @@ pub(crate) use runtime_api::{
     agent_runtime_export_replay_case, agent_runtime_get_session, agent_runtime_get_thread_read,
     agent_runtime_get_tool_inventory, agent_runtime_interrupt_turn,
     agent_runtime_promote_queued_turn, agent_runtime_remove_queued_turn,
-    agent_runtime_replay_request, agent_runtime_resume_thread, agent_runtime_submit_turn,
+    agent_runtime_replay_request, agent_runtime_resume_thread, agent_runtime_save_review_decision,
+    agent_runtime_submit_turn,
 };
 pub(crate) use session_api::{
     agent_runtime_create_session, agent_runtime_list_sessions, agent_runtime_update_session,

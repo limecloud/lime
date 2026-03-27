@@ -11,6 +11,7 @@ const mockPriorityCommands = new Set<string>([
   "agent_runtime_export_handoff_bundle",
   "agent_runtime_export_evidence_pack",
   "agent_runtime_export_review_decision_template",
+  "agent_runtime_save_review_decision",
   "agent_runtime_export_replay_case",
   "agent_runtime_get_tool_inventory",
   "connection_list",

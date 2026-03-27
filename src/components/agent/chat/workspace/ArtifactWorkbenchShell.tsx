@@ -12,6 +12,7 @@ import {
   FileClock,
   FileStack,
   GitCompare,
+  Info,
   Link2,
   Save,
   ScrollText,
@@ -40,6 +41,7 @@ import {
 import { resolveArtifactProtocolDocumentPayload } from "@/lib/artifact-protocol";
 import type { Artifact } from "@/lib/artifact/types";
 import { buildCanvasWorkbenchDiff } from "@/components/agent/chat/utils/canvasWorkbenchDiff";
+import { updateArtifactDocumentStatus } from "./artifactWorkbenchActions";
 import type { AgentThreadItem } from "../types";
 import {
   buildArtifactTimelineLinkIndex,
@@ -120,6 +122,10 @@ function normalizeStringArray(value: unknown): string[] {
   return value
     .map((item) => normalizeText(item))
     .filter((item): item is string => Boolean(item));
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true;
 }
 
 function formatVersionDate(value?: string): string | undefined {
@@ -255,6 +261,66 @@ function getDiffBadgeClassName(changeType: string): string {
     default:
       return "border-slate-200 bg-slate-50 text-slate-700";
   }
+}
+
+interface ArtifactRecoveryPresentation {
+  kind: "recovered_draft" | "recovered_failed" | "repaired_structure";
+  tone: "info" | "warning";
+  title: string;
+  detail: string;
+  badgeLabel: string;
+}
+
+function resolveArtifactRecoveryPresentation(
+  artifact: Artifact,
+  document: ArtifactDocumentV1,
+): ArtifactRecoveryPresentation | null {
+  const issues = normalizeStringArray(artifact.meta.artifactValidationIssues);
+  const fallbackUsed = normalizeBoolean(artifact.meta.artifactFallbackUsed);
+  const repaired = normalizeBoolean(artifact.meta.artifactValidationRepaired);
+  const recoveredFromMarkdown = issues.some((issue) =>
+    issue.includes("Markdown 正文自动恢复"),
+  );
+  const recoveredFromTruncatedJson = issues.some((issue) =>
+    issue.includes("不完整的 ArtifactDocument JSON"),
+  );
+
+  if (document.status === "failed") {
+    return {
+      kind: "recovered_failed",
+      tone: "warning",
+      badgeLabel: "恢复稿",
+      title: "已保留恢复稿",
+      detail:
+        "模型这次没有完整生成结构化文稿，正文已经保留在工作台里。建议先继续编辑补齐，再作为正式文稿使用。",
+    };
+  }
+
+  if (
+    document.status === "draft" &&
+    (fallbackUsed || recoveredFromMarkdown)
+  ) {
+    return {
+      kind: "recovered_draft",
+      tone: "info",
+      badgeLabel: "恢复稿",
+      title: "已整理为可继续编辑的草稿",
+      detail:
+        "系统已先把可用正文整理成恢复稿。你可以直接继续编辑，确认内容顺畅后，再手动标记为可阅读。",
+    };
+  }
+
+  if (repaired || recoveredFromTruncatedJson) {
+    return {
+      kind: "repaired_structure",
+      tone: "info",
+      badgeLabel: "已补全",
+      title: "文稿结构已自动补全",
+      detail: "系统已补齐中断的结构化内容，当前文稿可以继续预览和编辑。",
+    };
+  }
+
+  return null;
 }
 
 function resolveRichTextContent(block: ArtifactDocumentBlock): string {
@@ -491,51 +557,162 @@ const OverviewPanel: React.FC<{
   currentVersion: ArtifactDocumentVersionSummary | null;
   versionHistory: ArtifactDocumentVersionSummary[];
   sourceLinks: ArtifactDocumentSourceLink[];
-}> = memo(({ document, currentVersion, versionHistory, sourceLinks }) => (
-  <div className="space-y-4">
-    <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{getKindLabel(document.kind)}</Badge>
-        <Badge variant={document.status === "failed" ? "destructive" : "outline"}>
-          {getStatusLabel(document.status)}
-        </Badge>
-        {currentVersion ? (
-          <Badge variant="outline">v{currentVersion.versionNo}</Badge>
+  recoveryPresentation: ArtifactRecoveryPresentation | null;
+  canEditDocument: boolean;
+  canMarkAsReady: boolean;
+  isUpdatingRecoveryState: boolean;
+  recoveryActionError: string | null;
+  onContinueEditing: () => void;
+  onMarkAsReady: () => void;
+}> = memo(
+  ({
+    document,
+    currentVersion,
+    versionHistory,
+    sourceLinks,
+    recoveryPresentation,
+    canEditDocument,
+    canMarkAsReady,
+    isUpdatingRecoveryState,
+    recoveryActionError,
+    onContinueEditing,
+    onMarkAsReady,
+  }) => {
+  return (
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{getKindLabel(document.kind)}</Badge>
+          <Badge
+            variant={document.status === "failed" ? "destructive" : "outline"}
+          >
+            {getStatusLabel(document.status)}
+          </Badge>
+          {recoveryPresentation ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                recoveryPresentation.tone === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-sky-200 bg-sky-50 text-sky-700",
+              )}
+            >
+              {recoveryPresentation.badgeLabel}
+            </Badge>
+          ) : null}
+          {currentVersion ? (
+            <Badge variant="outline">v{currentVersion.versionNo}</Badge>
+          ) : null}
+        </div>
+        {document.summary ? (
+          <p className="mt-3 text-sm leading-6 text-slate-600">{document.summary}</p>
         ) : null}
-      </div>
-      {document.summary ? (
-        <p className="mt-3 text-sm leading-6 text-slate-600">{document.summary}</p>
-      ) : null}
-    </section>
+      </section>
 
-    <section className="grid grid-cols-2 gap-3">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Blocks</div>
-        <div className="mt-2 text-2xl font-semibold text-slate-950">
-          {document.blocks.length}
+      {recoveryPresentation ? (
+        <section
+          data-testid="artifact-recovery-notice"
+          className={cn(
+            "rounded-2xl border px-4 py-3",
+            recoveryPresentation.tone === "warning"
+              ? "border-amber-200 bg-amber-50 text-amber-950"
+              : "border-sky-200 bg-sky-50 text-sky-950",
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <span
+              className={cn(
+                "mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
+                recoveryPresentation.tone === "warning"
+                  ? "border-amber-200 bg-white text-amber-700"
+                  : "border-sky-200 bg-white text-sky-700",
+              )}
+            >
+              <Info className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-medium">
+                {recoveryPresentation.title}
+              </div>
+              <p className="mt-1 text-sm leading-6 opacity-90">
+                {recoveryPresentation.detail}
+              </p>
+              {canEditDocument ||
+              (recoveryPresentation.kind === "recovered_draft" &&
+                canMarkAsReady) ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {canEditDocument ? (
+                    <button
+                      data-testid="artifact-recovery-continue-editing"
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={onContinueEditing}
+                      disabled={isUpdatingRecoveryState}
+                    >
+                      <FilePenLine className="h-4 w-4" />
+                      继续编辑
+                    </button>
+                  ) : null}
+                  {recoveryPresentation.kind === "recovered_draft" &&
+                  canMarkAsReady ? (
+                    <button
+                      data-testid="artifact-recovery-mark-ready"
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      onClick={onMarkAsReady}
+                      disabled={isUpdatingRecoveryState}
+                    >
+                      <Save className="h-4 w-4" />
+                      {isUpdatingRecoveryState ? "处理中" : "标记为可阅读"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {recoveryActionError ? (
+                <p className="mt-3 text-sm text-rose-700">{recoveryActionError}</p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+            Blocks
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">
+            {document.blocks.length}
+          </div>
         </div>
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Sources</div>
-        <div className="mt-2 text-2xl font-semibold text-slate-950">
-          {document.sources.length}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+            Sources
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">
+            {document.sources.length}
+          </div>
         </div>
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Links</div>
-        <div className="mt-2 text-2xl font-semibold text-slate-950">
-          {sourceLinks.length}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+            Links
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">
+            {sourceLinks.length}
+          </div>
         </div>
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Versions</div>
-        <div className="mt-2 text-2xl font-semibold text-slate-950">
-          {versionHistory.length || (currentVersion ? 1 : 0)}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+            Versions
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">
+            {versionHistory.length || (currentVersion ? 1 : 0)}
+          </div>
         </div>
-      </div>
-    </section>
-  </div>
-));
+      </section>
+    </div>
+  );
+});
 OverviewPanel.displayName = "OverviewPanel";
 
 const SourcesPanel: React.FC<{
@@ -1315,6 +1492,13 @@ export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = mem
           : {},
       [artifact, document, threadItems],
     );
+    const recoveryPresentation = useMemo(
+      () =>
+        document
+          ? resolveArtifactRecoveryPresentation(artifact, document)
+          : null,
+      [artifact, document],
+    );
     const canEditDocument = Boolean(
       document &&
         document.status !== "archived" &&
@@ -1337,7 +1521,11 @@ export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = mem
       Record<string, EditableArtifactBlockDraft>
     >({});
     const [isSavingEdit, setIsSavingEdit] = useState(false);
+    const [isUpdatingRecoveryState, setIsUpdatingRecoveryState] = useState(false);
     const [editSaveError, setEditSaveError] = useState<string | null>(null);
+    const [recoveryActionError, setRecoveryActionError] = useState<string | null>(
+      null,
+    );
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
     useEffect(() => {
@@ -1357,6 +1545,10 @@ export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = mem
         ),
       );
     }, [editableBlocks]);
+
+    useEffect(() => {
+      setRecoveryActionError(null);
+    }, [document?.artifactId, document?.status, currentVersion?.id]);
 
     useEffect(() => {
       if (
@@ -1493,6 +1685,43 @@ export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = mem
       ],
     );
 
+    const handleContinueEditing = useCallback(() => {
+      if (!canEditDocument) {
+        return;
+      }
+
+      setRecoveryActionError(null);
+      setInspectorTab("edit");
+      setSelectedEditBlockId((current) => current ?? editableBlocks[0]?.blockId ?? null);
+    }, [canEditDocument, editableBlocks]);
+
+    const handleMarkAsReady = useCallback(async () => {
+      if (
+        !document ||
+        !onSaveArtifactDocument ||
+        recoveryPresentation?.kind !== "recovered_draft"
+      ) {
+        return;
+      }
+
+      setRecoveryActionError(null);
+      setIsUpdatingRecoveryState(true);
+
+      try {
+        await onSaveArtifactDocument(
+          artifact,
+          updateArtifactDocumentStatus(document, "ready"),
+        );
+        setLastSavedAt(new Date().toISOString());
+      } catch (error) {
+        setRecoveryActionError(
+          error instanceof Error ? error.message : "标记为可阅读失败",
+        );
+      } finally {
+        setIsUpdatingRecoveryState(false);
+      }
+    }, [artifact, document, onSaveArtifactDocument, recoveryPresentation]);
+
     return (
       <div
         data-testid="artifact-workbench-shell"
@@ -1596,6 +1825,18 @@ export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = mem
                       currentVersion={currentVersion}
                       versionHistory={versionHistory}
                       sourceLinks={sourceLinks}
+                      recoveryPresentation={recoveryPresentation}
+                      canEditDocument={canEditDocument}
+                      canMarkAsReady={Boolean(
+                        onSaveArtifactDocument &&
+                          recoveryPresentation?.kind === "recovered_draft",
+                      )}
+                      isUpdatingRecoveryState={isUpdatingRecoveryState}
+                      recoveryActionError={recoveryActionError}
+                      onContinueEditing={handleContinueEditing}
+                      onMarkAsReady={() => {
+                        void handleMarkAsReady();
+                      }}
                     />
                   ) : (
                     <EmptyInspectorState

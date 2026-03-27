@@ -1601,6 +1601,32 @@ pub struct AgentRuntimeUpdateSessionRequest {
     pub recent_team_selection: Option<lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AgentRuntimeSaveReviewDecisionRequest {
+    #[serde(alias = "sessionId")]
+    pub session_id: String,
+    #[serde(default, alias = "decisionStatus")]
+    pub decision_status: String,
+    #[serde(default, alias = "decisionSummary")]
+    pub decision_summary: String,
+    #[serde(default, alias = "chosenFixStrategy")]
+    pub chosen_fix_strategy: String,
+    #[serde(default, alias = "riskLevel")]
+    pub risk_level: String,
+    #[serde(default, alias = "riskTags")]
+    pub risk_tags: Vec<String>,
+    #[serde(default, alias = "humanReviewer")]
+    pub human_reviewer: String,
+    #[serde(default, alias = "reviewedAt")]
+    pub reviewed_at: Option<String>,
+    #[serde(default, alias = "followupActions")]
+    pub followup_actions: Vec<String>,
+    #[serde(default, alias = "regressionRequirements")]
+    pub regression_requirements: Vec<String>,
+    #[serde(default)]
+    pub notes: String,
+}
+
 /// 自动续写参数
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AutoContinuePayload {

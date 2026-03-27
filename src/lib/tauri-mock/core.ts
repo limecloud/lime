@@ -2010,6 +2010,115 @@ const defaultMocks: Record<string, any> = {
     pending_request_count: 1,
     queued_turn_count: 0,
     default_decision_status: "pending_review",
+    decision: {
+      decision_status: "pending_review",
+      decision_summary: "",
+      chosen_fix_strategy: "",
+      risk_level: "unknown",
+      risk_tags: [],
+      human_reviewer: "",
+      reviewed_at: null,
+      followup_actions: [],
+      regression_requirements: [],
+      notes: "",
+    },
+    decision_status_options: [
+      "accepted",
+      "deferred",
+      "rejected",
+      "needs_more_evidence",
+      "pending_review",
+    ],
+    risk_level_options: ["low", "medium", "high", "unknown"],
+    review_checklist: [
+      "先阅读 analysis-brief.md 与 analysis-context.json。",
+      "确认最终决策由人工审核者填写。",
+    ],
+    analysis_artifacts: [
+      {
+        kind: "analysis_brief",
+        title: "外部分析简报",
+        relative_path:
+          ".lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+        bytes: 512,
+      },
+    ],
+    artifacts: [
+      {
+        kind: "review_decision_markdown",
+        title: "人工审核记录",
+        relative_path:
+          ".lime/harness/sessions/mock-session/review/review-decision.md",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.md",
+        bytes: 512,
+      },
+      {
+        kind: "review_decision_json",
+        title: "人工审核记录 JSON",
+        relative_path:
+          ".lime/harness/sessions/mock-session/review/review-decision.json",
+        absolute_path:
+          "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.json",
+        bytes: 768,
+      },
+    ],
+  }),
+  agent_runtime_save_review_decision: ({ request }) => ({
+    session_id: request?.session_id || request?.sessionId || "mock-session",
+    thread_id: "mock-thread",
+    workspace_root: "/mock/workspace",
+    review_relative_root: ".lime/harness/sessions/mock-session/review",
+    review_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/review",
+    analysis_relative_root: ".lime/harness/sessions/mock-session/analysis",
+    analysis_absolute_root:
+      "/mock/workspace/.lime/harness/sessions/mock-session/analysis",
+    handoff_bundle_relative_root: ".lime/harness/sessions/mock-session",
+    evidence_pack_relative_root: ".lime/harness/sessions/mock-session/evidence",
+    replay_case_relative_root: ".lime/harness/sessions/mock-session/replay",
+    exported_at: "2026-03-27T00:07:00Z",
+    title: "记录外部分析后的人工审核结论",
+    thread_status: "waiting_request",
+    latest_turn_status: "action_required",
+    pending_request_count: 1,
+    queued_turn_count: 0,
+    default_decision_status: "pending_review",
+    decision: {
+      decision_status:
+        request?.decision_status ||
+        request?.decisionStatus ||
+        "pending_review",
+      decision_summary:
+        request?.decision_summary || request?.decisionSummary || "",
+      chosen_fix_strategy:
+        request?.chosen_fix_strategy || request?.chosenFixStrategy || "",
+      risk_level: request?.risk_level || request?.riskLevel || "unknown",
+      risk_tags: request?.risk_tags || request?.riskTags || [],
+      human_reviewer:
+        request?.human_reviewer || request?.humanReviewer || "",
+      reviewed_at:
+        request?.reviewed_at ||
+        request?.reviewedAt ||
+        "2026-03-27T00:07:00Z",
+      followup_actions:
+        request?.followup_actions || request?.followupActions || [],
+      regression_requirements:
+        request?.regression_requirements ||
+        request?.regressionRequirements ||
+        [],
+      notes: request?.notes || "",
+    },
+    decision_status_options: [
+      "accepted",
+      "deferred",
+      "rejected",
+      "needs_more_evidence",
+      "pending_review",
+    ],
+    risk_level_options: ["low", "medium", "high", "unknown"],
     review_checklist: [
       "先阅读 analysis-brief.md 与 analysis-context.json。",
       "确认最终决策由人工审核者填写。",

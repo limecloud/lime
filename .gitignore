@@ -90,3 +90,7 @@ target-codex*
 tmp/
 
 governance/
+!src/lib/governance/
+!src/lib/governance/*.json
+!src/lib/governance/*.mjs
+!src/lib/governance/*.test.ts

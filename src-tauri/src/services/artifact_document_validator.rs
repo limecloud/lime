@@ -34,6 +34,10 @@ const ARTIFACT_BLOCK_TYPE_VALUES: &[&str] = &[
     "divider",
 ];
 const MAX_BLOCK_COUNT: usize = 40;
+const MARKDOWN_RECOVERY_REASON: &str =
+    "模型未返回合法的 ArtifactDocument JSON，已按 Markdown 正文自动恢复为可渲染文档。";
+const TRUNCATED_JSON_RECOVERY_REASON: &str =
+    "检测到不完整的 ArtifactDocument JSON，已做闭合修复后继续校验。";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ArtifactDocumentValidationContext {
@@ -64,7 +68,18 @@ pub fn validate_or_fallback_artifact_document(
     raw_text: &str,
     context: &ArtifactDocumentValidationContext,
 ) -> ArtifactDocumentValidationOutcome {
-    let Some(candidate) = extract_artifact_document_candidate(raw_text) else {
+    let Some((candidate, repaired_truncated_json)) = extract_artifact_document_candidate(raw_text)
+    else {
+        if let Some(recovered_candidate) = build_markdown_recovery_candidate(raw_text, context) {
+            let mut outcome =
+                validate_or_repair_artifact_document_value(&recovered_candidate, raw_text, context);
+            outcome.repaired = true;
+            outcome.fallback_used = true;
+            outcome
+                .issues
+                .insert(0, MARKDOWN_RECOVERY_REASON.to_string());
+            return outcome;
+        }
         return build_failed_fallback_document(
             raw_text,
             "模型未返回合法的 ArtifactDocument JSON，已回退为失败态文档。",
@@ -72,7 +87,14 @@ pub fn validate_or_fallback_artifact_document(
         );
     };
 
-    validate_or_repair_artifact_document_value(&candidate, raw_text, context)
+    let mut outcome = validate_or_repair_artifact_document_value(&candidate, raw_text, context);
+    if repaired_truncated_json {
+        outcome.repaired = true;
+        outcome
+            .issues
+            .insert(0, TRUNCATED_JSON_RECOVERY_REASON.to_string());
+    }
+    outcome
 }
 
 pub fn validate_or_repair_artifact_document_value(
@@ -303,7 +325,53 @@ fn build_failed_fallback_document(
     }
 }
 
-fn extract_artifact_document_candidate(raw_text: &str) -> Option<Value> {
+fn build_markdown_recovery_candidate(
+    raw_text: &str,
+    context: &ArtifactDocumentValidationContext,
+) -> Option<Value> {
+    let trimmed = raw_text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let (heading_title, markdown_body) = extract_markdown_heading_and_body(trimmed);
+    let title = normalize_title(
+        heading_title
+            .or_else(|| context.title_hint.clone())
+            .or_else(|| extract_first_non_empty_line(trimmed)),
+    );
+    let body = if markdown_body.trim().is_empty() {
+        trimmed.to_string()
+    } else {
+        markdown_body
+    };
+    let kind = normalize_enum(context.kind_hint.clone(), ARTIFACT_KIND_VALUES, "analysis");
+    let mut document = Map::new();
+    document.insert(
+        "schemaVersion".to_string(),
+        Value::String(ARTIFACT_DOCUMENT_SCHEMA_VERSION.to_string()),
+    );
+    document.insert("kind".to_string(), Value::String(kind));
+    document.insert("title".to_string(), Value::String(title));
+    document.insert("status".to_string(), Value::String("draft".to_string()));
+    document.insert("language".to_string(), Value::String("zh-CN".to_string()));
+    if let Some(summary) = extract_markdown_summary(body.as_str()) {
+        document.insert("summary".to_string(), Value::String(summary));
+    }
+    document.insert(
+        "blocks".to_string(),
+        Value::Array(vec![Value::Object(build_fallback_rich_text_block(
+            "block-1",
+            body.as_str(),
+            Some("markdown_recovery"),
+        ))]),
+    );
+    document.insert("sources".to_string(), Value::Array(Vec::new()));
+    document.insert("metadata".to_string(), Value::Object(Map::new()));
+    Some(Value::Object(document))
+}
+
+fn extract_artifact_document_candidate(raw_text: &str) -> Option<(Value, bool)> {
     let trimmed = raw_text.trim();
     if trimmed.is_empty() {
         return None;
@@ -314,6 +382,7 @@ fn extract_artifact_document_candidate(raw_text: &str) -> Option<Value> {
         strip_outer_code_fence(trimmed),
         extract_first_fenced_payload(trimmed).unwrap_or_default(),
         extract_braced_json_candidate(trimmed).unwrap_or_default(),
+        extract_unclosed_json_candidate(trimmed).unwrap_or_default(),
     ];
 
     for candidate in candidates {
@@ -321,15 +390,22 @@ fn extract_artifact_document_candidate(raw_text: &str) -> Option<Value> {
         if normalized.is_empty() {
             continue;
         }
-        let Ok(parsed) = serde_json::from_str::<Value>(normalized) else {
-            continue;
-        };
-        if let Some(document) = unwrap_artifact_document_envelope(&parsed) {
-            return Some(document.clone());
+        if let Some(document) = parse_artifact_document_candidate(normalized) {
+            return Some((document, false));
+        }
+        if let Some(repaired) = repair_json_candidate(normalized) {
+            if let Some(document) = parse_artifact_document_candidate(repaired.as_str()) {
+                return Some((document, true));
+            }
         }
     }
 
     None
+}
+
+fn parse_artifact_document_candidate(candidate: &str) -> Option<Value> {
+    let parsed = serde_json::from_str::<Value>(candidate).ok()?;
+    unwrap_artifact_document_envelope(&parsed).cloned()
 }
 
 fn unwrap_artifact_document_envelope(value: &Value) -> Option<&Value> {
@@ -394,6 +470,79 @@ fn extract_braced_json_candidate(raw: &str) -> Option<String> {
         return None;
     }
     Some(raw[start..=end].trim().to_string())
+}
+
+fn extract_unclosed_json_candidate(raw: &str) -> Option<String> {
+    let start = raw.find('{').or_else(|| raw.find('['))?;
+    Some(raw[start..].trim().to_string())
+}
+
+fn repair_json_candidate(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut repaired = String::new();
+    let mut expected_closers = Vec::new();
+    let mut in_string = false;
+    let mut escaping = false;
+
+    for ch in trimmed.chars() {
+        repaired.push(ch);
+        if in_string {
+            if escaping {
+                escaping = false;
+                continue;
+            }
+            match ch {
+                '\\' => escaping = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_string = true,
+            '{' => expected_closers.push('}'),
+            '[' => expected_closers.push(']'),
+            '}' | ']' => {
+                let expected = expected_closers.pop()?;
+                if ch != expected {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if in_string {
+        repaired.push('"');
+    }
+    repaired = repair_json_tail(repaired);
+    while let Some(closer) = expected_closers.pop() {
+        repaired = repair_json_tail(repaired);
+        repaired.push(closer);
+    }
+    Some(repaired)
+}
+
+fn repair_json_tail(mut value: String) -> String {
+    loop {
+        let trimmed_len = value.trim_end().len();
+        value.truncate(trimmed_len);
+        if value.ends_with(':') {
+            value.push_str(" null");
+            break;
+        }
+        if value.ends_with(',') {
+            value.pop();
+            continue;
+        }
+        break;
+    }
+    value
 }
 
 fn normalize_sources(
@@ -841,6 +990,102 @@ fn build_fallback_markdown(raw_text: &str, reason: &str) -> String {
     }
 }
 
+fn extract_markdown_heading_and_body(raw_text: &str) -> (Option<String>, String) {
+    let lines = raw_text.lines().collect::<Vec<_>>();
+    let first_content_index = lines
+        .iter()
+        .position(|line| !line.trim().is_empty())
+        .unwrap_or(0);
+    let first_line = lines
+        .get(first_content_index)
+        .map(|line| line.trim())
+        .unwrap_or_default();
+    let Some(heading) = first_line.strip_prefix('#') else {
+        return (None, raw_text.trim().to_string());
+    };
+    let title = normalize_text(Some(heading.trim_start_matches('#').trim()));
+    if title.is_none() {
+        return (None, raw_text.trim().to_string());
+    }
+
+    let mut body_start = first_content_index + 1;
+    while body_start < lines.len() && lines[body_start].trim().is_empty() {
+        body_start += 1;
+    }
+    let body = lines[body_start..].join("\n").trim().to_string();
+    (title, body)
+}
+
+fn extract_first_non_empty_line(raw_text: &str) -> Option<String> {
+    raw_text
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(ToString::to_string)
+}
+
+fn extract_markdown_summary(markdown: &str) -> Option<String> {
+    let mut in_code_block = false;
+    let mut parts = Vec::new();
+
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+        if in_code_block || trimmed.is_empty() {
+            if !parts.is_empty() {
+                break;
+            }
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            continue;
+        }
+
+        let normalized = strip_markdown_summary_prefix(trimmed);
+        if normalized.is_empty() {
+            continue;
+        }
+        parts.push(normalized);
+        if parts.len() >= 2 {
+            break;
+        }
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(truncate_text(parts.join(" ").as_str(), 180))
+    }
+}
+
+fn strip_markdown_summary_prefix(line: &str) -> String {
+    let trimmed = line.trim();
+    let without_bullet = trimmed
+        .strip_prefix("- ")
+        .or_else(|| trimmed.strip_prefix("* "))
+        .or_else(|| trimmed.strip_prefix("> "))
+        .unwrap_or(trimmed)
+        .trim();
+    let without_ordered = without_bullet
+        .find(". ")
+        .and_then(|index| {
+            if without_bullet[..index]
+                .chars()
+                .all(|ch| ch.is_ascii_digit())
+            {
+                without_bullet.get(index + 2..)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(without_bullet)
+        .trim();
+    without_ordered.to_string()
+}
+
 fn normalize_title(value: Option<String>) -> String {
     value
         .map(|title| truncate_text(&title, 120))
@@ -1130,6 +1375,55 @@ mod tests {
                 .and_then(|block| block.get("type"))
                 .and_then(Value::as_str)
                 == Some("rich_text")
+        );
+    }
+
+    #[test]
+    fn validate_or_fallback_should_repair_truncated_json_before_markdown_recovery() {
+        let mut context = base_context();
+        context.source_policy = Some("none".to_string());
+
+        let outcome = validate_or_fallback_artifact_document(
+            "{\n  \"schemaVersion\": \"artifact_document.v1\",\n  \"kind\": \"analysis\",\n  \"title\": \"结构化报告\",\n  \"status\": \"ready\",\n  \"blocks\": [\n    { \"type\": \"hero_summary\", \"summary\": \"摘要\" }\n  ],\n  \"sources\": [],\n  \"metadata\": {\n    \"theme\": \"knowledge\"\n  }\n",
+            &context,
+        );
+
+        assert_eq!(outcome.status, "ready");
+        assert!(!outcome.fallback_used);
+        assert!(outcome.repaired);
+        assert!(outcome
+            .issues
+            .iter()
+            .any(|issue| issue.contains("不完整的 ArtifactDocument JSON")));
+        assert_eq!(outcome.title, "结构化报告");
+    }
+
+    #[test]
+    fn validate_or_fallback_should_recover_markdown_when_sources_not_required() {
+        let mut context = base_context();
+        context.source_policy = Some("none".to_string());
+        context.title_hint = None;
+
+        let outcome = validate_or_fallback_artifact_document(
+            "# 前端概念方案\n\n我将为你整理一份通用的前端概念方案框架。\n\n## 信息架构\n- 页面结构\n",
+            &context,
+        );
+
+        assert_eq!(outcome.status, "draft");
+        assert!(outcome.fallback_used);
+        assert_eq!(outcome.title, "前端概念方案");
+        assert!(outcome.repaired);
+        assert!(outcome
+            .issues
+            .iter()
+            .any(|issue| issue.contains("Markdown 正文自动恢复")));
+        assert_eq!(
+            outcome.document.get("status").and_then(Value::as_str),
+            Some("draft")
+        );
+        assert_eq!(
+            outcome.document.get("summary").and_then(Value::as_str),
+            Some("我将为你整理一份通用的前端概念方案框架。")
         );
     }
 }

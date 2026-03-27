@@ -10,7 +10,9 @@
 - `npm run tauri:dev:headless`：当前浏览器模式启动入口
 - `npm run bridge:health -- --timeout-ms 120000`：当前 DevBridge 就绪检查入口
 - `npm run test:bridge`：当前浏览器桥接最小自动校验入口
-- `npm run smoke:workspace-ready`：当前首条自包含 smoke，覆盖 DevBridge 就绪与默认 workspace 基础链路
+- `npm run smoke:workspace-ready`：当前自包含 smoke，覆盖 DevBridge 就绪与默认 workspace 基础链路
+- `npm run smoke:browser-runtime`：当前自包含 smoke，覆盖 browser runtime 的启动、状态读取、最小动作与审计关联键
+- `npm run smoke:site-adapters`：当前自包含 smoke，覆盖站点适配器目录状态、列表、推荐与检索主链
 
 ### supplement
 
@@ -90,6 +92,8 @@ npm run bridge:health -- --timeout-ms 120000
 | 等待 Bridge 就绪       | `npm run bridge:health -- --timeout-ms 120000` | current    | 当前标准健康检查                                |
 | 校验桥接基础能力       | `npm run test:bridge`                          | current    | `safeInvoke` / mock / tauri-mock 最小自动校验   |
 | Workspace 自包含 smoke | `npm run smoke:workspace-ready`                | current    | 验证 DevBridge、默认 workspace、路径回查链路    |
+| Browser Runtime smoke  | `npm run smoke:browser-runtime`                | current    | 验证 browser runtime 最短主链与审计关联键       |
+| Site Adapter smoke     | `npm run smoke:site-adapters`                  | current    | 验证站点适配器目录、推荐与检索最短主链          |
 | 校验跨层命令契约       | `npm run test:contracts`                       | current    | 检查前端命令、Rust 注册、catalog、mock 集合漂移 |
 | 浏览器续测细则         | `docs/aiprompts/playwright-e2e.md`             | current    | Playwright MCP 唯一详细事实源                   |
 | 专项 bridge 排障       | `npm run bridge:e2e`                           | supplement | 适合排障，不是统一门禁                          |
@@ -112,7 +116,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 假设 `tauri-driver` 仍是推荐路径
 - 假设浏览器 E2E 已进入 CI 标准门禁
 
-当前浏览器主链路 smoke 仍属于后续建设项，详见 `docs/test/testing-strategy-2026.md`。
+当前浏览器最小 smoke 基线已经具备；后续是否继续补 terminal / server / 专项 smoke，以 `docs/test/testing-strategy-2026.md` 的剩余优先级为准。
 
 ## 7. 给后续 Agent 的交接要求
 

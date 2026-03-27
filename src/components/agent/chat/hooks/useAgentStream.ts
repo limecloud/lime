@@ -39,6 +39,7 @@ import {
 import { dispatchPreparedAgentStreamSend } from "./agentStreamPreparedSendDispatch";
 import type { AgentStreamPreparedSendEnv } from "./agentStreamPreparedSendEnv";
 import { prepareAgentStreamUserInputSend } from "./agentStreamUserInputSendPreparation";
+import { resolveRuntimeWarningToastPresentation } from "./runtimeWarningPresentation";
 
 function appendThinkingToParts(
   parts: NonNullable<Message["contentParts"]>,
@@ -448,7 +449,25 @@ export function useAgentStream(options: UseAgentStreamOptions) {
             const warningKey = `${activeSessionId}:${data.code || data.message}`;
             if (!warnedKeysRef.current.has(warningKey)) {
               warnedKeysRef.current.add(warningKey);
-              toast.warning(data.message);
+              const presentation = resolveRuntimeWarningToastPresentation({
+                code: data.code,
+                message: data.message,
+              });
+              if (!presentation.shouldToast) {
+                break;
+              }
+              switch (presentation.level) {
+                case "info":
+                  toast.info(presentation.message);
+                  break;
+                case "error":
+                  toast.error(presentation.message);
+                  break;
+                case "warning":
+                default:
+                  toast.warning(presentation.message);
+                  break;
+              }
             }
             break;
           }

@@ -79,6 +79,10 @@ interface BuildThreadReliabilityViewParams {
   queuedTurns?: QueuedTurnSnapshot[];
 }
 
+const NON_BLOCKING_RUNTIME_WARNING_CODES = new Set([
+  "artifact_document_repaired",
+]);
+
 function normalizeText(value?: string | null): string | null {
   if (typeof value !== "string") {
     return null;
@@ -531,7 +535,16 @@ function deriveFallbackIncidents(
 
   const issueItem = [...threadItems]
     .reverse()
-    .find((item) => item.type === "warning" || item.type === "error");
+    .find((item) => {
+      if (item.type === "error") {
+        return true;
+      }
+      if (item.type !== "warning") {
+        return false;
+      }
+      const code = normalizeText(item.code);
+      return !code || !NON_BLOCKING_RUNTIME_WARNING_CODES.has(code);
+    });
 
   if (!issueItem) {
     return [];

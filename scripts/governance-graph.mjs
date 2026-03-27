@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { cruise } from "dependency-cruiser";
 import extractTSConfig from "dependency-cruiser/config-utl/extract-ts-config";
 import YAML from "yaml";
-import { buildLegacySurfaceReport } from "./report-legacy-surfaces.mjs";
+import { buildLegacySurfaceReport } from "./lib/legacy-surface-report-core.mjs";
 import {
   buildRustModuleIndex,
   buildRustModulePathFromFile,
@@ -138,7 +138,10 @@ function parseArgs(argv) {
     }
 
     if (arg === "--days" && argv[index + 1]) {
-      result.days = normalizePositiveNumber(argv[index + 1], DEFAULT_SINCE_DAYS);
+      result.days = normalizePositiveNumber(
+        argv[index + 1],
+        DEFAULT_SINCE_DAYS,
+      );
       index += 1;
     }
   }
@@ -217,8 +220,10 @@ async function buildGovernanceGraphReport({
   const signalsSummary = summarizeSignals(nodes);
   const summary = buildSummary(nodes, edges, signalsSummary);
   const links = {
-    selfHtmlHref: pathToFileURL(path.join(outputDir, "governance-graph.html")).href,
-    selfJsonHref: pathToFileURL(path.join(outputDir, "governance-graph.json")).href,
+    selfHtmlHref: pathToFileURL(path.join(outputDir, "governance-graph.html"))
+      .href,
+    selfJsonHref: pathToFileURL(path.join(outputDir, "governance-graph.json"))
+      .href,
     heatmapHtmlHref: fs.existsSync(path.join(outputDir, "index.html"))
       ? pathToFileURL(path.join(outputDir, "index.html")).href
       : "",
@@ -280,7 +285,9 @@ function collectGovernanceFiles(repoRoot) {
 
       const ext = path.extname(relativePath).toLowerCase();
       const language = ext === ".rs" ? "rs" : ext.replace(/^\./, "");
-      const layer = relativePath.startsWith("src-tauri/src/") ? "rust" : "frontend";
+      const layer = relativePath.startsWith("src-tauri/src/")
+        ? "rust"
+        : "frontend";
 
       records.push({
         path: relativePath,
@@ -399,7 +406,10 @@ function collectGitChurn({ gitCommand, repoRoot, sinceDays, trackedFiles }) {
       continue;
     }
 
-    fileChurn.set(normalizedGitPath, (fileChurn.get(normalizedGitPath) || 0) + churn);
+    fileChurn.set(
+      normalizedGitPath,
+      (fileChurn.get(normalizedGitPath) || 0) + churn,
+    );
   }
 
   return fileChurn;
@@ -469,7 +479,9 @@ async function collectFrontendDependencies(repoRoot, fileIndex) {
 }
 
 function collectRustDependencies(repoRoot, fileInventory, fileIndex) {
-  const rustFiles = fileInventory.filter((fileRecord) => fileRecord.layer === "rust");
+  const rustFiles = fileInventory.filter(
+    (fileRecord) => fileRecord.layer === "rust",
+  );
   const rustFileSet = new Set(rustFiles.map((fileRecord) => fileRecord.path));
   const moduleIndex = buildRustModuleIndex([...rustFileSet]);
   const edges = [];
@@ -477,7 +489,8 @@ function collectRustDependencies(repoRoot, fileInventory, fileIndex) {
   for (const fileRecord of rustFiles) {
     const absolutePath = path.join(repoRoot, fileRecord.path);
     const sourceCode = fs.readFileSync(absolutePath, "utf8");
-    const currentModulePath = buildRustModulePathFromFile(fileRecord.path) || "";
+    const currentModulePath =
+      buildRustModulePathFromFile(fileRecord.path) || "";
 
     for (const moduleName of extractRustModDeclarations(sourceCode)) {
       const targetPath = resolveRustSubmodulePath(
@@ -661,7 +674,10 @@ function buildLegacyOverlays(legacyReport) {
     }
   }
 
-  for (const result of [...legacyReport.frontendTextResults, ...legacyReport.rustTextResults]) {
+  for (const result of [
+    ...legacyReport.frontendTextResults,
+    ...legacyReport.rustTextResults,
+  ]) {
     for (const callerPath of result.references) {
       pushOverlay(callsiteOverlays, callerPath, {
         source: "legacy-report",
@@ -674,7 +690,9 @@ function buildLegacyOverlays(legacyReport) {
   }
 
   for (const result of legacyReport.rustTextCountResults) {
-    for (const callerPath of result.runtimeMatches.map((item) => item.relativePath)) {
+    for (const callerPath of result.runtimeMatches.map(
+      (item) => item.relativePath,
+    )) {
       pushOverlay(callsiteOverlays, callerPath, {
         source: "legacy-report",
         overlayType: "callsite",
@@ -727,7 +745,8 @@ function buildFileNodes({
       legacyOverlays.callsiteOverlays.get(fileRecord.path) ?? [];
     const explicitStatus = matchingRule?.status ?? "unclassified";
     const overlayStatus = pickOverlayStatus(surfaceOverlays);
-    const status = explicitStatus !== "unclassified" ? explicitStatus : overlayStatus;
+    const status =
+      explicitStatus !== "unclassified" ? explicitStatus : overlayStatus;
     const ruleSource = matchingRule
       ? {
           reason: matchingRule.reason || "",
@@ -743,12 +762,16 @@ function buildFileNodes({
       signals.add("unused-file");
     }
 
-    if ((knipSignals.unusedExportsByFile.get(fileRecord.path) ?? []).length > 0) {
+    if (
+      (knipSignals.unusedExportsByFile.get(fileRecord.path) ?? []).length > 0
+    ) {
       signals.add("unused-export");
     }
 
     if (
-      surfaceOverlays.some((overlay) => overlay.classification === "dead-candidate")
+      surfaceOverlays.some(
+        (overlay) => overlay.classification === "dead-candidate",
+      )
     ) {
       signals.add("dead-candidate");
     }
@@ -801,11 +824,7 @@ function finalizeNodeSignals(nodes, edges, governanceRules) {
   return nodes.map((node) => {
     const signals = new Set(node.signals);
 
-    if (
-      !node.reachable &&
-      node.kind === "page" &&
-      node.layer === "frontend"
-    ) {
+    if (!node.reachable && node.kind === "page" && node.layer === "frontend") {
       signals.add("page-unreachable");
     }
 
@@ -861,7 +880,10 @@ function pickOverlayStatus(surfaceOverlays) {
 }
 
 function calculateNodeSize(loc) {
-  return Math.max(26, Math.min(86, Math.round(18 + Math.sqrt(Math.max(loc, 1)))));
+  return Math.max(
+    26,
+    Math.min(86, Math.round(18 + Math.sqrt(Math.max(loc, 1)))),
+  );
 }
 
 function createParentDirectoryId(relativePath) {
@@ -901,7 +923,9 @@ function buildDirectoryNodes(fileNodes) {
     }
   }
 
-  return [...dirMap.values()].sort((left, right) => left.path.localeCompare(right.path));
+  return [...dirMap.values()].sort((left, right) =>
+    left.path.localeCompare(right.path),
+  );
 }
 
 function collectReachableFiles(entryPaths, edges) {
@@ -966,7 +990,10 @@ function isProtectedEntryNode(node, governanceRules) {
     return true;
   }
 
-  return resolveMatchingGovernanceRule(node.path, governanceRules)?.status === "current";
+  return (
+    resolveMatchingGovernanceRule(node.path, governanceRules)?.status ===
+    "current"
+  );
 }
 
 function calculateCandidateScore(node) {
@@ -1003,16 +1030,21 @@ function summarizeSignals(nodes) {
 
   return [...counts.entries()]
     .map(([signal, count]) => ({ signal, count }))
-    .sort((left, right) => right.count - left.count || left.signal.localeCompare(right.signal));
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.signal.localeCompare(right.signal),
+    );
 }
 
 function buildSummary(nodes, edges, signalsSummary) {
   const fileNodes = nodes.filter((node) => node.kind !== "dir");
   const statusCounts = Object.fromEntries(
-    ["current", "compat", "deprecated", "dead", "unclassified"].map((status) => [
-      status,
-      fileNodes.filter((node) => node.status === status).length,
-    ]),
+    ["current", "compat", "deprecated", "dead", "unclassified"].map(
+      (status) => [
+        status,
+        fileNodes.filter((node) => node.status === status).length,
+      ],
+    ),
   );
   const layerCounts = Object.fromEntries(
     ["frontend", "rust"].map((layer) => [

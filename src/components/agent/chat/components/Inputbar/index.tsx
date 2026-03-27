@@ -187,6 +187,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
     themeWorkbenchQuickActions,
     themeWorkbenchQueueItems,
     renderThemeWorkbenchGeneratingPanel,
+    visiblePendingA2UIForm,
     visibleA2UISubmissionNotice,
     isA2UISubmissionNoticeVisible,
     activeSkill,
@@ -240,7 +241,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         overlayAccessory={overlayAccessory}
         submissionNotice={visibleA2UISubmissionNotice}
         isSubmissionNoticeVisible={isA2UISubmissionNoticeVisible}
-        pendingA2UIForm={pendingA2UIForm}
+        pendingA2UIForm={visiblePendingA2UIForm}
         onA2UISubmit={onA2UISubmit}
         fileInputRef={fileInputRef}
         onFileSelect={handleFileSelect}

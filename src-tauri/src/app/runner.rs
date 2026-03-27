@@ -1454,6 +1454,7 @@ pub fn run() {
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_handoff_bundle,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_evidence_pack,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_review_decision_template,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_save_review_decision,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_replay_case,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_tool_inventory,
             commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_spawn_subagent,

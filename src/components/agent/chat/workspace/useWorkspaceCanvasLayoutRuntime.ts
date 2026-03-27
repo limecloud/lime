@@ -149,6 +149,30 @@ export function useWorkspaceCanvasLayoutRuntime({
   ]);
 
   useEffect(() => {
+    if (activeTheme !== "general") {
+      return;
+    }
+
+    if (
+      !hasCurrentCanvasArtifact &&
+      !currentImageWorkbenchActive &&
+      !isBrowserAssistCanvasVisible
+    ) {
+      return;
+    }
+
+    setGeneralCanvasState((previous) =>
+      previous.isOpen ? { ...previous, isOpen: false } : previous,
+    );
+  }, [
+    activeTheme,
+    currentImageWorkbenchActive,
+    hasCurrentCanvasArtifact,
+    isBrowserAssistCanvasVisible,
+    setGeneralCanvasState,
+  ]);
+
+  useEffect(() => {
     const shouldAutoHideTopicSidebar =
       showChatPanel &&
       !isThemeWorkbench &&

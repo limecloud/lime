@@ -1,8 +1,8 @@
-//! Runtime review decision 模板导出服务
+//! Runtime review decision 模板导出与保存服务
 //!
 //! 将外部 Claude Code / Codex 的分析结论回挂为
 //! Lime 工作区内可版本化的人工审核与决策记录模板。
-//! 这条链只导出 review-decision 模板，不在 Lime 内自动批准或自动应用修复。
+//! 这条链只导出与保存 review-decision，不在 Lime 内自动批准或自动应用修复。
 
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
@@ -59,12 +59,15 @@ pub struct RuntimeReviewDecisionTemplateExportResult {
     pub pending_request_count: usize,
     pub queued_turn_count: usize,
     pub default_decision_status: String,
+    pub decision: RuntimeReviewDecisionContent,
+    pub decision_status_options: Vec<String>,
+    pub risk_level_options: Vec<String>,
     pub review_checklist: Vec<String>,
     pub analysis_artifacts: Vec<RuntimeAnalysisArtifact>,
     pub artifacts: Vec<RuntimeReviewDecisionArtifact>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewDecisionDocument {
     schema_version: String,
@@ -72,20 +75,20 @@ struct ReviewDecisionDocument {
     exported_at: String,
     source: ReviewDecisionSource,
     review_context: ReviewDecisionContext,
-    decision: ReviewDecisionContent,
+    decision: RuntimeReviewDecisionContent,
     decision_status_options: Vec<String>,
     risk_level_options: Vec<String>,
     review_checklist: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewDecisionSource {
     derived_from: Vec<String>,
     upstream_alignment: ReviewDecisionUpstreamAlignment,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewDecisionUpstreamAlignment {
     execution_environment_reference: String,
@@ -93,7 +96,7 @@ struct ReviewDecisionUpstreamAlignment {
     product_surface: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewDecisionContext {
     session_id: String,
@@ -111,7 +114,7 @@ struct ReviewDecisionContext {
     analysis_artifacts: Vec<ReviewDecisionArtifactReference>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewDecisionArtifactReference {
     kind: String,
@@ -119,25 +122,43 @@ struct ReviewDecisionArtifactReference {
     relative_path: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-struct ReviewDecisionContent {
-    decision_status: String,
-    decision_summary: String,
-    chosen_fix_strategy: String,
-    risk_level: String,
-    risk_tags: Vec<String>,
-    human_reviewer: String,
-    reviewed_at: Option<String>,
-    followup_actions: Vec<String>,
-    regression_requirements: Vec<String>,
-    notes: String,
+pub struct RuntimeReviewDecisionContent {
+    pub decision_status: String,
+    pub decision_summary: String,
+    pub chosen_fix_strategy: String,
+    pub risk_level: String,
+    pub risk_tags: Vec<String>,
+    pub human_reviewer: String,
+    pub reviewed_at: Option<String>,
+    pub followup_actions: Vec<String>,
+    pub regression_requirements: Vec<String>,
+    pub notes: String,
 }
 
 pub fn export_runtime_review_decision_template(
     detail: &SessionDetail,
     thread_read: &AgentRuntimeThreadReadModel,
     workspace_root: &Path,
+) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
+    sync_runtime_review_decision(detail, thread_read, workspace_root, None)
+}
+
+pub fn save_runtime_review_decision(
+    detail: &SessionDetail,
+    thread_read: &AgentRuntimeThreadReadModel,
+    workspace_root: &Path,
+    decision: RuntimeReviewDecisionContent,
+) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
+    sync_runtime_review_decision(detail, thread_read, workspace_root, Some(decision))
+}
+
+fn sync_runtime_review_decision(
+    detail: &SessionDetail,
+    thread_read: &AgentRuntimeThreadReadModel,
+    workspace_root: &Path,
+    decision_override: Option<RuntimeReviewDecisionContent>,
 ) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
     let session_id = detail.id.trim();
     if session_id.is_empty() {
@@ -167,7 +188,13 @@ pub fn export_runtime_review_decision_template(
     })?;
 
     let review_checklist = build_review_checklist();
-    let document = build_review_decision_document(&analysis, &exported_at, &review_checklist);
+    let existing_decision = load_existing_review_decision_document(&review_absolute_root)?
+        .map(|document| document.decision);
+    let mut document = build_review_decision_document(&analysis, &exported_at, &review_checklist);
+    let decision = decision_override
+        .or(existing_decision)
+        .unwrap_or_else(|| document.decision.clone());
+    document.decision = normalize_review_decision_content(decision, &exported_at);
     let markdown = build_review_decision_markdown(&document);
     let json = serde_json::to_string_pretty(&document)
         .map_err(|error| format!("序列化 review decision json 失败: {error}"))?;
@@ -208,6 +235,9 @@ pub fn export_runtime_review_decision_template(
         pending_request_count: analysis.pending_request_count,
         queued_turn_count: analysis.queued_turn_count,
         default_decision_status: DEFAULT_DECISION_STATUS.to_string(),
+        decision: document.decision,
+        decision_status_options: document.decision_status_options,
+        risk_level_options: document.risk_level_options,
         review_checklist,
         analysis_artifacts: analysis.artifacts.clone(),
         artifacts,
@@ -259,7 +289,7 @@ fn build_review_decision_document(
                 })
                 .collect(),
         },
-        decision: ReviewDecisionContent {
+        decision: RuntimeReviewDecisionContent {
             decision_status: DEFAULT_DECISION_STATUS.to_string(),
             decision_summary: String::new(),
             chosen_fix_strategy: String::new(),
@@ -271,19 +301,8 @@ fn build_review_decision_document(
             regression_requirements: Vec::new(),
             notes: String::new(),
         },
-        decision_status_options: vec![
-            "accepted".to_string(),
-            "deferred".to_string(),
-            "rejected".to_string(),
-            "needs_more_evidence".to_string(),
-            DEFAULT_DECISION_STATUS.to_string(),
-        ],
-        risk_level_options: vec![
-            "low".to_string(),
-            "medium".to_string(),
-            "high".to_string(),
-            DEFAULT_RISK_LEVEL.to_string(),
-        ],
+        decision_status_options: build_decision_status_options(),
+        risk_level_options: build_risk_level_options(),
         review_checklist: review_checklist.to_vec(),
     }
 }
@@ -302,6 +321,21 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
         .map(|artifact| format!("- `{}`：`{}`", artifact.title, artifact.relative_path))
         .collect::<Vec<_>>()
         .join("\n");
+    let decision_status_options = document
+        .decision_status_options
+        .iter()
+        .map(|status| format!("`{status}`"))
+        .collect::<Vec<_>>()
+        .join(" / ");
+    let risk_tags = format_markdown_inline_list(&document.decision.risk_tags, "待填写");
+    let regression_requirements =
+        format_markdown_list(&document.decision.regression_requirements, "- 待填写");
+    let followup_actions = format_markdown_list(&document.decision.followup_actions, "- 待填写");
+    let decision_summary =
+        format_markdown_text_block(&document.decision.decision_summary, "待填写。");
+    let chosen_fix_strategy =
+        format_markdown_text_block(&document.decision.chosen_fix_strategy, "待填写。");
+    let notes = format_markdown_text_block(&document.decision.notes, "待填写。");
 
     format!(
         "# Lime 人工审核与决策记录\n\n\
@@ -330,22 +364,22 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
 {checklist}\n\n\
 ## 4. 决策状态\n\
 - 当前值：`{decision_status}`\n\
-- 可选值：`accepted` / `deferred` / `rejected` / `needs_more_evidence`\n\n\
+- 可选值：{decision_status_options}\n\n\
 ## 5. 决策摘要\n\
-待填写。\n\n\
+{decision_summary}\n\n\
 ## 6. 采用的修复策略\n\
-待填写。\n\n\
+{chosen_fix_strategy}\n\n\
 ## 7. 风险等级与标签\n\
 - 风险等级：`{risk_level}`\n\
-- 风险标签：待填写\n\n\
+- 风险标签：{risk_tags}\n\n\
 ## 8. 回归要求\n\
-- 待填写\n\n\
+{regression_requirements}\n\n\
 ## 9. 后续动作\n\
-- 待填写\n\n\
+{followup_actions}\n\n\
 ## 10. 审核备注\n\
-- 审核人：待填写\n\
-- 审核时间：待填写\n\
-- 备注：待填写\n",
+- 审核人：{human_reviewer}\n\
+- 审核时间：{reviewed_at}\n\
+- 备注：\n{notes}\n",
         decision_status = document.decision.decision_status,
         exported_at = document.exported_at,
         title = empty_fallback(&document.review_context.title, "未命名"),
@@ -374,7 +408,25 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
         } else {
             checklist
         },
+        decision_status_options = if decision_status_options.is_empty() {
+            format!("`{DEFAULT_DECISION_STATUS}`")
+        } else {
+            decision_status_options
+        },
+        decision_summary = decision_summary,
+        chosen_fix_strategy = chosen_fix_strategy,
         risk_level = document.decision.risk_level,
+        risk_tags = risk_tags,
+        regression_requirements = regression_requirements,
+        followup_actions = followup_actions,
+        human_reviewer = empty_fallback(&document.decision.human_reviewer, "待填写"),
+        reviewed_at = document
+            .decision
+            .reviewed_at
+            .as_deref()
+            .filter(|value: &&str| !value.trim().is_empty())
+            .unwrap_or("待填写"),
+        notes = notes,
     )
 }
 
@@ -423,6 +475,162 @@ fn write_review_decision_artifact(
         absolute_path: to_portable_path(&absolute_path.to_string_lossy()),
         bytes: contents.len(),
     })
+}
+
+fn load_existing_review_decision_document(
+    review_absolute_root: &Path,
+) -> Result<Option<ReviewDecisionDocument>, String> {
+    let json_path = review_absolute_root.join(REVIEW_DECISION_JSON_FILE_NAME);
+    if !json_path.exists() {
+        return Ok(None);
+    }
+
+    let contents = fs::read_to_string(&json_path).map_err(|error| {
+        format!(
+            "读取已有 review decision json 失败 {}: {error}",
+            json_path.display()
+        )
+    })?;
+    let document = serde_json::from_str::<ReviewDecisionDocument>(&contents).map_err(|error| {
+        format!(
+            "解析已有 review decision json 失败 {}: {error}",
+            json_path.display()
+        )
+    })?;
+    Ok(Some(document))
+}
+
+fn normalize_review_decision_content(
+    decision: RuntimeReviewDecisionContent,
+    exported_at: &str,
+) -> RuntimeReviewDecisionContent {
+    let decision_status = normalize_review_decision_status(&decision.decision_status);
+    let decision_summary = normalize_string(&decision.decision_summary);
+    let chosen_fix_strategy = normalize_string(&decision.chosen_fix_strategy);
+    let risk_level = normalize_review_risk_level(&decision.risk_level);
+    let risk_tags = normalize_string_list(&decision.risk_tags);
+    let human_reviewer = normalize_string(&decision.human_reviewer);
+    let followup_actions = normalize_string_list(&decision.followup_actions);
+    let regression_requirements = normalize_string_list(&decision.regression_requirements);
+    let notes = normalize_string(&decision.notes);
+    let reviewed_at = normalize_optional_string(decision.reviewed_at.as_deref()).or_else(|| {
+        let has_review_content = decision_status != DEFAULT_DECISION_STATUS
+            || !decision_summary.is_empty()
+            || !chosen_fix_strategy.is_empty()
+            || risk_level != DEFAULT_RISK_LEVEL
+            || !risk_tags.is_empty()
+            || !human_reviewer.is_empty()
+            || !followup_actions.is_empty()
+            || !regression_requirements.is_empty()
+            || !notes.is_empty();
+        has_review_content.then(|| exported_at.to_string())
+    });
+
+    RuntimeReviewDecisionContent {
+        decision_status,
+        decision_summary,
+        chosen_fix_strategy,
+        risk_level,
+        risk_tags,
+        human_reviewer,
+        reviewed_at,
+        followup_actions,
+        regression_requirements,
+        notes,
+    }
+}
+
+fn build_decision_status_options() -> Vec<String> {
+    vec![
+        "accepted".to_string(),
+        "deferred".to_string(),
+        "rejected".to_string(),
+        "needs_more_evidence".to_string(),
+        DEFAULT_DECISION_STATUS.to_string(),
+    ]
+}
+
+fn build_risk_level_options() -> Vec<String> {
+    vec![
+        "low".to_string(),
+        "medium".to_string(),
+        "high".to_string(),
+        DEFAULT_RISK_LEVEL.to_string(),
+    ]
+}
+
+fn normalize_review_decision_status(value: &str) -> String {
+    match value.trim() {
+        "accepted" => "accepted".to_string(),
+        "deferred" => "deferred".to_string(),
+        "rejected" => "rejected".to_string(),
+        "needs_more_evidence" => "needs_more_evidence".to_string(),
+        "pending_review" => "pending_review".to_string(),
+        _ => DEFAULT_DECISION_STATUS.to_string(),
+    }
+}
+
+fn normalize_review_risk_level(value: &str) -> String {
+    match value.trim() {
+        "low" => "low".to_string(),
+        "medium" => "medium".to_string(),
+        "high" => "high".to_string(),
+        "unknown" => "unknown".to_string(),
+        _ => DEFAULT_RISK_LEVEL.to_string(),
+    }
+}
+
+fn normalize_string(value: &str) -> String {
+    value.trim().to_string()
+}
+
+fn normalize_optional_string(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn normalize_string_list(values: &[String]) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn format_markdown_text_block(value: &str, placeholder: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        placeholder.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn format_markdown_list(values: &[String], placeholder: &str) -> String {
+    if values.is_empty() {
+        placeholder.to_string()
+    } else {
+        values
+            .iter()
+            .map(|value| format!("- {value}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+fn format_markdown_inline_list(values: &[String], placeholder: &str) -> String {
+    if values.is_empty() {
+        placeholder.to_string()
+    } else {
+        values
+            .iter()
+            .map(|value| format!("`{value}`"))
+            .collect::<Vec<_>>()
+            .join(" / ")
+    }
 }
 
 fn empty_fallback<'a>(value: &'a str, fallback: &'a str) -> &'a str {
@@ -621,5 +829,65 @@ mod tests {
         assert!(json.contains("\"decisionStatus\": \"pending_review\""));
         assert!(json.contains("\"executionEnvironmentReference\": \"codex\""));
         assert!(json.contains("\"runtimeFactSource\": \"aster-rust\""));
+    }
+
+    #[test]
+    fn should_save_runtime_review_decision_and_keep_it_on_reexport() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let thread_read = build_thread_read();
+
+        export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        let saved = save_runtime_review_decision(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            RuntimeReviewDecisionContent {
+                decision_status: "accepted".to_string(),
+                decision_summary: "确认最小修复落在 current 主链。".to_string(),
+                chosen_fix_strategy: "先补 runtime save 命令，再补 Harness UI。".to_string(),
+                risk_level: "medium".to_string(),
+                risk_tags: vec!["runtime".to_string(), "harness".to_string()],
+                human_reviewer: "Lime Maintainer".to_string(),
+                reviewed_at: Some("2026-03-27T10:30:00Z".to_string()),
+                followup_actions: vec!["补 UI 回归".to_string()],
+                regression_requirements: vec![
+                    "npm run test:contracts".to_string(),
+                    "Rust 定向测试".to_string(),
+                ],
+                notes: "不要把 compat 命令重新接回主线。".to_string(),
+            },
+        )
+        .expect("save");
+
+        assert_eq!(saved.decision.decision_status, "accepted");
+        assert_eq!(saved.decision.risk_level, "medium");
+        assert_eq!(saved.decision.risk_tags, vec!["runtime", "harness"]);
+        assert_eq!(saved.decision.human_reviewer, "Lime Maintainer");
+
+        let json_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.json");
+        let markdown_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.md");
+
+        let json = fs::read_to_string(&json_path).expect("json");
+        assert!(json.contains("\"decisionStatus\": \"accepted\""));
+        assert!(json.contains("\"humanReviewer\": \"Lime Maintainer\""));
+        assert!(json.contains("\"regressionRequirements\": ["));
+
+        let markdown = fs::read_to_string(&markdown_path).expect("markdown");
+        assert!(markdown.contains("确认最小修复落在 current 主链。"));
+        assert!(markdown.contains("补 UI 回归"));
+        assert!(markdown.contains("Lime Maintainer"));
+
+        let reexported =
+            export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+                .expect("re-export");
+        assert_eq!(reexported.decision.decision_status, "accepted");
+        assert_eq!(reexported.decision.human_reviewer, "Lime Maintainer");
     }
 }

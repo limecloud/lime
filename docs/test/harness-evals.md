@@ -17,6 +17,7 @@ Lime 当前不直接把“真实模型重放平台”一次做完，而是先固
    - `grader.md`
    - `evidence-links.json`
      其中 `input.json` 继续承载 `classification.suiteTags` 与 `classification.failureModes`。
+     如果样本已经完成人工审核，还可以额外挂载可选的 `review-decision.json` / `review-decision.md`，但它不是 replay case 的必填件。
 
 3. **固定摘要出口**  
    由 `scripts/harness-eval-runner.mjs` 统一产出 JSON / Markdown 摘要，后续 nightly 与趋势报表都从这里接。
@@ -86,9 +87,15 @@ Lime 当前不直接把“真实模型重放平台”一次做完，而是先固
 1. 读取 manifest
 2. 解析固定 fixture 与工作区自动发现 case
 3. 校验 replay case 最小四件套与关键 JSON 字段
-4. 输出统一 JSON / Markdown 摘要，并聚合 `suite tag / failure mode` 分布
+4. 输出统一 JSON / Markdown 摘要，并聚合 `suite tag / failure mode / review decision status / risk level` 分布
 
 当前它**不直接执行真实模型重放**，而是先把“样本是否可评估、摘要是否可归档”工程化。
+
+如果 case 根目录内存在 `review-decision.json`，或者工作区 replay 同级 `../review/review-decision.json` 已存在，runner 会把它识别为同一条会话的可选人工审核增强信息，并写入：
+
+- `reviewDecisionRecordedCount`
+- `reviewDecisionStatuses`
+- `reviewRiskLevels`
 
 这符合 Lime 当前阶段的约束：
 
@@ -115,12 +122,13 @@ node scripts/harness-replay-promote.mjs \
   --slug "pending-request-runtime"
 ```
 
-这个命令会做四件事：
+这个命令会做五件事：
 
 1. 读取 replay 最小四件套。
 2. 把工作区绝对路径脱敏成稳定占位路径，避免把本机路径直接写进仓库。
-3. 把样本复制到 `docs/test/harness-fixtures/replay/<slug>/`。
-4. 把 case 回写到 `repo-promoted-replays` suite，成为 nightly 与 trend 的 current 样本。
+3. 如果同会话 `review/` 目录里已经有 `review-decision.json/md`，一起复制并脱敏到目标 fixture。
+4. 把样本复制到 `docs/test/harness-fixtures/replay/<slug>/`，并把人工审核摘要回写到 manifest case。
+5. 把 case 回写到 `repo-promoted-replays` suite，成为 nightly 与 trend 的 current 样本。
 
 默认原则：
 
@@ -128,12 +136,24 @@ node scripts/harness-replay-promote.mjs \
 - promotion 之后，样本不再只是“本机能看到”，而是仓库 current 主线的一部分。
 - 仓库沉淀样本仍然复用原来的 handoff / evidence 形状，不另造 schema。
 
+如果当前已经在 Lime 工作台里导出了 Replay 样本，也可以直接在 `HarnessStatusPanel` 的 Replay 区块点击：
+
+- `复制回归命令`
+
+它会一次性复制三条现成命令：
+
+1. `npm run harness:eval:promote -- ...`
+2. `npm run harness:eval`
+3. `npm run harness:eval:trend`
+
+这样做的目的不是把 promotion 内建进 Lime，而是把仓库已有的 current 主命令直接挂到工作台，避免用户还要自己重新拼 `session-id / slug / title`，并且在 promotion 后立刻补上统一 trend 入口。
+
 ## Trend Report 做什么
 
 `scripts/harness-eval-trend-report.mjs` 当前负责三件事：
 
 1. 读取一个或多个 `harness eval summary` JSON
-2. 生成 baseline / latest 对比、suite 级 delta，以及 `suite tag / failure mode` 聚合变化
+2. 生成 baseline / latest 对比、suite 级 delta，以及 `suite tag / failure mode / review decision status / risk level` 聚合变化
 3. 输出 JSON / Markdown 趋势报告
 
 如果没有显式提供输入，它会先调用 `harness-eval-runner` 生成当前 summary，再把它当作第一条 trend seed。
@@ -147,6 +167,10 @@ node scripts/harness-replay-promote.mjs \
 固定下来。
 
 当前 nightly 还会恢复并追加 `artifacts/history/*.json` 历史窗口，用于让 trend 不只停留在单次 seed。
+
+在当前仓库主链里，nightly 还会基于 trend + doc freshness + governance report 继续生成 `harness-cleanup-report.json/md`，让回归样本、人工审核状态和治理建议进入同一份 nightly artifact。
+
+从 `2026-03-27` 起，这个历史窗口不再依赖 workflow 里的 `cp / ls / xargs` 拼接，而是直接由 `scripts/harness-eval-runner.mjs --record-history-dir` 负责写入和裁剪，保证本地与 nightly 走同一条跨平台主链。
 
 ## 常用命令
 
@@ -171,6 +195,11 @@ node scripts/harness-eval-runner.mjs \
   --output-json "./tmp/harness-eval-summary.json" \
   --output-markdown "./tmp/harness-eval-summary.md"
 
+# 记录本地 history window，供 trend / cleanup 复用
+node scripts/harness-eval-runner.mjs \
+  --record-history-dir "./artifacts/history" \
+  --history-retain 30
+
 # 从历史 summary 目录生成趋势报告
 node scripts/harness-eval-trend-report.mjs \
   --history-dir "./artifacts/history" \
@@ -188,6 +217,7 @@ Runner 摘要至少回答下面这些问题：
 - 哪些 case JSON 字段不完整
 - 哪些 case 属于什么 suite tag / failure mode
 - 哪些 case 默认需要人工复核
+- 哪些 case 已经记录人工审核状态与风险等级
 - 工作区 replay 是否已经开始形成增量样本
 
 如果摘要回答不了这些问题，就说明 runner 还不算进入 current 主链。
@@ -197,6 +227,7 @@ Trend 报告至少还要回答：
 - baseline 和 latest 之间，ready / invalid / pending request 有没有变化
 - 哪些 suite 在 latest 里变差了
 - 哪些 failure mode / suite tag 在 latest 里增长或退化了
+- 哪些人工审核状态 / 风险等级在 latest 里新增、减少或发生迁移
 - 当前只有 trend seed，还是已经开始形成真正的历史窗口
 
 ## 与其他事实源的关系
@@ -207,16 +238,20 @@ Trend 报告至少还要回答：
 | [testing-strategy-2026.md](testing-strategy-2026.md)                                       | 解释为什么 eval 工程化排在 smoke 之后           |
 | [../tech/harness/implementation-blueprint.md](../tech/harness/implementation-blueprint.md) | 解释 `P3-2 Eval runner` 在 Harness 主线中的位置 |
 | [../tech/harness/tooling-roadmap.md](../tech/harness/tooling-roadmap.md)                   | 解释 runner、nightly、trend 的后续工具面        |
+| [../tech/harness/entropy-governance-workflow.md](../tech/harness/entropy-governance-workflow.md) | 解释 trend 怎样回挂到 cleanup / governance 建议 |
 | `scripts/harness-eval-runner.mjs`                                                          | 当前唯一的 runner 入口                          |
 | `scripts/harness-eval-trend-report.mjs`                                                    | 当前 trend 聚合与 nightly 趋势出口              |
+| `scripts/report-generated-slop.mjs`                                                        | 当前 cleanup/slop 聚合与治理建议入口            |
+| `scripts/check-doc-freshness.mjs`                                                          | 当前 Harness 文档保鲜检查入口                   |
+| [../../.github/workflows/harness-nightly.yml](../../.github/workflows/harness-nightly.yml) | 当前 nightly summary / trend / cleanup artifact 主入口 |
 | [harness-evals.manifest.json](harness-evals.manifest.json)                                 | 当前任务集与 suite 机可读事实源                 |
 
 ## 下一刀
 
 `P3-6` 做完之后，下一刀优先级建议固定为：
 
-1. 把分类聚合直接挂到熵治理清单，形成 replay 驱动 cleanup 主线
-2. 继续补 observability 证据字段，让 grader 能消费更多 request / timeline / artifact 关联
+1. 把 cleanup report 接入更稳定的历史窗口，避免长期停留在 trend seed
+2. 继续补 observability 证据字段，让 grader 和 cleanup report 都能消费更多 request / timeline / artifact 关联
 3. 逐步提高 repo current 样本质量，而不是只增加数量
 4. 再考虑是否引入真实模型执行或 transcript grading
 

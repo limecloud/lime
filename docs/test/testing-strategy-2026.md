@@ -40,31 +40,21 @@
 - 旧权限表面治理护栏已经补齐：`src/lib/governance/legacyToolPermissionGuard.test.ts` + `npm run governance:legacy-report`
 - 跨层命令契约检查基础版已经落地：`npm run test:contracts` 已进入 `scripts/local-ci.mjs`
 - 命令契约延期例外已经收口：`agent_terminal_command_response`、`agent_term_scrollback_response` 已退出 `runtimeGatewayCommands`，改为 `dead-candidate` 治理监控
-- 首条自包含 smoke 已落地：`npm run smoke:workspace-ready` 可自动校验 DevBridge 就绪、默认 workspace 获取、目录修复与路径回查
+- 自包含 smoke 最小基线已落地：`npm run smoke:workspace-ready`、`npm run smoke:browser-runtime`、`npm run smoke:site-adapters` 都无需人工准备，且 `npm run verify:gui-smoke` 已默认串联这三条主链 smoke
 - 测试文档事实源已经收口：`docs/test/README.md`、`docs/test/e2e-tests.md`、`docs/aiprompts/playwright-e2e.md` 已按“索引 / 总览 / 详细事实源”分层
 
 ## 3. 当前仍未解决的问题优先级
 
 | 优先级 | 事项                      | 为什么重要                                     | 当前证据                                                                                                                                                                                                  | 完成定义                                                                                                   |
 | ------ | ------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| P0     | 自包含 smoke 仍然不足     | 单测很多，但主链路仍缺少无需人工准备的自动回归 | 目前仅有 `smoke:workspace-ready` 属于自包含 smoke；`smoke:social-workbench` 仍依赖已有 session，`bridge:e2e` 更像排障脚本                                                                                 | 至少补齐 3 条无需人工准备的 smoke；当前已完成 1 条，仍需补 server / terminal / browser runtime 等 2 条以上 |
-| P1     | Agent eval 仍未完全工程化 | 价值高，但建立在前面基础门禁稳定之后           | 已补 `docs/test/harness-evals.md`、`harness-evals.manifest.json`、`scripts/harness-eval-runner.mjs`、`scripts/harness-eval-trend-report.mjs` 与 nightly 摘要 / trend 骨架，但真实执行与更多高价值样本仍缺 | 形成稳定任务集、可增长 replay 样本、grader、nightly 输出与趋势指标                                         |
+| P1     | Agent eval 仍未完全工程化 | 价值高，且当前最缺的是把证据沉淀成长期回归资产 | 已补 `docs/test/harness-evals.md`、`harness-evals.manifest.json`、`scripts/harness-eval-runner.mjs`、`scripts/harness-eval-trend-report.mjs` 与 nightly 摘要 / trend 骨架，但真实执行与更多高价值样本仍缺 | 形成稳定任务集、可增长 replay 样本、grader、nightly 输出与趋势指标                                         |
+| P2     | terminal / server 自包含 smoke 仍可继续扩面 | 最小 GUI smoke 基线已具备，但更细分主链仍缺专项守卫 | 当前 `workspace-ready / browser-runtime / site-adapters` 已覆盖 GUI 最小主链；`smoke:social-workbench` 仍依赖已有 session，terminal / server 还没有各自独立的自包含 smoke 入口                        | 如后续需要继续扩面，应补 terminal 或 server 的独立 smoke，而不是继续把现有 3 条 current smoke 算成缺口     |
 
 ## 4. 建议执行顺序
 
-### 第 1 步：把 smoke 升级为自包含场景
+### 第 1 步：把 Agent eval 工程化
 
-先只挑 3 条最高价值场景，不要贪多：
-
-1. 应用启动 + workspace 可创建 / 打开
-2. server 基础链路可自动打通
-3. terminal 或 browser runtime 至少有一条基础链路可自动打通
-
-验收标准是“本地和 CI 都能重复执行”，而不是“方便人工排障”。
-
-### 第 2 步：把 Agent eval 工程化
-
-这一步放在最后，不是因为不重要，而是它依赖前面的基础设施稳定：
+现在可以把它提到第一优先级，因为前面的最小 GUI smoke 基线已经具备：
 
 - 有稳定门禁
 - 有稳定契约检查
@@ -82,11 +72,21 @@
 - 更多真实高价值 replay 样本
 - 更长窗口的趋势报表
 
+### 第 2 步：按需继续扩自包含 smoke 覆盖面
+
+如果后续还要补 smoke，不要重复把 `workspace-ready / browser-runtime / site-adapters` 记成“未完成”。
+
+下一轮更合理的扩面方向是：
+
+1. terminal 基础链路
+2. server 基础链路
+3. 仍依赖人工前置状态的专项 smoke 去人工化
+
 ## 5. 当前建议
 
 如果只看投入产出比，当前最值得先做的两刀是：
 
-1. 把 smoke 升级为自包含场景
-2. 把 Agent eval 工程化
+1. 把 Agent eval 工程化
+2. 如需继续补 smoke，优先做 terminal / server 专项自包含场景
 
-这两步做完之后，再继续往 nightly 与趋势报表收口，收益会更高。
+这两步做完之后，再继续往 nightly、趋势报表与 replay promotion 收口，收益会更高。

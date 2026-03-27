@@ -2016,6 +2016,41 @@ describe("useAsterAgentChat thread timeline", () => {
       harness.unmount();
     }
   });
+
+  it("Artifact 恢复提示不应打断为全局 toast", async () => {
+    const workspaceId = "ws-artifact-warning-tone";
+    seedSession(workspaceId, "session-artifact-warning-tone");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("帮我整理成结构化文稿", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "warning",
+          code: "artifact_document_repaired",
+          message: "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
+        });
+        stream.emit({
+          type: "final_done",
+        });
+      });
+
+      expect(mockToast.info).not.toHaveBeenCalled();
+      expect(mockToast.warning).not.toHaveBeenCalledWith(
+        expect.stringContaining("ArtifactDocument"),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
 });
 
 describe("useAsterAgentChat runtime routing", () => {

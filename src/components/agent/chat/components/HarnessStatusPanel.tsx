@@ -38,6 +38,7 @@ import type {
   AgentRuntimeAnalysisHandoff,
   AgentRuntimeEvidencePack,
   AgentRuntimeHandoffBundle,
+  AgentRuntimeSaveReviewDecisionRequest,
   AgentRuntimeReplayCase,
   AgentRuntimeReviewDecisionTemplate,
   AgentRuntimeToolInventory,
@@ -54,6 +55,7 @@ import {
   exportAgentRuntimeHandoffBundle,
   exportAgentRuntimeReplayCase,
   exportAgentRuntimeReviewDecisionTemplate,
+  saveAgentRuntimeReviewDecision,
 } from "@/lib/api/agentRuntime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -104,6 +106,7 @@ import { resolveTeamWorkspaceStableProcessingLabel } from "../utils/teamWorkspac
 import type { CompatSubagentRuntimeSnapshot } from "../utils/compatSubagentRuntime";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import { AgentThreadReliabilityPanel } from "./AgentThreadReliabilityPanel";
+import { RuntimeReviewDecisionDialog } from "./RuntimeReviewDecisionDialog";
 
 interface HarnessEnvironmentSummary {
   skillsCount: number;
@@ -522,6 +525,77 @@ function formatReviewDecisionStatusLabel(status?: string): string {
     default:
       return status?.trim() || "未知";
   }
+}
+
+function formatReviewDecisionRiskLevelLabel(riskLevel?: string): string {
+  switch (riskLevel?.trim()) {
+    case "low":
+      return "低";
+    case "medium":
+      return "中";
+    case "high":
+      return "高";
+    case "unknown":
+      return "未定";
+    default:
+      return riskLevel?.trim() || "未知";
+  }
+}
+
+function slugifyHarnessCase(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "replay-case";
+}
+
+function quoteShellArg(value: string): string {
+  return JSON.stringify(value);
+}
+
+function buildReplayPromotionContext(params: {
+  replayCase: AgentRuntimeReplayCase;
+  analysisTitle?: string | null;
+  reviewTitle?: string | null;
+}) {
+  const titleSource =
+    params.reviewTitle?.trim() ||
+    params.analysisTitle?.trim() ||
+    `Replay case ${params.replayCase.session_id}`;
+  const slugSource =
+    params.reviewTitle?.trim() ||
+    params.analysisTitle?.trim() ||
+    params.replayCase.session_id;
+
+  return {
+    suiteId: "repo-promoted-replays",
+    title: titleSource,
+    slug: slugifyHarnessCase(slugSource),
+  };
+}
+
+function buildReplayPromotionCommand(params: {
+  replayCase: AgentRuntimeReplayCase;
+  analysisTitle?: string | null;
+  reviewTitle?: string | null;
+}): string {
+  const context = buildReplayPromotionContext(params);
+  return [
+    "npm run harness:eval:promote --",
+    `--session-id ${quoteShellArg(params.replayCase.session_id)}`,
+    `--slug ${quoteShellArg(context.slug)}`,
+    `--title ${quoteShellArg(context.title)}`,
+  ].join(" ");
+}
+
+function buildReplayEvalCommand(): string {
+  return "npm run harness:eval";
+}
+
+function buildReplayTrendCommand(): string {
+  return "npm run harness:eval:trend";
 }
 
 function describeAction(action: HarnessFileAction): string {
@@ -1599,7 +1673,10 @@ export function HarnessStatusPanel({
   );
   const [reviewDecisionTemplate, setReviewDecisionTemplate] =
     useState<AgentRuntimeReviewDecisionTemplate | null>(null);
+  const [reviewDecisionEditorOpen, setReviewDecisionEditorOpen] =
+    useState(false);
   const [reviewDecisionExporting, setReviewDecisionExporting] = useState(false);
+  const [reviewDecisionSaving, setReviewDecisionSaving] = useState(false);
   const [reviewDecisionExportError, setReviewDecisionExportError] = useState<
     string | null
   >(null);
@@ -1623,8 +1700,10 @@ export function HarnessStatusPanel({
     setAnalysisExportError(null);
     setAnalysisExporting(false);
     setReviewDecisionTemplate(null);
+    setReviewDecisionEditorOpen(false);
     setReviewDecisionExportError(null);
     setReviewDecisionExporting(false);
+    setReviewDecisionSaving(false);
   }, [currentSessionId]);
 
   const registerSectionRef = useCallback(
@@ -1689,7 +1768,7 @@ export function HarnessStatusPanel({
   const handleExportReplayCase = useCallback(async () => {
     if (!currentSessionId) {
       toast.error("当前没有可导出的会话上下文");
-      return;
+      return null;
     }
 
     setReplayExporting(true);
@@ -1698,11 +1777,13 @@ export function HarnessStatusPanel({
       const replay = await exportAgentRuntimeReplayCase(currentSessionId);
       setReplayCase(replay);
       toast.success(`已导出 ${replay.artifacts.length} 个 Replay 样本文件`);
+      return replay;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "导出 Replay 样本失败";
       setReplayExportError(message);
       toast.error(message);
+      return null;
     } finally {
       setReplayExporting(false);
     }
@@ -1754,6 +1835,44 @@ export function HarnessStatusPanel({
     }
   }, [analysisHandoff, handleExportAnalysisHandoff]);
 
+  const handleCopyReplayPromotionCommand = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      toast.error("当前环境不支持剪贴板复制");
+      return;
+    }
+
+    const replay = replayCase || (await handleExportReplayCase());
+    if (!replay) {
+      return;
+    }
+
+    const promoteCommand = buildReplayPromotionCommand({
+      replayCase: replay,
+      analysisTitle: analysisHandoff?.title,
+      reviewTitle: reviewDecisionTemplate?.title,
+    });
+    const evalCommand = buildReplayEvalCommand();
+    const trendCommand = buildReplayTrendCommand();
+
+    try {
+      await navigator.clipboard.writeText(
+        `${promoteCommand}\n${evalCommand}\n${trendCommand}\n`,
+      );
+      toast.success("已复制回归沉淀、验证与趋势命令");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "复制回归沉淀、验证与趋势命令失败",
+      );
+    }
+  }, [
+    analysisHandoff?.title,
+    handleExportReplayCase,
+    replayCase,
+    reviewDecisionTemplate?.title,
+  ]);
+
   const handleExportReviewDecisionTemplate = useCallback(async () => {
     if (!currentSessionId) {
       toast.error("当前没有可导出的会话上下文");
@@ -1778,6 +1897,38 @@ export function HarnessStatusPanel({
       setReviewDecisionExporting(false);
     }
   }, [currentSessionId]);
+
+  const handleOpenReviewDecisionEditor = useCallback(async () => {
+    const template =
+      reviewDecisionTemplate || (await handleExportReviewDecisionTemplate());
+    if (!template) {
+      return;
+    }
+
+    setReviewDecisionTemplate(template);
+    setReviewDecisionEditorOpen(true);
+  }, [handleExportReviewDecisionTemplate, reviewDecisionTemplate]);
+
+  const handleSaveReviewDecision = useCallback(
+    async (request: AgentRuntimeSaveReviewDecisionRequest) => {
+      setReviewDecisionSaving(true);
+      setReviewDecisionExportError(null);
+      try {
+        const template = await saveAgentRuntimeReviewDecision(request);
+        setReviewDecisionTemplate(template);
+        setReviewDecisionEditorOpen(false);
+        toast.success("已保存人工审核结果");
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "保存人工审核结果失败";
+        setReviewDecisionExportError(message);
+        toast.error(message);
+      } finally {
+        setReviewDecisionSaving(false);
+      }
+    },
+    [],
+  );
 
   const hasToolInventorySection =
     toolInventoryLoading ||
@@ -3123,6 +3274,24 @@ export function HarnessStatusPanel({
                               ? "刷新 Replay 样本"
                               : "导出 Replay 样本"}
                           </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="gap-2"
+                            aria-label="复制回归沉淀与验证命令"
+                            disabled={replayExporting}
+                            onClick={() =>
+                              void handleCopyReplayPromotionCommand()
+                            }
+                          >
+                            {replayExporting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                            复制回归命令
+                          </Button>
                           {replayCase ? (
                             <Button
                               type="button"
@@ -3216,6 +3385,49 @@ export function HarnessStatusPanel({
                                   {replayCase.evidence_pack_relative_root}
                                 </span>
                               </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-sky-950">
+                              <Workflow className="h-4 w-4 text-sky-700" />
+                              <span>回归资产沉淀</span>
+                            </div>
+                            <div className="mt-2 text-xs leading-5 text-sky-900">
+                              这一步直接复用仓库已有的 `harness:eval:promote` 与
+                              `harness:eval` 主命令，把当前 replay case
+                              提升为仓库 current
+                              样本，并立即跑一次统一摘要验证；
+                              点击“复制回归命令”后不需要你再手写参数。
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                              <InventoryStatCard
+                                title="目标 Suite"
+                                value={
+                                  buildReplayPromotionContext({
+                                    replayCase,
+                                    analysisTitle: analysisHandoff?.title,
+                                    reviewTitle: reviewDecisionTemplate?.title,
+                                  }).suiteId
+                                }
+                                hint="仓库 current 样本集"
+                              />
+                              <InventoryStatCard
+                                title="建议 Slug"
+                                value={
+                                  buildReplayPromotionContext({
+                                    replayCase,
+                                    analysisTitle: analysisHandoff?.title,
+                                    reviewTitle: reviewDecisionTemplate?.title,
+                                  }).slug
+                                }
+                                hint="promotion 目录名"
+                              />
+                              <InventoryStatCard
+                                title="后续验证"
+                                value="eval + trend"
+                                hint="统一摘要与趋势入口"
+                              />
                             </div>
                           </div>
 
@@ -3615,6 +3827,22 @@ export function HarnessStatusPanel({
                               ? "刷新人工审核记录"
                               : "导出人工审核记录"}
                           </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="gap-2"
+                            aria-label="填写人工审核结果"
+                            disabled={
+                              reviewDecisionExporting || reviewDecisionSaving
+                            }
+                            onClick={() =>
+                              void handleOpenReviewDecisionEditor()
+                            }
+                          >
+                            <ShieldAlert className="h-4 w-4" />
+                            填写人工审核结果
+                          </Button>
                           {reviewDecisionTemplate ? (
                             <Button
                               type="button"
@@ -3643,13 +3871,15 @@ export function HarnessStatusPanel({
 
                       {reviewDecisionTemplate ? (
                         <div className="mt-3 space-y-3">
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                             <InventoryStatCard
-                              title="默认状态"
+                              title="当前状态"
                               value={formatReviewDecisionStatusLabel(
-                                reviewDecisionTemplate.default_decision_status,
+                                reviewDecisionTemplate.decision
+                                  .decision_status ||
+                                  reviewDecisionTemplate.default_decision_status,
                               )}
-                              hint={`最近导出 ${formatIsoDateTime(reviewDecisionTemplate.exported_at)}`}
+                              hint={`最近写入 ${formatIsoDateTime(reviewDecisionTemplate.exported_at)}`}
                             />
                             <InventoryStatCard
                               title="线程状态"
@@ -3657,6 +3887,20 @@ export function HarnessStatusPanel({
                                 reviewDecisionTemplate.thread_status,
                               )}
                               hint={`待处理请求 ${reviewDecisionTemplate.pending_request_count} · 排队 ${reviewDecisionTemplate.queued_turn_count}`}
+                            />
+                            <InventoryStatCard
+                              title="风险等级"
+                              value={formatReviewDecisionRiskLevelLabel(
+                                reviewDecisionTemplate.decision.risk_level,
+                              )}
+                              hint={
+                                reviewDecisionTemplate.decision.risk_tags
+                                  .length > 0
+                                  ? reviewDecisionTemplate.decision.risk_tags.join(
+                                      " / ",
+                                    )
+                                  : "尚未填写风险标签"
+                              }
                             />
                             <InventoryStatCard
                               title="分析文件"
@@ -3680,6 +3924,116 @@ export function HarnessStatusPanel({
                               turn 为准，外部分析形状对齐 Codex
                               的交接习惯，但最终是否接受修复、补哪些回归，必须由开发者写入
                               review decision。
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-border bg-background p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-sm font-medium text-foreground">
+                                当前人工审核结论
+                              </div>
+                              <Badge variant="outline">
+                                {formatReviewDecisionStatusLabel(
+                                  reviewDecisionTemplate.decision
+                                    .decision_status ||
+                                    reviewDecisionTemplate.default_decision_status,
+                                )}
+                              </Badge>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-3">
+                              <div>
+                                审核人：
+                                <span className="ml-1 text-foreground">
+                                  {reviewDecisionTemplate.decision
+                                    .human_reviewer || "待填写"}
+                                </span>
+                              </div>
+                              <div>
+                                审核时间：
+                                <span className="ml-1 text-foreground">
+                                  {reviewDecisionTemplate.decision.reviewed_at
+                                    ? formatIsoDateTime(
+                                        reviewDecisionTemplate.decision
+                                          .reviewed_at,
+                                      )
+                                    : "待填写"}
+                                </span>
+                              </div>
+                              <div>
+                                风险等级：
+                                <span className="ml-1 text-foreground">
+                                  {formatReviewDecisionRiskLevelLabel(
+                                    reviewDecisionTemplate.decision.risk_level,
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-3 space-y-3 text-xs leading-5 text-muted-foreground">
+                              <div>
+                                <div className="font-medium text-foreground">
+                                  决策摘要
+                                </div>
+                                <div className="mt-1 whitespace-pre-wrap">
+                                  {reviewDecisionTemplate.decision
+                                    .decision_summary || "尚未填写决策摘要。"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-foreground">
+                                  采用的修复策略
+                                </div>
+                                <div className="mt-1 whitespace-pre-wrap">
+                                  {reviewDecisionTemplate.decision
+                                    .chosen_fix_strategy ||
+                                    "尚未填写修复策略。"}
+                                </div>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    回归要求
+                                  </div>
+                                  <div className="mt-1 space-y-1">
+                                    {reviewDecisionTemplate.decision
+                                      .regression_requirements.length > 0 ? (
+                                      reviewDecisionTemplate.decision.regression_requirements.map(
+                                        (item) => (
+                                          <div key={item}>- {item}</div>
+                                        ),
+                                      )
+                                    ) : (
+                                      <div>尚未填写回归要求。</div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    后续动作
+                                  </div>
+                                  <div className="mt-1 space-y-1">
+                                    {reviewDecisionTemplate.decision
+                                      .followup_actions.length > 0 ? (
+                                      reviewDecisionTemplate.decision.followup_actions.map(
+                                        (item) => (
+                                          <div key={item}>- {item}</div>
+                                        ),
+                                      )
+                                    ) : (
+                                      <div>尚未填写后续动作。</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              {reviewDecisionTemplate.decision.notes ? (
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    审核备注
+                                  </div>
+                                  <div className="mt-1 whitespace-pre-wrap">
+                                    {reviewDecisionTemplate.decision.notes}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
 
@@ -5440,6 +5794,14 @@ export function HarnessStatusPanel({
           </ScrollArea>
         ) : null}
       </div>
+
+      <RuntimeReviewDecisionDialog
+        open={reviewDecisionEditorOpen}
+        template={reviewDecisionTemplate}
+        saving={reviewDecisionSaving}
+        onOpenChange={setReviewDecisionEditorOpen}
+        onSave={handleSaveReviewDecision}
+      />
 
       <Dialog
         open={previewDialog.open}

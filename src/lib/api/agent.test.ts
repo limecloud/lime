@@ -17,6 +17,7 @@ import {
   exportAgentRuntimeHandoffBundle,
   exportAgentRuntimeReplayCase,
   exportAgentRuntimeReviewDecisionTemplate,
+  saveAgentRuntimeReviewDecision,
   getAsterAgentStatus,
   generateAgentRuntimeSessionTitle,
   getAgentRuntimeSession,
@@ -860,6 +861,26 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      decision: {
+        decisionStatus: "pending_review",
+        decisionSummary: "",
+        chosenFixStrategy: "",
+        riskLevel: "unknown",
+        riskTags: [],
+        humanReviewer: "",
+        reviewedAt: null,
+        followupActions: [],
+        regressionRequirements: [],
+        notes: "",
+      },
+      decisionStatusOptions: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
+      ],
+      riskLevelOptions: ["low", "medium", "high", "unknown"],
       reviewChecklist: ["先阅读 analysis-brief.md"],
       analysisArtifacts: [
         {
@@ -890,6 +911,12 @@ describe("Agent API 治理护栏", () => {
     ).resolves.toMatchObject({
       session_id: "session-runtime-4b",
       default_decision_status: "pending_review",
+      decision: expect.objectContaining({
+        decision_status: "pending_review",
+        risk_level: "unknown",
+      }),
+      decision_status_options: expect.arrayContaining(["accepted"]),
+      risk_level_options: expect.arrayContaining(["medium"]),
       review_checklist: ["先阅读 analysis-brief.md"],
       analysis_artifacts: [
         expect.objectContaining({
@@ -911,6 +938,123 @@ describe("Agent API 治理护栏", () => {
       "agent_runtime_export_review_decision_template",
       {
         sessionId: "session-runtime-4b",
+      },
+    );
+  });
+
+  it("saveAgentRuntimeReviewDecision 应走统一 review decision 保存命令并归一化返回结构", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      sessionId: "session-runtime-4c",
+      threadId: "thread-runtime-4c",
+      workspaceRoot: "/tmp/workspace-4c",
+      reviewRelativeRoot: ".lime/harness/sessions/session-runtime-4c/review",
+      reviewAbsoluteRoot:
+        "/tmp/workspace-4c/.lime/harness/sessions/session-runtime-4c/review",
+      analysisRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4c/analysis",
+      analysisAbsoluteRoot:
+        "/tmp/workspace-4c/.lime/harness/sessions/session-runtime-4c/analysis",
+      handoffBundleRelativeRoot: ".lime/harness/sessions/session-runtime-4c",
+      evidencePackRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4c/evidence",
+      replayCaseRelativeRoot:
+        ".lime/harness/sessions/session-runtime-4c/replay",
+      exportedAt: "2026-03-27T10:25:00Z",
+      title: "保存人工审核结论",
+      threadStatus: "waiting_request",
+      latestTurnStatus: "action_required",
+      pendingRequestCount: 1,
+      queuedTurnCount: 0,
+      defaultDecisionStatus: "pending_review",
+      decision: {
+        decisionStatus: "accepted",
+        decisionSummary: "确认最小修复可接受。",
+        chosenFixStrategy: "先收口 runtime 命令，再补 UI 回归。",
+        riskLevel: "medium",
+        riskTags: ["runtime", "ui"],
+        humanReviewer: "Lime Maintainer",
+        reviewedAt: "2026-03-27T10:25:00Z",
+        followupActions: ["补充 HarnessStatusPanel 测试"],
+        regressionRequirements: ["npm run test:contracts"],
+        notes: "保持 review decision 主链单一。",
+      },
+      decisionStatusOptions: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
+      ],
+      riskLevelOptions: ["low", "medium", "high", "unknown"],
+      reviewChecklist: ["先阅读 analysis-brief.md"],
+      analysisArtifacts: [
+        {
+          kind: "analysis_brief",
+          title: "外部分析简报",
+          relativePath:
+            ".lime/harness/sessions/session-runtime-4c/analysis/analysis-brief.md",
+          absolutePath:
+            "/tmp/workspace-4c/.lime/harness/sessions/session-runtime-4c/analysis/analysis-brief.md",
+          bytes: 320,
+        },
+      ],
+      artifacts: [
+        {
+          kind: "review_decision_markdown",
+          title: "人工审核记录",
+          relativePath:
+            ".lime/harness/sessions/session-runtime-4c/review/review-decision.md",
+          absolutePath:
+            "/tmp/workspace-4c/.lime/harness/sessions/session-runtime-4c/review/review-decision.md",
+          bytes: 512,
+        },
+      ],
+    });
+
+    await expect(
+      saveAgentRuntimeReviewDecision({
+        session_id: "session-runtime-4c",
+        decision_status: "accepted",
+        decision_summary: "确认最小修复可接受。",
+        chosen_fix_strategy: "先收口 runtime 命令，再补 UI 回归。",
+        risk_level: "medium",
+        risk_tags: ["runtime", "ui"],
+        human_reviewer: "Lime Maintainer",
+        reviewed_at: "2026-03-27T10:25:00Z",
+        followup_actions: ["补充 HarnessStatusPanel 测试"],
+        regression_requirements: ["npm run test:contracts"],
+        notes: "保持 review decision 主链单一。",
+      }),
+    ).resolves.toMatchObject({
+      session_id: "session-runtime-4c",
+      decision: expect.objectContaining({
+        decision_status: "accepted",
+        risk_level: "medium",
+        risk_tags: ["runtime", "ui"],
+      }),
+      artifacts: [
+        expect.objectContaining({
+          kind: "review_decision_markdown",
+        }),
+      ],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_save_review_decision",
+      {
+        request: {
+          session_id: "session-runtime-4c",
+          decision_status: "accepted",
+          decision_summary: "确认最小修复可接受。",
+          chosen_fix_strategy: "先收口 runtime 命令，再补 UI 回归。",
+          risk_level: "medium",
+          risk_tags: ["runtime", "ui"],
+          human_reviewer: "Lime Maintainer",
+          reviewed_at: "2026-03-27T10:25:00Z",
+          followup_actions: ["补充 HarnessStatusPanel 测试"],
+          regression_requirements: ["npm run test:contracts"],
+          notes: "保持 review decision 主链单一。",
+        },
       },
     );
   });

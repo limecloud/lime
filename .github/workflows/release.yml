@@ -52,7 +52,6 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_RAW: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       NODE_OPTIONS: --max-old-space-size=8192
-      SCCACHE_NO_DAEMON: "1"
 
     steps:
       - name: Checkout
@@ -61,17 +60,17 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.source_ref || github.ref }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -384,7 +383,11 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_TRIPLE="${{ matrix.target }}"
-          mapfile -t bundle_dirs < <(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort)
+          bundle_dirs=()
+          while IFS= read -r bundle_dir; do
+            [ -n "$bundle_dir" ] || continue
+            bundle_dirs+=("$bundle_dir")
+          done < <(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort)
           if [ "${#bundle_dirs[@]}" -eq 0 ]; then
             echo "Bundle dir not created yet for ${TARGET_TRIPLE}"
             exit 0
@@ -425,7 +428,11 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_TRIPLE="${{ matrix.target }}"
-          mapfile -t bundle_dirs < <(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort)
+          bundle_dirs=()
+          while IFS= read -r bundle_dir; do
+            [ -n "$bundle_dir" ] || continue
+            bundle_dirs+=("$bundle_dir")
+          done < <(find . -type d -path "*/target/${TARGET_TRIPLE}/release/bundle" | sort)
           if [ "${#bundle_dirs[@]}" -eq 0 ]; then
             echo "Bundle dir not created yet for ${TARGET_TRIPLE}"
             exit 0
@@ -527,10 +534,14 @@ jobs:
             exit 1
           fi
 
-          mapfile -d '' assets < <(
+          assets=()
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            assets+=("$asset")
+          done < <(
             find "$BUNDLE_DIR" -type f \
               \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "latest*.json" \) \
-              -print0 | sort -z
+              | sort
           )
 
           if [ "${#assets[@]}" -eq 0 ]; then

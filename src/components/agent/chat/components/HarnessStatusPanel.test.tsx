@@ -11,6 +11,7 @@ const {
   exportAgentRuntimeHandoffBundleMock,
   exportAgentRuntimeReplayCaseMock,
   exportAgentRuntimeReviewDecisionTemplateMock,
+  saveAgentRuntimeReviewDecisionMock,
   mockToast,
 } = vi.hoisted(() => ({
   exportAgentRuntimeAnalysisHandoffMock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   exportAgentRuntimeHandoffBundleMock: vi.fn(),
   exportAgentRuntimeReplayCaseMock: vi.fn(),
   exportAgentRuntimeReviewDecisionTemplateMock: vi.fn(),
+  saveAgentRuntimeReviewDecisionMock: vi.fn(),
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock("@/lib/api/agentRuntime", async () => {
     exportAgentRuntimeReplayCase: exportAgentRuntimeReplayCaseMock,
     exportAgentRuntimeReviewDecisionTemplate:
       exportAgentRuntimeReviewDecisionTemplateMock,
+    saveAgentRuntimeReviewDecision: saveAgentRuntimeReviewDecisionMock,
   };
 });
 
@@ -119,6 +122,29 @@ function renderPanel(
   const rendered = { container, root };
   mountedRoots.push(rendered);
   return rendered;
+}
+
+function setInputValue(
+  input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  value: string,
+) {
+  const prototype =
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : input instanceof HTMLSelectElement
+        ? HTMLSelectElement.prototype
+        : HTMLInputElement.prototype;
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+  descriptor?.set?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function findButtonByText(text: string): HTMLButtonElement | null {
+  return Array.from(document.body.querySelectorAll("button")).find(
+    (button): button is HTMLButtonElement =>
+      button.textContent?.trim() === text,
+  ) as HTMLButtonElement | null;
 }
 
 function createToolInventory(): AgentRuntimeToolInventory {
@@ -744,6 +770,76 @@ describe("HarnessStatusPanel", () => {
     );
   });
 
+  it("复制回归命令在未导出时应先自动导出 Replay 样本，再复制 promote / eval / trend 命令", async () => {
+    exportAgentRuntimeReplayCaseMock.mockResolvedValue({
+      session_id: "session-replay-copy-1",
+      thread_id: "thread-replay-copy-1",
+      workspace_id: "workspace-replay-copy-1",
+      workspace_root: "/tmp/workspace-replay-copy-1",
+      replay_relative_root:
+        ".lime/harness/sessions/session-replay-copy-1/replay",
+      replay_absolute_root:
+        "/tmp/workspace-replay-copy-1/.lime/harness/sessions/session-replay-copy-1/replay",
+      handoff_bundle_relative_root:
+        ".lime/harness/sessions/session-replay-copy-1",
+      evidence_pack_relative_root:
+        ".lime/harness/sessions/session-replay-copy-1/evidence",
+      exported_at: "2026-03-27T10:12:00.000Z",
+      thread_status: "waiting_request",
+      latest_turn_status: "completed",
+      pending_request_count: 0,
+      queued_turn_count: 0,
+      linked_handoff_artifact_count: 4,
+      linked_evidence_artifact_count: 4,
+      recent_artifact_count: 2,
+      artifacts: [
+        {
+          kind: "grader",
+          title: "评分说明",
+          relative_path:
+            ".lime/harness/sessions/session-replay-copy-1/replay/grader.md",
+          absolute_path:
+            "/tmp/workspace-replay-copy-1/.lime/harness/sessions/session-replay-copy-1/replay/grader.md",
+          bytes: 320,
+        },
+      ],
+    });
+
+    renderPanel({
+      diagnosticRuntimeContext: {
+        sessionId: "session-replay-copy-1",
+        workspaceId: "workspace-replay-copy-1",
+        providerType: "openai",
+        model: "gpt-5.4",
+        executionStrategy: "react",
+        activeTheme: "default",
+        selectedTeamLabel: null,
+      },
+    });
+
+    const copyButton = document.body.querySelector(
+      'button[aria-label="复制回归沉淀与验证命令"]',
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      copyButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(exportAgentRuntimeReplayCaseMock).toHaveBeenCalledWith(
+      "session-replay-copy-1",
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'npm run harness:eval:promote -- --session-id "session-replay-copy-1" --slug "session-replay-copy-1" --title "Replay case session-replay-copy-1"\n' +
+        "npm run harness:eval\n" +
+        "npm run harness:eval:trend\n",
+    );
+    expect(mockToast.success).toHaveBeenCalledWith(
+      "已复制回归沉淀、验证与趋势命令",
+    );
+  });
+
   it("存在 sessionId 时应支持导出人工审核记录并展示审核模板与清单", async () => {
     exportAgentRuntimeReviewDecisionTemplateMock.mockResolvedValue({
       session_id: "session-review-1",
@@ -769,6 +865,26 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      decision: {
+        decision_status: "pending_review",
+        decision_summary: "",
+        chosen_fix_strategy: "",
+        risk_level: "unknown",
+        risk_tags: [],
+        human_reviewer: "",
+        reviewed_at: undefined,
+        followup_actions: [],
+        regression_requirements: [],
+        notes: "",
+      },
+      decision_status_options: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
+      ],
+      risk_level_options: ["low", "medium", "high", "unknown"],
       review_checklist: [
         "先阅读 analysis-brief.md 与 analysis-context.json。",
         "确认最终决策由人工审核者填写。",
@@ -843,6 +959,256 @@ describe("HarnessStatusPanel", () => {
     );
     expect(document.body.textContent).toContain("aster-rust");
     expect(mockToast.success).toHaveBeenCalledWith("已导出 2 个人工审核文件");
+  });
+
+  it("应支持填写并保存人工审核结果", async () => {
+    exportAgentRuntimeReviewDecisionTemplateMock.mockResolvedValue({
+      session_id: "session-review-2",
+      thread_id: "thread-review-2",
+      workspace_id: "workspace-review-2",
+      workspace_root: "/tmp/workspace-review-2",
+      review_relative_root: ".lime/harness/sessions/session-review-2/review",
+      review_absolute_root:
+        "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/review",
+      analysis_relative_root:
+        ".lime/harness/sessions/session-review-2/analysis",
+      analysis_absolute_root:
+        "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/analysis",
+      handoff_bundle_relative_root: ".lime/harness/sessions/session-review-2",
+      evidence_pack_relative_root:
+        ".lime/harness/sessions/session-review-2/evidence",
+      replay_case_relative_root:
+        ".lime/harness/sessions/session-review-2/replay",
+      exported_at: "2026-03-27T10:28:00.000Z",
+      title: "把外部分析结论回挂为人工审核记录",
+      thread_status: "waiting_request",
+      latest_turn_status: "action_required",
+      pending_request_count: 1,
+      queued_turn_count: 0,
+      default_decision_status: "pending_review",
+      decision: {
+        decision_status: "pending_review",
+        decision_summary: "",
+        chosen_fix_strategy: "",
+        risk_level: "unknown",
+        risk_tags: [],
+        human_reviewer: "",
+        reviewed_at: undefined,
+        followup_actions: [],
+        regression_requirements: [],
+        notes: "",
+      },
+      decision_status_options: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
+      ],
+      risk_level_options: ["low", "medium", "high", "unknown"],
+      review_checklist: ["先阅读 analysis-brief.md 与 analysis-context.json。"],
+      analysis_artifacts: [
+        {
+          kind: "analysis_brief",
+          title: "外部分析简报",
+          relative_path:
+            ".lime/harness/sessions/session-review-2/analysis/analysis-brief.md",
+          absolute_path:
+            "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/analysis/analysis-brief.md",
+          bytes: 320,
+        },
+      ],
+      artifacts: [
+        {
+          kind: "review_decision_markdown",
+          title: "人工审核记录",
+          relative_path:
+            ".lime/harness/sessions/session-review-2/review/review-decision.md",
+          absolute_path:
+            "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/review/review-decision.md",
+          bytes: 512,
+        },
+      ],
+    });
+    saveAgentRuntimeReviewDecisionMock.mockResolvedValue({
+      session_id: "session-review-2",
+      thread_id: "thread-review-2",
+      workspace_id: "workspace-review-2",
+      workspace_root: "/tmp/workspace-review-2",
+      review_relative_root: ".lime/harness/sessions/session-review-2/review",
+      review_absolute_root:
+        "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/review",
+      analysis_relative_root:
+        ".lime/harness/sessions/session-review-2/analysis",
+      analysis_absolute_root:
+        "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/analysis",
+      handoff_bundle_relative_root: ".lime/harness/sessions/session-review-2",
+      evidence_pack_relative_root:
+        ".lime/harness/sessions/session-review-2/evidence",
+      replay_case_relative_root:
+        ".lime/harness/sessions/session-review-2/replay",
+      exported_at: "2026-03-27T10:32:00.000Z",
+      title: "把外部分析结论回挂为人工审核记录",
+      thread_status: "waiting_request",
+      latest_turn_status: "action_required",
+      pending_request_count: 1,
+      queued_turn_count: 0,
+      default_decision_status: "pending_review",
+      decision: {
+        decision_status: "accepted",
+        decision_summary: "确认最小修复可以接受。",
+        chosen_fix_strategy: "先补 runtime save，再补 UI 回归。",
+        risk_level: "medium",
+        risk_tags: ["runtime", "ui"],
+        human_reviewer: "Lime Maintainer",
+        reviewed_at: "2026-03-27T10:32:00.000Z",
+        followup_actions: ["补充 HarnessStatusPanel 测试"],
+        regression_requirements: ["npm run test:contracts", "Rust 定向测试"],
+        notes: "保持 review decision 主链单一。",
+      },
+      decision_status_options: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
+      ],
+      risk_level_options: ["low", "medium", "high", "unknown"],
+      review_checklist: ["先阅读 analysis-brief.md 与 analysis-context.json。"],
+      analysis_artifacts: [
+        {
+          kind: "analysis_brief",
+          title: "外部分析简报",
+          relative_path:
+            ".lime/harness/sessions/session-review-2/analysis/analysis-brief.md",
+          absolute_path:
+            "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/analysis/analysis-brief.md",
+          bytes: 320,
+        },
+      ],
+      artifacts: [
+        {
+          kind: "review_decision_markdown",
+          title: "人工审核记录",
+          relative_path:
+            ".lime/harness/sessions/session-review-2/review/review-decision.md",
+          absolute_path:
+            "/tmp/workspace-review-2/.lime/harness/sessions/session-review-2/review/review-decision.md",
+          bytes: 512,
+        },
+      ],
+    });
+
+    renderPanel({
+      diagnosticRuntimeContext: {
+        sessionId: "session-review-2",
+        workspaceId: "workspace-review-2",
+        providerType: "openai",
+        model: "gpt-5.4",
+        executionStrategy: "react",
+        activeTheme: "default",
+        selectedTeamLabel: null,
+      },
+    });
+
+    const fillButton = document.body.querySelector(
+      'button[aria-label="填写人工审核结果"]',
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      fillButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const statusSelect = document.body.querySelector(
+      'select[aria-label="决策状态"]',
+    ) as HTMLSelectElement | null;
+    const riskSelect = document.body.querySelector(
+      'select[aria-label="风险等级"]',
+    ) as HTMLSelectElement | null;
+    const reviewerInput = document.body.querySelector(
+      'input[aria-label="审核人"]',
+    ) as HTMLInputElement | null;
+    const riskTagsInput = document.body.querySelector(
+      'input[aria-label="风险标签"]',
+    ) as HTMLInputElement | null;
+    const summaryTextarea = document.body.querySelector(
+      'textarea[aria-label="决策摘要"]',
+    ) as HTMLTextAreaElement | null;
+    const strategyTextarea = document.body.querySelector(
+      'textarea[aria-label="采用的修复策略"]',
+    ) as HTMLTextAreaElement | null;
+    const regressionsTextarea = document.body.querySelector(
+      'textarea[aria-label="回归要求"]',
+    ) as HTMLTextAreaElement | null;
+    const followupsTextarea = document.body.querySelector(
+      'textarea[aria-label="后续动作"]',
+    ) as HTMLTextAreaElement | null;
+    const notesTextarea = document.body.querySelector(
+      'textarea[aria-label="审核备注"]',
+    ) as HTMLTextAreaElement | null;
+
+    await act(async () => {
+      if (statusSelect) {
+        setInputValue(statusSelect, "accepted");
+      }
+      if (riskSelect) {
+        setInputValue(riskSelect, "medium");
+      }
+      if (reviewerInput) {
+        setInputValue(reviewerInput, "Lime Maintainer");
+      }
+      if (riskTagsInput) {
+        setInputValue(riskTagsInput, "runtime, ui");
+      }
+      if (summaryTextarea) {
+        setInputValue(summaryTextarea, "确认最小修复可以接受。");
+      }
+      if (strategyTextarea) {
+        setInputValue(strategyTextarea, "先补 runtime save，再补 UI 回归。");
+      }
+      if (regressionsTextarea) {
+        setInputValue(regressionsTextarea, "npm run test:contracts\nRust 定向测试");
+      }
+      if (followupsTextarea) {
+        setInputValue(followupsTextarea, "补充 HarnessStatusPanel 测试");
+      }
+      if (notesTextarea) {
+        setInputValue(notesTextarea, "保持 review decision 主链单一。");
+      }
+      await Promise.resolve();
+    });
+
+    const saveButton = findButtonByText("保存审核结果");
+
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(exportAgentRuntimeReviewDecisionTemplateMock).toHaveBeenCalledWith(
+      "session-review-2",
+    );
+    expect(saveAgentRuntimeReviewDecisionMock).toHaveBeenCalledWith({
+      session_id: "session-review-2",
+      decision_status: "accepted",
+      decision_summary: "确认最小修复可以接受。",
+      chosen_fix_strategy: "先补 runtime save，再补 UI 回归。",
+      risk_level: "medium",
+      risk_tags: ["runtime", "ui"],
+      human_reviewer: "Lime Maintainer",
+      reviewed_at: undefined,
+      followup_actions: ["补充 HarnessStatusPanel 测试"],
+      regression_requirements: ["npm run test:contracts", "Rust 定向测试"],
+      notes: "保持 review decision 主链单一。",
+    });
+    expect(document.body.textContent).toContain("当前人工审核结论");
+    expect(document.body.textContent).toContain("确认最小修复可以接受。");
+    expect(document.body.textContent).toContain("Lime Maintainer");
+    expect(document.body.textContent).toContain("补充 HarnessStatusPanel 测试");
+    expect(mockToast.success).toHaveBeenCalledWith("已保存人工审核结果");
   });
 
   it("一键复制给 AI 在未导出时应先自动导出再复制 copy_prompt", async () => {

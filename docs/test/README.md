@@ -102,10 +102,12 @@ npm run verify:local:full
 npm run bridge:health -- --timeout-ms 120000
 ```
 
-### 运行首条自包含 smoke
+### 运行自包含 smoke
 
 ```bash
 npm run smoke:workspace-ready
+npm run smoke:browser-runtime
+npm run smoke:site-adapters
 ```
 
 ### 运行 Harness eval 摘要
@@ -124,6 +126,18 @@ npm run harness:eval:promote -- --session-id "session-123" --slug "pending-reque
 
 ```bash
 npm run harness:eval:trend
+```
+
+### 记录 Harness eval 历史窗口
+
+```bash
+node scripts/harness-eval-runner.mjs --record-history-dir "./artifacts/history" --history-retain 30
+```
+
+### 运行 Harness cleanup / slop 报告
+
+```bash
+npm run harness:cleanup-report
 ```
 
 ### 当前浏览器续测入口

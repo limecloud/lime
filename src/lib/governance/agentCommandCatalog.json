@@ -21,6 +21,7 @@
     "agent_runtime_export_handoff_bundle",
     "agent_runtime_export_evidence_pack",
     "agent_runtime_export_review_decision_template",
+    "agent_runtime_save_review_decision",
     "agent_runtime_export_replay_case",
     "agent_runtime_get_tool_inventory",
     "agent_runtime_spawn_subagent",
@@ -69,85 +70,5 @@
     "getAsterSession": "getAgentRuntimeSession",
     "deleteAsterSession": "deleteAgentRuntimeSession",
     "renameAsterSession": "updateAgentRuntimeSession"
-  },
-  "legacyCommandSurfaceMonitors": [
-    {
-      "id": "agent-create-session-compat-command",
-      "classification": "dead-candidate",
-      "description": "已零引用的旧 agent_create_session 命令边界",
-      "commands": ["agent_create_session"],
-      "allowedPaths": []
-    },
-    {
-      "id": "agent-session-message-legacy-command",
-      "classification": "dead-candidate",
-      "description": "已零引用的旧 agent session message 命令边界",
-      "commands": ["agent_get_session_messages"],
-      "allowedPaths": []
-    },
-    {
-      "id": "agent-session-compat-commands",
-      "classification": "dead-candidate",
-      "description": "已零引用的旧 agent session compat 命令边界",
-      "commands": [
-        "agent_list_sessions",
-        "agent_get_session",
-        "agent_delete_session",
-        "agent_rename_session"
-      ],
-      "allowedPaths": []
-    },
-    {
-      "id": "agent-terminal-tool-callback-commands",
-      "classification": "dead-candidate",
-      "description": "已下线的 TerminalTool / TermScrollbackTool 回调命令边界",
-      "commands": [
-        "agent_terminal_command_response",
-        "agent_term_scrollback_response"
-      ],
-      "allowedPaths": []
-    }
-  ],
-  "legacyHelperSurfaceMonitors": [
-    {
-      "id": "agent-legacy-session-api-helpers",
-      "classification": "dead-candidate",
-      "description": "已零引用的旧 Agent session compat helper 回流",
-      "helpers": [
-        "createAgentSession",
-        "listAgentSessions",
-        "getAgentSession",
-        "getAgentSessionMessages",
-        "renameAgentSession",
-        "deleteAgentSession",
-        "generateAgentTitle"
-      ],
-      "allowedPaths": []
-    },
-    {
-      "id": "agent-legacy-stream-action-helpers",
-      "classification": "dead-candidate",
-      "description": "已零引用的旧 Aster stream/action helper 回流",
-      "helpers": [
-        "sendAsterMessageStream",
-        "confirmAsterAction",
-        "submitAsterElicitationResponse",
-        "stopAsterSession"
-      ],
-      "allowedPaths": []
-    },
-    {
-      "id": "aster-session-helper-direct-usage",
-      "classification": "dead-candidate",
-      "description": "已零引用的前端 direct Aster session helper 回流",
-      "helpers": [
-        "createAsterSession",
-        "listAsterSessions",
-        "getAsterSession",
-        "deleteAsterSession",
-        "renameAsterSession"
-      ],
-      "allowedPaths": []
-    }
-  ]
+  }
 }
