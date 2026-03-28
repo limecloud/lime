@@ -7,7 +7,7 @@ import type {
 } from "@/lib/api/agentRuntime";
 
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
-import type { CompatSubagentRuntimeSnapshot } from "../utils/compatSubagentRuntime";
+import type { CompatSubagentRuntimeStatus } from "../utils/compatSubagentRuntime";
 import type { HarnessSessionState } from "../utils/harnessState";
 import {
   getExecutionRuntimeDisplayLabel,
@@ -19,10 +19,7 @@ interface AgentRuntimeStripProps {
   toolPreferences: ChatToolPreferences;
   harnessState: HarnessSessionState;
   childSubagentSessions?: AsterSubagentSessionInfo[];
-  compatSubagentRuntime: Pick<
-    CompatSubagentRuntimeSnapshot,
-    "isRunning" | "progress"
-  >;
+  compatSubagentRuntime: CompatSubagentRuntimeStatus;
   variant?: "standalone" | "embedded";
   isSending?: boolean;
   executionRuntime?: AsterSessionExecutionRuntime | null;

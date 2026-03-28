@@ -248,7 +248,7 @@ function renderSettingsContent(
     case SettingsTabs.ChromeRelay:
       return (
         <>
-          <SettingHeader title="Chrome Relay" />
+          <SettingHeader title="连接器" />
           <ChromeRelaySettings />
         </>
       );

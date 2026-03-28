@@ -7,6 +7,14 @@ type UnlistenFn = () => void;
 
 // 存储事件监听器
 const listeners = new Map<string, Set<EventCallback<any>>>();
+const shouldLogMockEventInfo = import.meta.env.MODE !== "test";
+
+function logMockEventInfo(...args: Parameters<typeof console.log>) {
+  if (!shouldLogMockEventInfo) {
+    return;
+  }
+  console.log(...args);
+}
 
 /**
  * Mock listen function
@@ -15,7 +23,7 @@ export async function listen<T = any>(
   event: string,
   handler: EventCallback<T>,
 ): Promise<UnlistenFn> {
-  console.log(`[Mock] listen: ${event}`);
+  logMockEventInfo(`[Mock] listen: ${event}`);
 
   if (!listeners.has(event)) {
     listeners.set(event, new Set());
@@ -32,7 +40,7 @@ export async function listen<T = any>(
         listeners.delete(event);
       }
     }
-    console.log(`[Mock] unlisten: ${event}`);
+    logMockEventInfo(`[Mock] unlisten: ${event}`);
   };
 }
 
@@ -43,7 +51,7 @@ export async function once<T = any>(
   event: string,
   handler: EventCallback<T>,
 ): Promise<UnlistenFn> {
-  console.log(`[Mock] once: ${event}`);
+  logMockEventInfo(`[Mock] once: ${event}`);
 
   const wrappedHandler = (data: T) => {
     handler(data);
@@ -61,7 +69,7 @@ export async function once<T = any>(
  * Mock emit function - 用于触发事件
  */
 export async function emit(event: string, payload?: any): Promise<void> {
-  console.log(`[Mock] emit: ${event}`, payload);
+  logMockEventInfo(`[Mock] emit: ${event}`, payload);
 
   const set = listeners.get(event);
   if (set) {

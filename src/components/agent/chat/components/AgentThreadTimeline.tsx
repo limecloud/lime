@@ -2,26 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bot,
-  CheckCircle2,
   ChevronDown,
   Clock3,
   FileText,
-  Globe,
+  ListChecks,
   Loader2,
-  Search,
   ShieldAlert,
   Sparkles,
-  TerminalSquare,
-  Wrench,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type {
   ActionRequired,
@@ -33,7 +24,6 @@ import type {
 import {
   buildAgentThreadDisplayModel,
   type AgentThreadOrderedBlock,
-  type AgentThreadSummaryChip,
 } from "../utils/agentThreadGrouping";
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
 import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
@@ -42,23 +32,15 @@ import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
 import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
 import { TIMELINE_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
 import { cn } from "@/lib/utils";
-import {
-  resolveIncidentToneFromSeverity,
-  resolveOutcomeLabel,
-  resolveOutcomeTone,
-  type ThreadReliabilityTone,
-} from "../utils/threadReliabilityView";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 import { ToolCallItem } from "./ToolCallDisplay";
 import { DecisionPanel } from "./DecisionPanel";
-import { AgentPlanBlock } from "./AgentPlanBlock";
 import {
   resolveTimelineArtifactNavigation,
   type ArtifactTimelineOpenTarget,
 } from "../utils/artifactTimelineNavigation";
-import { TimelineInlineItem } from "./TimelineInlineItem";
 
 interface AgentThreadTimelineProps {
   turn: AgentThreadTurn;
@@ -66,6 +48,7 @@ interface AgentThreadTimelineProps {
   threadRead?: AgentRuntimeThreadReadModel | null;
   actionRequests?: ActionRequired[];
   isCurrentTurn?: boolean;
+  placement?: "leading" | "trailing" | "default";
   onFileClick?: (fileName: string, content: string) => void;
   onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
   onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
@@ -73,26 +56,6 @@ interface AgentThreadTimelineProps {
   onPermissionResponse?: (response: ConfirmResponse) => void;
   focusedItemId?: string | null;
   focusRequestKey?: number;
-}
-
-interface TurnStatusMeta {
-  label: string;
-  badgeVariant: "secondary" | "outline" | "destructive";
-  badgeClassName?: string;
-  overviewText: string;
-}
-
-type TimelineCompactTone =
-  | "running"
-  | "waiting"
-  | "failed"
-  | "paused"
-  | "done";
-
-interface TimelineCompactReliabilityBadge {
-  key: string;
-  label: string;
-  tone: ThreadReliabilityTone;
 }
 
 function shortenInlineText(
@@ -125,82 +88,6 @@ function formatTimestamp(value?: string): string | null {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function resolveReliabilityBadgeClassName(
-  tone: ThreadReliabilityTone,
-): string {
-  if (tone === "completed") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-  if (tone === "failed") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-  if (tone === "waiting") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-  if (tone === "running") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
-  }
-  if (tone === "paused") {
-    return "border-slate-200 bg-slate-50 text-slate-700";
-  }
-  return "border-slate-200 bg-slate-50 text-slate-700";
-}
-
-function buildCompactReliabilityBadges(
-  turn: AgentThreadTurn,
-  threadRead?: AgentRuntimeThreadReadModel | null,
-): TimelineCompactReliabilityBadge[] {
-  if (!threadRead) {
-    return [];
-  }
-
-  const badges: TimelineCompactReliabilityBadge[] = [];
-
-  if (threadRead.last_outcome?.turn_id === turn.id) {
-    badges.push({
-      key: "outcome",
-      label: resolveOutcomeLabel(threadRead.last_outcome.outcome_type),
-      tone: resolveOutcomeTone(threadRead.last_outcome.outcome_type),
-    });
-  }
-
-  const activeIncidents = (threadRead.incidents ?? []).filter((incident) => {
-    const normalizedStatus = (incident.status || "").toLowerCase();
-    return (
-      incident.turn_id === turn.id &&
-      !incident.cleared_at &&
-      !normalizedStatus.includes("clear")
-    );
-  });
-
-  if (activeIncidents.length > 0) {
-    const incidentTone = activeIncidents.reduce<ThreadReliabilityTone>(
-      (currentTone, incident) => {
-        const nextTone = resolveIncidentToneFromSeverity(incident.severity);
-        if (currentTone === "failed" || nextTone === currentTone) {
-          return currentTone;
-        }
-        if (nextTone === "failed") {
-          return nextTone;
-        }
-        if (nextTone === "waiting") {
-          return nextTone;
-        }
-        return currentTone;
-      },
-      "neutral",
-    );
-
-    badges.push({
-      key: "incident",
-      label: `${activeIncidents.length} 个 incident`,
-      tone: incidentTone,
-    });
-  }
-
-  return badges;
 }
 
 function toQuestionOptions(
@@ -383,38 +270,6 @@ function findLatestPendingAction(
   return null;
 }
 
-function findLatestPendingItemAction(items: AgentThreadItem[]) {
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = items[index];
-    if (
-      (item.type === "approval_request" || item.type === "request_user_input") &&
-      item.status !== "completed"
-    ) {
-      return item;
-    }
-  }
-
-  return null;
-}
-
-function resolvePendingItemOverview(item: AgentThreadItem): string {
-  if (
-    (item.type === "approval_request" || item.type === "request_user_input") &&
-    item.prompt?.trim()
-  ) {
-    return item.prompt.trim();
-  }
-
-  if (item.type === "request_user_input") {
-    const firstQuestion = item.questions?.find((question) => question.question?.trim());
-    if (firstQuestion?.question) {
-      return firstQuestion.question.trim();
-    }
-  }
-
-  return "当前阶段在等待你确认，完成后会继续后续处理。";
-}
-
 function resolveItemStatusLabel(status: AgentThreadItem["status"]): string {
   switch (status) {
     case "in_progress":
@@ -424,175 +279,6 @@ function resolveItemStatusLabel(status: AgentThreadItem["status"]): string {
     case "completed":
     default:
       return "已完成";
-  }
-}
-
-function resolveGroupIcon(
-  kind: AgentThreadOrderedBlock["kind"],
-): React.ComponentType<{ className?: string }> {
-  switch (kind) {
-    case "thinking":
-      return Sparkles;
-    case "approval":
-      return ShieldAlert;
-    case "alert":
-      return AlertTriangle;
-    case "browser":
-      return Globe;
-    case "search":
-      return Search;
-    case "file":
-      return FileText;
-    case "command":
-      return TerminalSquare;
-    case "subagent":
-      return Bot;
-    case "other":
-    default:
-      return Wrench;
-  }
-}
-
-function resolveOverviewText(
-  turn: AgentThreadTurn,
-  summaryText: string | null,
-  actionableCount: number,
-): string {
-  if (summaryText) {
-    return summaryText;
-  }
-
-  if (turn.status === "running") {
-    return actionableCount > 0
-      ? "正在处理你的请求，最新进展会持续更新。"
-      : "正在准备处理内容。";
-  }
-
-  if (turn.status === "failed") {
-    return turn.error_message || "当前阶段处理失败，请查看下方异常记录。";
-  }
-
-  return actionableCount > 0
-    ? "已整理当前阶段的关键进展。"
-    : "当前阶段没有额外记录。";
-}
-
-function resolveTurnStatusMeta(params: {
-  turn: AgentThreadTurn;
-  items: AgentThreadItem[];
-  actionRequests?: ActionRequired[];
-  summaryText: string | null;
-  actionableCount: number;
-}): TurnStatusMeta {
-  const {
-    turn,
-    items,
-    actionRequests,
-    summaryText,
-    actionableCount,
-  } = params;
-  const pendingAction = findLatestPendingAction(actionRequests);
-  const hasInProgressItem = items.some((item) => item.status === "in_progress");
-
-  if (pendingAction?.uiKind === "browser_preflight") {
-    const phase = pendingAction.browserPrepState || "idle";
-
-    if (phase === "launching") {
-      return {
-        label: "连接浏览器",
-        badgeVariant: "secondary",
-        badgeClassName:
-          "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200",
-        overviewText:
-          pendingAction.detail?.trim() ||
-          "正在建立浏览器会话，连接成功后会继续当前阶段。",
-      };
-    }
-
-    if (phase === "awaiting_user" || phase === "ready_to_resume") {
-      return {
-        label: "待继续",
-        badgeVariant: "secondary",
-        badgeClassName:
-          "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200",
-        overviewText:
-          pendingAction.detail?.trim() ||
-          pendingAction.prompt?.trim() ||
-          "浏览器已经打开，等待你完成登录、授权或验证后继续。",
-      };
-    }
-
-    return {
-      label: "浏览器未就绪",
-      badgeVariant: "secondary",
-      badgeClassName:
-        "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200",
-      overviewText:
-        pendingAction.detail?.trim() ||
-        pendingAction.prompt?.trim() ||
-        "浏览器/CDP 还未连接，请重试启动后继续。",
-    };
-  }
-
-  if (pendingAction) {
-    return {
-      label: "待处理",
-      badgeVariant: "secondary",
-      badgeClassName:
-        "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200",
-      overviewText:
-        pendingAction.prompt?.trim() ||
-        "当前阶段在等待你确认，完成后会继续后续处理。",
-    };
-  }
-
-  const pendingItemAction = findLatestPendingItemAction(items);
-  if (pendingItemAction) {
-    return {
-      label: "待处理",
-      badgeVariant: "secondary",
-      badgeClassName:
-        "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200",
-      overviewText: resolvePendingItemOverview(pendingItemAction),
-    };
-  }
-
-  switch (turn.status) {
-    case "running":
-      return {
-        label: "执行中",
-        badgeVariant: "secondary",
-        overviewText: resolveOverviewText(turn, summaryText, actionableCount),
-      };
-    case "failed":
-      return {
-        label: "失败",
-        badgeVariant: "destructive",
-        overviewText:
-          turn.error_message || "当前阶段处理失败，请查看下方异常记录。",
-      };
-    case "aborted":
-      return {
-        label: "已暂停",
-        badgeVariant: "outline",
-        overviewText:
-          turn.error_message || "当前阶段已暂停，你可以继续处理或开始下一步。",
-      };
-    case "completed":
-    default:
-      if (hasInProgressItem) {
-        return {
-          label: "执行中",
-          badgeVariant: "secondary",
-          overviewText: resolveOverviewText(turn, summaryText, actionableCount),
-        };
-      }
-
-      return {
-        label: "已完成",
-        badgeVariant: "outline",
-        overviewText: resolveOverviewText(turn, summaryText, actionableCount),
-      };
   }
 }
 
@@ -618,31 +304,22 @@ function SurfaceCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background/80 px-4 py-3">
-      <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <div className="py-1.5">
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
           <Icon className="h-4 w-4" />
         </div>
-        <div className="text-sm font-medium text-foreground">{title}</div>
-        {badge ? <div className="ml-auto">{badge}</div> : null}
-        {timestamp ? (
-          <div className="text-xs text-muted-foreground">{timestamp}</div>
-        ) : null}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm leading-6 text-slate-900">{title}</div>
+            {badge ? <div>{badge}</div> : null}
+            {timestamp ? (
+              <div className="text-xs text-slate-400">{timestamp}</div>
+            ) : null}
+          </div>
+          <div className="ml-0 mt-1.5">{children}</div>
+        </div>
       </div>
-      {children}
-    </div>
-  );
-}
-
-function SummaryChip({
-  chip,
-}: {
-  chip: AgentThreadSummaryChip;
-}) {
-  return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground">
-      <span className="text-foreground">{chip.label}</span>
-      <span>{chip.count}</span>
     </div>
   );
 }
@@ -653,12 +330,6 @@ function ThinkingItemCard({
   item: Extract<AgentThreadItem, { type: "reasoning" | "turn_summary" }>;
 }) {
   const parsedContent = useMemo(() => parseAIResponse(item.text, false), [item.text]);
-  const title =
-    item.type === "reasoning"
-      ? "思考摘要"
-      : item.status === "in_progress"
-        ? "执行准备"
-        : "阶段总结";
   const hasStructuredPreview = parsedContent.hasA2UI || parsedContent.hasPending;
 
   const content = hasStructuredPreview ? (
@@ -687,7 +358,7 @@ function ThinkingItemCard({
               key={`timeline-pending-a2ui-${index}`}
               compact={true}
               preset={TIMELINE_A2UI_TASK_CARD_PRESET}
-              subtitle="结构化问答正在整理，请稍等。"
+              subtitle="这一步还在整理，稍等一下。"
             />
           );
         }
@@ -711,25 +382,23 @@ function ThinkingItemCard({
   );
 
   return (
-    <SurfaceCard
-      icon={Sparkles}
-      title={title}
-      badge={
-        <Badge variant={resolveStatusBadgeVariant(item.status)}>
+    <div className="py-1.5">
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
           {item.status === "in_progress" ? (
-            <span className="inline-flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              整理中
-            </span>
+            <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
           ) : (
-            resolveItemStatusLabel(item.status)
+            <Sparkles className="h-4 w-4" />
           )}
-        </Badge>
-      }
-      timestamp={formatTimestamp(item.completed_at || item.updated_at)}
-    >
-      {content}
-    </SurfaceCard>
+        </div>
+        <div className="min-w-0 flex-1">
+          {item.status === "in_progress" ? (
+            <div className="mb-1 text-xs text-slate-500">思考中</div>
+          ) : null}
+          <div className="text-sm leading-7 text-slate-800">{content}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -748,54 +417,87 @@ function ContextCompactionCard({
           : "上下文压缩";
   const title =
     item.stage === "completed" || item.status === "completed"
-      ? "上下文已压缩"
-      : "正在压缩上下文";
+      ? "压了上下文"
+      : "正在压上下文";
   const detail =
     item.detail?.trim() ||
     (item.stage === "completed" || item.status === "completed"
-      ? "较早消息已替换为摘要，后续回复会基于压缩后的上下文继续。"
-      : "系统正在将较早消息整理为摘要，以释放上下文窗口。");
+      ? "把前面的对话压成摘要了，后面接着做。"
+      : "在把前面的对话压成摘要，马上继续。");
 
   return (
     <SurfaceCard
       icon={Sparkles}
       title={title}
-      badge={
-        <Badge variant={resolveStatusBadgeVariant(item.status)}>
-          {item.status === "in_progress" ? (
-            <span className="inline-flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              压缩中
-            </span>
-          ) : (
-            resolveItemStatusLabel(item.status)
-          )}
-        </Badge>
-      }
-      timestamp={formatTimestamp(item.completed_at || item.updated_at)}
+      badge={<Badge variant="outline">{triggerLabel}</Badge>}
     >
-      <div className="space-y-3">
-        <div className="text-sm text-muted-foreground">{detail}</div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{triggerLabel}</Badge>
+      <div className="text-sm text-slate-500">{detail}</div>
+      {item.status === "in_progress" ? (
+        <div className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>压缩中</span>
+        </div>
+      ) : null}
+    </SurfaceCard>
+  );
+}
+
+function InlinePlanBlock({
+  content,
+  isComplete,
+}: {
+  content: string;
+  isComplete: boolean;
+}) {
+  if (!content.trim()) {
+    return null;
+  }
+
+  return (
+    <div className="py-1.5">
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
+          {isComplete ? (
+            <ListChecks className="h-4 w-4" />
+          ) : (
+            <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-xs text-slate-500">
+            {isComplete ? "定了这些步骤" : "还在排步骤"}
+          </div>
+          <div className="text-sm leading-7 text-slate-800">
+            <MarkdownRenderer content={content} />
+          </div>
         </div>
       </div>
-    </SurfaceCard>
+    </div>
   );
 }
 
 function renderThinkingItemDetails(item: AgentThreadItem) {
   if (item.type === "plan") {
-    return (
-      <AgentPlanBlock
-        content={item.text}
-        isComplete={item.status !== "in_progress"}
-      />
-    );
+    return <InlinePlanBlock content={item.text} isComplete={item.status !== "in_progress"} />;
   }
 
   if (item.type === "reasoning") {
-    return null;
+    return (
+      <div className="py-1.5">
+        <div className="flex items-start gap-2.5">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
+            {item.status === "in_progress" ? (
+              <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1 text-sm leading-7 text-slate-800">
+            <MarkdownRenderer content={item.text} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (item.type === "turn_summary") {
@@ -876,14 +578,12 @@ function renderGroupItemDetails(
 
   if (toolCall) {
     return (
-      <div className="rounded-xl border border-border/70 bg-background/80">
-        <ToolCallItem
-          toolCall={toolCall}
-          defaultExpanded={item.status !== "completed"}
-          onFileClick={onFileClick}
-          onOpenSavedSiteContent={onOpenSavedSiteContent}
-        />
-      </div>
+      <ToolCallItem
+        toolCall={toolCall}
+        defaultExpanded={item.status !== "completed"}
+        onFileClick={onFileClick}
+        onOpenSavedSiteContent={onOpenSavedSiteContent}
+      />
     );
   }
 
@@ -894,10 +594,10 @@ function renderGroupItemDetails(
       Boolean(onOpenArtifactFromTimeline) && blockTargets.length === 1;
 
     return (
-      <div className="rounded-xl border border-border/70 bg-background/80 px-3 py-3">
+      <div className="py-1.5">
         <button
           type="button"
-          className="w-full text-left transition-colors hover:bg-muted/40"
+          className="w-full rounded-md text-left transition-colors hover:bg-slate-50"
           onClick={() => {
             if (onOpenArtifactFromTimeline && navigation) {
               onOpenArtifactFromTimeline(
@@ -909,24 +609,31 @@ function renderGroupItemDetails(
             onFileClick?.(item.path, item.content || "");
           }}
         >
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-medium text-foreground">{item.path}</div>
-            <Badge variant={resolveStatusBadgeVariant(item.status)} className="ml-auto">
-              {resolveArtifactSourceLabel(item.source)}
-            </Badge>
-            {timestamp ? (
-              <span className="text-xs text-muted-foreground">{timestamp}</span>
-            ) : null}
+          <div className="flex items-start gap-2.5">
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-sm leading-6 text-slate-900">{item.path}</div>
+                <Badge variant={resolveStatusBadgeVariant(item.status)}>
+                  {resolveArtifactSourceLabel(item.source)}
+                </Badge>
+                {timestamp ? (
+                  <span className="text-xs text-slate-400">{timestamp}</span>
+                ) : null}
+              </div>
+              {item.content?.trim() ? (
+                <div className="mt-1.5 line-clamp-4 whitespace-pre-wrap text-xs leading-6 text-slate-500">
+                  {item.content}
+                </div>
+              ) : (
+                <div className="mt-1.5 text-xs text-slate-500">
+                  点击在画布中打开文件
+                </div>
+              )}
+            </div>
           </div>
-          {item.content?.trim() ? (
-            <div className="mt-2 line-clamp-4 whitespace-pre-wrap text-xs text-muted-foreground">
-              {item.content}
-            </div>
-          ) : (
-            <div className="mt-2 text-xs text-muted-foreground">
-              点击在画布中打开文件
-            </div>
-          )}
         </button>
 
         {onOpenArtifactFromTimeline && blockTargets.length > 1 ? (
@@ -950,12 +657,12 @@ function renderGroupItemDetails(
   if (item.type === "subagent_activity") {
     const subagentSessionId = item.session_id?.trim();
     const displayTitle =
-      resolveInternalImageTaskDisplayName(item.title) || "协作成员处理";
+      resolveInternalImageTaskDisplayName(item.title) || "协作任务";
 
     return (
       <SurfaceCard
         icon={Bot}
-        title={displayTitle}
+        title={`交给协作成员：${displayTitle}`}
         badge={
           <Badge variant={resolveStatusBadgeVariant(item.status)}>
             {resolveSubagentStatusLabel(item.status_label, item.status)}
@@ -992,7 +699,7 @@ function renderGroupItemDetails(
     return (
       <SurfaceCard
         icon={item.type === "warning" ? AlertTriangle : ShieldAlert}
-        title={item.type === "warning" ? "运行提醒" : "执行错误"}
+        title={item.type === "warning" ? "收到提醒" : "碰到错误"}
         badge={
           <Badge variant={resolveStatusBadgeVariant(item.status)}>
             {item.type === "warning" ? item.code || "warning" : "失败"}
@@ -1014,7 +721,7 @@ function renderGroupItemDetails(
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-border/70 bg-background/70 px-3 py-3">
+    <div className="py-1.5">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-sm font-medium text-foreground">{item.type}</span>
         <Badge variant={resolveStatusBadgeVariant(item.status)} className="ml-auto">
@@ -1028,16 +735,8 @@ function renderGroupItemDetails(
   );
 }
 
-function isCompactTechnicalBlock(block: AgentThreadOrderedBlock): boolean {
-  return block.kind === "other" && block.status === "completed";
-}
-
 function resolveCompactTechnicalSummary(block: AgentThreadOrderedBlock): string {
-  const firstPreview = block.previewLines[0];
-  if (firstPreview) {
-    return `已收起 ${block.items.length} 条次要执行记录，最近一条：${firstPreview}`;
-  }
-  return `已收起 ${block.items.length} 条次要执行记录。`;
+  return `处理了 ${block.items.length} 个步骤`;
 }
 
 function resolveActiveBlockIndex(blocks: AgentThreadOrderedBlock[]): number {
@@ -1139,9 +838,11 @@ function resolveExpandedBlockIndexes(params: {
 
   if (focusBlockIndex >= 0) {
     const focusBlock = blocks[focusBlockIndex];
+    const completedThinkingBlock =
+      focusBlock?.kind === "thinking" && focusBlock.status === "completed";
     const shouldExpandFocus =
       focusBlock?.status !== "completed" ||
-      turn.status === "running" ||
+      (!completedThinkingBlock && turn.status === "running") ||
       turn.status === "failed" ||
       turn.status === "aborted";
 
@@ -1160,259 +861,207 @@ function resolveExpandedBlockIndexes(params: {
   return expanded;
 }
 
-function resolveTimelineDetailsDefaultExpanded(params: {
-  turn: AgentThreadTurn;
-  items: AgentThreadItem[];
-  actionRequests?: ActionRequired[];
-  isCurrentTurn: boolean;
-}): boolean {
-  void params;
-  return false;
+function hasAnyPrefix(value: string, prefixes: string[]): boolean {
+  return prefixes.some((prefix) => value.startsWith(prefix));
 }
 
-function resolveCompactTone(params: {
-  turn: AgentThreadTurn;
-  turnStatusMeta: TurnStatusMeta;
-}): TimelineCompactTone {
-  const { turn, turnStatusMeta } = params;
-
-  if (turn.status === "failed") {
-    return "failed";
-  }
-
-  if (turn.status === "running" || turnStatusMeta.label === "执行中") {
-    return "running";
+function normalizeBlockPreviewLine(
+  kind: AgentThreadOrderedBlock["kind"],
+  line: string,
+): string {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return line;
   }
 
   if (
-    turnStatusMeta.label === "待处理" ||
-    turnStatusMeta.label === "待继续" ||
-    turnStatusMeta.label === "连接浏览器" ||
-    turnStatusMeta.label === "浏览器未就绪"
+    kind === "file" &&
+    !hasAnyPrefix(trimmed, ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "])
   ) {
-    return "waiting";
+    return `看了 ${trimmed}`;
   }
 
-  if (turn.status === "aborted") {
-    return "paused";
+  if (kind === "command" && !hasAnyPrefix(trimmed, ["执行了 ", "跑了 ", "运行了 "])) {
+    return `执行了 ${trimmed}`;
   }
 
-  return "done";
+  if (kind === "search" && !hasAnyPrefix(trimmed, ["搜了 ", "查了 ", "搜索了 ", "检索了 "])) {
+    return `搜了 ${trimmed}`;
+  }
+
+  if (
+    kind === "approval" &&
+    !hasAnyPrefix(trimmed, ["等你补充：", "等你确认：", "等你补充信息", "等你确认这一步"])
+  ) {
+    return `等你确认：${trimmed}`;
+  }
+
+  if (kind === "alert" && !hasAnyPrefix(trimmed, ["收到提醒：", "碰到错误："])) {
+    return `收到提醒：${trimmed}`;
+  }
+
+  if (kind === "subagent" && !hasAnyPrefix(trimmed, ["分给协作成员", "协作成员"])) {
+    return `分给协作成员处理 ${trimmed}`;
+  }
+
+  return trimmed;
 }
 
-function resolveFocusInlineText(
-  block: AgentThreadOrderedBlock | null,
-): string | null {
-  if (!block) {
-    return null;
-  }
+function resolveBlockSummaryLines(block: AgentThreadOrderedBlock): string[] {
+  const normalizedPreviewLines = block.previewLines
+    .map((line) => normalizeBlockPreviewLine(block.kind, line))
+    .filter((line) => line.trim().length > 0)
+    .map((line) => shortenInlineText(line, 92) || line);
 
-  if (isCompactTechnicalBlock(block)) {
-    return resolveCompactTechnicalSummary(block);
-  }
-
-  const preview = block.previewLines.find((line) => line.trim().length > 0);
-  if (preview) {
-    return preview;
-  }
-
-  return block.title.trim() || null;
-}
-
-function resolveLatestThinkingPreview(
-  blocks: AgentThreadOrderedBlock[],
-): {
-  text: string | null;
-  stageLabel: string | null;
-} {
-  for (let index = blocks.length - 1; index >= 0; index -= 1) {
-    const block = blocks[index];
-    if (block?.kind !== "thinking") {
-      continue;
+  if (block.kind === "thinking") {
+    const headline = block.status === "in_progress" ? "思考中" : "已完成思考";
+    if (normalizedPreviewLines.length > 0) {
+      return [
+        headline,
+        ...normalizedPreviewLines.filter((line) => line !== headline),
+      ];
     }
 
-    const latestPreview = [...block.previewLines]
-      .reverse()
-      .find((line) => line.trim().length > 0);
+    return [headline];
+  }
 
+  if (normalizedPreviewLines.length > 0) {
+    return normalizedPreviewLines;
+  }
+
+  if (block.kind === "approval") {
+    return [block.status === "completed" ? "这一步已经确认" : "等你确认这一步"];
+  }
+
+  if (block.kind === "alert") {
+    return [block.status === "failed" ? "碰到错误" : "收到提醒"];
+  }
+
+  if (block.kind === "subagent") {
+    return [block.status === "completed" ? "协作成员处理完了" : "协作成员在处理"];
+  }
+
+  if (block.kind === "other") {
+    return [resolveCompactTechnicalSummary(block)];
+  }
+
+  return [block.title];
+}
+
+function resolveThreadInlineStatusHint(params: {
+  turn: AgentThreadTurn;
+  actionRequests?: ActionRequired[];
+}) {
+  const pendingAction = findLatestPendingAction(params.actionRequests);
+
+  if (pendingAction?.uiKind === "browser_preflight") {
     return {
-      text: latestPreview || resolveFocusInlineText(block),
-      stageLabel: `步骤 ${String(index + 1).padStart(2, "0")}`,
+      tone: "warning" as const,
+      label: "待继续",
+      detail:
+        pendingAction.detail?.trim() ||
+        pendingAction.prompt?.trim() ||
+        "浏览器已经打开，等待你完成登录、授权或验证后继续。",
     };
   }
 
-  return {
-    text: null,
-    stageLabel: null,
-  };
-}
-
-function resolveCollapsedProcessSnapshot(params: {
-  compactTone: TimelineCompactTone;
-  displayModelSummaryText: string | null;
-  flowBlockCount: number;
-  focusBlock: AgentThreadOrderedBlock | null;
-  focusBlockStageLabel: string | null;
-  orderedBlocks: AgentThreadOrderedBlock[];
-  promptPreview: string | null;
-  turnStatusMeta: TurnStatusMeta;
-}): {
-  statusLabel: string;
-  stageLabel: string | null;
-  detailText: string;
-  combinedText: string;
-} {
-  const {
-    compactTone,
-    displayModelSummaryText,
-    flowBlockCount,
-    focusBlock,
-    focusBlockStageLabel,
-    orderedBlocks,
-    promptPreview,
-    turnStatusMeta,
-  } = params;
-  const focusInlineText = resolveFocusInlineText(focusBlock);
-  const latestThinkingPreview = resolveLatestThinkingPreview(orderedBlocks);
-  const normalizedOverview = turnStatusMeta.overviewText.trim();
-
-  const detail =
-    compactTone === "running"
-      ? focusInlineText ||
-        displayModelSummaryText ||
-        promptPreview ||
-        focusBlock?.title ||
-        null
-      : compactTone === "waiting" ||
-          compactTone === "failed" ||
-          compactTone === "paused"
-        ? focusInlineText ||
-          displayModelSummaryText ||
-          promptPreview ||
-          focusBlock?.title ||
-          null
-        : latestThinkingPreview.text ||
-          focusInlineText ||
-          displayModelSummaryText ||
-          promptPreview ||
-          null;
-
-  const fallbackDetail =
-    compactTone === "done" && latestThinkingPreview.stageLabel
-      ? "思考与计划"
-      : focusBlock?.title || (flowBlockCount > 0 ? `${flowBlockCount} 段流程` : null);
-  const distinctDetail =
-    detail?.trim() && detail.trim() !== normalizedOverview
-      ? detail.trim()
-      : fallbackDetail;
-
-  const stageLabel =
-    compactTone === "running"
-      ? flowBlockCount > 1
-        ? focusBlockStageLabel
-        : null
-      : compactTone === "done" && latestThinkingPreview.text && flowBlockCount > 1
-        ? latestThinkingPreview.stageLabel
-        : null;
-
-  const detailText =
-    shortenInlineText(
-      distinctDetail || "执行过程已收起，点击查看完整过程。",
-      compactTone === "running" ? 88 : 78,
-    ) || "执行过程已收起，点击查看完整过程。";
-  const segments = [turnStatusMeta.label];
-  if (stageLabel) {
-    segments.push(stageLabel);
-  }
-  if (detailText && detailText !== turnStatusMeta.label) {
-    segments.push(detailText);
+  if (pendingAction) {
+    return {
+      tone: "warning" as const,
+      label: "待处理",
+      detail:
+        pendingAction.prompt?.trim() ||
+        "当前阶段在等待你确认，完成后会继续后续处理。",
+    };
   }
 
-  return {
-    statusLabel: turnStatusMeta.label,
-    stageLabel,
-    detailText,
-    combinedText: segments.join(" · "),
-  };
+  if (params.turn.status === "aborted") {
+    return {
+      tone: "neutral" as const,
+      label: "已暂停",
+      detail:
+        params.turn.error_message?.trim() ||
+        "当前阶段已暂停，你可以处理后继续下一步。",
+    };
+  }
+
+  if (params.turn.status === "failed" && params.turn.error_message?.trim()) {
+    return {
+      tone: "error" as const,
+      label: "失败",
+      detail: params.turn.error_message.trim(),
+    };
+  }
+
+  return null;
 }
 
-function TimelineCompactStatusIcon({
-  tone,
+function ThreadInlineStatusHint({
+  hint,
 }: {
-  tone: TimelineCompactTone;
+  hint: NonNullable<ReturnType<typeof resolveThreadInlineStatusHint>>;
 }) {
-  if (tone === "running") {
-    return (
-      <span
-        className="relative flex h-5 w-5 shrink-0 items-center justify-center"
-        data-state={tone}
-        data-testid="agent-thread-details-inline-icon"
-      >
-        <span
-          className="absolute inset-0 rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,#38bdf8_0deg,#22c55e_140deg,#fbbf24_260deg,#38bdf8_360deg)] opacity-95 animate-spin"
-          style={{ animationDuration: "2.8s" }}
-        />
-        <span className="absolute inset-[1.5px] rounded-full bg-background/90" />
-        <span className="absolute inset-[3px] rounded-full bg-[linear-gradient(135deg,rgba(56,189,248,0.22),rgba(34,197,94,0.18),rgba(251,191,36,0.22))] shadow-[0_0_14px_rgba(56,189,248,0.28)]" />
-        <Loader2
-          className="relative h-2.5 w-2.5 animate-spin text-sky-600"
-          style={{ animationDuration: "1.15s" }}
-        />
-      </span>
-    );
-  }
-
-  if (tone === "waiting") {
-    return (
-      <span
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-200/80 bg-amber-100 text-amber-700 shadow-sm shadow-amber-950/5"
-        data-state={tone}
-        data-testid="agent-thread-details-inline-icon"
-      >
-        <Clock3 className="h-3 w-3" />
-      </span>
-    );
-  }
-
-  if (tone === "failed") {
-    return (
-      <span
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-200/80 bg-rose-100 text-rose-700 shadow-sm shadow-rose-950/5"
-        data-state={tone}
-        data-testid="agent-thread-details-inline-icon"
-      >
-        <AlertTriangle className="h-3 w-3" />
-      </span>
-    );
-  }
-
-  if (tone === "paused") {
-    return (
-      <span
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100 text-slate-600 shadow-sm shadow-slate-950/5"
-        data-state={tone}
-        data-testid="agent-thread-details-inline-icon"
-      >
-        <Clock3 className="h-3 w-3" />
-      </span>
-    );
-  }
-
   return (
-    <span
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-200/80 bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-950/5"
-      data-state={tone}
-      data-testid="agent-thread-details-inline-icon"
+    <div
+      className={cn(
+        "flex items-start gap-2.5 py-1 text-sm",
+        hint.tone === "warning" && "text-amber-900",
+        hint.tone === "error" && "text-rose-900",
+        hint.tone === "neutral" && "text-slate-700",
+      )}
+      data-testid="agent-thread-inline-status"
     >
-      <CheckCircle2 className="h-3 w-3" />
-    </span>
+      <div
+        className={cn(
+          "mt-2 h-1.5 w-1.5 shrink-0 rounded-full",
+          hint.tone === "warning" && "bg-amber-500",
+          hint.tone === "error" && "bg-rose-500",
+          hint.tone === "neutral" && "bg-slate-400",
+        )}
+      />
+      <div className="min-w-0 flex-1 leading-6">
+        <span className="mr-2 text-xs font-medium">{hint.label}</span>
+        <span>{hint.detail}</span>
+      </div>
+    </div>
   );
+}
+
+function TimelineBlockStatusIndicator({
+  block,
+}: {
+  block: AgentThreadOrderedBlock;
+}) {
+  if (block.kind === "approval" && block.status !== "completed") {
+    return (
+      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+        <Clock3 className="h-2.5 w-2.5" />
+      </span>
+    );
+  }
+
+  if (block.status === "in_progress") {
+    return (
+      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+      </span>
+    );
+  }
+
+  if (block.status === "failed" || block.kind === "alert") {
+    return (
+      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+        <AlertTriangle className="h-2.5 w-2.5" />
+      </span>
+    );
+  }
+
+  return <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />;
 }
 
 function TimelineBlockCard({
   block,
   index,
-  isLast,
   emphasis,
   isExpanded,
   onFileClick,
@@ -1425,7 +1074,6 @@ function TimelineBlockCard({
 }: {
   block: AgentThreadOrderedBlock;
   index: number;
-  isLast: boolean;
   emphasis: "active" | "default" | "quiet";
   isExpanded: boolean;
   onFileClick?: (fileName: string, content: string) => void;
@@ -1436,13 +1084,11 @@ function TimelineBlockCard({
   focusedItemId?: string | null;
   focusRequestKey?: number;
 }) {
-  const Icon = resolveGroupIcon(block.kind);
-  const timestamp = formatTimestamp(block.startedAt);
   const dataTestId = `agent-thread-block:${index + 1}:${block.kind}`;
-  const isCompact = isCompactTechnicalBlock(block);
-  const isActive = emphasis === "active";
-  const isQuiet = emphasis === "quiet";
-  const stageLabel = `步骤 ${String(index + 1).padStart(2, "0")}`;
+  const isThinkingBlock = block.kind === "thinking";
+  const summaryLines = resolveBlockSummaryLines(block);
+  const headline = summaryLines[0] || block.title;
+  const supportingLines = summaryLines.slice(1, 3);
   const focusedEntryRef = useRef<HTMLDivElement | null>(null);
   const hasFocusedItem = Boolean(
     focusedItemId && block.items.some((item) => item.id === focusedItemId),
@@ -1463,133 +1109,137 @@ function TimelineBlockCard({
     return content ? [{ id: item.id, content }] : [];
   });
   const hasDetailEntries = detailEntries.length > 0;
-  const detailsExpanded = isExpanded || hasFocusedItem;
-  const cardClassName = isActive
-    ? "overflow-hidden rounded-2xl border border-primary/25 bg-primary/[0.045] shadow-md shadow-primary/10"
-    : isCompact
-      ? "overflow-hidden rounded-2xl border border-border/45 bg-background/60"
-      : isQuiet
-        ? "overflow-hidden rounded-2xl border border-border/45 bg-background/60"
-        : "overflow-hidden rounded-2xl border border-border/60 bg-background/75";
-  const summaryClassName = isCompact
-    ? "flex items-start gap-3 px-4 py-2.5"
-    : "flex items-start gap-3 px-4 py-3";
-  const interactiveSummaryClassName = cn(
-    summaryClassName,
-    hasDetailEntries ? "cursor-pointer" : "cursor-default",
-  );
+  const [open, setOpen] = useState(isExpanded || hasFocusedItem);
+
+  useEffect(() => {
+    setOpen(isExpanded || hasFocusedItem);
+  }, [block.id, hasFocusedItem, isExpanded]);
 
   useEffect(() => {
     if (!hasFocusedItem || !focusRequestKey) {
       return;
     }
 
+    setOpen(true);
     focusedEntryRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "center",
     });
   }, [focusRequestKey, hasFocusedItem]);
 
-  return (
-    <div
-      className="relative pl-14"
-      data-testid={`${dataTestId}:shell`}
-      data-emphasis={emphasis}
-    >
-      {!isLast ? (
+  const singleItemContent =
+    block.items.length === 1 && (!isThinkingBlock || block.status !== "completed")
+      ? (block.kind === "thinking"
+          ? renderThinkingItemDetails(block.items[0]!)
+          : renderGroupItemDetails(
+              block.items[0]!,
+              onFileClick,
+              onOpenArtifactFromTimeline,
+              onOpenSavedSiteContent,
+              onOpenSubagentSession,
+              onPermissionResponse,
+            ))
+      : null;
+
+  if (singleItemContent) {
+    return (
+      <div
+        className={cn(
+          "py-0.5",
+          emphasis === "active" && !isThinkingBlock && "rounded-xl bg-sky-50/45 px-2",
+          emphasis === "quiet" && "opacity-80",
+        )}
+        data-testid={dataTestId}
+        data-emphasis={emphasis}
+      >
         <div
-          className={
-            isActive
-              ? "absolute left-4 top-11 bottom-0 w-px rounded-full bg-gradient-to-b from-primary/50 to-border/30"
-              : "absolute left-4 top-11 bottom-0 w-px rounded-full bg-gradient-to-b from-border/80 to-border/30"
-          }
-          data-testid={`${dataTestId}:rail`}
-        />
-      ) : null}
-      <div className="absolute left-0 top-3 flex flex-col items-center gap-2">
-        <div
-          className={
-            isActive
-              ? "flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-primary/15 text-sm font-semibold text-primary shadow-md shadow-primary/20"
-              : isQuiet
-                ? "flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background text-sm font-semibold text-muted-foreground"
-                : "flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-primary/10 text-sm font-semibold text-primary shadow-sm shadow-primary/10"
-          }
+          data-thread-item-id={block.items[0]?.id}
+          ref={block.items[0]?.id === focusedItemId ? focusedEntryRef : null}
+          className={cn(
+            block.items[0]?.id === focusedItemId &&
+              "rounded-xl ring-2 ring-sky-200 ring-offset-2 ring-offset-white",
+          )}
         >
-          {index + 1}
-        </div>
-        <div
-          className={
-            isActive
-              ? "flex h-8 w-8 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary shadow-sm shadow-primary/15"
-              : isQuiet
-                ? "flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground"
-                : "flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-background text-primary"
-          }
-        >
-          <Icon className="h-4 w-4" />
+          {singleItemContent}
         </div>
       </div>
-      {hasDetailEntries ? (
-        <details
-          className={cardClassName}
-          data-testid={dataTestId}
-          data-emphasis={emphasis}
-          open={detailsExpanded}
+    );
+  }
+
+  const visibleHeadline = headline;
+  const visibleSupportingLines =
+    isThinkingBlock && open ? [] : supportingLines;
+  const summaryToneClassName = cn(
+    "text-slate-900",
+    block.status === "in_progress" && "text-sky-700",
+    block.kind === "approval" && block.status !== "completed" && "text-amber-800",
+    (block.status === "failed" || block.kind === "alert") && "text-rose-700",
+  );
+
+  return (
+    <div className="py-0.5" data-testid={`${dataTestId}:shell`} data-emphasis={emphasis}>
+      <details data-testid={dataTestId} data-emphasis={emphasis} open={hasDetailEntries ? open : true}>
+        <summary
+          className={cn(
+            "list-none rounded-md px-2 py-1.5",
+            hasDetailEntries ? "cursor-pointer" : "cursor-default",
+            emphasis === "active" && !isThinkingBlock && "bg-sky-50/45",
+          )}
+          onClick={(event) => {
+            if (!hasDetailEntries) {
+              event.preventDefault();
+              return;
+            }
+
+            event.preventDefault();
+            setOpen((current) => !current);
+          }}
         >
-          <summary className={interactiveSummaryClassName}>
+          <div className="flex items-start gap-2.5">
+            <div className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center">
+              <TimelineBlockStatusIndicator block={block} />
+            </div>
+
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
-                  {stageLabel}
-                </span>
-                <span className="text-sm font-medium text-foreground">
-                  {block.title}
-                </span>
-                <Badge variant="outline">{block.countLabel}</Badge>
-                <Badge variant={resolveStatusBadgeVariant(block.status)}>
-                  {block.status === "in_progress" ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {resolveItemStatusLabel(block.status)}
-                    </span>
-                  ) : (
-                    resolveItemStatusLabel(block.status)
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 text-sm leading-6",
+                    summaryToneClassName,
                   )}
-                </Badge>
-                {timestamp ? (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {timestamp}
-                  </span>
-                ) : null}
+                >
+                  {visibleHeadline}
+                </span>
               </div>
-              {isCompact ? (
-                <div className="mt-1.5 text-sm text-muted-foreground">
-                  {resolveCompactTechnicalSummary(block)}
-                </div>
-              ) : block.previewLines.length > 0 ? (
-                <div className="mt-2 space-y-1">
-                  {block.previewLines.map((line) => (
-                    <div key={line} className="text-sm text-muted-foreground">
+
+              {visibleSupportingLines.length > 0 ? (
+                <div className="mt-0.5 space-y-1">
+                  {visibleSupportingLines.map((line) => (
+                    <div
+                      key={line}
+                      className="text-sm leading-6 text-slate-500"
+                    >
                       {line}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="mt-2 text-sm text-muted-foreground">
-                  该分组记录已收起，可按需展开查看。
-                </div>
-              )}
+              ) : null}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {isCompact ? "展开查看" : block.rawDetailLabel}
-              </span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </summary>
+
+            {hasDetailEntries ? (
+              <ChevronDown
+                className={cn(
+                  "mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform",
+                  open && "rotate-180",
+                )}
+              />
+            ) : null}
+          </div>
+        </summary>
+
+        {hasDetailEntries && open ? (
           <div
-            className="space-y-3 border-t border-border/60 px-4 py-3"
+            className="ml-6 space-y-2 pb-1 pl-3"
             data-testid={`${dataTestId}:details`}
           >
             {detailEntries.map((entry) => (
@@ -1606,63 +1256,8 @@ function TimelineBlockCard({
               </div>
             ))}
           </div>
-        </details>
-      ) : (
-        <div
-          className={cardClassName}
-          data-testid={dataTestId}
-          data-emphasis={emphasis}
-        >
-          <div className={interactiveSummaryClassName}>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
-                  {stageLabel}
-                </span>
-                <span className="text-sm font-medium text-foreground">
-                  {block.title}
-                </span>
-                <Badge variant="outline">{block.countLabel}</Badge>
-                <Badge variant={resolveStatusBadgeVariant(block.status)}>
-                  {block.status === "in_progress" ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {resolveItemStatusLabel(block.status)}
-                    </span>
-                  ) : (
-                    resolveItemStatusLabel(block.status)
-                  )}
-                </Badge>
-                {timestamp ? (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {timestamp}
-                  </span>
-                ) : null}
-              </div>
-              {isCompact ? (
-                <div className="mt-1.5 text-sm text-muted-foreground">
-                  {resolveCompactTechnicalSummary(block)}
-                </div>
-              ) : block.previewLines.length > 0 ? (
-                <div className="mt-2 space-y-1">
-                  {block.previewLines.map((line) => (
-                    <div key={line} className="text-sm text-muted-foreground">
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-2 text-sm text-muted-foreground">
-                  该分组记录已收起，可按需展开查看。
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">已展示完整内容</span>
-            </div>
-          </div>
-        </div>
-      )}
+        ) : null}
+      </details>
     </div>
   );
 }
@@ -1670,9 +1265,10 @@ function TimelineBlockCard({
 export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   turn,
   items,
-  threadRead,
+  threadRead: _threadRead,
   actionRequests = [],
   isCurrentTurn = false,
+  placement = "default",
   onFileClick,
   onOpenArtifactFromTimeline,
   onOpenSavedSiteContent,
@@ -1693,11 +1289,6 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
     () => buildAgentThreadDisplayModel(visibleItems),
     [visibleItems],
   );
-  const actionableCount = displayModel.groups.reduce(
-    (count, group) => count + group.items.length,
-    0,
-  );
-  const flowBlockCount = displayModel.orderedBlocks.length;
   const activeBlockIndex = resolveActiveBlockIndex(displayModel.orderedBlocks);
   const focusBlockIndex = resolveFocusBlockIndex({
     blocks: displayModel.orderedBlocks,
@@ -1711,400 +1302,51 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
     focusBlockIndex,
     turn,
   });
-  const focusBlock =
-    focusBlockIndex >= 0 ? displayModel.orderedBlocks[focusBlockIndex] : null;
-  const focusBlockStageLabel =
-    focusBlockIndex >= 0
-      ? `步骤 ${String(focusBlockIndex + 1).padStart(2, "0")}`
-      : null;
-  const promptPreview = shortenInlineText(turn.prompt_text, 78);
-  const turnStatusMeta = resolveTurnStatusMeta({
+  const inlineStatusHint = resolveThreadInlineStatusHint({
     turn,
-    items: visibleItems,
     actionRequests,
-    summaryText: displayModel.summaryText,
-    actionableCount,
   });
-  const defaultDetailsExpanded = true; // 强制始终展开，显示时间线
-  const [detailsExpanded, setDetailsExpanded] = useState(defaultDetailsExpanded);
-  const lastTurnIdRef = useRef(turn.id);
-
-  useEffect(() => {
-    if (lastTurnIdRef.current !== turn.id) {
-      lastTurnIdRef.current = turn.id;
-      setDetailsExpanded(defaultDetailsExpanded);
-      return;
-    }
-
-    if (defaultDetailsExpanded) {
-      setDetailsExpanded(true);
-    }
-  }, [defaultDetailsExpanded, turn.id]);
-
-  const compactReliabilityBadges = useMemo(
-    () => buildCompactReliabilityBadges(turn, threadRead),
-    [threadRead, turn],
-  );
-  const hasFocusedItem = useMemo(
-    () =>
-      Boolean(
-        focusedItemId &&
-          displayModel.orderedBlocks.some((block) =>
-            block.items.some((item) => item.id === focusedItemId),
-          ),
-      ),
-    [displayModel.orderedBlocks, focusedItemId],
-  );
-
-  useEffect(() => {
-    if (!hasFocusedItem || focusRequestKey <= 0) {
-      return;
-    }
-
-    setDetailsExpanded(true);
-  }, [focusRequestKey, hasFocusedItem]);
 
   if (visibleItems.length === 0) {
     return null;
   }
 
-  const toggleActionLabel = detailsExpanded
-    ? "收起执行过程"
-    : isCurrentTurn
-      ? "查看当前进展细节"
-      : "展开执行过程";
-  const compactTone = resolveCompactTone({ turn, turnStatusMeta });
-  const collapsedProcess = resolveCollapsedProcessSnapshot({
-    compactTone,
-    displayModelSummaryText: displayModel.summaryText,
-    flowBlockCount,
-    focusBlock,
-    focusBlockStageLabel,
-    orderedBlocks: displayModel.orderedBlocks,
-    promptPreview,
-    turnStatusMeta,
-  });
-  const showRunningAccent = compactTone === "running";
-  const timelineOverviewText = turnStatusMeta.overviewText.trim() || null;
-  const hasSummarySupportContent =
-    Boolean(promptPreview) ||
-    Boolean(focusBlock) ||
-    displayModel.summaryChips.length > 0;
-  const focusBlockPreviewText =
-    focusBlock?.previewLines.find((line) => line.trim().length > 0)?.trim() || null;
-  const summaryPanelTextCandidate =
-    displayModel.summaryText?.trim() &&
-    displayModel.summaryText.trim() !== timelineOverviewText
-      ? displayModel.summaryText.trim()
-      : timelineOverviewText;
-  const summaryPanelText =
-    summaryPanelTextCandidate &&
-    (summaryPanelTextCandidate !== timelineOverviewText ||
-      !hasSummarySupportContent) &&
-    summaryPanelTextCandidate !== focusBlockPreviewText
-      ? summaryPanelTextCandidate
-      : null;
-  const overviewShellClassName = cn(
-    "mb-2 max-w-4xl rounded-2xl border px-3 py-2.5 shadow-sm shadow-slate-950/5",
-    compactTone === "running" &&
-      "border-sky-200/70 bg-sky-50/72",
-    compactTone === "waiting" &&
-      "border-amber-200/70 bg-amber-50/78",
-    compactTone === "failed" &&
-      "border-rose-200/70 bg-rose-50/78",
-    compactTone === "paused" &&
-      "border-slate-200/80 bg-slate-50/82",
-    compactTone === "done" &&
-      "border-border/55 bg-background/58",
-  );
-  const overviewLabelClassName = cn(
-    "text-[11px] font-medium",
-    compactTone === "running" && "text-sky-700",
-    compactTone === "waiting" && "text-amber-700",
-    compactTone === "failed" && "text-rose-700",
-    compactTone === "paused" && "text-slate-600",
-    compactTone === "done" && "text-muted-foreground",
-  );
-  const overviewTextClassName = cn(
-    "mt-1.5 text-sm leading-6",
-    compactTone === "running" && "text-sky-950/90",
-    compactTone === "waiting" && "text-amber-950/90",
-    compactTone === "failed" && "text-rose-950/90",
-    compactTone === "paused" && "text-slate-700",
-    compactTone === "done" && "text-foreground/90",
-  );
-
   return (
-    <div className={detailsExpanded ? "mt-3" : "mt-2"}>
-      {timelineOverviewText && !detailsExpanded ? (
-        <div
-          className={overviewShellClassName}
-          data-testid="agent-thread-overview"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={overviewLabelClassName}>当前进展</span>
-            <Badge
-              variant={turnStatusMeta.badgeVariant}
-              className={turnStatusMeta.badgeClassName}
-            >
-              {turnStatusMeta.label}
-            </Badge>
-            {compactReliabilityBadges.map((badge) => (
-              <Badge
-                key={badge.key}
-                variant="outline"
-                className={resolveReliabilityBadgeClassName(badge.tone)}
-                data-testid={`agent-thread-compact-${badge.key}`}
-              >
-                {badge.label}
-              </Badge>
-            ))}
-            <span className="text-xs text-muted-foreground">
-              {isCurrentTurn ? "当前任务" : "历史记录"}
-            </span>
-            <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock3 className="h-3.5 w-3.5" />
-              <span>{formatTimestamp(turn.started_at) || "刚刚"}</span>
-            </span>
-          </div>
-          <div className={overviewTextClassName}>{timelineOverviewText}</div>
-        </div>
-      ) : null}
+    <div
+      className="mt-3 space-y-2"
+      data-testid="agent-thread-flow"
+      data-placement={placement}
+    >
+      {inlineStatusHint ? <ThreadInlineStatusHint hint={inlineStatusHint} /> : null}
+      {displayModel.orderedBlocks.map((block, index) => {
+        const blockHasFocusedItem = Boolean(
+          focusedItemId &&
+            block.items.some((item) => item.id === focusedItemId),
+        );
 
-      <Collapsible open={detailsExpanded} onOpenChange={setDetailsExpanded}>
-        {!detailsExpanded ? (
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              aria-label={toggleActionLabel}
-              title={collapsedProcess.combinedText}
-              className={cn(
-                "group relative flex w-full max-w-4xl items-center gap-3 overflow-hidden rounded-2xl border bg-background/88 px-3.5 py-2.5 text-left shadow-sm transition-all duration-200 hover:bg-background",
-                compactTone === "running" &&
-                  "border-sky-200/80 shadow-[0_10px_28px_-22px_rgba(56,189,248,0.75)] hover:border-sky-300/80",
-                compactTone === "waiting" &&
-                  "border-amber-200/80 bg-amber-50/72 hover:border-amber-300/80",
-                compactTone === "failed" &&
-                  "border-rose-200/80 bg-rose-50/72 hover:border-rose-300/80",
-                compactTone === "paused" &&
-                  "border-slate-200/80 bg-slate-50/78 hover:border-slate-300/80",
-                compactTone === "done" &&
-                  "border-border/60 hover:border-emerald-200/70",
-              )}
-              data-testid="agent-thread-details-toggle"
-            >
-              {showRunningAccent ? (
-                <span className="pointer-events-none absolute inset-y-3 left-0.5 w-0.5 rounded-full bg-gradient-to-b from-sky-400/30 via-sky-400 to-emerald-400/50 animate-pulse" />
-              ) : null}
-
-              <div className="flex min-w-0 flex-1 items-start gap-3">
-                <TimelineCompactStatusIcon tone={compactTone} />
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <span className="font-medium tracking-wide text-slate-500">
-                      执行过程
-                    </span>
-                    <span className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5">
-                      {flowBlockCount} 段
-                    </span>
-                    {collapsedProcess.stageLabel ? (
-                      <span
-                        className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5"
-                        data-testid="agent-thread-details-stage"
-                      >
-                        {collapsedProcess.stageLabel}
-                      </span>
-                    ) : null}
-                    <Badge
-                      variant={turnStatusMeta.badgeVariant}
-                      className={turnStatusMeta.badgeClassName}
-                    >
-                      {collapsedProcess.statusLabel}
-                    </Badge>
-                    {compactReliabilityBadges.map((badge) => (
-                      <Badge
-                        key={badge.key}
-                        variant="outline"
-                        className={resolveReliabilityBadgeClassName(badge.tone)}
-                        data-testid={`agent-thread-collapsed-${badge.key}`}
-                      >
-                        {badge.label}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  <div
-                    className="mt-1 truncate text-sm font-medium text-foreground"
-                    data-testid="agent-thread-details-inline-text"
-                  >
-                    {collapsedProcess.detailText}
-                  </div>
-                </div>
-              </div>
-
-              <div className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <span>查看细节</span>
-                    <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200" />
-              </div>
-            </button>
-          </CollapsibleTrigger>
-        ) : null}
-
-        <CollapsibleContent>
-          <div
-            className={cn("space-y-3", detailsExpanded ? "" : "mt-3")}
-            data-testid="agent-thread-details"
-          >
-            <div
-              className="relative pl-14"
-              data-testid="agent-thread-summary-shell"
-            >
-              <div className="absolute left-0 top-2.5 flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-primary/10 text-primary shadow-sm shadow-primary/10">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div
-                className="rounded-xl border border-border/50 bg-background/70 px-4 py-2.5"
-                data-testid="agent-thread-summary"
-              >
-                <div
-                  className="flex flex-wrap items-center gap-2"
-                  data-testid="agent-thread-summary-header"
-                >
-                  <div className="text-xs font-medium tracking-wide text-muted-foreground">
-                    {isCurrentTurn ? "当前任务摘要" : "任务摘要"}
-                  </div>
-                  {compactReliabilityBadges.map((badge) => (
-                    <Badge
-                      key={badge.key}
-                      variant="outline"
-                      className={resolveReliabilityBadgeClassName(badge.tone)}
-                      data-testid={`agent-thread-summary-${badge.key}`}
-                    >
-                      {badge.label}
-                    </Badge>
-                  ))}
-                  <button
-                    type="button"
-                    aria-label="收起细节"
-                    onClick={() => setDetailsExpanded(false)}
-                    className="ml-auto inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-xs text-muted-foreground transition hover:border-border hover:bg-background hover:text-foreground"
-                    data-testid="agent-thread-summary-collapse"
-                  >
-                    <span>收起细节</span>
-                    <ChevronDown className="h-3.5 w-3.5 rotate-180" />
-                  </button>
-                  <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    <span>{formatTimestamp(turn.started_at) || "刚刚"}</span>
-                  </div>
-                </div>
-
-                {summaryPanelText ? (
-                  <div className="mt-1.5 text-sm leading-6 text-foreground">
-                    {summaryPanelText}
-                  </div>
-                ) : null}
-
-                {promptPreview || focusBlock ? (
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
-                    {promptPreview ? (
-                      <div
-                        className="rounded-xl border border-border/60 bg-background/80 px-3 py-2"
-                        data-testid="agent-thread-goal"
-                      >
-                        <div className="text-[11px] font-medium tracking-wide text-muted-foreground">
-                          用户目标
-                        </div>
-                        <div className="mt-1 text-sm text-foreground">
-                          {promptPreview}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {focusBlock ? (
-                      <div
-                        className="rounded-xl border border-border/60 bg-background/80 px-3 py-2"
-                        data-testid="agent-thread-focus"
-                      >
-                        <div className="text-[11px] font-medium tracking-wide text-muted-foreground">
-                          当前聚焦
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          {focusBlockStageLabel ? (
-                            <Badge variant="outline">{focusBlockStageLabel}</Badge>
-                          ) : null}
-                          <span className="text-sm font-medium text-foreground">
-                            {focusBlock.title}
-                          </span>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {displayModel.summaryChips.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {displayModel.summaryChips.map((chip) => (
-                      <SummaryChip key={chip.kind} chip={chip} />
-                    ))}
-                  </div>
-                ) : null}
-
-                {turn.error_message &&
-                turnStatusMeta.badgeVariant === "destructive" ? (
-                  <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                    {turn.error_message}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="space-y-3" data-testid="agent-thread-flow">
-              {/* 新的时间线设计：将工具调用内联展示 */}
-              {items
-                .filter(
-                  (item) =>
-                    item.type === "tool_call" ||
-                    item.type === "command_execution" ||
-                    item.type === "web_search"
-                )
-                .map((item, index, filteredItems) => (
-                  <TimelineInlineItem
-                    key={item.id}
-                    item={item}
-                    isLast={index === filteredItems.length - 1}
-                  />
-                ))}
-
-              {/* 保留原有的步骤列表作为备用 */}
-              {false && displayModel.orderedBlocks.map((block, index) => (
-                <TimelineBlockCard
-                  key={block.id}
-                  block={block}
-                  index={index}
-                  isLast={index === displayModel.orderedBlocks.length - 1}
-                  emphasis={
-                    activeBlockIndex === index
-                      ? "active"
-                      : block.status === "completed"
-                        ? "quiet"
-                        : "default"
-                  }
-                  isExpanded={expandedBlockIndexes.has(index)}
-                  onFileClick={onFileClick}
-                  onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-                  onOpenSavedSiteContent={onOpenSavedSiteContent}
-                  onOpenSubagentSession={onOpenSubagentSession}
-                  onPermissionResponse={onPermissionResponse}
-                  focusedItemId={focusedItemId}
-                  focusRequestKey={focusRequestKey}
-                />
-              ))}
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+        return (
+          <TimelineBlockCard
+            key={block.id}
+            block={block}
+            index={index}
+            emphasis={
+              blockHasFocusedItem || activeBlockIndex === index
+                ? "active"
+                : block.status === "completed"
+                  ? "quiet"
+                  : "default"
+            }
+            isExpanded={expandedBlockIndexes.has(index)}
+            onFileClick={onFileClick}
+            onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+            onOpenSavedSiteContent={onOpenSavedSiteContent}
+            onOpenSubagentSession={onOpenSubagentSession}
+            onPermissionResponse={onPermissionResponse}
+            focusedItemId={focusedItemId}
+            focusRequestKey={focusRequestKey}
+          />
+        );
+      })}
     </div>
   );
 };

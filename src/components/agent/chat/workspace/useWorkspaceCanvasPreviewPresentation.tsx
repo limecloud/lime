@@ -30,7 +30,10 @@ import {
   ArtifactWorkbenchPreview,
   WorkspaceLiveCanvasPreview,
 } from "./workbenchPreview";
-import { renderCanvasWorkbenchPreviewTarget } from "./workbenchPreviewHelpers";
+import {
+  renderCanvasWorkbenchPreviewTarget,
+  type RenderArtifactWorkbenchPreviewOptions,
+} from "./workbenchPreviewHelpers";
 import { buildCanvasWorkbenchDefaultPreview } from "./canvasWorkbenchDefaultPreview";
 import {
   useTeamWorkbenchPresentation,
@@ -41,7 +44,10 @@ import { hasRenderableGeneralCanvasPreview } from "./generalCanvasPreviewState";
 
 type ArtifactPreviewBaseProps = Omit<
   ComponentProps<typeof ArtifactWorkbenchPreview>,
-  "artifact" | "stackedWorkbenchTrigger"
+  | "artifact"
+  | "stackedWorkbenchTrigger"
+  | "artifactDocumentLayoutMode"
+  | "onArtifactDocumentControllerChange"
 >;
 type ImageWorkbenchCanvasProps = ComponentProps<typeof ImageWorkbenchCanvas>;
 type GeneralCanvasPanelProps = Omit<
@@ -433,11 +439,18 @@ export function useWorkspaceCanvasPreviewPresentation({
   );
 
   const renderArtifactWorkbenchPreview = useCallback(
-    (artifact: Artifact, stackedWorkbenchTrigger?: ReactNode) => (
+    (
+      artifact: Artifact,
+      options?: RenderArtifactWorkbenchPreviewOptions,
+    ) => (
       <ArtifactWorkbenchPreview
         {...artifactWorkbenchPreviewBaseProps}
         artifact={artifact}
-        stackedWorkbenchTrigger={stackedWorkbenchTrigger}
+        stackedWorkbenchTrigger={options?.stackedWorkbenchTrigger}
+        artifactDocumentLayoutMode={options?.artifactDocumentLayoutMode}
+        onArtifactDocumentControllerChange={
+          options?.onArtifactDocumentControllerChange
+        }
       />
     ),
     [artifactWorkbenchPreviewBaseProps],

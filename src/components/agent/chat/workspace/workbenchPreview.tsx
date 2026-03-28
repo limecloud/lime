@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import {
   ArtifactCanvasOverlay,
@@ -20,6 +21,11 @@ import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
 import { resolveArtifactProtocolDocumentPayload } from "@/lib/artifact-protocol";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { AgentThreadItem } from "../types";
+import {
+  type ArtifactWorkbenchDocumentController,
+  type ArtifactWorkbenchLayoutMode,
+  useArtifactWorkbenchDocumentController,
+} from "./artifactWorkbenchDocument";
 
 interface ArtifactWorkbenchPreviewProps {
   artifact: Artifact;
@@ -47,6 +53,10 @@ interface ArtifactWorkbenchPreviewProps {
   onJumpToTimelineItem?: (itemId: string) => void;
   onCloseCanvas: () => void;
   stackedWorkbenchTrigger?: ReactNode;
+  artifactDocumentLayoutMode?: ArtifactWorkbenchLayoutMode;
+  onArtifactDocumentControllerChange?: (
+    controller: ArtifactWorkbenchDocumentController | null,
+  ) => void;
   renderToolbarActions?: (params: {
     artifact: Artifact;
     document: ArtifactDocumentV1 | null;
@@ -70,6 +80,8 @@ export function ArtifactWorkbenchPreview({
   onJumpToTimelineItem,
   onCloseCanvas,
   stackedWorkbenchTrigger,
+  artifactDocumentLayoutMode = "full",
+  onArtifactDocumentControllerChange,
   renderToolbarActions,
 }: ArtifactWorkbenchPreviewProps) {
   const isLiveSelectedArtifact =
@@ -96,6 +108,30 @@ export function ArtifactWorkbenchPreview({
     content: previewArtifact.content,
     metadata: previewArtifact.meta,
   });
+  const documentController = useArtifactWorkbenchDocumentController({
+    artifact: previewArtifact,
+    onSaveArtifactDocument,
+    threadItems,
+    focusedBlockId,
+    blockFocusRequestKey,
+    onJumpToTimelineItem,
+  });
+
+  useEffect(() => {
+    if (!onArtifactDocumentControllerChange) {
+      return;
+    }
+
+    onArtifactDocumentControllerChange(artifactDocument ? documentController : null);
+    return () => {
+      onArtifactDocumentControllerChange(null);
+    };
+  }, [
+    artifactDocument,
+    documentController,
+    onArtifactDocumentControllerChange,
+  ]);
+
   const combinedActionsSlot = (
     <>
       {renderToolbarActions?.({
@@ -145,6 +181,8 @@ export function ArtifactWorkbenchPreview({
         onJumpToTimelineItem={onJumpToTimelineItem}
         onCloseCanvas={onCloseCanvas}
         actionsSlot={combinedActionsSlot}
+        layoutMode={artifactDocumentLayoutMode}
+        documentController={documentController}
       />
     );
   }
@@ -197,7 +235,13 @@ interface WorkspaceLiveCanvasPreviewProps {
   hasDisplayedLiveArtifact: boolean;
   renderArtifactPreview: (
     artifact: Artifact,
-    stackedWorkbenchTrigger?: ReactNode,
+    options?: {
+      stackedWorkbenchTrigger?: ReactNode;
+      artifactDocumentLayoutMode?: ArtifactWorkbenchLayoutMode;
+      onArtifactDocumentControllerChange?: (
+        controller: ArtifactWorkbenchDocumentController | null,
+      ) => void;
+    },
   ) => ReactNode;
   generalCanvasPanelProps: Omit<
     ComponentProps<typeof GeneralCanvasPanel>,
@@ -234,7 +278,9 @@ export function WorkspaceLiveCanvasPreview({
     liveArtifact &&
     hasDisplayedLiveArtifact
   ) {
-    return renderArtifactPreview(liveArtifact, stackedWorkbenchTrigger);
+    return renderArtifactPreview(liveArtifact, {
+      stackedWorkbenchTrigger,
+    });
   }
 
   if (canvasRenderTheme === "general") {

@@ -168,6 +168,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改 `execution_runtime.recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id` 恢复语义，或前端 `harness.theme / harness.session_mode / harness.gate_key / harness.run_title / harness.content_id` steady-state 去重逻辑
 - 修改 `site_*` 站点适配器命令族，例如 `site_recommend_adapters`、`site_run_adapter`
 - 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
+- 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器和扩展安装状态
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
@@ -216,6 +217,7 @@ npm run bridge:health -- --timeout-ms 120000
   - 切换到新的 Theme Workbench gate 或运行标题、但 runtime 尚未同步时，前端仍会保留显式 `gate_key / run_title`
 - 如果这次改动影响浏览器工作台里的站点采集链路，例如推荐区、资料自动选择、`report_hint` 展示、`lime_site_recommend`，或“优先写回当前 `content_id` 而不是新建资源文档”的主线收敛，除了契约检查，还应补对应 `*.test.tsx` 回归并执行 `verify:gui-smoke`。
 - 如果这次改动影响浏览器资料 / 环境预设的真实来源，还应补一次浏览器模式实测，确认控制台不再出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`。
+- 如果这次改动影响设置页“连接器”主路径或 Chrome 扩展导出链路，除了 `test:contracts`，还应补对应设置页回归，并在 GUI smoke 或 Playwright 续测里确认连接器页能打开、目录可选、扩展状态可读。
 - 如果这次改动影响 `agent_runtime_export_handoff_bundle`、`agent_runtime_export_evidence_pack`、`agent_runtime_export_analysis_handoff`、`agent_runtime_export_review_decision_template`、`agent_runtime_save_review_decision` 或 `agent_runtime_export_replay_case` 这条 Harness 导出 / 审核主链，除了契约检查，还应至少补：
   - `src/lib/api/agent.test.ts` 一类的网关回归，确认仍走统一 `agent_runtime_*` 主命令
   - `HarnessStatusPanel.test.tsx` 一类的 UI 回归，确认导出入口、保存弹窗、状态与制品展示正常

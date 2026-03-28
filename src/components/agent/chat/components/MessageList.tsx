@@ -124,6 +124,10 @@ interface MessageListProps {
   timelineFocusRequestKey?: number;
 }
 
+function isDeferredTimelineItem(item: AgentThreadItem): boolean {
+  return item.type === "file_artifact";
+}
+
 const MessageListInner: React.FC<MessageListProps> = ({
   messages,
   turns = [],
@@ -321,6 +325,24 @@ const MessageListInner: React.FC<MessageListProps> = ({
           : mappedTimeline?.turn.id === currentTurnTimeline?.turn.id
             ? null
             : mappedTimeline || null;
+    const primaryTimelineItems = timeline
+      ? timeline.items.filter((item) => !isDeferredTimelineItem(item))
+      : [];
+    const trailingTimelineItems = timeline
+      ? timeline.items.filter(isDeferredTimelineItem)
+      : [];
+    const primaryTimeline =
+      timeline && primaryTimelineItems.length > 0
+        ? { ...timeline, items: primaryTimelineItems }
+        : null;
+    const trailingTimeline =
+      timeline && trailingTimelineItems.length > 0
+        ? { ...timeline, items: trailingTimelineItems }
+        : null;
+    const primaryActionRequests =
+      primaryTimelineItems.length > 0 ? msg.actionRequests : undefined;
+    const trailingActionRequests =
+      primaryTimelineItems.length === 0 ? msg.actionRequests : undefined;
     const showIdentity = options?.showIdentity ?? true;
 
     return (
@@ -390,43 +412,63 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 </div>
               </div>
             ) : msg.role === "assistant" ? (
-              <StreamingRenderer
-                content={displayContent}
-                isStreaming={msg.isThinking}
-                toolCalls={msg.toolCalls}
-                showCursor={msg.isThinking && !displayContent}
-                thinkingContent={msg.thinkingContent}
-                runtimeStatus={msg.runtimeStatus}
-                contentParts={displayContentParts}
-                actionRequests={msg.actionRequests}
-                onA2UISubmit={
-                  onA2UISubmit
-                    ? (formData) => onA2UISubmit(formData, msg.id)
-                    : undefined
-                }
-                a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
-                a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
-                onA2UIFormChange={onA2UIFormChange}
-                renderA2UIInline={renderA2UIInline}
-                onWriteFile={
-                  onWriteFile
-                    ? (content, fileName, context) =>
-                        onWriteFile(content, fileName, {
-                          ...context,
-                          sourceMessageId: context?.sourceMessageId || msg.id,
-                          source: context?.source || "message_content",
-                        })
-                    : undefined
-                }
-                onFileClick={onFileClick}
-                onOpenSavedSiteContent={onOpenSavedSiteContent}
-                onPermissionResponse={onPermissionResponse}
-                collapseCodeBlocks={collapseCodeBlocks}
-                shouldCollapseCodeBlock={shouldCollapseCodeBlock}
-                onCodeBlockClick={onCodeBlockClick}
-                promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
-                renderProposedPlanBlocks={!timeline}
-              />
+              <>
+                {primaryTimeline ? (
+                  <AgentThreadTimeline
+                    turn={primaryTimeline.turn}
+                    items={primaryTimeline.items}
+                    threadRead={threadRead}
+                    actionRequests={primaryActionRequests}
+                    isCurrentTurn={primaryTimeline.turn.id === currentTurnId}
+                    placement="leading"
+                    onFileClick={onFileClick}
+                    onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+                    onOpenSavedSiteContent={onOpenSavedSiteContent}
+                    onOpenSubagentSession={onOpenSubagentSession}
+                    onPermissionResponse={onPermissionResponse}
+                    focusedItemId={focusedTimelineItemId}
+                    focusRequestKey={timelineFocusRequestKey}
+                  />
+                ) : null}
+
+                <StreamingRenderer
+                  content={displayContent}
+                  isStreaming={msg.isThinking}
+                  toolCalls={msg.toolCalls}
+                  showCursor={msg.isThinking && !displayContent}
+                  thinkingContent={msg.thinkingContent}
+                  runtimeStatus={msg.runtimeStatus}
+                  contentParts={displayContentParts}
+                  actionRequests={msg.actionRequests}
+                  onA2UISubmit={
+                    onA2UISubmit
+                      ? (formData) => onA2UISubmit(formData, msg.id)
+                      : undefined
+                  }
+                  a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
+                  a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
+                  onA2UIFormChange={onA2UIFormChange}
+                  renderA2UIInline={renderA2UIInline}
+                  onWriteFile={
+                    onWriteFile
+                      ? (content, fileName, context) =>
+                          onWriteFile(content, fileName, {
+                            ...context,
+                            sourceMessageId: context?.sourceMessageId || msg.id,
+                            source: context?.source || "message_content",
+                          })
+                      : undefined
+                  }
+                  onFileClick={onFileClick}
+                  onOpenSavedSiteContent={onOpenSavedSiteContent}
+                  onPermissionResponse={onPermissionResponse}
+                  collapseCodeBlocks={collapseCodeBlocks}
+                  shouldCollapseCodeBlock={shouldCollapseCodeBlock}
+                  onCodeBlockClick={onCodeBlockClick}
+                  promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
+                  renderProposedPlanBlocks={!timeline}
+                />
+              </>
             ) : (
               displayContent ? (
                 <MarkdownRenderer
@@ -456,13 +498,14 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
             {msg.role === "assistant" && renderArtifactCards(msg.artifacts)}
 
-            {msg.role === "assistant" && timeline ? (
+            {msg.role === "assistant" && trailingTimeline ? (
               <AgentThreadTimeline
-                turn={timeline.turn}
-                items={timeline.items}
+                turn={trailingTimeline.turn}
+                items={trailingTimeline.items}
                 threadRead={threadRead}
-                actionRequests={msg.actionRequests}
-                isCurrentTurn={timeline.turn.id === currentTurnId}
+                actionRequests={trailingActionRequests}
+                isCurrentTurn={trailingTimeline.turn.id === currentTurnId}
+                placement="trailing"
                 onFileClick={onFileClick}
                 onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
                 onOpenSavedSiteContent={onOpenSavedSiteContent}

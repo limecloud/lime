@@ -36,6 +36,7 @@ const mockAgentThreadTimeline = vi.fn(
   ({
     actionRequests,
     onOpenSavedSiteContent,
+    placement,
   }: {
     actionRequests?: Array<Record<string, unknown>>;
     onOpenSavedSiteContent?: (target: {
@@ -43,9 +44,10 @@ const mockAgentThreadTimeline = vi.fn(
       contentId: string;
       title?: string;
     }) => void;
+    placement?: "leading" | "trailing" | "default";
   }) => (
     <div
-      data-testid="agent-thread-timeline"
+      data-testid={`agent-thread-timeline:${placement || "default"}`}
       data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
     >
       执行轨迹{actionRequests?.length ? `:${actionRequests.length}` : ""}
@@ -67,6 +69,7 @@ vi.mock("./TokenUsageDisplay", () => ({
 vi.mock("./AgentThreadTimeline", () => ({
   AgentThreadTimeline: (props: {
     actionRequests?: Array<Record<string, unknown>>;
+    placement?: "leading" | "trailing" | "default";
   }) => mockAgentThreadTimeline(props),
 }));
 
@@ -344,7 +347,7 @@ describe("MessageList", () => {
     );
   });
 
-  it("应先渲染正文与产物，再渲染执行轨迹", () => {
+  it("应先渲染思考与过程，再渲染正文，最后再落产物", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -401,23 +404,25 @@ describe("MessageList", () => {
     });
 
     const streaming = container.querySelector('[data-testid="streaming-renderer"]');
-    const timeline = container.querySelector('[data-testid="agent-thread-timeline"]');
+    const leadingTimeline = container.querySelector(
+      '[data-testid="agent-thread-timeline:leading"]',
+    );
     const artifactButton = Array.from(container.querySelectorAll("button")).find((node) =>
       node.textContent?.includes("publish.md"),
     );
 
     expect(streaming).not.toBeNull();
     expect(artifactButton).toBeDefined();
-    expect(timeline).not.toBeNull();
+    expect(leadingTimeline).not.toBeNull();
     const streamingNode = streaming as Node;
-    const timelineNode = timeline as Node;
+    const timelineNode = leadingTimeline as Node;
     const artifactButtonNode = artifactButton as Node;
     expect(
-      streamingNode.compareDocumentPosition(timelineNode) &
+      timelineNode.compareDocumentPosition(streamingNode) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      artifactButtonNode.compareDocumentPosition(timelineNode) &
+      streamingNode.compareDocumentPosition(artifactButtonNode) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -475,9 +480,11 @@ describe("MessageList", () => {
     const timelineProps = mockAgentThreadTimeline.mock.calls.at(-1)?.[0] as
       | {
           actionRequests?: Array<Record<string, unknown>>;
+          placement?: string;
         }
       | undefined;
 
+    expect(timelineProps?.placement).toBe("leading");
     expect(timelineProps?.actionRequests).toEqual([
       expect.objectContaining({
         requestId: "req-browser",
@@ -585,13 +592,17 @@ describe("MessageList", () => {
       container.querySelectorAll('[data-testid="streaming-renderer"]'),
     );
     const timelineNodes = Array.from(
-      container.querySelectorAll('[data-testid="agent-thread-timeline"]'),
+      container.querySelectorAll('[data-testid="agent-thread-timeline:leading"]'),
     );
 
     expect(streamingNodes).toHaveLength(2);
     expect(timelineNodes).toHaveLength(1);
     expect(
-      (streamingNodes[1] as Node).compareDocumentPosition(timelineNodes[0] as Node) &
+      (streamingNodes[0] as Node).compareDocumentPosition(timelineNodes[0] as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      (timelineNodes[0] as Node).compareDocumentPosition(streamingNodes[1] as Node) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
@@ -653,7 +664,9 @@ describe("MessageList", () => {
     });
 
     const timelineNodes = Array.from(
-      container.querySelectorAll('[data-testid="agent-thread-timeline"]'),
+      container.querySelectorAll(
+        '[data-testid^="agent-thread-timeline:"]',
+      ),
     );
 
     expect(

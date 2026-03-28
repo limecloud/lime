@@ -20,11 +20,22 @@ export interface CompatSubagentRuntimeActivity {
   summary: string;
 }
 
-export interface CompatSubagentRuntimeSnapshot
-  extends CompatSubagentRuntimeState {
+export interface CompatSubagentRuntimeStatus {
+  isRunning: boolean;
+  progress: CompatSubagentProgress | null;
+}
+
+export interface CompatSubagentRuntimeDisplaySnapshot
+  extends CompatSubagentRuntimeStatus {
+  error: string | null;
+  result: SchedulerExecutionResult | null;
   recentActivity: CompatSubagentRuntimeActivity[];
   hasSignals: boolean;
 }
+
+export interface CompatSubagentRuntimeSnapshot
+  extends CompatSubagentRuntimeState,
+    CompatSubagentRuntimeDisplaySnapshot {}
 
 export function summarizeCompatSubagentEvent(
   event: CompatSubagentEvent,

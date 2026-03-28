@@ -70,11 +70,12 @@ describe("agentThreadGrouping", () => {
       "browser",
     ]);
     expect(model.groups[0]?.items).toHaveLength(2);
-    expect(model.groups[0]?.previewLines).toContain("打开 https://example.com");
-    expect(model.groups[1]?.previewLines).toContain("Lime CDP 并行渲染");
+    expect(model.groups[0]?.previewLines).toContain("打开了 https://example.com");
+    expect(model.groups[0]?.previewLines).toContain("点了 #submit");
+    expect(model.groups[1]?.previewLines).toContain("搜了 Lime CDP 并行渲染");
     expect(model.summaryChips).toEqual([
-      { kind: "browser", label: "浏览器操作", count: 3 },
-      { kind: "search", label: "联网检索", count: 1 },
+      { kind: "browser", label: "页面操作", count: 3 },
+      { kind: "search", label: "联网搜索", count: 1 },
     ]);
   });
 
@@ -108,15 +109,15 @@ describe("agentThreadGrouping", () => {
 
     const model = buildAgentThreadDisplayModel(items);
 
-    expect(model.summaryText).toBe("已完成 CDP 页面检查");
+    expect(model.summaryText).toBe("已决定：已完成 CDP 页面检查");
     expect(model.groups.map((group) => group.kind)).toEqual(["file", "command"]);
-    expect(model.groups[0]?.previewLines).toEqual(["wechat-draft.md"]);
+    expect(model.groups[0]?.previewLines).toEqual(["产出了 wechat-draft.md"]);
     expect(model.groups[1]?.previewLines).toEqual([
-      "npm test -- AgentThreadTimeline",
+      "执行了 npm test -- AgentThreadTimeline",
     ]);
     expect(model.summaryChips).toEqual([
-      { kind: "file", label: "文件与产物", count: 1 },
-      { kind: "command", label: "命令执行", count: 1 },
+      { kind: "file", label: "文件和产物", count: 1 },
+      { kind: "command", label: "命令", count: 1 },
     ]);
   });
 
@@ -137,7 +138,7 @@ describe("agentThreadGrouping", () => {
     const model = buildAgentThreadDisplayModel(items);
 
     expect(model.groups.map((group) => group.kind)).toEqual(["file"]);
-    expect(model.groups[0]?.previewLines).toEqual(["nested-draft.md"]);
+    expect(model.groups[0]?.previewLines).toEqual(["写了 nested-draft.md"]);
   });
 
   it("应通过 filesystem event protocol 识别目录与输出文件位置线索", () => {
@@ -163,7 +164,7 @@ describe("agentThreadGrouping", () => {
     const model = buildAgentThreadDisplayModel(items);
 
     expect(model.groups.map((group) => group.kind)).toEqual(["file"]);
-    expect(model.groups[0]?.previewLines).toEqual(["reports", "run.log"]);
+    expect(model.groups[0]?.previewLines).toEqual(["看了 reports", "动了 run.log"]);
   });
 
   it("思考块应保留在真实时序中，而不是整体前置", () => {
@@ -195,7 +196,7 @@ describe("agentThreadGrouping", () => {
       "search",
     ]);
     expect(model.groups.map((group) => group.kind)).toEqual(["browser", "search"]);
-    expect(model.orderedBlocks[1]?.previewLines).toEqual(["已打开公众号后台"]);
+    expect(model.orderedBlocks[1]?.previewLines).toEqual(["已决定：已打开公众号后台"]);
   });
 
   it("结构化问答摘要不应回退为原始 a2ui 代码块", () => {
@@ -215,7 +216,7 @@ describe("agentThreadGrouping", () => {
 
     const model = buildAgentThreadDisplayModel(items);
 
-    expect(model.summaryText).toBe("请先确认以下选项：");
-    expect(model.orderedBlocks[0]?.previewLines).toEqual(["请先确认以下选项："]);
+    expect(model.summaryText).toBe("已决定：请先确认以下选项：");
+    expect(model.orderedBlocks[0]?.previewLines).toEqual(["已决定：请先确认以下选项："]);
   });
 });

@@ -3,242 +3,412 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lime Browser Bridge</title>
+    <title>Lime Browser Connector</title>
     <style>
+      :root {
+        --bg: #f7fafc;
+        --surface: #ffffff;
+        --surface-muted: #f8fafc;
+        --border: #dbe4f0;
+        --text: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+        --primary: #0f172a;
+        --primary-hover: #1e293b;
+        --primary-text: #ffffff;
+        --success-bg: #dcfce7;
+        --success-text: #166534;
+        --warning-bg: #fef3c7;
+        --warning-text: #92400e;
+        --neutral-bg: #e2e8f0;
+        --neutral-text: #475569;
+        --shadow: 0 12px 30px -18px rgba(15, 23, 42, 0.35);
+      }
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
       }
       body {
-        width: 420px;
+        width: 380px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         font-size: 13px;
-        color: #333;
-        background: #f9fafb;
-        padding: 16px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top right, rgba(125, 211, 252, 0.18), transparent 42%),
+          linear-gradient(180deg, #f8fbff 0%, var(--bg) 56%, #f4f8fb 100%);
+        padding: 14px;
       }
-      .header {
-        margin-bottom: 16px;
+      .shell {
+        overflow: hidden;
+        border: 1px solid rgba(219, 228, 240, 0.92);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: var(--shadow);
       }
-      .header h1 {
-        font-size: 16px;
+      .hero {
+        padding: 16px 16px 12px;
+        background: linear-gradient(
+          135deg,
+          rgba(240, 249, 255, 0.95) 0%,
+          rgba(255, 255, 255, 0.98) 52%,
+          rgba(236, 253, 245, 0.92) 100%
+        );
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid rgba(125, 211, 252, 0.5);
+        background: rgba(255, 255, 255, 0.92);
+        padding: 4px 10px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        color: #0369a1;
+      }
+      .hero h1 {
+        margin-top: 10px;
+        font-size: 17px;
         font-weight: 600;
-        color: #111;
-        margin-bottom: 4px;
+        color: var(--text);
       }
-      .header p {
+      .hero p {
+        margin-top: 6px;
         font-size: 12px;
-        color: #6b7280;
+        line-height: 1.6;
+        color: var(--text-secondary);
       }
-      .status-row {
+      .content {
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .card {
+        border: 1px solid rgba(219, 228, 240, 0.95);
+        border-radius: 18px;
+        background: var(--surface);
+        padding: 14px;
+      }
+      .card-muted {
+        background: var(--surface-muted);
+      }
+      .card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .card-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .card-desc {
+        margin-top: 4px;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--text-muted);
+      }
+      .status-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 12px;
+      }
+      .status-tile {
+        border: 1px solid rgba(219, 228, 240, 0.95);
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 12px;
+      }
+      .status-tile-label {
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+      .status-tile-value {
+        margin-top: 8px;
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 12px;
-      }
-      .status-label {
-        font-size: 12px;
-        color: #6b7280;
       }
       .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 58px;
+        padding: 4px 10px;
+        border-radius: 999px;
         font-size: 11px;
-        font-weight: 500;
+        font-weight: 600;
       }
       .badge-on {
-        background: #d1fae5;
-        color: #065f46;
+        background: var(--success-bg);
+        color: var(--success-text);
       }
       .badge-off {
-        background: #fee2e2;
-        color: #991b1b;
+        background: var(--neutral-bg);
+        color: var(--neutral-text);
       }
-      .quick-config {
-        margin-bottom: 16px;
-        padding: 12px;
-        background: #eff6ff;
-        border: 1px solid #bfdbfe;
-        border-radius: 6px;
-      }
-      .quick-config-title {
+      .hint {
+        margin-top: 10px;
+        border-radius: 14px;
+        border: 1px solid rgba(191, 219, 254, 0.92);
+        background: rgba(239, 246, 255, 0.92);
+        padding: 10px 12px;
         font-size: 12px;
-        font-weight: 500;
-        color: #1e40af;
-        margin-bottom: 8px;
-      }
-      .quick-config-hint {
-        font-size: 11px;
-        color: #3b82f6;
-        margin-bottom: 8px;
-      }
-      .quick-config-buttons {
-        display: flex;
-        gap: 6px;
+        line-height: 1.6;
+        color: #1d4ed8;
       }
       .form-group {
-        margin-bottom: 12px;
+        margin-top: 12px;
       }
       .form-label {
         display: block;
         font-size: 12px;
         font-weight: 500;
-        color: #374151;
-        margin-bottom: 4px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
       }
       .form-input {
         width: 100%;
-        padding: 8px 10px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
+        padding: 9px 11px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
         font-size: 13px;
         outline: none;
         transition: border-color 0.15s;
+        color: var(--text);
+        background: #ffffff;
       }
       .form-input:focus {
-        border-color: #3b82f6;
+        border-color: #94a3b8;
       }
       .endpoint-preview {
         font-size: 11px;
-        color: #6b7280;
+        line-height: 1.6;
+        color: var(--text-muted);
         word-break: break-all;
-        margin-top: 8px;
-        padding: 8px;
-        background: #f3f4f6;
-        border-radius: 4px;
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border-radius: 12px;
+        border: 1px solid rgba(226, 232, 240, 0.92);
       }
       .button-group {
         display: flex;
         gap: 8px;
         margin-top: 12px;
+        flex-wrap: wrap;
       }
       .btn {
         flex: 1;
-        padding: 8px 12px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
+        min-width: 0;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
         font-size: 12px;
-        font-weight: 500;
+        font-weight: 600;
         cursor: pointer;
         transition: all 0.15s;
-        background: white;
-        color: #374151;
+        background: #ffffff;
+        color: var(--text-secondary);
       }
       .btn:hover:not(:disabled) {
-        background: #f9fafb;
-        border-color: #9ca3af;
+        background: #f8fafc;
+        border-color: #cbd5e1;
       }
       .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
       }
       .btn-primary {
-        background: #3b82f6;
-        color: white;
-        border-color: #3b82f6;
+        background: var(--primary);
+        color: var(--primary-text);
+        border-color: var(--primary);
       }
       .btn-primary:hover:not(:disabled) {
-        background: #2563eb;
-        border-color: #2563eb;
+        background: var(--primary-hover);
+        border-color: var(--primary-hover);
       }
-      .btn-small {
-        padding: 6px 10px;
-        font-size: 11px;
+      .btn-inline {
+        flex: 0 0 auto;
       }
       .page-info {
-        margin-top: 12px;
-        padding: 10px;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
+        border-radius: 16px;
+        border: 1px solid rgba(219, 228, 240, 0.95);
+        background: #ffffff;
+        padding: 14px;
       }
       .page-info-title {
         font-size: 12px;
-        font-weight: 500;
-        color: #111;
-        margin-bottom: 4px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 6px;
       }
       .page-info-url {
         font-size: 11px;
-        color: #6b7280;
+        line-height: 1.6;
+        color: var(--text-muted);
         word-break: break-all;
+      }
+      details {
+        border-radius: 18px;
+        border: 1px solid rgba(219, 228, 240, 0.95);
+        background: #ffffff;
+        overflow: hidden;
+      }
+      summary {
+        list-style: none;
+        padding: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: pointer;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      .summary-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .summary-desc {
+        margin-top: 4px;
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--text-muted);
+      }
+      .summary-indicator {
+        font-size: 18px;
+        line-height: 1;
+        color: var(--text-muted);
+      }
+      details[open] .summary-indicator {
+        transform: rotate(180deg);
+      }
+      .advanced-body {
+        padding: 0 14px 14px;
       }
     </style>
   </head>
   <body>
-    <div class="header">
-      <h1>Lime Browser Bridge</h1>
-      <p>连接 Chrome 与 Lime 服务</p>
-    </div>
-
-    <div class="status-row">
-      <span class="status-label">Observer 连接：</span>
-      <span id="bridgeStatus" class="badge badge-off">未连接</span>
-    </div>
-
-    <div class="status-row">
-      <span class="status-label">页面监控：</span>
-      <span id="monitorStatus" class="badge badge-off">关闭</span>
-    </div>
-
-    <div class="quick-config">
-      <div class="quick-config-title">🚀 一键配置</div>
-      <div class="quick-config-hint">从剪贴板粘贴配置（在 Lime 页面点击"复制配置"）</div>
-      <div class="quick-config-buttons">
-        <button id="pasteConfigBtn" class="btn btn-small">粘贴配置</button>
-        <button id="clearConfigBtn" class="btn btn-small">清除配置</button>
+    <div class="shell">
+      <div class="hero">
+        <span class="eyebrow">BROWSER CONNECTOR</span>
+        <h1>Lime 浏览器连接器</h1>
+        <p>扩展安装、连接器开关与高级配置统一在 Lime 的“连接器”页里管理。</p>
       </div>
-    </div>
 
-    <div class="form-group">
-      <label class="form-label" for="serverUrl">Server URL</label>
-      <input
-        type="text"
-        id="serverUrl"
-        class="form-input"
-        placeholder="ws://127.0.0.1:8999"
-      />
-    </div>
+      <div class="content">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">当前状态</div>
+              <p class="card-desc">先看连接状态；未连通时优先打开 Lime 连接器页完成启用或重新同步。</p>
+            </div>
+          </div>
 
-    <div class="form-group">
-      <label class="form-label" for="bridgeKey">Bridge Key</label>
-      <input
-        type="text"
-        id="bridgeKey"
-        class="form-input"
-        placeholder="输入 Lime API Key"
-      />
-    </div>
+          <div class="status-grid">
+            <div class="status-tile">
+              <div class="status-tile-label">Observer 连接</div>
+              <div class="status-tile-value">
+                <span id="bridgeStatus" class="badge badge-off">未连接</span>
+              </div>
+            </div>
+            <div class="status-tile">
+              <div class="status-tile-label">页面监控</div>
+              <div class="status-tile-value">
+                <span id="monitorStatus" class="badge badge-off">关闭</span>
+              </div>
+            </div>
+          </div>
 
-    <div class="form-group">
-      <label class="form-label" for="profileKey">Profile Key</label>
-      <input
-        type="text"
-        id="profileKey"
-        class="form-input"
-        placeholder="default"
-      />
-    </div>
+          <div id="statusHint" class="hint">
+            首次安装时，请先在 Lime 的“连接器”页里选择目录导出扩展，然后到 Chrome 扩展页加载已解压目录。
+          </div>
 
-    <div class="endpoint-preview" id="endpointPreview">
-      Observer URL: 未配置
-    </div>
+          <div class="button-group">
+            <button id="openConnectorPageBtn" class="btn btn-primary">
+              打开 Lime 连接器页
+            </button>
+            <button id="refreshStatusBtn" class="btn btn-inline">刷新状态</button>
+          </div>
+        </section>
 
-    <div class="button-group">
-      <button id="saveBtn" class="btn btn-primary">保存并重连</button>
-      <button id="toggleConnBtn" class="btn">断开</button>
-    </div>
+        <section class="page-info">
+          <div class="page-info-title" id="pageTitle">无页面信息</div>
+          <div class="page-info-url" id="pageUrl">当前还没有收到最近页面快照。</div>
+        </section>
 
-    <div class="button-group">
-      <button id="toggleMonitorBtn" class="btn">切换监控</button>
-      <button id="captureBtn" class="btn">立即抓取</button>
-    </div>
+        <details>
+          <summary>
+            <div>
+              <div class="summary-title">高级配置</div>
+              <div class="summary-desc">保留手动配置、手动重连、页面抓取和监控切换。只在自动配置失效或排查链路时使用。</div>
+            </div>
+            <span class="summary-indicator">⌄</span>
+          </summary>
 
-    <div class="page-info">
-      <div class="page-info-title" id="pageTitle">无页面信息</div>
-      <div class="page-info-url" id="pageUrl"></div>
+          <div class="advanced-body">
+            <section class="card card-muted">
+              <div class="card-title">快速处理</div>
+              <p class="card-desc">如果你刚从 Lime 复制了配置，可以直接粘贴到这里完成覆盖。</p>
+              <div class="button-group">
+                <button id="pasteConfigBtn" class="btn">粘贴配置</button>
+                <button id="clearConfigBtn" class="btn">清除配置</button>
+              </div>
+            </section>
+
+            <div class="form-group">
+              <label class="form-label" for="serverUrl">Server URL</label>
+              <input
+                type="text"
+                id="serverUrl"
+                class="form-input"
+                placeholder="ws://127.0.0.1:8999"
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="bridgeKey">Bridge Key</label>
+              <input
+                type="text"
+                id="bridgeKey"
+                class="form-input"
+                placeholder="输入 Lime API Key"
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="profileKey">Profile Key</label>
+              <input
+                type="text"
+                id="profileKey"
+                class="form-input"
+                placeholder="default"
+              />
+            </div>
+
+            <div class="endpoint-preview" id="endpointPreview">
+              Observer URL: 未配置
+            </div>
+
+            <div class="button-group">
+              <button id="saveBtn" class="btn btn-primary">保存并重连</button>
+              <button id="toggleConnBtn" class="btn">立即连接</button>
+            </div>
+
+            <div class="button-group">
+              <button id="toggleMonitorBtn" class="btn">关闭页面监控</button>
+              <button id="captureBtn" class="btn">立即抓取</button>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
 
     <script src="popup.js"></script>

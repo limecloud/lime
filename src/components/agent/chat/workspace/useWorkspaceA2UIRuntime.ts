@@ -34,6 +34,28 @@ interface UseWorkspaceA2UIRuntimeParams {
   messages: Message[];
 }
 
+function isSamePendingA2UIResolution(
+  previous: PendingA2UIResolution | null,
+  next: PendingA2UIResolution,
+): boolean {
+  if (!previous || previous.source.kind !== next.source.kind) {
+    return false;
+  }
+
+  if (
+    previous.source.kind === "action_request" &&
+    next.source.kind === "action_request"
+  ) {
+    return previous.source.requestId === next.source.requestId;
+  }
+
+  return (
+    previous.source.kind !== "action_request" &&
+    next.source.kind !== "action_request" &&
+    previous.source.messageId === next.source.messageId
+  );
+}
+
 export function useWorkspaceA2UIRuntime({
   messages,
 }: UseWorkspaceA2UIRuntimeParams): {
@@ -168,8 +190,13 @@ export function useWorkspaceA2UIRuntime({
     }
 
     if (pendingPromotedA2UIActionRequest) {
+      const form = buildActionRequestA2UI(pendingPromotedA2UIActionRequest);
+      if (!form) {
+        return null;
+      }
+
       return {
-        form: buildActionRequestA2UI(pendingPromotedA2UIActionRequest),
+        form,
         source: {
           kind: "action_request",
           requestId: pendingPromotedA2UIActionRequest.requestId,
@@ -243,7 +270,11 @@ export function useWorkspaceA2UIRuntime({
 
   useEffect(() => {
     if (resolvedPendingA2UI) {
-      setRetainedPendingA2UI(resolvedPendingA2UI);
+      setRetainedPendingA2UI((previous) =>
+        isSamePendingA2UIResolution(previous, resolvedPendingA2UI)
+          ? previous
+          : resolvedPendingA2UI,
+      );
       return;
     }
 
@@ -257,17 +288,18 @@ export function useWorkspaceA2UIRuntime({
         return null;
       }
 
-      if (previous.source.kind === "action_request") {
+      const source = previous.source;
+      if (source.kind === "action_request") {
         const requestStillExists = messages.some((message) =>
           (message.actionRequests || []).some(
-            (request) => request.requestId === previous.source.requestId,
+            (request) => request.requestId === source.requestId,
           ),
         );
         return requestStillExists ? previous : null;
       }
 
       const sourceMessageStillExists = messages.some(
-        (message) => message.id === previous.source.messageId,
+        (message) => message.id === source.messageId,
       );
       return sourceMessageStillExists ? previous : null;
     });

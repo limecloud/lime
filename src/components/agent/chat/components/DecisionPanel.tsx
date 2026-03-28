@@ -478,37 +478,21 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
     }
 
     const answers = buildAnswers();
-    const response = questions.length > 0 ? JSON.stringify(answers) : undefined;
+    const normalizedAnswers =
+      questions.length === 1 && typeof Object.values(answers)[0] === "string"
+        ? { answer: Object.values(answers)[0] as string }
+        : answers;
+    const response =
+      questions.length > 0 ? JSON.stringify(normalizedAnswers) : undefined;
     void submitResponse(
       {
         requestId: request.requestId,
         confirmed: true,
         response,
         actionType: request.actionType,
-        userData: questions.length > 0 ? answers : undefined,
+        userData: questions.length > 0 ? normalizedAnswers : undefined,
       },
       { key: "allow", kind: "allow" },
-    );
-  };
-
-  const handleAutoSubmitOption = (
-    optionLabel: string,
-    qIndex: number,
-    actionType: ActionRequired["actionType"],
-  ) => {
-    setSelectedOptions((prev) => ({
-      ...prev,
-      [qIndex]: [optionLabel],
-    }));
-    void submitResponse(
-      {
-        requestId: request.requestId,
-        confirmed: true,
-        response: optionLabel,
-        actionType,
-        userData: { answer: optionLabel },
-      },
-      { key: `option:${qIndex}:${optionLabel}`, kind: "allow" },
     );
   };
 
@@ -898,8 +882,6 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
                     const isSelected = (selectedOptions[qIndex] ?? []).includes(
                       option.label,
                     );
-                    const shouldAutoSubmit =
-                      questions.length === 1 && !q.multiSelect;
 
                     return (
                       <button
@@ -913,23 +895,11 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
                           isSubmitting && "cursor-not-allowed opacity-70",
                         )}
                         disabled={isSubmitting}
-                        onClick={() => {
-                          if (shouldAutoSubmit) {
-                            handleAutoSubmitOption(
-                              option.label,
-                              qIndex,
-                              request.actionType,
-                            );
-                            return;
-                          }
-                          toggleOption(qIndex, option.label, q.multiSelect);
-                        }}
+                        onClick={() =>
+                          toggleOption(qIndex, option.label, q.multiSelect)
+                        }
                       >
                         <div className="flex items-center gap-2 font-medium">
-                          {submissionState?.key ===
-                          `option:${qIndex}:${option.label}` ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : null}
                           <span>{option.label}</span>
                         </div>
                         {option.description && (

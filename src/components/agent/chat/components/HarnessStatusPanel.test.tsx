@@ -99,7 +99,6 @@ function renderPanel(
         compatSubagentRuntime={{
           isRunning: false,
           progress: null,
-          events: [],
           result: null,
           error: null,
           recentActivity: [],
@@ -1361,7 +1360,6 @@ describe("HarnessStatusPanel", () => {
           currentTasks: ["legacy-task-1"],
           percentage: 50,
         },
-        events: [{ type: "started", totalTasks: 2 }],
         result: null,
         error: null,
         recentActivity: [

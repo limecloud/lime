@@ -9,6 +9,15 @@ import type { CanvasStateUnion } from "@/components/content-creator/canvas/canva
 import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
 import type { WorkspaceHandleSend } from "./useWorkspaceSendActions";
 
+const shouldLogWorkspaceInfo = import.meta.env.MODE !== "test";
+
+function logWorkspaceInfo(...args: Parameters<typeof console.log>) {
+  if (!shouldLogWorkspaceInfo) {
+    return;
+  }
+  console.log(...args);
+}
+
 interface UseWorkspaceAutoGuideRuntimeParams {
   contentId?: string | null;
   sessionId?: string | null;
@@ -110,7 +119,7 @@ export function useWorkspaceAutoGuideRuntime({
       let disposed = false;
       consumedInitialPromptRef.current = initialDispatchKey;
       hasTriggeredGuideRef.current = true;
-      console.log("[AgentChatPage] 自动发送首条创作意图消息");
+      logWorkspaceInfo("[AgentChatPage] 自动发送首条创作意图消息");
 
       void (async () => {
         const started = await handleSend(
@@ -154,12 +163,12 @@ export function useWorkspaceAutoGuideRuntime({
       }
 
       hasTriggeredGuideRef.current = true;
-      console.log("[AgentChatPage] 主题工作台：触发 AI 引导，创建后端工作流");
+      logWorkspaceInfo("[AgentChatPage] 主题工作台：触发 AI 引导，创建后端工作流");
 
       void (async () => {
         try {
           await contentWorkflowApi.create(contentId, mappedTheme, creationMode);
-          console.log("[AgentChatPage] 后端工作流创建成功");
+          logWorkspaceInfo("[AgentChatPage] 后端工作流创建成功");
         } catch (error) {
           console.warn(
             "[AgentChatPage] 后端工作流创建失败（不影响主流程）:",
@@ -173,7 +182,7 @@ export function useWorkspaceAutoGuideRuntime({
     }
 
     hasTriggeredGuideRef.current = true;
-    console.log("[AgentChatPage] 自动触发 AI 创作引导");
+    logWorkspaceInfo("[AgentChatPage] 自动触发 AI 创作引导");
     triggerAIGuideRef.current();
   }, [
     canvasState,
@@ -282,7 +291,7 @@ export function useWorkspaceAutoGuideRuntime({
         const completedCount = workflow.steps.filter(
           (step) => step.status === "completed" || step.status === "skipped",
         ).length;
-        console.log(
+        logWorkspaceInfo(
           `[AgentChatPage] 找到已有工作流: ${workflow.id}，已完成步骤 ${completedCount}/${workflow.steps.length}`,
         );
       } catch (error) {

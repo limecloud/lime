@@ -15,6 +15,14 @@ import { shouldPreferMockInBrowser } from "../dev-bridge/mockPriorityCommands";
 
 // 模拟的命令处理器
 const mockCommands = new Map<string, (...args: any[]) => any>();
+const shouldLogMockInfo = import.meta.env.MODE !== "test";
+
+function logMockInfo(...args: Parameters<typeof console.log>) {
+  if (!shouldLogMockInfo) {
+    return;
+  }
+  console.log(...args);
+}
 
 const createDeprecatedCommandMock =
   (command: string, replacement: string) => () => {
@@ -73,6 +81,30 @@ type MockBrowserEnvironmentPresetRecord = {
   archived_at: string | null;
 };
 
+type MockBrowserConnectorSettings = {
+  enabled: boolean;
+  install_root_dir: string | null;
+  install_dir: string | null;
+  system_connectors: Array<{
+    id: string;
+    label: string;
+    description: string;
+    enabled: boolean;
+    available: boolean;
+  }>;
+};
+
+type MockBrowserConnectorInstallStatus = {
+  status: string;
+  install_root_dir: string | null;
+  install_dir: string | null;
+  bundled_name: string;
+  bundled_version: string;
+  installed_name: string | null;
+  installed_version: string | null;
+  message: string | null;
+};
+
 const mockBrowserProfiles: MockBrowserProfileRecord[] = [
   {
     id: "browser-profile-general",
@@ -114,6 +146,60 @@ const mockBrowserEnvironmentPresets: MockBrowserEnvironmentPresetRecord[] = [
     archived_at: null,
   },
 ];
+
+let mockBrowserConnectorSettings: MockBrowserConnectorSettings = {
+  enabled: true,
+  install_root_dir: "/mock/path/to/connectors",
+  install_dir: "/mock/path/to/connectors/Lime Browser Connector",
+  system_connectors: [
+    {
+      id: "reminders",
+      label: "提醒事项",
+      description: "读取和管理你的提醒事项和任务列表。",
+      enabled: false,
+      available: true,
+    },
+    {
+      id: "calendar",
+      label: "日历",
+      description: "读取和管理你的日历事件。",
+      enabled: false,
+      available: true,
+    },
+    {
+      id: "notes",
+      label: "备忘录",
+      description: "读取和创建你的备忘录。",
+      enabled: false,
+      available: true,
+    },
+    {
+      id: "mail",
+      label: "邮件",
+      description: "读取邮件和创建草稿。",
+      enabled: false,
+      available: true,
+    },
+    {
+      id: "contacts",
+      label: "通讯录",
+      description: "搜索、读取和创建联系人。",
+      enabled: false,
+      available: true,
+    },
+  ],
+};
+
+let mockBrowserConnectorInstallStatus: MockBrowserConnectorInstallStatus = {
+  status: "not_installed",
+  install_root_dir: "/mock/path/to/connectors",
+  install_dir: "/mock/path/to/connectors/Lime Browser Connector",
+  bundled_name: "Lime Browser Connector",
+  bundled_version: "0.1.0",
+  installed_name: null,
+  installed_version: null,
+  message: "尚未导出浏览器连接器",
+};
 
 const now = () => new Date().toISOString();
 const mockBrowserSessionStates = new Map<string, any>();
@@ -875,7 +961,7 @@ const defaultMocks: Record<string, any> = {
   }),
 
   save_config: (config: any) => {
-    console.log("[Mock] Config saved:", config);
+    logMockInfo("[Mock] Config saved:", config);
     return { success: true };
   },
 
@@ -885,7 +971,7 @@ const defaultMocks: Record<string, any> = {
   get_default_provider: () => "kiro",
   set_default_provider: (args: any) => {
     const provider = args?.provider ?? args;
-    console.log("[Mock] Default provider set to:", provider);
+    logMockInfo("[Mock] Default provider set to:", provider);
     return provider;
   },
   get_available_models: () => [],
@@ -1650,6 +1736,78 @@ const defaultMocks: Record<string, any> = {
     controls: [],
     pending_commands: [],
   }),
+  get_browser_connector_settings_cmd: () => mockBrowserConnectorSettings,
+  set_browser_connector_install_root_cmd: (args: any) => {
+    const installRootDir =
+      typeof args?.request?.install_root_dir === "string" &&
+      args.request.install_root_dir.trim()
+        ? args.request.install_root_dir.trim()
+        : "/mock/path/to/connectors";
+    mockBrowserConnectorSettings = {
+      ...mockBrowserConnectorSettings,
+      install_root_dir: installRootDir,
+      install_dir: `${installRootDir}/Lime Browser Connector`,
+    };
+    mockBrowserConnectorInstallStatus = {
+      ...mockBrowserConnectorInstallStatus,
+      install_root_dir: installRootDir,
+      install_dir: `${installRootDir}/Lime Browser Connector`,
+    };
+    return mockBrowserConnectorSettings;
+  },
+  set_browser_connector_enabled_cmd: (args: any) => {
+    mockBrowserConnectorSettings = {
+      ...mockBrowserConnectorSettings,
+      enabled: args?.enabled !== false,
+    };
+    return mockBrowserConnectorSettings;
+  },
+  set_system_connector_enabled_cmd: (args: any) => {
+    const request = args?.request ?? {};
+    mockBrowserConnectorSettings = {
+      ...mockBrowserConnectorSettings,
+      system_connectors: mockBrowserConnectorSettings.system_connectors.map(
+        (connector) =>
+          connector.id === request.id
+            ? { ...connector, enabled: request.enabled === true }
+            : connector,
+      ),
+    };
+    return mockBrowserConnectorSettings;
+  },
+  get_browser_connector_install_status_cmd: () => mockBrowserConnectorInstallStatus,
+  install_browser_connector_extension_cmd: (args: any) => {
+    const installRootDir =
+      typeof args?.request?.install_root_dir === "string" &&
+      args.request.install_root_dir.trim()
+        ? args.request.install_root_dir.trim()
+        : mockBrowserConnectorSettings.install_root_dir ??
+          "/mock/path/to/connectors";
+    const installDir = `${installRootDir}/Lime Browser Connector`;
+    mockBrowserConnectorSettings = {
+      ...mockBrowserConnectorSettings,
+      install_root_dir: installRootDir,
+      install_dir: installDir,
+    };
+    mockBrowserConnectorInstallStatus = {
+      ...mockBrowserConnectorInstallStatus,
+      status: "installed",
+      install_root_dir: installRootDir,
+      install_dir: installDir,
+      installed_name: "Lime Browser Connector",
+      installed_version: mockBrowserConnectorInstallStatus.bundled_version,
+      message: "已安装最新版本浏览器连接器",
+    };
+    return {
+      install_root_dir: installRootDir,
+      install_dir: installDir,
+      bundled_name: "Lime Browser Connector",
+      bundled_version: mockBrowserConnectorInstallStatus.bundled_version,
+      installed_version: mockBrowserConnectorInstallStatus.bundled_version,
+      auto_config_path: `${installDir}/auto_config.json`,
+    };
+  },
+  open_browser_extensions_page_cmd: () => true,
   chrome_bridge_execute_command: (args: any) => ({
     success: true,
     request_id: `mock-${Date.now()}`,
@@ -3369,7 +3527,7 @@ export async function invoke<T = any>(
   cmd: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  console.log(`[Mock] invoke: ${cmd}`, args);
+  logMockInfo(`[Mock] invoke: ${cmd}`, args);
 
   // 检查是否有自定义 mock
   if (mockCommands.has(cmd)) {
@@ -3422,7 +3580,7 @@ export function clearMocks() {
 export function convertFileSrc(filePath: string, _protocol?: string): string {
   // 在 mock 环境中，返回一个占位符或原始路径
   // 实际图片无法在 web 环境中显示，但不会导致构建错误
-  console.log(`[Mock] convertFileSrc: ${filePath}`);
+  logMockInfo(`[Mock] convertFileSrc: ${filePath}`);
   return filePath;
 }
 

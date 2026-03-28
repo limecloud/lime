@@ -182,7 +182,22 @@ jobs:
             --notes-file "$NOTES_FILE" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
 
       - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile --no-optional
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Tauri CLI native binding
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node -e "require('@tauri-apps/cli')"; then
+            echo "Tauri CLI native binding is ready"
+            exit 0
+          fi
+
+          echo "::warning::Tauri CLI native binding missing after initial install; retrying clean install."
+          rm -rf node_modules
+          pnpm install --frozen-lockfile --force
+          node -e "require('@tauri-apps/cli')"
 
       - name: Normalize updater signing key
         if: steps.updater_mode.outputs.enabled == 'true'

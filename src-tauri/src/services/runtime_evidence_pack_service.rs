@@ -709,7 +709,8 @@ fn format_observability_signal_list(observability_summary: &Value, status: &str)
             values
                 .iter()
                 .filter(|value| {
-                    value.get("status")
+                    value
+                        .get("status")
                         .and_then(Value::as_str)
                         .map(|value| value == status)
                         .unwrap_or(false)

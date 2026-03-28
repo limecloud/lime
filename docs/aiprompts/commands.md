@@ -24,6 +24,18 @@
 - 新旧命令并存时，迁移边界清晰，不会继续扩散
 - 契约检查脚本能稳定扫描并阻止回流
 
+浏览器连接器设置页同样遵循这条路径。当前主入口为 `src/lib/webview-api.ts` 中的浏览器连接器网关，统一承接：
+
+- `get_browser_connector_settings_cmd`
+- `set_browser_connector_install_root_cmd`
+- `set_browser_connector_enabled_cmd`
+- `set_system_connector_enabled_cmd`
+- `get_browser_connector_install_status_cmd`
+- `install_browser_connector_extension_cmd`
+- `open_browser_extensions_page_cmd`
+
+这些命令属于当前设置主路径，不应再在页面组件里散落裸 `invoke`。
+
 ## 命令契约的五个事实源
 
 命令边界不是单文件事实，至少要同时看下面五处：

@@ -1,30 +1,40 @@
-# Lime Chrome Bridge 扩展
+# Lime Chrome Connector 扩展
 
-用于把 Chrome 页面能力接入 Lime 的浏览器桥接通道，供各业务 AI Agent 通过统一 `browser_execute_action` / MCP 浏览器工具调用。
+用于把 Chrome 页面能力接入 Lime 的浏览器连接器通道，供各业务 AI Agent 通过统一 `browser_execute_action` / MCP 浏览器工具调用。
 
 ## 功能
 
 - Observer 通道自动连接：`/lime-chrome-observer/Lime_Key=...`
 - 页面信息上报：标题、URL、Markdown
 - 远程指令执行：`open_url` / `click` / `type` / `scroll` / `switch_tab` / `list_tabs` / `go_back` 等
+- 弹窗入口：直接打开 Lime 的“连接器”页，并保留高级手动配置
+- 自动配置文件：导出后自动写入 `auto_config.json`
 - 弹窗配置：`serverUrl`、`bridgeKey`、`profileKey`、监控开关、手动抓取
 
 ## 安装
 
-1. 打开 Chrome `chrome://extensions`
-2. 打开右上角「开发者模式」
-3. 点击「加载已解压的扩展程序」
-4. 选择目录：`extensions/lime-chrome`
+1. 在 Lime 设置页进入“连接器”
+2. 点击“选择目录并安装”或“同步更新扩展”
+3. 在文件选择器里选择一个用户自定义根目录
+4. Lime 会把扩展导出到固定子目录：`<你选择的目录>/Lime Browser Connector`
+5. 打开 Chrome `chrome://extensions`
+6. 打开右上角「开发者模式」
+7. 点击「加载已解压的扩展程序」
+8. 选择目录：`<你选择的目录>/Lime Browser Connector`
 
 ## 配置
 
-点击扩展图标打开弹窗，配置：
+点击扩展图标后，优先使用“打开 Lime 连接器页”回到桌面端统一管理。
+
+只有在自动配置失效或手动排查链路时，才需要展开“高级配置”并填写：
 
 - `Server URL`：Lime 服务地址，例如 `ws://127.0.0.1:8999`
 - `Bridge Key`：Lime 服务 API Key（与后端 `Lime_Key` 一致）
 - `Profile Key`：浏览器会话隔离键（建议与业务场景对应，如 `research_a`）
 
 点击「保存并重连」后，扩展会建立 observer WebSocket 连接。
+
+如果你已经通过 Lime 导出了扩展，目录里会同时带上 `auto_config.json`。扩展加载后会自动读取该文件并应用默认配置。
 
 ## 验证
 

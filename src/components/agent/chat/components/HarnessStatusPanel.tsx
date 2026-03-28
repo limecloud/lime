@@ -103,7 +103,7 @@ import {
 } from "../utils/toolDisplayInfo";
 import { buildThreadReliabilityView } from "../utils/threadReliabilityView";
 import { resolveTeamWorkspaceStableProcessingLabel } from "../utils/teamWorkspaceCopy";
-import type { CompatSubagentRuntimeSnapshot } from "../utils/compatSubagentRuntime";
+import type { CompatSubagentRuntimeDisplaySnapshot } from "../utils/compatSubagentRuntime";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import { AgentThreadReliabilityPanel } from "./AgentThreadReliabilityPanel";
 import { RuntimeReviewDecisionDialog } from "./RuntimeReviewDecisionDialog";
@@ -128,7 +128,7 @@ export interface HarnessFilePreviewResult {
 
 interface HarnessStatusPanelProps {
   harnessState: HarnessSessionState;
-  compatSubagentRuntime: CompatSubagentRuntimeSnapshot;
+  compatSubagentRuntime: CompatSubagentRuntimeDisplaySnapshot;
   environment: HarnessEnvironmentSummary;
   layout?: "default" | "sidebar" | "dialog";
   onLoadFilePreview?: (path: string) => Promise<HarnessFilePreviewResult>;
@@ -1440,7 +1440,7 @@ function CompatSubagentFallbackCard({
   condensed = false,
   onOpenUrl,
 }: {
-  snapshot: CompatSubagentRuntimeSnapshot;
+  snapshot: CompatSubagentRuntimeDisplaySnapshot;
   condensed?: boolean;
   onOpenUrl: (url: string) => void | Promise<void>;
 }) {

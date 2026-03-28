@@ -134,6 +134,45 @@
       "allowedPaths": []
     },
     {
+      "id": "agent-chat-timeline-flow-demo",
+      "classification": "dead-candidate",
+      "description": "已删除的聊天时间线演示组件",
+      "targets": [
+        "src/components/agent/chat/components/TimelineFlowDemo.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "agent-chat-legacy-project-selector",
+      "classification": "dead-candidate",
+      "description": "已删除的聊天目录旧项目选择器",
+      "targets": [
+        "src/components/agent/chat/components/ProjectSelector.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "agent-chat-timeline-inline-item",
+      "classification": "dead-candidate",
+      "description": "已删除的聊天时间线内联原型项组件",
+      "targets": [
+        "src/components/agent/chat/components/TimelineInlineItem.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "agent-chat-task-files-directory-impl",
+      "classification": "dead-candidate",
+      "description": "已删除的聊天任务文件旧目录实现",
+      "targets": [
+        "src/components/agent/chat/components/TaskFiles/index.ts",
+        "src/components/agent/chat/components/TaskFiles/types.ts",
+        "src/components/agent/chat/components/TaskFiles/TaskFileList.tsx",
+        "src/components/agent/chat/components/TaskFiles/TaskFileItem.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "team-subagent-scheduler-hook",
       "classification": "compat",
       "description": "旧 SubAgent scheduler Hook 只允许停留在 compat 展示层",

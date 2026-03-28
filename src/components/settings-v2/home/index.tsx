@@ -63,7 +63,7 @@ const groupMeta: Record<
     icon: Brain,
   },
   system: {
-    description: "渠道、MCP、环境变量与安全性能设置。",
+    description: "连接器、渠道、MCP、环境变量与安全性能设置。",
     accentClassName:
       "from-amber-200/65 via-white to-white",
     iconClassName: "border-amber-200 bg-amber-100 text-amber-700",

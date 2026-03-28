@@ -142,6 +142,15 @@ npm run test:contracts
 7. 如工作台模式开启自动保存，再确认执行成功后保存态文案与打开入口正常
 8. 打开控制台并确认浏览器资料 / 环境预设读取没有落回 web mock，尤其不应出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`
 
+### 连接器页验证
+
+1. 进入 `设置 -> 连接器`
+2. 确认首页能看到“我的浏览器”“macOS 连接器/系统连接器”“高级控制”三块主区域
+3. 点击“展开高级控制”，确认 `总览 / Profile / 桥接 / 后端 / 调试` 页签可切换
+4. 如当前环境允许目录选择，点击“选择目录并安装”或“同步更新扩展”，确认安装目录最终落到固定子目录 `Lime Browser Connector`
+5. 点击“复制配置”，确认剪贴板内容包含 `serverUrl / bridgeKey / profileKey`
+6. 如当前环境接通真实后端，再确认“打开 Chrome 扩展页”可成功唤起浏览器扩展管理页
+
 ### 话题模型恢复验证
 
 1. 进入同一工作区中的两个话题

@@ -15,12 +15,13 @@ import {
   useRef,
 } from "react";
 import { toast } from "sonner";
-import { useAgentChatUnified, useCompatSubagentRuntime } from "./hooks";
+import { useAgentChatUnified } from "./hooks";
 import { type TaskStatusReason } from "./hooks/agentChatShared";
 import {
   settleLiveArtifactAfterStreamStops,
   useArtifactDisplayState,
 } from "./hooks/useArtifactDisplayState";
+import { useCompatSubagentRuntime } from "./hooks/useCompatSubagentRuntime";
 import type { TopicBranchStatus } from "./hooks/useTopicBranchBoard";
 import { useSessionFiles } from "./hooks/useSessionFiles";
 import { useContentSync } from "./hooks/useContentSync";
@@ -1991,13 +1992,18 @@ export function AgentChatWorkspace({
     contentId,
     onRunImageWorkbenchCommand: handleImageWorkbenchCommand,
   });
-  const { handleA2UISubmit, handleInputbarA2UISubmit } =
-    useWorkspaceA2UISubmitActions({
-      handlePermissionResponseWithBrowserPreflight,
-      pendingLegacyQuestionnaireA2UIForm,
-      pendingPromotedA2UIActionRequest,
-      sendMessage,
-    });
+  const { handleInputbarA2UISubmit } = useWorkspaceA2UISubmitActions({
+    handlePermissionResponseWithBrowserPreflight,
+    pendingLegacyQuestionnaireA2UIForm,
+    pendingPromotedA2UIActionRequest,
+    sendMessage,
+  });
+  const handleMessageA2UISubmit = useCallback(
+    (formData: Parameters<typeof handleInputbarA2UISubmit>[0], _messageId: string) => {
+      handleInputbarA2UISubmit(formData);
+    },
+    [handleInputbarA2UISubmit],
+  );
 
   // 监听主题工作台技能触发
   useEffect(() => {
@@ -2643,7 +2649,7 @@ export function AgentChatWorkspace({
     promoteQueuedTurn,
     deleteMessage,
     editMessage,
-    handleA2UISubmit,
+    handleA2UISubmit: handleMessageA2UISubmit,
     handleWriteFile,
     handleFileClick: handleWorkspaceFileClick,
     handleOpenArtifactFromTimeline,

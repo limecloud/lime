@@ -7,7 +7,10 @@ const DEFAULT_SETTINGS = {
 
 const bridgeStatusEl = document.getElementById("bridgeStatus");
 const monitorStatusEl = document.getElementById("monitorStatus");
+const statusHintEl = document.getElementById("statusHint");
 const endpointPreviewEl = document.getElementById("endpointPreview");
+const openConnectorPageBtnEl = document.getElementById("openConnectorPageBtn");
+const refreshStatusBtnEl = document.getElementById("refreshStatusBtn");
 
 const serverUrlEl = document.getElementById("serverUrl");
 const bridgeKeyEl = document.getElementById("bridgeKey");
@@ -41,11 +44,20 @@ function applyStatus(status) {
   const monitoring = Boolean(status?.monitoringEnabled);
   setBadge(bridgeStatusEl, connected, "已连接", "未连接");
   setBadge(monitorStatusEl, monitoring, "开启", "关闭");
+  toggleConnBtnEl.textContent = connected ? "断开连接" : "立即连接";
+  toggleMonitorBtnEl.textContent = monitoring ? "关闭页面监控" : "开启页面监控";
+
+  statusHintEl.textContent = connected
+    ? "浏览器扩展已经接入当前 Lime 运行时。后续如需重新安装或切换目录，请回到 Lime 的“连接器”页处理。"
+    : "如果当前仍未连接，请先打开 Lime 的“连接器”页启用浏览器连接器，或重新同步扩展到你选择的目录。";
 
   const latestPageInfo = status?.latestPageInfo;
   if (latestPageInfo?.title || latestPageInfo?.url) {
     pageTitleEl.textContent = latestPageInfo.title || "无标题";
     pageUrlEl.textContent = latestPageInfo.url || "";
+  } else {
+    pageTitleEl.textContent = "无页面信息";
+    pageUrlEl.textContent = "当前还没有收到最近页面快照。";
   }
 
   const settings = status?.settings;
@@ -96,11 +108,15 @@ async function loadInitialState() {
   );
 
   try {
-    const status = await sendMessage({ type: "GET_STATUS" });
-    applyStatus(status || {});
+    await refreshStatus();
   } catch (error) {
     console.warn("[LimeBridgePopup] 获取状态失败", error?.message || String(error));
   }
+}
+
+async function refreshStatus() {
+  const status = await sendMessage({ type: "GET_STATUS" });
+  applyStatus(status || {});
 }
 
 async function saveAndReconnect() {
@@ -123,6 +139,7 @@ async function saveAndReconnect() {
 
   try {
     await sendMessage({ type: "UPDATE_SETTINGS", data: payload });
+    await refreshStatus();
     saveBtnEl.textContent = "已保存";
     setTimeout(() => {
       saveBtnEl.textContent = originalText;
@@ -141,6 +158,7 @@ async function saveAndReconnect() {
 async function toggleConnection() {
   try {
     await sendMessage({ type: "TOGGLE_CONNECTION" });
+    await refreshStatus();
   } catch (error) {
     console.warn("[LimeBridgePopup] 切换连接失败", error?.message || String(error));
   }
@@ -149,6 +167,7 @@ async function toggleConnection() {
 async function toggleMonitoring() {
   try {
     await sendMessage({ type: "TOGGLE_MONITORING" });
+    await refreshStatus();
   } catch (error) {
     console.warn("[LimeBridgePopup] 切换监控失败", error?.message || String(error));
   }
@@ -161,6 +180,7 @@ async function capturePageNow() {
 
   try {
     await sendMessage({ type: "REQUEST_PAGE_CAPTURE" });
+    await refreshStatus();
   } catch (error) {
     console.warn("[LimeBridgePopup] 请求抓取失败", error?.message || String(error));
   } finally {
@@ -189,6 +209,9 @@ async function pasteConfigFromClipboard() {
     }
     if (config.profileKey) {
       profileKeyEl.value = config.profileKey;
+    }
+    if (typeof config.monitoringEnabled === "boolean") {
+      setBadge(monitorStatusEl, config.monitoringEnabled, "开启", "关闭");
     }
 
     endpointPreviewEl.textContent = buildObserverEndpoint(
@@ -223,10 +246,55 @@ function clearConfig() {
   );
 }
 
+async function pollStatusUntilConnected() {
+  openConnectorPageBtnEl.disabled = true;
+  refreshStatusBtnEl.disabled = true;
+
+  let attempts = 0;
+  const maxAttempts = 15;
+  const timer = window.setInterval(async () => {
+    attempts += 1;
+    try {
+      const status = await sendMessage({ type: "GET_STATUS" });
+      applyStatus(status || {});
+      if (status?.isConnected || attempts >= maxAttempts) {
+        window.clearInterval(timer);
+        openConnectorPageBtnEl.disabled = false;
+        refreshStatusBtnEl.disabled = false;
+      }
+    } catch (_) {
+      if (attempts >= maxAttempts) {
+        window.clearInterval(timer);
+        openConnectorPageBtnEl.disabled = false;
+        refreshStatusBtnEl.disabled = false;
+      }
+    }
+  }, 1000);
+}
+
+function openConnectorSettings() {
+  try {
+    window.open("lime://connectors/browser?enable=true");
+  } catch (error) {
+    console.warn(
+      "[LimeBridgePopup] 打开 Lime 连接器页失败",
+      error?.message || String(error),
+    );
+  }
+
+  void pollStatusUntilConnected();
+}
+
 saveBtnEl.addEventListener("click", saveAndReconnect);
 toggleConnBtnEl.addEventListener("click", toggleConnection);
 toggleMonitorBtnEl.addEventListener("click", toggleMonitoring);
 captureBtnEl.addEventListener("click", capturePageNow);
+openConnectorPageBtnEl.addEventListener("click", openConnectorSettings);
+refreshStatusBtnEl.addEventListener("click", () => {
+  refreshStatus().catch((error) => {
+    console.warn("[LimeBridgePopup] 刷新状态失败", error?.message || String(error));
+  });
+});
 document.getElementById("pasteConfigBtn").addEventListener("click", pasteConfigFromClipboard);
 document.getElementById("clearConfigBtn").addEventListener("click", clearConfig);
 

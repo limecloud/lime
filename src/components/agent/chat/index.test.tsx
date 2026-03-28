@@ -176,6 +176,9 @@ vi.mock("./hooks", () => ({
   useThemeContextWorkspace: mockUseThemeContextWorkspace,
   useTopicBranchBoard: mockUseTopicBranchBoard,
   useTeamWorkspaceRuntime: mockUseTeamWorkspaceRuntime,
+}));
+
+vi.mock("./hooks/useCompatSubagentRuntime", () => ({
   useCompatSubagentRuntime: mockUseCompatSubagentRuntime,
 }));
 
@@ -1724,9 +1727,7 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(4);
 
-    expect(
-      container.querySelector('[data-testid="chat-sidebar"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('[data-testid="chat-sidebar"]')).toBeNull();
   });
 
   it("发送时不再先调用本地 Team 规划模型，而是直接发送并透传已选 Team 约束", async () => {
@@ -5199,7 +5200,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
         .map((component) => [component.label, component.id]),
     );
 
-    await act(async () => {
+    act(() => {
       latestInputbarProps?.onA2UISubmit?.({
         [componentIdByLabel["这次内容主要面向谁？"]]: ["客户"],
         [componentIdByLabel["这次最想达成的目标是什么？"]]:
@@ -5208,7 +5209,6 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
         [componentIdByLabel["是否需要加入明确行动号召？"]]: ["是"],
       });
     });
-    await flushEffects(10);
 
     expect(sharedSendMessageMock).toHaveBeenCalledWith(
       `我的选择：

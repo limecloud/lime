@@ -21,18 +21,18 @@ interface ActionRequestA2UIPreviewCardProps {
 function resolveStatusLabel(request: ActionRequired): string {
   switch (request.status) {
     case "queued":
-      return "已记录";
+      return "已记下";
     case "submitted":
       return "已确认";
     default:
-      return "待补充";
+      return "等你补充";
   }
 }
 
 function resolveTitle(request: ActionRequired): string {
   return request.status === "submitted" || request.status === "queued"
-    ? "已确认的补充信息"
-    : "补充信息";
+    ? "你补充的信息"
+    : "等你补充信息";
 }
 
 function resolveSubtitle(
@@ -40,18 +40,18 @@ function resolveSubtitle(
   context: "chat" | "timeline",
 ): string {
   if (request.status === "queued") {
-    return "答案已记录，等待系统请求就绪后会自动继续执行。";
+    return "已经记下了，系统就绪后会继续。";
   }
 
   if (request.status === "submitted") {
     return context === "timeline"
-      ? "该阶段的问答已完成，阶段记录已改为结构化回显。"
-      : "已收到你的补充信息，助手会继续执行后续流程。";
+      ? "这一步已经确认，继续往下做。"
+      : "收到这一步了，继续往下做。";
   }
 
   return context === "timeline"
-    ? "该阶段需要补充信息，请在输入区表单中完成确认后继续。"
-    : "请先完成这一步，我再继续当前对话。";
+    ? "去输入区把这一步补完。"
+    : "先补这一步，我再继续当前对话。";
 }
 
 export function ActionRequestA2UIPreviewCard({

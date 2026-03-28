@@ -276,6 +276,46 @@ export interface ChromeBridgeCommandResult {
   data?: unknown;
 }
 
+export interface SystemConnectorSnapshot {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  available: boolean;
+}
+
+export interface BrowserConnectorSettingsSnapshot {
+  enabled: boolean;
+  install_root_dir?: string | null;
+  install_dir?: string | null;
+  system_connectors: SystemConnectorSnapshot[];
+}
+
+export interface BrowserConnectorInstallStatus {
+  status: "not_installed" | "installed" | "update_available" | "broken";
+  install_root_dir?: string | null;
+  install_dir?: string | null;
+  bundled_name: string;
+  bundled_version: string;
+  installed_name?: string | null;
+  installed_version?: string | null;
+  message?: string | null;
+}
+
+export interface BrowserConnectorInstallRequest {
+  install_root_dir?: string;
+  profile_key?: string;
+}
+
+export interface BrowserConnectorInstallResult {
+  install_root_dir: string;
+  install_dir: string;
+  bundled_name: string;
+  bundled_version: string;
+  installed_version: string;
+  auto_config_path: string;
+}
+
 export type BrowserBackendType =
   | "aster_compat"
   | "lime_extension_bridge"
@@ -796,6 +836,69 @@ export async function getChromeBridgeEndpointInfo(): Promise<ChromeBridgeEndpoin
  */
 export async function getChromeBridgeStatus(): Promise<ChromeBridgeStatusSnapshot> {
   return safeInvoke<ChromeBridgeStatusSnapshot>("get_chrome_bridge_status");
+}
+
+export async function getBrowserConnectorSettings(): Promise<BrowserConnectorSettingsSnapshot> {
+  return safeInvoke<BrowserConnectorSettingsSnapshot>(
+    "get_browser_connector_settings_cmd",
+  );
+}
+
+export async function setBrowserConnectorInstallRoot(
+  installRootDir: string,
+): Promise<BrowserConnectorSettingsSnapshot> {
+  return safeInvoke<BrowserConnectorSettingsSnapshot>(
+    "set_browser_connector_install_root_cmd",
+    {
+      request: {
+        install_root_dir: installRootDir,
+      },
+    },
+  );
+}
+
+export async function setBrowserConnectorEnabled(
+  enabled: boolean,
+): Promise<BrowserConnectorSettingsSnapshot> {
+  return safeInvoke<BrowserConnectorSettingsSnapshot>(
+    "set_browser_connector_enabled_cmd",
+    {
+      enabled,
+    },
+  );
+}
+
+export async function setSystemConnectorEnabled(request: {
+  id: string;
+  enabled: boolean;
+}): Promise<BrowserConnectorSettingsSnapshot> {
+  return safeInvoke<BrowserConnectorSettingsSnapshot>(
+    "set_system_connector_enabled_cmd",
+    {
+      request,
+    },
+  );
+}
+
+export async function getBrowserConnectorInstallStatus(): Promise<BrowserConnectorInstallStatus> {
+  return safeInvoke<BrowserConnectorInstallStatus>(
+    "get_browser_connector_install_status_cmd",
+  );
+}
+
+export async function installBrowserConnectorExtension(
+  request: BrowserConnectorInstallRequest,
+): Promise<BrowserConnectorInstallResult> {
+  return safeInvoke<BrowserConnectorInstallResult>(
+    "install_browser_connector_extension_cmd",
+    {
+      request,
+    },
+  );
+}
+
+export async function openBrowserExtensionsPage(): Promise<boolean> {
+  return safeInvoke<boolean>("open_browser_extensions_page_cmd");
 }
 
 /**

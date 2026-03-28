@@ -49,7 +49,7 @@ describe("A2UITaskCard", () => {
 
     expect(container.querySelector("[data-testid='agent-a2ui-task-card']")).not.toBeNull();
     expect(container.textContent).toContain("补充信息");
-    expect(container.textContent).toContain("待完成 1 / 1");
+    expect(container.textContent).toContain("等你确认");
 
     clickButtonByText(container, "新写一篇内容");
     await flushEffects();
@@ -77,6 +77,6 @@ describe("A2UITaskCard", () => {
       container.querySelector("[data-testid='agent-a2ui-task-loading-card']"),
     ).not.toBeNull();
     expect(container.textContent).toContain("正在解析结构化问题，请稍等。");
-    expect(container.textContent).toContain("表单加载中...");
+    expect(container.textContent).toContain("这一步加载中...");
   });
 });

@@ -221,7 +221,15 @@ export function useWorkspaceCanvasLayoutRuntime({
       return;
     }
 
-    if (autoCollapsedTopicSidebarRef.current) {
+    const shouldRestoreAutoCollapsedSidebar =
+      autoCollapsedTopicSidebarRef.current &&
+      !showSidebar &&
+      (!showChatPanel ||
+        isThemeWorkbench ||
+        activeTheme !== "general" ||
+        layoutMode !== "chat-canvas");
+
+    if (shouldRestoreAutoCollapsedSidebar) {
       autoCollapsedTopicSidebarRef.current = false;
       setShowSidebar(true);
     }

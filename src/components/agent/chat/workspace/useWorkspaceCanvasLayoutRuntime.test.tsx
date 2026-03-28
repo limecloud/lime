@@ -154,4 +154,50 @@ describe("useWorkspaceCanvasLayoutRuntime", () => {
       setLayoutMode.mock.calls.some((call) => call[0] === "chat"),
     ).toBe(true);
   });
+
+  it("stacked 自动收起侧栏后，不应在同一轮 general chat-canvas 中立刻反向展开", async () => {
+    const setShowSidebar = vi.fn();
+    const autoCollapsedTopicSidebarRef = { current: false };
+    const { render } = renderHook({
+      setShowSidebar,
+      autoCollapsedTopicSidebarRef,
+      canvasWorkbenchLayoutMode: "stacked",
+      showSidebar: true,
+      layoutMode: "chat-canvas",
+    });
+
+    await render();
+
+    expect(setShowSidebar).toHaveBeenCalledWith(false);
+    expect(autoCollapsedTopicSidebarRef.current).toBe(true);
+
+    setShowSidebar.mockClear();
+
+    await render({
+      canvasWorkbenchLayoutMode: "split",
+      showSidebar: false,
+      autoCollapsedTopicSidebarRef,
+      layoutMode: "chat-canvas",
+    });
+
+    expect(setShowSidebar).not.toHaveBeenCalled();
+    expect(autoCollapsedTopicSidebarRef.current).toBe(true);
+  });
+
+  it("自动收起的侧栏在离开 general chat-canvas 主路径后应恢复", async () => {
+    const setShowSidebar = vi.fn();
+    const autoCollapsedTopicSidebarRef = { current: true };
+    const { render } = renderHook({
+      setShowSidebar,
+      autoCollapsedTopicSidebarRef,
+      showSidebar: false,
+      canvasWorkbenchLayoutMode: "split",
+      layoutMode: "chat",
+    });
+
+    await render();
+
+    expect(setShowSidebar).toHaveBeenCalledWith(true);
+    expect(autoCollapsedTopicSidebarRef.current).toBe(false);
+  });
 });

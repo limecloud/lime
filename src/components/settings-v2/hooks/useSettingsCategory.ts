@@ -170,7 +170,7 @@ export function useSettingsCategory(): CategoryGroup[] {
         },
         {
           key: SettingsTabs.ChromeRelay,
-          label: t("settings.tab.chromeRelay", "Chrome Relay"),
+          label: t("settings.tab.chromeRelay", "连接器"),
           icon: Monitor,
         },
         {

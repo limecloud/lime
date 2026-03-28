@@ -191,7 +191,7 @@ describe("DecisionPanel elicitation", () => {
 });
 
 describe("DecisionPanel ask_user", () => {
-  it("缺少 options 时应从问题文本提取可点击选项并支持提交", () => {
+  it("缺少 options 时应从问题文本提取可点击选项，并在点击提交按钮后发送", () => {
     const request = createAskUserRequest("req-ask-user-fallback");
     const { container, onSubmit } = renderDecisionPanel(request);
 
@@ -202,18 +202,19 @@ describe("DecisionPanel ask_user", () => {
     expect(container.textContent).toContain("只读模式");
 
     clickButton(findButtonByText(container, "自动执行（Auto）"));
+    clickButton(findButtonByText(container, "提交答案"));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       requestId: "req-ask-user-fallback",
       confirmed: true,
-      response: "自动执行（Auto）",
+      response: JSON.stringify({ answer: "自动执行（Auto）" }),
       actionType: "ask_user",
       userData: { answer: "自动执行（Auto）" },
     });
   });
 
-  it("编号列表文本应提取为可点击选项", () => {
+  it("编号列表文本应提取为可点击选项，并显式提交", () => {
     const request = createAskUserNumberedRequest("req-ask-user-numbered");
     const { container, onSubmit } = renderDecisionPanel(request);
 
@@ -222,18 +223,19 @@ describe("DecisionPanel ask_user", () => {
     expect(container.textContent).toContain("品牌展示海报");
 
     clickButton(findButtonByText(container, "活动推广海报"));
+    clickButton(findButtonByText(container, "提交答案"));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       requestId: "req-ask-user-numbered",
       confirmed: true,
-      response: "活动推广海报",
+      response: JSON.stringify({ answer: "活动推广海报" }),
       actionType: "ask_user",
       userData: { answer: "活动推广海报" },
     });
   });
 
-  it("questions.options 为字符串数组时应归一化并可点击提交", () => {
+  it("questions.options 为字符串数组时应归一化，并显式提交", () => {
     const request: ActionRequired = {
       requestId: "req-ask-user-string-options",
       actionType: "ask_user",
@@ -247,12 +249,13 @@ describe("DecisionPanel ask_user", () => {
     const { container, onSubmit } = renderDecisionPanel(request);
 
     clickButton(findButtonByText(container, "确认后执行（Ask）"));
+    clickButton(findButtonByText(container, "提交答案"));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       requestId: "req-ask-user-string-options",
       confirmed: true,
-      response: "确认后执行（Ask）",
+      response: JSON.stringify({ answer: "确认后执行（Ask）" }),
       actionType: "ask_user",
       userData: { answer: "确认后执行（Ask）" },
     });
@@ -278,11 +281,13 @@ describe("DecisionPanel ask_user", () => {
     const optionButton = findButtonByText(container, "自动执行（Auto）");
     expect(optionButton.disabled).toBe(false);
     clickButton(optionButton);
+    expect(waitingSubmitButton.disabled).toBe(false);
+    clickButton(waitingSubmitButton);
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       requestId: "fallback:tool-1",
       confirmed: true,
-      response: "自动执行（Auto）",
+      response: JSON.stringify({ answer: "自动执行（Auto）" }),
       actionType: "ask_user",
       userData: { answer: "自动执行（Auto）" },
     });
@@ -300,7 +305,7 @@ describe("DecisionPanel ask_user", () => {
     expect(container.textContent).not.toContain("取消");
   });
 
-  it("自动提交选项等待回调完成时，应展示提交中并禁用交互", async () => {
+  it("显式提交答案等待回调完成时，应展示提交中并禁用交互", async () => {
     const request = createAskUserRequest("req-ask-user-loading");
     let resolveSubmit: (() => void) | null = null;
     const { container, onSubmit } = renderDecisionPanel(request);
@@ -318,8 +323,16 @@ describe("DecisionPanel ask_user", () => {
       await Promise.resolve();
     });
 
+    const submitButton = findButtonByText(container, "提交答案");
+
+    await act(async () => {
+      submitButton.click();
+      await Promise.resolve();
+    });
+
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(optionButton.disabled).toBe(true);
+    expect(submitButton.disabled).toBe(true);
     expect(container.querySelector("svg.animate-spin")).not.toBeNull();
 
     await act(async () => {

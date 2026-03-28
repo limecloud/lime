@@ -2,6 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
 import { emitCompactRightPanelOpen } from "@/lib/compactRightPanelEvents";
 import type { TaskFile } from "./TaskFiles";
@@ -10,6 +11,7 @@ import {
   type CanvasWorkbenchDefaultPreview,
   type CanvasWorkbenchPreviewTarget,
 } from "./CanvasWorkbenchLayout";
+import type { ArtifactWorkbenchDocumentController } from "../workspace/artifactWorkbenchDocument";
 
 type MockResizeObserverCallback = (
   entries: Array<{
@@ -92,6 +94,170 @@ function createTaskFile(
     createdAt: updatedAt - 100,
     updatedAt,
   };
+}
+
+function createMockArtifactDocumentController(
+  overrides: Partial<ArtifactWorkbenchDocumentController> = {},
+): ArtifactWorkbenchDocumentController {
+  const versionHistory = [
+    {
+      id: "artifact-document:demo:v1",
+      artifactId: "artifact-document:demo",
+      versionNo: 1,
+      title: "董事会季度复盘",
+      summary: "第一版摘要",
+      status: "ready" as const,
+      createdAt: "2026-03-25T10:00:00Z",
+    },
+    {
+      id: "artifact-document:demo:v2",
+      artifactId: "artifact-document:demo",
+      versionNo: 2,
+      title: "董事会季度复盘",
+      summary: "补齐来源与版本信息",
+      status: "ready" as const,
+      createdAt: "2026-03-26T10:00:00Z",
+    },
+  ];
+  const currentVersionDiff = {
+    baseVersionId: "artifact-document:demo:v1",
+    baseVersionNo: 1,
+    targetVersionId: "artifact-document:demo:v2",
+    targetVersionNo: 2,
+    updatedCount: 1,
+    addedCount: 0,
+    removedCount: 0,
+    movedCount: 0,
+    changedBlocks: [
+      {
+        blockId: "body-1",
+        changeType: "updated" as const,
+        beforeText: "旧正文",
+        afterText: "正文内容",
+        summary: "更新 block 内容",
+      },
+    ],
+  };
+  const editableDraft = {
+    editorKind: "rich_text" as const,
+    markdown: "正文内容",
+  };
+  const selectedEditableBlock = {
+    blockId: "body-1",
+    label: "正文块 1",
+    detail: "正文",
+    editorKind: "rich_text" as const,
+    draft: editableDraft,
+  };
+  const document: ArtifactDocumentV1 = {
+    schemaVersion: "artifact_document.v1",
+    artifactId: "artifact-document:demo",
+    kind: "analysis" as const,
+    title: "董事会季度复盘",
+    status: "ready" as const,
+    language: "zh-CN",
+    summary: "需要优先补齐来源与版本线索。",
+    blocks: [
+      {
+        id: "body-1",
+        type: "rich_text" as const,
+        markdown: "正文内容",
+      },
+    ],
+    sources: [
+      {
+        id: "source-1",
+        title: "OpenAI Blog",
+        url: "https://openai.com",
+      },
+    ],
+    metadata: {
+      currentVersionId: "artifact-document:demo:v2",
+      currentVersionNo: 2,
+      currentVersionDiff,
+      versionHistory,
+    },
+  };
+
+  return {
+    artifact: createArtifact(
+      "artifact-doc",
+      ".lime/artifacts/thread-1/board-review.artifact.json",
+      JSON.stringify(document),
+      40,
+    ),
+    document,
+    currentVersion: versionHistory[1],
+    currentVersionDiff,
+    versionHistory,
+    sourceLinks: [
+      {
+        artifactId: "artifact-document:demo",
+        blockId: "body-1",
+        sourceId: "source-1",
+        sourceType: "web",
+        sourceRef: "https://openai.com",
+        label: "OpenAI Blog",
+      },
+    ],
+    timelineLinksByBlockId: {},
+    recoveryPresentation: null,
+    canEditDocument: true,
+    canMarkAsReady: false,
+    inspectorTab: "overview",
+    setInspectorTab: vi.fn(),
+    editableBlocks: [selectedEditableBlock],
+    draftByBlockId: {
+      "body-1": editableDraft,
+    },
+    selectedEditableBlock,
+    selectedEditableDraft: editableDraft,
+    selectedTimelineLink: null,
+    isSavingEdit: false,
+    isUpdatingRecoveryState: false,
+    editSaveError: null,
+    recoveryActionError: null,
+    lastSavedAt: null,
+    rendererViewportRef: { current: null },
+    focusBlock: vi.fn(),
+    selectEditableBlock: vi.fn(),
+    handleEditDraftChange: vi.fn(),
+    handleEditCancel: vi.fn(),
+    handleEditSave: vi.fn(async () => undefined),
+    handleContinueEditing: vi.fn(),
+    handleMarkAsReady: vi.fn(async () => undefined),
+    onJumpToTimelineItem: vi.fn(),
+    ...overrides,
+  };
+}
+
+function MockArtifactDocumentPreview({
+  controller,
+  target,
+  onArtifactDocumentControllerChange,
+  artifactDocumentLayoutMode,
+}: {
+  controller: ArtifactWorkbenchDocumentController | null;
+  target: CanvasWorkbenchPreviewTarget;
+  onArtifactDocumentControllerChange?: (
+    controller: ArtifactWorkbenchDocumentController | null,
+  ) => void;
+  artifactDocumentLayoutMode?: "full" | "canvas-only";
+}) {
+  React.useEffect(() => {
+    onArtifactDocumentControllerChange?.(
+      target.kind === "artifact" ? controller : null,
+    );
+    return () => {
+      onArtifactDocumentControllerChange?.(null);
+    };
+  }, [controller, onArtifactDocumentControllerChange, target.kind]);
+
+  return (
+    <div data-testid="preview-panel">
+      {artifactDocumentLayoutMode}:{target.kind}:{target.title}
+    </div>
+  );
 }
 
 function mount(
@@ -418,6 +584,65 @@ describe("CanvasWorkbenchLayout", () => {
     clickButtonByLabel(container, "下载当前画布项");
     expect(globalThis.URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
+  });
+
+  it("命中文档产物时应把文稿 inspector 收口到右侧工作台", async () => {
+    const controller = createMockArtifactDocumentController();
+    const previewOptions: Array<{
+      artifactDocumentLayoutMode?: "full" | "canvas-only";
+      onArtifactDocumentControllerChange?: (
+        value: ArtifactWorkbenchDocumentController | null,
+      ) => void;
+    }> = [];
+
+    const container = mount({
+      artifacts: [controller.artifact],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: null,
+        isBinary: true,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target, options) => {
+        previewOptions.push({
+          artifactDocumentLayoutMode: options?.artifactDocumentLayoutMode,
+          onArtifactDocumentControllerChange:
+            options?.onArtifactDocumentControllerChange,
+        });
+        return (
+          <MockArtifactDocumentPreview
+            controller={controller}
+            target={target}
+            artifactDocumentLayoutMode={options?.artifactDocumentLayoutMode}
+            onArtifactDocumentControllerChange={
+              options?.onArtifactDocumentControllerChange
+            }
+          />
+        );
+      },
+    });
+
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("canvas-only:artifact:board-review.artifact.json");
+    expect(previewOptions.at(-1)?.artifactDocumentLayoutMode).toBe("canvas-only");
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-document-inspector"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("当前文稿");
+    expect(container.textContent).toContain("统一在右侧切换产物与版本");
+    expect(container.textContent).toContain("董事会季度复盘");
+    expect(container.textContent).toContain("需要优先补齐来源与版本线索。");
   });
 
   it("工作区文件为二进制时应展示不支持预览提示", async () => {

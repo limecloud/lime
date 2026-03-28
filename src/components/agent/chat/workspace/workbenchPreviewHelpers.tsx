@@ -2,6 +2,18 @@ import type { ReactNode } from "react";
 import type { DocumentVersion } from "@/components/content-creator/canvas/document/types";
 import type { Artifact } from "@/lib/artifact/types";
 import type { CanvasWorkbenchPreviewTarget } from "../components/CanvasWorkbenchLayout";
+import type {
+  ArtifactWorkbenchDocumentController,
+  ArtifactWorkbenchLayoutMode,
+} from "./artifactWorkbenchDocument";
+
+export interface RenderArtifactWorkbenchPreviewOptions {
+  stackedWorkbenchTrigger?: ReactNode;
+  artifactDocumentLayoutMode?: ArtifactWorkbenchLayoutMode;
+  onArtifactDocumentControllerChange?: (
+    controller: ArtifactWorkbenchDocumentController | null,
+  ) => void;
+}
 
 export function resolvePreviousDocumentVersionContent(
   version: DocumentVersion | null | undefined,
@@ -69,7 +81,7 @@ export function renderCanvasWorkbenchPreviewTarget(params: {
   renderDefaultCanvasPreview: (stackedWorkbenchTrigger?: ReactNode) => ReactNode;
   renderArtifactPreview: (
     artifact: Artifact,
-    stackedWorkbenchTrigger?: ReactNode,
+    options?: RenderArtifactWorkbenchPreviewOptions,
   ) => ReactNode;
   renderTeamWorkbenchPreview: (
     stackedWorkbenchTrigger?: ReactNode,
@@ -82,7 +94,9 @@ export function renderCanvasWorkbenchPreviewTarget(params: {
       return params.renderDefaultCanvasPreview(stackedWorkbenchTrigger);
     case "artifact":
     case "synthetic-artifact":
-      return params.renderArtifactPreview(target.artifact, stackedWorkbenchTrigger);
+      return params.renderArtifactPreview(target.artifact, {
+        stackedWorkbenchTrigger,
+      });
     case "loading":
       return renderWorkbenchStatePreview("loading", {
         text: "正在准备预览...",

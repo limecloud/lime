@@ -13,12 +13,58 @@ import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 
 const parseAIResponseMock = vi.fn();
+
+function resolveMockToolText(toolCall: {
+  name: string;
+  arguments?: string;
+  status?: string;
+}) {
+  let parsedArguments: Record<string, unknown> | null = null;
+  if (toolCall.arguments) {
+    try {
+      parsedArguments = JSON.parse(toolCall.arguments) as Record<string, unknown>;
+    } catch {
+      parsedArguments = null;
+    }
+  }
+
+  if (
+    toolCall.name === "browser_navigate" &&
+    typeof parsedArguments?.url === "string"
+  ) {
+    return `打开 ${parsedArguments.url}`;
+  }
+
+  if (
+    (toolCall.name === "web_search" || toolCall.name === "search_query") &&
+    typeof parsedArguments?.query === "string"
+  ) {
+    return `搜索 ${parsedArguments.query}`;
+  }
+
+  if (
+    toolCall.name === "exec_command" &&
+    typeof parsedArguments?.command === "string"
+  ) {
+    return `执行 ${parsedArguments.command}`;
+  }
+
+  if (
+    toolCall.name === "lime_site_run" &&
+    typeof parsedArguments?.adapter_name === "string"
+  ) {
+    return `执行 ${parsedArguments.adapter_name}`;
+  }
+
+  return toolCall.name;
+}
+
 const mockToolCallItem = vi.fn(
   ({
     toolCall,
     onOpenSavedSiteContent,
   }: {
-    toolCall: { name: string };
+    toolCall: { name: string; arguments?: string; status?: string };
     onOpenSavedSiteContent?: (target: {
       projectId: string;
       contentId: string;
@@ -29,7 +75,8 @@ const mockToolCallItem = vi.fn(
       data-testid="tool-call-item"
       data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
     >
-      {toolCall.name}
+      {resolveMockToolText(toolCall)}
+      {toolCall.status === "running" ? " 进行中" : ""}
     </div>
   ),
 );
@@ -51,7 +98,7 @@ vi.mock("./A2UITaskCard", () => ({
 
 vi.mock("./ToolCallDisplay", () => ({
   ToolCallItem: (props: {
-    toolCall: { name: string };
+    toolCall: { name: string; arguments?: string; status?: string };
     onOpenSavedSiteContent?: (target: {
       projectId: string;
       contentId: string;
@@ -196,19 +243,6 @@ function renderTimeline(
   return container;
 }
 
-function clickTimelineToggle(container: HTMLElement) {
-  const button = container.querySelector<HTMLButtonElement>(
-    '[data-testid="agent-thread-details-toggle"]',
-  );
-  if (!button) {
-    throw new Error("未找到执行细节切换按钮");
-  }
-
-  act(() => {
-    button.click();
-  });
-}
-
 function createFileArtifactItem(
   overrides: Partial<Extract<AgentThreadItem, { type: "file_artifact" }>> = {},
 ): Extract<AgentThreadItem, { type: "file_artifact" }> {
@@ -240,13 +274,59 @@ function createFileArtifactItem(
 }
 
 describe("AgentThreadTimeline", () => {
+  it("默认直接渲染内联时间线，不再显示旧摘要壳", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("summary-1", 1),
+        type: "turn_summary",
+        text: "已完成页面检查\n可以继续执行发布。",
+      },
+      {
+        ...createBaseItem("browser-1", 2),
+        type: "tool_call",
+        tool_name: "browser_navigate",
+        arguments: { url: "https://mp.weixin.qq.com" },
+      },
+      {
+        ...createBaseItem("approval-1", 3),
+        type: "approval_request",
+        request_id: "req-1",
+        action_type: "tool_confirmation",
+        prompt: "请确认是否发布文章",
+        tool_name: "browser_click",
+      },
+    ];
+
+    const container = renderTimeline(items, { isCurrentTurn: true });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-flow"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-overview"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-summary-shell"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-details-toggle"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-goal"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-focus"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("已完成页面检查");
+    expect(container.textContent).toContain("打开 https://mp.weixin.qq.com");
+    expect(container.textContent).toContain("请确认是否发布文章");
+  });
+
   it("file_artifact 命中多个 block 时应提供精确跳转按钮", () => {
     const onOpenArtifactFromTimeline = vi.fn();
     const container = renderTimeline([createFileArtifactItem()], {
       onOpenArtifactFromTimeline,
     });
-
-    clickTimelineToggle(container);
 
     const heroJumpButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),
@@ -285,23 +365,21 @@ describe("AgentThreadTimeline", () => {
       },
     );
 
-    expect(
-      container.querySelector('[data-testid="agent-thread-details"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-toggle"]'),
-    ).toBeNull();
-
+    const block = container.querySelector<HTMLDetailsElement>(
+      '[data-testid="agent-thread-block:1:browser"]',
+    );
     const focusedEntry = container.querySelector<HTMLElement>(
       '[data-thread-item-id="browser-1"]',
     );
+
+    expect(block).not.toBeNull();
     expect(focusedEntry?.className).toContain("ring-2");
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
-  it("应向时间线内的工具项透传已保存站点内容打开回调", () => {
+  it("应向时间线内的工具明细透传已保存站点内容打开回调", () => {
     const onOpenSavedSiteContent = vi.fn();
-    const container = renderTimeline(
+    renderTimeline(
       [
         {
           ...createBaseItem("site-tool-1", 1),
@@ -322,227 +400,12 @@ describe("AgentThreadTimeline", () => {
       { onOpenSavedSiteContent },
     );
 
-    clickTimelineToggle(container);
-
     expect(mockToolCallItem).toHaveBeenCalledWith(
       expect.objectContaining({ onOpenSavedSiteContent }),
     );
   });
 
-  it("应在时间线头部展示当前 turn 的 compact outcome 与 incident 徽标", () => {
-    const container = renderTimeline(
-      [
-        {
-          ...createBaseItem("summary-1", 1),
-          type: "turn_summary",
-          text: "最近一次 Provider 调用失败，等待人工处理。",
-        },
-      ],
-      {
-        threadRead: {
-          thread_id: "thread-1",
-          status: "failed",
-          active_turn_id: "turn-1",
-          pending_requests: [],
-          last_outcome: {
-            thread_id: "thread-1",
-            turn_id: "turn-1",
-            outcome_type: "failed_provider",
-            summary: "Provider 请求失败",
-            primary_cause: "429 rate limited",
-            retryable: true,
-            ended_at: at(9),
-          },
-          incidents: [
-            {
-              id: "incident-1",
-              thread_id: "thread-1",
-              turn_id: "turn-1",
-              incident_type: "provider_failure",
-              severity: "high",
-              status: "active",
-              title: "Provider 连续失败",
-            },
-          ],
-        },
-      },
-    );
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-compact-outcome"]')
-        ?.textContent,
-    ).toContain("Provider 失败");
-    expect(
-      container.querySelector('[data-testid="agent-thread-compact-incident"]')
-        ?.textContent,
-    ).toContain("1 个 incident");
-
-    clickTimelineToggle(container);
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary-outcome"]')
-        ?.textContent,
-    ).toContain("Provider 失败");
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary-incident"]')
-        ?.textContent,
-    ).toContain("1 个 incident");
-  });
-
-  it("应渲染当前阶段概览与按时序组织的分组块", () => {
-    const items: AgentThreadItem[] = [
-      {
-        ...createBaseItem("plan-1", 1),
-        type: "plan",
-        text: "1. 打开 CDP 页面\n2. 检查登录态",
-      },
-      {
-        ...createBaseItem("summary-1", 2),
-        type: "turn_summary",
-        text: "已完成页面检查\n可以继续执行发布。",
-      },
-      {
-        ...createBaseItem("browser-1", 3),
-        type: "tool_call",
-        tool_name: "browser_navigate",
-        arguments: { url: "https://mp.weixin.qq.com" },
-      },
-      {
-        ...createBaseItem("browser-2", 4),
-        type: "tool_call",
-        tool_name: "browser_click",
-        arguments: { selector: "#publish" },
-      },
-      {
-        ...createBaseItem("approval-1", 5),
-        type: "approval_request",
-        request_id: "req-1",
-        action_type: "tool_confirmation",
-        prompt: "请确认是否发布文章",
-        tool_name: "browser_click",
-      },
-      {
-        ...createBaseItem("other-1", 6),
-        type: "tool_call",
-        tool_name: "workspace_sync",
-      },
-    ];
-
-    const container = renderTimeline(items, { isCurrentTurn: true });
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-overview"]')
-        ?.textContent,
-    ).toContain("已完成页面检查");
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-inline-text"]')
-        ?.textContent,
-    ).toContain("思考与计划");
-    const overviewNode = container.querySelector('[data-testid="agent-thread-overview"]');
-    const toggleNode = container.querySelector('[data-testid="agent-thread-details-toggle"]');
-    expect(
-      Boolean(
-        overviewNode &&
-          toggleNode &&
-          overviewNode.compareDocumentPosition(toggleNode) &
-            Node.DOCUMENT_POSITION_FOLLOWING,
-      ),
-    ).toBe(true);
-    expect(
-      container.querySelector('[data-testid="agent-thread-flow"]'),
-    ).toBeNull();
-
-    clickTimelineToggle(container);
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-overview"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-inline-text"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-toggle"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary-collapse"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("当前任务摘要");
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary-header"]')
-        ?.textContent,
-    ).not.toContain("段流程");
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary-header"]')
-        ?.textContent,
-    ).not.toContain("已完成");
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary-shell"]'),
-    ).not.toBeNull();
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-goal"]')?.textContent,
-    ).toContain("请检查并发布文章");
-    expect(
-      container.querySelector('[data-testid="agent-thread-focus"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("已完成页面检查");
-    expect(
-      container.querySelector('[data-testid="agent-thread-flow"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("思考与计划");
-    expect(container.textContent).toContain("浏览器操作");
-    expect(container.textContent).toContain("需要你处理");
-    expect(container.textContent).toContain("执行过程");
-  });
-
-  it("展开后应在摘要头提供收起入口，并恢复折叠态头部", () => {
-    const items: AgentThreadItem[] = [
-      {
-        ...createBaseItem("summary-1", 1),
-        type: "turn_summary",
-        text: "已整理出下一步执行顺序。",
-      },
-      {
-        ...createBaseItem("browser-1", 2),
-        type: "tool_call",
-        tool_name: "browser_click",
-        arguments: { selector: "#publish" },
-      },
-    ];
-
-    const container = renderTimeline(items, {
-      isCurrentTurn: true,
-      turn: {
-        status: "running",
-      },
-    });
-
-    clickTimelineToggle(container);
-
-    const collapseButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="agent-thread-summary-collapse"]',
-    );
-    expect(collapseButton).not.toBeNull();
-
-    act(() => {
-      collapseButton?.click();
-    });
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-summary"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-toggle"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-overview"]'),
-    ).not.toBeNull();
-  });
-
-  it("审批块应默认展开，处理记录块默认折叠", () => {
+  it("审批项与技术项都应直接落在消息流中", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("approval-1", 1),
@@ -560,13 +423,6 @@ describe("AgentThreadTimeline", () => {
     ];
 
     const container = renderTimeline(items);
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-flow"]'),
-    ).toBeNull();
-
-    clickTimelineToggle(container);
-
     const approvalGroup = container.querySelector<HTMLElement>(
       '[data-testid="agent-thread-block:1:approval"]',
     );
@@ -574,22 +430,10 @@ describe("AgentThreadTimeline", () => {
       '[data-testid="agent-thread-block:2:other"]',
     );
 
-    expect(approvalGroup?.hasAttribute("open")).toBe(true);
-    expect(otherGroup?.hasAttribute("open")).toBe(false);
-    expect(
-      container.querySelector('[data-testid="agent-thread-block:1:approval:rail"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="agent-thread-block:1:approval:details"]',
-      ),
-    ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="agent-thread-block:2:other:details"]',
-      ),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("次要执行记录");
+    expect(approvalGroup).not.toBeNull();
+    expect(otherGroup).not.toBeNull();
+    expect(container.textContent).toContain("请确认是否继续");
+    expect(container.textContent).toContain("workspace_sync");
   });
 
   it("应按真实发生顺序渲染思考与工具块", () => {
@@ -614,14 +458,18 @@ describe("AgentThreadTimeline", () => {
     ];
 
     const container = renderTimeline(items);
-    clickTimelineToggle(container);
     const blockIds = Array.from(
       container.querySelectorAll<HTMLElement>(
-        "details[data-testid^='agent-thread-block:']",
+        "[data-testid^='agent-thread-block:']",
       ),
     )
       .map((node) => node.dataset.testid)
-      .filter((value): value is string => Boolean(value));
+      .filter((value): value is string => Boolean(value))
+      .filter(
+        (value) =>
+          !value.endsWith(":shell") &&
+          !value.endsWith(":details"),
+      );
 
     expect(blockIds).toEqual([
       "agent-thread-block:1:browser",
@@ -630,49 +478,7 @@ describe("AgentThreadTimeline", () => {
     ]);
   });
 
-  it("完成后折叠条仍应保留最近的思考过程", () => {
-    const items: AgentThreadItem[] = [
-      {
-        ...createBaseItem("browser-1", 1),
-        type: "tool_call",
-        tool_name: "browser_navigate",
-        arguments: { url: "https://example.com" },
-      },
-      {
-        ...createBaseItem("plan-1", 2),
-        type: "plan",
-        text: "先梳理问题背景，再给出三套方案。",
-      },
-      {
-        ...createBaseItem("browser-2", 3),
-        type: "tool_call",
-        tool_name: "browser_click",
-        arguments: { selector: "#submit" },
-      },
-    ];
-
-    const container = renderTimeline(items, {
-      isCurrentTurn: true,
-      turn: {
-        status: "completed",
-      },
-    });
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-overview"]')
-        ?.textContent,
-    ).toContain("先梳理问题背景");
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-stage"]')
-        ?.textContent,
-    ).toContain("步骤 02");
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-inline-text"]')
-        ?.textContent,
-    ).toContain("思考与计划");
-  });
-
-  it("运行中的块应被高亮，已完成块应降噪", () => {
+  it("运行中的块应高亮，已完成块应降噪", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("browser-1", 1),
@@ -697,17 +503,6 @@ describe("AgentThreadTimeline", () => {
     ];
 
     const container = renderTimeline(items, { isCurrentTurn: true });
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-inline-icon"]')
-        ?.getAttribute("data-state"),
-    ).toBe("running");
-    expect(
-      container.querySelector('[data-testid="agent-thread-details-inline-text"]')
-        ?.textContent,
-    ).toContain("Mac mini 最新价格");
-
-    clickTimelineToggle(container);
     const browserBlock = container.querySelector<HTMLElement>(
       '[data-testid="agent-thread-block:1:browser"]',
     );
@@ -721,44 +516,10 @@ describe("AgentThreadTimeline", () => {
     expect(browserBlock?.dataset.emphasis).toBe("quiet");
     expect(searchBlock?.dataset.emphasis).toBe("active");
     expect(otherBlock?.dataset.emphasis).toBe("quiet");
-    expect(browserBlock?.hasAttribute("open")).toBe(true);
-    expect(searchBlock?.hasAttribute("open")).toBe(true);
-    expect(otherBlock?.hasAttribute("open")).toBe(false);
-    expect(container.textContent).toContain("执行中");
+    expect(container.textContent).toContain("Mac mini 最新价格");
   });
 
-  it("流程展开后不应重复显示顶部当前进展卡片", () => {
-    const items: AgentThreadItem[] = [
-      {
-        ...createBaseItem("search-1", 1),
-        status: "in_progress",
-        completed_at: undefined,
-        updated_at: at(1),
-        type: "web_search",
-        action: "web_search",
-        query: "team runtime 侧栏高度",
-      },
-    ];
-
-    const container = renderTimeline(items, {
-      isCurrentTurn: true,
-      turn: {
-        status: "running",
-      },
-    });
-
-    clickTimelineToggle(container);
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-details"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="agent-thread-overview"]'),
-    ).toBeNull();
-    expect(container.textContent).toContain("当前任务摘要");
-  });
-
-  it("浏览器前置等待时不应显示已中断，而应显示待继续", () => {
+  it("浏览器前置等待时应显示轻量待继续提示", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("browser-1", 1),
@@ -785,20 +546,15 @@ describe("AgentThreadTimeline", () => {
       ],
     });
 
-    expect(container.textContent).toContain("待继续");
+    expect(
+      container.querySelector('[data-testid="agent-thread-inline-status"]')
+        ?.textContent,
+    ).toContain("待继续");
     expect(container.textContent).toContain("完成登录");
     expect(container.textContent).not.toContain("已中断");
-
-    clickTimelineToggle(container);
-
-    expect(
-      container
-        .querySelector<HTMLElement>('[data-testid="agent-thread-block:1:browser"]')
-        ?.hasAttribute("open"),
-    ).toBe(true);
   });
 
-  it("普通 aborted 回合应显示已暂停，而不是已中断", () => {
+  it("普通 aborted 回合应显示已暂停提示", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("other-1", 1),
@@ -813,37 +569,11 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    expect(container.textContent).toContain("已暂停");
+    expect(
+      container.querySelector('[data-testid="agent-thread-inline-status"]')
+        ?.textContent,
+    ).toContain("已暂停");
     expect(container.textContent).not.toContain("已中断");
-  });
-
-  it("单个已完成阶段不应再默认展开", () => {
-    const items: AgentThreadItem[] = [
-      {
-        ...createBaseItem("summary-1", 1),
-        type: "turn_summary",
-        text: "已整理为 notebook 工作方式。",
-      },
-    ];
-
-    const container = renderTimeline(items, {
-      isCurrentTurn: true,
-      turn: {
-        status: "completed",
-      },
-    });
-
-    expect(
-      container.querySelector('[data-testid="agent-thread-flow"]'),
-    ).toBeNull();
-
-    clickTimelineToggle(container);
-
-    expect(
-      container
-        .querySelector<HTMLElement>('[data-testid="agent-thread-block:1:thinking"]')
-        ?.hasAttribute("open"),
-    ).toBe(false);
   });
 
   it("思考摘要中的 A2UI 代码块应切换为结构化预览", () => {
@@ -887,19 +617,13 @@ describe("AgentThreadTimeline", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="agent-thread-flow"]'),
-    ).toBeNull();
-
-    clickTimelineToggle(container);
-
-    expect(
       container.querySelector('[data-testid="timeline-a2ui-card"]'),
     ).not.toBeNull();
     expect(container.textContent).toContain("请先确认以下选项：");
     expect(container.textContent).not.toContain("```a2ui");
   });
 
-  it("纯 reasoning 阶段展开后不应重复渲染思考摘要卡", () => {
+  it("纯 reasoning 阶段仅在时间线中出现一次", () => {
     const reasoningText = "先核对执行链路，再立即恢复当前运行。";
     const items: AgentThreadItem[] = [
       {
@@ -916,13 +640,45 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    clickTimelineToggle(container);
-
     expect(
       container.querySelector('[data-testid="agent-thread-block:1:thinking:details"]'),
     ).toBeNull();
     expect(container.textContent).not.toContain("思考摘要");
     expect((container.textContent?.split(reasoningText).length ?? 1) - 1).toBe(1);
+  });
+
+  it("已完成的思考应默认折叠，只保留摘要行", () => {
+    const reasoningText = "先核对执行链路，再立即恢复当前运行。\n随后补齐自动续提。";
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("reasoning-1", 1),
+        type: "reasoning",
+        text: reasoningText,
+      },
+    ];
+
+    const container = renderTimeline(items, {
+      turn: {
+        status: "completed",
+      },
+    });
+
+    const block = container.querySelector<HTMLDetailsElement>(
+      '[data-testid="agent-thread-block:1:thinking"]',
+    );
+    const summary = block?.querySelector("summary");
+
+    expect(block?.open).toBe(false);
+    expect(summary?.textContent).toContain("已完成思考");
+    expect(summary?.textContent).toContain("先核对执行链路，再立即恢复当前运行。");
+    expect(container.textContent).not.toContain("随后补齐自动续提。");
+
+    act(() => {
+      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(block?.open).toBe(true);
+    expect(container.textContent).toContain("随后补齐自动续提。");
   });
 
   it("已完成的 request_user_input 应以只读 A2UI 卡片回显", () => {
@@ -949,8 +705,6 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    clickTimelineToggle(container);
-
     expect(
       container.querySelector('[data-testid="timeline-a2ui-card"]'),
     ).not.toBeNull();
@@ -976,8 +730,6 @@ describe("AgentThreadTimeline", () => {
     const container = renderTimeline(items, {
       onOpenSubagentSession,
     });
-
-    clickTimelineToggle(container);
 
     expect(container.textContent).toContain("图片任务 1");
     expect(container.textContent).not.toContain("Image #1");

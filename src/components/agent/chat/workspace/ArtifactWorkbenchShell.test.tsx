@@ -348,6 +348,29 @@ describe("ArtifactWorkbenchShell", () => {
     expect(container.textContent).toContain("block hero-1");
   });
 
+  it("canvas-only 模式应只保留正文画布，不再渲染 inspector 侧栏", async () => {
+    const container = renderShell(createArtifactDocumentArtifact(), {
+      layoutMode: "canvas-only",
+      onSaveArtifactDocument: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="artifact-workbench-shell"]')
+        ?.getAttribute("data-layout-mode"),
+    ).toBe("canvas-only");
+
+    const tabLabels = ["概览", "来源", "版本", "差异", "编辑"];
+    const buttons = Array.from(container.querySelectorAll("button"));
+    for (const label of tabLabels) {
+      expect(buttons.find((button) => button.textContent?.includes(label))).toBeUndefined();
+    }
+  });
+
   it("恢复为草稿时应展示低压状态说明", async () => {
     const container = renderShell(
       createArtifactDocumentArtifact({

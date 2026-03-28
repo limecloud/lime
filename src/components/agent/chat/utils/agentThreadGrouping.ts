@@ -115,11 +115,11 @@ function extractThinkingPreviewLine(text: string | undefined | null): string | n
   const parsed = parseAIResponse(normalized, false);
   for (const part of parsed.parts) {
     if (part.type === "pending_a2ui") {
-      return "结构化问答整理中";
+      return "在整理表单";
     }
 
     if (part.type === "a2ui") {
-      return "已生成结构化问答预览";
+      return "已整理成表单";
     }
 
     if (typeof part.content === "string") {
@@ -142,6 +142,28 @@ function shortenText(value: string | null | undefined, maxLength = 72): string |
     return normalized;
   }
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function startsWithAnyPrefix(value: string, prefixes: string[]): boolean {
+  return prefixes.some((prefix) => value.startsWith(prefix));
+}
+
+function prefixAction(
+  value: string | null | undefined,
+  prefix: string,
+  knownPrefixes: string[],
+  maxLength = 72,
+): string | null {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (startsWithAnyPrefix(normalized, knownPrefixes)) {
+    return shortenText(normalized, maxLength);
+  }
+
+  return shortenText(`${prefix}${normalized}`, maxLength);
 }
 
 function resolveItemTimestamp(item: AgentThreadItem): string {
@@ -346,17 +368,17 @@ function classifyItemKind(item: AgentThreadItem): AgentThreadGroupKind {
 function resolveGroupTitle(kind: Exclude<AgentThreadGroupKind, "thinking">): string {
   switch (kind) {
     case "approval":
-      return "需要你处理";
+      return "等你确认";
     case "alert":
-      return "异常与提醒";
+      return "提醒和错误";
     case "browser":
-      return "浏览器操作";
+      return "页面操作";
     case "search":
-      return "联网检索";
+      return "联网搜索";
     case "file":
-      return "文件与产物";
+      return "文件和产物";
     case "command":
-      return "命令执行";
+      return "命令";
     case "subagent":
       return "协作成员";
     case "other":
@@ -367,7 +389,7 @@ function resolveGroupTitle(kind: Exclude<AgentThreadGroupKind, "thinking">): str
 
 function resolveBlockTitle(kind: AgentThreadGroupKind): string {
   if (kind === "thinking") {
-    return "思考与计划";
+    return "思考";
   }
 
   return resolveGroupTitle(kind);
@@ -395,27 +417,47 @@ function summarizeBrowserItem(item: AgentThreadItem): string | null {
 
   const normalized = normalizeToolName(item.tool_name);
   const url = resolveUrlFromItem(item);
+  const args = asRecord(item.arguments);
+  const target = readString(args, [
+    "selector",
+    "element",
+    "target",
+    "label",
+    "text",
+    "ref",
+    "uid",
+  ]);
+
   if (normalized.includes("navigate") || normalized.includes("goto")) {
-    return shortenText(url ? `打开 ${url}` : "打开页面");
+    return shortenText(url ? `打开了 ${url}` : "打开了页面");
   }
   if (normalized.includes("click")) {
-    return "点击页面元素";
+    return shortenText(target ? `点了 ${target}` : "点了页面元素");
   }
-  if (normalized.includes("type") || normalized.includes("presskey")) {
-    return "输入页面内容";
+  if (
+    normalized.includes("type") ||
+    normalized.includes("presskey") ||
+    normalized.includes("fill") ||
+    normalized.includes("selectoption")
+  ) {
+    return shortenText(target ? `填了 ${target}` : "填了页面内容");
   }
   if (normalized.includes("screenshot") || normalized.includes("snapshot")) {
-    return "抓取页面快照";
+    return shortenText(url ? `抓了 ${url} 的快照` : "抓了页面快照");
   }
   if (normalized.includes("evaluate") || normalized.includes("runtime")) {
-    return "提取页面信息";
+    return shortenText(url ? `看了 ${url} 的页面信息` : "看了页面信息");
   }
-  return shortenText(url ? `操作 ${url}` : resolveToolDisplayLabel(item.tool_name));
+  return shortenText(url ? `做了 ${url} 的页面操作` : "做了页面操作");
 }
 
 function summarizeSearchItem(item: AgentThreadItem): string | null {
   if (item.type === "web_search") {
-    return shortenText(item.query || item.action || "联网检索");
+    return prefixAction(
+      item.query || item.action || "联网搜索",
+      "搜了 ",
+      ["搜了 ", "查了 ", "搜索了 ", "检索了 "],
+    );
   }
 
   if (item.type !== "tool_call") {
@@ -423,20 +465,74 @@ function summarizeSearchItem(item: AgentThreadItem): string | null {
   }
 
   const args = asRecord(item.arguments);
-  return shortenText(
+  return prefixAction(
     readString(args, ["query", "q", "pattern", "search", "url"]) ||
       resolveToolDisplayLabel(item.tool_name),
+    "搜了 ",
+    ["搜了 ", "查了 ", "搜索了 ", "检索了 "],
   );
 }
 
 function summarizeFileItem(item: AgentThreadItem): string | null {
   const path = resolvePathFromItem(item);
-  if (path) {
-    return `${fileNameFromPath(path)}`;
+  const fileLabel = path ? fileNameFromPath(path) : null;
+
+  if (item.type === "file_artifact") {
+    return prefixAction(
+      fileLabel || item.path,
+      "产出了 ",
+      ["产出了 ", "写了 ", "改了 ", "看了 ", "动了 "],
+    );
   }
 
   if (item.type === "tool_call") {
-    return shortenText(resolveToolDisplayLabel(item.tool_name));
+    const normalized = normalizeToolName(item.tool_name);
+
+    if (
+      normalized.includes("read") ||
+      normalized.includes("view") ||
+      normalized.includes("cat") ||
+      normalized.includes("open") ||
+      normalized.includes("list")
+    ) {
+      return prefixAction(
+        fileLabel || resolveToolDisplayLabel(item.tool_name),
+        "看了 ",
+        ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+      );
+    }
+
+    if (
+      normalized.includes("write") ||
+      normalized.includes("create") ||
+      normalized.includes("mkdir") ||
+      normalized.includes("save")
+    ) {
+      return prefixAction(
+        fileLabel || resolveToolDisplayLabel(item.tool_name),
+        "写了 ",
+        ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+      );
+    }
+
+    if (
+      normalized.includes("edit") ||
+      normalized.includes("patch") ||
+      normalized.includes("replace") ||
+      normalized.includes("update")
+    ) {
+      return prefixAction(
+        fileLabel || resolveToolDisplayLabel(item.tool_name),
+        "改了 ",
+        ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+      );
+    }
+
+    return prefixAction(
+      fileLabel || resolveToolDisplayLabel(item.tool_name),
+      "动了 ",
+      ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+    );
   }
 
   return null;
@@ -444,14 +540,21 @@ function summarizeFileItem(item: AgentThreadItem): string | null {
 
 function summarizeCommandItem(item: AgentThreadItem): string | null {
   if (item.type === "command_execution") {
-    return shortenText(item.command, 64);
+    return prefixAction(
+      item.command,
+      "执行了 ",
+      ["执行了 ", "跑了 ", "运行了 "],
+      64,
+    );
   }
 
   if (item.type === "tool_call") {
     const args = asRecord(item.arguments);
-    return shortenText(
+    return prefixAction(
       readString(args, ["command", "cmd", "script"]) ||
         resolveToolDisplayLabel(item.tool_name),
+      "执行了 ",
+      ["执行了 ", "跑了 ", "运行了 "],
       64,
     );
   }
@@ -463,48 +566,79 @@ function summarizeSubagentItem(item: AgentThreadItem): string | null {
   if (item.type !== "subagent_activity") {
     return null;
   }
-  return shortenText(
+  return prefixAction(
     resolveInternalImageTaskDisplayName(item.title) ||
       item.summary ||
-      item.status_label,
+      item.status_label ||
+      "协作任务",
+    "分给协作成员处理 ",
+    ["分给协作成员", "协作成员"],
   );
 }
 
 function summarizeAlertItem(item: AgentThreadItem): string | null {
   if (item.type === "warning") {
-    return shortenText(item.message);
+    return prefixAction(
+      item.message,
+      "收到提醒：",
+      ["收到提醒：", "碰到错误："],
+    );
   }
   if (item.type === "error") {
-    return shortenText(item.message);
+    return prefixAction(
+      item.message,
+      "碰到错误：",
+      ["收到提醒：", "碰到错误："],
+    );
   }
   return null;
 }
 
 function summarizeOtherItem(item: AgentThreadItem): string | null {
   if (item.type === "tool_call") {
-    return shortenText(resolveToolDisplayLabel(item.tool_name));
+    return prefixAction(
+      resolveToolDisplayLabel(item.tool_name),
+      "执行了 ",
+      ["执行了 ", "跑了 ", "运行了 "],
+    );
   }
   return null;
 }
 
 function summarizeThinkingItem(item: AgentThreadItem): string | null {
   if (item.type === "turn_summary") {
-    return extractThinkingPreviewLine(item.text);
+    const preview = extractThinkingPreviewLine(item.text);
+    if (!preview) {
+      return item.status === "in_progress" ? "思考中" : "已完成思考";
+    }
+
+    if (startsWithAnyPrefix(preview, ["在整理表单", "已整理成表单"])) {
+      return preview;
+    }
+
+    return prefixAction(
+      preview,
+      "已决定：",
+      ["已决定：", "决定了：", "思考中", "已完成思考"],
+    );
   }
 
   if (item.type === "context_compaction") {
     return shortenText(
       item.detail ||
-        (item.stage === "completed" ? "上下文已压缩" : "正在压缩上下文"),
+        (item.stage === "completed" ? "压了上下文" : "正在压上下文"),
     );
   }
 
   if (item.type === "reasoning") {
-    return extractThinkingPreviewLine(item.summary?.join("；") || item.text);
+    return (
+      extractThinkingPreviewLine(item.summary?.join("；") || item.text) ||
+      (item.status === "in_progress" ? "思考中" : "已完成思考")
+    );
   }
 
   if (item.type === "plan") {
-    return firstMeaningfulLine(item.text);
+    return item.status === "in_progress" ? "还在排步骤" : "定了执行步骤";
   }
 
   return null;
@@ -529,13 +663,18 @@ function summarizeGroupPreviewLine(
       return summarizeAlertItem(item);
     case "approval":
       if (item.type === "approval_request" || item.type === "request_user_input") {
-        return shortenText(
-          item.prompt ||
-            (item.action_type === "ask_user"
-              ? "需要补充信息"
-              : item.action_type === "elicitation"
-                ? "需要进一步确认"
-                : "需要你确认"),
+        const fallback =
+          item.action_type === "ask_user"
+            ? "等你补充信息"
+            : item.action_type === "elicitation"
+              ? "等你进一步确认"
+              : "等你确认这一步";
+        const promptPrefix = item.action_type === "ask_user" ? "等你补充：" : "等你确认：";
+
+        return prefixAction(
+          item.prompt || fallback,
+          promptPrefix,
+          ["等你补充：", "等你确认：", "等你补充信息", "等你确认这一步"],
         );
       }
       return null;

@@ -54,6 +54,7 @@ import { toast } from "sonner";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
+import { SettingsTabs } from "./types/settings";
 
 const AppContainer = styled.div`
   display: flex;
@@ -424,6 +425,21 @@ function AppContent() {
     toast.success("项目创建成功");
   };
 
+  const handleOpenBrowserConnectorSettings = useCallback(
+    ({ enable }: { enable: boolean }) => {
+      handleNavigate("settings", {
+        tab: SettingsTabs.ChromeRelay,
+      });
+
+      if (enable) {
+        toast.info("已打开连接器设置", {
+          description: "在“连接器”页中开启浏览器连接器或重新同步扩展。",
+        });
+      }
+    },
+    [handleNavigate],
+  );
+
   const {
     connectPayload,
     relayInfo,
@@ -433,7 +449,9 @@ function AppContent() {
     error,
     handleConfirm,
     handleCancel,
-  } = useDeepLink();
+  } = useDeepLink({
+    onOpenBrowserConnectorSettings: handleOpenBrowserConnectorSettings,
+  });
 
   const { error: registryError, refresh: _refreshRegistry } =
     useRelayRegistry();

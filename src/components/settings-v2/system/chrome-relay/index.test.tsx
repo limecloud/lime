@@ -3,7 +3,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  mockOpenDialog,
   mockGetConfig,
+  mockSetBrowserConnectorInstallRoot,
+  mockGetBrowserConnectorSettings,
+  mockGetBrowserConnectorInstallStatus,
+  mockInstallBrowserConnectorExtension,
+  mockSetBrowserConnectorEnabled,
+  mockSetSystemConnectorEnabled,
+  mockOpenBrowserExtensionsPage,
   mockLaunchBrowserSession,
   mockOpenBrowserRuntimeDebuggerWindow,
   mockGetChromeProfileSessions,
@@ -12,7 +20,15 @@ const {
   mockGetBrowserBackendPolicy,
   mockGetBrowserBackendsStatus,
 } = vi.hoisted(() => ({
+  mockOpenDialog: vi.fn(),
   mockGetConfig: vi.fn(),
+  mockSetBrowserConnectorInstallRoot: vi.fn(),
+  mockGetBrowserConnectorSettings: vi.fn(),
+  mockGetBrowserConnectorInstallStatus: vi.fn(),
+  mockInstallBrowserConnectorExtension: vi.fn(),
+  mockSetBrowserConnectorEnabled: vi.fn(),
+  mockSetSystemConnectorEnabled: vi.fn(),
+  mockOpenBrowserExtensionsPage: vi.fn(),
   mockLaunchBrowserSession: vi.fn(),
   mockOpenBrowserRuntimeDebuggerWindow: vi.fn(),
   mockGetChromeProfileSessions: vi.fn(),
@@ -26,6 +42,10 @@ vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
 }));
 
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: (...args: unknown[]) => mockOpenDialog(...args),
+}));
+
 vi.mock("@/features/browser-runtime", () => ({
   BrowserRuntimeDebugPanel: () => <div data-testid="browser-runtime-panel" />,
 }));
@@ -34,6 +54,13 @@ vi.mock("@/lib/webview-api", async () => {
   const actual = await vi.importActual<object>("@/lib/webview-api");
   return {
     ...actual,
+    getBrowserConnectorSettings: mockGetBrowserConnectorSettings,
+    setBrowserConnectorInstallRoot: mockSetBrowserConnectorInstallRoot,
+    getBrowserConnectorInstallStatus: mockGetBrowserConnectorInstallStatus,
+    installBrowserConnectorExtension: mockInstallBrowserConnectorExtension,
+    setBrowserConnectorEnabled: mockSetBrowserConnectorEnabled,
+    setSystemConnectorEnabled: mockSetSystemConnectorEnabled,
+    openBrowserExtensionsPage: mockOpenBrowserExtensionsPage,
     launchBrowserSession: mockLaunchBrowserSession,
     openBrowserRuntimeDebuggerWindow: mockOpenBrowserRuntimeDebuggerWindow,
     getChromeProfileSessions: mockGetChromeProfileSessions,
@@ -57,6 +84,7 @@ interface Mounted {
 }
 
 const mounted: Mounted[] = [];
+const mockWriteClipboardText = vi.fn();
 
 function renderComponent() {
   const container = document.createElement("div");
@@ -104,12 +132,97 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: mockWriteClipboardText,
+    },
+  });
+  mockWriteClipboardText.mockResolvedValue(undefined);
+
+  mockOpenDialog.mockResolvedValue("/Users/test/connectors");
 
   mockGetConfig.mockResolvedValue({
     web_search: {
       engine: "google",
     },
   });
+  mockGetBrowserConnectorSettings.mockResolvedValue({
+    enabled: true,
+    install_root_dir: null,
+    install_dir: null,
+    system_connectors: [
+      {
+        id: "calendar",
+        label: "日历",
+        description: "读取和管理你的日历事件。",
+        enabled: false,
+        available: true,
+      },
+    ],
+  });
+  mockSetBrowserConnectorInstallRoot.mockResolvedValue({
+    enabled: true,
+    install_root_dir: "/Users/test/connectors",
+    install_dir: "/Users/test/connectors/Lime Browser Connector",
+    system_connectors: [
+      {
+        id: "calendar",
+        label: "日历",
+        description: "读取和管理你的日历事件。",
+        enabled: false,
+        available: true,
+      },
+    ],
+  });
+  mockGetBrowserConnectorInstallStatus.mockResolvedValue({
+    status: "not_installed",
+    install_root_dir: null,
+    install_dir: null,
+    bundled_name: "Lime Browser Connector",
+    bundled_version: "0.2.0",
+    installed_name: null,
+    installed_version: null,
+    message: "尚未选择浏览器连接器安装目录",
+  });
+  mockInstallBrowserConnectorExtension.mockResolvedValue({
+    install_root_dir: "/Users/test/connectors",
+    install_dir: "/Users/test/connectors/Lime Browser Connector",
+    bundled_name: "Lime Browser Connector",
+    bundled_version: "0.2.0",
+    installed_version: "0.2.0",
+    auto_config_path:
+      "/Users/test/connectors/Lime Browser Connector/auto_config.json",
+  });
+  mockSetBrowserConnectorEnabled.mockResolvedValue({
+    enabled: false,
+    install_root_dir: null,
+    install_dir: null,
+    system_connectors: [
+      {
+        id: "calendar",
+        label: "日历",
+        description: "读取和管理你的日历事件。",
+        enabled: false,
+        available: true,
+      },
+    ],
+  });
+  mockSetSystemConnectorEnabled.mockResolvedValue({
+    enabled: true,
+    install_root_dir: null,
+    install_dir: null,
+    system_connectors: [
+      {
+        id: "calendar",
+        label: "日历",
+        description: "读取和管理你的日历事件。",
+        enabled: true,
+        available: true,
+      },
+    ],
+  });
+  mockOpenBrowserExtensionsPage.mockResolvedValue(true);
   mockLaunchBrowserSession.mockResolvedValue({
     profile: {
       success: true,
@@ -177,13 +290,19 @@ afterEach(() => {
 });
 
 describe("ChromeRelaySettings", () => {
-  it("应通过页签切换到浏览器实时调试面板", async () => {
+  it("应在展开高级控制后切换到浏览器实时调试面板", async () => {
     const container = renderComponent();
     await flushEffects();
 
     expect(
       container.querySelector('[data-testid="browser-runtime-panel"]'),
     ).toBeNull();
+
+    const expandButton = findButton(container, "展开高级控制");
+    await act(async () => {
+      expandButton.click();
+      await flushEffects();
+    });
 
     const tabButton = findTabButton(container, "调试");
     await act(async () => {
@@ -194,6 +313,49 @@ describe("ChromeRelaySettings", () => {
     expect(
       container.querySelector('[data-testid="browser-runtime-panel"]'),
     ).not.toBeNull();
+  });
+
+  it("选择目录后应安装浏览器连接器到固定子目录", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    const button = findButton(container, "选择目录并安装");
+    await act(async () => {
+      button.click();
+      await flushEffects();
+    });
+
+    expect(mockOpenDialog).toHaveBeenCalledTimes(1);
+    expect(mockSetBrowserConnectorInstallRoot).toHaveBeenCalledWith(
+      "/Users/test/connectors",
+    );
+    expect(mockInstallBrowserConnectorExtension).toHaveBeenCalledWith({
+      install_root_dir: "/Users/test/connectors",
+      profile_key: "default",
+    });
+    expect(container.textContent).toContain(
+      "浏览器连接器已同步到 /Users/test/connectors/Lime Browser Connector",
+    );
+  });
+
+  it("应复制默认连接器配置到剪贴板", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    const button = findButton(container, "复制配置");
+    await act(async () => {
+      button.click();
+      await flushEffects();
+    });
+
+    expect(mockWriteClipboardText).toHaveBeenCalledTimes(1);
+    expect(mockWriteClipboardText.mock.calls[0]?.[0]).toContain(
+      '"profileKey": "default"',
+    );
+    expect(mockWriteClipboardText.mock.calls[0]?.[0]).toContain(
+      '"bridgeKey": "proxy_cast"',
+    );
+    expect(container.textContent).toContain("默认浏览器连接器 配置已复制到剪贴板");
   });
 
   it("点击一键按钮时应启动浏览器协助", async () => {

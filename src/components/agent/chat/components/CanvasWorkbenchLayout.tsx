@@ -57,6 +57,10 @@ import {
   extractFileNameFromPath,
   resolveAbsoluteWorkspacePath,
 } from "../workspace/workspacePath";
+import {
+  ArtifactWorkbenchDocumentInspector,
+  type ArtifactWorkbenchDocumentController,
+} from "../workspace/artifactWorkbenchDocument";
 
 type CanvasWorkbenchTab =
   | "artifacts"
@@ -192,6 +196,10 @@ export interface CanvasWorkbenchLayoutProps {
     target: CanvasWorkbenchPreviewTarget,
     options?: {
       stackedWorkbenchTrigger?: ReactNode;
+      artifactDocumentLayoutMode?: "full" | "canvas-only";
+      onArtifactDocumentControllerChange?: (
+        controller: ArtifactWorkbenchDocumentController | null,
+      ) => void;
     },
   ) => ReactNode;
   onLayoutModeChange?: (mode: CanvasWorkbenchLayoutMode) => void;
@@ -494,6 +502,8 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     null,
   );
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [artifactDocumentController, setArtifactDocumentController] =
+    useState<ArtifactWorkbenchDocumentController | null>(null);
   const [directoryCache, setDirectoryCache] = useState<Record<string, DirectoryListing>>(
     {},
   );
@@ -791,6 +801,21 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   const selectedWorkspaceFile = effectiveKey?.startsWith("workspace-file:")
     ? workspaceFileSelections[effectiveKey] || null
     : null;
+  const handleArtifactDocumentControllerChange = useCallback(
+    (controller: ArtifactWorkbenchDocumentController | null) => {
+      setArtifactDocumentController((previous) =>
+        previous === controller ? previous : controller,
+      );
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (selectedEntry?.source === "artifact") {
+      return;
+    }
+    setArtifactDocumentController(null);
+  }, [selectedEntry]);
 
   const currentTarget = useMemo<CanvasWorkbenchPreviewTarget>(() => {
     if (activeTab === "team" && teamView?.enabled) {
@@ -1026,55 +1051,99 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       );
     }
 
+    const showDocumentInspector = Boolean(
+      selectedEntry?.source === "artifact" && artifactDocumentController?.document,
+    );
+
     return (
-      <div className="space-y-2">
-        {entries.map((entry) => (
-          <button
-            key={entry.key}
-            type="button"
-            aria-label={`选择画布产物-${entry.title}`}
-            onClick={() => setSelectedKey(entry.key)}
-            className={cn(
-              "w-full rounded-[22px] border px-3.5 py-3.5 text-left shadow-sm shadow-slate-950/5 transition-colors",
-              effectiveKey === entry.key
-                ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
-                : WORKBENCH_BUTTON_CLASSNAME,
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-slate-200/80 bg-slate-50/90 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                    {entry.kindLabel}
-                  </span>
-                  {entry.isCurrent ? (
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                      当前
-                    </span>
+      <div className="space-y-4">
+        <section className={cn(WORKBENCH_PANEL_CLASSNAME, "p-3")}>
+          <div className="border-b border-slate-200/80 px-1 pb-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+              工作项导航
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              统一在右侧切换产物与版本
+            </div>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              左侧只保留正文画布，这里作为唯一的产物入口与文稿上下文区。
+            </p>
+          </div>
+          <div className="mt-3 space-y-2">
+            {entries.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                aria-label={`选择画布产物-${entry.title}`}
+                onClick={() => setSelectedKey(entry.key)}
+                className={cn(
+                  "w-full rounded-[22px] border px-3.5 py-3.5 text-left shadow-sm shadow-slate-950/5 transition-colors",
+                  effectiveKey === entry.key
+                    ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
+                    : WORKBENCH_BUTTON_CLASSNAME,
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full border border-slate-200/80 bg-slate-50/90 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                        {entry.kindLabel}
+                      </span>
+                      {entry.isCurrent ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          当前
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 truncate text-sm font-medium text-foreground">
+                      {entry.title}
+                    </div>
+                    {entry.subtitle ? (
+                      <div className="mt-1 truncate text-xs text-slate-500">
+                        {entry.subtitle}
+                      </div>
+                    ) : null}
+                    {entry.previewText ? (
+                      <div className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500">
+                        {entry.previewText}
+                      </div>
+                    ) : null}
+                  </div>
+                  {entry.badgeLabel ? (
+                    <Badge variant="outline" className="shrink-0">
+                      {entry.badgeLabel}
+                    </Badge>
                   ) : null}
                 </div>
-                <div className="mt-2 truncate text-sm font-medium text-foreground">
-                  {entry.title}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {showDocumentInspector && artifactDocumentController ? (
+          <ArtifactWorkbenchDocumentInspector
+            controller={artifactDocumentController}
+            testId="canvas-workbench-document-inspector"
+            containerClassName={cn(
+              WORKBENCH_PANEL_CLASSNAME,
+              "min-h-0 overflow-hidden bg-slate-50/80",
+            )}
+            tabsClassName="flex h-full min-h-0 flex-col p-4"
+            header={
+              <div className="mb-4 rounded-[20px] border border-slate-200 bg-white px-4 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  当前文稿
                 </div>
-                {entry.subtitle ? (
-                  <div className="mt-1 truncate text-xs text-slate-500">
-                    {entry.subtitle}
-                  </div>
-                ) : null}
-                {entry.previewText ? (
-                  <div className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500">
-                    {entry.previewText}
-                  </div>
-                ) : null}
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  概览、来源、版本与编辑统一收口
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  当前选中的结构化文稿不再在左侧重复展开，所有上下文与编辑入口都固定在这里。
+                </p>
               </div>
-              {entry.badgeLabel ? (
-                <Badge variant="outline" className="shrink-0">
-                  {entry.badgeLabel}
-                </Badge>
-              ) : null}
-            </div>
-          </button>
-        ))}
+            }
+          />
+        ) : null}
       </div>
     );
   };
@@ -1625,6 +1694,9 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
           )
         : renderPreview(currentTarget, {
             stackedWorkbenchTrigger,
+            artifactDocumentLayoutMode: "canvas-only",
+            onArtifactDocumentControllerChange:
+              handleArtifactDocumentControllerChange,
           })}
       </div>
 

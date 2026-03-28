@@ -29,6 +29,15 @@ import {
 } from "./themeWorkbenchHelpers";
 import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 
+const shouldLogWorkspaceWriteInfo = import.meta.env.MODE !== "test";
+
+function logWorkspaceWriteInfo(...args: Parameters<typeof console.log>) {
+  if (!shouldLogWorkspaceWriteInfo) {
+    return;
+  }
+  console.log(...args);
+}
+
 interface ThemeWorkbenchActiveQueueSummary {
   run_id?: string | null;
   title?: string | null;
@@ -102,7 +111,7 @@ export function useWorkspaceWriteFileAction({
 }: UseWorkspaceWriteFileActionParams) {
   return useCallback(
     (content: string, fileName: string, context?: WriteArtifactContext) => {
-      console.log(
+      logWorkspaceWriteInfo(
         "[AgentChatPage] 收到文件写入:",
         fileName,
         content.length,
@@ -277,7 +286,7 @@ export function useWorkspaceWriteFileAction({
             console.error("[AgentChatPage] 检查内容存在性失败:", error);
           });
       } else if (isThemeWorkbench && !shouldApplyToMainDocument) {
-        console.log("[AgentChatPage] 主题工作台非成文阶段，跳过主稿写入:", {
+        logWorkspaceWriteInfo("[AgentChatPage] 主题工作台非成文阶段，跳过主稿写入:", {
           gate: currentGateKey,
           fileName,
           isPrimaryArtifact,
@@ -291,7 +300,7 @@ export function useWorkspaceWriteFileAction({
         stepIndex === currentStepIndex &&
         isContentCreationMode
       ) {
-        console.log(
+        logWorkspaceWriteInfo(
           "[AgentChatPage] 推进工作流步骤:",
           stepIndex,
           "->",
@@ -355,12 +364,12 @@ export function useWorkspaceWriteFileAction({
           const existing = previous[existingIndex];
 
           if (existing.content === content) {
-            console.log("[AgentChatPage] 文件内容相同，跳过:", fileName);
+            logWorkspaceWriteInfo("[AgentChatPage] 文件内容相同，跳过:", fileName);
             setSelectedFileId(existing.id);
             return previous;
           }
 
-          console.log("[AgentChatPage] 更新文件:", fileName);
+          logWorkspaceWriteInfo("[AgentChatPage] 更新文件:", fileName);
           const nextFiles = [...previous];
           nextFiles[existingIndex] = {
             ...existing,
@@ -380,7 +389,7 @@ export function useWorkspaceWriteFileAction({
           return nextFiles;
         }
 
-        console.log("[AgentChatPage] 创建新文件:", fileName);
+        logWorkspaceWriteInfo("[AgentChatPage] 创建新文件:", fileName);
         const newFile: TaskFile = {
           id: crypto.randomUUID(),
           name: fileName,
@@ -406,7 +415,7 @@ export function useWorkspaceWriteFileAction({
       }
 
       setCanvasState((previous) => {
-        console.log("[AgentChatPage] 更新画布状态:", {
+        logWorkspaceWriteInfo("[AgentChatPage] 更新画布状态:", {
           prevType: previous?.type,
           mappedTheme,
           contentLength: content.length,
@@ -425,7 +434,7 @@ export function useWorkspaceWriteFileAction({
             if (titleMatch) {
               musicState.spec.title = titleMatch[1].trim();
             }
-            console.log("[AgentChatPage] 创建新音乐状态");
+            logWorkspaceWriteInfo("[AgentChatPage] 创建新音乐状态");
             return musicState;
           }
           return {
@@ -439,7 +448,7 @@ export function useWorkspaceWriteFileAction({
         }
 
         if (!previous || previous.type !== "document") {
-          console.log("[AgentChatPage] 创建新文档状态");
+          logWorkspaceWriteInfo("[AgentChatPage] 创建新文档状态");
           const initialDocumentState = createInitialDocumentState(content);
           if (!effectiveDocumentVersionId) {
             if (!socialArtifact) {
@@ -535,7 +544,7 @@ export function useWorkspaceWriteFileAction({
           };
         }
 
-        console.log("[AgentChatPage] 更新现有文档状态");
+        logWorkspaceWriteInfo("[AgentChatPage] 更新现有文档状态");
         return {
           ...previous,
           content,

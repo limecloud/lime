@@ -185,6 +185,7 @@ export function useAgentTools(options: UseAgentToolsOptions) {
                     ),
                   })),
                 );
+                await refreshSessionReadModel(activeSessionId);
                 toast.info("已记录你的回答，等待系统请求就绪后自动提交");
                 return;
               }

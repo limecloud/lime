@@ -186,6 +186,32 @@ export interface UseDeepLinkReturn {
   clearError: () => void;
 }
 
+export interface UseDeepLinkOptions {
+  onOpenBrowserConnectorSettings?: (params: { enable: boolean }) => void;
+}
+
+function parseBrowserConnectorDeepLink(
+  url: string,
+): { enable: boolean } | null {
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol !== "lime:" ||
+      parsed.host !== "connectors" ||
+      parsed.pathname !== "/browser"
+    ) {
+      return null;
+    }
+
+    const enableParam = parsed.searchParams.get("enable");
+    return {
+      enable: enableParam === "true" || enableParam === "1",
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Deep Link 事件处理 Hook
  *
@@ -225,7 +251,12 @@ export interface UseDeepLinkReturn {
  *
  * @returns Hook 返回值
  */
-export function useDeepLink(): UseDeepLinkReturn {
+export function useDeepLink(
+  options?: UseDeepLinkOptions,
+): UseDeepLinkReturn {
+  const onOpenBrowserConnectorSettings =
+    options?.onOpenBrowserConnectorSettings;
+
   // 状态
   const [connectPayload, setConnectPayload] = useState<ConnectPayload | null>(
     null,
@@ -426,6 +457,12 @@ export function useDeepLink(): UseDeepLinkReturn {
             console.log("[useDeepLink] 收到 Deep Link URL:", urls);
 
             for (const url of urls) {
+              const connectorParams = parseBrowserConnectorDeepLink(url);
+              if (connectorParams) {
+                onOpenBrowserConnectorSettings?.(connectorParams);
+                continue;
+              }
+
               if (await handleOauthCallbackUrl(url)) {
                 continue;
               }
@@ -507,7 +544,12 @@ export function useDeepLink(): UseDeepLinkReturn {
       }
       console.log("[useDeepLink] 已取消 Deep Link 监听器");
     };
-  }, [handleDeepLinkEvent, handleDeepLinkError, handleOauthCallbackUrl]);
+  }, [
+    handleDeepLinkEvent,
+    handleDeepLinkError,
+    handleOauthCallbackUrl,
+    onOpenBrowserConnectorSettings,
+  ]);
 
   return {
     connectPayload,

@@ -1562,6 +1562,14 @@ pub fn run() {
             commands::browser_environment_cmd::save_browser_environment_preset_cmd,
             commands::browser_environment_cmd::archive_browser_environment_preset_cmd,
             commands::browser_environment_cmd::restore_browser_environment_preset_cmd,
+            // Browser connector commands
+            commands::browser_connector_cmd::get_browser_connector_settings_cmd,
+            commands::browser_connector_cmd::set_browser_connector_install_root_cmd,
+            commands::browser_connector_cmd::set_browser_connector_enabled_cmd,
+            commands::browser_connector_cmd::set_system_connector_enabled_cmd,
+            commands::browser_connector_cmd::get_browser_connector_install_status_cmd,
+            commands::browser_connector_cmd::install_browser_connector_extension_cmd,
+            commands::browser_connector_cmd::open_browser_extensions_page_cmd,
             // Browser profile commands
             commands::browser_profile_cmd::list_browser_profiles_cmd,
             commands::browser_profile_cmd::save_browser_profile_cmd,
