@@ -202,11 +202,12 @@ export function ServiceSkillLaunchDialog({
       setSiteLaunchReadiness({ phase: "idle" });
       return;
     }
+    const siteCapabilityBinding = skill.siteCapabilityBinding;
 
     setSiteLaunchReadiness({ phase: "checking" });
     try {
       const result = await siteGetAdapterLaunchReadiness({
-        adapter_name: skill.siteCapabilityBinding.adapterName,
+        adapter_name: siteCapabilityBinding.adapterName,
       });
       setSiteLaunchReadiness({
         phase: result.status === "ready" ? "ready" : "blocked",
@@ -221,17 +222,18 @@ export function ServiceSkillLaunchDialog({
   }, [open, skill]);
 
   useEffect(() => {
-    if (!open || !skill || !isSiteSkill) {
+    if (!open || !skill || !isServiceSkillExecutableAsSiteAdapter(skill)) {
       setSiteLaunchReadiness({ phase: "idle" });
       return;
     }
+    const siteCapabilityBinding = skill.siteCapabilityBinding;
 
     let cancelled = false;
     void (async () => {
       setSiteLaunchReadiness({ phase: "checking" });
       try {
         const result = await siteGetAdapterLaunchReadiness({
-          adapter_name: skill.siteCapabilityBinding.adapterName,
+          adapter_name: siteCapabilityBinding.adapterName,
         });
         if (cancelled) {
           return;
@@ -254,7 +256,7 @@ export function ServiceSkillLaunchDialog({
     return () => {
       cancelled = true;
     };
-  }, [isSiteSkill, open, skill]);
+  }, [open, skill]);
 
   const readinessToneClass =
     siteLaunchReadiness.phase === "ready"

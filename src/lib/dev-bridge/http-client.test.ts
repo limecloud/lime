@@ -41,7 +41,7 @@ describe("http-client listenViaHttpEvent", () => {
     vi.resetModules();
     MockEventSource.instances = [];
     vi.stubEnv("MODE", "development");
-    vi.stubEnv("DEV", "true");
+    vi.stubEnv("DEV", true);
     vi.stubEnv("VITEST", "");
     vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
   });

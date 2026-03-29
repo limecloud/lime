@@ -105,18 +105,6 @@ function shouldAutoOpenPassiveBrowserAssist(
   );
 }
 
-function shouldAutoOpenBrowserAssistCanvas(
-  artifact: Artifact | null,
-  launching: boolean,
-  sessionState: BrowserAssistSessionState | null,
-): boolean {
-  if (shouldAutoOpenPassiveBrowserAssist(artifact, launching)) {
-    return true;
-  }
-
-  return Boolean(sessionState?.sessionId?.trim());
-}
-
 type EnsureBrowserAssistCanvasHandler = (
   sourceText: string,
   options?: {
@@ -429,7 +417,6 @@ export function useWorkspaceBrowserAssistRuntime({
 
     void (async () => {
       try {
-        setBrowserAssistLaunching(true);
         setSiteSkillExecutionState({
           phase: "running",
           adapterName: initialSiteSkillLaunch.adapterName,
@@ -541,9 +528,7 @@ export function useWorkspaceBrowserAssistRuntime({
           { id: toastId },
         );
       } finally {
-        if (!cancelled) {
-          setBrowserAssistLaunching(false);
-        }
+        // 站点技能执行不应驱动浏览器画布的“启动中”状态。
       }
     })();
 
@@ -1030,11 +1015,7 @@ export function useWorkspaceBrowserAssistRuntime({
         browserAssistSessionState.profileKey || generalBrowserAssistProfileKey
       }:${browserAssistSessionState.url || currentUrl || "pending"}`;
     if (
-      shouldAutoOpenBrowserAssistCanvas(
-        nextArtifact,
-        browserAssistLaunching,
-        browserAssistSessionState,
-      ) &&
+      shouldAutoOpenPassiveBrowserAssist(nextArtifact, browserAssistLaunching) &&
       autoOpenedBrowserAssistSessionIdRef.current !== autoOpenKey
     ) {
       autoOpenedBrowserAssistSessionIdRef.current = autoOpenKey;

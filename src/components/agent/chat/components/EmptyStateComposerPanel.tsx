@@ -429,7 +429,10 @@ export function EmptyStateComposerPanel({
         ) : null}
 
         {activeSkill ? (
-          <SkillBadge skill={activeSkill} onClear={clearActiveSkill} />
+          <SkillBadge
+            skill={activeSkill}
+            onClear={clearActiveSkill ?? (() => undefined)}
+          />
         ) : null}
 
         {shouldShowTeamSuggestion ? (

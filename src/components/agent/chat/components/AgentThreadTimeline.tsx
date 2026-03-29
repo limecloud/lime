@@ -681,23 +681,7 @@ function extractCompactThinkingParts(item: Extract<
     };
   }
 
-  const displayText = resolveThinkingDisplayText(item);
-  const parsed = parseAIResponse(displayText, false);
-  if (parsed.hasA2UI || parsed.hasPending) {
-    return null;
-  }
-
-  const lines = displayText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const [title = item.status === "in_progress" ? "思考中" : "已完成思考", ...rest] =
-    lines;
-
-  return {
-    title,
-    detail: rest.join("\n").trim(),
-  };
+  return null;
 }
 
 function GroupedThinkingRow({

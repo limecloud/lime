@@ -42,6 +42,7 @@ export type {
   ServiceSkillType,
 };
 export type { SkillCatalogExecutionKind, SkillCatalogGroup };
+export type ServiceSkillGroup = SkillCatalogGroup;
 
 export type ServiceSkillTone = "slate" | "sky" | "emerald" | "amber";
 

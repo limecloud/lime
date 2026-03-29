@@ -291,13 +291,12 @@ export function useWorkspaceConversationSceneRuntime({
       .map((line) => `> ${line}`)
       .join("\n")}\n\n`;
 
-    setInput((previous) => {
-      if (!previous.trim()) {
-        return quotedBlock;
-      }
+    if (!input.trim()) {
+      setInput(quotedBlock);
+      return;
+    }
 
-      return `${previous.trimEnd()}\n\n${quotedBlock}`;
-    });
+    setInput(`${input.trimEnd()}\n\n${quotedBlock}`);
   };
 
   const teamWorkspaceDockLayoutMode =

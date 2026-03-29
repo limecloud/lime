@@ -215,6 +215,7 @@ export function AppPageContent({
           entryBannerMessage={agentPageParams.entryBannerMessage}
           immersiveHome={agentPageParams.immersiveHome}
           openBrowserAssistOnMount={agentPageParams.openBrowserAssistOnMount}
+          initialSiteSkillLaunch={agentPageParams.initialSiteSkillLaunch}
           theme={agentPageParams.theme}
           lockTheme={agentPageParams.lockTheme}
           fromResources={agentPageParams.fromResources}
