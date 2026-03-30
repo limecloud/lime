@@ -35,6 +35,18 @@ interface DevBridgeEventHub {
 
 const bridgeEventHubs = new Map<string, DevBridgeEventHub>();
 
+function resolveEventSourceConstructor(): typeof EventSource | null {
+  if (typeof window !== "undefined" && typeof window.EventSource === "function") {
+    return window.EventSource;
+  }
+
+  if (typeof globalThis.EventSource === "function") {
+    return globalThis.EventSource;
+  }
+
+  return null;
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message || error.name || "Unknown error";
@@ -110,7 +122,7 @@ export function hasDevBridgeEventListenerCapability(): boolean {
   return (
     isDevBridgeAvailable() &&
     typeof window !== "undefined" &&
-    typeof window.EventSource === "function"
+    resolveEventSourceConstructor() !== null
   );
 }
 
@@ -149,7 +161,12 @@ export async function listenViaHttpEvent<T = unknown>(
 
   let hub = bridgeEventHubs.get(normalizedEvent);
   if (!hub) {
-    const source = new window.EventSource(
+    const EventSourceConstructor = resolveEventSourceConstructor();
+    if (!EventSourceConstructor) {
+      throw new Error(`[DevBridge] 浏览器模式事件桥不可用: ${event}`);
+    }
+
+    const source = new EventSourceConstructor(
       `${BRIDGE_EVENTS_URL}?event=${encodeURIComponent(normalizedEvent)}`,
     );
     const listeners = new Set<DevBridgeEventHandler<unknown>>();
