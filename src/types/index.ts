@@ -13,17 +13,14 @@ export * from "./project";
 // 人设类型
 export * from "./persona";
 
-// 品牌人设类型
-export * from "./brand-persona";
-
 // 素材类型
 export * from "./material";
 
 // 海报素材类型
 export * from "./poster-material";
 
-// 模板类型
-export * from "./template";
+// 平台类型
+export * from "./platform";
 
 // 上下文类型
 export * from "./context";

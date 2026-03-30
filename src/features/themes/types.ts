@@ -1,14 +1,12 @@
 import type { WorkspaceTheme } from "@/types/page";
 import type { ComponentType } from "react";
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 
 export type ThemeWorkspaceKind = "agent-chat" | "video-canvas";
 export type ThemeWorkspaceView =
   | "create"
   | "workflow"
   | "material"
-  | "template"
-  | "style"
   | "publish"
   | "settings";
 
@@ -73,8 +71,6 @@ export interface ThemeWorkspaceNavigationSpec {
 export interface ThemePanelRenderers {
   workflow?: ComponentType<ThemeWorkspaceRendererProps>;
   material?: ComponentType<ThemeWorkspaceRendererProps>;
-  template?: ComponentType<ThemeWorkspaceRendererProps>;
-  style?: ComponentType<ThemeWorkspaceRendererProps>;
   publish?: ComponentType<ThemeWorkspaceRendererProps>;
   settings?: ComponentType<ThemeWorkspaceRendererProps>;
 }

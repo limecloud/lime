@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  contentWorkflowApi,
-  type WorkflowState as ContentWorkflowState,
-} from "@/lib/api/content-workflow";
-import {
   executionRunGetThemeWorkbenchState,
   type ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
   type ThemeWorkbenchRunTerminalItem,
@@ -20,6 +16,20 @@ export interface ThemeWorkbenchEntryPromptState {
   prompt: string;
 }
 
+export interface ThemeWorkbenchResumeWorkflowStep {
+  id: string;
+  title: string;
+  status: "pending" | "active" | "completed" | "skipped" | "error";
+  result?: unknown;
+}
+
+export interface ThemeWorkbenchResumeWorkflowState {
+  id: string;
+  current_step_index: number;
+  updated_at: number;
+  steps: ThemeWorkbenchResumeWorkflowStep[];
+}
+
 interface UseThemeWorkbenchEntryPromptOptions {
   activeTheme: string;
   contentId?: string;
@@ -33,14 +43,13 @@ interface UseThemeWorkbenchEntryPromptOptions {
   initialUserImages?: MessageImage[];
   consumedInitialPromptKey?: string | null;
   onHydrateInitialPrompt: (prompt: string, dispatchKey: string) => void;
-  loadWorkflow?: (contentId: string) => Promise<ContentWorkflowState | null>;
+  loadWorkflow?: (
+    contentId: string,
+  ) => Promise<ThemeWorkbenchResumeWorkflowState | null>;
   loadRunState?: (
     sessionId: string,
   ) => Promise<BackendThemeWorkbenchRunState | null>;
 }
-
-const defaultLoadThemeWorkbenchWorkflow = (contentId: string) =>
-  contentWorkflowApi.getByContent(contentId);
 
 const defaultLoadThemeWorkbenchRunState = (sessionId: string) =>
   executionRunGetThemeWorkbenchState(sessionId, 3);
@@ -63,7 +72,7 @@ function resolveThemeWorkbenchGateLabel(
 }
 
 function hasWorkflowMeaningfulProgress(
-  workflow: ContentWorkflowState | null,
+  workflow: ThemeWorkbenchResumeWorkflowState | null,
 ): boolean {
   if (!workflow) {
     return false;
@@ -83,7 +92,7 @@ function hasWorkflowMeaningfulProgress(
 }
 
 export function buildThemeWorkbenchResumePromptFromWorkflow(
-  workflow: ContentWorkflowState | null,
+  workflow: ThemeWorkbenchResumeWorkflowState | null,
 ): ThemeWorkbenchEntryPromptState | null {
   if (!workflow || !hasWorkflowMeaningfulProgress(workflow)) {
     return null;
@@ -176,7 +185,7 @@ export function useThemeWorkbenchEntryPrompt({
   initialUserImages,
   consumedInitialPromptKey,
   onHydrateInitialPrompt,
-  loadWorkflow = defaultLoadThemeWorkbenchWorkflow,
+  loadWorkflow,
   loadRunState = defaultLoadThemeWorkbenchRunState,
 }: UseThemeWorkbenchEntryPromptOptions) {
   const [themeWorkbenchEntryPrompt, setThemeWorkbenchEntryPrompt] =
@@ -265,7 +274,7 @@ export function useThemeWorkbenchEntryPrompt({
     void (async () => {
       try {
         const [workflow, backendState] = await Promise.all([
-          loadWorkflow(contentId).catch(() => null),
+          loadWorkflow ? loadWorkflow(contentId).catch(() => null) : null,
           loadRunState(sessionId).catch(() => null),
         ]);
 

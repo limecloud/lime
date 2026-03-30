@@ -1,13 +1,13 @@
 //! Memory 相关的 Tauri 命令
 //!
-//! 提供项目记忆系统（角色、世界观、风格指南、大纲）的前端 API。
+//! 提供项目记忆系统（角色、世界观、大纲）的前端 API。
 
 use crate::database::DbConnection;
 use crate::logger;
 use crate::memory::{
     Character, CharacterCreateRequest, CharacterUpdateRequest, MemoryManager, OutlineNode,
-    OutlineNodeCreateRequest, OutlineNodeUpdateRequest, ProjectMemory, StyleGuide,
-    StyleGuideUpdateRequest, WorldBuilding, WorldBuildingUpdateRequest,
+    OutlineNodeCreateRequest, OutlineNodeUpdateRequest, ProjectMemory, WorldBuilding,
+    WorldBuildingUpdateRequest,
 };
 use crate::LogState;
 use serde::{Deserialize, Serialize};
@@ -118,29 +118,6 @@ pub async fn world_building_update(
     manager.upsert_world_building(&project_id, request)
 }
 
-// ==================== 风格指南相关命令 ====================
-
-/// 获取风格指南
-#[tauri::command]
-pub async fn style_guide_get(
-    db: State<'_, DbConnection>,
-    project_id: String,
-) -> Result<Option<StyleGuide>, String> {
-    let manager = MemoryManager::new(db.inner().clone());
-    manager.get_style_guide(&project_id)
-}
-
-/// 更新风格指南
-#[tauri::command]
-pub async fn style_guide_update(
-    db: State<'_, DbConnection>,
-    project_id: String,
-    request: StyleGuideUpdateRequest,
-) -> Result<StyleGuide, String> {
-    let manager = MemoryManager::new(db.inner().clone());
-    manager.upsert_style_guide(&project_id, request)
-}
-
 // ==================== 大纲相关命令 ====================
 
 /// 创建大纲节点请求
@@ -237,12 +214,11 @@ pub async fn project_memory_get(
             logs.write().await.add(
                 "info",
                 &format!(
-                    "[AgentDiag] project_memory_get.success project_id={sanitized_project_id} duration_ms={} characters={} outline={} has_world_building={} has_style_guide={}",
+                    "[AgentDiag] project_memory_get.success project_id={sanitized_project_id} duration_ms={} characters={} outline={} has_world_building={}",
                     started_at.elapsed().as_millis(),
                     memory.characters.len(),
                     memory.outline.len(),
                     memory.world_building.is_some(),
-                    memory.style_guide.is_some(),
                 ),
             );
             Ok(memory)

@@ -140,8 +140,15 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
     toolbarGhostIconButtonClassName,
     isWorkspaceCompact && "h-8 w-8 rounded-[18px]",
   );
+  const shouldShowBrowserAssistEntry =
+    showBrowserAssistEntry &&
+    (browserAssistLoading ||
+      browserAssistAttentionLevel !== "idle" ||
+      browserAssistLabel?.trim() !== "浏览器已就绪");
   const showStatusTools =
-    showBrowserAssistEntry || showHarnessToggle || showContextCompactionAction;
+    shouldShowBrowserAssistEntry ||
+    showHarnessToggle ||
+    showContextCompactionAction;
   const showNavigationTools =
     !isWorkspaceCompact &&
     (Boolean(onBackHome) ||
@@ -345,11 +352,11 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
             ) : null}
 
             {showContextCompactionAction &&
-            (showBrowserAssistEntry || showHarnessToggle) ? (
+            (shouldShowBrowserAssistEntry || showHarnessToggle) ? (
               <div className={dividerClassName} aria-hidden="true" />
             ) : null}
 
-            {showBrowserAssistEntry ? (
+            {shouldShowBrowserAssistEntry ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -388,7 +395,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               </Button>
             ) : null}
 
-            {showBrowserAssistEntry && showHarnessToggle ? (
+            {shouldShowBrowserAssistEntry && showHarnessToggle ? (
               <div className={dividerClassName} aria-hidden="true" />
             ) : null}
 

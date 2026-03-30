@@ -5,8 +5,6 @@ import {
   Sparkles,
   PenTool,
   Boxes,
-  LayoutTemplate,
-  Wand2,
   Send,
   Settings,
   Workflow,
@@ -25,8 +23,8 @@ import type {
 import { getProjectTypeLabel, type Project } from "@/lib/api/project";
 import { AgentChatPage } from "@/components/agent";
 import type { WorkflowProgressSnapshot } from "@/components/agent/chat";
-import type { CreationMode } from "@/components/content-creator/types";
-import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import {
   buildCreateConfirmationA2UI,
   type PendingCreateConfirmation,
@@ -48,18 +46,6 @@ const NAV_META: Record<
     description: "管理参考素材、图片与知识库",
     colorClass: "text-amber-600 dark:text-amber-400",
     bgClass: "bg-amber-50 dark:bg-amber-950/30",
-  },
-  template: {
-    icon: LayoutTemplate,
-    description: "管理与应用内容排版模板",
-    colorClass: "text-sky-600 dark:text-sky-400",
-    bgClass: "bg-sky-50 dark:bg-sky-950/30",
-  },
-  style: {
-    icon: Wand2,
-    description: "定制并固化项目的叙事与视觉风格",
-    colorClass: "text-indigo-600 dark:text-indigo-400",
-    bgClass: "bg-indigo-50 dark:bg-indigo-950/30",
   },
   publish: {
     icon: Send,

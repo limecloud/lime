@@ -1,27 +1,12 @@
-import type { ThemeType } from "@/components/content-creator/types";
+import {
+  normalizeThemeType,
+  type ThemeType,
+} from "@/lib/workspace/workbenchContract";
 import type { AsterSubagentSessionInfo } from "@/lib/api/agentRuntime";
 import type { ProjectType } from "@/lib/api/project";
 
-const SUPPORTED_ENTRY_THEMES: ThemeType[] = [
-  "general",
-  "social-media",
-  "poster",
-  "music",
-  "knowledge",
-  "planning",
-  "document",
-  "video",
-  "novel",
-];
-
 export function normalizeInitialTheme(value?: string): ThemeType {
-  if (!value) {
-    return "general";
-  }
-  if (SUPPORTED_ENTRY_THEMES.includes(value as ThemeType)) {
-    return value as ThemeType;
-  }
-  return "general";
+  return normalizeThemeType(value);
 }
 
 export function deriveCurrentSessionRuntimeStatus(params: {
@@ -72,8 +57,5 @@ export function deriveLatestTurnRuntimeStatus(
 }
 
 export function projectTypeToTheme(projectType: ProjectType): ThemeType {
-  if (projectType === "persistent" || projectType === "temporary") {
-    return "general";
-  }
-  return projectType as ThemeType;
+  return normalizeThemeType(projectType);
 }

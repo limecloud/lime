@@ -14,7 +14,9 @@ import {
 import type { Artifact } from "@/lib/artifact/types";
 import type { AgentThreadItem } from "../types";
 
-vi.mock("@/components/content-creator/canvas/document/editor", async () => {
+vi.mock("@/lib/workspace/workbenchCanvas", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/workspace/workbenchCanvas")>();
   const ReactModule = await import("react");
 
   const MockNotionEditor = ReactModule.forwardRef<
@@ -63,6 +65,7 @@ vi.mock("@/components/content-creator/canvas/document/editor", async () => {
   MockNotionEditor.displayName = "MockNotionEditor";
 
   return {
+    ...actual,
     NotionEditor: MockNotionEditor,
   };
 });

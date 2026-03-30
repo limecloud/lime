@@ -1,6 +1,6 @@
 //! Memory 管理器
 //!
-//! 提供项目记忆系统的 CRUD 操作（角色、世界观、风格指南、大纲）。
+//! 提供项目记忆系统的 CRUD 操作（角色、世界观、大纲）。
 
 use super::types::*;
 use crate::database::DbConnection;
@@ -337,99 +337,6 @@ impl MemoryManager {
             .ok_or_else(|| "世界观不存在".to_string())
     }
 
-    // ==================== 风格指南管理 ====================
-
-    /// 获取风格指南
-    pub fn get_style_guide(&self, project_id: &str) -> Result<Option<StyleGuide>, String> {
-        let conn = self.db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-
-        let result = conn.query_row(
-            "SELECT project_id, style, tone, forbidden_words_json, preferred_words_json, examples, extra_json, updated_at
-             FROM style_guides WHERE project_id = ?",
-            params![project_id],
-            |row| {
-                let project_id: String = row.get(0)?;
-                let style: String = row.get(1)?;
-                let tone: Option<String> = row.get(2)?;
-                let forbidden_words_json: String = row.get(3)?;
-                let preferred_words_json: String = row.get(4)?;
-                let examples: Option<String> = row.get(5)?;
-                let extra_json: Option<String> = row.get(6)?;
-                let updated_at_ms: i64 = row.get(7)?;
-
-                Ok(StyleGuide {
-                    project_id,
-                    style,
-                    tone,
-                    forbidden_words: serde_json::from_str(&forbidden_words_json).unwrap_or_default(),
-                    preferred_words: serde_json::from_str(&preferred_words_json).unwrap_or_default(),
-                    examples,
-                    extra: extra_json.and_then(|s| serde_json::from_str(&s).ok()),
-                    updated_at: chrono::DateTime::from_timestamp_millis(updated_at_ms).unwrap_or_else(Utc::now),
-                })
-            },
-        );
-
-        match result {
-            Ok(sg) => Ok(Some(sg)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(format!("获取风格指南失败: {e}")),
-        }
-    }
-
-    /// 更新或创建风格指南
-    pub fn upsert_style_guide(
-        &self,
-        project_id: &str,
-        updates: StyleGuideUpdateRequest,
-    ) -> Result<StyleGuide, String> {
-        let conn = self.db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-        let now = Utc::now();
-
-        let forbidden_words_json = updates
-            .forbidden_words
-            .as_ref()
-            .map(|w| serde_json::to_string(w).unwrap_or_default())
-            .unwrap_or_else(|| "[]".to_string());
-        let preferred_words_json = updates
-            .preferred_words
-            .as_ref()
-            .map(|w| serde_json::to_string(w).unwrap_or_default())
-            .unwrap_or_else(|| "[]".to_string());
-        let extra_json = updates
-            .extra
-            .as_ref()
-            .map(|e| serde_json::to_string(e).unwrap_or_default());
-
-        conn.execute(
-            "INSERT INTO style_guides (project_id, style, tone, forbidden_words_json, preferred_words_json, examples, extra_json, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(project_id) DO UPDATE SET
-                style = COALESCE(excluded.style, style),
-                tone = COALESCE(excluded.tone, tone),
-                forbidden_words_json = excluded.forbidden_words_json,
-                preferred_words_json = excluded.preferred_words_json,
-                examples = COALESCE(excluded.examples, examples),
-                extra_json = COALESCE(excluded.extra_json, extra_json),
-                updated_at = excluded.updated_at",
-            params![
-                project_id,
-                updates.style.unwrap_or_default(),
-                updates.tone,
-                forbidden_words_json,
-                preferred_words_json,
-                updates.examples,
-                extra_json,
-                now.timestamp_millis(),
-            ],
-        )
-        .map_err(|e| format!("更新风格指南失败: {e}"))?;
-
-        drop(conn);
-        self.get_style_guide(project_id)?
-            .ok_or_else(|| "风格指南不存在".to_string())
-    }
-
     // ==================== 大纲管理 ====================
 
     /// 创建大纲节点
@@ -656,13 +563,11 @@ impl MemoryManager {
     pub fn get_project_memory(&self, project_id: &str) -> Result<ProjectMemory, String> {
         let characters = self.list_characters(project_id)?;
         let world_building = self.get_world_building(project_id)?;
-        let style_guide = self.get_style_guide(project_id)?;
         let outline = self.list_outline_nodes(project_id)?;
 
         Ok(ProjectMemory {
             characters,
             world_building,
-            style_guide,
             outline,
         })
     }

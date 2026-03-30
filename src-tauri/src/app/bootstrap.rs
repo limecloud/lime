@@ -75,8 +75,6 @@ pub struct AppStates {
     pub recording_service: RecordingServiceState,
     pub mcp_manager: McpManagerState,
     pub automation_service: AutomationServiceState,
-    pub workflow_service: Arc<RwLock<lime_services::content_creator::WorkflowService>>,
-    pub progress_store: Arc<RwLock<lime_services::content_creator::ProgressStore>>,
     // 用于 setup hook 的共享实例
     pub shared_stats: Arc<parking_lot::RwLock<telemetry::StatsAggregator>>,
     pub shared_tokens: Arc<parking_lot::RwLock<telemetry::TokenTracker>>,
@@ -273,16 +271,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
     let automation_service_state =
         AutomationServiceState(Arc::new(RwLock::new(automation_service)));
 
-    // 初始化工作流服务
-    let workflow_service = lime_services::content_creator::WorkflowService::new();
-    let workflow_service_state = Arc::new(RwLock::new(workflow_service));
-
-    // 初始化进度存储
-    let db_path = database::get_db_path().map_err(|e| format!("获取数据库路径失败: {e}"))?;
-    let progress_store = lime_services::content_creator::ProgressStore::new(db_path)
-        .map_err(|e| format!("ProgressStore 初始化失败: {e}"))?;
-    let progress_store_state = Arc::new(RwLock::new(progress_store));
-
     Ok(AppStates {
         state,
         logs,
@@ -312,8 +300,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         recording_service: recording_service_state,
         mcp_manager: mcp_manager_state,
         automation_service: automation_service_state,
-        workflow_service: workflow_service_state,
-        progress_store: progress_store_state,
         shared_stats,
         shared_tokens,
         shared_logger,

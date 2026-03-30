@@ -30,7 +30,10 @@ import {
   createAgentStreamPreparedSendEnv,
   type AgentStreamPreparedSendEnv,
 } from "./agentStreamPreparedSendEnv";
-import { runAgentStreamCompaction } from "./agentStreamCompaction";
+import {
+  normalizeAgentStreamCompactionError,
+  runAgentStreamCompaction,
+} from "./agentStreamCompaction";
 import {
   promoteQueuedAgentTurn,
   removeQueuedAgentTurn,
@@ -100,6 +103,7 @@ interface UseAgentStreamOptions {
   setExecutionRuntime: Dispatch<
     SetStateAction<AsterSessionExecutionRuntime | null>
   >;
+  threadBusy: boolean;
   queuedTurns: QueuedTurnSnapshot[];
   setQueuedTurns: Dispatch<SetStateAction<QueuedTurnSnapshot[]>>;
   setPendingActions: Dispatch<SetStateAction<ActionRequired[]>>;
@@ -132,6 +136,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     setThreadTurns,
     setCurrentTurnId,
     setExecutionRuntime,
+    threadBusy,
     queuedTurns,
     setQueuedTurns,
     setPendingActions,
@@ -158,6 +163,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     () =>
       createAgentStreamPreparedSendEnv({
         queuedTurnsCount: queuedTurns.length,
+        threadBusy,
         runtime,
         ensureSession,
         executionStrategy,
@@ -207,6 +213,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       queuedTurns.length,
       runtime,
       sessionIdRef,
+      threadBusy,
       setActiveStream,
       setCurrentTurnId,
       setExecutionRuntime,
@@ -336,10 +343,11 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         },
       });
     } catch (error) {
-      console.error("[AsterChat] 压缩上下文失败:", error);
-      toast.error(
-        error instanceof Error ? error.message : "压缩上下文失败，请稍后重试",
-      );
+      const compactionError = normalizeAgentStreamCompactionError(error);
+      console.error("[AsterChat] 压缩上下文失败:", compactionError);
+      if (!compactionError.alreadyNotified) {
+        toast.error(compactionError.message);
+      }
     }
   }, [
     clearActiveStreamIfMatch,

@@ -3,7 +3,7 @@ import {
   VideoCanvas,
   createInitialVideoState,
   type VideoCanvasState,
-} from "@/components/content-creator/canvas/video";
+} from "@/lib/workspace/workbenchCanvas";
 import type { ThemeWorkspaceRendererProps } from "@/features/themes/types";
 
 export function VideoThemeWorkspace({

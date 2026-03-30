@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import { createInitialCanvasState, type CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
+import { createInitialCanvasState, type CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
-import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
-import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
+import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
 import type { CanvasWorkbenchLayoutMode } from "../components/CanvasWorkbenchLayout";
 import { hasRenderableGeneralCanvasPreview } from "./generalCanvasPreviewState";
 

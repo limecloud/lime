@@ -34,6 +34,7 @@ let lastError = null;
 let controlLastError = null;
 let lastSettings = { ...DEFAULT_SETTINGS };
 const debuggerAttachedTabIds = new Set();
+const debuggerSessionRefCounts = new Map();
 const expectedClosedSockets = new WeakSet();
 const logBuffer = [];
 
@@ -717,6 +718,41 @@ async function sendDebuggerCommand(tabId, method, params = {}) {
   return await chrome.debugger.sendCommand({ tabId }, method, params);
 }
 
+async function acquireDebuggerSession(tabId) {
+  if (!(await ensureDebuggerAttached(tabId))) {
+    throw new Error("当前标签页未能附着 Lime CDP 会话，请确认插件已获取 debugger 权限。");
+  }
+
+  const currentCount = debuggerSessionRefCounts.get(tabId) || 0;
+  debuggerSessionRefCounts.set(tabId, currentCount + 1);
+
+  let released = false;
+  return async () => {
+    if (released) {
+      return;
+    }
+    released = true;
+
+    const activeCount = debuggerSessionRefCounts.get(tabId) || 0;
+    if (activeCount <= 1) {
+      debuggerSessionRefCounts.delete(tabId);
+      await detachDebugger(tabId);
+      return;
+    }
+
+    debuggerSessionRefCounts.set(tabId, activeCount - 1);
+  };
+}
+
+async function withTransientDebuggerSession(tabId, task) {
+  const release = await acquireDebuggerSession(tabId);
+  try {
+    return await task();
+  } finally {
+    await release();
+  }
+}
+
 function readPayloadNumber(payload, key) {
   const value = payload?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -753,19 +789,21 @@ async function executeDebuggerClick(tabId, payload) {
     return false;
   }
 
-  await sendDebuggerCommand(tabId, "Input.dispatchMouseEvent", {
-    type: "mousePressed",
-    x,
-    y,
-    button: "left",
-    clickCount: 1,
-  });
-  await sendDebuggerCommand(tabId, "Input.dispatchMouseEvent", {
-    type: "mouseReleased",
-    x,
-    y,
-    button: "left",
-    clickCount: 1,
+  await withTransientDebuggerSession(tabId, async () => {
+    await sendDebuggerCommand(tabId, "Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await sendDebuggerCommand(tabId, "Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
   });
   return true;
 }
@@ -774,8 +812,10 @@ async function executeDebuggerType(tabId, text, target) {
   if (target || !text) {
     return false;
   }
-  await sendDebuggerCommand(tabId, "Input.insertText", {
-    text,
+  await withTransientDebuggerSession(tabId, async () => {
+    await sendDebuggerCommand(tabId, "Input.insertText", {
+      text,
+    });
   });
   return true;
 }
@@ -787,10 +827,12 @@ async function executeDebuggerScroll(tabId, payload, text) {
   const deltaY =
     direction === "up" ? -amount : direction === "down" ? amount : 0;
 
-  await sendDebuggerCommand(tabId, "Runtime.evaluate", {
-    expression: `window.scrollBy(${deltaX}, ${deltaY});`,
-    userGesture: true,
-    awaitPromise: false,
+  await withTransientDebuggerSession(tabId, async () => {
+    await sendDebuggerCommand(tabId, "Runtime.evaluate", {
+      expression: `window.scrollBy(${deltaX}, ${deltaY});`,
+      userGesture: true,
+      awaitPromise: false,
+    });
   });
   return {
     direction,
@@ -802,6 +844,7 @@ async function detachDebugger(tabId) {
   if (!debuggerAttachedTabIds.has(tabId)) {
     return;
   }
+  debuggerSessionRefCounts.delete(tabId);
   debuggerAttachedTabIds.delete(tabId);
   try {
     await chrome.debugger.detach({ tabId });
@@ -875,7 +918,6 @@ async function executeRemoteCommand(commandData) {
     activeTabId = tab.id;
     let response = null;
     if (!handledByDebugger) {
-      await ensureDebuggerAttached(tab.id);
       response = await sendCommandToTab(tab.id, {
         type: "EXECUTE_COMMAND",
         data: commandData,
@@ -977,7 +1019,6 @@ async function handleOpenUrl(commandData, waitForPageInfo) {
           });
 
     activeTabId = tab.id;
-    await ensureDebuggerAttached(tab.id);
     sendCommandResult({
       requestId,
       sourceClientId,
@@ -1158,9 +1199,6 @@ async function triggerPageCapture(reason, retry = 0) {
   }
 
   try {
-    if (!(await ensureDebuggerAttached(tabId))) {
-      throw new Error("页面抓取前无法附着当前 Chrome CDP 会话");
-    }
     await sendCommandToTab(tabId, {
       type: "REQUEST_PAGE_CAPTURE",
       data: { reason },
@@ -1408,7 +1446,6 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   if (isEnabled && !isConnected && !isConnecting) {
     void ensureObserverEnabled();
   }
-  void ensureDebuggerAttached(tabId);
   await triggerPageCapture("tab_activated");
   broadcastStatus();
 });
@@ -1421,7 +1458,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (isEnabled && !isConnected && !isConnecting) {
       void ensureObserverEnabled();
     }
-    void ensureDebuggerAttached(tabId);
     await triggerPageCapture("tab_updated");
   }
 });
@@ -1435,6 +1471,7 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   if (!Number.isInteger(tabId)) {
     return;
   }
+  debuggerSessionRefCounts.delete(tabId);
   debuggerAttachedTabIds.delete(tabId);
   logWarn("Chrome debugger 已断开", { tabId, reason });
   broadcastStatus();
@@ -1501,9 +1538,6 @@ async function init(forceReconnect = false) {
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tabs[0]?.id || null;
-  if (activeTabId) {
-    void ensureDebuggerAttached(activeTabId);
-  }
 
   chrome.storage.local.get(["latestPageInfo"], (stored) => {
     if (stored.latestPageInfo) {

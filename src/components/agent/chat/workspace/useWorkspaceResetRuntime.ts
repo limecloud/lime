@@ -1,8 +1,8 @@
 import { useCallback, useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { DEFAULT_CANVAS_STATE } from "@/components/general-chat/bridge";
-import type { CreationMode, LayoutMode, ThemeType } from "@/components/content-creator/types";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import type { CreationMode, LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { TaskFile } from "../components/TaskFiles";
 import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";

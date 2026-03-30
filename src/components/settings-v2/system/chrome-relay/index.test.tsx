@@ -165,6 +165,14 @@ function findTabButton(
   return target as HTMLButtonElement;
 }
 
+async function openAdvancedTab(container: HTMLElement) {
+  const tabButton = findTabButton(container, "高级工具");
+  await act(async () => {
+    tabButton.click();
+    await flushEffects();
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -418,19 +426,19 @@ afterEach(() => {
 });
 
 describe("ChromeRelaySettings", () => {
-  it("应在展开高级控制后切换到浏览器实时调试面板", async () => {
+  it("默认应聚焦核心设置，并在高级工具中切换到浏览器实时调试面板", async () => {
     const container = renderComponent();
     await flushEffects();
 
+    expect(container.textContent).toContain("核心设置");
+    expect(container.textContent).toContain("安装 Lime Browser Bridge");
+    expect(container.textContent).not.toContain("连接方式");
+    expect(container.textContent).not.toContain("高级控制");
     expect(
       container.querySelector('[data-testid="browser-runtime-panel"]'),
     ).toBeNull();
 
-    const expandButton = findButton(container, "展开高级控制");
-    await act(async () => {
-      expandButton.click();
-      await flushEffects();
-    });
+    await openAdvancedTab(container);
 
     const tabButton = findTabButton(container, "调试");
     await act(async () => {
@@ -469,6 +477,7 @@ describe("ChromeRelaySettings", () => {
   it("应复制默认连接器配置到剪贴板", async () => {
     const container = renderComponent();
     await flushEffects();
+    await openAdvancedTab(container);
 
     const button = findButton(container, "复制配置");
     await act(async () => {
@@ -489,6 +498,7 @@ describe("ChromeRelaySettings", () => {
   it("点击一键按钮时应启动浏览器协助", async () => {
     const container = renderComponent();
     await flushEffects();
+    await openAdvancedTab(container);
 
     const button = findButton(container, "一键启动浏览器协助");
     await act(async () => {
@@ -509,6 +519,7 @@ describe("ChromeRelaySettings", () => {
   it("点击按钮时应打开独立浏览器调试窗口", async () => {
     const container = renderComponent();
     await flushEffects();
+    await openAdvancedTab(container);
 
     const button = findButton(container, "打开独立调试窗口");
     await act(async () => {
@@ -523,6 +534,10 @@ describe("ChromeRelaySettings", () => {
   it("应提供扩展与远程调试引导入口", async () => {
     const container = renderComponent();
     await flushEffects();
+
+    expect(container.textContent).not.toContain("连接方式");
+
+    await openAdvancedTab(container);
 
     expect(container.textContent).toContain("连接方式");
     expect(container.textContent).toContain("浏览器扩展");
@@ -569,7 +584,8 @@ describe("ChromeRelaySettings", () => {
     const container = renderComponent();
     await flushEffects();
 
-    expect(container.textContent).toContain("控制已接入 1");
+    expect(container.textContent).toContain("Lime 已连接当前 Chrome");
+    await openAdvancedTab(container);
 
     const button = findButton(container, "断开已连接扩展");
     await act(async () => {
@@ -581,7 +597,7 @@ describe("ChromeRelaySettings", () => {
     expect(container.textContent).toContain("已断开 1 个扩展观察连接和 1 个控制连接");
   });
 
-  it("应按扩展桥接真实能力渲染动作清单", async () => {
+  it("默认不再展示扩展桥接诊断详情与能力清单", async () => {
     mockGetBrowserBackendsStatus.mockResolvedValueOnce({
       policy: {
         priority: ["aster_compat", "lime_extension_bridge", "cdp_direct"],
@@ -623,10 +639,13 @@ describe("ChromeRelaySettings", () => {
     const container = renderComponent();
     await flushEffects();
 
-    expect(container.textContent).toContain("页面内查找");
-    expect(container.textContent).toContain("页面文本");
-    expect(container.textContent).toContain("表单输入");
-    expect(container.textContent).toContain("返回上一页");
+    expect(container.textContent).not.toContain("QoderWork");
+    expect(container.textContent).not.toContain("查看诊断详情");
+    expect(container.textContent).not.toContain("收起诊断详情");
+    expect(container.textContent).not.toContain("Lime Browser Bridge 负责");
+    expect(container.textContent).not.toContain("页面文本");
+    expect(container.textContent).not.toContain("表单输入");
+    expect(container.textContent).not.toContain("返回上一页");
     expect(container.textContent).not.toContain("悬停");
     expect(container.textContent).not.toContain("拖放");
     expect(container.textContent).not.toContain("上传文件");
@@ -664,6 +683,7 @@ describe("ChromeRelaySettings", () => {
 
     const container = renderComponent();
     await flushEffects();
+    await openAdvancedTab(container);
 
     expect(container.textContent).not.toContain("macOS 连接器");
     expect(container.textContent).not.toContain("0 / 0 已启用");

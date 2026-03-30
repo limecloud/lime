@@ -1,5 +1,4 @@
 import type { ProjectMemory } from "@/lib/api/memory";
-import { hasStyleGuideContent } from "@/lib/style-guide";
 
 export interface LayerMetricsInput {
   unifiedTotalEntries: number;
@@ -27,10 +26,6 @@ function hasWorldBuilding(memory: ProjectMemory | null): boolean {
   return !!memory?.world_building?.description?.trim();
 }
 
-function hasStyleGuide(memory: ProjectMemory | null): boolean {
-  return hasStyleGuideContent(memory?.style_guide);
-}
-
 function projectCoverageCount(memory: ProjectMemory | null): number {
   if (!memory) {
     return 0;
@@ -39,7 +34,6 @@ function projectCoverageCount(memory: ProjectMemory | null): number {
   let covered = 0;
   if (memory.characters.length > 0) covered += 1;
   if (hasWorldBuilding(memory)) covered += 1;
-  if (hasStyleGuide(memory)) covered += 1;
   if (memory.outline.length > 0) covered += 1;
   return covered;
 }
@@ -75,10 +69,10 @@ export function buildLayerMetrics(input: LayerMetricsInput): LayerMetricsResult 
       key: "project",
       title: "第三层：项目记忆",
       value: projectCoverage,
-      unit: "/4 维",
+      unit: "/3 维",
       available: projectCoverage > 0,
       description: !hasProjectSelection
-        ? "未选择项目，无法加载角色/世界观/风格/大纲。"
+        ? "未选择项目，无法加载角色/世界观/大纲。"
         : projectCoverage > 0
           ? "项目级长期记忆已参与。"
           : "项目已选择，但还未填写项目记忆内容。",

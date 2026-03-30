@@ -62,13 +62,6 @@ describe("buildLayerMetrics", () => {
           description: "未来都市",
           updated_at: "2026-01-01T00:00:00Z",
         },
-        style_guide: {
-          project_id: "project-1",
-          style: "克制叙事",
-          forbidden_words: [],
-          preferred_words: [],
-          updated_at: "2026-01-01T00:00:00Z",
-        },
         outline: [
           {
             id: "o1",
@@ -85,7 +78,7 @@ describe("buildLayerMetrics", () => {
 
     expect(result.totalLayers).toBe(3);
     expect(result.readyLayers).toBe(3);
-    expect(result.cards[2]?.value).toBe(4);
+    expect(result.cards[2]?.value).toBe(3);
     expect(result.cards[2]?.available).toBe(true);
   });
 
@@ -116,57 +109,6 @@ describe("buildLayerMetrics", () => {
     expect(projectCard?.available).toBe(true);
     expect(projectCard?.value).toBe(1);
     expect(result.readyLayers).toBe(1);
-  });
-
-  it("仅有结构化风格配置时第三层也应计入风格维度", () => {
-    const result = buildLayerMetrics({
-      unifiedTotalEntries: 0,
-      contextTotalEntries: 0,
-      projectId: "project-3",
-      projectMemory: {
-        characters: [],
-        outline: [],
-        style_guide: {
-          project_id: "project-3",
-          style: "",
-          forbidden_words: [],
-          preferred_words: [],
-          updated_at: "2026-03-09T00:00:00Z",
-          extra: {
-            styleProfile: {
-              version: 1,
-              name: "结构化风格",
-              description: "有稳定表达策略",
-              category: "persona",
-              applicableThemes: ["document"],
-              targetPlatforms: ["公众号"],
-              targetAudience: "创业者",
-              toneKeywords: ["清晰"],
-              toneMetrics: {
-                formality: 75,
-                warmth: 40,
-                humor: 10,
-                emotion: 20,
-                assertiveness: 70,
-                creativity: 45,
-              },
-              structureRules: ["先结论后分析"],
-              languageFeatures: [],
-              rhetoricDevices: [],
-              dos: [],
-              donts: [],
-              simulationStrength: 80,
-              referenceExamples: [],
-              customInstruction: "",
-            },
-          },
-        },
-      },
-    });
-
-    const projectCard = result.cards.find((card) => card.key === "project");
-    expect(projectCard?.value).toBe(1);
-    expect(projectCard?.available).toBe(true);
   });
 
   it("未选择项目时第三层应不可用并给出说明", () => {

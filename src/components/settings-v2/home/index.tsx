@@ -19,6 +19,7 @@ import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
 
 interface SettingsHomePageProps {
   onTabChange: (tab: SettingsTabs) => void;
+  onTabPrefetch?: (tab: SettingsTabs) => void;
 }
 
 type DisplayGroupKey = Exclude<SettingsGroupKey, SettingsGroupKey.Overview>;
@@ -108,7 +109,10 @@ const quickAccessMeta: Partial<
   },
 };
 
-export function SettingsHomePage({ onTabChange }: SettingsHomePageProps) {
+export function SettingsHomePage({
+  onTabChange,
+  onTabPrefetch,
+}: SettingsHomePageProps) {
   const groups = useSettingsCategory();
 
   const overview = useMemo(() => {
@@ -202,6 +206,9 @@ export function SettingsHomePage({ onTabChange }: SettingsHomePageProps) {
                 return (
                   <button
                     key={item.key}
+                    onMouseEnter={() => onTabPrefetch?.(item.key)}
+                    onMouseDown={() => onTabPrefetch?.(item.key)}
+                    onFocus={() => onTabPrefetch?.(item.key)}
                     onClick={() => onTabChange(item.key)}
                     className="group rounded-[22px] border border-white/90 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
                   >

@@ -5,7 +5,6 @@
 //! - 设置项目默认人设
 //! - 获取人设模板列表
 //! - AI 一键生成人设
-//! - 品牌人设扩展管理
 //!
 //! ## 相关需求
 //! - Requirements 6.1: 人设列表显示
@@ -21,10 +20,7 @@ use tauri::State;
 
 use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
 use crate::database::DbConnection;
-use crate::models::project_model::{
-    BrandPersona, BrandPersonaExtension, BrandPersonaTemplate, CreateBrandExtensionRequest,
-    CreatePersonaRequest, Persona, PersonaTemplate, PersonaUpdate, UpdateBrandExtensionRequest,
-};
+use crate::models::project_model::{CreatePersonaRequest, Persona, PersonaTemplate, PersonaUpdate};
 use crate::services::memory_profile_prompt_service::{build_memory_prompt, MemoryPromptContext};
 use lime_agent::merge_system_prompt_with_runtime_agents;
 use lime_services::persona_service::PersonaService;
@@ -458,153 +454,4 @@ fn extract_json(content: &str) -> String {
         }
     }
     content.to_string()
-}
-
-// ============================================================================
-// 品牌人设扩展命令
-// ============================================================================
-
-/// 获取品牌人设（基础人设 + 扩展）
-///
-/// 获取完整的品牌人设信息，包括基础人设和品牌扩展字段。
-///
-/// # 参数
-/// - `db`: 数据库连接状态
-/// - `persona_id`: 人设 ID
-///
-/// # 返回
-/// - 成功返回 Option<BrandPersona>
-/// - 失败返回错误信息
-///
-/// # 示例（前端调用）
-/// ```typescript
-/// const brandPersona = await invoke('get_brand_persona', {
-///   personaId: 'persona-1'
-/// });
-/// ```
-#[tauri::command]
-pub async fn get_brand_persona(
-    db: State<'_, DbConnection>,
-    persona_id: String,
-) -> Result<Option<BrandPersona>, String> {
-    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    PersonaService::get_brand_persona(&conn, &persona_id).map_err(|e| e.to_string())
-}
-
-/// 获取品牌人设扩展
-///
-/// 仅获取品牌扩展字段，不包括基础人设。
-///
-/// # 参数
-/// - `db`: 数据库连接状态
-/// - `persona_id`: 人设 ID
-///
-/// # 返回
-/// - 成功返回 Option<BrandPersonaExtension>
-/// - 失败返回错误信息
-#[tauri::command]
-pub async fn get_brand_extension(
-    db: State<'_, DbConnection>,
-    persona_id: String,
-) -> Result<Option<BrandPersonaExtension>, String> {
-    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    PersonaService::get_brand_extension(&conn, &persona_id).map_err(|e| e.to_string())
-}
-
-/// 保存品牌人设扩展
-///
-/// 创建或更新品牌人设扩展。如果扩展不存在则创建，存在则更新。
-///
-/// # 参数
-/// - `db`: 数据库连接状态
-/// - `req`: 创建/更新请求
-///
-/// # 返回
-/// - 成功返回保存后的扩展
-/// - 失败返回错误信息
-///
-/// # 示例（前端调用）
-/// ```typescript
-/// const extension = await invoke('save_brand_extension', {
-///   req: {
-///     personaId: 'persona-1',
-///     brandTone: {
-///       keywords: ['专业', '可信赖'],
-///       personality: 'professional',
-///       voiceTone: '专业但不冷漠',
-///     },
-///     design: {
-///       primaryStyle: 'modern',
-///       colorScheme: { ... },
-///       typography: { ... },
-///     },
-///   }
-/// });
-/// ```
-#[tauri::command]
-pub async fn save_brand_extension(
-    db: State<'_, DbConnection>,
-    req: CreateBrandExtensionRequest,
-) -> Result<BrandPersonaExtension, String> {
-    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    PersonaService::save_brand_extension(&conn, req).map_err(|e| e.to_string())
-}
-
-/// 更新品牌人设扩展
-///
-/// 更新已存在的品牌人设扩展。
-///
-/// # 参数
-/// - `db`: 数据库连接状态
-/// - `persona_id`: 人设 ID
-/// - `update`: 更新内容
-///
-/// # 返回
-/// - 成功返回更新后的扩展
-/// - 失败返回错误信息
-#[tauri::command]
-pub async fn update_brand_extension(
-    db: State<'_, DbConnection>,
-    persona_id: String,
-    update: UpdateBrandExtensionRequest,
-) -> Result<BrandPersonaExtension, String> {
-    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    PersonaService::update_brand_extension(&conn, &persona_id, update).map_err(|e| e.to_string())
-}
-
-/// 删除品牌人设扩展
-///
-/// 删除指定人设的品牌扩展，不影响基础人设。
-///
-/// # 参数
-/// - `db`: 数据库连接状态
-/// - `persona_id`: 人设 ID
-///
-/// # 返回
-/// - 成功返回 ()
-/// - 失败返回错误信息
-#[tauri::command]
-pub async fn delete_brand_extension(
-    db: State<'_, DbConnection>,
-    persona_id: String,
-) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    PersonaService::delete_brand_extension(&conn, &persona_id).map_err(|e| e.to_string())
-}
-
-/// 获取品牌人设模板列表
-///
-/// 获取预定义的品牌人设模板，用于快速创建品牌人设。
-/// 模板包含电商促销、品牌形象、社交媒体、活动宣传等场景。
-///
-/// # 返回
-/// - 品牌人设模板列表
-///
-/// # 示例（前端调用）
-/// ```typescript
-/// const templates = await invoke('list_brand_persona_templates');
-/// ```
-#[tauri::command]
-pub async fn list_brand_persona_templates() -> Result<Vec<BrandPersonaTemplate>, String> {
-    Ok(PersonaService::list_brand_persona_templates())
 }

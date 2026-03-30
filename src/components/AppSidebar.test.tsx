@@ -110,7 +110,7 @@ describe("AppSidebar", () => {
     expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe("false");
   });
 
-  it("旧导航配置未包含能力分组时也应显示固定能力入口和二级项", async () => {
+  it("旧导航配置未包含能力入口时也应显示固定能力分组和核心能力项", async () => {
     mockGetConfig.mockResolvedValue({
       navigation: {
         enabled_items: ["home-general", "claw"],
@@ -130,26 +130,19 @@ describe("AppSidebar", () => {
     expect(container.textContent).toContain("IM 配置");
   });
 
-  it("进入 IM 配置页时应高亮能力分组和对应二级导航", async () => {
+  it("进入 IM 配置页时应高亮对应能力入口并保留能力分组标题", async () => {
     const container = mountSidebar({
       currentPage: "channels",
     });
     await flushEffects();
 
-    expect(
-      container.querySelector('button[aria-label="能力"][aria-current="page"]'),
-    ).not.toBeNull();
+    expect(container.textContent).toContain("能力");
     expect(
       container.querySelector('button[aria-label="IM 配置"][aria-current="page"]'),
     ).not.toBeNull();
-    expect(
-      container.querySelector('button[aria-label="能力"]')?.getAttribute(
-        "aria-expanded",
-      ),
-    ).toBe("true");
   });
 
-  it("未启用创作主题时不应渲染主题分组标题", async () => {
+  it("侧边栏不应再渲染旧主题分组标题", async () => {
     const container = mountSidebar({
       currentPageParams: {
         agentEntry: "new-task",

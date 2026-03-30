@@ -5,13 +5,13 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import {
   createInitialNovelState,
   countWords as countNovelWords,
-} from "@/components/content-creator/canvas/novel/types";
-import type { ThemeType } from "@/components/content-creator/types";
+} from "@/lib/workspace/workbenchCanvas";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
 import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
 

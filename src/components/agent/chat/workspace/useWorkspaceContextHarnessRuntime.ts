@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProjectMemory } from "@/lib/api/memory";
-import type { ThemeType } from "@/components/content-creator/types";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
 import { useThemeContextWorkspace } from "../hooks";
 import { collectConversationSkillNames } from "../utils/harnessSkills";
@@ -19,7 +19,6 @@ interface UseWorkspaceContextHarnessRuntimeParams {
   providerType: string;
   model: string;
   mappedTheme: ThemeType;
-  chatMode: "agent" | "general" | "creator";
   isSending: boolean;
   projectMemory: ProjectMemory | null;
   harnessState: {
@@ -39,7 +38,6 @@ export function useWorkspaceContextHarnessRuntime({
   providerType,
   model,
   mappedTheme,
-  chatMode,
   isSending,
   projectMemory,
   harnessState,
@@ -77,17 +75,15 @@ export function useWorkspaceContextHarnessRuntime({
     : 0;
   const shouldAlwaysShowHarnessToggle =
     workbenchEnabled && contextWorkspace.enabled && mappedTheme === "social-media";
-  const shouldAlwaysShowGeneralWorkbenchToggle =
-    workbenchEnabled && chatMode === "general" && !contextWorkspace.enabled;
   const hasHarnessActivity =
     workbenchEnabled &&
     (harnessPanelVisible ||
+      isSending ||
+      harnessPendingCount > 0 ||
       harnessState.hasSignals ||
       compatSubagentRuntime.isRunning);
   const showHarnessToggle =
-    shouldAlwaysShowHarnessToggle ||
-    shouldAlwaysShowGeneralWorkbenchToggle ||
-    hasHarnessActivity;
+    shouldAlwaysShowHarnessToggle || hasHarnessActivity;
   const harnessAttentionLevel: "idle" | "active" | "warning" =
     harnessPendingCount > 0
       ? "warning"
@@ -116,7 +112,6 @@ export function useWorkspaceContextHarnessRuntime({
             memorySignals: [
               projectMemory?.characters.length ? "角色" : null,
               projectMemory?.world_building ? "世界观" : null,
-              projectMemory?.style_guide ? "风格" : null,
               projectMemory?.outline.length ? "大纲" : null,
             ].filter((item): item is string => item !== null),
             contextItemsCount: contextWorkspace.sidebarContextItems.length,
@@ -144,7 +139,6 @@ export function useWorkspaceContextHarnessRuntime({
       harnessSkillNames,
       projectMemory?.characters.length,
       projectMemory?.outline.length,
-      projectMemory?.style_guide,
       projectMemory?.world_building,
       visibleContextItems,
       workbenchEnabled,

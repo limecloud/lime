@@ -27,9 +27,9 @@ import {
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
 import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
 import { resolveInternalImageTaskDisplayName } from "../utils/internalImagePlaceholder";
-import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
-import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
-import { TIMELINE_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
+import { parseAIResponse } from "@/lib/workspace/a2ui";
+import type { A2UIResponse } from "@/lib/workspace/a2ui";
+import { TIMELINE_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
@@ -38,6 +38,10 @@ import { ToolCallItem } from "./ToolCallDisplay";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentThreadTimelineArtifactCard } from "./AgentThreadTimelineArtifactCard";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import {
+  isInternalRoutingTurnSummaryText,
+  normalizeTurnSummaryDisplayText,
+} from "../utils/turnSummaryPresentation";
 
 interface AgentThreadTimelineProps {
   turn: AgentThreadTurn;
@@ -123,13 +127,15 @@ function resolveReasoningDisplayText(
 }
 
 function resolveThinkingDisplayText(
-  item: Extract<AgentThreadItem, { type: "reasoning" | "turn_summary" }>,
+  item: Extract<AgentThreadItem, { type: "reasoning" }>,
 ): string {
-  if (item.type === "reasoning") {
-    return resolveReasoningDisplayText(item).combinedText;
-  }
+  return resolveReasoningDisplayText(item).combinedText;
+}
 
-  return item.text.trim() ? item.text : "";
+function resolveTurnSummaryDisplayText(
+  item: Extract<AgentThreadItem, { type: "turn_summary" }>,
+): string {
+  return normalizeTurnSummaryDisplayText(item.text);
 }
 
 function formatTimestamp(value?: string): string | null {
@@ -387,85 +393,107 @@ function ThinkingItemCard({
 }: {
   item: Extract<AgentThreadItem, { type: "reasoning" | "turn_summary" }>;
 }) {
-  const displayText = useMemo(() => resolveThinkingDisplayText(item), [item]);
+  const displayText = useMemo(
+    () =>
+      item.type === "reasoning"
+        ? resolveThinkingDisplayText(item)
+        : resolveTurnSummaryDisplayText(item),
+    [item],
+  );
   const parsedContent = useMemo(
     () => parseAIResponse(displayText, false),
     [displayText],
   );
   const hasStructuredPreview = parsedContent.hasA2UI || parsedContent.hasPending;
+  const shouldHideTurnSummaryContent =
+    item.type === "turn_summary" &&
+    !hasStructuredPreview &&
+    isInternalRoutingTurnSummaryText(displayText);
 
-  const content = hasStructuredPreview ? (
-    <div className="space-y-3">
-      {parsedContent.parts.map((part, index) => {
-        if (part.type === "a2ui" && typeof part.content !== "string") {
-          const readonlyResponse: A2UIResponse = {
-            ...part.content,
-            submitAction: undefined,
-          };
+  const content =
+    hasStructuredPreview ? (
+      <div className="space-y-3">
+        {parsedContent.parts.map((part, index) => {
+          if (part.type === "a2ui" && typeof part.content !== "string") {
+            const readonlyResponse: A2UIResponse = {
+              ...part.content,
+              submitAction: undefined,
+            };
+
+            return (
+              <A2UITaskCard
+                key={`timeline-a2ui-${index}`}
+                response={readonlyResponse}
+                compact={true}
+                preview={true}
+                preset={TIMELINE_A2UI_TASK_CARD_PRESET}
+              />
+            );
+          }
+
+          if (part.type === "pending_a2ui") {
+            return (
+              <A2UITaskLoadingCard
+                key={`timeline-pending-a2ui-${index}`}
+                compact={true}
+                preset={TIMELINE_A2UI_TASK_CARD_PRESET}
+                subtitle="这一步还在整理，稍等一下。"
+              />
+            );
+          }
+
+          const textContent =
+            typeof part.content === "string" ? part.content.trim() : "";
+          if (!textContent) {
+            return null;
+          }
 
           return (
-            <A2UITaskCard
-              key={`timeline-a2ui-${index}`}
-              response={readonlyResponse}
-              compact={true}
-              preview={true}
-              preset={TIMELINE_A2UI_TASK_CARD_PRESET}
+            <MarkdownRenderer
+              key={`timeline-text-${index}`}
+              content={textContent}
             />
           );
-        }
-
-        if (part.type === "pending_a2ui") {
-          return (
-            <A2UITaskLoadingCard
-              key={`timeline-pending-a2ui-${index}`}
-              compact={true}
-              preset={TIMELINE_A2UI_TASK_CARD_PRESET}
-              subtitle="这一步还在整理，稍等一下。"
-            />
-          );
-        }
-
-        const textContent =
-          typeof part.content === "string" ? part.content.trim() : "";
-        if (!textContent) {
-          return null;
-        }
-
-        return (
-          <MarkdownRenderer
-            key={`timeline-text-${index}`}
-            content={textContent}
-          />
-        );
-      })}
-    </div>
-  ) : (
-    <MarkdownRenderer content={displayText} />
-  );
+        })}
+      </div>
+    ) : shouldHideTurnSummaryContent ? null : (
+      <MarkdownRenderer content={displayText} />
+    );
   const statusLabel =
     item.type === "turn_summary"
       ? item.status === "in_progress"
         ? "处理中"
-        : null
+        : "当前进展"
       : item.status === "in_progress"
         ? "思考中"
         : null;
+  const ToneIcon =
+    item.type === "turn_summary"
+      ? item.status === "in_progress"
+        ? Loader2
+        : Clock3
+      : item.status === "in_progress"
+        ? Loader2
+        : Sparkles;
 
   return (
     <div className="py-1.5">
       <div className="flex items-start gap-2.5">
         <div className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
-          {item.status === "in_progress" ? (
-            <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
+          <ToneIcon
+            className={cn(
+              "h-4 w-4",
+              item.status === "in_progress" && "animate-spin text-sky-600",
+            )}
+          />
         </div>
         <div className="min-w-0 flex-1">
           {statusLabel ? (
             <div className="mb-1 text-xs text-slate-500">{statusLabel}</div>
           ) : null}
-          <div className="text-sm leading-7 text-slate-800">{content}</div>
+          {content ? (
+            <div className="text-sm leading-7 text-slate-800">{content}</div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -662,22 +690,15 @@ function extractCompactThinkingParts(item: Extract<
   }
 
   if (item.type === "turn_summary") {
-    const displayText = resolveThinkingDisplayText(item);
+    const displayText = resolveTurnSummaryDisplayText(item);
     const parsed = parseAIResponse(displayText, false);
     if (parsed.hasA2UI || parsed.hasPending) {
       return null;
     }
 
-    const lines = displayText
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const [title = item.status === "in_progress" ? "处理中" : "当前进展", ...rest] =
-      lines;
-
     return {
-      title,
-      detail: rest.join("\n").trim(),
+      title: item.status === "in_progress" ? "处理中" : "当前进展",
+      detail: isInternalRoutingTurnSummaryText(displayText) ? "" : displayText,
     };
   }
 
@@ -705,9 +726,13 @@ function GroupedThinkingRow({
       ? item.status === "in_progress"
         ? Loader2
         : ListChecks
-      : item.status === "in_progress"
-        ? Loader2
-        : Sparkles;
+      : item.type === "turn_summary"
+        ? item.status === "in_progress"
+          ? Loader2
+          : Clock3
+        : item.status === "in_progress"
+          ? Loader2
+          : Sparkles;
 
   return (
     <div className="flex items-start gap-2 py-1.5">
@@ -1107,11 +1132,15 @@ function resolveBlockSummaryLines(block: AgentThreadOrderedBlock): string[] {
     .map((line) => shortenInlineText(line, 92) || line);
 
   if (isTurnSummaryOnlyBlock) {
+    const headline = block.status === "in_progress" ? "处理中" : "当前进展";
     if (normalizedPreviewLines.length > 0) {
-      return normalizedPreviewLines;
+      return [
+        headline,
+        ...normalizedPreviewLines.filter((line) => line !== headline),
+      ];
     }
 
-    return [block.status === "in_progress" ? "处理中" : "当前进展"];
+    return [headline];
   }
 
   if (isThinkingOnlyBlock) {

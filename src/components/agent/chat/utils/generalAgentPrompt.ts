@@ -1,4 +1,4 @@
-import type { ThemeType } from "@/components/content-creator/types";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ChatToolPreferences } from "./chatToolPreferences";
 
 const GENERAL_AGENT_THEMES = new Set<string>([

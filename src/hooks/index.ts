@@ -6,10 +6,8 @@ export { useWorkspace } from "./useWorkspace";
 export { useProjects } from "./useProjects";
 export { useProject } from "./useProject";
 export { usePersonas } from "./usePersonas";
-export { useBrandPersona } from "./useBrandPersona";
 export { useMaterials } from "./useMaterials";
 export { usePosterMaterial } from "./usePosterMaterial";
-export { useTemplates } from "./useTemplates";
 export { useProjectContext } from "./useProjectContext";
 export { useSkillExecution } from "./useSkillExecution";
 export { useMcp } from "./useMcp";
@@ -24,10 +22,8 @@ export type {
 export type { UseProjectsReturn } from "./useProjects";
 export type { UseProjectReturn } from "./useProject";
 export type { UsePersonasReturn } from "./usePersonas";
-export type { UseBrandPersonaReturn } from "./useBrandPersona";
 export type { UseMaterialsReturn } from "./useMaterials";
 export type { UsePosterMaterialReturn } from "./usePosterMaterial";
-export type { UseTemplatesReturn } from "./useTemplates";
 export type { UseProjectContextReturn } from "./useProjectContext";
 export type {
   ConnectPayload,

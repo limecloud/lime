@@ -34,7 +34,6 @@ vi.mock("sonner", () => ({
 vi.mock("./memory", () => ({
   CharacterPanel: () => <div>CHARACTER_PANEL_STUB</div>,
   WorldBuildingPanel: () => <div>WORLD_PANEL_STUB</div>,
-  StyleGuidePanel: () => <div>STYLE_GUIDE_STUB</div>,
   OutlinePanel: () => <div>OUTLINE_PANEL_STUB</div>,
 }));
 
@@ -129,7 +128,7 @@ describe("ContentListPage", () => {
     expect(text).toContain("新建文稿");
   });
 
-  it("切换到风格标签时展示风格工作台宿主", async () => {
+  it("项目工作台不再暴露旧风格标签", async () => {
     const { container } = mountHarness(
       ContentListPage,
       {
@@ -142,13 +141,6 @@ describe("ContentListPage", () => {
 
     await flushEffects();
 
-    const styleTab = clickButtonByText(container, "风格");
-    expect(styleTab).toBeDefined();
-
-    await flushEffects();
-
-    const text = container.textContent ?? "";
-    expect(text).toContain("当前工作区：风格");
-    expect(text).toContain("STYLE_GUIDE_STUB");
+    expect(clickButtonByText(container, "风格")).toBeUndefined();
   });
 });

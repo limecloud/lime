@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import { updateMessageArtifactsStatus } from "../utils/messageArtifacts";
 import type { Message, MessageImage } from "../types";
 import {

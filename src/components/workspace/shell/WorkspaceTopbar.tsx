@@ -6,7 +6,7 @@ import type {
 } from "@/features/themes/types";
 import type { ProjectType } from "@/lib/api/project";
 import { getProjectTypeLabel } from "@/lib/api/project";
-import { CanvasBreadcrumbHeader } from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
+import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 
 export interface WorkspaceTopbarProps {
   theme: ProjectType;

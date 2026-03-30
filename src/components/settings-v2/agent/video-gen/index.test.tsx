@@ -75,7 +75,6 @@ beforeEach(() => {
 
   mockGetConfig.mockResolvedValue({
     content_creator: {
-      enabled_themes: ["general", "video"],
       media_defaults: {
         video: {
           preferredProviderId: "doubao-video",

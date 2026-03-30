@@ -3,7 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.99.0"
+version = "1.0.0-beta"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -192,7 +192,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "0.99.0"
+version = "1.0.0-beta"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"

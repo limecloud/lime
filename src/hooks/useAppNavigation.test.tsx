@@ -65,19 +65,6 @@ describe("useAppNavigation", () => {
     await flushEffects();
   }
 
-  it("从 memory 跳 style-library 时应改走 style 页", async () => {
-    await renderProbe();
-
-    await act(async () => {
-      latestNavigation?.handleNavigate("memory", {
-        section: "style-library",
-      });
-    });
-
-    expect(latestNavigation?.currentPage).toBe("style");
-    expect(latestNavigation?.pageParams).toEqual({ section: "library" });
-  });
-
   it("projects 跳转应复用保存的主题工作台页", async () => {
     window.localStorage.setItem(
       LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
@@ -105,8 +92,6 @@ describe("useAppNavigation", () => {
       latestNavigation?.handleNavigate("project-detail", {
         projectId: "project-2",
         workspaceTheme: "music",
-        openProjectStyleGuide: true,
-        openProjectStyleGuideSourceEntryId: "entry-1",
       });
     });
 
@@ -114,8 +99,6 @@ describe("useAppNavigation", () => {
     expect(latestNavigation?.pageParams).toEqual({
       projectId: "project-2",
       workspaceViewMode: "workspace",
-      workspaceOpenProjectStyleGuide: true,
-      workspaceOpenProjectStyleGuideSourceEntryId: "entry-1",
     });
   });
 

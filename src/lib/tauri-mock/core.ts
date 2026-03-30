@@ -1327,7 +1327,6 @@ const defaultMocks: Record<string, any> = {
     },
     content_creator: {
       schema_version: 1,
-      enabled_themes: [],
       media_defaults: {},
     },
     navigation: {
@@ -1340,7 +1339,6 @@ const defaultMocks: Record<string, any> = {
         "automation",
         "openclaw",
         "resources",
-        "style-library",
         "memory",
       ],
     },
@@ -3073,7 +3071,6 @@ const defaultMocks: Record<string, any> = {
   project_memory_get: () => ({
     characters: [],
     world_building: null,
-    style_guide: null,
     outline: [],
   }),
   memory_runtime_get_overview: () => ({
@@ -3812,8 +3809,6 @@ const defaultMocks: Record<string, any> = {
     has_more: false,
     next_offset: null,
   }),
-  content_workflow_get_by_content: () => null,
-  content_workflow_create: () => null,
   content_get_theme_workbench_document_state: () => null,
 
   // Workspace 相关

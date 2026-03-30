@@ -196,7 +196,7 @@ describe("deriveHarnessSessionState", () => {
     });
   });
 
-  it("仅有 turn_summary 时也应为 harness 提供计划摘要兜底", () => {
+  it("内部路由型 turn_summary 不应伪装成已就绪计划", () => {
     const messages = [createMessage()];
     const items: AgentThreadItem[] = [
       {
@@ -215,10 +215,34 @@ describe("deriveHarnessSessionState", () => {
 
     const state = deriveHarnessSessionState(messages, [], items);
 
+    expect(state.plan.phase).toBe("idle");
+    expect(state.plan.items).toHaveLength(0);
+    expect(state.plan.summaryText).toBeUndefined();
+    expect(state.outputSignals[0]?.toolName).toBe("turn_summary");
+  });
+
+  it("有真实进展的 turn_summary 仍应作为计划摘要兜底", () => {
+    const messages = [createMessage()];
+    const items: AgentThreadItem[] = [
+      {
+        id: "summary-2",
+        thread_id: "thread-1",
+        turn_id: "turn-1",
+        sequence: 1,
+        status: "completed",
+        started_at: "2026-03-13T12:00:00.000Z",
+        completed_at: "2026-03-13T12:00:01.000Z",
+        updated_at: "2026-03-13T12:00:01.000Z",
+        type: "turn_summary",
+        text: "已打开公众号后台\n后续可以继续执行发布。",
+      },
+    ];
+
+    const state = deriveHarnessSessionState(messages, [], items);
+
     expect(state.plan.phase).toBe("ready");
     expect(state.plan.items).toHaveLength(0);
-    expect(state.plan.summaryText).toContain("直接回答优先");
-    expect(state.outputSignals[0]?.toolName).toBe("turn_summary");
+    expect(state.plan.summaryText).toContain("已打开公众号后台");
   });
 
   it("应保留最近 8 条输出信号以承载多组 WebSearch 扩搜", () => {

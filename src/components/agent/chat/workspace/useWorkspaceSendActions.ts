@@ -24,12 +24,13 @@ import {
   buildRuntimeTeamDispatchPreview,
   buildWorkspaceRequestMetadata,
   buildWorkspaceSendText,
+  hasServiceSkillLaunchRequestMetadata,
   primeBrowserAssistBeforeSend,
   type ContextWorkspaceSummary,
   type EnsureBrowserAssistCanvasOptions,
 } from "./workspaceSendHelpers";
 import type { Character } from "@/lib/api/memory";
-import type { ThemeType } from "@/components/content-creator/types";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 
 type ExecutionStrategy = "react" | "code_orchestrated" | "auto";
@@ -50,7 +51,6 @@ interface UseWorkspaceSendActionsParams {
   mappedTheme: ThemeType;
   isThemeWorkbench: boolean;
   contextWorkspace: ContextWorkspaceSummary;
-  runtimeStyleMessagePrompt: string;
   projectId?: string | null;
   executionStrategy: ExecutionStrategy;
   accessMode?: AgentAccessMode;
@@ -152,7 +152,6 @@ export function useWorkspaceSendActions({
   mappedTheme,
   isThemeWorkbench,
   contextWorkspace,
-  runtimeStyleMessagePrompt,
   projectId,
   executionStrategy,
   accessMode,
@@ -203,6 +202,10 @@ export function useWorkspaceSendActions({
       const effectiveToolPreferences =
         sendOptions?.toolPreferencesOverride ?? chatToolPreferences;
       const { browserRequirementMatch } = sendBoundary;
+      const hasBoundServiceSkillLaunch = hasServiceSkillLaunchRequestMetadata({
+        ...(workspaceRequestMetadataBase || {}),
+        ...(sendOptions?.requestMetadata || {}),
+      });
       const requestedWebSearch =
         webSearch ?? effectiveToolPreferences.webSearch;
       const effectiveWebSearch =
@@ -237,6 +240,7 @@ export function useWorkspaceSendActions({
       if (
         activeTheme === "general" &&
         !sendOptions?.purpose &&
+        !hasBoundServiceSkillLaunch &&
         !images?.length &&
         trimmedSourceText &&
         !trimmedSourceText.startsWith("/") &&
@@ -253,6 +257,7 @@ export function useWorkspaceSendActions({
       }
 
       if (
+        !hasBoundServiceSkillLaunch &&
         maybeStartBrowserTaskPreflight({
           boundary: sendBoundary,
           images,
@@ -266,18 +271,19 @@ export function useWorkspaceSendActions({
         return { kind: "done", result: true };
       }
 
-      primeBrowserAssistBeforeSend({
-        activeTheme,
-        sourceText,
-        browserRequirementMatch,
-        ensureBrowserAssistCanvas,
-      });
+      if (!hasBoundServiceSkillLaunch) {
+        primeBrowserAssistBeforeSend({
+          activeTheme,
+          sourceText,
+          browserRequirementMatch,
+          ensureBrowserAssistCanvas,
+        });
+      }
 
       const text = await buildWorkspaceSendText({
         sourceText,
         contextWorkspace,
         mentionedCharacters,
-        runtimeStyleMessagePrompt,
         sendOptions,
       });
 
@@ -309,8 +315,8 @@ export function useWorkspaceSendActions({
       mentionedCharacters,
       projectId,
       resolveSendBoundary,
-      runtimeStyleMessagePrompt,
       serviceSkills,
+      workspaceRequestMetadataBase,
     ],
   );
 

@@ -10,7 +10,7 @@ import type {
   AsterSessionExecutionRuntime,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { ActionRequired, Message } from "../types";
 import { appendTextToParts } from "./agentChatHistory";
 import { updateMessageArtifactsStatus } from "../utils/messageArtifacts";
@@ -36,6 +36,7 @@ import {
 } from "../utils/agentRuntimeStatus";
 import { normalizeLegacyRuntimeStatusTitle } from "@/lib/api/agentTextNormalization";
 import { resolveRuntimeWarningToastPresentation } from "./runtimeWarningPresentation";
+import { buildQueuedRuntimeStatus } from "./agentStreamSubmitDraft";
 import {
   applyModelChangeExecutionRuntime,
   applyTurnContextExecutionRuntime,
@@ -87,7 +88,9 @@ interface HandleTurnStreamEventOptions {
   activeSessionId: string;
   resolvedWorkspaceId: string;
   effectiveExecutionStrategy: AsterExecutionStrategy;
+  content: string;
   runtime: AgentRuntimeAdapter;
+  webSearch?: boolean;
   warnedKeysRef: MutableRefObject<Set<string>>;
   actionLoggedKeys: Set<string>;
   toolLogIdByToolId: Map<string, string>;
@@ -106,6 +109,7 @@ interface HandleTurnStreamEventOptions {
   setExecutionRuntime: Dispatch<
     SetStateAction<AsterSessionExecutionRuntime | null>
   >;
+  setIsSending: Dispatch<SetStateAction<boolean>>;
 }
 
 function finishRequestLog(
@@ -143,7 +147,9 @@ export function handleTurnStreamEvent({
   activeSessionId,
   resolvedWorkspaceId,
   effectiveExecutionStrategy,
+  content,
   runtime,
+  webSearch,
   warnedKeysRef,
   actionLoggedKeys,
   toolLogIdByToolId,
@@ -156,6 +162,7 @@ export function handleTurnStreamEvent({
   setThreadTurns,
   setCurrentTurnId,
   setExecutionRuntime,
+  setIsSending,
 }: HandleTurnStreamEventOptions): void {
   const {
     activateStream,
@@ -215,6 +222,31 @@ export function handleTurnStreamEvent({
     });
   };
 
+  const markQueuedDraftState = (queuedMessageText?: string | null) => {
+    clearActiveStreamIfMatch(eventName);
+    clearOptimisticItem();
+    clearOptimisticTurn();
+    setIsSending(false);
+
+    const queuedRuntimeStatus = buildQueuedRuntimeStatus(
+      effectiveExecutionStrategy,
+      queuedMessageText?.trim() || content,
+      webSearch,
+    );
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === assistantMsgId
+          ? {
+              ...msg,
+              isThinking: false,
+              runtimeStatus: queuedRuntimeStatus,
+            }
+          : msg,
+      ),
+    );
+  };
+
   switch (data.type) {
     case "thread_started":
       break;
@@ -222,6 +254,7 @@ export function handleTurnStreamEvent({
     case "queue_added":
       requestState.queuedTurnId = data.queued_turn.queued_turn_id;
       upsertQueuedTurn(data.queued_turn);
+      markQueuedDraftState(data.queued_turn.message_text);
       break;
 
     case "queue_removed":

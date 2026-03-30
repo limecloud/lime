@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "0.99.0",
+  "version": "1.0.0-beta",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"

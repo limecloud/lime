@@ -824,16 +824,12 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     );
 
-    // Migration: 添加默认人设和模板引用字段到 workspaces 表
-    // _Requirements: 11.2, 11.3_
+    // Migration: 添加默认人设引用字段到 workspaces 表
+    // _Requirements: 11.2_
     // 注意：SQLite 不支持 ALTER TABLE ADD COLUMN 带外键约束，
     // 外键约束通过应用层逻辑保证
     let _ = conn.execute(
         "ALTER TABLE workspaces ADD COLUMN default_persona_id TEXT",
-        [],
-    );
-    let _ = conn.execute(
-        "ALTER TABLE workspaces ADD COLUMN default_template_id TEXT",
         [],
     );
 
@@ -930,23 +926,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             era TEXT,
             locations TEXT,
             rules TEXT,
-            extra_json TEXT,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES workspaces(id) ON DELETE CASCADE
-        )",
-        [],
-    )?;
-
-    // 风格指南表
-    // 存储项目的写作风格指南
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS style_guides (
-            project_id TEXT PRIMARY KEY,
-            style TEXT NOT NULL DEFAULT '',
-            tone TEXT,
-            forbidden_words_json TEXT NOT NULL DEFAULT '[]',
-            preferred_words_json TEXT NOT NULL DEFAULT '[]',
-            examples TEXT,
             extra_json TEXT,
             updated_at INTEGER NOT NULL,
             FOREIGN KEY (project_id) REFERENCES workspaces(id) ON DELETE CASCADE
@@ -1055,41 +1034,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_video_tasks_provider_task ON video_generation_tasks(provider_task_id)",
-        [],
-    )?;
-
-    // ============================================================================
-    // 排版模板表 (Template)
-    // 存储项目级排版模板，用于控制 AI 输出内容的格式
-    // _Requirements: 8.3_
-    // ============================================================================
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS templates (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            platform TEXT NOT NULL,
-            title_style TEXT,
-            paragraph_style TEXT,
-            ending_style TEXT,
-            emoji_usage TEXT NOT NULL DEFAULT 'moderate',
-            hashtag_rules TEXT,
-            image_rules TEXT,
-            is_default INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES workspaces(id) ON DELETE CASCADE
-        )",
-        [],
-    )?;
-
-    // 创建 templates 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_templates_project_id ON templates(project_id)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_templates_platform ON templates(platform)",
         [],
     )?;
 
@@ -1349,30 +1293,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_a2ui_forms_session ON a2ui_forms(session_id)",
-        [],
-    )?;
-
-    // ============================================================================
-    // 品牌人设扩展表 (BrandPersonaExtension)
-    // 存储品牌人设的海报设计专用字段，与 personas 表关联
-    // ============================================================================
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS brand_persona_extensions (
-            id TEXT PRIMARY KEY,
-            persona_id TEXT NOT NULL UNIQUE,
-            brand_tone_json TEXT NOT NULL DEFAULT '{}',
-            design_json TEXT NOT NULL DEFAULT '{}',
-            visual_json TEXT NOT NULL DEFAULT '{}',
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (persona_id) REFERENCES personas(id) ON DELETE CASCADE
-        )",
-        [],
-    )?;
-
-    // 创建 brand_persona_extensions 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_brand_persona_extensions_persona_id ON brand_persona_extensions(persona_id)",
         [],
     )?;
 

@@ -9,7 +9,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useProject } from "@/hooks/useProject";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
 import { usePersonas } from "@/hooks/usePersonas";
-import { useTemplates } from "@/hooks/useTemplates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,18 +58,16 @@ const AUTO_IMAGE_MODEL_VALUE = "__auto_image_model__";
 /**
  * 项目设置 Tab 组件
  *
- * 管理项目基本信息、默认人设/模板、归档。
+ * 管理项目基本信息、默认人设、归档。
  */
 export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
   const { project, loading, update, archive } = useProject(projectId);
   const { providers, loading: providersLoading } = useApiKeyProvider();
   const { personas } = usePersonas(projectId);
-  const { templates } = useTemplates(projectId);
 
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📝");
   const [defaultPersonaId, setDefaultPersonaId] = useState("");
-  const [defaultTemplateId, setDefaultTemplateId] = useState("");
   const [preferredImageProviderId, setPreferredImageProviderId] = useState(
     AUTO_IMAGE_PROVIDER_VALUE,
   );
@@ -227,7 +224,6 @@ export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
       setName(project.name);
       setIcon(project.icon || "📝");
       setDefaultPersonaId(project.defaultPersonaId || "");
-      setDefaultTemplateId(project.defaultTemplateId || "");
       setPreferredImageProviderId(
         project.settings?.imageGeneration?.preferredProviderId ||
           AUTO_IMAGE_PROVIDER_VALUE,
@@ -406,7 +402,6 @@ export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
         settings: nextSettings,
         icon,
         defaultPersonaId: defaultPersonaId || undefined,
-        defaultTemplateId: defaultTemplateId || undefined,
       });
     } finally {
       setSaving(false);
@@ -500,29 +495,6 @@ export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
             </p>
           </div>
         )}
-
-        <div className="space-y-2">
-          <Label>默认排版模板</Label>
-          <Select
-            value={defaultTemplateId}
-            onValueChange={setDefaultTemplateId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="选择默认模板" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">无</SelectItem>
-              {templates.map((template) => (
-                <SelectItem key={template.id} value={template.id}>
-                  {template.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            新建话题时自动使用的排版模板
-          </p>
-        </div>
 
         <div className="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground">
           图片 / 视频 /

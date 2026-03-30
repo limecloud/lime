@@ -4,7 +4,6 @@
  * @module components/image-gen/tabs/MyGalleryTab
  */
 
-import { ImageGallery } from "@/components/content-creator/material/ImageGallery";
 import { convertLocalFileSrc } from "@/lib/api/fileSystem";
 import type { PosterMaterial } from "@/types/poster-material";
 import { toast } from "sonner";
@@ -23,6 +22,7 @@ import {
   getCanvasImageInsertHistory,
   type CanvasImageInsertHistoryEntry,
 } from "@/lib/canvasImageInsertHistory";
+import { ImageGallery } from "@/lib/workspace/workbenchUi";
 import type { Page, PageParams } from "@/types/page";
 
 export interface MyGalleryTabProps {

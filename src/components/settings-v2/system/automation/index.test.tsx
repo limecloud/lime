@@ -263,25 +263,42 @@ async function renderSettings(
   return container;
 }
 
+async function openJobDetails(container: HTMLDivElement, jobId: string) {
+  const button = container.querySelector(
+    `[data-testid='automation-job-open-details-${jobId}']`,
+  ) as HTMLButtonElement | null;
+
+  expect(button).not.toBeNull();
+
+  await act(async () => {
+    button?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe("AutomationSettings", () => {
   it("遗留浏览器任务应展示下线提示并移除接管面板", async () => {
     const container = await renderSettings();
+    await openJobDetails(container, "job-browser-1");
+    const documentText = document.body.textContent ?? "";
 
-    expect(container.textContent).toContain("浏览器自动化已下线");
-    expect(container.textContent).toContain("系统不会再自动启动 Chrome");
-    expect(container.textContent).toContain("等待人工处理");
-    expect(container.textContent).toContain("已下线");
-    expect(container.textContent).toContain("等待你确认是否继续执行");
-    expect(container.textContent).toContain("输出契约");
-    expect(container.textContent).toContain("最近一次投递结果");
-    expect(container.textContent).toContain("投递失败");
-    expect(container.textContent).toContain(
+    expect(documentText).toContain("任务详情与历史");
+    expect(documentText).toContain("浏览器自动化已下线");
+    expect(documentText).toContain("系统不会再自动启动 Chrome");
+    expect(documentText).toContain("等待人工处理");
+    expect(documentText).toContain("已下线");
+    expect(documentText).toContain("等待你确认是否继续执行");
+    expect(documentText).toContain("输出契约");
+    expect(documentText).toContain("最近一次投递结果");
+    expect(documentText).toContain("投递失败");
+    expect(documentText).toContain(
       "写入本地文件失败: permission denied",
     );
-    expect(container.textContent).toContain("投递失败记为任务失败");
-    expect(container.textContent).toContain("投递键: dlv-run-browser-1");
-    expect(container.textContent).toContain("执行重试: 0 / 投递尝试: 2");
-    expect(container.textContent).not.toContain("浏览器实时接管");
+    expect(documentText).toContain("投递失败记为任务失败");
+    expect(documentText).toContain("投递键: dlv-run-browser-1");
+    expect(documentText).toContain("执行重试: 0 / 投递尝试: 2");
+    expect(documentText).not.toContain("浏览器实时接管");
   }, 10_000);
 
   it("应展示 Google Sheets 作为输出目标标签", async () => {
@@ -346,9 +363,11 @@ describe("AutomationSettings", () => {
     ]);
 
     const container = await renderSettings();
+    await openJobDetails(container, "job-browser-2");
+    const documentText = document.body.textContent ?? "";
 
-    expect(container.textContent).toContain("Google Sheets");
-    expect(container.textContent).toContain("Google Sheets 已追加 2 行");
+    expect(documentText).toContain("Google Sheets");
+    expect(documentText).toContain("Google Sheets 已追加 2 行");
   }, 10_000);
 
   it("settings 模式应只保留调度器设置入口", async () => {
@@ -378,7 +397,7 @@ describe("AutomationSettings", () => {
     expect(container.textContent).toContain("自动化");
     expect(container.textContent).toContain("任务入口");
     expect(container.textContent).toContain("任务列表");
-    expect(container.textContent).toContain("任务详情与历史");
+    expect(container.textContent).not.toContain("任务详情与历史");
     expect(container.textContent).toContain("自动化设置");
     expect(container.textContent).toContain("新建任务");
     expect(container.textContent).toContain("任务");
@@ -386,9 +405,32 @@ describe("AutomationSettings", () => {
     expect(container.textContent).not.toContain("保存调度器");
     expect(container.textContent).not.toContain("启用调度器");
     expect(
+      container.querySelector(
+        "[data-testid='automation-job-open-details-job-browser-1']",
+      ),
+    ).not.toBeNull();
+    expect(
       container.querySelector("[data-testid='automation-health-panel']"),
     ).toBeNull();
-    expect(mockGetAutomationRunHistory).toHaveBeenCalled();
+    expect(mockGetAutomationRunHistory).not.toHaveBeenCalled();
+  });
+
+  it("workspace 模式点击详情按钮后应打开任务详情弹窗", async () => {
+    const container = await renderSettings({
+      mode: "workspace",
+    });
+
+    await openJobDetails(container, "job-browser-1");
+
+    expect(
+      document.body.querySelector("[data-testid='automation-job-details-dialog']"),
+    ).not.toBeNull();
+    expect(document.body.textContent).toContain("任务详情与历史");
+    expect(document.body.textContent).toContain("浏览器巡检");
+    expect(mockGetAutomationRunHistory).toHaveBeenLastCalledWith(
+      "job-browser-1",
+      15,
+    );
   });
 
   it("workspace 模式切换到概览 tab 后才显示统计与健康面板", async () => {
@@ -663,9 +705,13 @@ describe("AutomationSettings", () => {
     const runWindow = container.querySelector(
       "[data-testid='automation-job-run-window-job-service-skill-1']",
     );
-    const runServiceSkillSummary = container.querySelector(
+    const runServiceSkillSummary = document.body.querySelector(
       "[data-testid='automation-run-service-skill-summary-run-service-skill-1']",
     );
+    const dialog = document.body.querySelector(
+      "[data-testid='automation-job-details-dialog']",
+    );
+    const dialogText = document.body.textContent ?? "";
 
     expect(serviceSkillSummary?.textContent).toContain("技能任务");
     expect(serviceSkillSummary?.textContent).toContain("定时任务");
@@ -687,21 +733,22 @@ describe("AutomationSettings", () => {
     expect(runServiceSkillSummary?.textContent).toContain(
       "补充要求: 优先记录增速最快的话题。",
     );
-    expect(container.textContent).toContain("技能任务上下文");
-    expect(container.textContent).toContain("每日趋势摘要");
-    expect(container.textContent).toContain("定时任务");
-    expect(container.textContent).toContain("客户端执行");
-    expect(container.textContent).toContain("云目录");
-    expect(container.textContent).toContain("工作主题: social-media");
-    expect(container.textContent).toContain("主稿绑定: content-service-skill-1");
-    expect(container.textContent).toContain("参数摘要");
-    expect(container.textContent).toContain("监测平台: X / Twitter");
-    expect(container.textContent).toContain(
+    expect(dialog).not.toBeNull();
+    expect(dialogText).toContain("技能任务上下文");
+    expect(dialogText).toContain("每日趋势摘要");
+    expect(dialogText).toContain("定时任务");
+    expect(dialogText).toContain("客户端执行");
+    expect(dialogText).toContain("云目录");
+    expect(dialogText).toContain("工作主题: social-media");
+    expect(dialogText).toContain("主稿绑定: content-service-skill-1");
+    expect(dialogText).toContain("参数摘要");
+    expect(dialogText).toContain("监测平台: X / Twitter");
+    expect(dialogText).toContain(
       "行业关键词: AI Agent，创作者工具",
     );
-    expect(container.textContent).toContain("补充要求");
-    expect(container.textContent).toContain("重点关注新增热点与异常波动。");
-    expect(container.textContent).toContain("失败原因");
-    expect(container.textContent).toContain("模型返回空结果");
+    expect(dialogText).toContain("补充要求");
+    expect(dialogText).toContain("重点关注新增热点与异常波动。");
+    expect(dialogText).toContain("失败原因");
+    expect(dialogText).toContain("模型返回空结果");
   });
 });

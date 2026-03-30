@@ -1,12 +1,12 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type {
   AutoContinueRunPayload,
   ContentReviewRunPayload,
   TextStylizeRunPayload,
-} from "@/components/content-creator/canvas/document/types";
+} from "@/lib/workspace/workbenchCanvas";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import { importDocument } from "@/lib/api/session-files";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";

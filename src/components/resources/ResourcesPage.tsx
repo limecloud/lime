@@ -63,9 +63,9 @@ import {
   setStoredResourceProjectId,
 } from "@/lib/resourceProjectSelection";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
+import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { cn } from "@/lib/utils";
 import type { Page, PageParams } from "@/types/page";
-import { CanvasBreadcrumbHeader } from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
 import { fetchDocumentDetail } from "./services/resourceAdapter";
 import type { ResourceItem } from "./services/types";
 import { resourcesSelectors, useResourcesStore } from "./store";
@@ -635,11 +635,11 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   }, [onNavigate]);
 
   const headingDescription = useMemo(() => {
-    if (!projectId) return "请选择左侧资源库";
+    if (!projectId) return "请选择左侧资料库";
     if (currentFolderId && currentFolder) {
       return `当前目录：${currentFolder.name}`;
     }
-    return `资源库：${selectedProject?.name ?? "未命名项目"}`;
+    return `资料库：${selectedProject?.name ?? "未命名项目"}`;
   }, [currentFolder, currentFolderId, projectId, selectedProject?.name]);
 
   const activeCategoryLabel = resourceCategoryLabelMap[viewCategory];
@@ -671,10 +671,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
   const currentScopeDescription = useMemo(() => {
     if (!projectId) {
-      return "先在左侧选择一个项目资源库。";
+      return "先在左侧选择一个项目资料库。";
     }
     if (!isFolderMode) {
-      return `跨目录查看当前资源库内的${activeCategoryLabel}资源。`;
+      return `跨目录查看当前资料库内的${activeCategoryLabel}内容。`;
     }
     if (currentFolder && breadcrumbs.length > 0) {
       return `路径：根目录 / ${breadcrumbs.map((folder) => folder.name).join(" / ")}`;
@@ -690,7 +690,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
   const contentPanelDescription = useMemo(() => {
     if (!projectId) {
-      return "选择资源库后，这里会显示当前项目的文档、素材和目录结构。";
+      return "选择资料库后，这里会显示当前项目的文档、素材和目录结构。";
     }
     if (searchQuery.trim()) {
       return `已按“${searchQuery.trim()}”筛选，当前范围内共 ${displayItems.length} 个结果。`;
@@ -715,11 +715,11 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     () => [
       {
         key: "library",
-        title: "当前资源库",
+        title: "当前资料库",
         value: selectedProject?.name ?? "未选择",
         description: projectId
           ? `${items.length} 个总条目，${availableProjects.length} 个项目可切换`
-          : "先在左侧选择一个项目资源库",
+          : "先在左侧选择一个项目资料库",
         icon: Library,
         iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
         valueClassName: "text-2xl leading-8",
@@ -793,7 +793,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       {
         key: "upload-file",
         label: "上传文件",
-        description: "把本地图片、音频、视频或普通文件加入资源库。",
+        description: "把本地图片、音频、视频或普通文件加入资料库。",
         icon: Upload,
         action: () => {
           void handleUploadFile();
@@ -807,9 +807,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,1)_0%,rgba(244,249,248,0.96)_52%,rgba(248,250,252,1)_100%)]">
-      <div className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
+      <div className="border-b border-slate-200/70 bg-white">
         <div className="mx-auto w-full max-w-[1480px] px-4 py-3 lg:px-6">
-          <CanvasBreadcrumbHeader label="资源" onBackHome={handleBackHome} />
+          <CanvasBreadcrumbHeader label="资料库" onBackHome={handleBackHome} />
         </div>
       </div>
 
@@ -823,11 +823,11 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                 <div className="max-w-3xl space-y-4">
                   <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                    RESOURCE LIBRARY
+                    FILE LIBRARY
                   </span>
                   <div className="space-y-2">
                     <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                      资源工作台
+                      文件与资料
                     </h1>
                     <p className="max-w-2xl text-sm leading-6 text-slate-600">
                       在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。
@@ -836,7 +836,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className="rounded-full border border-white/90 bg-white/90 px-3 py-1 text-slate-700 shadow-sm hover:bg-white">
-                      {selectedProject?.name ?? "未选择资源库"}
+                      {selectedProject?.name ?? "未选择资料库"}
                     </Badge>
                     <Badge
                       variant="outline"
@@ -871,7 +871,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">
-                        当前入口
+                        当前视图
                       </p>
                       <p className="mt-1 text-sm leading-6 text-slate-500">
                         {headingDescription}
@@ -909,7 +909,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         disabled={!projectId || saving}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        添加资源
+                        添加内容
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -988,7 +988,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
                 <div className="px-1">
                   <p className="text-sm font-semibold text-slate-900">
-                    资源分类
+                    资料分类
                   </p>
                   <p className="mt-1 text-sm leading-6 text-slate-500">
                     在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。
@@ -1029,7 +1029,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                             )}
                           >
                             {key === "all"
-                              ? "按目录管理完整资源库"
+                              ? "按目录管理完整资料库"
                               : `聚合查看${label}内容`}
                           </span>
                         </span>
@@ -1053,10 +1053,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 <div className="flex items-start justify-between gap-3 px-1">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
-                      资源库
+                      资料库
                     </p>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      资源库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。
+                      资料库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。
                     </p>
                   </div>
                   <Button
@@ -1065,7 +1065,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                     size="icon"
                     className="h-9 w-9 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                     onClick={() =>
-                      toast.info("资源库来源于项目，请在项目模块中创建")
+                      toast.info("资料库来源于项目，请在项目模块中创建")
                     }
                   >
                     <Plus className="h-4 w-4" />
@@ -1076,15 +1076,15 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   type="button"
                   className="mt-4 flex w-full items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50"
                   onClick={() =>
-                    toast.info("资源库来源于项目，请在项目模块中创建")
+                    toast.info("资料库来源于项目，请在项目模块中创建")
                   }
                 >
                   <span>
                     <span className="block text-sm font-medium text-slate-800">
-                      新建资源库
+                      新建资料库
                     </span>
                     <span className="mt-1 block text-xs text-slate-500">
-                      跳转到项目模块创建新的资源库容器。
+                      跳转到项目模块创建新的资料库容器。
                     </span>
                   </span>
                   <ArrowRight className="h-4 w-4 text-slate-400" />
@@ -1192,7 +1192,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       placeholder={
                         isFolderMode
                           ? "按名称、描述或标签搜索"
-                          : "搜索当前分类资源"
+                          : "搜索当前分类内容"
                       }
                       className="h-11 rounded-xl border-slate-200 bg-slate-50/80 pl-10 shadow-none focus-visible:ring-slate-300"
                     />
@@ -1261,14 +1261,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-2xl border border-sky-200/80 bg-sky-50/80 px-4 py-3 text-sm text-sky-900">
-                    当前为「{activeCategoryLabel}」分类视图，展示整个资源库内该分类内容。
+                    当前为「{activeCategoryLabel}」分类视图，展示整个资料库内该分类内容。
                   </div>
                 )}
 
                 {crossProjectMediaHint && (
                   <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-amber-300/70 bg-amber-50/90 px-4 py-3 text-sm text-amber-900 md:flex-row md:items-center md:justify-between">
                     <span className="leading-6">
-                      当前资源库暂无
+                      当前资料库暂无
                       {mediaCategoryLabelMap[crossProjectMediaHint.category]}
                       ，检测到「{crossProjectMediaHint.projectName}」包含{" "}
                       {crossProjectMediaHint.count} 个
@@ -1303,7 +1303,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         内容列表
                       </h3>
                       <p className="mt-1 text-sm leading-6 text-slate-500">
-                        按当前目录或分类范围展示资源，支持直接打开、重命名、删除与移动内容。
+                        按当前目录或分类范围展示内容，支持直接打开、重命名、删除与移动内容。
                       </p>
                     </div>
                     <Badge
@@ -1318,11 +1318,11 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 <div className="p-5">
                   {!projectId ? (
                     <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-10 text-center text-sm text-slate-500">
-                      请先在左侧选择资源库
+                      请先在左侧选择资料库
                     </div>
                   ) : loading ? (
                     <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-10 text-center text-sm text-slate-500">
-                      资源加载中...
+                      资料加载中...
                     </div>
                   ) : showEmptyState ? (
                     <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-[linear-gradient(135deg,rgba(248,250,252,0.98)_0%,rgba(243,249,247,0.96)_100%)] px-6 py-12 text-center">
@@ -1330,10 +1330,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         <Upload className="h-7 w-7" />
                       </div>
                       <h3 className="mt-6 text-3xl font-semibold tracking-tight text-slate-900">
-                        先把内容放进资源库
+                        先把内容放进资料库
                       </h3>
                       <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-                        当前范围内还没有可展示的资源。可以先创建文件夹整理结构、写一份文档，或者把本地文件直接上传进来。
+                        当前范围内还没有可展示的内容。可以先创建文件夹整理结构、写一份文档，或者把本地文件直接上传进来。
                       </p>
 
                       <div className="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-3">

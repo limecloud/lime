@@ -2,11 +2,12 @@
 
 use crate::app::AppState;
 use crate::commands::webview_cmd::{
-    append_browser_runtime_launch_audit, open_cdp_session_global,
-    open_chrome_profile_window_global, resolve_profile_session_global, shared_browser_runtime,
-    start_browser_stream_global, BrowserRuntimeLaunchAuditInput, ChromeProfileLaunchOptions,
-    ChromeProfileSessionInfo, OpenCdpSessionRequest, OpenChromeProfileRequest,
-    OpenChromeProfileResponse, StartBrowserStreamRequest,
+    append_browser_runtime_launch_audit, get_chrome_bridge_status_global,
+    get_chrome_profile_sessions_global, open_cdp_session_global, open_chrome_profile_window_global,
+    resolve_profile_session_global, shared_browser_runtime, start_browser_stream_global,
+    BrowserRuntimeLaunchAuditInput, ChromeProfileLaunchOptions, ChromeProfileSessionInfo,
+    OpenCdpSessionRequest, OpenChromeProfileRequest, OpenChromeProfileResponse,
+    StartBrowserStreamRequest,
 };
 use crate::database::{lock_db, DbConnection};
 use crate::services::browser_environment_service::{
@@ -21,15 +22,18 @@ use crate::services::browser_runtime_window;
 use lime_browser_runtime::BrowserStreamMode;
 use lime_browser_runtime::CdpSessionState;
 use lime_core::database::dao::browser_profile::BrowserProfileTransportKind;
+use lime_server::chrome_bridge::ChromeBridgeObserverSnapshot;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Instant;
 use tauri::AppHandle;
 use tokio::time::{sleep, Duration};
 use tracing::{info, Instrument};
+use url::Url;
 
 const CDP_READY_MAX_ATTEMPTS: usize = 60;
 const CDP_READY_RETRY_INTERVAL_MS: u64 = 250;
+const GENERAL_BROWSER_ASSIST_PROFILE_KEY: &str = "general_browser_assist";
 
 #[derive(Debug, Deserialize)]
 pub struct OpenBrowserRuntimeDebuggerWindowRequest {
@@ -111,6 +115,90 @@ fn default_open_window() -> bool {
 
 fn default_launch_url() -> String {
     "https://www.google.com/".to_string()
+}
+
+fn parse_launch_host(url: &str) -> Option<String> {
+    Url::parse(url)
+        .ok()
+        .and_then(|value| {
+            value
+                .host_str()
+                .map(|host| host.trim().to_ascii_lowercase())
+        })
+        .filter(|value| !value.is_empty())
+}
+
+fn host_matches(left: &str, right: &str) -> bool {
+    left == right || left.ends_with(&format!(".{right}")) || right.ends_with(&format!(".{left}"))
+}
+
+fn select_attached_observer_profile_key(
+    sessions: &[ChromeProfileSessionInfo],
+    observers: &[ChromeBridgeObserverSnapshot],
+    launch_url: &str,
+) -> Option<String> {
+    let launch_host = parse_launch_host(launch_url);
+
+    observers
+        .iter()
+        .max_by_key(|observer| {
+            let last_url = sessions
+                .iter()
+                .find(|session| session.profile_key == observer.profile_key)
+                .map(|session| session.last_url.as_str())
+                .or_else(|| {
+                    observer
+                        .last_page_info
+                        .as_ref()
+                        .and_then(|page| page.url.as_deref())
+                })
+                .unwrap_or_default();
+            let observer_host = parse_launch_host(last_url);
+            let matches_launch_host = match (&launch_host, observer_host.as_deref()) {
+                (Some(expected), Some(actual)) => host_matches(actual, expected),
+                _ => false,
+            };
+            (matches_launch_host, !last_url.trim().is_empty())
+        })
+        .map(|observer| observer.profile_key.clone())
+}
+
+async fn prefer_attached_observer_launch_request(
+    mut request: ResolvedLaunchBrowserSessionRequest,
+) -> ResolvedLaunchBrowserSessionRequest {
+    if request.profile_key != GENERAL_BROWSER_ASSIST_PROFILE_KEY {
+        return request;
+    }
+
+    if matches!(
+        request.transport_kind,
+        Some(BrowserProfileTransportKind::ExistingSession)
+    ) {
+        return request;
+    }
+
+    let bridge_status = match get_chrome_bridge_status_global().await {
+        Ok(value) if value.observer_count > 0 => value,
+        _ => return request,
+    };
+    let sessions = get_chrome_profile_sessions_global()
+        .await
+        .unwrap_or_default();
+    let Some(attached_profile_key) =
+        select_attached_observer_profile_key(&sessions, &bridge_status.observers, &request.url)
+    else {
+        return request;
+    };
+
+    tracing::info!(
+        "[BrowserRuntime] 检测到扩展 observer，启动浏览器协助时优先复用现有 Chrome: requested_profile={}, attached_profile={}",
+        request.profile_key,
+        attached_profile_key
+    );
+    request.profile_id = None;
+    request.profile_key = attached_profile_key;
+    request.transport_kind = Some(BrowserProfileTransportKind::ExistingSession);
+    request
 }
 
 async fn finalize_browser_runtime_launch_audit(
@@ -389,6 +477,7 @@ pub async fn launch_browser_session_global(
     app_state: AppState,
     request: ResolvedLaunchBrowserSessionRequest,
 ) -> Result<BrowserSessionLaunchResponse, String> {
+    let request = prefer_attached_observer_launch_request(request).await;
     let mut launch_audit = BrowserRuntimeLaunchAuditInput {
         profile_key: request.profile_key.clone(),
         profile_id: request.profile_id.clone(),
@@ -957,6 +1046,85 @@ mod tests {
         assert_eq!(
             resolved.transport_kind,
             Some(BrowserProfileTransportKind::ExistingSession)
+        );
+    }
+
+    #[test]
+    fn select_attached_observer_profile_key_should_prefer_matching_launch_domain() {
+        let sessions = vec![
+            ChromeProfileSessionInfo {
+                profile_key: "attached-github".to_string(),
+                browser_source: "system".to_string(),
+                browser_path: String::new(),
+                profile_dir: String::new(),
+                remote_debugging_port: 13001,
+                pid: 0,
+                started_at: "2026-03-31T00:00:00Z".to_string(),
+                last_url: "https://github.com/trending".to_string(),
+            },
+            ChromeProfileSessionInfo {
+                profile_key: "attached-zhihu".to_string(),
+                browser_source: "system".to_string(),
+                browser_path: String::new(),
+                profile_dir: String::new(),
+                remote_debugging_port: 13002,
+                pid: 0,
+                started_at: "2026-03-31T00:00:00Z".to_string(),
+                last_url: "https://www.zhihu.com/hot".to_string(),
+            },
+        ];
+        let observers = vec![
+            ChromeBridgeObserverSnapshot {
+                client_id: "observer-github".to_string(),
+                profile_key: "attached-github".to_string(),
+                connected_at: "2026-03-31T00:00:00Z".to_string(),
+                user_agent: None,
+                last_heartbeat_at: None,
+                last_page_info: None,
+            },
+            ChromeBridgeObserverSnapshot {
+                client_id: "observer-zhihu".to_string(),
+                profile_key: "attached-zhihu".to_string(),
+                connected_at: "2026-03-31T00:00:00Z".to_string(),
+                user_agent: None,
+                last_heartbeat_at: None,
+                last_page_info: None,
+            },
+        ];
+
+        assert_eq!(
+            select_attached_observer_profile_key(
+                &sessions,
+                &observers,
+                "https://github.com/search?q=ai+agent",
+            ),
+            Some("attached-github".to_string())
+        );
+    }
+
+    #[test]
+    fn select_attached_observer_profile_key_should_fallback_to_observer_page_info() {
+        let observers = vec![ChromeBridgeObserverSnapshot {
+            client_id: "observer-github".to_string(),
+            profile_key: "attached-github".to_string(),
+            connected_at: "2026-03-31T00:00:00Z".to_string(),
+            user_agent: None,
+            last_heartbeat_at: None,
+            last_page_info: Some(lime_server::chrome_bridge::ChromeBridgePageInfo {
+                title: Some("GitHub".to_string()),
+                url: Some("https://github.com/explore".to_string()),
+                markdown: String::new(),
+                updated_at: "2026-03-31T00:00:00Z".to_string(),
+            }),
+        }];
+
+        assert_eq!(
+            select_attached_observer_profile_key(
+                &[],
+                &observers,
+                "https://github.com/search?q=browser+agent",
+            ),
+            Some("attached-github".to_string())
         );
     }
 }

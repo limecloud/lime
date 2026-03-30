@@ -7,7 +7,6 @@
 import { useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { ChevronDown } from "lucide-react";
-import { CanvasBreadcrumbHeader } from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
 import { useProjects } from "@/hooks/useProjects";
 import {
   getStoredResourceProjectId,
@@ -15,6 +14,7 @@ import {
   setStoredResourceProjectId,
 } from "@/lib/resourceProjectSelection";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
+import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import type { Page, PageParams } from "@/types/page";
 import { AiImageGenTab } from "./tabs/AiImageGenTab";
 import { ImageSearchTab } from "./tabs/ImageSearchTab";

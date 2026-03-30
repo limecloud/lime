@@ -10,7 +10,7 @@
 import type { Project } from "./project";
 import type { Persona } from "./persona";
 import type { Material } from "./material";
-import type { Template, Platform } from "./template";
+import type { Platform } from "./platform";
 
 // ============================================================================
 // 上下文类型
@@ -25,7 +25,6 @@ export interface ProjectContext {
   project: Project;
   persona?: Persona;
   materials: Material[];
-  template?: Template;
 }
 
 /**

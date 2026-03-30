@@ -1,4 +1,4 @@
-import { type CreationMode } from "@/components/content-creator/types";
+import { type CreationMode } from "@/lib/workspace/workbenchContract";
 import { useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,8 +60,8 @@ export interface WorkbenchCreateContentDialogProps {
 
 const FALLBACK_CREATION_INTENT_FIELD: CreationIntentFieldDefinition = {
   key: "topic",
-  label: "创作主题",
-  placeholder: "请输入创作主题",
+  label: "主题方向",
+  placeholder: "请输入主题方向",
 };
 
 function getSafeIntentFields(

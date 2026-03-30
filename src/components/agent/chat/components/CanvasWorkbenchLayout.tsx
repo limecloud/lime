@@ -39,8 +39,8 @@ import {
 } from "@/lib/compactRightPanelEvents";
 import { listDirectory, type DirectoryListing } from "@/lib/api/fileBrowser";
 import type { Artifact } from "@/lib/artifact/types";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import type { DocumentVersion } from "@/components/content-creator/canvas/document/types";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import type { DocumentVersion } from "@/lib/workspace/workbenchCanvas";
 import type { TaskFile } from "./TaskFiles";
 import type { HarnessFilePreviewResult } from "./HarnessStatusPanel";
 import {

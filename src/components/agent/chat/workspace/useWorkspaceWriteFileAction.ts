@@ -4,13 +4,13 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
-import { resolveSocialMediaArtifactDescriptor } from "@/components/content-creator/utils/socialMediaHarness";
-import { createInitialMusicState } from "@/components/content-creator/canvas/music/types";
-import { parseLyrics } from "@/components/content-creator/canvas/music/utils/lyricsParser";
-import type { ThemeType, LayoutMode } from "@/components/content-creator/types";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
+import { resolveSocialMediaArtifactDescriptor } from "@/lib/workspace/workbenchRuntime";
+import { createInitialMusicState } from "@/lib/workspace/workbenchCanvas";
+import { parseLyrics } from "@/lib/workspace/workbenchCanvas";
+import type { ThemeType, LayoutMode } from "@/lib/workspace/workbenchContract";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";

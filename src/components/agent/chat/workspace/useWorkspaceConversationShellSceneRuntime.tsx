@@ -54,16 +54,11 @@ interface UseWorkspaceConversationShellSceneRuntimeParams
   currentImageWorkbenchState: { active: boolean };
   project: { rootPath?: string | null } | null;
   projectId: string | null | undefined;
+  generalCanvasState: { content: string };
   projectMemory: {
-    style_guide?: ConversationSendRuntimeParams["styleAction"]["projectStyleGuide"];
     characters?: ConversationSceneRuntimeParams["projectCharacters"];
   } | null;
   handleSend: ConversationSendRuntimeParams["handleSend"];
-  mappedTheme: ConversationSendRuntimeParams["styleAction"]["activeTheme"];
-  runtimeStyleSelection: ConversationSendRuntimeParams["styleAction"]["selection"];
-  setRuntimeStyleSelection: ConversationSendRuntimeParams["styleAction"]["onSelectionChange"];
-  generalCanvasState: ConversationSendRuntimeParams["styleAction"]["generalCanvasState"];
-  runtimeStylePrompt: ConversationSendRuntimeParams["styleAction"]["runtimeStylePrompt"];
   showSidebar: ShellSceneRuntimeParams["showSidebar"];
   topics: ShellSceneRuntimeParams["topics"];
   switchTopic: ShellSceneRuntimeParams["switchTopic"];
@@ -88,11 +83,6 @@ export function useWorkspaceConversationShellSceneRuntime({
   projectId,
   projectMemory,
   handleSend,
-  mappedTheme,
-  runtimeStyleSelection,
-  setRuntimeStyleSelection,
-  generalCanvasState,
-  runtimeStylePrompt,
   showSidebar,
   topics,
   switchTopic,
@@ -107,19 +97,6 @@ export function useWorkspaceConversationShellSceneRuntime({
   const conversationSendRuntime = useWorkspaceConversationSendRuntime({
     chatToolPreferences: conversationScene.chatToolPreferences,
     handleSend,
-    styleAction: {
-      enabled: conversationScene.isContentCreationMode,
-      projectId,
-      activeTheme: mappedTheme,
-      projectStyleGuide: projectMemory?.style_guide,
-      selection: runtimeStyleSelection,
-      onSelectionChange: setRuntimeStyleSelection,
-      generalCanvasState,
-      resolvedCanvasState: conversationScene.resolvedCanvasState,
-      taskFiles: inputbarScene.visibleTaskFiles,
-      selectedFileId: inputbarScene.visibleSelectedFileId,
-      runtimeStylePrompt,
-    },
   });
 
   const conversationSceneRuntime = useWorkspaceConversationSceneRuntime({
@@ -131,7 +108,7 @@ export function useWorkspaceConversationShellSceneRuntime({
     shellChromeRuntime,
     themeWorkbenchHarnessDialog:
       themeWorkbenchShellRuntime.themeWorkbenchHarnessDialog,
-    generalCanvasContent: generalCanvasState.content,
+    generalCanvasContent: conversationScene.generalCanvasState.content,
     projectId: projectId ?? null,
     projectCharacters: projectMemory?.characters || [],
     handleToggleHarnessPanel:

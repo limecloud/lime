@@ -63,7 +63,7 @@ lime/
 | `components/content-creator/` | 主题化创作工作台与画布联动 |
 | `skills/` | 技能加载、标准校验与经验编排能力；统一遵循 `skill-standard.md` |
 | `lib/artifact/` | Artifact 解析、状态与轻量渲染器 |
-| `memory / style / personas` | 项目记忆、风格策略与人设沉淀 |
+| `memory / personas` | 项目记忆与人设沉淀 |
 
 ### 能力层
 

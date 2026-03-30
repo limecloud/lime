@@ -10,6 +10,7 @@ mod tests {
     use lime_agent::request_tool_policy::resolve_request_tool_policy;
     use lime_agent::AgentEvent as RuntimeAgentEvent;
     use regex::Regex;
+    use std::collections::HashSet;
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, OnceLock};
@@ -501,6 +502,7 @@ mod tests {
             Some(BrowserBackendType::LimeExtensionBridge),
             Some(&session_hint),
             Some(lime_core::database::dao::browser_profile::BrowserProfileTransportKind::ExistingSession),
+            false,
         ));
     }
 
@@ -519,7 +521,100 @@ mod tests {
             Some(
                 lime_core::database::dao::browser_profile::BrowserProfileTransportKind::ManagedCdp
             ),
+            false,
         ));
+    }
+
+    #[test]
+    fn test_should_not_auto_launch_managed_browser_when_observer_profile_selected() {
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: Some("https://github.com/search?q=ai+agent".to_string()),
+        };
+
+        assert!(!LimeBrowserMcpTool::should_auto_launch_managed_browser(
+            Some(BrowserBackendType::LimeExtensionBridge),
+            Some(&session_hint),
+            Some(
+                lime_core::database::dao::browser_profile::BrowserProfileTransportKind::ManagedCdp
+            ),
+            true,
+        ));
+    }
+
+    #[test]
+    fn test_select_attached_existing_session_profile_prefers_matching_launch_domain() {
+        let sessions = vec![
+            crate::commands::webview_cmd::ChromeProfileSessionInfo {
+                profile_key: "attached-weibo".to_string(),
+                browser_source: "system".to_string(),
+                browser_path: String::new(),
+                profile_dir: String::new(),
+                remote_debugging_port: 13001,
+                pid: 1,
+                started_at: "2026-03-31T00:00:00Z".to_string(),
+                last_url: "https://weibo.com/home".to_string(),
+            },
+            crate::commands::webview_cmd::ChromeProfileSessionInfo {
+                profile_key: "attached-github".to_string(),
+                browser_source: "system".to_string(),
+                browser_path: String::new(),
+                profile_dir: String::new(),
+                remote_debugging_port: 13002,
+                pid: 2,
+                started_at: "2026-03-31T00:00:00Z".to_string(),
+                last_url: "https://github.com/trending".to_string(),
+            },
+        ];
+        let existing_session_profile_keys =
+            HashSet::from(["attached-weibo".to_string(), "attached-github".to_string()]);
+
+        assert_eq!(
+            LimeBrowserMcpTool::select_attached_existing_session_profile(
+                &sessions,
+                &existing_session_profile_keys,
+                Some("https://github.com/search?q=ai+agent"),
+            ),
+            Some("attached-github".to_string())
+        );
+    }
+
+    #[test]
+    fn test_select_attached_existing_session_profile_falls_back_to_first_existing_session() {
+        let sessions = vec![
+            crate::commands::webview_cmd::ChromeProfileSessionInfo {
+                profile_key: "attached-github".to_string(),
+                browser_source: "system".to_string(),
+                browser_path: String::new(),
+                profile_dir: String::new(),
+                remote_debugging_port: 13002,
+                pid: 2,
+                started_at: "2026-03-31T00:00:00Z".to_string(),
+                last_url: "https://github.com/trending".to_string(),
+            },
+            crate::commands::webview_cmd::ChromeProfileSessionInfo {
+                profile_key: "managed-research".to_string(),
+                browser_source: "lime".to_string(),
+                browser_path: String::new(),
+                profile_dir: String::new(),
+                remote_debugging_port: 13003,
+                pid: 3,
+                started_at: "2026-03-31T00:00:00Z".to_string(),
+                last_url: "https://www.google.com/".to_string(),
+            },
+        ];
+        let existing_session_profile_keys = HashSet::from(["attached-github".to_string()]);
+
+        assert_eq!(
+            LimeBrowserMcpTool::select_attached_existing_session_profile(
+                &sessions,
+                &existing_session_profile_keys,
+                None,
+            ),
+            Some("attached-github".to_string())
+        );
     }
 
     #[test]

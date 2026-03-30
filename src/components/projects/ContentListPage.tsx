@@ -19,13 +19,11 @@ import {
   Users,
   Globe,
   FileEdit,
-  Palette,
   Film,
   MapPin,
   LayoutGrid,
   MessageSquare,
   Image,
-  Copy,
   LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +67,6 @@ import { toast } from "sonner";
 import {
   CharacterPanel,
   WorldBuildingPanel,
-  StyleGuidePanel,
   OutlinePanel,
 } from "./memory";
 import { ProjectType } from "@/lib/api/project";
@@ -91,41 +88,28 @@ const PROJECT_TAB_CONFIG: Record<ProjectType, TabConfig[]> = {
     { value: "contents", label: "内容", icon: FileEdit },
     { value: "characters", label: "角色", icon: Users },
     { value: "world", label: "世界观", icon: Globe },
-    { value: "style", label: "风格", icon: Palette },
     { value: "outline", label: "大纲", icon: List },
   ],
   "social-media": [
     { value: "contents", label: "帖子", icon: MessageSquare },
     { value: "assets", label: "素材", icon: Image },
-    { value: "style", label: "风格", icon: Palette },
   ],
   poster: [
     { value: "contents", label: "设计", icon: Image },
     { value: "assets", label: "素材", icon: Image },
-    { value: "style", label: "风格", icon: Palette },
   ],
-  music: [
-    { value: "contents", label: "歌曲", icon: FileEdit },
-    { value: "style", label: "风格", icon: Palette },
-  ],
-  knowledge: [
-    { value: "contents", label: "笔记", icon: FileText },
-    { value: "style", label: "风格", icon: Palette },
-  ],
+  music: [{ value: "contents", label: "歌曲", icon: FileEdit }],
+  knowledge: [{ value: "contents", label: "笔记", icon: FileText }],
   planning: [
     { value: "contents", label: "计划", icon: FileEdit },
-    { value: "style", label: "风格", icon: Palette },
     { value: "outline", label: "大纲", icon: List },
   ],
   document: [
     { value: "contents", label: "文档", icon: FileText },
-    { value: "style", label: "风格", icon: Palette },
-    { value: "templates", label: "模板", icon: Copy },
   ],
   video: [
     { value: "contents", label: "剧集", icon: Film },
     { value: "characters", label: "角色", icon: Users },
-    { value: "style", label: "风格", icon: Palette },
     { value: "scenes", label: "场景", icon: MapPin },
     { value: "storyboard", label: "分镜", icon: LayoutGrid },
     { value: "outline", label: "大纲", icon: List },
@@ -134,7 +118,6 @@ const PROJECT_TAB_CONFIG: Record<ProjectType, TabConfig[]> = {
     { value: "contents", label: "章节", icon: FileEdit },
     { value: "characters", label: "角色", icon: Users },
     { value: "world", label: "世界观", icon: Globe },
-    { value: "style", label: "风格", icon: Palette },
     { value: "outline", label: "大纲", icon: List },
   ],
 };
@@ -150,12 +133,10 @@ type ContentTab =
   | "contents"
   | "characters"
   | "world"
-  | "style"
   | "outline"
   | "scenes"
   | "storyboard"
-  | "assets"
-  | "templates";
+  | "assets";
 
 export function ContentListPage({
   project,
@@ -593,16 +574,6 @@ export function ContentListPage({
             </div>
           )}
 
-          {currentTab === "style" && (
-            <div className="relative overflow-hidden rounded-[32px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.92)_0%,rgba(255,255,255,0.98)_42%,rgba(240,249,255,0.92)_100%)] p-4 shadow-sm shadow-slate-950/5 lg:p-5">
-              <div className="pointer-events-none absolute -left-12 top-8 h-36 w-36 rounded-full bg-sky-200/25 blur-3xl" />
-              <div className="pointer-events-none absolute right-[-32px] top-0 h-40 w-40 rounded-full bg-amber-200/20 blur-3xl" />
-              <div className="relative">
-                <StyleGuidePanel projectId={project.id} />
-              </div>
-            </div>
-          )}
-
           {currentTab === "outline" && (
             <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/92 shadow-sm shadow-slate-950/5">
               <OutlinePanel projectId={project.id} />
@@ -636,14 +607,6 @@ export function ContentListPage({
             </div>
           )}
 
-          {currentTab === "templates" && (
-            <div className="flex min-h-[320px] items-center justify-center rounded-[28px] border border-dashed border-slate-300/80 bg-white/80 text-muted-foreground">
-              <div className="text-center">
-                <Copy className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                <p>模板管理功能开发中...</p>
-              </div>
-            </div>
-          )}
         </Tabs>
       </div>
     </div>

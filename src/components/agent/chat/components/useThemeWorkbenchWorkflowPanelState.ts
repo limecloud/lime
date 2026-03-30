@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import type { StepStatus } from "@/components/content-creator/types";
+import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import {
   buildThemeWorkbenchActivityLogGroups,

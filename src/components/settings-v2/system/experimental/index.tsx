@@ -7,6 +7,8 @@
  */
 
 import {
+  Suspense,
+  lazy,
   useState,
   useEffect,
   useCallback,
@@ -16,7 +18,6 @@ import {
 import {
   Globe,
   AlertCircle,
-  FlaskConical,
   Camera,
   AlertTriangle,
   RefreshCw,
@@ -50,9 +51,6 @@ import {
   getServerDiagnostics,
   getWindowsStartupDiagnostics,
 } from "@/lib/api/serverRuntime";
-import { ShortcutSettings } from "@/components/smart-input/ShortcutSettings";
-import { UpdateCheckSettings } from "./UpdateCheckSettings";
-import { VoiceSettings } from "@/components/voice";
 import {
   getVoiceInputConfig,
   saveVoiceInputConfig,
@@ -71,13 +69,37 @@ import {
   normalizeCrashReportingConfig,
   openCrashDiagnosticDownloadDirectory,
 } from "@/lib/crashDiagnostic";
-import { ClipboardPermissionGuideCard } from "../shared/ClipboardPermissionGuideCard";
-import { WorkspaceRepairHistoryCard } from "../shared/WorkspaceRepairHistoryCard";
 import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_TOOL_CALLING_CONFIG,
   normalizeToolCallingConfig,
 } from "./tool-calling-config";
+
+const ShortcutSettings = lazy(() =>
+  import("@/components/smart-input/ShortcutSettings").then((module) => ({
+    default: module.ShortcutSettings,
+  })),
+);
+const UpdateCheckSettings = lazy(() =>
+  import("./UpdateCheckSettings").then((module) => ({
+    default: module.UpdateCheckSettings,
+  })),
+);
+const VoiceSettings = lazy(() =>
+  import("@/components/voice").then((module) => ({
+    default: module.VoiceSettings,
+  })),
+);
+const ClipboardPermissionGuideCard = lazy(() =>
+  import("../shared/ClipboardPermissionGuideCard").then((module) => ({
+    default: module.ClipboardPermissionGuideCard,
+  })),
+);
+const WorkspaceRepairHistoryCard = lazy(() =>
+  import("../shared/WorkspaceRepairHistoryCard").then((module) => ({
+    default: module.WorkspaceRepairHistoryCard,
+  })),
+);
 
 // ============================================================
 // 组件
@@ -126,11 +148,9 @@ function SummaryStat({
   description: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-white/90 bg-white/86 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
+    <div className="rounded-[22px] border border-slate-200/80 bg-slate-50 p-4">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
       <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
@@ -167,6 +187,18 @@ const PRIMARY_BUTTON_CLASS_NAME =
   "inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
 const FIELD_CLASS_NAME =
   "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200";
+
+function DeferredPanelFallback({
+  label,
+}: {
+  label: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
+      正在加载{label}...
+    </div>
+  );
+}
 
 export function ExperimentalSettings() {
   // 状态
@@ -678,92 +710,54 @@ export function ExperimentalSettings() {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
+      <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryStat
+            label="Tool Calling"
+            value={summary.toolCallingLabel}
+            description="控制编程式工具调用与动态过滤链路。"
+          />
+          <SummaryStat
+            label="截图对话"
+            value={summary.screenshotLabel}
+            description="决定是否允许通过全局快捷键进入截图问答流程。"
+          />
+          <SummaryStat
+            label="语音输入"
+            value={summary.voiceLabel}
+            description="实验语音链路是否已启用并允许快捷键输入。"
+          />
+          <SummaryStat
+            label="崩溃上报"
+            value={summary.crashLabel}
+            description="控制 Sentry 上报和诊断导出相关能力。"
+          />
+        </div>
 
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                EXPERIMENT LAB
-              </span>
-              <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把还在试验中的能力统一放到一处管理，但不要把风险提示藏起来
-                </p>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  实验功能的重点不是堆更多开关，而是明确告诉你哪些能力正在变化、哪些配置和诊断动作应该优先验证。
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  建议先在个人环境验证后再推广给团队
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  诊断动作会采集日志、运行态快照与系统自检信息
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  屏幕录制、剪贴板等权限问题会在本页集中提示
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-              <SummaryStat
-                label="Tool Calling"
-                value={summary.toolCallingLabel}
-                description="控制编程式工具调用与动态过滤链路。"
-              />
-              <SummaryStat
-                label="截图对话"
-                value={summary.screenshotLabel}
-                description="决定是否允许通过全局快捷键进入截图问答流程。"
-              />
-              <SummaryStat
-                label="语音输入"
-                value={summary.voiceLabel}
-                description="实验语音链路是否已启用并允许快捷键输入。"
-              />
-              <SummaryStat
-                label="崩溃上报"
-                value={summary.crashLabel}
-                description="控制 Sentry 上报和诊断导出相关能力。"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 rounded-[24px] border border-white/90 bg-white/80 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusPill
-                active={toolCallingConfig.enabled}
-                activeLabel="Tool Calling 已启用"
-                inactiveLabel="Tool Calling 未启用"
-              />
-              <StatusPill
-                active={Boolean(config?.screenshot_chat.enabled)}
-                activeLabel="截图对话已启用"
-                inactiveLabel="截图对话未启用"
-              />
-              <StatusPill
-                active={Boolean(config?.webmcp?.enabled)}
-                activeLabel="WebMCP 预留已启用"
-                inactiveLabel="WebMCP 预留未启用"
-              />
-              <StatusPill
-                active={Boolean(crashConfig.enabled)}
-                activeLabel="崩溃上报已启用"
-                inactiveLabel="崩溃上报未启用"
-              />
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
-              </span>
-            </div>
-            <p className="text-sm leading-6 text-slate-600">
-              先确认是否真的需要启用实验能力，再决定是否导出完整诊断包；这样更容易控制噪音范围。
-            </p>
-          </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+          <StatusPill
+            active={toolCallingConfig.enabled}
+            activeLabel="Tool Calling 已启用"
+            inactiveLabel="Tool Calling 未启用"
+          />
+          <StatusPill
+            active={Boolean(config?.screenshot_chat.enabled)}
+            activeLabel="截图对话已启用"
+            inactiveLabel="截图对话未启用"
+          />
+          <StatusPill
+            active={Boolean(config?.webmcp?.enabled)}
+            activeLabel="WebMCP 预留已启用"
+            inactiveLabel="WebMCP 预留未启用"
+          />
+          <StatusPill
+            active={Boolean(crashConfig.enabled)}
+            activeLabel="崩溃上报已启用"
+            inactiveLabel="崩溃上报未启用"
+          />
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+            {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
+          </span>
         </div>
       </section>
 
@@ -878,12 +872,16 @@ export function ExperimentalSettings() {
 
               {config?.screenshot_chat.enabled ? (
                 <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <ShortcutSettings
-                    currentShortcut={config.screenshot_chat.shortcut}
-                    onShortcutChange={handleShortcutChange}
-                    onValidate={handleValidateShortcut}
-                    disabled={saving}
-                  />
+                  <Suspense
+                    fallback={<DeferredPanelFallback label="截图快捷键设置" />}
+                  >
+                    <ShortcutSettings
+                      currentShortcut={config.screenshot_chat.shortcut}
+                      onShortcutChange={handleShortcutChange}
+                      onValidate={handleValidateShortcut}
+                      disabled={saving}
+                    />
+                  </Suspense>
                 </div>
               ) : null}
 
@@ -1163,7 +1161,11 @@ export function ExperimentalSettings() {
               title="剪贴板权限指引"
               description="复制诊断失败且属于权限问题时，可按下面的系统提示恢复。"
             >
-              <ClipboardPermissionGuideCard />
+              <Suspense
+                fallback={<DeferredPanelFallback label="剪贴板权限指引" />}
+              >
+                <ClipboardPermissionGuideCard />
+              </Suspense>
             </ExperimentalPanel>
           ) : null}
 
@@ -1172,7 +1174,9 @@ export function ExperimentalSettings() {
             title="更新提醒实验"
             description="管理自动更新检查和提醒验证，便于排查更新链路。"
           >
-            <UpdateCheckSettings />
+            <Suspense fallback={<DeferredPanelFallback label="更新提醒设置" />}>
+              <UpdateCheckSettings />
+            </Suspense>
           </ExperimentalPanel>
 
           {voiceConfig ? (
@@ -1186,30 +1190,24 @@ export function ExperimentalSettings() {
                   语音快捷键、润色和翻译指令属于实验链路，适合单独验证输入体验。
                 </p>
               </div>
-              <VoiceSettings
-                config={voiceConfig}
-                onConfigChange={handleVoiceConfigChange}
-                onValidateShortcut={handleValidateShortcut}
-                disabled={saving}
-              />
+              <Suspense fallback={<DeferredPanelFallback label="语音实验设置" />}>
+                <VoiceSettings
+                  config={voiceConfig}
+                  onConfigChange={handleVoiceConfigChange}
+                  onValidateShortcut={handleValidateShortcut}
+                  disabled={saving}
+                />
+              </Suspense>
             </div>
           ) : null}
 
-          <WorkspaceRepairHistoryCard
-            className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
-            title="Workspace 自愈记录（实验室）"
-            description="用于排查路径不存在、自动迁移和修复事件。"
-          />
-
-          <ExperimentalPanel
-            icon={FlaskConical}
-            title="更多实验能力"
-            description="新实验功能会继续放在这里，但不会为了占位而提前暴露无效入口。"
-          >
-            <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-              更多实验功能即将推出，新增前会优先明确适用场景、风险提示和降级路径。
-            </div>
-          </ExperimentalPanel>
+          <Suspense fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}>
+            <WorkspaceRepairHistoryCard
+              className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
+              title="Workspace 自愈记录（实验室）"
+              description="用于排查路径不存在、自动迁移和修复事件。"
+            />
+          </Suspense>
         </div>
       </div>
     </div>

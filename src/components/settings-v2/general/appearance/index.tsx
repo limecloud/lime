@@ -1,6 +1,6 @@
 /**
  * @file index.tsx
- * @description 通用设置 - 外观、工作区入口与推荐行为
+ * @description 通用设置 - 外观、主导航入口与推荐行为
  */
 
 import {
@@ -38,10 +38,6 @@ import {
   FIXED_FOOTER_SIDEBAR_NAV_ITEMS,
   resolveEnabledSidebarNavItems,
 } from "@/lib/navigation/sidebarNav";
-import {
-  DEFAULT_ENABLED_CONTENT_THEME_IDS,
-  resolveEnabledContentThemes,
-} from "@/lib/contentCreator/themeDefaults";
 
 type Theme = "light" | "dark" | "system";
 
@@ -105,18 +101,6 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
     hint: "适合英文界面与术语环境。",
   },
 ];
-
-const ALL_CONTENT_THEMES = [
-  { id: "general", label: "通用" },
-  { id: "social-media", label: "社媒内容" },
-  { id: "poster", label: "图文海报" },
-  { id: "music", label: "歌词曲谱" },
-  { id: "video", label: "短视频" },
-  { id: "novel", label: "小说" },
-  { id: "knowledge", label: "知识探索" },
-  { id: "planning", label: "计划规划" },
-  { id: "document", label: "办公文档" },
-] as const;
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
@@ -198,9 +182,6 @@ export function AppearanceSettings() {
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<Theme>("system");
   const [language, setLanguageState] = useState<Language>("zh");
-  const [enabledThemes, setEnabledThemes] = useState<string[]>(
-    DEFAULT_ENABLED_CONTENT_THEME_IDS,
-  );
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
     DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
   );
@@ -224,11 +205,6 @@ export function AppearanceSettings() {
       const loadedConfig = await getConfig();
       setConfig(loadedConfig);
       setLanguageState((loadedConfig.language || "zh") as Language);
-      setEnabledThemes(
-        resolveEnabledContentThemes(
-          loadedConfig.content_creator?.enabled_themes,
-        ),
-      );
       setEnabledNavItems(
         resolveEnabledSidebarNavItems(loadedConfig.navigation?.enabled_items),
       );
@@ -329,43 +305,6 @@ export function AppearanceSettings() {
       }
     },
     [playToolcallSound, setSoundEnabled],
-  );
-
-  const handleThemeToggle = useCallback(
-    async (themeId: string) => {
-      if (!config) {
-        return;
-      }
-
-      const previousThemes = enabledThemes;
-      const nextThemes = enabledThemes.includes(themeId)
-        ? enabledThemes.filter((item) => item !== themeId)
-        : [...enabledThemes, themeId];
-
-      const previousConfig = config;
-      const nextConfig = {
-        ...config,
-        content_creator: {
-          ...(config.content_creator || {}),
-          enabled_themes: nextThemes,
-        },
-      };
-
-      setError(null);
-      setEnabledThemes(nextThemes);
-      setConfig(nextConfig);
-
-      try {
-        await saveConfig(nextConfig);
-        window.dispatchEvent(new CustomEvent("theme-config-changed"));
-      } catch (err) {
-        console.error("保存创作模式设置失败:", err);
-        setEnabledThemes(previousThemes);
-        setConfig(previousConfig);
-        setError("保存创作模式设置失败，请重试。");
-      }
-    },
-    [config, enabledThemes],
   );
 
   const handleNavItemToggle = useCallback(
@@ -479,11 +418,10 @@ export function AppearanceSettings() {
 
               <div className="space-y-2">
                 <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把界面观感、工作区入口和推荐行为放在同一个视图里调整
+                  把界面观感、主导航入口和推荐行为放在同一个视图里调整
                 </p>
                 <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  主题、语言、提示音效，以及工作区里的创作模式卡片、侧栏入口和推荐行为，
-                  都在这里统一维护。
+                  主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。
                 </p>
               </div>
 
@@ -502,14 +440,14 @@ export function AppearanceSettings() {
 
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:content-start">
               <StatCard
-                label="创作模式"
-                value={enabledThemes.length.toString()}
-                description="当前会在新对话入口展示的快捷创作模式数量。"
+                label="主导航入口"
+                value={visibleNavItemCount.toString()}
+                description="左侧工作区当前可见的导航入口数量。"
               />
               <StatCard
-                label="侧边入口"
-                value={visibleNavItemCount.toString()}
-                description="工作区左侧边栏默认展示的导航项目数量。"
+                label="主导航"
+                value={enabledWorkspaceNavCount.toString()}
+                description="主导航区域当前启用的工作台、资料库与系统入口数量。"
               />
               <StatCard
                 label="推荐上下文"
@@ -703,54 +641,10 @@ export function AppearanceSettings() {
 
       <SurfacePanel
         icon={Sparkles}
-        title="工作区入口与推荐行为"
-        description="统一控制内容模式、左侧边栏入口和推荐问题的上下文带入方式。"
+        title="主导航入口与推荐行为"
+        description="统一控制左侧边栏的任务、工作台、能力与资料库入口，以及推荐问题的上下文带入方式。"
       >
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
-                  <Palette className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    创作模式卡片
-                  </h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    这些模式会出现在新对话的快捷创建区域。至少保留一个，避免工作区变成空状态。
-                  </p>
-                </div>
-              </div>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                {enabledThemes.length} 个已启用
-              </span>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {ALL_CONTENT_THEMES.map((item) => {
-                const active = enabledThemes.includes(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled={!config}
-                    onClick={() => void handleThemeToggle(item.id)}
-                    className={cn(
-                      "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
-                      active
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
-                      !config && "cursor-not-allowed opacity-60",
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </article>
-
           <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
@@ -776,10 +670,10 @@ export function AppearanceSettings() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h4 className="text-sm font-semibold text-slate-900">
-                      工作区入口
+                      主导航入口
                     </h4>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      控制主导航区展示的新建任务、创作与工作台入口。
+                      控制主导航区展示的工作台、资料库和系统功能入口，任务与能力核心入口会固定保留。
                     </p>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
@@ -824,10 +718,10 @@ export function AppearanceSettings() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h4 className="text-sm font-semibold text-slate-900">
-                      底部入口
+                      系统入口
                     </h4>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      设置入口固定显示，这里只管理其余底部功能入口。
+                      设置入口固定显示，这里只管理系统区的其余功能入口。
                     </p>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
@@ -860,39 +754,51 @@ export function AppearanceSettings() {
               </section>
             </div>
           </article>
+
+          <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
+            <div className="flex h-full flex-col justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    推荐行为
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    控制首页推荐问题是否自动带上当前选中内容，减少重复粘贴上下文。
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      推荐自动附带选中内容
+                    </h4>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      在文档或画布中有选区时，推荐问题会自动把该段内容作为上下文带入，减少手工复制粘贴。
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                      {appendSelectedTextToRecommendation ? "已开启" : "已关闭"}
+                    </span>
+                    <Switch
+                      checked={appendSelectedTextToRecommendation}
+                      onCheckedChange={(checked) => {
+                        void handleRecommendationSelectionToggle(checked);
+                      }}
+                      aria-label="切换推荐自动附带选中内容"
+                      disabled={!config}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
-
-        <article className="mt-5 rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  推荐自动附带选中内容
-                </h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  在文档或画布中有选区时，推荐问题会自动把该段内容作为上下文带入，减少手工复制粘贴。
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 self-end lg:self-auto">
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                {appendSelectedTextToRecommendation ? "已开启" : "已关闭"}
-              </span>
-              <Switch
-                checked={appendSelectedTextToRecommendation}
-                onCheckedChange={(checked) => {
-                  void handleRecommendationSelectionToggle(checked);
-                }}
-                aria-label="切换推荐自动附带选中内容"
-                disabled={!config}
-              />
-            </div>
-          </div>
-        </article>
       </SurfacePanel>
     </div>
   );

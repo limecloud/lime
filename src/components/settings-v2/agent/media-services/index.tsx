@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Film,
   Image as ImageIcon,
@@ -8,11 +15,27 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { ImageGenSettings } from "../image-gen";
-import { VideoGenSettings } from "../video-gen";
-import { VoiceSettings } from "../voice";
+import {
+  loadMediaServicesSection,
+  preloadMediaServicesSection,
+  type MediaServicesSection,
+} from "./preload";
 
-export type MediaServicesSection = "image" | "video" | "voice";
+const ImageGenSettings = lazy(() =>
+  loadMediaServicesSection("image").then((module) => ({
+    default: (module as typeof import("../image-gen")).ImageGenSettings,
+  })),
+);
+const VideoGenSettings = lazy(() =>
+  loadMediaServicesSection("video").then((module) => ({
+    default: (module as typeof import("../video-gen")).VideoGenSettings,
+  })),
+);
+const VoiceSettings = lazy(() =>
+  loadMediaServicesSection("voice").then((module) => ({
+    default: (module as typeof import("../voice")).VoiceSettings,
+  })),
+);
 
 interface MediaServiceTabMeta {
   value: MediaServicesSection;
@@ -25,7 +48,6 @@ interface MediaServiceTabMeta {
   accentClassName: string;
   iconClassName: string;
   icon: LucideIcon;
-  content: ReactNode;
 }
 
 const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
@@ -42,7 +64,6 @@ const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
       "from-emerald-200/65 via-white to-sky-50/70",
     iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
     icon: ImageIcon,
-    content: <ImageGenSettings />,
   },
   {
     value: "video",
@@ -57,7 +78,6 @@ const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
       "from-sky-200/60 via-white to-slate-50/90",
     iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
     icon: Film,
-    content: <VideoGenSettings />,
   },
   {
     value: "voice",
@@ -72,7 +92,6 @@ const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
       "from-amber-200/65 via-white to-rose-50/60",
     iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
     icon: Mic,
-    content: <VoiceSettings />,
   },
 ];
 
@@ -87,15 +106,52 @@ function getTabMeta(section: MediaServicesSection) {
   );
 }
 
+function renderSectionContent(section: MediaServicesSection) {
+  switch (section) {
+    case "image":
+      return <ImageGenSettings />;
+    case "video":
+      return <VideoGenSettings />;
+    case "voice":
+      return <VoiceSettings />;
+    default:
+      return null;
+  }
+}
+
+function MediaServiceContentFallback({
+  label,
+}: {
+  label: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
+      正在加载{label}配置...
+    </div>
+  );
+}
+
 export function MediaServicesSettings({
   initialSection = "image",
 }: MediaServicesSettingsProps) {
   const [activeSection, setActiveSection] =
     useState<MediaServicesSection>(initialSection);
+  const prefetchedSectionsRef = useRef<Set<MediaServicesSection>>(new Set());
 
   useEffect(() => {
     setActiveSection(initialSection);
   }, [initialSection]);
+
+  const handleSectionPrefetch = (section: MediaServicesSection) => {
+    if (prefetchedSectionsRef.current.has(section)) {
+      return;
+    }
+
+    prefetchedSectionsRef.current.add(section);
+    void preloadMediaServicesSection(section).catch(() => {
+      prefetchedSectionsRef.current.delete(section);
+    });
+  };
 
   const activeMeta = useMemo(
     () => getTabMeta(activeSection),
@@ -220,6 +276,9 @@ export function MediaServicesSettings({
                   <TabsTrigger
                     key={item.value}
                     value={item.value}
+                    onMouseEnter={() => handleSectionPrefetch(item.value)}
+                    onMouseDown={() => handleSectionPrefetch(item.value)}
+                    onFocus={() => handleSectionPrefetch(item.value)}
                     className={cn(
                       "h-auto rounded-[18px] border px-4 py-3 text-left",
                       active
@@ -295,7 +354,13 @@ export function MediaServicesSettings({
                     </span>
                   </div>
 
-                  {item.content}
+                  <Suspense
+                    fallback={
+                      <MediaServiceContentFallback label={item.label} />
+                    }
+                  >
+                    {renderSectionContent(item.value)}
+                  </Suspense>
                 </div>
               </section>
             </TabsContent>

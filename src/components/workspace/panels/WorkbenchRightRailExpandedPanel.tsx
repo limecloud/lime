@@ -3,8 +3,6 @@ import { WorkbenchRightRailActionSections } from "./workbenchRightRailActionSect
 import {
   WorkbenchRightRailCollapseBar,
   WorkbenchRightRailHeadingCard,
-  WorkbenchRightRailStyleGuideCard,
-  WorkbenchRightRailStyleGuideDialog,
 } from "./workbenchRightRailExpandedChrome";
 import { useWorkbenchRightRailCapabilityController } from "./useWorkbenchRightRailCapabilityController";
 import type { WorkbenchRightRailCapabilitySection } from "./workbenchRightRailTypes";
@@ -17,10 +15,6 @@ export function WorkbenchRightRailExpandedPanel({
   onCreateContentFromPrompt,
   initialExpandedActionKey,
   onInitialExpandedActionConsumed,
-  initialStyleGuideDialogOpen,
-  onInitialStyleGuideDialogConsumed,
-  initialStyleGuideSourceEntryId,
-  onInitialStyleGuideSourceEntryConsumed,
   sections,
   heading,
   subheading,
@@ -32,10 +26,6 @@ export function WorkbenchRightRailExpandedPanel({
   onCreateContentFromPrompt?: WorkbenchRightRailProps["onCreateContentFromPrompt"];
   initialExpandedActionKey?: string | null;
   onInitialExpandedActionConsumed?: () => void;
-  initialStyleGuideDialogOpen?: boolean;
-  onInitialStyleGuideDialogConsumed?: () => void;
-  initialStyleGuideSourceEntryId?: string | null;
-  onInitialStyleGuideSourceEntryConsumed?: () => void;
   sections: WorkbenchRightRailCapabilitySection[];
   heading?: string | null;
   subheading?: string | null;
@@ -46,10 +36,6 @@ export function WorkbenchRightRailExpandedPanel({
     contentId,
     initialExpandedActionKey,
     onInitialExpandedActionConsumed,
-    initialStyleGuideDialogOpen,
-    onInitialStyleGuideDialogConsumed,
-    initialStyleGuideSourceEntryId,
-    onInitialStyleGuideSourceEntryConsumed,
     onCreateContentFromPrompt,
   });
 
@@ -66,28 +52,12 @@ export function WorkbenchRightRailExpandedPanel({
           heading={heading}
           subheading={subheading}
         />
-        {theme === "video" ? null : (
-          <WorkbenchRightRailStyleGuideCard
-            projectId={projectId}
-            onOpen={() => {
-              controller.setStyleGuideSourceEntryId(null);
-              controller.handleStyleGuideDialogOpenChange(true);
-            }}
-          />
-        )}
         <WorkbenchRightRailActionSections
           sections={sections}
           controller={controller}
           theme={theme}
         />
       </div>
-
-      <WorkbenchRightRailStyleGuideDialog
-        open={controller.styleGuideDialogOpen}
-        projectId={projectId}
-        sourceEntryId={controller.styleGuideSourceEntryId}
-        onOpenChange={controller.handleStyleGuideDialogOpenChange}
-      />
     </aside>
   );
 }

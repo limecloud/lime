@@ -3,7 +3,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Artifact } from "@/lib/artifact/types";
-import { resolveBrowserAssistSessionScopeKey } from "../utils/browserAssistSession";
+import {
+  resolveBrowserAssistSessionScopeKey,
+  resolveBrowserAssistSessionStorageKey,
+} from "../utils/browserAssistSession";
 import { buildBrowserAssistArtifact } from "./browserAssistArtifact";
 import { useWorkspaceBrowserAssistRuntime } from "./useWorkspaceBrowserAssistRuntime";
 
@@ -385,6 +388,38 @@ describe("useWorkspaceBrowserAssistRuntime", () => {
     expect(upsertGeneralArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "error",
+      }),
+    );
+  });
+
+  it("只有 transient 恢复态时不应自动补拉旧浏览器会话", async () => {
+    const storageKey = resolveBrowserAssistSessionStorageKey(
+      "workspace-1",
+      "session-1",
+    );
+    window.sessionStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        profileKey: "general-browser",
+        url: "https://www.google.com/",
+        title: "浏览器协助",
+        updatedAt: Date.now(),
+      }),
+    );
+
+    const { render, getValue } = renderHook();
+    await render();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
+    expect(mockBrowserExecuteAction).not.toHaveBeenCalled();
+    expect(getValue().browserAssistSessionState).toEqual(
+      expect.objectContaining({
+        profileKey: "general-browser",
+        url: "https://www.google.com/",
       }),
     );
   });

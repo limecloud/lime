@@ -22,10 +22,6 @@ export function useWorkbenchPanelRenderer({
         return panelRenderers.workflow ?? null;
       case "material":
         return panelRenderers.material ?? null;
-      case "template":
-        return panelRenderers.template ?? null;
-      case "style":
-        return panelRenderers.style ?? null;
       case "publish":
         return panelRenderers.publish ?? null;
       case "settings":

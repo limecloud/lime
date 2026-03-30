@@ -14,9 +14,9 @@ import type {
   AuditedHotkeyDefinition,
   HotkeyScene,
 } from "@/lib/hotkeys/types";
-import { DOCUMENT_CANVAS_HOTKEYS } from "@/components/content-creator/canvas/document/documentCanvasHotkeys";
-import { DOCUMENT_EDITOR_HOTKEYS } from "@/components/content-creator/canvas/document/documentEditorHotkeys";
-import { POSTER_CANVAS_HOTKEYS } from "@/components/content-creator/canvas/poster/hooks/posterCanvasHotkeys";
+import { DOCUMENT_CANVAS_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
+import { DOCUMENT_EDITOR_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
+import { POSTER_CANVAS_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
 import { getTerminalPageHotkeys } from "@/components/terminal/terminalPageHotkeys";
 import { WORKBENCH_SIDEBAR_TOGGLE_HOTKEY } from "@/components/workspace/hooks/workbenchHotkeys";
 

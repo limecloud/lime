@@ -23,6 +23,10 @@ vi.mock("./channels/ImConfigPage", () => ({
   ImConfigPage: () => <div data-testid="im-config-page" />,
 }));
 
+vi.mock("./settings-v2", () => ({
+  SettingsPageV2: () => <div data-testid="settings-page" />,
+}));
+
 interface MountedContent {
   container: HTMLDivElement;
   root: Root;
@@ -133,5 +137,12 @@ describe("AppPageContent", () => {
     await flushEffects();
 
     expect(container.querySelector('[data-testid="im-config-page"]')).not.toBeNull();
+  });
+
+  it("settings 页面应渲染设置页入口", async () => {
+    const container = renderContent("settings");
+    await flushEffects();
+
+    expect(container.querySelector('[data-testid="settings-page"]')).not.toBeNull();
   });
 });

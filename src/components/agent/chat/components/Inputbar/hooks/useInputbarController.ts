@@ -19,7 +19,7 @@ import type {
   ThemeWorkbenchWorkflowStep,
 } from "./useThemeWorkbenchInputState";
 import { TeamSuggestionBar } from "@/components/agent/chat/components/TeamSuggestionBar";
-import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
+import type { A2UIResponse } from "@/lib/workspace/a2ui";
 import { getTeamSuggestion } from "@/components/agent/chat/utils/teamSuggestion";
 import type { MessageImage } from "../../../types";
 import type { BuiltinInputCommand } from "../components/builtinCommands";

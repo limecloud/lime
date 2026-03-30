@@ -11,7 +11,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import type { StepStatus } from "@/components/content-creator/types";
+import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type { AgentRun } from "@/lib/api/executionRun";
 import {
   DropdownMenu,

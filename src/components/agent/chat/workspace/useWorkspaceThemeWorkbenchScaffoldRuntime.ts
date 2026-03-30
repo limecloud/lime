@@ -9,9 +9,9 @@ import { safeListen } from "@/lib/dev-bridge";
 import {
   createInitialCanvasState,
   type CanvasStateUnion,
-} from "@/components/content-creator/canvas/canvasUtils";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
-import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
+} from "@/lib/workspace/workbenchCanvas";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
+import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ThemeWorkbenchCreationTaskEvent } from "../components/themeWorkbenchWorkflowData";
 import { useTopicBranchBoard } from "../hooks";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";

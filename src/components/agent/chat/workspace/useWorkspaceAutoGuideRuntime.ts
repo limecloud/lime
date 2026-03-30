@@ -1,11 +1,10 @@
 import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import { contentWorkflowApi } from "@/lib/api/content-workflow";
 import { getDefaultGuidePromptByTheme } from "../utils/defaultGuidePrompt";
 import type { ThemeWorkbenchEntryPromptState } from "../hooks/useThemeWorkbenchEntryPrompt";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { MessageImage } from "../types";
-import type { CreationMode, ThemeType } from "@/components/content-creator/types";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
 import type { WorkspaceHandleSend } from "./useWorkspaceSendActions";
 
@@ -33,7 +32,6 @@ interface UseWorkspaceAutoGuideRuntimeParams {
   canvasState: CanvasStateUnion | null;
   isThemeWorkbench: boolean;
   mappedTheme: ThemeType;
-  creationMode: CreationMode;
   shouldUseCompactThemeWorkbench: boolean;
   shouldSkipThemeWorkbenchAutoGuideWithoutPrompt: boolean;
   themeWorkbenchEntryCheckPending: boolean;
@@ -62,7 +60,6 @@ export function useWorkspaceAutoGuideRuntime({
   canvasState,
   isThemeWorkbench,
   mappedTheme,
-  creationMode,
   shouldUseCompactThemeWorkbench,
   shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
   themeWorkbenchEntryCheckPending,
@@ -172,19 +169,7 @@ export function useWorkspaceAutoGuideRuntime({
       }
 
       hasTriggeredGuideRef.current = true;
-      logWorkspaceInfo("[AgentChatPage] 主题工作台：触发 AI 引导，创建后端工作流");
-
-      void (async () => {
-        try {
-          await contentWorkflowApi.create(contentId, mappedTheme, creationMode);
-          logWorkspaceInfo("[AgentChatPage] 后端工作流创建成功");
-        } catch (error) {
-          console.warn(
-            "[AgentChatPage] 后端工作流创建失败（不影响主流程）:",
-            error,
-          );
-        }
-      })();
+      logWorkspaceInfo("[AgentChatPage] 主题工作台：触发 AI 引导");
 
       triggerAIGuideRef.current();
       return;
@@ -198,7 +183,6 @@ export function useWorkspaceAutoGuideRuntime({
     chatToolPreferences.thinking,
     chatToolPreferences.webSearch,
     contentId,
-    creationMode,
     handleSend,
     initialDispatchKey,
     initialAutoSendRequestMetadata,
@@ -291,34 +275,4 @@ export function useWorkspaceAutoGuideRuntime({
     hasTriggeredGuideRef.current = false;
     consumedInitialPromptRef.current = null;
   }, [contentId, consumedInitialPromptRef, hasTriggeredGuideRef]);
-
-  useEffect(() => {
-    if (!contentId || !isThemeWorkbench) {
-      return;
-    }
-
-    let disposed = false;
-
-    void (async () => {
-      try {
-        const workflow = await contentWorkflowApi.getByContent(contentId);
-        if (!workflow || disposed) {
-          return;
-        }
-
-        const completedCount = workflow.steps.filter(
-          (step) => step.status === "completed" || step.status === "skipped",
-        ).length;
-        logWorkspaceInfo(
-          `[AgentChatPage] 找到已有工作流: ${workflow.id}，已完成步骤 ${completedCount}/${workflow.steps.length}`,
-        );
-      } catch (error) {
-        console.debug("[AgentChatPage] 查询后端工作流失败:", error);
-      }
-    })();
-
-    return () => {
-      disposed = true;
-    };
-  }, [contentId, isThemeWorkbench]);
 }

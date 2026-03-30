@@ -9,7 +9,7 @@ import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CreationMode } from "../components/types";
 import type { WriteArtifactContext } from "../types";
 import type { PendingA2UISource } from "../types";
-import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
+import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Artifact } from "@/lib/artifact/types";
 import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
@@ -414,7 +414,6 @@ export function useWorkspaceConversationSceneRuntime({
       currentIndex: currentStepIndex,
       onStepClick: goToStep,
     },
-    runtimeStyleControlBar: conversationSendRuntime.runtimeStyleControlBar,
     messageList: {
       messages: displayMessages,
       turns,

@@ -1,11 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
-import { StepProgress } from "@/components/content-creator/core/StepGuide/StepProgress";
+import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 import { MessageList } from "../components/MessageList";
-import { RuntimeStyleControlBar } from "../components/RuntimeStyleControlBar";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import {
-  buildRuntimeStyleControlBarProps,
   buildStepProgressProps,
   buildTeamWorkspaceDockProps,
   buildWorkspaceMessageListProps,
@@ -30,7 +28,6 @@ interface UseWorkspaceConversationScenePresentationParams {
     | "novelCanvasControls"
     | "canvasWorkbenchLayoutProps"
     | "stepProgressProps"
-    | "runtimeStyleControlBarProps"
     | "messageListProps"
     | "teamWorkspaceDockProps"
   > & {
@@ -43,21 +40,6 @@ interface UseWorkspaceConversationScenePresentationParams {
     steps: ComponentProps<typeof StepProgress>["steps"];
     currentIndex: ComponentProps<typeof StepProgress>["currentIndex"];
     onStepClick: NonNullable<ComponentProps<typeof StepProgress>["onStepClick"]>;
-  };
-  runtimeStyleControlBar: {
-    enabled: boolean;
-    projectId: string | null | undefined;
-    activeTheme: ComponentProps<typeof RuntimeStyleControlBar>["activeTheme"];
-    projectStyleGuide: ComponentProps<
-      typeof RuntimeStyleControlBar
-    >["projectStyleGuide"];
-    selection: ComponentProps<typeof RuntimeStyleControlBar>["selection"];
-    onSelectionChange: ComponentProps<
-      typeof RuntimeStyleControlBar
-    >["onSelectionChange"];
-    onRewrite: NonNullable<ComponentProps<typeof RuntimeStyleControlBar>["onRewrite"]>;
-    onAudit: NonNullable<ComponentProps<typeof RuntimeStyleControlBar>["onAudit"]>;
-    actionsDisabled: boolean;
   };
   messageList: ComponentProps<typeof MessageList>;
   teamWorkspaceDock: {
@@ -92,7 +74,6 @@ interface WorkspaceConversationScenePresentationResult {
 export function useWorkspaceConversationScenePresentation({
   scene,
   stepProgress,
-  runtimeStyleControlBar,
   messageList,
   teamWorkspaceDock,
   workspaceAlert,
@@ -100,8 +81,6 @@ export function useWorkspaceConversationScenePresentation({
   canvasWorkbenchLayout,
 }: UseWorkspaceConversationScenePresentationParams): WorkspaceConversationScenePresentationResult {
   const stepProgressProps = buildStepProgressProps(stepProgress);
-  const runtimeStyleControlBarProps =
-    buildRuntimeStyleControlBarProps(runtimeStyleControlBar);
   const messageListProps = buildWorkspaceMessageListProps(messageList);
   const teamWorkspaceDockProps = buildTeamWorkspaceDockProps(teamWorkspaceDock);
   const workspaceAlertVisible = Boolean(
@@ -128,7 +107,6 @@ export function useWorkspaceConversationScenePresentation({
       <WorkspaceConversationScene
         {...scene}
         stepProgressProps={stepProgressProps}
-        runtimeStyleControlBarProps={runtimeStyleControlBarProps}
         messageListProps={messageListProps}
         teamWorkspaceDockProps={teamWorkspaceDockProps}
         workspaceAlertVisible={workspaceAlertVisible}

@@ -15,7 +15,7 @@ Lime 是创作类 AI Agent 平台。
 2. [安装指南](/introduction/installation)：安装到本地桌面
 3. [快速开始](/introduction/quickstart)：3 步走完首次创作
 
-## 九大创作主题
+## 九类工作区主题
 
 | 主题 | 常见产出 |
 |------|----------|

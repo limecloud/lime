@@ -1,4 +1,4 @@
-import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
+import { parseAIResponse } from "@/lib/workspace/a2ui";
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import {
   extractFilesystemEventLocationHintsFromValue,
@@ -7,6 +7,7 @@ import {
 import type { AgentThreadItem, AgentThreadItemStatus } from "../types";
 import { resolveInternalImageTaskDisplayName } from "./internalImagePlaceholder";
 import { resolveToolDisplayLabel } from "./toolDisplayInfo";
+import { isInternalRoutingTurnSummaryText } from "./turnSummaryPresentation";
 
 export type AgentThreadGroupKind =
   | "process"
@@ -579,9 +580,13 @@ function summarizeOtherItem(item: AgentThreadItem): string | null {
 
 function summarizeThinkingItem(item: AgentThreadItem): string | null {
   if (item.type === "turn_summary") {
+    if (isInternalRoutingTurnSummaryText(item.text)) {
+      return null;
+    }
+
     const preview = extractThinkingPreviewLine(item.text);
     if (!preview) {
-      return item.status === "in_progress" ? "思考中" : "已完成思考";
+      return item.status === "in_progress" ? "处理中" : "当前进展";
     }
 
     return shortenText(preview);

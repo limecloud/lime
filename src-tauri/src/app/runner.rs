@@ -126,8 +126,6 @@ pub fn run() {
         recording_service,
         mcp_manager: mcp_manager_state,
         automation_service: automation_service_state,
-        workflow_service,
-        progress_store,
         shared_stats,
         shared_tokens,
         shared_logger,
@@ -235,8 +233,6 @@ pub fn run() {
         .manage(recording_service)
         .manage(mcp_manager_state)
         .manage(automation_service_state)
-        .manage(workflow_service)
-        .manage(progress_store)
         .manage(commands::subagent_cmd::SubAgentSchedulerState::default())
         .manage(commands::websocket_cmd::WsServiceState::default())
         .manage(lime_gateway::telegram::TelegramGatewayState::default())
@@ -1703,13 +1699,6 @@ pub fn run() {
             commands::persona_cmd::list_persona_templates,
             commands::persona_cmd::get_default_persona,
             commands::persona_cmd::generate_persona,
-            // Brand Persona commands
-            commands::persona_cmd::get_brand_persona,
-            commands::persona_cmd::get_brand_extension,
-            commands::persona_cmd::save_brand_extension,
-            commands::persona_cmd::update_brand_extension,
-            commands::persona_cmd::delete_brand_extension,
-            commands::persona_cmd::list_brand_persona_templates,
             // Material commands
             commands::material_cmd::upload_material,
             commands::material_cmd::import_material_from_url,
@@ -1737,14 +1726,6 @@ pub fn run() {
             commands::poster_material_cmd::list_by_mood,
             commands::poster_material_cmd::update_poster_metadata,
             commands::poster_material_cmd::delete_poster_metadata,
-            // Template commands
-            commands::template_cmd::create_template,
-            commands::template_cmd::list_templates,
-            commands::template_cmd::get_template,
-            commands::template_cmd::update_template,
-            commands::template_cmd::delete_template,
-            commands::template_cmd::set_default_template,
-            commands::template_cmd::get_default_template,
             // A2UI Form commands
             commands::a2ui_form_cmd::create_a2ui_form,
             commands::a2ui_form_cmd::get_a2ui_form,
@@ -1762,13 +1743,6 @@ pub fn run() {
             commands::content_cmd::content_delete,
             commands::content_cmd::content_reorder,
             commands::content_cmd::content_stats,
-            // Content Workflow commands
-            commands::content_workflow_cmd::content_workflow_create,
-            commands::content_workflow_cmd::content_workflow_get,
-            commands::content_workflow_cmd::content_workflow_get_by_content,
-            commands::content_workflow_cmd::content_workflow_advance,
-            commands::content_workflow_cmd::content_workflow_retry,
-            commands::content_workflow_cmd::content_workflow_cancel,
             // Novel Orchestrator commands
             commands::novel_cmd::novel_create_project,
             commands::novel_cmd::novel_update_settings,
@@ -1782,7 +1756,7 @@ pub fn run() {
             commands::novel_cmd::novel_get_project_snapshot,
             commands::novel_cmd::novel_list_runs,
             commands::novel_cmd::novel_delete_character,
-            // Memory commands (Character, WorldBuilding, StyleGuide, Outline)
+            // Memory commands (Character, WorldBuilding, Outline)
             commands::memory_cmd::character_create,
             commands::memory_cmd::character_get,
             commands::memory_cmd::character_list,
@@ -1790,8 +1764,6 @@ pub fn run() {
             commands::memory_cmd::character_delete,
             commands::memory_cmd::world_building_get,
             commands::memory_cmd::world_building_update,
-            commands::memory_cmd::style_guide_get,
-            commands::memory_cmd::style_guide_update,
             commands::memory_cmd::outline_node_create,
             commands::memory_cmd::outline_node_get,
             commands::memory_cmd::outline_node_list,

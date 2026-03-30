@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
-import { CHAT_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
+import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import {
   cleanupMountedRoots,
   clickButtonByText,

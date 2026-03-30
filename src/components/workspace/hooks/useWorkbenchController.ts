@@ -21,14 +21,14 @@ import type {
   OpenProjectWritingOptions,
   ThemeWorkspaceView,
 } from "@/features/themes/types";
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 import type { WorkflowProgressSnapshot } from "@/components/agent/chat";
 import { useCreationDialogs } from "@/components/workspace/hooks/useCreationDialogs";
 import { useWorkbenchNavigation } from "@/components/workspace/hooks/useWorkbenchNavigation";
 import { useWorkbenchPanelRenderer } from "@/components/workspace/hooks/useWorkbenchPanelRenderer";
 import { useWorkbenchProjectData } from "@/components/workspace/hooks/useWorkbenchProjectData";
 import { useWorkbenchQuickActions } from "@/components/workspace/hooks/useWorkbenchQuickActions";
-import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import { resolveWorkbenchHotkeyAction } from "@/components/workspace/hooks/workbenchHotkeys";
 
 export const DEFAULT_CREATION_MODE: CreationMode = "guided";

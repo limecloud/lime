@@ -4,7 +4,7 @@ import type {
   ServiceSkillArtifactKind,
   ServiceSkillItem,
 } from "@/lib/api/serviceSkills";
-import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
+import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
 
 export interface ServiceSkillWorkspaceSeed {
   title: string;

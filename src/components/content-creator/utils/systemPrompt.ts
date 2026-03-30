@@ -1,10 +1,12 @@
 /**
  * @file 内容创作系统提示词生成器
- * @description 根据创作主题和模式生成 AI 系统提示词
+ * @description 根据工作区主题和模式生成 AI 系统提示词
  * @module components/content-creator/utils/systemPrompt
  */
 
 import type { ThemeType, CreationMode } from "../types";
+
+export { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
 
 /**
  * 主题名称映射（与 ProjectType 统一）
@@ -2149,13 +2151,6 @@ ${themeGuidance}
     default:
       return generateGuidedModePrompt(themeName, themeGuidance, theme);
   }
-}
-
-/**
- * 判断是否为内容创作模式
- */
-export function isContentCreationTheme(theme: string): boolean {
-  return theme !== "general";
 }
 
 /**

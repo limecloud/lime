@@ -218,4 +218,19 @@ describe("agentThreadGrouping", () => {
     expect(model.summaryText).toBe("请先确认以下选项：");
     expect(model.orderedBlocks[0]?.previewLines).toEqual(["请先确认以下选项："]);
   });
+
+  it("内部路由型 turn_summary 不应抢占整轮摘要", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("summary-1", 1),
+        type: "turn_summary",
+        text: "直接回答优先\n当前请求无需默认升级为搜索或任务。",
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.summaryText).toBeNull();
+    expect(model.orderedBlocks[0]?.previewLines).toEqual([]);
+  });
 });

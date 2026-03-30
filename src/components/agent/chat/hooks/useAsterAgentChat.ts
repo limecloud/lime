@@ -134,6 +134,10 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     setThreadTurns: session.setThreadTurns,
     setCurrentTurnId: session.setCurrentTurnId,
     setExecutionRuntime: session.setExecutionRuntime,
+    threadBusy:
+      session.threadRead?.status === "running" ||
+      session.threadRead?.status === "queued" ||
+      session.threadTurns.some((turn) => turn.status === "running"),
     queuedTurns: session.queuedTurns,
     setQueuedTurns: session.setQueuedTurns,
     setPendingActions: tools.setPendingActions,
@@ -223,6 +227,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     sessionId: session.sessionId,
     parentSessionId: session.subagentParentContext?.parent_session_id,
     isSending: stream.isSending,
+    threadReadStatus: session.threadRead?.status,
     queuedTurnCount: session.queuedTurns.length,
     threadTurns: session.threadTurns,
     refreshSessionDetail: session.refreshSessionDetail,

@@ -1,5 +1,5 @@
-import type { CreationMode } from "@/components/content-creator/types";
-import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import {
   buildCreateConfirmationMetadata,
   parseCreateConfirmationIntent,

@@ -91,6 +91,7 @@ interface ExecuteAgentStreamSubmitOptions {
     textDelta: string,
   ) => MessageParts;
   setMessages: Dispatch<SetStateAction<Message[]>>;
+  setIsSending: Dispatch<SetStateAction<boolean>>;
   setPendingActions: Dispatch<SetStateAction<ActionRequired[]>>;
   setThreadItems: Dispatch<SetStateAction<AgentThreadItem[]>>;
   setThreadTurns: Dispatch<SetStateAction<AgentThreadTurn[]>>;
@@ -144,6 +145,7 @@ export async function executeAgentStreamSubmit(
     sounds,
     appendThinkingToParts,
     setMessages,
+    setIsSending,
     setPendingActions,
     setThreadItems,
     setThreadTurns,
@@ -181,6 +183,7 @@ export async function executeAgentStreamSubmit(
     effectiveModel,
     effectiveExecutionStrategy,
     content,
+    webSearch,
     autoContinue,
     expectingQueue,
     activeSessionId,
@@ -215,6 +218,7 @@ export async function executeAgentStreamSubmit(
     setThreadTurns,
     setCurrentTurnId,
     setExecutionRuntime,
+    setIsSending,
   });
 
   callbacks.registerListener(unlisten);

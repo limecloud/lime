@@ -147,7 +147,7 @@ function CreationDialogsHarness(props: HarnessProps) {
       <button
         data-testid="fill-intent-topic"
         onClick={() =>
-          dialogs.handleCreationIntentValueChange("topic", "这是一个足够详细的创作主题")
+          dialogs.handleCreationIntentValueChange("topic", "这是一个足够详细的主题方向")
         }
       />
       <button

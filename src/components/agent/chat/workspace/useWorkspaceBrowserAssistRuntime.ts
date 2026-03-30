@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import type { LayoutMode } from "@/components/content-creator/types";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
   browserExecuteAction,
   launchBrowserSession,
@@ -350,6 +350,25 @@ export function useWorkspaceBrowserAssistRuntime({
 
     return `${latestArtifact.id}:${latestArtifact.updatedAt}:${latestArtifact.status}`;
   }, [activeTheme, artifacts]);
+
+  const canAutoRestoreDetachedBrowserAssistSession = useMemo(() => {
+    if (activeTheme !== "general") {
+      return false;
+    }
+
+    return Boolean(
+      openBrowserAssistOnMount ||
+        initialSiteSkillLaunch ||
+        browserAssistArtifact ||
+        latestBrowserAssistSessionFromMessages,
+    );
+  }, [
+    activeTheme,
+    browserAssistArtifact,
+    initialSiteSkillLaunch,
+    latestBrowserAssistSessionFromMessages,
+    openBrowserAssistOnMount,
+  ]);
 
   const isBrowserAssistReady = useMemo(
     () => hasActiveBrowserAssistSession(browserAssistSessionState),
@@ -1307,6 +1326,10 @@ export function useWorkspaceBrowserAssistRuntime({
       return;
     }
 
+    if (!canAutoRestoreDetachedBrowserAssistSession) {
+      return;
+    }
+
     const isSameFailedLaunchArtifact =
       isFailedBrowserAssistLaunchState(currentArtifactLaunchState) &&
       currentArtifactProfileKey === nextProfileKey &&
@@ -1432,6 +1455,7 @@ export function useWorkspaceBrowserAssistRuntime({
     autoOpenBrowserAssistCanvas,
     browserAssistArtifact,
     browserAssistSessionState,
+    canAutoRestoreDetachedBrowserAssistSession,
     commitBrowserAssistSessionState,
     currentBrowserAssistScopeKey,
     generalBrowserAssistProfileKey,

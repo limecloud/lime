@@ -188,7 +188,6 @@ export function ImageGenSettings() {
       const updatedFullConfig: Config = {
         ...config,
         content_creator: {
-          enabled_themes: config.content_creator?.enabled_themes ?? [],
           ...config.content_creator,
           media_defaults: {
             ...config.content_creator?.media_defaults,

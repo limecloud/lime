@@ -155,7 +155,6 @@ export interface Project {
   isArchived: boolean;
   tags: string[];
   defaultPersonaId?: string;
-  defaultTemplateId?: string;
   stats?: ProjectStats;
 }
 
@@ -170,7 +169,6 @@ export type RawProject = Partial<Project> & {
   is_favorite?: boolean;
   is_archived?: boolean;
   default_persona_id?: string;
-  default_template_id?: string;
 };
 
 /** 内容列表项 */
@@ -227,7 +225,6 @@ export interface UpdateProjectRequest {
   isArchived?: boolean;
   tags?: string[];
   defaultPersonaId?: string;
-  defaultTemplateId?: string;
 }
 
 export interface WorkspaceEnsureResult {
@@ -479,8 +476,6 @@ export function normalizeProject(project: RawProject): Project {
     tags: project.tags ?? [],
     defaultPersonaId:
       project.defaultPersonaId ?? project.default_persona_id ?? undefined,
-    defaultTemplateId:
-      project.defaultTemplateId ?? project.default_template_id ?? undefined,
     stats: project.stats,
   };
 }

@@ -7,7 +7,7 @@
  * @requirements 6.3
  */
 
-import type { Platform } from "./template";
+import type { Platform } from "./platform";
 
 // ============================================================================
 // 人设类型

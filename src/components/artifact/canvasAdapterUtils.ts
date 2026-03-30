@@ -11,18 +11,20 @@ import type { Artifact, ArtifactType } from "@/lib/artifact/types";
 import type {
   CanvasStateUnion,
   CanvasType,
-} from "@/components/content-creator/canvas/canvasUtils";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
-import { createInitialPosterState } from "@/components/content-creator/canvas/poster";
-import { createInitialMusicState } from "@/components/content-creator/canvas/music/types";
-import { createInitialScriptState } from "@/components/content-creator/canvas/script";
-import { createInitialNovelState } from "@/components/content-creator/canvas/novel";
-import { createInitialVideoState } from "@/components/content-creator/canvas/video";
-import type { DocumentCanvasState } from "@/components/content-creator/canvas/document/types";
-import type { PosterCanvasState } from "@/components/content-creator/canvas/poster/types";
-import type { MusicCanvasState } from "@/components/content-creator/canvas/music/types";
-import type { ScriptCanvasState } from "@/components/content-creator/canvas/script/types";
-import type { NovelCanvasState } from "@/components/content-creator/canvas/novel/types";
+  DocumentCanvasState,
+  MusicCanvasState,
+  NovelCanvasState,
+  PosterCanvasState,
+  ScriptCanvasState,
+} from "@/lib/workspace/workbenchCanvas";
+import {
+  createInitialDocumentState,
+  createInitialMusicState,
+  createInitialNovelState,
+  createInitialPosterState,
+  createInitialScriptState,
+  createInitialVideoState,
+} from "@/lib/workspace/workbenchCanvas";
 
 // ============================================================================
 // 类型定义

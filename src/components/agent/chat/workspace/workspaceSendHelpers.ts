@@ -7,7 +7,7 @@ import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { MessageImage } from "../types";
 import type { Character } from "@/lib/api/memory";
-import type { ThemeType } from "@/components/content-creator/types";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
@@ -25,6 +25,16 @@ export interface ContextWorkspaceSummary {
   prepareActiveContextPrompt: () => Promise<string>;
 }
 
+function asRecord(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
 export interface EnsureBrowserAssistCanvasOptions {
   silent?: boolean;
   navigationMode?: "none" | "explicit-url" | "best-effort";
@@ -34,7 +44,6 @@ interface BuildWorkspaceSendTextOptions {
   sourceText: string;
   contextWorkspace: ContextWorkspaceSummary;
   mentionedCharacters: Character[];
-  runtimeStyleMessagePrompt: string;
   sendOptions?: HandleSendOptions;
 }
 
@@ -121,28 +130,10 @@ function applyMentionedCharacterContext(
   return `[角色上下文]\n${characterContext}\n\n[用户输入]\n${text}`;
 }
 
-function applyRuntimeStyleMessagePrompt(
-  text: string,
-  runtimeStyleMessagePrompt: string,
-  sendOptions?: HandleSendOptions,
-): string {
-  if (sendOptions?.purpose || !runtimeStyleMessagePrompt.trim()) {
-    return text;
-  }
-
-  return `[本次任务风格要求]\n${runtimeStyleMessagePrompt}\n\n[用户输入]\n${text}`;
-}
-
 export async function buildWorkspaceSendText(
   options: BuildWorkspaceSendTextOptions,
 ): Promise<string> {
-  const {
-    sourceText,
-    contextWorkspace,
-    mentionedCharacters,
-    runtimeStyleMessagePrompt,
-    sendOptions,
-  } = options;
+  const { sourceText, contextWorkspace, mentionedCharacters } = options;
 
   let text = sourceText;
   let preparedActiveContextPrompt = contextWorkspace.enabled
@@ -161,11 +152,26 @@ export async function buildWorkspaceSendText(
   }
 
   text = applyMentionedCharacterContext(text, mentionedCharacters);
-  return applyRuntimeStyleMessagePrompt(
-    text,
-    runtimeStyleMessagePrompt,
-    sendOptions,
-  );
+  return text;
+}
+
+export function hasServiceSkillLaunchRequestMetadata(
+  requestMetadata?: Record<string, unknown>,
+): boolean {
+  const harness = extractExistingHarnessMetadata(requestMetadata);
+  if (!harness) {
+    return false;
+  }
+
+  const launch =
+    asRecord(harness.service_skill_launch) ??
+    asRecord(harness.serviceSkillLaunch);
+  if (!launch) {
+    return false;
+  }
+
+  const adapterName = launch.adapter_name ?? launch.adapterName;
+  return typeof adapterName === "string" && adapterName.trim().length > 0;
 }
 
 export function primeBrowserAssistBeforeSend(

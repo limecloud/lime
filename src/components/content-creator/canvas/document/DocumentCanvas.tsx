@@ -19,7 +19,6 @@ import {
   type PixabaySearchResponse,
   type WebImageSearchResponse,
 } from "@/lib/api/imageSearch";
-import { getStyleGuide, type StyleGuide } from "@/lib/api/memory";
 import type {
   AutoContinueSettings,
   ContentReviewExpert,
@@ -66,10 +65,6 @@ import {
 } from "./utils/autoContinueSettings";
 import { logRenderPerf } from "@/lib/perfDebug";
 import { useWorkbenchStore } from "@/stores/useWorkbenchStore";
-import {
-  buildTextStylizePrompt,
-  resolveTextStylizeSourceLabel,
-} from "@/lib/style-guide";
 
 const Container = styled.div`
   display: flex;
@@ -125,6 +120,35 @@ const Toast = styled.div<{ $visible: boolean }>`
   z-index: 1000;
 `;
 
+const PLATFORM_LABELS: Record<PlatformType, string> = {
+  wechat: "公众号",
+  xiaohongshu: "小红书",
+  zhihu: "知乎",
+  markdown: "通用文稿",
+};
+
+function buildTextStylizePrompt(content: string, platform: PlatformType): string {
+  const normalizedContent = content.trim();
+  const platformLabel = PLATFORM_LABELS[platform] ?? platform;
+
+  return `请对以下文本进行风格化优化，使表达更流畅、更有感染力，但不要改变原文事实、判断、核心信息与结论。
+
+优化要求：
+1. 优先优化措辞、句式、节奏和段落衔接，不要引入新事实。
+2. 保持内容真实、自然、可读，不过度夸张。
+3. 结合当前平台的阅读语境调整表达方式，但不要套模板腔。
+4. 输出纯文本，不要使用 Markdown 格式。
+
+当前平台：${platformLabel}
+
+原始文本：
+<<<CONTENT
+${normalizedContent}
+CONTENT
+
+请直接输出优化后的文本，不要添加任何说明或注释。`;
+}
+
 /**
  * 文档画布主组件
  */
@@ -155,8 +179,6 @@ export const DocumentCanvas: React.FC<DocumentCanvasProps> = memo(
     const [toastMessage, setToastMessage] = useState("");
     const [showToast, setShowToast] = useState(false);
     const [autoInsertLoading, setAutoInsertLoading] = useState(false);
-    const [projectStyleGuide, setProjectStyleGuide] =
-      useState<StyleGuide | null>(null);
 
     // Undo/Redo 历史栈
     const undoStackRef = useRef<string[]>([]);
@@ -176,32 +198,6 @@ export const DocumentCanvas: React.FC<DocumentCanvasProps> = memo(
       setCanUndo(undoStackRef.current.length > 0);
       setCanRedo(false);
     }, []);
-
-    useEffect(() => {
-      if (!projectId) {
-        setProjectStyleGuide(null);
-        return;
-      }
-
-      let disposed = false;
-
-      getStyleGuide(projectId)
-        .then((nextStyleGuide) => {
-          if (!disposed) {
-            setProjectStyleGuide(nextStyleGuide);
-          }
-        })
-        .catch((error) => {
-          console.warn("[DocumentCanvas] 加载项目风格失败:", error);
-          if (!disposed) {
-            setProjectStyleGuide(null);
-          }
-        });
-
-      return () => {
-        disposed = true;
-      };
-    }, [projectId]);
 
     const handleUndo = useCallback(() => {
       if (undoStackRef.current.length === 0) return;
@@ -878,32 +874,9 @@ CONTENT`,
       }
 
       try {
-        const latestProjectStyleGuide = projectId
-          ? await getStyleGuide(projectId).catch((error) => {
-              console.warn("[DocumentCanvas] 刷新项目风格失败:", error);
-              return projectStyleGuide;
-            })
-          : null;
+        showMessage("✨ 正在进行文本风格化...");
 
-        if (projectId) {
-          setProjectStyleGuide(latestProjectStyleGuide);
-        }
-
-        const styleSourceLabel = resolveTextStylizeSourceLabel({
-          projectId,
-          projectStyleGuide: latestProjectStyleGuide,
-        });
-        showMessage(
-          styleSourceLabel === "项目默认风格"
-            ? "✨ 正在根据项目默认风格进行文本风格化..."
-            : "✨ 正在进行文本风格化...",
-        );
-
-        const prompt = buildTextStylizePrompt({
-          content: baseContent,
-          platform: state.platform,
-          projectStyleGuide: latestProjectStyleGuide,
-        });
+        const prompt = buildTextStylizePrompt(baseContent, state.platform);
 
         const result = await onTextStylizeRun({
           prompt,
@@ -925,21 +898,10 @@ CONTENT`,
     }, [
       onTextStylizeRun,
       editingContent,
-      projectId,
-      projectStyleGuide,
       state.platform,
       resolvedThinkingEnabled,
       showMessage,
     ]);
-
-    const textStylizeSourceLabel = useMemo(
-      () =>
-        resolveTextStylizeSourceLabel({
-          projectId,
-          projectStyleGuide,
-        }),
-      [projectId, projectStyleGuide],
-    );
 
     const handleCloseContentReview = useCallback(() => {
       setContentReviewOpen(false);
@@ -1081,7 +1043,6 @@ CONTENT`,
             onAddImage={onAddImage}
             onImportDocument={onImportDocument}
             onTextStylize={handleTextStylize}
-            textStylizeSourceLabel={textStylizeSourceLabel}
             onContentReview={handleContentReview}
             contentReviewActive={contentReviewOpen}
             onUndo={handleUndo}

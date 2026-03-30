@@ -113,6 +113,230 @@
       "allowedPaths": []
     },
     {
+      "id": "poster-workflow-root-hook-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的根级海报工作流 Hook 入口，现役实现已回迁到 content-creator 内部",
+      "targets": ["src/hooks/usePosterWorkflow.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "poster-export-root-hook-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的根级多平台海报导出 Hook 入口",
+      "targets": ["src/hooks/useMultiPlatformExport.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-poster-workflow-hook-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator 海报工作流 Hook 入口",
+      "targets": ["src/components/content-creator/hooks/usePosterWorkflow.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-poster-workflow-module",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator 海报工作流孤岛模块",
+      "targets": [
+        "src/components/content-creator/workflows/poster/index.ts",
+        "src/components/content-creator/workflows/poster/PosterWorkflowPanel.tsx",
+        "src/components/content-creator/workflows/poster/ecommerce-promo.ts",
+        "src/components/content-creator/workflows/poster/brand-image.ts",
+        "src/components/content-creator/workflows/poster/social-media.ts",
+        "src/components/content-creator/workflows/poster/types.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workbench-poster-gateway-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的海报 workflow/agent 共享网关入口",
+      "targets": ["src/lib/workspace/workbenchPoster.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-social-media-template-module",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator 社媒模板孤岛模块",
+      "targets": [
+        "src/components/content-creator/templates/social-media/index.ts",
+        "src/components/content-creator/templates/social-media/trending-topic.ts",
+        "src/components/content-creator/templates/social-media/industry-analysis.ts",
+        "src/components/content-creator/templates/social-media/tech-sharing.ts",
+        "src/components/content-creator/templates/social-media/product-launch.ts",
+        "src/components/content-creator/templates/social-media/visual-content.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "style-library-storage-module",
+      "classification": "dead-candidate",
+      "description": "已删除的全局风格库本地存储与应用历史模块",
+      "targets": ["src/lib/style-library.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "style-library-react-hook-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的风格库 React Hook 入口",
+      "targets": ["src/hooks/useStyleLibrary.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "style-library-ui-module",
+      "classification": "dead-candidate",
+      "description": "已删除的风格库弹窗与工作台 UI 模块",
+      "targets": [
+        "src/components/style-library/StyleLibraryPickerDialog.tsx",
+        "src/components/memory/StyleLibraryPanel.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "style-center-page-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的独立风格中心页面入口",
+      "targets": [
+        "src/components/style/index.ts",
+        "src/components/style/StylePage.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-runtime-style-control-module",
+      "classification": "dead-candidate",
+      "description": "已删除的 Claw 运行时风格控制与风格动作链路",
+      "targets": [
+        "src/components/agent/chat/components/RuntimeStyleControlBar.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceStyleActionPresentation.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-style-guide-panel-module",
+      "classification": "dead-candidate",
+      "description": "已删除的项目默认风格面板入口",
+      "targets": ["src/components/projects/memory/StyleGuidePanel.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-style-guide-helper-module",
+      "classification": "dead-candidate",
+      "description": "已删除的项目默认风格归一化与提示词工具模块",
+      "targets": ["src/lib/style-guide.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-template-ui-module",
+      "classification": "dead-candidate",
+      "description": "已删除的项目排版模板前端入口与 Hook/API 模块",
+      "targets": [
+        "src/components/projects/tabs/TemplateTab.tsx",
+        "src/components/projects/dialogs/TemplateDialog.tsx",
+        "src/hooks/useTemplates.ts",
+        "src/lib/api/templates.ts",
+        "src/types/template.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-brand-persona-ui-module",
+      "classification": "dead-candidate",
+      "description": "已删除的品牌人设前端入口与 Hook/API 模块",
+      "targets": [
+        "src/components/projects/dialogs/BrandPersonaDialog.tsx",
+        "src/hooks/useBrandPersona.ts",
+        "src/lib/api/brandPersona.ts",
+        "src/types/brand-persona.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "poster-agent-legacy-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧海报 Agent 编排与画布桥接孤岛",
+      "targets": [
+        "src/components/content-creator/canvas/poster/PosterDesigner.tsx",
+        "src/components/content-creator/canvas/poster/hooks/useCanvasAgentBridge.ts",
+        "src/components/content-creator/canvas/poster/hooks/useAgentIntegration.ts",
+        "src/components/content-creator/agents/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-state-hooks",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 content-creator 状态 Hook 与根 barrel 入口",
+      "targets": [
+        "src/components/content-creator/hooks/index.ts",
+        "src/components/content-creator/hooks/useActivityLog.ts",
+        "src/components/content-creator/hooks/useContentCreator.ts",
+        "src/components/content-creator/hooks/usePersistence.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-activity-log-ui",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 content-creator 活动日志 UI 模块",
+      "targets": [
+        "src/components/content-creator/components/ActivityLog/index.ts",
+        "src/components/content-creator/components/ActivityLog/ActivityLogList.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-step-guide-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧步骤表单与结果展示模块，仅保留现役进度条",
+      "targets": [
+        "src/components/content-creator/core/StepGuide/StepActions.tsx",
+        "src/components/content-creator/core/StepGuide/StepCard.tsx",
+        "src/components/content-creator/core/StepGuide/StepForm.tsx",
+        "src/components/content-creator/core/StepGuide/StepResult.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-form-components-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧通用表单组件库模块",
+      "targets": [
+        "src/components/content-creator/core/FormComponents/index.ts",
+        "src/components/content-creator/core/FormComponents/TextInput.tsx",
+        "src/components/content-creator/core/FormComponents/TextArea.tsx",
+        "src/components/content-creator/core/FormComponents/Select.tsx",
+        "src/components/content-creator/core/FormComponents/RadioGroup.tsx",
+        "src/components/content-creator/core/FormComponents/CheckboxGroup.tsx",
+        "src/components/content-creator/core/FormComponents/Slider.tsx",
+        "src/components/content-creator/core/FormComponents/TagInput.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-canvas-container-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧画布容器与骨架屏实现，仅保留画布注册中心",
+      "targets": [
+        "src/components/content-creator/core/CanvasContainer/CanvasContainer.tsx",
+        "src/components/content-creator/core/CanvasContainer/CanvasSkeleton.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-content-creator-legacy-service-module",
+      "classification": "dead-candidate",
+      "description": "已删除的 Rust 侧旧 content_creator 服务模块",
+      "targets": [
+        "src-tauri/crates/services/src/content_creator/mod.rs",
+        "src-tauri/crates/services/src/content_creator/progress_store.rs",
+        "src-tauri/crates/services/src/content_creator/step_executor.rs",
+        "src-tauri/crates/services/src/content_creator/types.rs",
+        "src-tauri/crates/services/src/content_creator/workflow_service.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "three-stage-workflow-manager-entry",
       "classification": "dead-candidate",
       "description": "旧 three-stage workflow 管理器入口",
@@ -131,6 +355,27 @@
       "classification": "dead-candidate",
       "description": "旧 context memory 前端 API 网关",
       "targets": ["src/lib/api/contextMemory.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-workflow-legacy-api-gateway",
+      "classification": "dead-candidate",
+      "description": "已退出现役工作区主链的旧 content workflow API 网关",
+      "targets": ["src/lib/api/content-workflow.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-workflow-rust-command-module",
+      "classification": "dead-candidate",
+      "description": "已退出 Tauri 主命令注册的旧 content workflow 命令模块",
+      "targets": ["src-tauri/src/commands/content_workflow_cmd.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-theme-defaults-helper",
+      "classification": "dead-candidate",
+      "description": "已零引用的旧内容主题默认值 helper",
+      "targets": ["src/lib/contentCreator/themeDefaults.ts"],
       "allowedPaths": []
     },
     {
@@ -236,6 +481,20 @@
       "classification": "dead-candidate",
       "description": "已零引用的旧 agent_create_session 命令边界",
       "commands": ["agent_create_session"],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-workflow-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已退出工作区现役主链的旧 content workflow 命令边界",
+      "commands": [
+        "content_workflow_create",
+        "content_workflow_get",
+        "content_workflow_get_by_content",
+        "content_workflow_advance",
+        "content_workflow_retry",
+        "content_workflow_cancel"
+      ],
       "allowedPaths": []
     },
     {
@@ -366,6 +625,35 @@
         "generate_content_creator_tasks",
         "preview_heartbeat_schedule",
         "validate_heartbeat_schedule"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-template-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已退出前端主链的项目排版模板命令边界",
+      "commands": [
+        "create_template",
+        "list_templates",
+        "get_template",
+        "update_template",
+        "delete_template",
+        "set_default_template",
+        "get_default_template"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "brand-persona-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已退出前端主链的品牌人设扩展命令边界",
+      "commands": [
+        "get_brand_persona",
+        "get_brand_extension",
+        "save_brand_extension",
+        "update_brand_extension",
+        "delete_brand_extension",
+        "list_brand_persona_templates"
       ],
       "allowedPaths": []
     },

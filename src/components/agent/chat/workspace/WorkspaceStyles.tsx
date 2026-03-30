@@ -1,7 +1,7 @@
 import { memo, type ReactNode } from "react";
 import styled from "styled-components";
-import { LayoutTransition } from "@/components/content-creator/core/LayoutTransition/LayoutTransition";
-import type { LayoutMode } from "@/components/content-creator/types";
+import { LayoutTransition } from "@/lib/workspace/workbenchUi";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { SyncStatus } from "../hooks/useContentSync";
 
 export const PageContainer = styled.div<{ $compact?: boolean }>`

@@ -31,6 +31,7 @@ import {
   sanitizeContentPartsForDisplay,
   sanitizeMessageTextForDisplay,
 } from "../utils/internalImagePlaceholder";
+import { isInternalRoutingTurnSummaryText } from "../utils/turnSummaryPresentation";
 import {
   Message,
   type ActionRequired,
@@ -40,7 +41,7 @@ import {
   type WriteArtifactContext,
   type PendingA2UISource,
 } from "../types";
-import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import type { ConfirmResponse } from "../types";
 import type {
   AgentRuntimeThreadReadModel,
@@ -121,7 +122,96 @@ interface MessageListProps {
 }
 
 function isDeferredTimelineItem(item: AgentThreadItem): boolean {
-  return item.type === "file_artifact";
+  return item.type === "file_artifact" || item.type === "turn_summary";
+}
+
+function shouldRenderConversationTimelineItem(
+  item: AgentThreadItem,
+  timelineItems: AgentThreadItem[],
+  options?: {
+    hasInlineRuntimeStatus?: boolean;
+  },
+): boolean {
+  if (item.type !== "turn_summary") {
+    return true;
+  }
+
+  if (item.status === "in_progress" && options?.hasInlineRuntimeStatus) {
+    return false;
+  }
+
+  if (item.status !== "completed") {
+    return true;
+  }
+
+  if (isInternalRoutingTurnSummaryText(item.text)) {
+    return false;
+  }
+
+  return !timelineItems.some(
+    (entry) => entry.id !== item.id && entry.type !== "turn_summary",
+  );
+}
+
+interface InlineProcessCoverage {
+  hasInlineProcessEntries: boolean;
+  thinking: boolean;
+  tools: boolean;
+  actions: boolean;
+}
+
+function resolveInlineProcessCoverage(params: {
+  contentParts?: Message["contentParts"];
+  thinkingContent?: string;
+  toolCalls?: Message["toolCalls"];
+  actionRequests?: Message["actionRequests"];
+}): InlineProcessCoverage {
+  const contentParts = params.contentParts || [];
+  if (contentParts.length > 0) {
+    const thinking = contentParts.some(
+      (part) => part.type === "thinking" && part.text.trim().length > 0,
+    );
+    const tools = contentParts.some((part) => part.type === "tool_use");
+    const actions = contentParts.some(
+      (part) => part.type === "action_required",
+    );
+    return {
+      hasInlineProcessEntries: thinking || tools || actions,
+      thinking,
+      tools,
+      actions,
+    };
+  }
+
+  const thinking = Boolean(params.thinkingContent?.trim());
+  const tools = Boolean(params.toolCalls?.length);
+  const actions = Boolean(params.actionRequests?.length);
+
+  return {
+    hasInlineProcessEntries: thinking || tools || actions,
+    thinking,
+    tools,
+    actions,
+  };
+}
+
+function isInlineCoveredTimelineItem(
+  item: AgentThreadItem,
+  coverage: InlineProcessCoverage,
+): boolean {
+  switch (item.type) {
+    case "reasoning":
+      return coverage.thinking;
+    case "tool_call":
+    case "command_execution":
+    case "web_search":
+      return coverage.tools;
+    case "approval_request":
+    case "request_user_input":
+      return coverage.actions;
+    default:
+      return false;
+  }
 }
 
 const MessageListInner: React.FC<MessageListProps> = ({
@@ -261,6 +351,12 @@ const MessageListInner: React.FC<MessageListProps> = ({
         hasImages,
       },
     );
+    const inlineProcessCoverage = resolveInlineProcessCoverage({
+      contentParts: displayContentParts,
+      thinkingContent: msg.thinkingContent,
+      toolCalls: msg.toolCalls,
+      actionRequests: msg.actionRequests,
+    });
     const mappedTimeline = timelineByMessageId.get(msg.id);
     const timeline =
       msg.role !== "assistant"
@@ -270,11 +366,40 @@ const MessageListInner: React.FC<MessageListProps> = ({
           : mappedTimeline?.turn.id === currentTurnTimeline?.turn.id
             ? null
             : mappedTimeline || null;
+    const timelineConversationItems = timeline
+      ? timeline.items.filter((item) =>
+          shouldRenderConversationTimelineItem(item, timeline.items, {
+            hasInlineRuntimeStatus: Boolean(msg.runtimeStatus),
+          }),
+        )
+      : [];
     const primaryTimelineItems = timeline
-      ? timeline.items.filter((item) => !isDeferredTimelineItem(item))
+      ? timeline.items.filter((item) => {
+          if (
+            !timelineConversationItems.some(
+              (timelineItem) => timelineItem.id === item.id,
+            )
+          ) {
+            return false;
+          }
+
+          if (isDeferredTimelineItem(item)) {
+            return false;
+          }
+
+          if (!inlineProcessCoverage.hasInlineProcessEntries) {
+            return true;
+          }
+
+          if (isInlineCoveredTimelineItem(item, inlineProcessCoverage)) {
+            return false;
+          }
+
+          return true;
+        })
       : [];
     const trailingTimelineItems = timeline
-      ? timeline.items.filter(isDeferredTimelineItem)
+      ? timelineConversationItems.filter((item) => isDeferredTimelineItem(item))
       : [];
     const primaryTimeline =
       timeline && primaryTimelineItems.length > 0
@@ -284,10 +409,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
       timeline && trailingTimelineItems.length > 0
         ? { ...timeline, items: trailingTimelineItems }
         : null;
+    const timelineActionRequests = inlineProcessCoverage.actions
+      ? undefined
+      : msg.actionRequests;
     const primaryActionRequests =
-      primaryTimelineItems.length > 0 ? msg.actionRequests : undefined;
+      primaryTimelineItems.length > 0 ? timelineActionRequests : undefined;
     const trailingActionRequests =
-      primaryTimelineItems.length === 0 ? msg.actionRequests : undefined;
+      primaryTimelineItems.length === 0 ? timelineActionRequests : undefined;
     const shouldSuppressInlineA2UI =
       activePendingA2UISource?.kind !== "action_request" &&
       activePendingA2UISource?.messageId === msg.id;
@@ -373,8 +501,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   onCodeBlockClick={onCodeBlockClick}
                   promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
                   suppressedActionRequestId={suppressedActionRequestId}
-                  suppressProcessFlow={Boolean(primaryTimeline)}
-                  renderProposedPlanBlocks={!timeline}
+                  showRuntimeStatusInline={true}
+                  renderProposedPlanBlocks={
+                    !primaryTimeline ||
+                    inlineProcessCoverage.hasInlineProcessEntries
+                  }
                   showContentBlockActions={Boolean(actionContent)}
                   onQuoteContent={
                     onQuoteMessage

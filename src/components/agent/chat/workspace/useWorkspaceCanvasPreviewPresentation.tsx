@@ -6,9 +6,9 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { ArtifactCanvasOverlay, ArtifactToolbar } from "@/components/artifact";
-import { CanvasFactory } from "@/components/content-creator/canvas/CanvasFactory";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import type { ThemeType } from "@/components/content-creator/types";
+import { CanvasFactory } from "@/lib/workspace/workbenchCanvas";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import {
   CanvasPanel as GeneralCanvasPanel,
   type CanvasState as GeneralCanvasState,

@@ -1,4 +1,4 @@
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 
 export type CreationIntentFieldKey =
   | "topic"
@@ -121,7 +121,7 @@ const CREATION_INTENT_FIELD_MAP: Record<
 > = {
   topic: {
     key: "topic",
-    label: "创作主题",
+    label: "主题方向",
     placeholder: "例如：春季敏感肌修护指南",
   },
   targetAudience: {

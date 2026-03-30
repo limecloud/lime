@@ -8,7 +8,9 @@ describe("mockPriorityCommands", () => {
       shouldPreferMockInBrowser("execution_run_get_theme_workbench_state"),
     ).toBe(true);
     expect(shouldPreferMockInBrowser("get_hint_routes")).toBe(true);
-    expect(shouldPreferMockInBrowser("content_workflow_get_by_content")).toBe(true);
+    expect(shouldPreferMockInBrowser("content_workflow_get_by_content")).toBe(
+      false,
+    );
   });
 
   it("OpenClaw 浏览器模式命令优先走 mock", () => {

@@ -87,8 +87,10 @@ const mockToolCallItem = vi.fn(
   ),
 );
 
-vi.mock("@/components/content-creator/a2ui/parser", () => ({
+vi.mock("@/lib/workspace/a2ui", () => ({
   parseAIResponse: (...args: unknown[]) => parseAIResponseMock(...args),
+  CHAT_A2UI_TASK_CARD_PRESET: {},
+  TIMELINE_A2UI_TASK_CARD_PRESET: {},
 }));
 
 vi.mock("./MarkdownRenderer", () => ({
@@ -670,7 +672,7 @@ describe("AgentThreadTimeline", () => {
     expect(container.textContent).not.toContain("```a2ui");
   });
 
-  it("turn_summary 完成态不应显示已完成思考这类思考标签", () => {
+  it("内部路由型 turn_summary 完成态应降级为中性进展提示", () => {
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("summary-1", 1),
@@ -685,7 +687,8 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    expect(container.textContent).toContain("直接回答优先");
+    expect(container.textContent).toContain("当前进展");
+    expect(container.textContent).not.toContain("直接回答优先");
     expect(container.textContent).not.toContain("已完成思考");
   });
 

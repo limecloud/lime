@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { StepStatus } from "@/components/content-creator/types";
+import type { StepStatus } from "@/lib/workspace/workbenchContract";
 
 export interface ThemeWorkbenchGateState {
   key: string;

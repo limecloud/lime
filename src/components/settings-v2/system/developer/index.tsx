@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -12,7 +14,6 @@ import {
   Code2,
   Eye,
   Globe,
-  RefreshCw,
   ScrollText,
   ShieldAlert,
   Sparkles,
@@ -41,37 +42,36 @@ import {
   normalizeCrashReportingConfig,
   openCrashDiagnosticDownloadDirectory,
 } from "@/lib/crashDiagnostic";
-import {
-  clearServiceSkillCatalogCache,
-  getServiceSkillCatalog,
-  subscribeServiceSkillCatalogChanged,
-  type ServiceSkillCatalog,
-} from "@/lib/api/serviceSkills";
-import {
-  emitServiceSkillCatalogBootstrap,
-  extractServiceSkillCatalogFromBootstrapPayload,
-} from "@/lib/serviceSkillCatalogBootstrap";
-import {
-  clearSiteAdapterCatalogCache,
-  emitSiteAdapterCatalogBootstrap,
-  extractSiteAdapterCatalogFromBootstrapPayload,
-  subscribeSiteAdapterCatalogChanged,
-} from "@/lib/siteAdapterCatalogBootstrap";
-import {
-  siteGetAdapterCatalogStatus,
-  siteImportAdapterYamlBundle,
-  siteListAdapters,
-  type SiteAdapterCatalogStatus,
-  type SiteAdapterDefinition,
-} from "@/lib/webview-api";
 import { cn } from "@/lib/utils";
 import {
   isWorkspaceHarnessEnabled,
   normalizeDeveloperConfig,
 } from "@/lib/developerFeatures";
-import { Textarea } from "@/components/ui/textarea";
-import { ClipboardPermissionGuideCard } from "../shared/ClipboardPermissionGuideCard";
-import { WorkspaceRepairHistoryCard } from "../shared/WorkspaceRepairHistoryCard";
+import {
+  DANGER_BUTTON_CLASS_NAME,
+  SECONDARY_BUTTON_CLASS_NAME,
+} from "./shared";
+
+const ClipboardPermissionGuideCard = lazy(() =>
+  import("../shared/ClipboardPermissionGuideCard").then((module) => ({
+    default: module.ClipboardPermissionGuideCard,
+  })),
+);
+const WorkspaceRepairHistoryCard = lazy(() =>
+  import("../shared/WorkspaceRepairHistoryCard").then((module) => ({
+    default: module.WorkspaceRepairHistoryCard,
+  })),
+);
+const ServiceSkillCatalogTools = lazy(() =>
+  import("./ServiceSkillCatalogTools").then((module) => ({
+    default: module.ServiceSkillCatalogTools,
+  })),
+);
+const SiteAdapterCatalogTools = lazy(() =>
+  import("./SiteAdapterCatalogTools").then((module) => ({
+    default: module.SiteAdapterCatalogTools,
+  })),
+);
 
 interface SurfacePanelProps {
   icon: LucideIcon;
@@ -86,86 +86,6 @@ interface SummaryStatProps {
   value: string;
   description: string;
 }
-
-const SECONDARY_BUTTON_CLASS_NAME =
-  "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
-const DANGER_BUTTON_CLASS_NAME =
-  "inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50";
-
-const DEFAULT_SITE_ADAPTER_CATALOG_EDITOR_VALUE = JSON.stringify(
-  {
-    siteAdapterCatalog: {
-      catalogVersion: "tenant-site-2026-03-26",
-      tenantId: "tenant-demo",
-      syncedAt: "2026-03-26T12:00:00.000Z",
-      adapters: [
-        {
-          name: "github/search",
-          domain: "github.com",
-          description: "服务端下发的 GitHub 搜索脚本",
-          read_only: true,
-          capabilities: ["search", "research"],
-          args: [
-            {
-              name: "query",
-              description: "搜索关键词",
-              required: true,
-              arg_type: "string",
-              example: "model context protocol",
-            },
-          ],
-          example: 'github/search {"query":"model context protocol"}',
-          entry: {
-            kind: "fixed_url",
-            url: "https://github.com/search",
-          },
-          script:
-            "async ({ query }) => ({ items: [{ title: query, url: location.href }] })",
-          sourceVersion: "tenant-site-2026-03-26",
-        },
-      ],
-    },
-  },
-  null,
-  2,
-);
-
-const DEFAULT_SITE_ADAPTER_IMPORT_EDITOR_VALUE = `site: reddit
-name: hot
-description: Reddit 热门帖子
-domain: www.reddit.com
-args:
-  subreddit:
-    type: str
-    default: ""
-    description: Subreddit 名称
-  limit:
-    type: int
-    default: 20
-    description: 返回条目数量
-pipeline:
-  - navigate: https://www.reddit.com
-  - evaluate: |
-      (async () => {
-        const sub = \${{ args.subreddit | json }};
-        const path = sub ? '/r/' + sub + '/hot.json' : '/hot.json';
-        const limit = \${{ args.limit }};
-        const response = await fetch(path + '?limit=' + limit, { credentials: 'include' });
-        const data = await response.json();
-        return (data?.data?.children || []).map((item) => ({
-          title: item.data.title,
-          subreddit: item.data.subreddit_name_prefixed,
-          score: item.data.score,
-        }));
-      })()
-  - map:
-      rank: \${{ index + 1 }}
-      title: \${{ item.title }}
-      subreddit: \${{ item.subreddit }}
-      score: \${{ item.score }}
-  - limit: \${{ args.limit }}
-columns: [rank, title, subreddit, score]
-`;
 
 function SurfacePanel({
   icon: Icon,
@@ -231,32 +151,24 @@ function StatusPill({
   );
 }
 
+function DeferredPanelFallback({ label }: { label: string }) {
+  return (
+    <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
+      正在准备{label}...
+    </div>
+  );
+}
+
 export function DeveloperSettings() {
   const { enabled, setEnabled } = useComponentDebug();
   const [appConfig, setAppConfig] = useState<Config | null>(null);
   const [diagnosticBusy, setDiagnosticBusy] = useState(false);
   const [workspaceHarnessSaving, setWorkspaceHarnessSaving] = useState(false);
-  const [serviceCatalogBusy, setServiceCatalogBusy] = useState(false);
-  const [siteCatalogBusy, setSiteCatalogBusy] = useState(false);
-  const [catalogEditorValue, setCatalogEditorValue] = useState("");
-  const [siteCatalogEditorValue, setSiteCatalogEditorValue] = useState("");
-  const [siteImportEditorValue, setSiteImportEditorValue] = useState("");
-  const [serviceCatalog, setServiceCatalog] =
-    useState<ServiceSkillCatalog | null>(null);
-  const [siteCatalogStatus, setSiteCatalogStatus] =
-    useState<SiteAdapterCatalogStatus | null>(null);
-  const [siteAdapters, setSiteAdapters] = useState<SiteAdapterDefinition[]>([]);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
   const [showClipboardGuide, setShowClipboardGuide] = useState(false);
-
-  const loadServiceSkillCatalog = useCallback(async () => {
-    const catalog = await getServiceSkillCatalog();
-    setServiceCatalog(catalog);
-    return catalog;
-  }, []);
 
   const loadAppConfig = useCallback(async () => {
     try {
@@ -270,39 +182,9 @@ export function DeveloperSettings() {
     }
   }, []);
 
-  const loadSiteAdapterCatalog = useCallback(async () => {
-    const [status, adapters] = await Promise.all([
-      siteGetAdapterCatalogStatus(),
-      siteListAdapters(),
-    ]);
-    setSiteCatalogStatus(status);
-    setSiteAdapters(adapters);
-    return { status, adapters };
-  }, []);
-
   useEffect(() => {
     void loadAppConfig();
   }, [loadAppConfig]);
-
-  useEffect(() => {
-    void loadServiceSkillCatalog();
-  }, [loadServiceSkillCatalog]);
-
-  useEffect(() => {
-    void loadSiteAdapterCatalog();
-  }, [loadSiteAdapterCatalog]);
-
-  useEffect(() => {
-    return subscribeServiceSkillCatalogChanged(() => {
-      void loadServiceSkillCatalog();
-    });
-  }, [loadServiceSkillCatalog]);
-
-  useEffect(() => {
-    return subscribeSiteAdapterCatalogChanged(() => {
-      void loadSiteAdapterCatalog();
-    });
-  }, [loadSiteAdapterCatalog]);
 
   const buildDiagnosticPayload = useCallback(async () => {
     const configPromise = getConfig();
@@ -513,247 +395,6 @@ export function DeveloperSettings() {
     [appConfig],
   );
 
-  const handleHydrateCatalogEditor = useCallback(async () => {
-    setServiceCatalogBusy(true);
-    setMessage(null);
-    try {
-      const catalog = await loadServiceSkillCatalog();
-      setCatalogEditorValue(
-        JSON.stringify(
-          {
-            serviceSkillCatalog: catalog,
-          },
-          null,
-          2,
-        ),
-      );
-      setMessage({
-        type: "success",
-        text: "已把当前目录写入调试编辑器",
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("读取服务型技能目录失败:", error);
-      setMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "读取服务型技能目录失败",
-      });
-    } finally {
-      setServiceCatalogBusy(false);
-    }
-  }, [loadServiceSkillCatalog]);
-
-  const handleApplyCatalogPayload = useCallback(async () => {
-    const raw = catalogEditorValue.trim();
-    if (!raw) {
-      setMessage({
-        type: "error",
-        text: "请先输入 serviceSkillCatalog JSON",
-      });
-      return;
-    }
-
-    setServiceCatalogBusy(true);
-    setMessage(null);
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      const previewCatalog =
-        extractServiceSkillCatalogFromBootstrapPayload(parsed);
-      if (!previewCatalog) {
-        throw new Error(
-          "JSON 中未找到合法的 serviceSkillCatalog，可传目录本体或 { serviceSkillCatalog: ... }",
-        );
-      }
-
-      emitServiceSkillCatalogBootstrap(parsed);
-      setMessage({
-        type: "success",
-        text: `已通过 bootstrap 事件注入目录：${previewCatalog.items.length} 项`,
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("注入服务型技能目录失败:", error);
-      setMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "注入服务型技能目录失败",
-      });
-    } finally {
-      setServiceCatalogBusy(false);
-    }
-  }, [catalogEditorValue]);
-
-  const handleClearServiceSkillCatalog = useCallback(async () => {
-    setServiceCatalogBusy(true);
-    setMessage(null);
-    try {
-      clearServiceSkillCatalogCache();
-      const catalog = await loadServiceSkillCatalog();
-      setMessage({
-        type: "success",
-        text: `已清空远端目录缓存，当前回退到 seeded：${catalog.items.length} 项`,
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("清空服务型技能目录缓存失败:", error);
-      setMessage({
-        type: "error",
-        text:
-          error instanceof Error ? error.message : "清空服务型技能目录缓存失败",
-      });
-    } finally {
-      setServiceCatalogBusy(false);
-    }
-  }, [loadServiceSkillCatalog]);
-
-  const handleHydrateSiteCatalogEditorWithTemplate = useCallback(() => {
-    setSiteCatalogEditorValue(DEFAULT_SITE_ADAPTER_CATALOG_EDITOR_VALUE);
-    setMessage({
-      type: "success",
-      text: "已写入站点脚本目录示例 Payload",
-    });
-    setTimeout(() => setMessage(null), 2500);
-  }, []);
-
-  const handleHydrateSiteImportEditorWithTemplate = useCallback(() => {
-    setSiteImportEditorValue(DEFAULT_SITE_ADAPTER_IMPORT_EDITOR_VALUE);
-    setMessage({
-      type: "success",
-      text: "已写入外部来源 YAML 示例",
-    });
-    setTimeout(() => setMessage(null), 2500);
-  }, []);
-
-  const handleRefreshSiteCatalog = useCallback(async () => {
-    setSiteCatalogBusy(true);
-    setMessage(null);
-    try {
-      const { adapters } = await loadSiteAdapterCatalog();
-      setMessage({
-        type: "success",
-        text: `已刷新站点脚本目录状态：${adapters.length} 项生效适配器`,
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("刷新站点脚本目录状态失败:", error);
-      setMessage({
-        type: "error",
-        text:
-          error instanceof Error ? error.message : "刷新站点脚本目录状态失败",
-      });
-    } finally {
-      setSiteCatalogBusy(false);
-    }
-  }, [loadSiteAdapterCatalog]);
-
-  const handleApplySiteCatalogPayload = useCallback(async () => {
-    const raw = siteCatalogEditorValue.trim();
-    if (!raw) {
-      setMessage({
-        type: "error",
-        text: "请先输入 siteAdapterCatalog JSON",
-      });
-      return;
-    }
-
-    setSiteCatalogBusy(true);
-    setMessage(null);
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      const previewCatalog =
-        extractSiteAdapterCatalogFromBootstrapPayload(parsed);
-      if (!previewCatalog) {
-        throw new Error(
-          "JSON 中未找到合法的 siteAdapterCatalog，可传目录本体或 { siteAdapterCatalog: ... }",
-        );
-      }
-
-      const adapterCount = Array.isArray(
-        (previewCatalog as { adapters?: unknown }).adapters,
-      )
-        ? ((previewCatalog as { adapters: unknown[] }).adapters?.length ?? 0)
-        : 0;
-      emitSiteAdapterCatalogBootstrap(parsed);
-      setMessage({
-        type: "success",
-        text: `已通过 bootstrap 事件注入站点脚本目录：${adapterCount} 项`,
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("注入站点脚本目录失败:", error);
-      setMessage({
-        type: "error",
-        text: error instanceof Error ? error.message : "注入站点脚本目录失败",
-      });
-    } finally {
-      setSiteCatalogBusy(false);
-    }
-  }, [siteCatalogEditorValue]);
-
-  const handleClearSiteCatalog = useCallback(async () => {
-    setSiteCatalogBusy(true);
-    setMessage(null);
-    try {
-      await clearSiteAdapterCatalogCache();
-      const { adapters } = await loadSiteAdapterCatalog();
-      setMessage({
-        type: "success",
-        text: `已清空站点脚本目录缓存，当前回退到应用内置：${adapters.length} 项`,
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("清空站点脚本目录缓存失败:", error);
-      setMessage({
-        type: "error",
-        text:
-          error instanceof Error ? error.message : "清空站点脚本目录缓存失败",
-      });
-    } finally {
-      setSiteCatalogBusy(false);
-    }
-  }, [loadSiteAdapterCatalog]);
-
-  const handleImportSiteAdapterYamlBundle = useCallback(async () => {
-    const raw = siteImportEditorValue.trim();
-    if (!raw) {
-      setMessage({
-        type: "error",
-        text: "请先输入外部来源 YAML",
-      });
-      return;
-    }
-
-    setSiteCatalogBusy(true);
-    setMessage(null);
-    try {
-      const result = await siteImportAdapterYamlBundle({
-        yaml_bundle: raw,
-      });
-      const { adapters } = await loadSiteAdapterCatalog();
-      setMessage({
-        type: "success",
-        text: `已按 Lime 标准导入 ${result.adapter_count} 项外部适配器，当前生效 ${adapters.length} 项`,
-      });
-      setTimeout(() => setMessage(null), 2500);
-    } catch (error) {
-      console.error("导入外部站点适配器来源失败:", error);
-      setMessage({
-        type: "error",
-        text:
-          error instanceof Error ? error.message : "导入外部站点适配器来源失败",
-      });
-    } finally {
-      setSiteCatalogBusy(false);
-    }
-  }, [loadSiteAdapterCatalog, siteImportEditorValue]);
-
-  const siteCatalogSourceLabel = !siteCatalogStatus
-    ? "加载中"
-    : siteCatalogStatus.source_kind === "server_synced"
-      ? "服务端同步"
-      : siteCatalogStatus.source_kind === "imported"
-        ? "外部导入"
-        : "应用内置";
-
   const workspaceHarnessEnabled = isWorkspaceHarnessEnabled(appConfig);
   const summary = useMemo(
     () => ({
@@ -761,18 +402,10 @@ export function DeveloperSettings() {
       debugModeLabel: enabled ? "已启用" : "未启用",
       workspaceHarnessLabel: workspaceHarnessEnabled ? "已启用" : "已关闭",
       clipboardLabel: showClipboardGuide ? "待处理" : "正常",
-      serviceCatalogLabel: serviceCatalog
-        ? `${serviceCatalog.items.length} 项`
-        : "加载中",
-      siteAdapterCatalogLabel: `${siteAdapters.length} 项`,
+      serviceCatalogLabel: "按需加载",
+      siteAdapterCatalogLabel: "按需加载",
     }),
-    [
-      enabled,
-      serviceCatalog,
-      showClipboardGuide,
-      siteAdapters.length,
-      workspaceHarnessEnabled,
-    ],
+    [enabled, showClipboardGuide, workspaceHarnessEnabled],
   );
 
   return (
@@ -791,104 +424,64 @@ export function DeveloperSettings() {
         </div>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                DEVELOPER DESK
-              </span>
-              <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把组件调试、崩溃诊断和自愈记录放到同一个开发工作台里
-                </p>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  这里优先服务排障和开发协作，重点是快速收集可用信息，而不是堆更多低价值表单。
-                  组件调试和诊断按钮仍保持原有行为，只是重新组织了信息层次。
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  组件视图调试适合开发模式下看轮廓和路径
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  诊断动作会采集日志、运行态快照和系统自检信息
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  处理工作台默认关闭，只有开发者显式开启后才会显示入口并收集运行态信息
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  Workspace 自愈记录用于追踪自动修复链路
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:content-start">
-              <SummaryStat
-                label="组件调试"
-                value={summary.debugModeLabel}
-                description="控制组件轮廓显示与 Alt 点击诊断，不改变运行逻辑。"
-              />
-              <SummaryStat
-                label="处理工作台"
-                value={summary.workspaceHarnessLabel}
-                description="默认关闭；关闭时不显示入口，也不会再收集工作台运行态摘要。"
-              />
-              <SummaryStat
-                label="诊断动作"
-                value={summary.diagnosticActionCount.toString()}
-                description="当前提供清空、复制、纯 JSON、导出和打开目录五个动作。"
-              />
-              <SummaryStat
-                label="剪贴板权限"
-                value={summary.clipboardLabel}
-                description="复制诊断失败且属于权限问题时，会在本页展示系统设置指引。"
-              />
-              <SummaryStat
-                label="技能目录"
-                value={summary.serviceCatalogLabel}
-                description="显示当前生效的服务型技能目录项数，便于联调 bootstrap 下发。"
-              />
-              <SummaryStat
-                label="站点脚本"
-                value={summary.siteAdapterCatalogLabel}
-                description="显示当前站点适配器数量，帮助确认服务端下发脚本是否真的进入运行时。"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 rounded-[24px] border border-white/90 bg-white/80 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusPill
-                  active={workspaceHarnessEnabled}
-                  activeLabel="处理工作台已启用"
-                  inactiveLabel="处理工作台已关闭"
-                />
-                <StatusPill
-                  active={enabled}
-                  activeLabel="组件调试已启用"
-                  inactiveLabel="组件调试未启用"
-                />
-                <StatusPill
-                  active={!showClipboardGuide}
-                  activeLabel="剪贴板权限正常"
-                  inactiveLabel="需检查剪贴板权限"
-                />
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                  {diagnosticBusy ? "诊断任务执行中" : "当前空闲"}
-                </span>
-              </div>
-              <p className="text-sm leading-6 text-slate-600">
-                建议先确认是否真的需要开启处理工作台；默认保持关闭，只有在开发调试需要看运行态与工具库存时再临时打开。
-              </p>
-            </div>
-          </div>
+      <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <SummaryStat
+            label="组件调试"
+            value={summary.debugModeLabel}
+            description="控制组件轮廓显示与 Alt 点击诊断，不改变运行逻辑。"
+          />
+          <SummaryStat
+            label="处理工作台"
+            value={summary.workspaceHarnessLabel}
+            description="默认关闭；关闭时不显示入口，也不会再收集工作台运行态摘要。"
+          />
+          <SummaryStat
+            label="诊断动作"
+            value={summary.diagnosticActionCount.toString()}
+            description="当前提供清空、复制、纯 JSON、导出和打开目录五个动作。"
+          />
+          <SummaryStat
+            label="剪贴板权限"
+            value={summary.clipboardLabel}
+            description="复制诊断失败且属于权限问题时，会在本页展示系统设置指引。"
+          />
+          <SummaryStat
+            label="技能目录联调"
+            value={summary.serviceCatalogLabel}
+            description="目录联调改为区块级按需加载，不再挡住开发页首屏。"
+          />
+          <SummaryStat
+            label="站点脚本联调"
+            value={summary.siteAdapterCatalogLabel}
+            description="进入页面先保留基础诊断与开关，目录校验在需要时再加载。"
+          />
         </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+          <StatusPill
+            active={workspaceHarnessEnabled}
+            activeLabel="处理工作台已启用"
+            inactiveLabel="处理工作台已关闭"
+          />
+          <StatusPill
+            active={enabled}
+            activeLabel="组件调试已启用"
+            inactiveLabel="组件调试未启用"
+          />
+          <StatusPill
+            active={!showClipboardGuide}
+            activeLabel="剪贴板权限正常"
+            inactiveLabel="需检查剪贴板权限"
+          />
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+            {diagnosticBusy ? "诊断任务执行中" : "当前空闲"}
+          </span>
+        </div>
+
+        <p className="mt-4 text-sm leading-6 text-slate-500">
+          首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。
+        </p>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.14fr)_minmax(320px,0.86fr)]">
@@ -1006,128 +599,11 @@ export function DeveloperSettings() {
             title="服务型技能目录联调"
             description="仅用于客户端联调 serviceSkillCatalog。支持查看当前目录、手工注入 bootstrap payload，以及清缓存回退 seeded 目录。"
           >
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Tenant
-                  </p>
-                  <p className="mt-3 text-lg font-semibold text-slate-900">
-                    {serviceCatalog?.tenantId ?? "加载中"}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Version
-                  </p>
-                  <p className="mt-3 text-lg font-semibold text-slate-900">
-                    {serviceCatalog?.version ?? "加载中"}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Items
-                  </p>
-                  <p className="mt-3 text-lg font-semibold text-slate-900">
-                    {serviceCatalog?.items.length ?? 0}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Synced At
-                  </p>
-                  <p className="mt-3 text-sm font-semibold text-slate-900">
-                    {serviceCatalog?.syncedAt ?? "加载中"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      当前目录摘要
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      这里展示当前客户端实际生效的目录。若首页服务型技能没刷新，先看这里是否已经同步。
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                    {serviceCatalogBusy ? "目录操作执行中" : "目录状态空闲"}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(serviceCatalog?.items ?? []).slice(0, 4).map((item) => (
-                    <span
-                      key={item.id}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600"
-                    >
-                      {item.title}
-                    </span>
-                  ))}
-                  {(serviceCatalog?.items.length ?? 0) > 4 ? (
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500">
-                      还有 {(serviceCatalog?.items.length ?? 0) - 4} 项
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="space-y-3 rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    Bootstrap Payload 调试输入
-                  </p>
-                  <p className="text-sm leading-6 text-slate-500">
-                    支持两种格式：目录本体，或
-                    <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                      {"{ serviceSkillCatalog: ... }"}
-                    </code>
-                    包装对象。点击“通过事件注入”会走和服务端运行时推送相同的客户端链路。
-                  </p>
-                </div>
-
-                <Textarea
-                  aria-label="服务型技能目录调试输入"
-                  value={catalogEditorValue}
-                  onChange={(event) =>
-                    setCatalogEditorValue(event.target.value)
-                  }
-                  placeholder='{\n  "serviceSkillCatalog": {\n    "version": "tenant-2026-03-24",\n    "tenantId": "tenant-demo",\n    "syncedAt": "2026-03-24T12:00:00.000Z",\n    "items": []\n  }\n}'
-                  className="min-h-[240px] rounded-[18px] border-slate-200/80 bg-slate-50/60 font-mono text-xs leading-6 text-slate-700"
-                />
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleHydrateCatalogEditor()}
-                    disabled={serviceCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <ScrollText className="h-4 w-4" />
-                    载入当前目录
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleApplyCatalogPayload()}
-                    disabled={serviceCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <DatabaseZap className="h-4 w-4" />
-                    通过事件注入
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleClearServiceSkillCatalog()}
-                    disabled={serviceCatalogBusy}
-                    className={DANGER_BUTTON_CLASS_NAME}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    清空目录缓存
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Suspense
+              fallback={<DeferredPanelFallback label="服务型技能目录联调" />}
+            >
+              <ServiceSkillCatalogTools />
+            </Suspense>
           </SurfacePanel>
 
           <SurfacePanel
@@ -1135,198 +611,11 @@ export function DeveloperSettings() {
             title="站点脚本目录联调"
             description="用于验证站点适配器目录的服务端下发、外部来源导入和本地缓存回退。重点看真正生效的适配器列表，而不是只看缓存元数据。"
           >
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Source
-                  </p>
-                  <p className="mt-3 text-lg font-semibold text-slate-900">
-                    {siteCatalogSourceLabel}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Effective
-                  </p>
-                  <p className="mt-3 text-lg font-semibold text-slate-900">
-                    {siteAdapters.length}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Catalog
-                  </p>
-                  <p className="mt-3 text-lg font-semibold text-slate-900">
-                    {siteCatalogStatus?.exists
-                      ? siteCatalogStatus.adapter_count
-                      : 0}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    Synced At
-                  </p>
-                  <p className="mt-3 text-sm font-semibold text-slate-900">
-                    {siteCatalogStatus?.synced_at ?? "未同步"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      当前生效目录摘要
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      这里展示的是运行时当前可见的适配器。如果外部导入或服务端同步只覆盖了部分站点，其余能力仍会由应用内置目录补位。
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                    {siteCatalogBusy ? "目录操作执行中" : "目录状态空闲"}
-                  </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {siteAdapters.slice(0, 4).map((adapter) => (
-                    <span
-                      key={adapter.name}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600"
-                    >
-                      {adapter.name}
-                    </span>
-                  ))}
-                  {siteAdapters.length > 4 ? (
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500">
-                      还有 {siteAdapters.length - 4} 项
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
-                  <div>
-                    目录版本：{siteCatalogStatus?.catalog_version ?? "应用内置"}
-                  </div>
-                  <div>
-                    租户：{siteCatalogStatus?.tenant_id ?? "未绑定租户"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3 rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    外部来源 YAML 导入
-                  </p>
-                  <p className="text-sm leading-6 text-slate-500">
-                    把外部来源 YAML 粘贴到这里，点击“导入到 Lime 标准”后会先走
-                    Lime 白名单编译层，再写入
-                    <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                      imported
-                    </code>
-                    目录。这里只接受当前支持子集：
-                    <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                      navigate / evaluate / map / filter / limit / sort
-                    </code>
-                    。
-                  </p>
-                </div>
-
-                <Textarea
-                  aria-label="站点来源 YAML 导入输入"
-                  value={siteImportEditorValue}
-                  onChange={(event) => setSiteImportEditorValue(event.target.value)}
-                  placeholder={DEFAULT_SITE_ADAPTER_IMPORT_EDITOR_VALUE}
-                  className="min-h-[260px] rounded-[18px] border-slate-200/80 bg-slate-50/60 font-mono text-xs leading-6 text-slate-700"
-                />
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handleHydrateSiteImportEditorWithTemplate}
-                    disabled={siteCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <ScrollText className="h-4 w-4" />
-                    填入 YAML 示例
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleImportSiteAdapterYamlBundle()}
-                    disabled={siteCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    导入到 Lime 标准
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    Bootstrap Payload 调试输入
-                  </p>
-                  <p className="text-sm leading-6 text-slate-500">
-                    支持目录本体，或
-                    <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                      {"{ siteAdapterCatalog: ... }"}
-                    </code>
-                    包装对象。点击“通过事件注入”会走与服务端运行时推送一致的客户端链路。
-                  </p>
-                </div>
-
-                <Textarea
-                  aria-label="站点脚本目录调试输入"
-                  value={siteCatalogEditorValue}
-                  onChange={(event) =>
-                    setSiteCatalogEditorValue(event.target.value)
-                  }
-                  placeholder={DEFAULT_SITE_ADAPTER_CATALOG_EDITOR_VALUE}
-                  className="min-h-[240px] rounded-[18px] border-slate-200/80 bg-slate-50/60 font-mono text-xs leading-6 text-slate-700"
-                />
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handleHydrateSiteCatalogEditorWithTemplate}
-                    disabled={siteCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <ScrollText className="h-4 w-4" />
-                    填入站点示例
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshSiteCatalog()}
-                    disabled={siteCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    刷新站点状态
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleApplySiteCatalogPayload()}
-                    disabled={siteCatalogBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <Globe className="h-4 w-4" />
-                    注入站点目录
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleClearSiteCatalog()}
-                    disabled={siteCatalogBusy}
-                    className={DANGER_BUTTON_CLASS_NAME}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    清空站点目录缓存
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Suspense
+              fallback={<DeferredPanelFallback label="站点脚本目录联调" />}
+            >
+              <SiteAdapterCatalogTools />
+            </Suspense>
           </SurfacePanel>
 
           <SurfacePanel
@@ -1390,10 +679,12 @@ export function DeveloperSettings() {
             </div>
           </SurfacePanel>
 
-          <WorkspaceRepairHistoryCard
-            className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
-            description="仅用于开发排查，记录最近自动修复/迁移（不打断用户操作）"
-          />
+          <Suspense fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}>
+            <WorkspaceRepairHistoryCard
+              className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
+              description="仅用于开发排查，记录最近自动修复/迁移（不打断用户操作）"
+            />
+          </Suspense>
         </div>
 
         <div className="space-y-6">
@@ -1403,7 +694,9 @@ export function DeveloperSettings() {
               title="剪贴板权限指引"
               description="如果复制诊断失败且属于权限问题，可按下面的系统指引恢复。"
             >
-              <ClipboardPermissionGuideCard />
+              <Suspense fallback={<DeferredPanelFallback label="剪贴板权限指引" />}>
+                <ClipboardPermissionGuideCard />
+              </Suspense>
             </SurfacePanel>
           ) : null}
 

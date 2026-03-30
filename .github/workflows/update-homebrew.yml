@@ -11,6 +11,7 @@ on:
 
 jobs:
   update-homebrew:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease != true
     runs-on: macos-latest
     steps:
       - name: 获取版本号

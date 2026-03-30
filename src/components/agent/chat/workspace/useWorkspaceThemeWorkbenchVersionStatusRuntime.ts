@@ -1,5 +1,5 @@
 import { useEffect, type Dispatch, type SetStateAction } from "react";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 
 interface ThemeWorkbenchLatestTerminalSummary {

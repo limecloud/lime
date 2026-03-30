@@ -25,7 +25,7 @@ import {
   type ProjectType,
 } from "@/lib/api/project";
 import type { WorkspaceTheme } from "@/types/page";
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 import {
   buildCreationIntentMetadata,
   buildCreationIntentPrompt,
@@ -38,7 +38,7 @@ import {
   type CreationIntentInput,
   validateCreationIntent,
 } from "@/components/workspace/utils/creationIntentPrompt";
-import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import {
   type CreateConfirmationSource,
   type PendingCreateConfirmation,

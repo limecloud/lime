@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { DocumentVersion } from "@/components/content-creator/canvas/document/types";
+import type { DocumentVersion } from "@/lib/workspace/workbenchCanvas";
 import type { Artifact } from "@/lib/artifact/types";
 import type { CanvasWorkbenchPreviewTarget } from "../components/CanvasWorkbenchLayout";
 import type {

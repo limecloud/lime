@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { LayoutMode } from "@/components/content-creator/types";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
   LayoutTransitionRenderGate,
   MainArea,

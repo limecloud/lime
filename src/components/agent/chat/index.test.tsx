@@ -45,8 +45,6 @@ const {
   mockExecutionRunGetThemeWorkbenchState,
   mockExecutionRunListThemeWorkbenchHistory,
   mockExecutionRunGet,
-  mockContentWorkflowCreate,
-  mockContentWorkflowGetByContent,
   mockSkillExecutionGetDetail,
   mockSkillsGetAll,
   mockSkillsGetLocal,
@@ -109,8 +107,6 @@ const {
   mockExecutionRunGetThemeWorkbenchState: vi.fn(),
   mockExecutionRunListThemeWorkbenchHistory: vi.fn(),
   mockExecutionRunGet: vi.fn(),
-  mockContentWorkflowCreate: vi.fn(),
-  mockContentWorkflowGetByContent: vi.fn(),
   mockSkillExecutionGetDetail: vi.fn(),
   mockSkillsGetAll: vi.fn(),
   mockSkillsGetLocal: vi.fn(),
@@ -204,7 +200,7 @@ vi.mock("./hooks/useContentSync", () => ({
   }),
 }));
 
-vi.mock("@/components/content-creator/hooks/useWorkflow", () => ({
+vi.mock("@/lib/workspace/workbenchWorkflow", () => ({
   useWorkflow: () => ({
     steps: [],
     currentStepIndex: 0,
@@ -214,7 +210,7 @@ vi.mock("@/components/content-creator/hooks/useWorkflow", () => ({
 }));
 
 vi.mock(
-  "@/components/content-creator/core/LayoutTransition/LayoutTransition",
+  "@/lib/workspace/workbenchUi",
   () => ({
     LayoutTransition: ({
       mode,
@@ -234,6 +230,7 @@ vi.mock(
         </div>
       </div>
     ),
+    StepProgress: () => <div data-testid="step-progress" />,
   }),
 );
 
@@ -492,9 +489,37 @@ vi.mock("./components/CanvasWorkbenchLayout", () => ({
     mockCanvasWorkbenchLayout(props),
 }));
 
-vi.mock("@/components/content-creator/core/StepGuide/StepProgress", () => ({
-  StepProgress: () => <div data-testid="step-progress" />,
+vi.mock("@/lib/workspace/workbenchCanvas", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/workspace/workbenchCanvas")>();
+  return {
+    ...actual,
+    CanvasFactory: () => <div data-testid="canvas-factory" />,
+    createInitialCanvasState: vi.fn(() => null),
+    createInitialDocumentState: vi.fn((content = "") => ({
+      type: "document",
+      content,
+      platform: "markdown",
+      versions: [],
+      currentVersionId: "",
+      isEditing: true,
+    })),
+  };
+});
+
+vi.mock("@/lib/workspace/workbenchPrompt", () => ({
+  generateContentCreationPrompt: mockGenerateContentCreationPrompt,
+  generateProjectMemoryPrompt: vi.fn(() => ""),
 }));
+
+vi.mock("@/lib/workspace/workbenchContract", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/workspace/workbenchContract")>();
+  return {
+    ...actual,
+    isContentCreationTheme: mockIsContentCreationTheme,
+  };
+});
 
 vi.mock("@/components/content-creator/canvas/CanvasFactory", () => ({
   CanvasFactory: () => <div data-testid="canvas-factory" />,
@@ -562,30 +587,6 @@ vi.mock("jotai", () => ({
   },
 }));
 
-vi.mock("@/components/content-creator/utils/systemPrompt", () => ({
-  generateContentCreationPrompt: mockGenerateContentCreationPrompt,
-  isContentCreationTheme: mockIsContentCreationTheme,
-}));
-
-vi.mock("@/components/content-creator/utils/projectPrompt", () => ({
-  generateProjectMemoryPrompt: vi.fn(() => ""),
-}));
-
-vi.mock("@/components/content-creator/canvas/canvasUtils", () => ({
-  createInitialCanvasState: vi.fn(() => null),
-}));
-
-vi.mock("@/components/content-creator/canvas/document", () => ({
-  createInitialDocumentState: vi.fn((content = "") => ({
-    type: "document",
-    content,
-    platform: "markdown",
-    versions: [],
-    currentVersionId: "",
-    isEditing: true,
-  })),
-}));
-
 vi.mock("./utils/workflowMapping", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("./utils/workflowMapping")>();
@@ -629,13 +630,6 @@ vi.mock("@/lib/api/executionRun", () => ({
   executionRunGetThemeWorkbenchState: mockExecutionRunGetThemeWorkbenchState,
   executionRunListThemeWorkbenchHistory:
     mockExecutionRunListThemeWorkbenchHistory,
-}));
-
-vi.mock("@/lib/api/content-workflow", () => ({
-  contentWorkflowApi: {
-    create: mockContentWorkflowCreate,
-    getByContent: mockContentWorkflowGetByContent,
-  },
 }));
 
 vi.mock("@/lib/api/skill-execution", () => ({
@@ -1060,17 +1054,6 @@ beforeEach(() => {
     next_offset: null,
   });
   mockExecutionRunGet.mockResolvedValue(null);
-  mockContentWorkflowCreate.mockResolvedValue({
-    id: "wf-default",
-    content_id: "content-default",
-    theme: "social-media",
-    mode: "guided",
-    steps: [],
-    current_step_index: 0,
-    created_at: Date.now(),
-    updated_at: Date.now(),
-  });
-  mockContentWorkflowGetByContent.mockResolvedValue(null);
   mockSkillExecutionGetDetail.mockResolvedValue({
     name: "social_post_with_cover",
     display_name: "社媒主稿与封面",
@@ -1729,7 +1712,31 @@ describe("AgentChatPage 通用工作台", () => {
     ).not.toBeNull();
   });
 
-  it("通用模式应通过顶部按钮打开工作台弹窗，而不是常驻右侧占位", async () => {
+  it("通用模式空闲时不应通过顶部按钮常驻显示工作台入口", async () => {
+    const container = renderPage({
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects();
+
+    const navbar = container.querySelector(
+      '[data-testid="chat-navbar"]',
+    ) as HTMLDivElement | null;
+    expect(navbar?.dataset.showHarnessToggle).toBe("false");
+    expect(
+      container.querySelector('[data-testid="toggle-harness"]'),
+    ).toBeNull();
+    expect(document.body.textContent).not.toContain("处理工作台");
+    expect(document.body.textContent).not.toContain("通用助手");
+  });
+
+  it("通用模式有处理活动时应通过顶部按钮打开工作台弹窗，而不是常驻右侧占位", async () => {
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        isSending: true,
+      }),
+    );
+
     const container = renderPage({
       theme: "general",
       lockTheme: true,
@@ -2344,6 +2351,11 @@ describe("AgentChatPage 通用工作台", () => {
         sourceKind: "builtin",
       },
     ]);
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        isSending: true,
+      }),
+    );
 
     const container = renderPage({
       theme: "general",
@@ -2391,7 +2403,7 @@ describe("AgentChatPage 通用工作台", () => {
               content: "/research 帮我整理当前主题",
             },
           ],
-          isSending: false,
+          isSending: true,
           sendMessage: sharedSendMessageMock,
           stopSending: vi.fn(async () => undefined),
           clearMessages: vi.fn(),
@@ -3531,40 +3543,26 @@ describe("AgentChatPage 自动引导", () => {
         enabled: true,
       }),
     );
-    mockContentWorkflowGetByContent.mockResolvedValue({
-      id: "wf-resume-1",
-      content_id: "content-social-resume",
-      theme: "social-media",
-      mode: "guided",
-      current_step_index: 1,
-      created_at: Date.now() - 10_000,
-      updated_at: Date.now(),
-      steps: [
+    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+      run_state: "auto_running",
+      current_gate_key: "write_mode",
+      queue_items: [
         {
-          id: "clarify",
-          type: "clarify",
-          title: "明确选题",
-          description: "",
-          behavior: {
-            skippable: true,
-            redoable: true,
-            auto_advance: false,
-          },
-          status: "completed",
-        },
-        {
-          id: "write",
-          type: "write",
+          run_id: "run-resume-1",
+          execution_id: "exec-resume-1",
+          session_id: "session-default",
+          artifact_paths: [],
           title: "撰写主稿",
-          description: "",
-          behavior: {
-            skippable: false,
-            redoable: true,
-            auto_advance: false,
-          },
-          status: "pending",
+          gate_key: "write_mode",
+          status: "running",
+          source: "chat",
+          source_ref: "content-social-resume",
+          started_at: new Date(Date.now() - 10_000).toISOString(),
         },
       ],
+      latest_terminal: null,
+      recent_terminals: [],
+      updated_at: new Date().toISOString(),
     });
 
     const container = renderPage({
@@ -3585,7 +3583,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      "/social_post_with_cover 请基于当前文稿与已有上下文，继续推进上次未完成的任务。优先继续“撰写主稿”阶段，不要从头重复已经完成的内容。先简要确认当前进度，再继续执行。",
+      "/social_post_with_cover 请基于当前文稿与最近一次未完成的运行继续推进。任务标题：撰写主稿。优先衔接“写作推进”阶段。不要从头开始，先概括已有进度，再继续执行。",
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);

@@ -31,12 +31,12 @@ import { useTrayModelShortcuts } from "./hooks/useTrayModelShortcuts";
 import { type CanvasWorkbenchLayoutMode } from "./components/CanvasWorkbenchLayout";
 import type { CreationMode } from "./components/types";
 import { type TaskFile } from "./components/TaskFiles";
-import { useWorkflow } from "@/components/content-creator/hooks/useWorkflow";
+import { useWorkflow } from "@/lib/workspace/workbenchWorkflow";
 import {
   createInitialCanvasState,
   type CanvasStateUnion,
-} from "@/components/content-creator/canvas/canvasUtils";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
+} from "@/lib/workspace/workbenchCanvas";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import {
   type CanvasState as GeneralCanvasState,
   DEFAULT_CANVAS_STATE,
@@ -48,11 +48,8 @@ import {
 } from "@/lib/artifact/store";
 import type { Artifact } from "@/lib/artifact/types";
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  generateContentCreationPrompt,
-  isContentCreationTheme,
-} from "@/components/content-creator/utils/systemPrompt";
-import { generateProjectMemoryPrompt } from "@/components/content-creator/utils/projectPrompt";
+import { generateContentCreationPrompt } from "@/lib/workspace/workbenchPrompt";
+import { generateProjectMemoryPrompt } from "@/lib/workspace/workbenchPrompt";
 import {
   getProject,
   getContent,
@@ -77,7 +74,11 @@ import type {
   SiteSavedContentTarget,
   WriteArtifactContext,
 } from "./types";
-import type { ThemeType, LayoutMode } from "@/components/content-creator/types";
+import {
+  isContentCreationTheme,
+  type LayoutMode,
+  type ThemeType,
+} from "@/lib/workspace/workbenchContract";
 import { normalizeProjectId } from "./utils/topicProjectResolution";
 import { buildHarnessRequestMetadata } from "./utils/harnessRequestMetadata";
 import { deriveHarnessSessionState } from "./utils/harnessState";
@@ -113,12 +114,6 @@ import { useThemeWorkbenchEntryPromptActions } from "./hooks/useThemeWorkbenchEn
 import { useThemeWorkbenchSendBoundary } from "./hooks/useThemeWorkbenchSendBoundary";
 import type { BrowserTaskPreflight } from "./hooks/handleSendTypes";
 import { mergeThreadItems } from "./utils/threadTimelineView";
-import {
-  DEFAULT_STYLE_PROFILE,
-  buildRuntimeStyleOverridePrompt,
-  getStyleProfileFromGuide,
-  type RuntimeStyleSelection,
-} from "@/lib/style-guide";
 import { useWorkbenchStore } from "@/stores/useWorkbenchStore";
 import {
   asRecord,
@@ -461,15 +456,6 @@ export function AgentChatWorkspace({
       ),
     [mediaDefaults.image, project?.settings?.imageGeneration],
   );
-  const [runtimeStyleSelection, setRuntimeStyleSelection] =
-    useState<RuntimeStyleSelection>({
-      presetId: "project-default",
-      strength: DEFAULT_STYLE_PROFILE.simulationStrength,
-      customNotes: "",
-      source: "project-default",
-      sourceLabel: undefined,
-      sourceProfile: null,
-    });
 
   const imageWorkbenchGenerationRuntime = useImageGen({
     preferredProviderId: effectiveImageWorkbenchPreference.preferredProviderId,
@@ -537,28 +523,6 @@ export function AgentChatWorkspace({
     taskFilesRef.current = taskFiles;
   }, [taskFiles]);
 
-  useEffect(() => {
-    setRuntimeStyleSelection((previous) => {
-      if (
-        previous.presetId !== "project-default" ||
-        previous.customNotes.trim()
-      ) {
-        return previous;
-      }
-
-      const nextStrength =
-        getStyleProfileFromGuide(projectMemory?.style_guide)
-          ?.simulationStrength || DEFAULT_STYLE_PROFILE.simulationStrength;
-
-      return previous.strength === nextStrength
-        ? previous
-        : {
-            ...previous,
-            strength: nextStrength,
-          };
-    });
-  }, [projectMemory?.style_guide]);
-
   // 主动 workspace 健康检查失败标记（区别于 workspacePathMissing 发送失败场景）
   const [workspaceHealthError, setWorkspaceHealthError] = useState(false);
 
@@ -618,14 +582,6 @@ export function AgentChatWorkspace({
 
   // 工作流状态（仅在内容创作模式下使用）
   const mappedTheme = activeTheme as ThemeType;
-
-  useEffect(() => {
-    setRuntimeStyleSelection({
-      presetId: "project-default",
-      strength: DEFAULT_STYLE_PROFILE.simulationStrength,
-      customNotes: "",
-    });
-  }, [mappedTheme, projectId]);
   const { steps, currentStepIndex, goToStep, completeStep } = useWorkflow(
     mappedTheme,
     creationMode,
@@ -793,7 +749,6 @@ export function AgentChatWorkspace({
           charactersCount: memory?.characters?.length ?? 0,
           durationMs: Date.now() - startedAt,
           hasOutline: Boolean(memory?.outline?.length),
-          hasStyleGuide: Boolean(memory?.style_guide),
           projectId,
         });
 
@@ -1047,32 +1002,6 @@ export function AgentChatWorkspace({
         console.warn("[AgentChatPage] 记录最近项目失败:", error);
       });
   }, [project, projectId, rememberProjectId]);
-
-  const runtimeStylePrompt = useMemo(
-    () =>
-      buildRuntimeStyleOverridePrompt({
-        projectStyleGuide: projectMemory?.style_guide,
-        selection: runtimeStyleSelection,
-        activeTheme: mappedTheme,
-      }),
-    [mappedTheme, projectMemory?.style_guide, runtimeStyleSelection],
-  );
-
-  const runtimeStyleMessagePrompt = useMemo(() => {
-    const projectDefaultStrength =
-      getStyleProfileFromGuide(projectMemory?.style_guide)
-        ?.simulationStrength || DEFAULT_STYLE_PROFILE.simulationStrength;
-    const hasPresetOverride =
-      runtimeStyleSelection.presetId !== "project-default" ||
-      runtimeStyleSelection.source === "library";
-    const hasCustomNotes = runtimeStyleSelection.customNotes.trim().length > 0;
-    const hasStrengthOverride =
-      runtimeStyleSelection.strength !== projectDefaultStrength;
-
-    return hasPresetOverride || hasCustomNotes || hasStrengthOverride
-      ? runtimeStylePrompt
-      : "";
-  }, [projectMemory?.style_guide, runtimeStylePrompt, runtimeStyleSelection]);
 
   const chatMode = useMemo(
     () => resolveAgentChatMode(mappedTheme, isContentCreationMode),
@@ -1765,7 +1694,6 @@ export function AgentChatWorkspace({
     providerType,
     model,
     mappedTheme,
-    chatMode,
     isSending,
     projectMemory,
     harnessState,
@@ -2180,7 +2108,6 @@ export function AgentChatWorkspace({
       activeContextPrompt: contextWorkspace.activeContextPrompt,
       prepareActiveContextPrompt: contextWorkspace.prepareActiveContextPrompt,
     },
-    runtimeStyleMessagePrompt,
     projectId,
     executionStrategy,
     accessMode,
@@ -2588,7 +2515,6 @@ export function AgentChatWorkspace({
     canvasState,
     isThemeWorkbench,
     mappedTheme,
-    creationMode,
     shouldUseCompactThemeWorkbench,
     shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
     themeWorkbenchEntryCheckPending,
@@ -2839,11 +2765,7 @@ export function AgentChatWorkspace({
     projectId,
     projectMemory,
     handleSend,
-    mappedTheme,
-    runtimeStyleSelection,
-    setRuntimeStyleSelection,
     generalCanvasState,
-    runtimeStylePrompt,
     showSidebar,
     topics,
     switchTopic,

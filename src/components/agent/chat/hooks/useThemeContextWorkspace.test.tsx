@@ -23,9 +23,14 @@ vi.mock("@/hooks/useMaterials", () => ({
   useMaterials: mockUseMaterials,
 }));
 
-vi.mock("@/components/content-creator/utils/systemPrompt", () => ({
-  isContentCreationTheme: mockIsContentCreationTheme,
-}));
+vi.mock("@/lib/workspace/workbenchContract", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/workspace/workbenchContract")>();
+  return {
+    ...actual,
+    isContentCreationTheme: mockIsContentCreationTheme,
+  };
+});
 
 vi.mock("../utils/contextSearch", () => ({
   searchThemeContextWithWebSearch: mockSearchThemeContextWithWebSearch,

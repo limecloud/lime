@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
+import { parseAIResponse } from "@/lib/workspace/a2ui";
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 import {
   buildActionRequestA2UI,
   isActionRequestA2UICompatible,

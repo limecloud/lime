@@ -2560,7 +2560,37 @@ async fn execute_extension_backend_action(
                 .get_status_snapshot()
                 .await;
             let sessions = list_alive_profile_sessions(manager).await;
+            let resolved_profile_key = profile_key
+                .clone()
+                .or_else(|| sessions.first().map(|session| session.profile_key.clone()));
+            let tabs = if let Some(active_profile_key) = resolved_profile_key.clone() {
+                execute_bridge_api_command(ChromeBridgeCommandRequest {
+                    profile_key: Some(active_profile_key),
+                    command: "list_tabs".to_string(),
+                    target: None,
+                    text: None,
+                    url: None,
+                    payload: None,
+                    wait_for_page_info: false,
+                    timeout_ms: Some(normalize_action_timeout(timeout_ms)),
+                })
+                .await
+                .ok()
+                .and_then(|result| result.data)
+                .and_then(|data| {
+                    data.get("tabs").cloned().or_else(|| {
+                        data.get("data")
+                            .and_then(|value| value.get("tabs"))
+                            .cloned()
+                    })
+                })
+                .unwrap_or_else(|| Value::Array(Vec::new()))
+            } else {
+                Value::Array(Vec::new())
+            };
             Ok(json!({
+                "profile_key": resolved_profile_key,
+                "tabs": tabs,
                 "bridge": {
                     "observer_count": bridge_status.observer_count,
                     "control_count": bridge_status.control_count,

@@ -3,7 +3,7 @@ import { getContent, listContents, type ContentListItem } from "@/lib/api/projec
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 import { useMaterials } from "@/hooks/useMaterials";
-import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
+import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
 import {
   searchThemeContextWithWebSearch,

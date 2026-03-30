@@ -137,11 +137,13 @@ const ExperimentalBadge = styled.span`
 interface SettingsSidebarProps {
   activeTab: SettingsTabs;
   onTabChange: (tab: SettingsTabs) => void;
+  onTabPrefetch?: (tab: SettingsTabs) => void;
 }
 
 export function SettingsSidebar({
   activeTab,
   onTabChange,
+  onTabPrefetch,
 }: SettingsSidebarProps) {
   const categoryGroups = useSettingsCategory();
 
@@ -179,6 +181,9 @@ export function SettingsSidebar({
               <NavItem
                 key={item.key}
                 $active={activeTab === item.key}
+                onMouseEnter={() => onTabPrefetch?.(item.key)}
+                onMouseDown={() => onTabPrefetch?.(item.key)}
+                onFocus={() => onTabPrefetch?.(item.key)}
                 onClick={() => onTabChange(item.key)}
               >
                 <item.icon />

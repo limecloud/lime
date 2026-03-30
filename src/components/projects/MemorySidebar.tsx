@@ -1,7 +1,7 @@
 /**
  * 记忆侧边栏
  *
- * 在编辑页面显示项目的角色、世界观、风格指南（只读）
+ * 在编辑页面显示项目的角色与世界观（只读）
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -9,40 +9,25 @@ import {
   RefreshCw,
   Users,
   Globe,
-  Palette,
   ChevronDown,
   ChevronRight,
   Star,
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   ProjectMemory,
   Character,
   WorldBuilding,
-  StyleGuide,
   getProjectMemory,
 } from "@/lib/api/memory";
-import {
-  buildStyleSummary,
-  getStyleCategoryLabel,
-  getStyleProfileFromGuide,
-} from "@/lib/style-guide";
-import { StyleGuidePanel } from "./memory/StyleGuidePanel";
 
 interface MemorySidebarProps {
   projectId: string;
@@ -53,9 +38,8 @@ export function MemorySidebar({ projectId, className }: MemorySidebarProps) {
   const [memory, setMemory] = useState<ProjectMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["characters", "world", "style"]),
+    new Set(["characters", "world"]),
   );
-  const [styleGuideDialogOpen, setStyleGuideDialogOpen] = useState(false);
 
   const loadMemory = useCallback(async () => {
     setLoading(true);
@@ -87,7 +71,6 @@ export function MemorySidebar({ projectId, className }: MemorySidebarProps) {
   const headerBadges = [
     `${memory?.characters.length || 0} 个角色`,
     memory?.world_building ? "已整理世界观" : "待补世界观",
-    memory?.style_guide ? "已配置项目风格" : "待设置项目风格",
   ];
 
   if (loading) {
@@ -120,30 +103,20 @@ export function MemorySidebar({ projectId, className }: MemorySidebarProps) {
                 项目记忆
               </div>
               <div className="text-sm font-semibold text-slate-900">
-                角色、世界观与风格基线
+                角色与世界观
               </div>
               <p className="text-xs leading-5 text-slate-500">
-                编辑时快速查看项目事实，并随时进入默认风格工作台。
+                编辑时快速查看项目事实，保持人物与设定的一致性。
               </p>
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-full border-white/90 bg-white/85 px-3 text-xs text-slate-700 shadow-sm shadow-slate-950/5"
-                onClick={() => setStyleGuideDialogOpen(true)}
-              >
-                风格工作台
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-slate-500 hover:bg-white/70 hover:text-slate-700"
-                onClick={loadMemory}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full text-slate-500 hover:bg-white/70 hover:text-slate-700"
+              onClick={loadMemory}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {headerBadges.map((item) => (
@@ -190,47 +163,8 @@ export function MemorySidebar({ projectId, className }: MemorySidebarProps) {
               <p className="py-2 text-xs text-slate-500">暂无世界观设定</p>
             )}
           </SidebarSection>
-
-          <SidebarSection
-            title="风格指南"
-            icon={<Palette className="h-4 w-4" />}
-            expanded={expandedSections.has("style")}
-            onToggle={() => toggleSection("style")}
-          >
-            {memory?.style_guide ? (
-              <StyleGuideItem
-                styleGuide={memory.style_guide}
-                onEdit={() => setStyleGuideDialogOpen(true)}
-              />
-            ) : (
-              <div className="space-y-3 py-2">
-                <p className="text-xs leading-5 text-slate-500">
-                  暂无项目默认风格，建议先从风格库导入一套表达基线。
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-full border-slate-200/80 bg-white text-xs text-slate-700"
-                  onClick={() => setStyleGuideDialogOpen(true)}
-                >
-                  立即设置风格
-                </Button>
-              </div>
-            )}
-          </SidebarSection>
         </div>
       </ScrollArea>
-
-      <Dialog open={styleGuideDialogOpen} onOpenChange={setStyleGuideDialogOpen}>
-        <DialogContent className="max-h-[92vh] max-w-7xl overflow-y-auto border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_36%,rgba(241,245,249,0.95)_100%)] p-4 lg:p-5">
-          <DialogHeader className="sr-only">
-            <DialogTitle>项目默认风格</DialogTitle>
-          </DialogHeader>
-          <div className="relative">
-            <StyleGuidePanel projectId={projectId} />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -337,102 +271,6 @@ function WorldBuildingItem({ worldBuilding }: WorldBuildingItemProps) {
           <p className="line-clamp-2 leading-5 text-slate-700">
             {worldBuilding.locations}
           </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 风格指南项组件
-interface StyleGuideItemProps {
-  styleGuide: StyleGuide;
-  onEdit?: () => void;
-}
-
-function StyleGuideItem({ styleGuide, onEdit }: StyleGuideItemProps) {
-  const profile = getStyleProfileFromGuide(styleGuide);
-  const summary = buildStyleSummary(styleGuide);
-
-  return (
-    <div className="space-y-3 rounded-[18px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.86)_0%,rgba(255,255,255,0.96)_100%)] px-3 py-3 text-xs shadow-sm shadow-slate-950/5">
-      {profile ? (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-slate-900">
-              {profile.name}
-            </span>
-            <Badge
-              variant="secondary"
-              className="border-0 bg-slate-100 text-[10px] font-normal text-slate-600"
-            >
-              {getStyleCategoryLabel(profile.category)}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-slate-200/80 bg-white/80 text-[10px] font-normal text-slate-600"
-            >
-              强度 {profile.simulationStrength}
-            </Badge>
-          </div>
-
-          {summary.length > 0 && (
-            <div className="space-y-1">
-              {summary.map((item) => (
-                <p key={item} className="line-clamp-2 leading-5 text-slate-500">
-                  {item}
-                </p>
-              ))}
-            </div>
-          )}
-
-          {profile.targetPlatforms.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {profile.targetPlatforms.map((platform) => (
-                <Badge
-                  key={platform}
-                  variant="outline"
-                  className="border-slate-200/80 bg-white/75 text-[10px] text-slate-600"
-                >
-                  {platform}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {profile.donts.length > 0 && (
-            <div>
-              <span className="text-slate-400">避免：</span>
-              <span className="text-slate-700">
-                {profile.donts.slice(0, 3).join("、")}
-              </span>
-            </div>
-          )}
-          {onEdit && (
-            <div className="pt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-full border-slate-200/80 bg-white text-xs text-slate-700"
-                onClick={onEdit}
-              >
-                编辑风格
-              </Button>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-slate-500">暂无风格摘要</p>
-          {onEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 rounded-full border-slate-200/80 bg-white text-xs text-slate-700"
-              onClick={onEdit}
-            >
-              去设置风格
-            </Button>
-          )}
         </div>
       )}
     </div>

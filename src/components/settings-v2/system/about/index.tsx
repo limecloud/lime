@@ -24,20 +24,15 @@ import { cn } from "@/lib/utils";
 
 const FALLBACK_RELEASES_URL = "https://github.com/aiclientproxy/lime/releases";
 
-const CREATIVE_THEMES = [
-  "通用对话",
-  "社媒内容",
-  "图文海报",
-  "歌词曲谱",
-  "知识探索",
-  "计划规划",
-  "办公文档",
-  "短视频",
-  "小说创作",
+const WORKSPACE_FOCUSES = [
+  "Claw 对话与技能执行",
+  "浏览器协助与站点任务",
+  "工作区资源沉淀",
+  "项目与素材持续迭代",
 ] as const;
 
 const QUICK_START_STEPS = [
-  "选主题：按目标进入对应创作主题",
+  "进入 Claw：从主入口直接开始对话、技能或任务",
   "给输入：一句需求、一个方向或一份素材都可以",
   "持续迭代：边聊边改边沉淀，最终得到可发布结果",
 ] as const;
@@ -468,19 +463,19 @@ export function AboutSection() {
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <AboutStat
-              label={t("创作主题", "创作主题")}
-              value={CREATIVE_THEMES.length.toString()}
+              label={t("工作区主线", "工作区主线")}
+              value={WORKSPACE_FOCUSES.length.toString()}
               description={t(
-                "覆盖对话、海报、短视频、小说等常见创作场景。",
-                "覆盖对话、海报、短视频、小说等常见创作场景。",
+                "围绕 Claw、浏览器协助、资源沉淀与项目迭代组织主路径。",
+                "围绕 Claw、浏览器协助、资源沉淀与项目迭代组织主路径。",
               )}
             />
             <AboutStat
               label={t("起步步骤", "起步步骤")}
               value={QUICK_START_STEPS.length.toString()}
               description={t(
-                "从选主题到持续迭代，压缩成清晰的三步流程。",
-                "从选主题到持续迭代，压缩成清晰的三步流程。",
+                "从进入工作区到持续迭代，压缩成清晰的三步流程。",
+                "从进入工作区到持续迭代，压缩成清晰的三步流程。",
               )}
             />
             <AboutStat
@@ -588,24 +583,24 @@ export function AboutSection() {
         <div className="space-y-6">
           <AboutPanel
             icon={Layers3}
-            title={t("支持的创作主题", "支持的创作主题")}
+            title={t("工作区主线", "工作区主线")}
             description={t(
-              "主题不是简单分类，而是预设好的工作上下文与内容目标。",
-              "主题不是简单分类，而是预设好的工作上下文与内容目标。",
+              "这里保留当前分支仍然承载的主路径，不再把工作区能力包装成独立主题集合。",
+              "这里保留当前分支仍然承载的主路径，不再把工作区能力包装成独立主题集合。",
             )}
             aside={
               <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                {CREATIVE_THEMES.length} {t("项", "项")}
+                {WORKSPACE_FOCUSES.length} {t("项", "项")}
               </span>
             }
           >
             <div className="flex flex-wrap gap-2">
-              {CREATIVE_THEMES.map((theme) => (
+              {WORKSPACE_FOCUSES.map((item) => (
                 <span
-                  key={theme}
+                  key={item}
                   className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-600"
                 >
-                  {t(theme, theme)}
+                  {t(item, item)}
                 </span>
               ))}
             </div>

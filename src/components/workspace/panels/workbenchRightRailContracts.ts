@@ -1,4 +1,4 @@
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 import type { WorkspaceTheme } from "@/types/page";
 
 export interface WorkbenchRightRailProps {
@@ -9,10 +9,6 @@ export interface WorkbenchRightRailProps {
   theme?: WorkspaceTheme;
   creationMode?: CreationMode;
   creationType?: string;
-  initialStyleGuideDialogOpen?: boolean;
-  onInitialStyleGuideDialogConsumed?: () => void;
-  initialStyleGuideSourceEntryId?: string | null;
-  onInitialStyleGuideSourceEntryConsumed?: () => void;
   onBackToCreateView: () => void;
   onCreateContentFromPrompt?: (prompt: string) => Promise<void> | void;
 }

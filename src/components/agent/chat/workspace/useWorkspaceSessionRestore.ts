@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { TaskFile } from "../components/TaskFiles";
-import type { CreationMode, ThemeType } from "@/components/content-creator/types";
-import { isContentCreationTheme } from "@/components/content-creator/utils/systemPrompt";
+import type { CreationMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
 import { normalizeInitialTheme } from "../agentChatWorkspaceShared";
 import { normalizeSessionTaskFileType } from "./themeWorkbenchHelpers";
 
@@ -71,7 +71,7 @@ export function useWorkspaceSessionRestore({
       const restoredIsCreation = isContentCreationTheme(sessionMeta.theme);
       if (entryIsGeneral && restoredIsCreation) {
         console.log(
-          "[AgentChatPage] 通用对话入口，跳过恢复内容创作主题:",
+          "[AgentChatPage] 通用对话入口，跳过恢复内容工作区主题:",
           sessionMeta.theme,
         );
       } else {

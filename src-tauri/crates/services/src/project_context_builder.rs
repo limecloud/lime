@@ -1,7 +1,7 @@
 //! 项目上下文构建器
 //!
 //! 提供项目上下文的构建功能，包括：
-//! - 加载项目配置（人设、素材、模板）
+//! - 加载项目配置（人设、素材）
 //! - 构建 AI System Prompt
 //! - 条件性包含各个 section
 //!
@@ -11,7 +11,6 @@
 //! - Requirements 10.3: 通过 SessionConfig 传递
 //! - Requirements 10.4: 无人设时省略 persona section
 //! - Requirements 10.5: 无素材时省略 materials section
-//! - Requirements 10.6: 无模板时省略 template section
 
 use std::path::PathBuf;
 
@@ -21,9 +20,8 @@ use tracing::{debug, warn};
 
 use crate::material_service::MaterialService;
 use crate::persona_service::PersonaService;
-use crate::template_service::TemplateService;
 use lime_core::errors::project_error::ProjectError;
-use lime_core::models::project_model::{Material, Persona, ProjectContext, Template};
+use lime_core::models::project_model::{Material, Persona, ProjectContext};
 use lime_core::workspace::{Workspace, WorkspaceSettings, WorkspaceType};
 
 // ============================================================================
@@ -32,7 +30,7 @@ use lime_core::workspace::{Workspace, WorkspaceSettings, WorkspaceType};
 
 /// 项目上下文构建器
 ///
-/// 负责加载项目的完整上下文（人设、素材、模板），
+/// 负责加载项目的完整上下文（人设、素材），
 /// 并将其转换为 AI 可理解的 System Prompt。
 pub struct ProjectContextBuilder;
 
@@ -47,7 +45,6 @@ impl ProjectContextBuilder {
     /// - 项目基本信息
     /// - 默认人设（如果有）
     /// - 素材列表
-    /// - 默认模板（如果有）
     ///
     /// # 参数
     /// - `conn`: 数据库连接
@@ -77,14 +74,10 @@ impl ProjectContextBuilder {
         // 3. 加载素材列表
         let materials = Self::load_materials(conn, project_id);
 
-        // 4. 加载默认模板（可选）
-        let template = Self::load_default_template(conn, project_id);
-
         debug!(
             project_id = %project_id,
             has_persona = persona.is_some(),
             material_count = materials.len(),
-            has_template = template.is_some(),
             "项目上下文构建完成"
         );
 
@@ -92,7 +85,6 @@ impl ProjectContextBuilder {
             project,
             persona,
             materials,
-            template,
         })
     }
 
@@ -105,7 +97,6 @@ impl ProjectContextBuilder {
     /// 根据项目配置构建结构化的 AI 提示词，包含：
     /// - 人设信息（如果有）
     /// - 素材引用（如果有）
-    /// - 排版规则（如果有）
     ///
     /// # 参数
     /// - `context`: 项目上下文
@@ -130,11 +121,6 @@ impl ProjectContextBuilder {
         // 条件性添加素材 section
         if !context.materials.is_empty() {
             sections.push(Self::format_materials(&context.materials));
-        }
-
-        // 条件性添加模板 section
-        if let Some(ref template) = context.template {
-            sections.push(Self::format_template(template));
         }
 
         sections.join("\n\n")
@@ -242,21 +228,6 @@ impl ProjectContextBuilder {
                     "加载素材列表失败"
                 );
                 Vec::new()
-            }
-        }
-    }
-
-    /// 加载默认模板
-    fn load_default_template(conn: &Connection, project_id: &str) -> Option<Template> {
-        match TemplateService::get_default_template(conn, project_id) {
-            Ok(template) => template,
-            Err(e) => {
-                warn!(
-                    project_id = %project_id,
-                    error = %e,
-                    "加载默认模板失败"
-                );
-                None
             }
         }
     }
@@ -394,70 +365,6 @@ impl ProjectContextBuilder {
             format!("{truncated}...")
         }
     }
-
-    /// 格式化排版规则
-    ///
-    /// 将排版模板转换为 AI 可遵循的格式规则。
-    fn format_template(template: &Template) -> String {
-        let mut lines = vec![
-            "## 排版规则".to_string(),
-            String::new(),
-            format!(
-                "请按照以下「{}」平台的排版规则输出内容：",
-                Self::format_platform(&template.platform)
-            ),
-            String::new(),
-        ];
-
-        // 添加标题风格
-        if let Some(ref title_style) = template.title_style {
-            lines.push(format!("**标题风格**: {title_style}"));
-        }
-
-        // 添加段落风格
-        if let Some(ref paragraph_style) = template.paragraph_style {
-            lines.push(format!("**段落风格**: {paragraph_style}"));
-        }
-
-        // 添加结尾风格
-        if let Some(ref ending_style) = template.ending_style {
-            lines.push(format!("**结尾风格**: {ending_style}"));
-        }
-
-        // 添加 Emoji 使用规则
-        let emoji_desc = match template.emoji_usage.as_str() {
-            "heavy" => "大量使用 emoji 表情，增加趣味性",
-            "moderate" => "适度使用 emoji 表情，点缀内容",
-            "minimal" => "少量或不使用 emoji 表情，保持简洁",
-            _ => "适度使用 emoji 表情",
-        };
-        lines.push(format!("**Emoji 使用**: {emoji_desc}"));
-
-        // 添加话题标签规则
-        if let Some(ref hashtag_rules) = template.hashtag_rules {
-            lines.push(format!("**话题标签**: {hashtag_rules}"));
-        }
-
-        // 添加图片规则
-        if let Some(ref image_rules) = template.image_rules {
-            lines.push(format!("**配图建议**: {image_rules}"));
-        }
-
-        lines.join("\n")
-    }
-
-    /// 格式化平台显示名称
-    fn format_platform(platform: &str) -> &'static str {
-        match platform {
-            "xiaohongshu" => "小红书",
-            "wechat" => "微信公众号",
-            "zhihu" => "知乎",
-            "weibo" => "微博",
-            "douyin" => "抖音",
-            "markdown" => "Markdown",
-            _ => "通用",
-        }
-    }
 }
 
 // ============================================================================
@@ -510,7 +417,6 @@ mod tests {
         assert_eq!(context.project.name, "测试项目");
         assert!(context.persona.is_none());
         assert!(context.materials.is_empty());
-        assert!(context.template.is_none());
     }
 
     #[test]
@@ -636,41 +542,6 @@ mod tests {
     }
 
     #[test]
-    fn test_build_system_prompt_with_template() {
-        let conn = setup_test_db();
-        create_test_project(&conn, "project-1", "测试项目");
-
-        // 创建模板
-        use lime_core::models::project_model::CreateTemplateRequest;
-        let req = CreateTemplateRequest {
-            project_id: "project-1".to_string(),
-            name: "小红书模板".to_string(),
-            platform: "xiaohongshu".to_string(),
-            title_style: Some("吸引眼球".to_string()),
-            paragraph_style: Some("简短有力".to_string()),
-            ending_style: Some("引导互动".to_string()),
-            emoji_usage: Some("heavy".to_string()),
-            hashtag_rules: Some("3-5个相关话题".to_string()),
-            image_rules: Some("配图要精美".to_string()),
-        };
-        let template = TemplateService::create_template(&conn, req).unwrap();
-        TemplateService::set_default_template(&conn, "project-1", &template.id).unwrap();
-
-        let context = ProjectContextBuilder::build_context(&conn, "project-1").unwrap();
-        let prompt = ProjectContextBuilder::build_system_prompt(&context);
-
-        // 验证模板 section
-        assert!(prompt.contains("## 排版规则"));
-        assert!(prompt.contains("小红书"));
-        assert!(prompt.contains("**标题风格**: 吸引眼球"));
-        assert!(prompt.contains("**段落风格**: 简短有力"));
-        assert!(prompt.contains("**结尾风格**: 引导互动"));
-        assert!(prompt.contains("大量使用 emoji"));
-        assert!(prompt.contains("**话题标签**: 3-5个相关话题"));
-        assert!(prompt.contains("**配图建议**: 配图要精美"));
-    }
-
-    #[test]
     fn test_build_system_prompt_full_context() {
         let conn = setup_test_db();
         create_test_project(&conn, "project-1", "完整项目");
@@ -704,22 +575,6 @@ mod tests {
         };
         MaterialService::upload_material(&conn, material_req).unwrap();
 
-        // 创建模板
-        use lime_core::models::project_model::CreateTemplateRequest;
-        let template_req = CreateTemplateRequest {
-            project_id: "project-1".to_string(),
-            name: "测试模板".to_string(),
-            platform: "markdown".to_string(),
-            title_style: None,
-            paragraph_style: None,
-            ending_style: None,
-            emoji_usage: Some("minimal".to_string()),
-            hashtag_rules: None,
-            image_rules: None,
-        };
-        let template = TemplateService::create_template(&conn, template_req).unwrap();
-        TemplateService::set_default_template(&conn, "project-1", &template.id).unwrap();
-
         let context = ProjectContextBuilder::build_context(&conn, "project-1").unwrap();
         let prompt = ProjectContextBuilder::build_system_prompt(&context);
 
@@ -727,7 +582,6 @@ mod tests {
         assert!(prompt.contains("# 项目: 完整项目"));
         assert!(prompt.contains("## 你的身份"));
         assert!(prompt.contains("## 可引用素材"));
-        assert!(prompt.contains("## 排版规则"));
     }
 
     #[test]
@@ -762,25 +616,5 @@ mod tests {
             ProjectContextBuilder::format_material_type("unknown"),
             "其他"
         );
-    }
-
-    #[test]
-    fn test_format_platform() {
-        assert_eq!(
-            ProjectContextBuilder::format_platform("xiaohongshu"),
-            "小红书"
-        );
-        assert_eq!(
-            ProjectContextBuilder::format_platform("wechat"),
-            "微信公众号"
-        );
-        assert_eq!(ProjectContextBuilder::format_platform("zhihu"), "知乎");
-        assert_eq!(ProjectContextBuilder::format_platform("weibo"), "微博");
-        assert_eq!(ProjectContextBuilder::format_platform("douyin"), "抖音");
-        assert_eq!(
-            ProjectContextBuilder::format_platform("markdown"),
-            "Markdown"
-        );
-        assert_eq!(ProjectContextBuilder::format_platform("unknown"), "通用");
     }
 }

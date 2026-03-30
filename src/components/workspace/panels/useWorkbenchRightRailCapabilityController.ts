@@ -10,10 +10,6 @@ interface UseWorkbenchRightRailCapabilityControllerParams {
   contentId?: string | null;
   initialExpandedActionKey?: string | null;
   onInitialExpandedActionConsumed?: () => void;
-  initialStyleGuideDialogOpen?: boolean;
-  onInitialStyleGuideDialogConsumed?: () => void;
-  initialStyleGuideSourceEntryId?: string | null;
-  onInitialStyleGuideSourceEntryConsumed?: () => void;
   onCreateContentFromPrompt?: (prompt: string) => Promise<void> | void;
 }
 
@@ -22,27 +18,15 @@ export function useWorkbenchRightRailCapabilityController({
   contentId,
   initialExpandedActionKey,
   onInitialExpandedActionConsumed,
-  initialStyleGuideDialogOpen,
-  onInitialStyleGuideDialogConsumed,
-  initialStyleGuideSourceEntryId,
-  onInitialStyleGuideSourceEntryConsumed,
   onCreateContentFromPrompt,
 }: UseWorkbenchRightRailCapabilityControllerParams) {
   const {
     closeExpandedAction,
     expandedActionKey,
     handleToggleActionPanel: toggleActionPanel,
-    handleStyleGuideDialogOpenChange,
-    setStyleGuideSourceEntryId,
-    styleGuideDialogOpen,
-    styleGuideSourceEntryId,
   } = useWorkbenchRightRailActionPanelState({
     initialExpandedActionKey,
     onInitialExpandedActionConsumed,
-    initialStyleGuideDialogOpen,
-    onInitialStyleGuideDialogConsumed,
-    initialStyleGuideSourceEntryId,
-    onInitialStyleGuideSourceEntryConsumed,
   });
   const { appendGeneratedOutput, generatedOutputs } =
     useWorkbenchRightRailGeneratedOutputs();
@@ -111,11 +95,7 @@ export function useWorkbenchRightRailCapabilityController({
   return {
     expandedActionKey,
     generatedOutputs,
-    handleStyleGuideDialogOpenChange,
     handleSubmitPrompt,
-    setStyleGuideSourceEntryId,
-    styleGuideDialogOpen,
-    styleGuideSourceEntryId,
     ...imageTasks,
     ...audioTasks,
     ...videoTasks,

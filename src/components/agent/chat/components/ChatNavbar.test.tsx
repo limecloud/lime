@@ -222,6 +222,20 @@ describe("ChatNavbar", () => {
     expect(button?.textContent).toContain("等待登录");
   });
 
+  it("浏览器已就绪时不应再占用顶栏状态入口", () => {
+    const container = renderChatNavbar({
+      showBrowserAssistEntry: true,
+      browserAssistLabel: "浏览器已就绪",
+    });
+
+    const button = container.querySelector(
+      'button[aria-label="打开浏览器工作台"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).toBeNull();
+    expect(container.textContent).not.toContain("浏览器已就绪");
+  });
+
   it("浏览器待继续时顶栏按钮应显示恢复态语义", () => {
     const container = renderChatNavbar({
       showBrowserAssistEntry: true,

@@ -4,7 +4,6 @@
 //! - ProjectError（项目错误）
 //! - PersonaError（人设错误）
 //! - MaterialError（素材错误）
-//! - TemplateError（模板错误）
 //! - MigrationError（迁移错误）
 //!
 //! ## 设计原则
@@ -162,47 +161,6 @@ impl serde::Serialize for MaterialError {
 }
 
 // ============================================================================
-// 模板错误
-// ============================================================================
-
-/// 模板操作错误
-///
-/// 涵盖排版模板 CRUD 操作中可能出现的所有错误情况。
-#[derive(Error, Debug)]
-pub enum TemplateError {
-    /// 模板不存在
-    #[error("模板不存在: {0}")]
-    NotFound(String),
-
-    /// 项目不存在
-    #[error("项目不存在: {0}")]
-    ProjectNotFound(String),
-
-    /// 不支持的平台
-    #[error("不支持的平台: {0}")]
-    UnsupportedPlatform(String),
-
-    /// 数据库错误
-    #[error("数据库错误: {0}")]
-    DatabaseError(#[from] rusqlite::Error),
-}
-
-impl From<TemplateError> for String {
-    fn from(err: TemplateError) -> Self {
-        err.to_string()
-    }
-}
-
-impl serde::Serialize for TemplateError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-// ============================================================================
 // 发布配置错误
 // ============================================================================
 
@@ -338,18 +296,6 @@ mod tests {
     }
 
     #[test]
-    fn test_template_error_display() {
-        let err = TemplateError::NotFound("tpl-1".to_string());
-        assert_eq!(err.to_string(), "模板不存在: tpl-1");
-
-        let err = TemplateError::ProjectNotFound("project-1".to_string());
-        assert_eq!(err.to_string(), "项目不存在: project-1");
-
-        let err = TemplateError::UnsupportedPlatform("unknown".to_string());
-        assert_eq!(err.to_string(), "不支持的平台: unknown");
-    }
-
-    #[test]
     fn test_migration_error_display() {
         let err = MigrationError::MigrationFailed("表不存在".to_string());
         assert_eq!(err.to_string(), "迁移失败: 表不存在");
@@ -374,13 +320,6 @@ mod tests {
         let err = MaterialError::NotFound("test".to_string());
         let s: String = err.into();
         assert_eq!(s, "素材不存在: test");
-    }
-
-    #[test]
-    fn test_template_error_to_string() {
-        let err = TemplateError::NotFound("test".to_string());
-        let s: String = err.into();
-        assert_eq!(s, "模板不存在: test");
     }
 
     #[test]
@@ -409,13 +348,6 @@ mod tests {
         let err = MaterialError::FileTooLarge(100, 50);
         let json = serde_json::to_string(&err).unwrap();
         assert_eq!(json, "\"文件过大: 100 bytes (最大 50 bytes)\"");
-    }
-
-    #[test]
-    fn test_template_error_serialize() {
-        let err = TemplateError::UnsupportedPlatform("test".to_string());
-        let json = serde_json::to_string(&err).unwrap();
-        assert_eq!(json, "\"不支持的平台: test\"");
     }
 
     #[test]

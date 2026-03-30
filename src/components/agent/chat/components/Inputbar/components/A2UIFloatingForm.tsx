@@ -2,8 +2,8 @@ import styled from "styled-components";
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
-import { CHAT_FLOATING_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
+} from "@/lib/workspace/a2ui";
+import { CHAT_FLOATING_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { A2UITaskCard } from "../../A2UITaskCard";
 
 interface A2UIFloatingFormProps {

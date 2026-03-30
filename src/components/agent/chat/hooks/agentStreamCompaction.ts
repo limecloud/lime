@@ -40,6 +40,28 @@ function defaultCreateAssistantMessageId() {
   return `context_compaction:${crypto.randomUUID()}`;
 }
 
+export class AgentStreamCompactionError extends Error {
+  readonly alreadyNotified: boolean;
+
+  constructor(message: string, alreadyNotified = false) {
+    super(message);
+    this.name = "AgentStreamCompactionError";
+    this.alreadyNotified = alreadyNotified;
+  }
+}
+
+export function normalizeAgentStreamCompactionError(error: unknown) {
+  if (error instanceof AgentStreamCompactionError) {
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return new AgentStreamCompactionError(error.message);
+  }
+
+  const message = String(error ?? "").trim() || "压缩上下文失败，请稍后重试";
+  return new AgentStreamCompactionError(message);
+}
+
 export async function runAgentStreamCompaction(
   options: RunAgentStreamCompactionOptions,
 ) {
@@ -60,6 +82,7 @@ export async function runAgentStreamCompaction(
   } = options;
   const eventName = createEventName();
   let disposed = false;
+  let notifiedErrorMessage: string | null = null;
 
   const disposeListener = () => {
     if (disposed) {
@@ -125,7 +148,8 @@ export async function runAgentStreamCompaction(
           break;
         }
         case "error":
-          notify.error(`压缩上下文失败: ${data.message}`);
+          notifiedErrorMessage = String(data.message ?? "").trim() || "未知错误";
+          notify.error(`压缩上下文失败: ${notifiedErrorMessage}`);
           clearActiveStreamIfMatch(eventName);
           disposeListener();
           break;
@@ -143,6 +167,9 @@ export async function runAgentStreamCompaction(
   } catch (error) {
     clearActiveStreamIfMatch(eventName);
     disposeListener();
-    throw error;
+    if (notifiedErrorMessage) {
+      throw new AgentStreamCompactionError(notifiedErrorMessage, true);
+    }
+    throw normalizeAgentStreamCompactionError(error);
   }
 }

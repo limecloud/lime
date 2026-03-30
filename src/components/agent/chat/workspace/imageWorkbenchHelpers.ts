@@ -1,5 +1,5 @@
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import type { PlatformType } from "@/components/content-creator/canvas/document/types";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import type { PlatformType } from "@/lib/workspace/workbenchCanvas";
 import type {
   CanvasImageInsertAnchorHint,
   CanvasImageTargetType,

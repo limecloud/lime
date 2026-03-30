@@ -5,7 +5,5 @@
  */
 
 export { PersonaDialog } from "./PersonaDialog";
-export { BrandPersonaDialog } from "./BrandPersonaDialog";
-export { TemplateDialog } from "./TemplateDialog";
 export { MaterialUploadDialog } from "./MaterialUploadDialog";
 export { MaterialPreviewDialog } from "./MaterialPreviewDialog";

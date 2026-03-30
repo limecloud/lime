@@ -57,6 +57,7 @@ async function mountHook(props?: Partial<HookProps>): Promise<HookHarness> {
     sessionId: "session-1",
     parentSessionId: null,
     isSending: false,
+    threadReadStatus: null,
     queuedTurnCount: 0,
     threadTurns: [],
     refreshSessionDetail: vi.fn(async () => true),
@@ -173,6 +174,28 @@ describe("useAgentRuntimeSyncEffects", () => {
       });
 
       expect(refreshSessionDetail).toHaveBeenCalledTimes(2);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("仅 thread_read 标记为 running 时也应继续轮询刷新", async () => {
+    const refreshSessionDetail = vi.fn(async () => true);
+    const harness = await mountHook({
+      threadReadStatus: "running",
+      refreshSessionDetail,
+    });
+
+    try {
+      expect(refreshSessionDetail).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+        await Promise.resolve();
+      });
+
+      expect(refreshSessionDetail).toHaveBeenCalledTimes(1);
+      expect(refreshSessionDetail).toHaveBeenCalledWith("session-1");
     } finally {
       harness.unmount();
     }

@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { ChatNavbar } from "../components/ChatNavbar";
 import { EmptyState } from "../components/EmptyState";
 import { WorkspaceChatContent } from "./WorkspaceChatContent";
@@ -30,9 +30,6 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
     typeof WorkspaceChatContent
   >["serviceSkillExecutionCard"];
   stepProgressProps?: ComponentProps<typeof WorkspaceChatContent>["stepProgressProps"];
-  runtimeStyleControlBarProps?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["runtimeStyleControlBarProps"];
   showChatLayout: boolean;
   contextWorkspaceEnabled: boolean;
   themeWorkbenchMessageViewportBottomPadding?: string;
@@ -145,7 +142,6 @@ export function WorkspaceConversationScene({
   onDismissEntryBanner,
   serviceSkillExecutionCard,
   stepProgressProps,
-  runtimeStyleControlBarProps,
   showChatLayout,
   compactChrome,
   contextWorkspaceEnabled,
@@ -281,14 +277,13 @@ export function WorkspaceConversationScene({
   });
 
   const chatContent = (
-    <WorkspaceChatContent
-      entryBannerVisible={entryBannerVisible}
-      entryBannerMessage={entryBannerMessage}
-      onDismissEntryBanner={onDismissEntryBanner}
-      serviceSkillExecutionCard={serviceSkillExecutionCard}
-      stepProgressProps={stepProgressProps}
-      runtimeStyleControlBarProps={runtimeStyleControlBarProps}
-      showChatLayout={showChatLayout}
+      <WorkspaceChatContent
+        entryBannerVisible={entryBannerVisible}
+        entryBannerMessage={entryBannerMessage}
+        onDismissEntryBanner={onDismissEntryBanner}
+        serviceSkillExecutionCard={serviceSkillExecutionCard}
+        stepProgressProps={stepProgressProps}
+        showChatLayout={showChatLayout}
       compactChrome={compactChrome}
       contextWorkspaceEnabled={contextWorkspaceEnabled}
       themeWorkbenchMessageViewportBottomPadding={

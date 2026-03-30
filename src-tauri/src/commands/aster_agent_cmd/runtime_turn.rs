@@ -1,10 +1,14 @@
 use super::*;
 use aster::session::TurnContextOverride;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
+use lime_core::workspace::WorkspaceSettings;
 
 const ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE: &str = "artifact_document_repaired";
 const ARTIFACT_DOCUMENT_FAILED_WARNING_CODE: &str = "artifact_document_failed";
 const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE: &str = "artifact_document_persist_failed";
+const AUTO_CONTEXT_COMPACTION_EVENT_PREFIX: &str = "agent_context_compaction_auto_internal";
+const AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE: &str = "context_compaction_auto_failed";
+const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not_needed";
 
 fn emit_runtime_side_event(
     app: &AppHandle,
@@ -783,6 +787,15 @@ async fn execute_aster_chat_request(
     if !state.is_provider_configured().await {
         return Err("Provider 未配置，请先调用 aster_agent_configure_provider".to_string());
     }
+    maybe_auto_compact_runtime_session_before_turn(
+        app,
+        state,
+        db,
+        session_id,
+        &request.event_name,
+        &workspace.settings,
+    )
+    .await?;
     let effective_provider_config = state.get_provider_config().await;
     let provider_routing_snapshot =
         effective_provider_config
@@ -1428,14 +1441,172 @@ fn build_compaction_session_metrics_update(
     }
 }
 
-pub(crate) async fn compact_runtime_session_internal(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuntimeSessionCompactionTrigger {
+    Manual,
+    Auto,
+}
+
+impl RuntimeSessionCompactionTrigger {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Auto => "auto",
+        }
+    }
+
+    fn start_detail(self) -> &'static str {
+        match self {
+            Self::Manual => "系统正在将较早消息整理为摘要，以释放上下文窗口。",
+            Self::Auto => "检测到会话历史已接近上限，系统正在自动整理较早消息以释放上下文窗口。",
+        }
+    }
+
+    fn completed_detail(self) -> &'static str {
+        match self {
+            Self::Manual => "较早消息已替换为摘要，后续回复会基于压缩后的上下文继续。",
+            Self::Auto => "较早消息已自动替换为摘要，本轮回复会基于压缩后的上下文继续。",
+        }
+    }
+}
+
+fn build_auto_context_compaction_event_name(session_id: &str) -> String {
+    format!(
+        "{AUTO_CONTEXT_COMPACTION_EVENT_PREFIX}_{session_id}_{}",
+        Uuid::new_v4()
+    )
+}
+
+async fn ensure_compaction_agent_initialized(
+    state: &AsterAgentState,
+    db: &DbConnection,
+) -> Result<(), String> {
+    state.init_agent_with_db(db).await
+}
+
+fn resolve_context_compaction_conversation<'a>(
+    session: &'a aster::session::Session,
+) -> Result<Option<&'a aster::conversation::Conversation>, String> {
+    let conversation = session
+        .conversation
+        .as_ref()
+        .ok_or_else(|| "当前会话上下文尚未准备完成，请稍后再试".to_string())?;
+    if session.message_count < 2 || conversation.messages().len() < 2 {
+        return Ok(None);
+    }
+    Ok(Some(conversation))
+}
+
+fn emit_context_compaction_skip(app: &AppHandle, event_name: &str, message: &str) {
+    let warning_event = RuntimeAgentEvent::Warning {
+        code: Some(CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE.to_string()),
+        message: message.to_string(),
+    };
+    if let Err(error) = app.emit(event_name, &warning_event) {
+        tracing::warn!("[AsterAgent] 发送压缩跳过提醒失败: {}", error);
+    }
+
+    let done_event = RuntimeAgentEvent::FinalDone { usage: None };
+    if let Err(error) = app.emit(event_name, &done_event) {
+        tracing::warn!("[AsterAgent] 发送压缩跳过完成事件失败: {}", error);
+    }
+}
+
+async fn should_auto_compact_runtime_session(
+    provider: &dyn aster::providers::base::Provider,
+    session: &aster::session::Session,
+    workspace_settings: &WorkspaceSettings,
+    threshold_override: Option<f64>,
+) -> Result<bool, String> {
+    if !workspace_settings.auto_compact {
+        return Ok(false);
+    }
+
+    let Some(conversation) = session.conversation.as_ref() else {
+        return Ok(false);
+    };
+    if session.message_count < 2 || conversation.messages().len() < 2 {
+        return Ok(false);
+    }
+
+    aster::context_mgmt::check_if_compaction_needed(
+        provider,
+        conversation,
+        threshold_override,
+        session,
+    )
+    .await
+    .map_err(|error| format!("检查自动压缩阈值失败: {error}"))
+}
+
+async fn maybe_auto_compact_runtime_session_before_turn(
     app: &AppHandle,
     state: &AsterAgentState,
     db: &DbConnection,
-    request: AgentRuntimeCompactSessionRequest,
+    session_id: &str,
+    request_event_name: &str,
+    workspace_settings: &WorkspaceSettings,
 ) -> Result<(), String> {
-    let session_id = normalize_required_text(&request.session_id, "session_id")?;
-    let event_name = normalize_required_text(&request.event_name, "event_name")?;
+    let session = read_session(session_id, true, "读取自动压缩会话失败").await?;
+    let agent_arc = state.get_agent_arc();
+    let guard = agent_arc.read().await;
+    let agent = guard.as_ref().ok_or("Agent not initialized")?;
+    let provider = agent
+        .provider()
+        .await
+        .map_err(|error| format!("读取自动压缩 provider 失败: {error}"))?;
+    if !should_auto_compact_runtime_session(provider.as_ref(), &session, workspace_settings, None)
+        .await?
+    {
+        return Ok(());
+    }
+
+    let auto_event_name = build_auto_context_compaction_event_name(session_id);
+    if let Err(error) = compact_runtime_session_with_trigger(
+        app,
+        state,
+        db,
+        session_id.to_string(),
+        auto_event_name,
+        RuntimeSessionCompactionTrigger::Auto,
+    )
+    .await
+    {
+        tracing::warn!(
+            "[AsterAgent] 自动压缩上下文失败，已降级继续当前 turn: session_id={}, error={}",
+            session_id,
+            error
+        );
+        let warning_event = RuntimeAgentEvent::Warning {
+            code: Some(AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE.to_string()),
+            message: format!("自动压缩上下文失败，已继续当前请求：{error}"),
+        };
+        if let Err(emit_error) = app.emit(request_event_name, &warning_event) {
+            tracing::warn!("[AsterAgent] 发送自动压缩失败提醒失败: {}", emit_error);
+        }
+    }
+
+    Ok(())
+}
+
+async fn compact_runtime_session_with_trigger(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    session_id: String,
+    event_name: String,
+    trigger: RuntimeSessionCompactionTrigger,
+) -> Result<(), String> {
+    ensure_compaction_agent_initialized(state, db).await?;
+
+    let session = read_session(&session_id, true, "读取会话失败").await?;
+    let Some(conversation) = resolve_context_compaction_conversation(&session)? else {
+        if trigger == RuntimeSessionCompactionTrigger::Manual {
+            emit_context_compaction_skip(app, &event_name, "当前会话还没有足够的历史可压缩");
+        }
+        return Ok(());
+    };
+
     let cancel_token = state.create_cancel_token(&session_id).await;
     let agent_arc = state.get_agent_arc();
 
@@ -1504,8 +1675,8 @@ pub(crate) async fn compact_runtime_session_internal(
         let compaction_item_id = format!("context_compaction:{compaction_turn_id}");
         let start_event = RuntimeAgentEvent::ContextCompactionStarted {
             item_id: compaction_item_id.clone(),
-            trigger: "manual".to_string(),
-            detail: Some("系统正在将较早消息整理为摘要，以释放上下文窗口。".to_string()),
+            trigger: trigger.as_str().to_string(),
+            detail: Some(trigger.start_detail().to_string()),
         };
         {
             let mut recorder = match timeline_recorder.lock() {
@@ -1523,16 +1694,12 @@ pub(crate) async fn compact_runtime_session_internal(
             tracing::error!("[AsterAgent] 发送压缩开始事件失败: {}", error);
         }
 
-        let session = read_session(&session_id, true, "读取会话失败").await?;
-        let conversation = session
-            .conversation
-            .ok_or_else(|| "Session has no conversation".to_string())?;
         let provider = agent
             .provider()
             .await
             .map_err(|error| format!("读取 provider 失败: {error}"))?;
         let (compacted_conversation, usage) =
-            aster::context_mgmt::compact_messages(provider.as_ref(), &conversation, true)
+            aster::context_mgmt::compact_messages(provider.as_ref(), conversation, true)
                 .await
                 .map_err(|error| format!("压缩上下文失败: {error}"))?;
         replace_session_conversation(&session_id, &compacted_conversation, "写回压缩后的会话")
@@ -1541,8 +1708,8 @@ pub(crate) async fn compact_runtime_session_internal(
 
         let completed_event = RuntimeAgentEvent::ContextCompactionCompleted {
             item_id: compaction_item_id,
-            trigger: "manual".to_string(),
-            detail: Some("较早消息已替换为摘要，后续回复会基于压缩后的上下文继续。".to_string()),
+            trigger: trigger.as_str().to_string(),
+            detail: Some(trigger.completed_detail().to_string()),
         };
         {
             let mut recorder = match timeline_recorder.lock() {
@@ -1609,6 +1776,25 @@ pub(crate) async fn compact_runtime_session_internal(
     drop(cancel_token);
     state.remove_cancel_token(&session_id).await;
     Ok(())
+}
+
+pub(crate) async fn compact_runtime_session_internal(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    request: AgentRuntimeCompactSessionRequest,
+) -> Result<(), String> {
+    let session_id = normalize_required_text(&request.session_id, "session_id")?;
+    let event_name = normalize_required_text(&request.event_name, "event_name")?;
+    compact_runtime_session_with_trigger(
+        app,
+        state,
+        db,
+        session_id,
+        event_name,
+        RuntimeSessionCompactionTrigger::Manual,
+    )
+    .await
 }
 
 fn extract_subagent_parent_session_id(metadata: Option<&serde_json::Value>) -> Option<String> {
@@ -2025,13 +2211,18 @@ pub(crate) fn build_runtime_queue_executor() -> RuntimeQueueExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aster::providers::base::{ProviderUsage, Usage};
+    use aster::conversation::message::Message;
+    use aster::model::ModelConfig;
+    use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use aster::providers::errors::ProviderError;
     use aster::session::{
         initialize_shared_session_runtime_with_root, is_global_session_store_set, SessionManager,
         SessionType,
     };
+    use async_trait::async_trait;
     use lime_core::database::schema::create_tables;
     use lime_services::aster_session_store::LimeSessionStore;
+    use rmcp::model::Tool;
     use rusqlite::Connection;
     use serde_json::{json, Value};
     use std::fs;
@@ -2058,6 +2249,74 @@ mod tests {
                 .expect("初始化测试 session manager 失败");
         })
         .await;
+    }
+
+    #[derive(Clone)]
+    struct AutoCompactThresholdTestProvider {
+        context_limit: Option<usize>,
+    }
+
+    impl AutoCompactThresholdTestProvider {
+        fn new(context_limit: Option<usize>) -> Self {
+            Self { context_limit }
+        }
+    }
+
+    #[async_trait]
+    impl Provider for AutoCompactThresholdTestProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::new(
+                "auto-compact-threshold-test",
+                "Auto Compact Threshold Test",
+                "用于测试自动压缩阈值判断的 provider",
+                "auto-compact-threshold-test-model",
+                vec!["auto-compact-threshold-test-model"],
+                "",
+                vec![],
+            )
+        }
+
+        fn get_name(&self) -> &str {
+            "auto-compact-threshold-test"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Err(ProviderError::ExecutionError(
+                "测试不应调用 complete_with_model".to_string(),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig {
+                model_name: "auto-compact-threshold-test-model".to_string(),
+                context_limit: self.context_limit,
+                temperature: None,
+                max_tokens: None,
+                toolshim: false,
+                toolshim_model: None,
+                fast_model: None,
+            }
+        }
+    }
+
+    fn build_auto_compaction_test_session(total_tokens: Option<i32>) -> aster::session::Session {
+        let conversation = aster::conversation::Conversation::new_unvalidated(vec![
+            Message::user().with_text("第一条用户消息"),
+            Message::assistant().with_text("第一条助手回复"),
+        ]);
+
+        aster::session::Session {
+            conversation: Some(conversation),
+            message_count: 2,
+            total_tokens,
+            ..aster::session::Session::default()
+        }
     }
 
     #[test]
@@ -2609,6 +2868,56 @@ mod tests {
         SessionManager::delete_session(&session.id)
             .await
             .expect("清理测试会话失败");
+    }
+
+    #[tokio::test]
+    async fn should_auto_compact_runtime_session_when_workspace_pref_enabled_and_context_threshold_exceeded(
+    ) {
+        let provider = AutoCompactThresholdTestProvider::new(Some(1_000));
+        let session = build_auto_compaction_test_session(Some(900));
+
+        assert!(should_auto_compact_runtime_session(
+            &provider,
+            &session,
+            &WorkspaceSettings::default(),
+            Some(0.8),
+        )
+        .await
+        .expect("检查自动压缩阈值失败"));
+    }
+
+    #[tokio::test]
+    async fn should_not_auto_compact_runtime_session_when_workspace_pref_disabled() {
+        let provider = AutoCompactThresholdTestProvider::new(Some(1_000));
+        let session = build_auto_compaction_test_session(Some(900));
+        let workspace_settings = WorkspaceSettings {
+            auto_compact: false,
+            ..WorkspaceSettings::default()
+        };
+
+        assert!(!should_auto_compact_runtime_session(
+            &provider,
+            &session,
+            &workspace_settings,
+            Some(0.8),
+        )
+        .await
+        .expect("检查自动压缩阈值失败"));
+    }
+
+    #[tokio::test]
+    async fn should_not_auto_compact_runtime_session_when_context_threshold_not_exceeded() {
+        let provider = AutoCompactThresholdTestProvider::new(Some(1_000));
+        let session = build_auto_compaction_test_session(Some(700));
+
+        assert!(!should_auto_compact_runtime_session(
+            &provider,
+            &session,
+            &WorkspaceSettings::default(),
+            Some(0.8),
+        )
+        .await
+        .expect("检查自动压缩阈值失败"));
     }
 
     #[test]

@@ -5,64 +5,26 @@
  */
 
 import type React from "react";
+import type {
+  CreationMode,
+  LayoutMode,
+  StepStatus,
+  StepType,
+  ThemeType,
+} from "@/lib/workspace/workbenchContract";
+
+export type {
+  ThemeType,
+  CreationMode,
+  LayoutMode,
+  StepType,
+  StepStatus,
+} from "@/lib/workspace/workbenchContract";
 
 /**
- * 主题类型（与 ProjectType 中的 UserType 保持一致）
- * - general: 通用对话
- * - social-media: 社媒内容
- * - poster: 图文海报
- * - music: 歌词曲谱
- * - knowledge: 知识探索
- * - planning: 计划规划
- * - document: 办公文档
- * - video: 短视频
- * - novel: 小说创作
+ * 共享主题 / 布局 / 流程状态类型已收口到 lib/workspace/workbenchContract。
+ * 本文件保留 re-export，避免现役 content-creator 内部模块在本轮治理中被迫联动改动。
  */
-export type ThemeType =
-  | "general"
-  | "social-media"
-  | "poster"
-  | "music"
-  | "knowledge"
-  | "planning"
-  | "document"
-  | "video"
-  | "novel";
-
-/**
- * 创作模式类型
- * - guided: 引导模式（AI 提问引导，用户参与度高）
- * - fast: 快速模式（AI 生成初稿，用户参与度低）
- * - hybrid: 混合模式（AI 写框架，用户填核心）
- * - framework: 框架模式（用户提供框架，AI 按框架填充）
- */
-export type CreationMode = "guided" | "fast" | "hybrid" | "framework";
-
-/**
- * 布局模式
- */
-export type LayoutMode = "chat" | "chat-canvas" | "canvas";
-
-/**
- * 步骤类型
- */
-export type StepType =
-  | "clarify" // 明确需求
-  | "research" // 调研收集
-  | "outline" // 生成大纲
-  | "write" // 撰写内容
-  | "polish" // 润色优化
-  | "adapt"; // 适配发布
-
-/**
- * 步骤状态
- */
-export type StepStatus =
-  | "pending"
-  | "active"
-  | "completed"
-  | "skipped"
-  | "error";
 
 /**
  * 表单字段类型

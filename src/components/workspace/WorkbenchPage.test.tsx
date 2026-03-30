@@ -82,6 +82,29 @@ vi.mock("@/components/agent", () => ({
   },
 }));
 
+vi.mock("@/lib/workspace/workbenchCanvas", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/workspace/workbenchCanvas")>();
+  return {
+    ...actual,
+    VideoCanvas: ({ projectId }: { projectId?: string | null }) => (
+      <div data-testid="video-canvas">video:{projectId ?? "none"}</div>
+    ),
+    createInitialVideoState: () => ({
+      type: "video",
+      prompt: "",
+      providerId: "",
+      model: "",
+      duration: 5,
+      generateAudio: false,
+      cameraFixed: false,
+      aspectRatio: "adaptive",
+      resolution: "720p",
+      status: "idle",
+    }),
+  };
+});
+
 vi.mock("@/components/content-creator/canvas/video", () => ({
   VideoCanvas: ({ projectId }: { projectId?: string | null }) => (
     <div data-testid="video-canvas">video:{projectId ?? "none"}</div>

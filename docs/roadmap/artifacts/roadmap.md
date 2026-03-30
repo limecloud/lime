@@ -28,7 +28,7 @@
 - `src/components/agent/chat/components/AgentThreadTimeline.tsx`
 - `src/components/agent/chat/workspace/workbenchPreview.tsx`
 - `src/components/agent/chat/workspace/WorkspaceCanvasContent.tsx`
-- `src/components/content-creator/core/CanvasContainer/CanvasContainer.tsx`
+- `src/lib/workspace/workbenchCanvas.ts`
 - `src/components/content-creator/canvas/document/DocumentRenderer.tsx`
 - `src/components/content-creator/canvas/document/editor/NotionEditor.tsx`
 - `src-tauri/src/services/agent_timeline_service.rs`
@@ -795,7 +795,7 @@ Lime 是本地优先产品，Artifact 应支持落盘，但不能写死平台路
 | `WorkspaceCanvasContent.tsx` | 继续承载右侧主预览容器 |
 | `NotionEditor.tsx` | 作为编辑态主内核 |
 | `AgentThreadTimeline.tsx` | 作为过程层和来源层入口 |
-| `CanvasContainer.tsx` | 继续承接主题类 Canvas |
+| `workbenchCanvas.ts + CanvasFactory.tsx` | 继续承接主题类 Canvas 共享网关与渲染分发 |
 
 ## 12.2 建议新增的目录
 

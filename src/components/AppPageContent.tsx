@@ -15,13 +15,13 @@ import type {
   Page,
   PageParams,
   SettingsPageParams,
-  StylePageParams,
 } from "@/types/page";
 import {
   getThemeByWorkspacePage,
   isThemeWorkspacePage,
   type ThemeWorkspacePage,
 } from "@/types/page";
+import { SettingsPageV2 } from "./settings-v2";
 
 const PageWrapper = styled.div<{ $isActive: boolean }>`
   flex: 1;
@@ -46,11 +46,6 @@ const columnPageStyle = {
   flexDirection: "column",
 } as const;
 
-const SettingsPageV2 = lazy(() =>
-  import("./settings-v2").then((module) => ({
-    default: module.SettingsPageV2,
-  })),
-);
 const ToolsPage = lazy(() =>
   import("./tools/ToolsPage").then((module) => ({
     default: module.ToolsPage,
@@ -64,11 +59,6 @@ const ResourcesPage = lazy(() =>
 const MemoryPage = lazy(() =>
   import("./memory").then((module) => ({
     default: module.MemoryPage,
-  })),
-);
-const StylePage = lazy(() =>
-  import("./style").then((module) => ({
-    default: module.StylePage,
   })),
 );
 const PluginsPage = lazy(() =>
@@ -161,12 +151,6 @@ function renderThemeWorkspace(
         theme={theme}
         viewMode={agentPageParams.workspaceViewMode}
         resetAt={agentPageParams.workspaceResetAt}
-        initialStyleGuideDialogOpen={
-          agentPageParams.workspaceOpenProjectStyleGuide
-        }
-        initialStyleGuideSourceEntryId={
-          agentPageParams.workspaceOpenProjectStyleGuideSourceEntryId
-        }
         initialCreatePrompt={agentPageParams.workspaceCreatePrompt}
         initialCreateSource={agentPageParams.workspaceCreateSource}
         initialCreateFallbackTitle={
@@ -330,17 +314,6 @@ export function AppPageContent({
       <PageWrapper $isActive={true}>
         <PluginsPage onNavigate={onNavigate} />
       </PageWrapper>
-    );
-  }
-
-  if (currentPage === "style") {
-    return (
-      <div style={columnPageStyle}>
-        <StylePage
-          onNavigate={onNavigate}
-          pageParams={pageParams as StylePageParams}
-        />
-      </div>
     );
   }
 

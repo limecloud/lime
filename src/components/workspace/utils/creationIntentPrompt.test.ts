@@ -85,7 +85,7 @@ describe("creationIntentPrompt", () => {
     });
 
     expect(prompt).toContain("[创作模式] 框架模式");
-    expect(prompt).toContain("[创作主题] 社媒选题方法论");
+    expect(prompt).toContain("[主题方向] 社媒选题方法论");
     expect(prompt).toContain("[框架提纲]");
     expect(prompt).toContain("[补充要求] 语气务实，避免空话");
     expect(prompt).toContain("[执行要求]");
@@ -104,7 +104,7 @@ describe("creationIntentPrompt", () => {
 
     expect(metadata.mode).toBe("guided");
     expect(metadata.topic).toBe("品牌故事写作");
-    expect(metadata["创作主题"]).toBe("品牌故事写作");
+    expect(metadata["主题方向"]).toBe("品牌故事写作");
     expect(metadata.intentText).toBeTruthy();
   });
 });

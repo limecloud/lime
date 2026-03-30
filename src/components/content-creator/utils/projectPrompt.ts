@@ -10,10 +10,8 @@ import type {
   WorldBuilding,
   OutlineNode,
 } from "@/lib/api/memory";
-import {
-  buildStylePromptFromGuide,
-  hasStyleGuideContent,
-} from "@/lib/style-guide";
+
+export { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
 
 /**
  * 生成角色提示词
@@ -137,24 +135,9 @@ export function generateProjectMemoryPrompt(memory: ProjectMemory): string {
     prompt += generateWorldBuildingPrompt(memory.world_building);
   }
 
-  if (hasStyleGuideContent(memory.style_guide)) {
-    const stylePrompt = buildStylePromptFromGuide(memory.style_guide);
-    if (stylePrompt) {
-      prompt += `${stylePrompt}\n\n`;
-    }
-  }
-
   if (memory.outline.length > 0) {
     prompt += generateOutlinePrompt(memory.outline);
   }
 
   return prompt.trim();
-}
-
-/**
- * 判断主题是否为内容创作主题
- * 统一后，除了 general 以外都是内容创作主题
- */
-export function isContentCreationTheme(theme: string): boolean {
-  return theme !== "general";
 }

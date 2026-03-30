@@ -33,7 +33,7 @@ function createDialogProps(
     currentCreationIntentFields: [
       {
         key: "topic",
-        label: "创作主题",
+        label: "主题方向",
         placeholder: "请输入主题",
       },
     ],

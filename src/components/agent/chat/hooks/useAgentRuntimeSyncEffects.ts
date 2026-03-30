@@ -24,6 +24,7 @@ interface UseAgentRuntimeSyncEffectsOptions {
   sessionId: string | null;
   parentSessionId?: string | null;
   isSending: boolean;
+  threadReadStatus?: string | null;
   queuedTurnCount: number;
   threadTurns: AgentThreadTurn[];
   refreshSessionDetail: (targetSessionId?: string) => Promise<unknown>;
@@ -38,6 +39,7 @@ export function useAgentRuntimeSyncEffects(
     sessionId,
     parentSessionId,
     isSending,
+    threadReadStatus,
     queuedTurnCount,
     threadTurns,
     refreshSessionDetail,
@@ -68,8 +70,12 @@ export function useAgentRuntimeSyncEffects(
       return;
     }
 
+    const normalizedThreadReadStatus = (threadReadStatus || "").toLowerCase();
     const hasRecoveredQueueWork =
-      queuedTurnCount > 0 || threadTurns.some((turn) => turn.status === "running");
+      normalizedThreadReadStatus === "running" ||
+      normalizedThreadReadStatus === "queued" ||
+      queuedTurnCount > 0 ||
+      threadTurns.some((turn) => turn.status === "running");
     if (!hasRecoveredQueueWork) {
       return;
     }
@@ -83,6 +89,7 @@ export function useAgentRuntimeSyncEffects(
     };
   }, [
     isSending,
+    threadReadStatus,
     queuedTurnCount,
     refreshSessionDetail,
     sessionId,

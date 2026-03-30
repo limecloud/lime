@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentProtocol";
 import type {
   AsterSessionExecutionRuntime,
@@ -88,6 +88,7 @@ describe("agentStreamSubmitExecution", () => {
       },
       appendThinkingToParts: (parts: NonNullable<Message["contentParts"]>) => parts,
       setMessages: noopDispatch<Message[]>(),
+      setIsSending: noopDispatch<boolean>(),
       setPendingActions: noopDispatch<ActionRequired[]>(),
       setThreadItems: noopDispatch<AgentThreadItem[]>(),
       setThreadTurns: noopDispatch<AgentThreadTurn[]>(),

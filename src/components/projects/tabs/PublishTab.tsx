@@ -14,7 +14,7 @@ import {
   SettingsIcon,
   HistoryIcon,
 } from "lucide-react";
-import type { Platform } from "@/types/template";
+import type { Platform } from "@/types/platform";
 
 export interface PublishTabProps {
   /** 项目 ID */

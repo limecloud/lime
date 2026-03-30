@@ -129,6 +129,7 @@ export async function submitAgentStreamUserInput(
       },
       appendThinkingToParts: env.appendThinkingToParts,
       setMessages: env.setMessages,
+      setIsSending: env.setIsSending,
       setPendingActions: env.setPendingActions,
       setThreadItems: env.setThreadItems,
       setThreadTurns: env.setThreadTurns,

@@ -1,6 +1,6 @@
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import type { DocumentVersion } from "@/components/content-creator/canvas/document/types";
-import type { StepStatus } from "@/components/content-creator/types";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import type { DocumentVersion } from "@/lib/workspace/workbenchCanvas";
+import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type {
   ThemeWorkbenchRunTodoItem,
   ThemeWorkbenchRunTerminalItem,

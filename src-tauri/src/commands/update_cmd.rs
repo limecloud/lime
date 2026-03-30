@@ -799,14 +799,18 @@ mod tests {
     use super::*;
 
     fn next_patch_version_tag() -> String {
-        let mut parts = env!("CARGO_PKG_VERSION")
+        let version_core = env!("CARGO_PKG_VERSION")
+            .split(['-', '+'])
+            .next()
+            .unwrap_or(env!("CARGO_PKG_VERSION"));
+        let mut parts = version_core
             .split('.')
             .map(|segment| segment.parse::<u64>().expect("版本段必须为数字"))
             .collect::<Vec<_>>();
         assert!(
             parts.len() == 3,
             "当前包版本应为三段式 semver，实际为 {}",
-            env!("CARGO_PKG_VERSION")
+            version_core
         );
         parts[2] += 1;
         format!("v{}.{}.{}", parts[0], parts[1], parts[2])

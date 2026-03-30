@@ -32,7 +32,6 @@ const mockPriorityCommands = new Set<string>([
   "session_files_delete_file",
   "execution_run_get_theme_workbench_state",
   "get_hint_routes",
-  "content_workflow_get_by_content",
   "openclaw_check_installed",
   "openclaw_get_environment_status",
   "openclaw_check_node_version",

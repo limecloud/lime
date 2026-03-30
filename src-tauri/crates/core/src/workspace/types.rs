@@ -239,7 +239,7 @@ pub struct WorkspaceAgentTeamSettings {
 }
 
 /// Workspace 级别设置
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSettings {
     /// Workspace 级 MCP 配置
@@ -263,6 +263,21 @@ pub struct WorkspaceSettings {
     /// Team 运行时偏好
     #[serde(skip_serializing_if = "Option::is_none", alias = "agent_team")]
     pub agent_team: Option<WorkspaceAgentTeamSettings>,
+}
+
+impl Default for WorkspaceSettings {
+    fn default() -> Self {
+        Self {
+            mcp_config: None,
+            default_provider: None,
+            // 默认启用自动压缩，让长线程按上下文窗口阈值在下一回合前优先收缩上下文。
+            auto_compact: true,
+            image_generation: None,
+            video_generation: None,
+            voice_generation: None,
+            agent_team: None,
+        }
+    }
 }
 
 /// 项目统计信息
@@ -592,6 +607,13 @@ mod tests {
             custom_teams[0].roles[0].role_key.as_deref(),
             Some("explorer")
         );
+    }
+
+    #[test]
+    fn test_workspace_settings_default_enables_auto_compact() {
+        let settings = WorkspaceSettings::default();
+
+        assert!(settings.auto_compact);
     }
 
     #[test]

@@ -3,16 +3,25 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsTabs } from "@/types/settings";
 
+const { mockSettingsSidebar, mockPreloadDeveloperDefaultSections } =
+  vi.hoisted(() => ({
+    mockSettingsSidebar: vi.fn(),
+    mockPreloadDeveloperDefaultSections: vi.fn(),
+  }));
+
 const { mockResolveOemCloudRuntimeContext } = vi.hoisted(() => ({
   mockResolveOemCloudRuntimeContext: vi.fn(),
 }));
 
 vi.mock("./SettingsSidebar", () => ({
-  SettingsSidebar: () => <div data-testid="settings-sidebar">sidebar</div>,
+  SettingsSidebar: (props: unknown) => {
+    mockSettingsSidebar(props);
+    return <div data-testid="settings-sidebar">sidebar</div>;
+  },
 }));
 
 vi.mock(
-  "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader",
+  "@/lib/workspace/workbenchUi",
   () => ({
     CanvasBreadcrumbHeader: ({ label }: { label: string }) => (
       <div>{label}</div>
@@ -40,6 +49,9 @@ vi.mock("../system/experimental", () => ({
 }));
 vi.mock("../system/developer", () => ({
   DeveloperSettings: () => <div>developer</div>,
+}));
+vi.mock("../system/developer/preload", () => ({
+  preloadDeveloperDefaultSections: mockPreloadDeveloperDefaultSections,
 }));
 vi.mock("../system/about", () => ({
   AboutSection: () => <div>about</div>,
@@ -120,6 +132,14 @@ function renderComponent(
   return container;
 }
 
+async function flushEffects(times = 6) {
+  await act(async () => {
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -134,6 +154,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  mockSettingsSidebar.mockReset();
+  mockPreloadDeveloperDefaultSections.mockReset();
 
   while (mounted.length > 0) {
     const current = mounted.pop();
@@ -149,8 +171,9 @@ afterEach(() => {
 });
 
 describe("SettingsLayoutV2 Profile Tab", () => {
-  it("OEM 运行时下只展示统一账户页，不再渲染本地资料编辑器", () => {
+  it("OEM 运行时下只展示统一账户页，不再渲染本地资料编辑器", async () => {
     const container = renderComponent(SettingsTabs.Profile);
+    await flushEffects();
     const text = container.textContent ?? "";
 
     expect(text).toContain("账号与资料");
@@ -158,10 +181,11 @@ describe("SettingsLayoutV2 Profile Tab", () => {
     expect(text).not.toContain("PROFILE_SETTINGS");
   });
 
-  it("非 OEM 运行时下仍保留本地资料编辑器", () => {
+  it("非 OEM 运行时下仍保留本地资料编辑器", async () => {
     mockResolveOemCloudRuntimeContext.mockReturnValue(null);
 
     const container = renderComponent(SettingsTabs.Profile);
+    await flushEffects();
     const text = container.textContent ?? "";
 
     expect(text).toContain("个人资料");
@@ -175,11 +199,48 @@ describe("SettingsLayoutV2 Channels Redirect", () => {
     const onNavigate = vi.fn();
 
     renderComponent(SettingsTabs.Channels, onNavigate);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await flushEffects();
 
     expect(onNavigate).toHaveBeenCalledWith("channels");
+  });
+});
+
+describe("SettingsLayoutV2 Experimental Tab", () => {
+  it("实验功能页应复用标准设置页标题", async () => {
+    const container = renderComponent(SettingsTabs.Experimental);
+    await flushEffects();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("实验功能");
+    expect(text).toContain("experimental");
+  });
+});
+
+describe("SettingsLayoutV2 Developer Tab", () => {
+  it("开发者页应复用标准设置页标题", async () => {
+    const container = renderComponent(SettingsTabs.Developer);
+    await flushEffects();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("开发者");
+    expect(text).toContain("developer");
+  });
+
+  it("预取开发者页时应连同延迟区块一起预热", async () => {
+    renderComponent(SettingsTabs.Home);
+    const sidebarProps = mockSettingsSidebar.mock.calls[0]?.[0] as
+      | {
+          onTabPrefetch?: (tab: SettingsTabs) => void;
+        }
+      | undefined;
+
+    expect(sidebarProps?.onTabPrefetch).toBeTypeOf("function");
+
+    await act(async () => {
+      sidebarProps?.onTabPrefetch?.(SettingsTabs.Developer);
+      await flushEffects();
+    });
+
+    expect(mockPreloadDeveloperDefaultSections).toHaveBeenCalledTimes(1);
   });
 });

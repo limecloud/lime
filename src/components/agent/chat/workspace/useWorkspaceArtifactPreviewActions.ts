@@ -5,11 +5,11 @@ import {
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import { createInitialDocumentState } from "@/components/content-creator/canvas/document";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import { createInitialMusicState } from "@/components/content-creator/canvas/music/types";
-import { parseLyrics } from "@/components/content-creator/canvas/music/utils/lyricsParser";
-import type { LayoutMode, ThemeType } from "@/components/content-creator/types";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import { createInitialMusicState } from "@/lib/workspace/workbenchCanvas";
+import { parseLyrics } from "@/lib/workspace/workbenchCanvas";
+import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import { readFilePreview } from "@/lib/api/fileBrowser";
 import type { SessionFile } from "@/lib/api/session-files";
 import type { Artifact } from "@/lib/artifact/types";

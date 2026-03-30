@@ -32,14 +32,12 @@
 //! - `backup_service` - 备份服务
 //! - `material_service` - 素材服务
 //! - `persona_service` - 人设服务
-//! - `template_service` - 模板服务
 //! - `model_registry_service` - 模型注册服务
 //! - `model_service` - 模型服务
 //! - `prompt_service` - Prompt 服务
 //! - `mcp_service` - MCP 服务
 //! - `switch` - Provider 切换
 //! - `aster_session_store` - Aster 会话存储
-//! - `content_creator` - 内容创作
 //! - `session_context_service` - 会话上下文服务
 //! - `ai_summary_service` - AI 摘要服务
 //! - `project_context_builder` - 项目上下文构建器
@@ -80,10 +78,6 @@ pub mod model_service;
 pub mod persona_service;
 pub mod prompt_service;
 pub mod switch;
-pub mod template_service;
-
-// 子模块
-pub mod content_creator;
 
 // 依赖其他 services 的服务
 pub mod ai_summary_service;

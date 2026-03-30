@@ -4,7 +4,7 @@ import type { TaskFile } from "../../TaskFiles";
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 import type { A2UISubmissionNoticeData } from "./A2UISubmissionNotice";
 import { HintRoutePopup } from "./HintRoutePopup";
 import { TaskFilesPanel } from "./TaskFilesPanel";

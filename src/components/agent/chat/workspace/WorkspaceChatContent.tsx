@@ -1,9 +1,8 @@
 import type { ComponentProps, ReactNode } from "react";
 import { Info } from "lucide-react";
-import { StepProgress } from "@/components/content-creator/core/StepGuide/StepProgress";
+import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { EmptyState } from "../components/EmptyState";
 import { MessageList } from "../components/MessageList";
-import { RuntimeStyleControlBar } from "../components/RuntimeStyleControlBar";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import { WorkspacePendingA2UIDialog } from "./WorkspacePendingA2UIDialog";
 import {
@@ -18,7 +17,7 @@ import {
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 import type { A2UISubmissionNoticeData } from "../components/Inputbar/components/A2UISubmissionNotice";
 
 interface WorkspaceChatContentProps {
@@ -27,9 +26,6 @@ interface WorkspaceChatContentProps {
   onDismissEntryBanner: () => void;
   serviceSkillExecutionCard?: ReactNode;
   stepProgressProps?: ComponentProps<typeof StepProgress> | null;
-  runtimeStyleControlBarProps?: ComponentProps<
-    typeof RuntimeStyleControlBar
-  > | null;
   showChatLayout: boolean;
   compactChrome: boolean;
   contextWorkspaceEnabled: boolean;
@@ -53,7 +49,6 @@ export function WorkspaceChatContent({
   onDismissEntryBanner,
   serviceSkillExecutionCard,
   stepProgressProps,
-  runtimeStyleControlBarProps,
   showChatLayout,
   compactChrome,
   contextWorkspaceEnabled,
@@ -95,9 +90,6 @@ export function WorkspaceChatContent({
         ) : null}
 
         {stepProgressProps ? <StepProgress {...stepProgressProps} /> : null}
-        {runtimeStyleControlBarProps ? (
-          <RuntimeStyleControlBar {...runtimeStyleControlBarProps} />
-        ) : null}
         {serviceSkillExecutionCard}
 
         {showChatLayout ? (

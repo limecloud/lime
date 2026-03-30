@@ -7,7 +7,7 @@ use crate::protocol::{AgentEvent as RuntimeAgentEvent, AgentRuntimeStatus, Agent
 use crate::protocol_projection::project_runtime_event;
 use crate::write_artifact_events::WriteArtifactEventEmitter;
 use aster::agents::{Agent, AgentEvent as AsterAgentEvent};
-use aster::conversation::message::Message;
+use aster::conversation::message::{Message, MessageContent, SystemNotificationType};
 use aster::tools::ToolContext;
 use chrono::{Datelike, Local, NaiveDate};
 use futures::{stream, StreamExt};
@@ -50,6 +50,10 @@ const NEWS_PREFLIGHT_QUERY_OUTPUT_CHAR_LIMIT: usize = 1_600;
 const NEWS_PREFLIGHT_CONTEXT_CHAR_LIMIT: usize = 6_000;
 const NEWS_PREFLIGHT_RESULT_LINES: usize = 18;
 const WEB_SEARCH_EMPTY_REPLY_RETRY_PROMPT: &str = "请继续。你已经完成本回合所需的 WebSearch 预检索，现在必须直接给出最终答复，不要再次调用 WebSearch 或 WebFetch。请至少输出：1. 结论摘要；2. 主题归纳；3. 关键信息；4. 如有分歧，说明来源差异。";
+const ASTER_AUTO_COMPACTION_START_PREFIX: &str = "Exceeded auto-compact threshold of ";
+const ASTER_AUTO_COMPACTION_COMPLETE_TEXT: &str = "Compaction complete";
+const ASTER_AUTO_COMPACTION_THINKING_TEXT: &str = "aster is compacting the conversation...";
+const ASTER_AUTO_COMPACTION_ERROR_PREFIX: &str = "Ran into this error trying to compact:";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -342,6 +346,90 @@ pub struct StreamReplyExecution {
     pub event_errors: Vec<String>,
     pub emitted_any: bool,
     pub attempts_summary: String,
+}
+
+#[derive(Debug, Default)]
+struct AutoCompactionProjectionState;
+
+impl AutoCompactionProjectionState {
+    fn project_event(&mut self, agent_event: &AsterAgentEvent) -> Option<Vec<RuntimeAgentEvent>> {
+        match agent_event {
+            AsterAgentEvent::Message(message) => self.project_message(message),
+            _ => None,
+        }
+    }
+
+    fn project_message(&mut self, message: &Message) -> Option<Vec<RuntimeAgentEvent>> {
+        let Some((notification_type, notification_text)) =
+            extract_single_system_notification(message)
+        else {
+            let error_message = extract_auto_compaction_failure(message)?;
+            return Some(vec![RuntimeAgentEvent::Error {
+                message: error_message,
+            }]);
+        };
+
+        match notification_type {
+            SystemNotificationType::InlineMessage
+                if notification_text.starts_with(ASTER_AUTO_COMPACTION_START_PREFIX) =>
+            {
+                Some(vec![])
+            }
+            SystemNotificationType::ThinkingMessage
+                if notification_text == ASTER_AUTO_COMPACTION_THINKING_TEXT =>
+            {
+                Some(vec![])
+            }
+            SystemNotificationType::InlineMessage
+                if notification_text == ASTER_AUTO_COMPACTION_COMPLETE_TEXT =>
+            {
+                Some(vec![])
+            }
+            _ => None,
+        }
+    }
+}
+
+fn extract_single_system_notification(message: &Message) -> Option<(SystemNotificationType, &str)> {
+    if message.content.len() != 1 {
+        return None;
+    }
+
+    match message.content.first()? {
+        MessageContent::SystemNotification(notification) => Some((
+            notification.notification_type.clone(),
+            notification.msg.trim(),
+        )),
+        _ => None,
+    }
+}
+
+fn extract_auto_compaction_failure(message: &Message) -> Option<String> {
+    let text = message.as_concat_text();
+    let trimmed = text.trim();
+    if !trimmed.starts_with(ASTER_AUTO_COMPACTION_ERROR_PREFIX) {
+        return None;
+    }
+
+    let detail = trimmed
+        .trim_start_matches(ASTER_AUTO_COMPACTION_ERROR_PREFIX)
+        .trim()
+        .split_once("\n\nPlease try again or create a new session")
+        .map(|(left, _)| left.trim())
+        .unwrap_or_else(|| {
+            trimmed
+                .trim_start_matches(ASTER_AUTO_COMPACTION_ERROR_PREFIX)
+                .trim()
+        })
+        .trim_end_matches('.');
+
+    let message = if detail.is_empty() {
+        "自动压缩上下文失败，请重试或新建会话。".to_string()
+    } else {
+        format!("自动压缩上下文失败，请重试或新建会话：{detail}")
+    };
+
+    Some(message)
 }
 
 impl RequestToolPolicy {
@@ -1081,6 +1169,7 @@ async fn stream_agent_reply_once<F>(
 where
     F: FnMut(&RuntimeAgentEvent),
 {
+    let mut auto_compaction_projection = AutoCompactionProjectionState::default();
     let mut stream = agent
         .reply(user_message, session_config, cancel_token)
         .await
@@ -1099,7 +1188,9 @@ where
                     }
                     _ => None,
                 };
-                let runtime_events = project_runtime_event(agent_event);
+                let runtime_events = auto_compaction_projection
+                    .project_event(&agent_event)
+                    .unwrap_or_else(|| project_runtime_event(agent_event));
                 for mut runtime_event in runtime_events {
                     let extra_events = write_artifact_emitter.process_event(&mut runtime_event);
                     for extra_event in &extra_events {
@@ -1507,6 +1598,12 @@ where
 
     let final_text_output = text_chunks.join("");
     if final_text_output.trim().is_empty() {
+        if let Some(last_error) = event_errors.last() {
+            return Err(ReplyAttemptError {
+                message: last_error.clone(),
+                emitted_any,
+            });
+        }
         return Err(ReplyAttemptError {
             message: format!(
                 "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: {}",
@@ -1723,5 +1820,66 @@ mod tests {
             merge_system_prompt_with_web_search_synthesis_instruction(Some(merged.clone()))
                 .expect("prompt should be preserved");
         assert_eq!(preserved, merged);
+    }
+
+    #[test]
+    fn auto_compaction_projection_swallows_aster_compaction_system_notifications() {
+        let mut state = AutoCompactionProjectionState::default();
+
+        let start_events = state.project_event(&AsterAgentEvent::Message(
+            Message::assistant().with_system_notification(
+                SystemNotificationType::InlineMessage,
+                "Exceeded auto-compact threshold of 80%. Performing auto-compaction...",
+            ),
+        ));
+        assert!(matches!(start_events, Some(events) if events.is_empty()));
+
+        let thinking_events = state
+            .project_event(&AsterAgentEvent::Message(
+                Message::assistant().with_system_notification(
+                    SystemNotificationType::ThinkingMessage,
+                    ASTER_AUTO_COMPACTION_THINKING_TEXT,
+                ),
+            ))
+            .expect("应识别自动压缩 thinking 通知");
+        assert!(thinking_events.is_empty());
+
+        let complete_events = state
+            .project_event(&AsterAgentEvent::Message(
+                Message::assistant().with_system_notification(
+                    SystemNotificationType::InlineMessage,
+                    ASTER_AUTO_COMPACTION_COMPLETE_TEXT,
+                ),
+            ))
+            .expect("应识别自动压缩完成通知");
+        assert!(complete_events.is_empty());
+    }
+
+    #[test]
+    fn auto_compaction_projection_surfaces_compaction_failure_as_error() {
+        let mut state = AutoCompactionProjectionState::default();
+        let _ = state.project_event(&AsterAgentEvent::Message(
+            Message::assistant().with_system_notification(
+                SystemNotificationType::InlineMessage,
+                "Exceeded auto-compact threshold of 80%. Performing auto-compaction...",
+            ),
+        ));
+
+        let failure_events = state
+            .project_event(&AsterAgentEvent::Message(Message::assistant().with_text(
+                "Ran into this error trying to compact: context window exceeded.\n\nPlease try again or create a new session",
+            )))
+            .expect("应识别自动压缩失败事件");
+
+        assert_eq!(failure_events.len(), 1);
+        match &failure_events[0] {
+            RuntimeAgentEvent::Error { message } => {
+                assert_eq!(
+                    message,
+                    "自动压缩上下文失败，请重试或新建会话：context window exceeded"
+                );
+            }
+            other => panic!("Expected compaction error event, got {other:?}"),
+        }
     }
 }

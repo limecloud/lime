@@ -14,7 +14,6 @@ import {
   ContentTab,
   PersonaTab,
   MaterialTab,
-  TemplateTab,
   PublishTab,
   NovelPublishTab,
   SettingsTab,
@@ -24,7 +23,6 @@ export type ProjectTab =
   | "content"
   | "persona"
   | "material"
-  | "template"
   | "publish"
   | "settings";
 
@@ -103,7 +101,6 @@ export function ProjectDetailPage({
           <TabsTrigger value="content">内容</TabsTrigger>
           {!isNovelProject && <TabsTrigger value="persona">人设</TabsTrigger>}
           <TabsTrigger value="material">素材</TabsTrigger>
-          <TabsTrigger value="template">排版</TabsTrigger>
           <TabsTrigger value="publish">发布</TabsTrigger>
           <TabsTrigger value="settings">设置</TabsTrigger>
         </TabsList>
@@ -124,9 +121,6 @@ export function ProjectDetailPage({
           )}
           <TabsContent value="material" className="h-full m-0 overflow-y-auto">
             <MaterialTab projectId={projectId} />
-          </TabsContent>
-          <TabsContent value="template" className="h-full m-0 overflow-y-auto">
-            <TemplateTab projectId={projectId} />
           </TabsContent>
           <TabsContent value="publish" className="h-full m-0 overflow-y-auto">
             {project.workspaceType === "novel" ? (

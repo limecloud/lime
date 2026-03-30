@@ -54,7 +54,7 @@ describe("service skill workspace launch", () => {
     });
   });
 
-  it("非内容创作主题不应强制生成内容种子", () => {
+  it("非内容工作区主题不应强制生成内容种子", () => {
     expect(
       buildServiceSkillWorkspaceSeed(
         createSkill({

@@ -2,7 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
+import type { A2UIResponse } from "@/lib/workspace/a2ui";
 import { useStickyA2UIForm } from "./useStickyA2UIForm";
 
 type HookProps = Parameters<typeof useStickyA2UIForm>[0];

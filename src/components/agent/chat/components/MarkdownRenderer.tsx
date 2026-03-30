@@ -8,9 +8,9 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import styled from "styled-components";
 import { Copy, Check, Quote } from "lucide-react";
-import { parseA2UIJson } from "@/components/content-creator/a2ui/parser";
-import type { A2UIFormData } from "@/components/content-creator/a2ui/types";
-import { CHAT_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
+import { parseA2UIJson } from "@/lib/workspace/a2ui";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
+import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { ArtifactPlaceholder } from "./ArtifactPlaceholder";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
@@ -106,7 +106,7 @@ const MarkdownContainer = styled.div`
     opacity: 0.9;
   }
 
-  code {
+  code[data-inline-code="true"] {
     font-family:
       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
@@ -353,6 +353,28 @@ const PLAIN_TEXT_LANGUAGES = new Set(["text", "plaintext", "plain", "txt"]);
 const FLOW_ARROW_ONLY_PATTERN = /^(↓|⬇|⇣|↧|->|=>|→|↘|v)$/u;
 const CODE_SIGNAL_PATTERN =
   /[{}[\];=]|\b(const|let|var|function|class|return|import|export|interface|type|async|await)\b/;
+const LANGUAGE_CLASS_PATTERN = /\blanguage-([^\s]+)/i;
+const CODE_LANGUAGE_ALIASES: Record<string, string> = {
+  "c#": "csharp",
+  "c++": "cpp",
+  js: "javascript",
+  md: "markdown",
+  objc: "objectivec",
+  "objective-c": "objectivec",
+  plain: "text",
+  plaintext: "text",
+  ps1: "powershell",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  sh: "bash",
+  shell: "bash",
+  text: "text",
+  ts: "typescript",
+  txt: "text",
+  yml: "yaml",
+  zsh: "bash",
+};
 
 interface MarkdownRendererProps {
   content: string;
@@ -375,7 +397,17 @@ interface MarkdownRendererProps {
 }
 
 function normalizeCodeLanguage(language: string): string {
-  return language.trim().toLowerCase();
+  const normalized = language.trim().toLowerCase();
+  if (!normalized) {
+    return "text";
+  }
+
+  return CODE_LANGUAGE_ALIASES[normalized] ?? normalized;
+}
+
+function extractCodeLanguageToken(className: string): string {
+  const match = LANGUAGE_CLASS_PATTERN.exec(className);
+  return (match?.[1] ?? "text").trim().toLowerCase() || "text";
 }
 
 function resolveCodePresentationMode(
@@ -789,8 +821,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
 
                   const childProps = child.props as any;
                   const className = childProps?.className || "";
-                  const match = /language-(\w+)/.exec(className);
-                  const language = match ? match[1] : "text";
+                  const rawLanguage = extractCodeLanguageToken(className);
+                  const language = normalizeCodeLanguage(rawLanguage);
                   const codeChildren = childProps?.children;
                   const codeContent = String(
                     Array.isArray(codeChildren)
@@ -830,17 +862,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                   const shouldRenderArtifactPlaceholder =
                     collapseCodeBlocks &&
                     (shouldCollapseCodeBlock
-                      ? shouldCollapseCodeBlock(language, codeContent)
+                      ? shouldCollapseCodeBlock(rawLanguage, codeContent)
                       : true);
 
                   if (shouldRenderArtifactPlaceholder) {
                     const lineCount = codeContent.split("\n").length;
                     return (
                       <ArtifactPlaceholder
-                        language={language}
+                        language={rawLanguage}
                         lineCount={isStreaming ? undefined : lineCount}
                         isStreaming={isStreaming}
-                        onClick={() => onCodeBlockClick?.(language, codeContent)}
+                        onClick={() =>
+                          onCodeBlockClick?.(rawLanguage, codeContent)
+                        }
                       />
                     );
                   }
@@ -888,9 +922,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                         PreTag="div"
                         codeTagProps={{
                           style: {
+                            display: "block",
                             fontFamily: CODE_FONT_FAMILY,
-                            textShadow: "none",
                             fontVariantLigatures: "none",
+                            padding: 0,
+                            border: "none",
+                            borderRadius: 0,
+                            background: "transparent",
+                            color: "inherit",
+                            textShadow: "none",
                           },
                         }}
                         customStyle={{
@@ -910,10 +950,21 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                   );
                 },
                 code({ inline, className, children, ...props }: any) {
-                  // Inline code
-                  if (inline) {
+                  const content = String(
+                    Array.isArray(children) ? children.join("") : children || "",
+                  );
+                  const isInlineCode =
+                    typeof inline === "boolean"
+                      ? inline
+                      : !className && !content.includes("\n");
+
+                  if (isInlineCode) {
                     return (
-                      <code className={className} {...props}>
+                      <code
+                        className={className}
+                        data-inline-code="true"
+                        {...props}
+                      >
                         {children}
                       </code>
                     );

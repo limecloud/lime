@@ -37,13 +37,6 @@
 - `DatabaseError` - 数据库错误
 - `IoError` - IO 错误
 
-### TemplateError
-模板操作错误，包括：
-- `NotFound` - 模板不存在
-- `ProjectNotFound` - 项目不存在
-- `UnsupportedPlatform` - 不支持的平台
-- `DatabaseError` - 数据库错误
-
 ### MigrationError
 数据迁移错误，包括：
 - `MigrationFailed` - 迁移失败

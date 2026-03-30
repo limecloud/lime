@@ -62,7 +62,6 @@ export interface MediaGenerationDefaultsConfig {
 
 export interface ContentCreatorConfig {
   schema_version?: number;
-  enabled_themes: string[];
   media_defaults?: MediaGenerationDefaultsConfig;
 }
 

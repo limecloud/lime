@@ -136,7 +136,6 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       activeContextPrompt: "",
       prepareActiveContextPrompt: async () => "",
     },
-    runtimeStyleMessagePrompt: "",
     projectId: "project-1",
     executionStrategy: "react",
     accessMode: "current",
@@ -322,6 +321,88 @@ describe("useWorkspaceSendActions", () => {
         }),
       );
       expect(mockSendMessage).not.toHaveBeenCalled();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已携带 service_skill_launch metadata 时不应再被前端二次命中站点技能或浏览器前置引导", async () => {
+    const mockMaybeStartBrowserTaskPreflight = vi.fn(() => false);
+    const harness = mountHook({
+      input: "请帮我使用 GitHub 查一下 AI Agent 项目",
+      serviceSkills: [createGithubSiteSkill()],
+      browserAssistProfileKey: "attached-github",
+      browserAssistPreferredBackend: "lime_extension_bridge",
+      browserAssistAutoLaunch: false,
+      resolveSendBoundary: (({ sourceText }) => ({
+        sourceText,
+        browserRequirementMatch: {
+          requirement: "required",
+          reason: "当前任务需要真实浏览器页面",
+          launchUrl: "https://github.com",
+          platformLabel: "GitHub",
+        },
+        shouldConsumePendingThemeWorkbenchInitialPrompt: false,
+        shouldDismissThemeWorkbenchEntryPrompt: false,
+      })) as HookProps["resolveSendBoundary"],
+      maybeStartBrowserTaskPreflight:
+        mockMaybeStartBrowserTaskPreflight as HookProps["maybeStartBrowserTaskPreflight"],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend(
+          [],
+          false,
+          false,
+          undefined,
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                service_skill_launch: {
+                  adapter_name: "github/search",
+                  args: {
+                    query: "AI Agent",
+                  },
+                },
+                browser_assist: {
+                  enabled: true,
+                  profile_key: "attached-github",
+                  preferred_backend: "lime_extension_bridge",
+                  auto_launch: false,
+                },
+              },
+            },
+          },
+        );
+        expect(started).toBe(true);
+      });
+
+      expect(mockHandleAutoLaunchMatchedSiteSkill).not.toHaveBeenCalled();
+      expect(mockMaybeStartBrowserTaskPreflight).not.toHaveBeenCalled();
+      expect(mockPreheatBrowserAssistInBackground).not.toHaveBeenCalled();
+      expect(mockEnsureBrowserAssistCanvas).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[0]).toBe("请帮我使用 GitHub 查一下 AI Agent 项目");
+      expect(args?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: expect.objectContaining({
+            service_skill_launch: expect.objectContaining({
+              adapter_name: "github/search",
+            }),
+            browser_assist: expect.objectContaining({
+              profile_key: "attached-github",
+              preferred_backend: "lime_extension_bridge",
+              auto_launch: false,
+            }),
+          }),
+        },
+      });
     } finally {
       harness.unmount();
     }

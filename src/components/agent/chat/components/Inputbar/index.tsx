@@ -14,7 +14,7 @@ import type { A2UISubmissionNoticeData } from "./components/A2UISubmissionNotice
 import type {
   A2UIResponse,
   A2UIFormData,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 import type {
   ThemeWorkbenchGateState,
   ThemeWorkbenchWorkflowStep,

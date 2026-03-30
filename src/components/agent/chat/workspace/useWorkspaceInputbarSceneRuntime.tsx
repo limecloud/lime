@@ -7,7 +7,7 @@ import { useWorkspaceTeamSessionControlRuntime } from "./useWorkspaceTeamSession
 import { useWorkspaceTeamSessionRuntime } from "./useWorkspaceTeamSessionRuntime";
 import { useWorkspaceThemeWorkbenchSidebarRuntime } from "./useWorkspaceThemeWorkbenchSidebarRuntime";
 import type { Message } from "../types";
-import type { LayoutMode } from "@/components/content-creator/types";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
   DEFAULT_CHAT_TOOL_PREFERENCES,
   type ChatToolPreferences,

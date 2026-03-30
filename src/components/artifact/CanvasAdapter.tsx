@@ -11,8 +11,10 @@ import { cn } from "@/lib/utils";
 import type { Artifact } from "@/lib/artifact/types";
 
 // Canvas 系统导入
-import { CanvasFactory } from "@/components/content-creator/canvas/CanvasFactory";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
+import {
+  CanvasFactory,
+  type CanvasStateUnion,
+} from "@/lib/workspace/workbenchCanvas";
 
 // 工具函数导入
 import {

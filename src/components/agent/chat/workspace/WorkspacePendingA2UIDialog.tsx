@@ -1,8 +1,8 @@
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
-import { CHAT_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
+} from "@/lib/workspace/a2ui";
+import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { A2UITaskCard } from "../components/A2UITaskCard";
 import {
   A2UISubmissionNotice,

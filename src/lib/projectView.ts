@@ -15,7 +15,6 @@ export function toProjectView(project: ApiProject): Project {
     isArchived: project.isArchived,
     tags: project.tags,
     defaultPersonaId: project.defaultPersonaId,
-    defaultTemplateId: project.defaultTemplateId,
     stats: project.stats
       ? {
           contentCount: project.stats.content_count,

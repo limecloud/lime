@@ -176,55 +176,6 @@ pub struct WorldBuildingUpdateRequest {
     pub extra: Option<serde_json::Value>,
 }
 
-/// 风格指南
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StyleGuide {
-    /// 所属项目 ID
-    pub project_id: String,
-    /// 写作风格描述
-    pub style: String,
-    /// 语气/调性
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tone: Option<String>,
-    /// 禁用词汇
-    #[serde(default)]
-    pub forbidden_words: Vec<String>,
-    /// 偏好词汇
-    #[serde(default)]
-    pub preferred_words: Vec<String>,
-    /// 示例文本
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub examples: Option<String>,
-    /// 额外设定（JSON）
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extra: Option<serde_json::Value>,
-    /// 更新时间
-    pub updated_at: DateTime<Utc>,
-}
-
-/// 风格指南更新请求
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct StyleGuideUpdateRequest {
-    /// 写作风格描述
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub style: Option<String>,
-    /// 语气/调性
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tone: Option<String>,
-    /// 禁用词汇
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub forbidden_words: Option<Vec<String>>,
-    /// 偏好词汇
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preferred_words: Option<Vec<String>>,
-    /// 示例文本
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub examples: Option<String>,
-    /// 额外设定
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extra: Option<serde_json::Value>,
-}
-
 /// 大纲节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutlineNode {
@@ -316,9 +267,6 @@ pub struct ProjectMemory {
     /// 世界观设定
     #[serde(skip_serializing_if = "Option::is_none")]
     pub world_building: Option<WorldBuilding>,
-    /// 风格指南
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub style_guide: Option<StyleGuide>,
     /// 大纲
     pub outline: Vec<OutlineNode>,
 }

@@ -634,17 +634,12 @@ impl Default for NativeAgentConfig {
 
 // ============ 内容创作配置类型 ============
 
-/// 内容创作主题配置
-///
-/// 配置内容创作模式中显示的主题标签
+/// 内容创作配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ContentCreatorConfig {
-    /// 工作区主题默认值版本
+    /// 工作区偏好配置版本
     #[serde(default)]
     pub schema_version: u8,
-    /// 启用的主题列表
-    #[serde(default = "default_enabled_themes")]
-    pub enabled_themes: Vec<String>,
     /// 全局媒体生成默认设置
     #[serde(default)]
     pub media_defaults: MediaGenerationDefaultsConfig,
@@ -654,15 +649,10 @@ fn current_workspace_preferences_schema_version() -> u8 {
     1
 }
 
-fn default_enabled_themes() -> Vec<String> {
-    vec![]
-}
-
 impl Default for ContentCreatorConfig {
     fn default() -> Self {
         Self {
             schema_version: current_workspace_preferences_schema_version(),
-            enabled_themes: default_enabled_themes(),
             media_defaults: MediaGenerationDefaultsConfig::default(),
         }
     }
@@ -728,7 +718,6 @@ fn default_enabled_nav_items() -> Vec<String> {
         "automation".to_string(),
         "openclaw".to_string(),
         "resources".to_string(),
-        "style-library".to_string(),
         "memory".to_string(),
     ]
 }
@@ -742,15 +731,6 @@ impl Default for NavigationConfig {
     }
 }
 
-const LEGACY_DEFAULT_THEME_IDS: &[&str] = &[
-    "general",
-    "social-media",
-    "poster",
-    "music",
-    "video",
-    "novel",
-];
-
 const CURRENT_MAIN_NAV_ITEM_IDS: &[&str] = &[
     "home-general",
     "claw",
@@ -761,14 +741,8 @@ const CURRENT_MAIN_NAV_ITEM_IDS: &[&str] = &[
     "plugins",
 ];
 
-const CURRENT_FOOTER_NAV_ITEM_IDS: &[&str] = &[
-    "openclaw",
-    "settings",
-    "resources",
-    "tools",
-    "style-library",
-    "memory",
-];
+const CURRENT_FOOTER_NAV_ITEM_IDS: &[&str] =
+    &["openclaw", "settings", "resources", "tools", "memory"];
 
 const REMOVED_NAV_ITEM_IDS: &[&str] = &["api-server"];
 
@@ -2216,15 +2190,6 @@ impl Config {
         }
 
         if self.content_creator.schema_version < current_version {
-            if self.content_creator.enabled_themes.is_empty()
-                || has_same_members(
-                    &self.content_creator.enabled_themes,
-                    LEGACY_DEFAULT_THEME_IDS,
-                )
-            {
-                self.content_creator.enabled_themes = default_enabled_themes();
-            }
-
             self.content_creator.schema_version = current_version;
             changed = true;
         }
@@ -2770,7 +2735,6 @@ mod unit_tests {
         assert_eq!(config.crash_reporting.sample_rate, 1.0);
         assert!(!config.crash_reporting.send_pii);
         assert_eq!(config.content_creator.schema_version, 1);
-        assert_eq!(config.content_creator.enabled_themes, Vec::<String>::new());
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
@@ -2782,7 +2746,6 @@ mod unit_tests {
                 "automation".to_string(),
                 "openclaw".to_string(),
                 "resources".to_string(),
-                "style-library".to_string(),
                 "memory".to_string(),
             ]
         );
@@ -2856,14 +2819,6 @@ mod unit_tests {
     fn test_normalize_workspace_preferences_upgrades_legacy_defaults() {
         let mut config = Config::default();
         config.content_creator.schema_version = 0;
-        config.content_creator.enabled_themes = vec![
-            "general".to_string(),
-            "social-media".to_string(),
-            "poster".to_string(),
-            "music".to_string(),
-            "video".to_string(),
-            "novel".to_string(),
-        ];
         config.navigation.schema_version = 0;
         config.navigation.enabled_items = vec![
             "home-general".to_string(),
@@ -2876,7 +2831,6 @@ mod unit_tests {
 
         assert!(changed);
         assert_eq!(config.content_creator.schema_version, 1);
-        assert_eq!(config.content_creator.enabled_themes, Vec::<String>::new());
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
@@ -2888,7 +2842,6 @@ mod unit_tests {
                 "automation".to_string(),
                 "openclaw".to_string(),
                 "resources".to_string(),
-                "style-library".to_string(),
                 "memory".to_string(),
             ]
         );
@@ -2898,8 +2851,6 @@ mod unit_tests {
     fn test_normalize_workspace_preferences_preserves_current_custom_values() {
         let mut config = Config::default();
         config.content_creator.schema_version = 0;
-        config.content_creator.enabled_themes =
-            vec!["social-media".to_string(), "video".to_string()];
         config.navigation.schema_version = 0;
         config.navigation.enabled_items = vec![
             "home-general".to_string(),
@@ -2912,10 +2863,6 @@ mod unit_tests {
 
         assert!(changed);
         assert_eq!(config.content_creator.schema_version, 1);
-        assert_eq!(
-            config.content_creator.enabled_themes,
-            vec!["social-media".to_string(), "video".to_string()]
-        );
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,

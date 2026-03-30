@@ -5,8 +5,8 @@ import {
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import type { LayoutMode } from "@/components/content-creator/types";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import { IMAGE_GENERATION_CANCELED_MESSAGE } from "@/components/image-gen/useImageGen";
 import type { GeneratedImage } from "@/components/image-gen/types";
 import type { Character } from "@/lib/api/memory";

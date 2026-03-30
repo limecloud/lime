@@ -43,9 +43,3 @@ export type {
 
 export { useAlignment } from "./useAlignment";
 export type { UseAlignmentReturn, UseAlignmentOptions } from "./useAlignment";
-
-export { useAgentIntegration } from "./useAgentIntegration";
-export type { UseAgentIntegrationReturn } from "./useAgentIntegration";
-
-export { useCanvasAgentBridge } from "./useCanvasAgentBridge";
-export type { UseCanvasAgentBridgeReturn } from "./useCanvasAgentBridge";

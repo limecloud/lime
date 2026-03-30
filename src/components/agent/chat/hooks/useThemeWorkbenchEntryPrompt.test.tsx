@@ -1,9 +1,11 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkflowState as ContentWorkflowState } from "@/lib/api/content-workflow";
 import type { ThemeWorkbenchRunState as BackendThemeWorkbenchRunState } from "@/lib/api/executionRun";
-import { useThemeWorkbenchEntryPrompt } from "./useThemeWorkbenchEntryPrompt";
+import {
+  useThemeWorkbenchEntryPrompt,
+  type ThemeWorkbenchResumeWorkflowState,
+} from "./useThemeWorkbenchEntryPrompt";
 
 interface HookHarness {
   getValue: () => ReturnType<typeof useThemeWorkbenchEntryPrompt>;
@@ -33,7 +35,9 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   const onHydrateInitialPrompt = vi.fn();
 
   const loadWorkflow = vi.fn(
-    async (_contentId: string): Promise<ContentWorkflowState | null> => null,
+    async (
+      _contentId: string,
+    ): Promise<ThemeWorkbenchResumeWorkflowState | null> => null,
   );
   const loadRunState = vi.fn(
     async (_sessionId: string): Promise<BackendThemeWorkbenchRunState | null> =>
@@ -155,49 +159,30 @@ describe("useThemeWorkbenchEntryPrompt", () => {
     }
   });
 
-  it("无初始意图时应查询 resume prompt", async () => {
+  it("无初始意图时应基于 run-state 生成 resume prompt", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
     const onHydrateInitialPrompt = vi.fn();
-    const loadWorkflow = vi.fn(
-      async (_contentId: string): Promise<ContentWorkflowState | null> => ({
-        id: "wf-1",
-        content_id: "content-1",
-        theme: "social-media",
-        mode: "guided",
-        current_step_index: 1,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        steps: [
+    const loadRunState = vi.fn(
+      async (_sessionId: string): Promise<BackendThemeWorkbenchRunState | null> => ({
+        run_state: "auto_running",
+        current_gate_key: "write_mode",
+        queue_items: [
           {
-            id: "step-1",
-            type: "write",
+            run_id: "run-1",
             title: "撰写主稿",
-            behavior: {
-              skippable: false,
-              redoable: true,
-              auto_advance: false,
-            },
-            status: "completed",
-          },
-          {
-            id: "step-2",
-            type: "polish",
-            title: "润色结尾",
-            behavior: {
-              skippable: false,
-              redoable: true,
-              auto_advance: false,
-            },
-            status: "pending",
+            gate_key: "write_mode",
+            status: "running",
+            source: "skill",
+            source_ref: null,
+            started_at: new Date().toISOString(),
           },
         ],
+        latest_terminal: null,
+        recent_terminals: [],
+        updated_at: new Date().toISOString(),
       }),
-    );
-    const loadRunState = vi.fn(
-      async (_sessionId: string): Promise<BackendThemeWorkbenchRunState | null> =>
-        null,
     );
     const hookValueRef: {
       current: ReturnType<typeof useThemeWorkbenchEntryPrompt> | null;
@@ -217,7 +202,6 @@ describe("useThemeWorkbenchEntryPrompt", () => {
         initialUserImages: [],
         consumedInitialPromptKey: null,
         onHydrateInitialPrompt,
-        loadWorkflow,
         loadRunState,
       });
       return null;
@@ -229,10 +213,11 @@ describe("useThemeWorkbenchEntryPrompt", () => {
 
     try {
       await flushEffects();
-      expect(loadWorkflow).toHaveBeenCalledWith("content-1");
+      expect(loadRunState).toHaveBeenCalledWith("session-1");
       expect(hookValueRef.current?.themeWorkbenchEntryPrompt).toMatchObject({
         kind: "resume",
         title: "发现上次未完成任务",
+        description: expect.stringContaining("撰写主稿"),
       });
       expect(hookValueRef.current?.themeWorkbenchEntryCheckPending).toBe(false);
     } finally {

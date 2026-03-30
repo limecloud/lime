@@ -129,6 +129,19 @@ jobs:
           echo "tauri.conf.headless.json version is now: $(node -e "console.log(JSON.parse(require('fs').readFileSync('tauri.conf.headless.json','utf8')).version)")"
           echo "createUpdaterArtifacts: $(node -e "console.log(JSON.parse(require('fs').readFileSync('tauri.conf.json','utf8')).bundle.createUpdaterArtifacts)")"
 
+      - name: Resolve release channel
+        id: release_meta
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          if [[ "$TAG" == *-* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Release channel: prerelease"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "Release channel: stable"
+          fi
+
       - name: Load release notes
         shell: bash
         run: |
@@ -167,6 +180,7 @@ jobs:
           TAG="${{ github.event.inputs.version || github.ref_name }}"
           TARGET_REF="${{ github.event.inputs.source_ref || github.sha }}"
           NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          IS_PRERELEASE="${{ steps.release_meta.outputs.is_prerelease }}"
 
           printf '%s\n' "$RELEASE_BODY" > "$NOTES_FILE"
 
@@ -175,11 +189,19 @@ jobs:
             exit 0
           fi
 
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$TARGET_REF" \
-            --title "Lime $TAG" \
-            --notes-file "$NOTES_FILE" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          create_args=(
+            release create "$TAG"
+            --repo "$GITHUB_REPOSITORY"
+            --target "$TARGET_REF"
+            --title "Lime $TAG"
+            --notes-file "$NOTES_FILE"
+          )
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            create_args+=(--prerelease)
+          fi
+
+          gh "${create_args[@]}" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -328,7 +350,7 @@ jobs:
           releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
           releaseBody: ${{ env.RELEASE_BODY }}
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.release_meta.outputs.is_prerelease == 'true' }}
           includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
           # tauri-action@v0 使用 assetNamePattern，离线包优先上传并保留独立名称
           assetNamePattern: "[name]_[version]_[arch]-offline[setup][ext]"
@@ -354,7 +376,7 @@ jobs:
           releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
           releaseBody: ${{ env.RELEASE_BODY }}
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.release_meta.outputs.is_prerelease == 'true' }}
           includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
           # tauri-action@v0 使用 assetNamePattern，在线包作为体积更小的备选
           assetNamePattern: "[name]_[version]_[arch]-online[setup][ext]"

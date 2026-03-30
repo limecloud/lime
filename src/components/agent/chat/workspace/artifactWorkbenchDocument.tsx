@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 import {
   NotionEditor,
   type NotionEditorHandle,
-} from "@/components/content-creator/canvas/document/editor";
+} from "@/lib/workspace/workbenchCanvas";
 
 export type ArtifactWorkbenchInspectorTab =
   | "overview"

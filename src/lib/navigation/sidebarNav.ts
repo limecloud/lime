@@ -4,10 +4,8 @@ import {
   CalendarRange,
   Compass,
   Image,
-  LayoutGrid,
   Library,
   MessageSquare,
-  Palette,
   Plus,
   Settings,
   Sparkles,
@@ -40,6 +38,49 @@ export interface SidebarNavItemDefinition {
   defaultExpanded?: boolean;
 }
 
+export interface SidebarNavSectionDefinition {
+  id: string;
+  title: string;
+  items: SidebarNavItemDefinition[];
+}
+
+const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+  {
+    id: "home-general",
+    label: "新建任务",
+    icon: Plus,
+    page: "agent",
+    params: buildHomeAgentParams(),
+    isActive: (currentPage, currentParams) =>
+      currentPage === "agent" &&
+      (currentParams as AgentPageParams | undefined)?.agentEntry === "new-task",
+    configurable: false,
+  },
+  {
+    id: "claw",
+    label: "任务中心",
+    icon: MessageSquare,
+    page: "agent",
+    params: buildClawAgentParams(),
+    isActive: (currentPage, currentParams) =>
+      currentPage === "agent" &&
+      (currentParams as AgentPageParams | undefined)?.agentEntry !== "new-task",
+    configurable: false,
+  },
+];
+
+const WORKSPACE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+  {
+    id: "video",
+    label: "视频",
+    icon: Video,
+    page: getThemeWorkspacePage("video"),
+    params: { workspaceViewMode: "workspace" },
+    isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
+  },
+  { id: "image-gen", label: "插图", icon: Image, page: "image-gen" },
+];
+
 const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
     id: "skills",
@@ -67,55 +108,27 @@ const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
 ];
 
-export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+const LIBRARY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
-    id: "home-general",
-    label: "新建任务",
-    icon: Plus,
-    page: "agent",
-    params: buildHomeAgentParams(),
-    isActive: (currentPage, currentParams) =>
-      currentPage === "agent" &&
-      (currentParams as AgentPageParams | undefined)?.agentEntry === "new-task",
+    id: "resources",
+    label: "资料库",
+    icon: Library,
+    page: "resources",
+    isActive: (currentPage) => currentPage === "resources",
   },
-  {
-    id: "claw",
-    label: "Claw",
-    icon: MessageSquare,
-    page: "agent",
-    params: buildClawAgentParams(),
-    isActive: (currentPage, currentParams) =>
-      currentPage === "agent" &&
-      (currentParams as AgentPageParams | undefined)?.agentEntry !== "new-task",
-  },
-  {
-    id: "capabilities",
-    label: "能力",
-    icon: LayoutGrid,
-    configurable: false,
-    children: CAPABILITY_SIDEBAR_NAV_ITEMS,
-    defaultExpanded: true,
-  },
-  {
-    id: "video",
-    label: "视频",
-    icon: Video,
-    page: getThemeWorkspacePage("video"),
-    params: { workspaceViewMode: "workspace" },
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
-  },
-  { id: "image-gen", label: "插图", icon: Image, page: "image-gen" },
-  { id: "terminal", label: "终端", icon: Terminal, page: "terminal" },
-  { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
 ];
 
-export const FIXED_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
-  MAIN_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable === false);
-
-export const CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
-  MAIN_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable !== false);
-
-export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+  { id: "terminal", label: "终端", icon: Terminal, page: "terminal" },
+  { id: "tools", label: "工具箱", icon: Wrench, page: "tools" },
+  { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
+  {
+    id: "memory",
+    label: "记忆",
+    icon: BrainCircuit,
+    page: "memory",
+    isActive: (currentPage) => currentPage === "memory",
+  },
   {
     id: "openclaw",
     label: "OpenClaw",
@@ -132,36 +145,30 @@ export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     isActive: (currentPage) => currentPage === "settings",
     configurable: false,
   },
-  {
-    id: "resources",
-    label: "资源",
-    icon: Library,
-    page: "resources",
-    isActive: (currentPage) => currentPage === "resources",
-  },
-  {
-    id: "tools",
-    label: "工具箱",
-    icon: Wrench,
-    page: "tools",
-    isActive: (currentPage) => currentPage === "tools",
-  },
-  {
-    id: "style-library",
-    label: "我的风格",
-    icon: Palette,
-    page: "style",
-    params: { section: "overview" },
-    isActive: (currentPage) => currentPage === "style",
-  },
-  {
-    id: "memory",
-    label: "记忆",
-    icon: BrainCircuit,
-    page: "memory",
-    isActive: (currentPage) => currentPage === "memory",
-  },
 ];
+
+export const MAIN_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
+  { id: "tasks", title: "任务", items: TASK_SIDEBAR_NAV_ITEMS },
+  { id: "workspace", title: "工作台", items: WORKSPACE_SIDEBAR_NAV_ITEMS },
+  { id: "capability", title: "能力", items: CAPABILITY_SIDEBAR_NAV_ITEMS },
+  { id: "library", title: "资料库", items: LIBRARY_SIDEBAR_NAV_ITEMS },
+];
+
+export const FOOTER_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
+  { id: "system", title: "系统", items: SYSTEM_SIDEBAR_NAV_ITEMS },
+];
+
+export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
+  MAIN_SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items);
+
+export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
+  FOOTER_SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items);
+
+export const FIXED_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
+  MAIN_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable === false);
+
+export const CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
+  MAIN_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable !== false);
 
 export const FIXED_FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
   FOOTER_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable === false);
@@ -175,14 +182,10 @@ export const CONFIGURABLE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
 ];
 
 export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS = [
-  "home-general",
-  "claw",
   "video",
   "image-gen",
-  "openclaw",
   "resources",
-  "style-library",
-  "memory",
+  "terminal",
 ];
 
 const CONFIGURABLE_SIDEBAR_NAV_ITEM_ID_SET = new Set<string>(

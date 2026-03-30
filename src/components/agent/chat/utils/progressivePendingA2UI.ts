@@ -4,7 +4,7 @@ import type {
   A2UIResponse,
   ChildList,
   TextComponent,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 
 type PromptFieldComponent = Extract<
   A2UIComponent,

@@ -9,13 +9,11 @@ import {
   getCharacter,
   getOutlineNode,
   getProjectMemory,
-  getStyleGuide,
   getWorldBuilding,
   listCharacters,
   listOutlineNodes,
   updateCharacter,
   updateOutlineNode,
-  updateStyleGuide,
   updateWorldBuilding,
 } from "./memory";
 
@@ -68,15 +66,13 @@ describe("memory API", () => {
     });
   });
 
-  it("应代理世界观与风格指南命令", async () => {
+  it("应代理世界观命令", async () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce({ project_id: "project-1", description: "世界观" })
       .mockResolvedValueOnce({
         project_id: "project-1",
         description: "更新后的世界观",
-      })
-      .mockResolvedValueOnce({ project_id: "project-1", style: "克制" })
-      .mockResolvedValueOnce({ project_id: "project-1", style: "冷静" });
+      });
 
     await expect(getWorldBuilding("project-1")).resolves.toEqual(
       expect.objectContaining({ description: "世界观" }),
@@ -86,12 +82,6 @@ describe("memory API", () => {
     ).resolves.toEqual(
       expect.objectContaining({ description: "更新后的世界观" }),
     );
-    await expect(getStyleGuide("project-1")).resolves.toEqual(
-      expect.objectContaining({ style: "克制" }),
-    );
-    await expect(
-      updateStyleGuide("project-1", { style: "冷静" }),
-    ).resolves.toEqual(expect.objectContaining({ style: "冷静" }));
 
     expect(safeInvoke).toHaveBeenNthCalledWith(1, "world_building_get", {
       projectId: "project-1",
@@ -99,13 +89,6 @@ describe("memory API", () => {
     expect(safeInvoke).toHaveBeenNthCalledWith(2, "world_building_update", {
       projectId: "project-1",
       request: { description: "更新后的世界观" },
-    });
-    expect(safeInvoke).toHaveBeenNthCalledWith(3, "style_guide_get", {
-      projectId: "project-1",
-    });
-    expect(safeInvoke).toHaveBeenNthCalledWith(4, "style_guide_update", {
-      projectId: "project-1",
-      request: { style: "冷静" },
     });
   });
 

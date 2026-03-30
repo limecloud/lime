@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Dispatch, SetStateAction } from "react";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentProtocol";
 import type {
   AsterSessionExecutionRuntime,
@@ -80,6 +80,7 @@ describe("agentStreamTurnEventBinding", () => {
       setThreadTurns: noopDispatch<AgentThreadTurn[]>(),
       setCurrentTurnId: noopDispatch<string | null>(),
       setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
+      setIsSending: noopDispatch<boolean>(),
     });
 
     expect(result).toBe(unlisten);

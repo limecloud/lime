@@ -51,7 +51,6 @@ import {
   createOutlineNode,
   getProjectMemory,
   type ProjectMemory,
-  updateStyleGuide,
   updateWorldBuilding,
 } from "@/lib/api/memory";
 import {
@@ -69,9 +68,8 @@ import {
   onResourceProjectChange,
 } from "@/lib/resourceProjectSelection";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
-import { CanvasBreadcrumbHeader } from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
+import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { buildLayerMetrics } from "./memoryLayerMetrics";
-import { hasStyleGuideContent } from "@/lib/style-guide";
 
 type CategoryType = MemoryCategory;
 type CategoryFilter = "all" | CategoryType;
@@ -1049,10 +1047,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     const hasCharacters = (projectMemory?.characters.length ?? 0) > 0;
     const hasWorldBuilding =
       !!projectMemory?.world_building?.description?.trim();
-    const hasStyleGuide = hasStyleGuideContent(projectMemory?.style_guide);
     const hasOutline = (projectMemory?.outline.length ?? 0) > 0;
 
-    if (hasCharacters && hasWorldBuilding && hasStyleGuide && hasOutline) {
+    if (hasCharacters && hasWorldBuilding && hasOutline) {
       showMessage("success", "第三层项目记忆已完善");
       return;
     }
@@ -1076,14 +1073,6 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         tasks.push(
           updateWorldBuilding(projectId, {
             description: "待补充世界观背景与规则",
-          }),
-        );
-      }
-
-      if (!hasStyleGuide) {
-        tasks.push(
-          updateStyleGuide(projectId, {
-            style: "待补充写作风格与语气",
           }),
         );
       }
@@ -1116,7 +1105,6 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     projectId,
     projectMemory?.characters.length,
     projectMemory?.outline.length,
-    projectMemory?.style_guide,
     projectMemory?.world_building?.description,
     showMessage,
   ]);
@@ -1565,13 +1553,6 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                           : "一键初始化"}
                                       </button>
                                     ) : null}
-                                    <button
-                                      type="button"
-                                      onClick={() => onNavigate?.("style")}
-                                      className={SECONDARY_BUTTON_CLASS_NAME}
-                                    >
-                                      前往风格资产
-                                    </button>
                                     <button
                                       type="button"
                                       onClick={() =>

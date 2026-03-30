@@ -91,10 +91,6 @@ vi.mock("./MemorySidebar", () => ({
   MemorySidebar: () => <aside>MEMORY_SIDEBAR_STUB</aside>,
 }));
 
-vi.mock("./memory/StyleGuidePanel", () => ({
-  StyleGuidePanel: () => <div>STYLE_GUIDE_PANEL_STUB</div>,
-}));
-
 setupReactActEnvironment();
 
 const mountedRoots: MountedRoot[] = [];
@@ -169,7 +165,7 @@ describe("ContentEditorPage", () => {
     expect(text).toContain("EDITOR_CONTENT_STUB");
   });
 
-  it("应支持切换右侧记忆侧栏并打开项目风格弹窗", async () => {
+  it("应支持切换右侧记忆侧栏并移除项目风格入口", async () => {
     const { container } = mountHarness(
       ContentEditorPage,
       {
@@ -188,10 +184,6 @@ describe("ContentEditorPage", () => {
     expect(toggleButton).toBeDefined();
     await flushEffects();
     expect(container.textContent).not.toContain("MEMORY_SIDEBAR_STUB");
-
-    const styleButton = clickButtonByText(container, "项目风格");
-    expect(styleButton).toBeDefined();
-    await flushEffects();
-    expect(document.body.textContent ?? "").toContain("STYLE_GUIDE_PANEL_STUB");
+    expect(clickButtonByText(container, "项目风格")).toBeUndefined();
   });
 });

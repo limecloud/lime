@@ -15,18 +15,11 @@ import {
   PanelRightClose,
   PanelRight,
   Check,
-  Palette,
   FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   ContentListItem,
@@ -38,7 +31,6 @@ import {
 } from "@/lib/api/project";
 import { EditorToolbar } from "./editor/EditorToolbar";
 import { MemorySidebar } from "./MemorySidebar";
-import { StyleGuidePanel } from "./memory/StyleGuidePanel";
 import { toast } from "sonner";
 
 interface ContentEditorPageProps {
@@ -61,7 +53,6 @@ export function ContentEditorPage({
   const [title, setTitle] = useState(content.title);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [showSidebar, setShowSidebar] = useState(true);
-  const [styleGuideDialogOpen, setStyleGuideDialogOpen] = useState(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // TipTap 编辑器
@@ -217,7 +208,7 @@ export function ContentEditorPage({
     {
       label: "侧栏状态",
       value: showSidebar ? "已展开" : "已收起",
-      description: "角色、世界观与项目风格可在右侧快速查看",
+      description: "角色与世界观可在右侧快速查看",
     },
   ];
 
@@ -277,7 +268,7 @@ export function ContentEditorPage({
                     </div>
                   </div>
                   <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                    在统一的编辑工作台里继续写作，并随时引用右侧记忆侧栏中的角色、世界观和项目默认风格。
+                    在统一的编辑工作台里继续写作，并随时查看右侧记忆侧栏中的角色与世界观。
                   </p>
                 </div>
 
@@ -305,15 +296,6 @@ export function ContentEditorPage({
                     )}
                     <span>{saveStateLabel}</span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setStyleGuideDialogOpen(true)}
-                    className="border-white/90 bg-white/85 shadow-sm shadow-slate-950/5"
-                  >
-                    <Palette className="mr-2 h-4 w-4" />
-                    项目风格
-                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -399,19 +381,6 @@ export function ContentEditorPage({
           )}
         </div>
       </div>
-      <Dialog open={styleGuideDialogOpen} onOpenChange={setStyleGuideDialogOpen}>
-        <DialogContent className="max-h-[92vh] max-w-7xl overflow-y-auto border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_36%,rgba(241,245,249,0.95)_100%)] p-4 lg:p-5">
-          <DialogHeader className="sr-only">
-            <DialogTitle className="flex items-center gap-2">
-              <Palette className="h-4 w-4" />
-              项目默认风格
-            </DialogTitle>
-          </DialogHeader>
-          <div className="relative">
-            <StyleGuidePanel projectId={project.id} />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

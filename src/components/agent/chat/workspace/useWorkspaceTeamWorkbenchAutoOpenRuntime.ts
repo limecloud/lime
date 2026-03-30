@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import type { LayoutMode } from "@/components/content-creator/types";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 
 interface UseWorkspaceTeamWorkbenchAutoOpenRuntimeParams {
   hasRealTeamGraph: boolean;

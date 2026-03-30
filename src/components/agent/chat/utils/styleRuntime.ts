@@ -1,6 +1,6 @@
-import type { ThemeType } from "@/components/content-creator/types";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import { scriptStateToText } from "@/components/content-creator/canvas/script";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import { scriptStateToText } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
 import type { TaskFile } from "../components/TaskFiles";
 import { getSupportedFilenames } from "./workflowMapping";

@@ -1,10 +1,9 @@
 import type { ComponentProps } from "react";
-import { StepProgress } from "@/components/content-creator/core/StepGuide/StepProgress";
+import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { ChatNavbar } from "../components/ChatNavbar";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { EmptyState } from "../components/EmptyState";
 import { MessageList } from "../components/MessageList";
-import { RuntimeStyleControlBar } from "../components/RuntimeStyleControlBar";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import type { TeamWorkbenchSurfaceProps } from "./teamWorkbenchPresentation";
 
@@ -42,51 +41,6 @@ export function buildStepProgressProps({
     steps,
     currentIndex,
     onStepClick,
-  };
-}
-
-interface BuildRuntimeStyleControlBarPropsParams {
-  enabled: boolean;
-  projectId: string | null | undefined;
-  activeTheme: ComponentProps<typeof RuntimeStyleControlBar>["activeTheme"];
-  projectStyleGuide: ComponentProps<
-    typeof RuntimeStyleControlBar
-  >["projectStyleGuide"];
-  selection: ComponentProps<typeof RuntimeStyleControlBar>["selection"];
-  onSelectionChange: ComponentProps<
-    typeof RuntimeStyleControlBar
-  >["onSelectionChange"];
-  onRewrite: NonNullable<ComponentProps<typeof RuntimeStyleControlBar>["onRewrite"]>;
-  onAudit: NonNullable<ComponentProps<typeof RuntimeStyleControlBar>["onAudit"]>;
-  actionsDisabled: boolean;
-}
-
-export function buildRuntimeStyleControlBarProps({
-  enabled,
-  projectId,
-  activeTheme,
-  projectStyleGuide,
-  selection,
-  onSelectionChange,
-  onRewrite,
-  onAudit,
-  actionsDisabled,
-}: BuildRuntimeStyleControlBarPropsParams):
-  | ComponentProps<typeof RuntimeStyleControlBar>
-  | null {
-  if (!enabled || !projectId) {
-    return null;
-  }
-
-  return {
-    projectId,
-    activeTheme,
-    projectStyleGuide,
-    selection,
-    onSelectionChange,
-    onRewrite,
-    onAudit,
-    actionsDisabled,
   };
 }
 

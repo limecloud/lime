@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Bell,
@@ -34,10 +34,6 @@ import {
 import {
   AutomationHealthResult,
   AutomationJobRecord,
-  AutomationLastDeliveryRecord,
-  AutomationOutputFormat,
-  AutomationOutputSchema,
-  AutomationPayload,
   AutomationSchedulerConfig,
   AutomationStatus,
   createAutomationJob,
@@ -56,427 +52,31 @@ import { listProjects } from "@/lib/api/project";
 import type { AgentRun } from "@/lib/api/executionRun";
 import { LatestRunStatusBadge } from "@/components/execution/LatestRunStatusBadge";
 import { AutomationHealthPanel } from "./AutomationHealthPanel";
+import { AutomationJobDetailsDialog } from "./AutomationJobDetailsDialog";
 import {
   AutomationJobDialog,
   AutomationJobDialogSubmit,
   type AutomationJobDialogInitialValues,
 } from "./AutomationJobDialog";
 import {
-  mergeAutomationServiceSkillContexts,
   resolveServiceSkillAutomationContext,
-  resolveServiceSkillContextFromMetadataRecord,
   type AutomationServiceSkillContext,
 } from "./serviceSkillContext";
+import {
+  LEGACY_BROWSER_AUTOMATION_NOTICE,
+  LEGACY_BROWSER_AUTOMATION_STATUS,
+  describeSchedule,
+  describeServiceSkillSlotPreview,
+  describeServiceSkillTaskLine,
+  executionModeLabel,
+  formatTime,
+  isLegacyBrowserAutomation,
+  statusDetailPrefix,
+  statusDetailToneClass,
+  statusLabel,
+  statusVariant,
+} from "./automationPresentation";
 import type { AutomationWorkspaceTab } from "@/types/page";
-
-const LEGACY_BROWSER_AUTOMATION_NOTICE =
-  "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除旧任务，并改建为 Agent 对话任务。";
-const LEGACY_BROWSER_AUTOMATION_STATUS = "已下线";
-
-function formatTime(value?: string | null): string {
-  if (!value) {
-    return "-";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString("zh-CN", { hour12: false });
-}
-
-function describeSchedule(job: AutomationJobRecord): string {
-  if (job.schedule.kind === "every") {
-    const secs = job.schedule.every_secs;
-    if (secs % 3600 === 0) {
-      return `每 ${secs / 3600} 小时`;
-    }
-    if (secs % 60 === 0) {
-      return `每 ${secs / 60} 分钟`;
-    }
-    return `每 ${secs} 秒`;
-  }
-  if (job.schedule.kind === "cron") {
-    return `Cron: ${job.schedule.expr}`;
-  }
-  return `一次性: ${formatTime(job.schedule.at)}`;
-}
-
-function executionModeLabel(
-  mode: AutomationJobRecord["execution_mode"],
-): string {
-  switch (mode) {
-    case "intelligent":
-      return "智能执行";
-    case "skill":
-      return "技能执行";
-    case "log_only":
-      return "只记录";
-    default:
-      return mode;
-  }
-}
-
-function payloadKindLabel(kind: AutomationPayload["kind"]): string {
-  return kind === "browser_session"
-    ? "浏览器自动化（已下线）"
-    : "Agent 对话任务";
-}
-
-function describePayload(payload: AutomationPayload): string {
-  if (payload.kind === "agent_turn") {
-    return payload.prompt;
-  }
-
-  const lines = [LEGACY_BROWSER_AUTOMATION_NOTICE];
-  lines.push(`资料: ${payload.profile_key ?? payload.profile_id}`);
-  if (payload.environment_preset_id) {
-    lines.push(`环境预设: ${payload.environment_preset_id}`);
-  }
-  if (payload.url) {
-    lines.push(`启动地址: ${payload.url}`);
-  }
-  if (payload.target_id) {
-    lines.push(`Target ID: ${payload.target_id}`);
-  }
-  lines.push(`调试窗口: ${payload.open_window ? "打开" : "关闭"}`);
-  lines.push(`流模式: ${payload.stream_mode}`);
-  return lines.join("\n");
-}
-
-function isLegacyBrowserAutomation(job?: AutomationJobRecord | null): boolean {
-  return job?.payload.kind === "browser_session";
-}
-
-function parseRunMetadata(run: AgentRun): Record<string, unknown> | null {
-  if (!run.metadata) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(run.metadata);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function resolveRunSessionId(run: AgentRun): string | null {
-  if (run.session_id) {
-    return run.session_id;
-  }
-  const metadata = parseRunMetadata(run);
-  const metadataSessionId = metadata?.session_id;
-  return typeof metadataSessionId === "string" && metadataSessionId.trim()
-    ? metadataSessionId
-    : null;
-}
-
-function resolveBrowserLifecycleStatus(run: AgentRun): string | null {
-  const metadata = parseRunMetadata(run);
-  const lifecycle = metadata?.browser_lifecycle_state;
-  return typeof lifecycle === "string" && lifecycle.trim() ? lifecycle : null;
-}
-
-function resolveRunHumanReason(run: AgentRun): string | null {
-  const metadata = parseRunMetadata(run);
-  const reason = metadata?.human_reason;
-  return typeof reason === "string" && reason.trim() ? reason : null;
-}
-
-function resolveRunInfoMessage(run: AgentRun): string | null {
-  const reason = resolveRunHumanReason(run);
-  if (!reason) {
-    return null;
-  }
-  if (run.error_message && run.error_message.trim() === reason) {
-    return null;
-  }
-  return reason;
-}
-
-function resolveRunDelivery(
-  run: AgentRun,
-): AutomationLastDeliveryRecord | null {
-  const metadata = parseRunMetadata(run);
-  const delivery = metadata?.delivery;
-  if (!delivery || typeof delivery !== "object" || Array.isArray(delivery)) {
-    return null;
-  }
-
-  const deliveryRecord = delivery as Record<string, unknown>;
-  const success = deliveryRecord.success;
-  const message = deliveryRecord.message;
-  const outputKind = deliveryRecord.output_kind;
-  const outputSchema = deliveryRecord.output_schema;
-  const outputFormat = deliveryRecord.output_format;
-  const outputPreview = deliveryRecord.output_preview;
-  const attemptedAt = deliveryRecord.attempted_at;
-  if (
-    typeof success !== "boolean" ||
-    typeof message !== "string" ||
-    typeof outputKind !== "string" ||
-    typeof outputSchema !== "string" ||
-    typeof outputFormat !== "string" ||
-    typeof outputPreview !== "string" ||
-    typeof attemptedAt !== "string"
-  ) {
-    return null;
-  }
-
-  return {
-    success,
-    message,
-    channel:
-      typeof deliveryRecord.channel === "string"
-        ? deliveryRecord.channel
-        : null,
-    target:
-      typeof deliveryRecord.target === "string" ? deliveryRecord.target : null,
-    output_kind: outputKind,
-    output_schema:
-      outputSchema === "json" ||
-      outputSchema === "table" ||
-      outputSchema === "csv" ||
-      outputSchema === "links"
-        ? outputSchema
-        : "text",
-    output_format: outputFormat === "json" ? "json" : "text",
-    output_preview: outputPreview,
-    delivery_attempt_id:
-      typeof deliveryRecord.delivery_attempt_id === "string"
-        ? deliveryRecord.delivery_attempt_id
-        : null,
-    run_id:
-      typeof deliveryRecord.run_id === "string" ? deliveryRecord.run_id : null,
-    execution_retry_count:
-      typeof deliveryRecord.execution_retry_count === "number"
-        ? deliveryRecord.execution_retry_count
-        : null,
-    delivery_attempts:
-      typeof deliveryRecord.delivery_attempts === "number"
-        ? deliveryRecord.delivery_attempts
-        : null,
-    attempted_at: attemptedAt,
-  };
-}
-
-function statusLabel(status?: string | null): string {
-  switch (status) {
-    case "queued":
-      return "排队中";
-    case "success":
-      return "成功";
-    case "running":
-      return "运行中";
-    case "waiting_for_human":
-      return "等待人工处理";
-    case "human_controlling":
-      return "人工接管中";
-    case "agent_resuming":
-      return "恢复给 Agent";
-    case "error":
-      return "失败";
-    case "timeout":
-      return "超时";
-    default:
-      return "待执行";
-  }
-}
-
-function statusVariant(status?: string | null) {
-  if (status === "success") {
-    return "default" as const;
-  }
-  if (
-    status === "queued" ||
-    status === "running" ||
-    status === "agent_resuming"
-  ) {
-    return "secondary" as const;
-  }
-  if (status === "waiting_for_human" || status === "human_controlling") {
-    return "outline" as const;
-  }
-  if (status === "error" || status === "timeout") {
-    return "destructive" as const;
-  }
-  return "outline" as const;
-}
-
-function runDisplayStatus(run: AgentRun): string {
-  if (run.status === "running") {
-    const lifecycleStatus = resolveBrowserLifecycleStatus(run);
-    if (lifecycleStatus) {
-      return lifecycleStatus;
-    }
-  }
-  return run.status;
-}
-
-function runStatusVariant(run: AgentRun) {
-  return statusVariant(runDisplayStatus(run));
-}
-
-function runInfoToneClass(run: AgentRun): string {
-  switch (runDisplayStatus(run)) {
-    case "waiting_for_human":
-      return "border-orange-200 bg-orange-50/80 text-orange-700";
-    case "human_controlling":
-      return "border-amber-200 bg-amber-50/80 text-amber-700";
-    case "agent_resuming":
-      return "border-sky-200 bg-sky-50/80 text-sky-700";
-    default:
-      return "border-slate-200/80 bg-white text-slate-600";
-  }
-}
-
-function statusDetailToneClass(status?: string | null): string {
-  switch (status) {
-    case "waiting_for_human":
-      return "text-orange-700";
-    case "human_controlling":
-      return "text-amber-700";
-    case "agent_resuming":
-      return "text-sky-700";
-    case "error":
-    case "timeout":
-      return "text-rose-700";
-    default:
-      return "text-slate-500";
-  }
-}
-
-function statusDetailPrefix(status?: string | null): string {
-  switch (status) {
-    case "waiting_for_human":
-    case "human_controlling":
-      return "当前阻塞";
-    case "agent_resuming":
-      return "恢复说明";
-    case "error":
-    case "timeout":
-      return "最近异常";
-    default:
-      return "运行说明";
-  }
-}
-
-function resolveDeliveryOutputFormat(
-  format?: AutomationOutputFormat | null,
-): AutomationOutputFormat {
-  return format === "json" ? "json" : "text";
-}
-
-function resolveDeliveryOutputSchema(
-  job: AutomationJobRecord,
-): AutomationOutputSchema {
-  switch (job.delivery.output_schema) {
-    case "json":
-    case "table":
-    case "csv":
-    case "links":
-    case "text":
-      return job.delivery.output_schema;
-    default:
-      return resolveDeliveryOutputFormat(job.delivery.output_format) === "json"
-        ? "json"
-        : "text";
-  }
-}
-
-function deliveryModeLabel(job: AutomationJobRecord): string {
-  return job.delivery.mode === "announce" ? "任务完成后投递" : "关闭";
-}
-
-function deliveryChannelLabel(channel?: string | null): string {
-  switch (channel) {
-    case "webhook":
-      return "Webhook";
-    case "google_sheets":
-      return "Google Sheets";
-    case "local_file":
-      return "本地文件";
-    case "telegram":
-      return "Telegram";
-    default:
-      return channel?.trim() ? channel : "-";
-  }
-}
-
-function outputSchemaLabel(schema: AutomationOutputSchema): string {
-  switch (schema) {
-    case "json":
-      return "JSON 对象";
-    case "table":
-      return "表格";
-    case "csv":
-      return "CSV";
-    case "links":
-      return "链接列表";
-    default:
-      return "文本摘要";
-  }
-}
-
-function outputFormatLabel(format: AutomationOutputFormat): string {
-  return format === "json" ? "JSON 编码" : "文本编码";
-}
-
-function deliveryStatusVariant(success: boolean) {
-  return success ? ("default" as const) : ("destructive" as const);
-}
-
-function deliveryToneClass(
-  delivery: AutomationLastDeliveryRecord | null | undefined,
-): string {
-  if (!delivery) {
-    return "border-slate-200/80 bg-slate-50/70 text-slate-500";
-  }
-  return delivery.success
-    ? "border-emerald-200 bg-emerald-50/80 text-emerald-700"
-    : "border-rose-200 bg-rose-50/80 text-rose-700";
-}
-
-function describeServiceSkillTaskLine(
-  serviceSkillContext: AutomationServiceSkillContext,
-): string {
-  return `技能项: ${serviceSkillContext.title}`;
-}
-
-function describeServiceSkillSlotPreview(
-  serviceSkillContext: AutomationServiceSkillContext,
-  limit: number = 2,
-): string | null {
-  const preview = serviceSkillContext.slotSummary
-    .slice(0, limit)
-    .map((item) => `${item.label}: ${item.value}`);
-  if (preview.length > 0) {
-    const suffix =
-      serviceSkillContext.slotSummary.length > limit
-        ? ` 等 ${serviceSkillContext.slotSummary.length} 项`
-        : "";
-    return `${preview.join(" · ")}${suffix}`;
-  }
-
-  if (serviceSkillContext.userInput) {
-    return serviceSkillContext.userInput;
-  }
-
-  return null;
-}
-
-function resolveRunServiceSkillContext(
-  run: AgentRun,
-  fallbackContext: AutomationServiceSkillContext | null,
-): AutomationServiceSkillContext | null {
-  const metadata = parseRunMetadata(run);
-  const runContext = metadata
-    ? resolveServiceSkillContextFromMetadataRecord(metadata)
-    : null;
-  return mergeAutomationServiceSkillContexts(runContext, fallbackContext);
-}
 
 type AutomationWorkspaceTemplate = {
   id: string;
@@ -583,6 +183,8 @@ export function AutomationSettings({
     useState<AutomationJobDialogInitialValues | null>(null);
   const [workspaceTab, setWorkspaceTab] =
     useState<AutomationWorkspaceTab>(initialWorkspaceTab ?? "tasks");
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const autoOpenedInitialJobIdRef = useRef<string | null>(null);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? null,
@@ -660,7 +262,7 @@ export function AutomationSettings({
           if (current && nextJobs.some((job) => job.id === current)) {
             return current;
           }
-          return nextJobs[0]?.id ?? null;
+          return null;
         });
       } catch (error) {
         toast.error(
@@ -714,6 +316,25 @@ export function AutomationSettings({
   }, [initialSelectedJobId, jobs, showWorkspacePanels]);
 
   useEffect(() => {
+    if (!initialSelectedJobId) {
+      autoOpenedInitialJobIdRef.current = null;
+      return;
+    }
+    if (!showWorkspacePanels) {
+      return;
+    }
+    if (!jobs.some((job) => job.id === initialSelectedJobId)) {
+      return;
+    }
+    if (autoOpenedInitialJobIdRef.current === initialSelectedJobId) {
+      return;
+    }
+    setSelectedJobId(initialSelectedJobId);
+    setDetailDialogOpen(true);
+    autoOpenedInitialJobIdRef.current = initialSelectedJobId;
+  }, [initialSelectedJobId, jobs, showWorkspacePanels]);
+
+  useEffect(() => {
     if (!showWorkspacePanels || !initialWorkspaceTab) {
       return;
     }
@@ -723,15 +344,22 @@ export function AutomationSettings({
 
   useEffect(() => {
     if (!showWorkspacePanels) {
+      setDetailDialogOpen(false);
       setJobRuns([]);
       return;
     }
-    if (!selectedJobId) {
+    if (!selectedJobId || !detailDialogOpen) {
       setJobRuns([]);
       return;
     }
     void refreshHistory(selectedJobId);
-  }, [refreshHistory, selectedJobId, showWorkspacePanels]);
+  }, [detailDialogOpen, refreshHistory, selectedJobId, showWorkspacePanels]);
+
+  useEffect(() => {
+    if (detailDialogOpen && !selectedJob) {
+      setDetailDialogOpen(false);
+    }
+  }, [detailDialogOpen, selectedJob]);
 
   async function handleSaveScheduler() {
     if (!schedulerConfig) {
@@ -768,6 +396,7 @@ export function AutomationSettings({
       setDialogInitialValues(null);
       await refreshAll(true);
       setSelectedJobId(result.id);
+      setDetailDialogOpen(true);
       await refreshHistory(result.id);
     } catch (error) {
       toast.error(
@@ -831,6 +460,11 @@ export function AutomationSettings({
     setDialogMode("edit");
     setDialogInitialValues(null);
     setDialogOpen(true);
+  }
+
+  function openJobDetails(jobId: string) {
+    setSelectedJobId(jobId);
+    setDetailDialogOpen(true);
   }
 
   function handleDialogOpenChange(open: boolean) {
@@ -1118,7 +752,7 @@ export function AutomationSettings({
               </CardContent>
             </Card>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,0.82fr)]">
+            <div className="space-y-6">
               <Card className="rounded-[28px] border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
                 <CardHeader className="pb-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1127,8 +761,8 @@ export function AutomationSettings({
                         任务列表
                       </CardTitle>
                       <p className="mt-1 text-sm leading-6 text-slate-500">
-                        每个 job 都绑定工作区、调度规则和 payload，不再依赖 markdown
-                        任务文件。
+                        每个 job 都绑定工作区、调度规则和 payload。详情改为按需打开，
+                        点击任务行或详情按钮查看运行历史、输出投递和 payload 摘要。
                       </p>
                     </div>
                     <Badge variant="outline">{jobs.length} 个 job</Badge>
@@ -1136,16 +770,18 @@ export function AutomationSettings({
                 </CardHeader>
                 <CardContent>
                   {jobs.length ? (
-                    <Table>
+                    <Table className="min-w-[1120px]">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>任务</TableHead>
-                          <TableHead>工作区</TableHead>
-                          <TableHead>调度</TableHead>
-                          <TableHead>模式</TableHead>
-                          <TableHead>状态</TableHead>
-                          <TableHead>执行窗口</TableHead>
-                          <TableHead className="text-right">操作</TableHead>
+                          <TableHead className="min-w-[320px]">任务</TableHead>
+                          <TableHead className="min-w-[140px]">工作区</TableHead>
+                          <TableHead className="min-w-[150px]">调度</TableHead>
+                          <TableHead className="min-w-[110px]">模式</TableHead>
+                          <TableHead className="min-w-[210px]">状态</TableHead>
+                          <TableHead className="min-w-[150px]">执行窗口</TableHead>
+                          <TableHead className="min-w-[240px] text-right">
+                            操作
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1165,10 +801,13 @@ export function AutomationSettings({
                           return (
                             <TableRow
                               key={job.id}
+                              data-testid={`automation-job-row-${job.id}`}
                               className={
-                                selectedJobId === job.id ? "bg-slate-50" : undefined
+                                selectedJobId === job.id
+                                  ? "cursor-pointer bg-slate-50"
+                                  : "cursor-pointer"
                               }
-                              onClick={() => setSelectedJobId(job.id)}
+                              onClick={() => openJobDetails(job.id)}
                             >
                               <TableCell className="align-top">
                                 <div className="space-y-1">
@@ -1300,12 +939,15 @@ export function AutomationSettings({
                                   <Button
                                     size="sm"
                                     variant="ghost"
+                                    className="gap-1.5 text-slate-600"
+                                    data-testid={`automation-job-open-details-${job.id}`}
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      setSelectedJobId(job.id);
+                                      openJobDetails(job.id);
                                     }}
                                   >
                                     <History className="h-4 w-4" />
+                                    详情
                                   </Button>
                                   <Button
                                     size="sm"
@@ -1325,7 +967,7 @@ export function AutomationSettings({
                       </TableBody>
                     </Table>
                   ) : (
-                    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center">
+                    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
                       <div className="text-base font-medium text-slate-900">
                         还没有 automation job
                       </div>
@@ -1340,430 +982,6 @@ export function AutomationSettings({
                   )}
                 </CardContent>
               </Card>
-
-              <div className="space-y-6">
-                <Card className="rounded-[28px] border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-xl text-slate-900">
-                      任务详情与历史
-                    </CardTitle>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      选择左侧 job 后，这里会显示最近执行记录和当前 payload 摘要。
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {selectedJob ? (
-                      <>
-                        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <div className="text-base font-semibold text-slate-900">
-                                {selectedJob.name}
-                              </div>
-                              <div className="mt-1 text-sm text-slate-500">
-                                {workspaceNameMap.get(selectedJob.workspace_id) ??
-                                  selectedJob.workspace_id}
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant={statusVariant(selectedJob.last_status)}>
-                                {statusLabel(selectedJob.last_status)}
-                              </Badge>
-                              {isLegacyBrowserAutomation(selectedJob) ? (
-                                <Badge variant="outline">
-                                  {LEGACY_BROWSER_AUTOMATION_STATUS}
-                                </Badge>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div className="mt-4 space-y-2 text-sm text-slate-500">
-                            <div>
-                              任务类型: {payloadKindLabel(selectedJob.payload.kind)}
-                            </div>
-                            <div>调度: {describeSchedule(selectedJob)}</div>
-                            <div>
-                              下次执行: {formatTime(selectedJob.next_run_at)}
-                            </div>
-                            <div>
-                              最近执行: {formatTime(selectedJob.last_run_at)}
-                            </div>
-                            <div>最后错误: {selectedJob.last_error || "-"}</div>
-                          </div>
-                          {isLegacyBrowserAutomation(selectedJob) ? (
-                            <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                              <div className="font-medium text-amber-900">
-                                浏览器自动化已下线
-                              </div>
-                              <div className="mt-2">
-                                {LEGACY_BROWSER_AUTOMATION_NOTICE}
-                              </div>
-                            </div>
-                          ) : null}
-                          {selectedServiceSkillContext ? (
-                            <div className="mt-4 rounded-[18px] border border-sky-200/80 bg-sky-50/70 px-4 py-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-sm font-medium text-slate-900">
-                                  技能任务上下文
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <Badge variant="secondary">
-                                    {selectedServiceSkillContext.runnerLabel}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {
-                                      selectedServiceSkillContext.executionLocationLabel
-                                    }
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-                                <div>
-                                  技能项: {selectedServiceSkillContext.title}
-                                </div>
-                                <div>
-                                  目录来源:{" "}
-                                  {selectedServiceSkillContext.sourceLabel}
-                                </div>
-                                <div>
-                                  工作主题:{" "}
-                                  {selectedServiceSkillContext.theme || "-"}
-                                </div>
-                                <div>
-                                  主稿绑定:{" "}
-                                  {selectedServiceSkillContext.contentId || "-"}
-                                </div>
-                              </div>
-                              {selectedServiceSkillContext.slotSummary.length ? (
-                                <div className="mt-3 rounded-[16px] border border-white/80 bg-white/85 px-3 py-3">
-                                  <div className="text-xs font-medium text-slate-700">
-                                    参数摘要
-                                  </div>
-                                  <div className="mt-2 grid gap-2 text-xs leading-5 text-slate-600 md:grid-cols-2">
-                                    {selectedServiceSkillContext.slotSummary.map(
-                                      (item) => (
-                                        <div key={item.key}>
-                                          <span className="font-medium text-slate-700">
-                                            {item.label}
-                                          </span>
-                                          : {item.value}
-                                        </div>
-                                      ),
-                                    )}
-                                  </div>
-                                </div>
-                              ) : null}
-                              {selectedServiceSkillContext.userInput ? (
-                                <div className="mt-3 rounded-[16px] border border-white/80 bg-white/85 px-3 py-3 text-sm leading-6 text-slate-600">
-                                  <div className="text-xs font-medium text-slate-700">
-                                    补充要求
-                                  </div>
-                                  <div className="mt-1">
-                                    {selectedServiceSkillContext.userInput}
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : null}
-                          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-                            <div className="rounded-[18px] border border-slate-200/80 bg-white px-4 py-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-sm font-medium text-slate-900">
-                                  输出契约
-                                </div>
-                                <Badge
-                                  variant={
-                                    selectedJob.delivery.mode === "announce"
-                                      ? "secondary"
-                                      : "outline"
-                                  }
-                                >
-                                  {deliveryModeLabel(selectedJob)}
-                                </Badge>
-                              </div>
-                              <div className="mt-3 space-y-2 text-sm text-slate-500">
-                                <div>
-                                  输出目标:{" "}
-                                  {selectedJob.delivery.mode === "announce"
-                                    ? deliveryChannelLabel(
-                                        selectedJob.delivery.channel,
-                                      )
-                                    : "-"}
-                                </div>
-                                <div>
-                                  输出契约:{" "}
-                                  {outputSchemaLabel(
-                                    resolveDeliveryOutputSchema(selectedJob),
-                                  )}
-                                </div>
-                                <div>
-                                  投递编码:{" "}
-                                  {outputFormatLabel(
-                                    resolveDeliveryOutputFormat(
-                                      selectedJob.delivery.output_format,
-                                    ),
-                                  )}
-                                </div>
-                                <div>
-                                  目标地址:{" "}
-                                  {selectedJob.delivery.mode === "announce"
-                                    ? selectedJob.delivery.target || "-"
-                                    : "-"}
-                                </div>
-                                <div>
-                                  失败策略:{" "}
-                                  {selectedJob.delivery.mode !== "announce"
-                                    ? "未启用"
-                                    : selectedJob.delivery.best_effort
-                                      ? "投递失败不阻塞任务"
-                                      : "投递失败记为任务失败"}
-                                </div>
-                              </div>
-                            </div>
-                            <div
-                              className={`rounded-[18px] border px-4 py-3 ${deliveryToneClass(
-                                selectedJob.last_delivery,
-                              )}`}
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-sm font-medium text-slate-900">
-                                  最近一次投递结果
-                                </div>
-                                <Badge
-                                  variant={
-                                    selectedJob.last_delivery
-                                      ? deliveryStatusVariant(
-                                          selectedJob.last_delivery.success,
-                                        )
-                                      : "outline"
-                                  }
-                                >
-                                  {selectedJob.last_delivery
-                                    ? selectedJob.last_delivery.success
-                                      ? "投递成功"
-                                      : "投递失败"
-                                    : "暂无记录"}
-                                </Badge>
-                              </div>
-                              {selectedJob.last_delivery ? (
-                                <>
-                                  <div className="mt-3 space-y-2 text-sm">
-                                    <div>
-                                      时间:{" "}
-                                      {formatTime(
-                                        selectedJob.last_delivery.attempted_at,
-                                      )}
-                                    </div>
-                                    <div>
-                                      渠道:{" "}
-                                      {deliveryChannelLabel(
-                                        selectedJob.last_delivery.channel,
-                                      )}
-                                    </div>
-                                    <div>
-                                      目标:{" "}
-                                      {selectedJob.last_delivery.target || "-"}
-                                    </div>
-                                    <div>
-                                      契约:{" "}
-                                      {outputSchemaLabel(
-                                        selectedJob.last_delivery.output_schema,
-                                      )}{" "}
-                                      /{" "}
-                                      {outputFormatLabel(
-                                        selectedJob.last_delivery.output_format,
-                                      )}
-                                    </div>
-                                    <div>
-                                      投递键:{" "}
-                                      {selectedJob.last_delivery
-                                        .delivery_attempt_id || "-"}
-                                    </div>
-                                    <div>
-                                      执行重试:{" "}
-                                      {selectedJob.last_delivery
-                                        .execution_retry_count ?? 0}
-                                      {" / "}
-                                      投递尝试:{" "}
-                                      {selectedJob.last_delivery
-                                        .delivery_attempts ?? 0}
-                                    </div>
-                                    <div>
-                                      结果: {selectedJob.last_delivery.message}
-                                    </div>
-                                  </div>
-                                  <div className="mt-3 whitespace-pre-wrap rounded-[14px] border border-white/70 bg-white/70 px-3 py-2 text-xs leading-5 text-slate-600">
-                                    {selectedJob.last_delivery.output_preview ||
-                                      "无输出预览"}
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="mt-3 text-sm leading-6">
-                                  {selectedJob.delivery.mode === "announce"
-                                    ? "任务尚未产生投递记录。"
-                                    : "当前任务未启用输出投递。"}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="mt-4 whitespace-pre-wrap rounded-[18px] border border-slate-200/80 bg-white px-4 py-3 text-sm leading-6 text-slate-600">
-                            {describePayload(selectedJob.payload)}
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-medium text-slate-900">
-                              最近运行
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => void refreshHistory(selectedJob.id)}
-                            >
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                              刷新
-                            </Button>
-                          </div>
-
-                          {historyLoading ? (
-                            <div className="flex h-28 items-center justify-center">
-                              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                            </div>
-                          ) : jobRuns.length ? (
-                            jobRuns.map((run) => {
-                              const infoMessage = resolveRunInfoMessage(run);
-                              const delivery = resolveRunDelivery(run);
-                              const runServiceSkillContext =
-                                resolveRunServiceSkillContext(
-                                  run,
-                                  selectedServiceSkillContext,
-                                );
-                              const runServiceSkillTaskLine =
-                                runServiceSkillContext
-                                  ? describeServiceSkillTaskLine(
-                                      runServiceSkillContext,
-                                    )
-                                  : null;
-                              const runServiceSkillSlotPreview =
-                                runServiceSkillContext
-                                  ? describeServiceSkillSlotPreview(
-                                      runServiceSkillContext,
-                                    )
-                                  : null;
-                              return (
-                                <div
-                                  key={run.id}
-                                  className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 p-4"
-                                >
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="text-sm text-slate-900">
-                                      {formatTime(run.started_at)}
-                                    </div>
-                                    <Badge variant={runStatusVariant(run)}>
-                                      {statusLabel(runDisplayStatus(run))}
-                                    </Badge>
-                                  </div>
-                                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                                    <span>ID: {run.id}</span>
-                                    <span>
-                                      Session: {resolveRunSessionId(run) ?? "-"}
-                                    </span>
-                                    <span>完成: {formatTime(run.finished_at)}</span>
-                                  </div>
-                                  {infoMessage ? (
-                                    <div
-                                      className={`mt-3 rounded-[16px] border px-3 py-2 text-xs leading-5 ${runInfoToneClass(
-                                        run,
-                                      )}`}
-                                    >
-                                      {infoMessage}
-                                    </div>
-                                  ) : null}
-                                  {runServiceSkillContext ? (
-                                    <div
-                                      data-testid={`automation-run-service-skill-summary-${run.id}`}
-                                      className="mt-3 rounded-[16px] border border-sky-200/80 bg-sky-50/70 px-3 py-3"
-                                    >
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <div className="text-xs font-medium text-slate-900">
-                                          技能任务运行上下文
-                                        </div>
-                                        <Badge variant="outline">
-                                          {runServiceSkillContext.runnerLabel}
-                                        </Badge>
-                                        <Badge variant="outline">
-                                          {
-                                            runServiceSkillContext.executionLocationLabel
-                                          }
-                                        </Badge>
-                                      </div>
-                                      {runServiceSkillTaskLine ? (
-                                        <div className="mt-2 text-xs leading-5 text-slate-700">
-                                          {runServiceSkillTaskLine}
-                                        </div>
-                                      ) : null}
-                                      {runServiceSkillSlotPreview ? (
-                                        <div className="mt-1 text-xs leading-5 text-slate-600">
-                                          参数摘要: {runServiceSkillSlotPreview}
-                                        </div>
-                                      ) : null}
-                                      {runServiceSkillContext.userInput ? (
-                                        <div className="mt-1 text-xs leading-5 text-slate-500">
-                                          补充要求: {runServiceSkillContext.userInput}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  ) : null}
-                                  {delivery ? (
-                                    <div
-                                      className={`mt-3 rounded-[16px] border px-3 py-2 ${deliveryToneClass(
-                                        delivery,
-                                      )}`}
-                                    >
-                                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
-                                        <span>
-                                          输出投递 /{" "}
-                                          {deliveryChannelLabel(delivery.channel)}
-                                        </span>
-                                        <Badge
-                                          variant={deliveryStatusVariant(
-                                            delivery.success,
-                                          )}
-                                        >
-                                          {delivery.success ? "成功" : "失败"}
-                                        </Badge>
-                                      </div>
-                                      <div className="mt-2 text-xs leading-5">
-                                        {delivery.message}
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                  {run.error_message ? (
-                                    <div className="mt-3 rounded-[16px] border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-600">
-                                      <div className="font-medium">失败原因</div>
-                                      <div className="mt-1">
-                                        {run.error_message}
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 p-6 text-sm text-slate-500">
-                              还没有运行记录。
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-500">
-                        选择左侧任务后查看详情。
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           </TabsContent>
 
@@ -1826,6 +1044,18 @@ export function AutomationSettings({
         saving={jobSaving}
         onOpenChange={handleDialogOpenChange}
         onSubmit={handleSubmitJob}
+      />
+      <AutomationJobDetailsDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        job={selectedJob}
+        workspaceName={
+          selectedJob ? workspaceNameMap.get(selectedJob.workspace_id) ?? null : null
+        }
+        serviceSkillContext={selectedServiceSkillContext}
+        jobRuns={jobRuns}
+        historyLoading={historyLoading}
+        onRefreshHistory={refreshHistory}
       />
     </div>
   );

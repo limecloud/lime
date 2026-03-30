@@ -16,6 +16,8 @@ const mockStreamingRenderer = vi.fn(
     content,
     onOpenSavedSiteContent,
     suppressProcessFlow,
+    showRuntimeStatusInline,
+    renderProposedPlanBlocks,
     showContentBlockActions,
     onQuoteContent,
   }: {
@@ -23,6 +25,8 @@ const mockStreamingRenderer = vi.fn(
     renderA2UIInline?: boolean;
     suppressedActionRequestId?: string | null;
     suppressProcessFlow?: boolean;
+    showRuntimeStatusInline?: boolean;
+    renderProposedPlanBlocks?: boolean;
     showContentBlockActions?: boolean;
     onQuoteContent?: (content: string) => void;
     onOpenSavedSiteContent?: (target: {
@@ -35,6 +39,12 @@ const mockStreamingRenderer = vi.fn(
       data-testid="streaming-renderer"
       data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
       data-suppress-process-flow={suppressProcessFlow ? "yes" : "no"}
+      data-show-runtime-status-inline={
+        showRuntimeStatusInline ? "yes" : "no"
+      }
+      data-render-proposed-plan-blocks={
+        renderProposedPlanBlocks ? "yes" : "no"
+      }
       data-show-content-block-actions={showContentBlockActions ? "yes" : "no"}
       data-has-on-quote-content={onQuoteContent ? "yes" : "no"}
     >
@@ -263,7 +273,7 @@ describe("MessageList", () => {
     );
   });
 
-  it("存在主执行轨迹时应抑制正文内重复过程流", () => {
+  it("存在主执行轨迹时不应再默认压掉正文过程流", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -304,9 +314,376 @@ describe("MessageList", () => {
       ],
     });
 
-    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+    expect(mockStreamingRenderer).not.toHaveBeenCalledWith(
       expect.objectContaining({ suppressProcessFlow: true }),
     );
+  });
+
+  it("正文已承载工具调用时，不应再把执行轨迹提前到消息顶部", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-inline-tool",
+        role: "assistant",
+        content: "已经定位到问题根因。",
+        timestamp: now,
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-inline-1",
+              name: "functions.exec_command",
+              arguments: JSON.stringify({ cmd: "rg -n issue src" }),
+              status: "completed",
+              result: { success: true, output: "ok" },
+              startTime: now,
+              endTime: now,
+            },
+          },
+          {
+            type: "text",
+            text: "已经定位到问题根因。",
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-inline-tool",
+      turns: [
+        {
+          id: "turn-inline-tool",
+          thread_id: "thread-1",
+          prompt_text: "继续排查",
+          status: "completed",
+          started_at: "2026-03-28T12:00:00Z",
+          completed_at: "2026-03-28T12:00:03Z",
+          created_at: "2026-03-28T12:00:00Z",
+          updated_at: "2026-03-28T12:00:03Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-inline-tool",
+          thread_id: "thread-1",
+          turn_id: "turn-inline-tool",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-03-28T12:00:01Z",
+          completed_at: "2026-03-28T12:00:02Z",
+          updated_at: "2026-03-28T12:00:02Z",
+          type: "tool_call",
+          tool_name: "functions.exec_command",
+          arguments: { cmd: "rg -n issue src" },
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        renderProposedPlanBlocks: true,
+      }),
+    );
+  });
+
+  it("正文已承载过程流时，未被正文承载的计划信息仍应保留在消息前序", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-inline-process",
+        role: "assistant",
+        content: "已经整理完执行思路。",
+        timestamp: now,
+        contentParts: [
+          {
+            type: "thinking",
+            text: "先对照用户截图，再确认 thread item 是否有重复来源。",
+          },
+          {
+            type: "text",
+            text: "已经整理完执行思路。",
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-inline-process",
+      turns: [
+        {
+          id: "turn-inline-process",
+          thread_id: "thread-1",
+          prompt_text: "继续收口消息流",
+          status: "completed",
+          started_at: "2026-03-29T12:00:00Z",
+          completed_at: "2026-03-29T12:00:03Z",
+          created_at: "2026-03-29T12:00:00Z",
+          updated_at: "2026-03-29T12:00:03Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-inline-process-plan",
+          thread_id: "thread-1",
+          turn_id: "turn-inline-process",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-03-29T12:00:01Z",
+          completed_at: "2026-03-29T12:00:02Z",
+          updated_at: "2026-03-29T12:00:02Z",
+          type: "plan",
+          text: "1. 合并 assistant turn\n2. 收拢补充 timeline",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        renderProposedPlanBlocks: true,
+      }),
+    );
+  });
+
+  it("正文已承载过程流时，file_artifact 仍应作为尾部补充信息展示", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-inline-artifact",
+        role: "assistant",
+        content: "结果已经整理好了。",
+        timestamp: now,
+        contentParts: [
+          {
+            type: "thinking",
+            text: "先整理结果，再把产物路径落盘。",
+          },
+          {
+            type: "text",
+            text: "结果已经整理好了。",
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-inline-artifact",
+      turns: [
+        {
+          id: "turn-inline-artifact",
+          thread_id: "thread-1",
+          prompt_text: "继续整理产物",
+          status: "completed",
+          started_at: "2026-03-29T13:00:00Z",
+          completed_at: "2026-03-29T13:00:03Z",
+          created_at: "2026-03-29T13:00:00Z",
+          updated_at: "2026-03-29T13:00:03Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-inline-artifact",
+          thread_id: "thread-1",
+          turn_id: "turn-inline-artifact",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-03-29T13:00:01Z",
+          completed_at: "2026-03-29T13:00:02Z",
+          updated_at: "2026-03-29T13:00:02Z",
+          type: "file_artifact",
+          path: "notes/agent-summary.md",
+          source: "artifact_snapshot",
+          content: "# Summary",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).not.toBeNull();
+  });
+
+  it("运行中的 turn_summary 应作为尾部过程状态展示，而不是顶到消息头部", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-running-summary",
+        role: "assistant",
+        content: "",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-running-summary",
+      turns: [
+        {
+          id: "turn-running-summary",
+          thread_id: "thread-1",
+          prompt_text: "继续搜索 GitHub",
+          status: "running",
+          started_at: "2026-03-30T10:00:00Z",
+          created_at: "2026-03-30T10:00:00Z",
+          updated_at: "2026-03-30T10:00:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "summary-running-1",
+          thread_id: "thread-1",
+          turn_id: "turn-running-summary",
+          sequence: 1,
+          status: "in_progress",
+          started_at: "2026-03-30T10:00:00Z",
+          updated_at: "2026-03-30T10:00:05Z",
+          type: "turn_summary",
+          text: "正在打开 GitHub 搜索页",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).not.toBeNull();
+  });
+
+  it("正文已有 runtime status 时，运行中的 turn_summary 不应再重复进入时间线", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-runtime-status",
+        role: "assistant",
+        content: "",
+        timestamp: now,
+        isThinking: true,
+        runtimeStatus: {
+          phase: "routing",
+          title: "正在打开 GitHub",
+          detail: "已连上浏览器，准备进入搜索页。",
+          checkpoints: ["浏览器已就绪"],
+        },
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-runtime-status",
+      turns: [
+        {
+          id: "turn-runtime-status",
+          thread_id: "thread-1",
+          prompt_text: "继续搜索 GitHub",
+          status: "running",
+          started_at: "2026-03-30T10:10:00Z",
+          created_at: "2026-03-30T10:10:00Z",
+          updated_at: "2026-03-30T10:10:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "summary-runtime-status-1",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-status",
+          sequence: 1,
+          status: "in_progress",
+          started_at: "2026-03-30T10:10:00Z",
+          updated_at: "2026-03-30T10:10:05Z",
+          type: "turn_summary",
+          text: "正在打开 GitHub 搜索页",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        showRuntimeStatusInline: true,
+      }),
+    );
+  });
+
+  it("已完成且已有真实过程项的 turn_summary 不应再单独占用消息头部或尾部", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-finished-summary",
+        role: "assistant",
+        content: "已经打开 GitHub 并完成搜索。",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-finished-summary",
+      turns: [
+        {
+          id: "turn-finished-summary",
+          thread_id: "thread-1",
+          prompt_text: "帮我找 AI Agent 项目",
+          status: "completed",
+          started_at: "2026-03-30T11:00:00Z",
+          completed_at: "2026-03-30T11:00:05Z",
+          created_at: "2026-03-30T11:00:00Z",
+          updated_at: "2026-03-30T11:00:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "summary-finished-1",
+          thread_id: "thread-1",
+          turn_id: "turn-finished-summary",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-03-30T11:00:00Z",
+          completed_at: "2026-03-30T11:00:01Z",
+          updated_at: "2026-03-30T11:00:01Z",
+          type: "turn_summary",
+          text: "已打开 GitHub 搜索页面",
+        },
+        {
+          id: "tool-finished-1",
+          thread_id: "thread-1",
+          turn_id: "turn-finished-summary",
+          sequence: 2,
+          status: "completed",
+          started_at: "2026-03-30T11:00:02Z",
+          completed_at: "2026-03-30T11:00:04Z",
+          updated_at: "2026-03-30T11:00:04Z",
+          type: "tool_call",
+          tool_name: "browser_navigate",
+          arguments: { url: "https://github.com/search?q=ai+agent" },
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+    expect(mockAgentThreadTimeline).toHaveBeenCalledTimes(1);
   });
 
   it("应按回合分组展示同一轮用户与后续助手回复", () => {
@@ -650,7 +1027,7 @@ describe("MessageList", () => {
     ).toBeTruthy();
   });
 
-  it("应向执行轨迹透传助手消息上的 actionRequests", () => {
+  it("助手消息上的 actionRequests 应继续留在正文链路，不再重复透传给 timeline", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -708,13 +1085,12 @@ describe("MessageList", () => {
       | undefined;
 
     expect(timelineProps?.placement).toBe("leading");
-    expect(timelineProps?.actionRequests).toEqual([
+    expect(timelineProps?.actionRequests).toBeUndefined();
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestId: "req-browser",
-        uiKind: "browser_preflight",
-        browserPrepState: "awaiting_user",
+        renderProposedPlanBlocks: true,
       }),
-    ]);
+    );
   });
 
   it("应向执行轨迹透传已保存站点内容打开回调", () => {

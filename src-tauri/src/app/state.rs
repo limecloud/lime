@@ -20,7 +20,6 @@ use crate::plugin;
 use crate::telemetry;
 use lime_core::config::{Config, ConfigManager};
 use lime_services::api_key_provider_service::ApiKeyProviderService;
-use lime_services::content_creator::{ProgressStore, WorkflowService};
 use lime_services::context_memory_service::{ContextMemoryConfig, ContextMemoryService};
 use lime_services::provider_pool_service::ProviderPoolService;
 use lime_services::skill_service::SkillService;
@@ -59,8 +58,6 @@ pub struct ServiceStates {
     pub plugin_installer: PluginInstallerState,
     pub orchestrator: OrchestratorState,
     pub context_memory_service: ContextMemoryServiceState,
-    pub workflow_service: Arc<RwLock<WorkflowService>>,
-    pub progress_store: Arc<RwLock<ProgressStore>>,
 }
 
 /// 初始化所有服务状态
@@ -110,15 +107,6 @@ pub fn init_service_states() -> ServiceStates {
         .expect("Failed to initialize ContextMemoryService");
     let context_memory_service_state = ContextMemoryServiceState(Arc::new(context_memory_service));
 
-    // Initialize WorkflowService
-    let workflow_service = WorkflowService::new();
-    let workflow_service_state = Arc::new(RwLock::new(workflow_service));
-
-    // Initialize ProgressStore
-    let db_path = database::get_db_path().expect("Failed to get database path");
-    let progress_store = ProgressStore::new(db_path).expect("Failed to initialize ProgressStore");
-    let progress_store_state = Arc::new(RwLock::new(progress_store));
-
     ServiceStates {
         skill_service: skill_service_state,
         provider_pool_service: provider_pool_service_state,
@@ -131,8 +119,6 @@ pub fn init_service_states() -> ServiceStates {
         plugin_installer: plugin_installer_state,
         orchestrator: orchestrator_state,
         context_memory_service: context_memory_service_state,
-        workflow_service: workflow_service_state,
-        progress_store: progress_store_state,
     }
 }
 

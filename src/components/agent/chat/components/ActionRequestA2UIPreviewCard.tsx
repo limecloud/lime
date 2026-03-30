@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import {
   CHAT_A2UI_TASK_CARD_PRESET,
   TIMELINE_A2UI_TASK_CARD_PRESET,
-} from "@/components/content-creator/a2ui/taskCardPresets";
+} from "@/lib/workspace/a2ui";
 import type { ActionRequired } from "../types";
 import {
   buildActionRequestA2UI,

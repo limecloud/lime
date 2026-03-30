@@ -1,8 +1,8 @@
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 
 export type CreateConfirmationSource =
   | "project_created"

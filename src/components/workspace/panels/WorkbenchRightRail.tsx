@@ -1,4 +1,4 @@
-import { ContentReviewPanel } from "@/components/content-creator/canvas/document/ContentReviewPanel";
+import { ContentReviewPanel } from "@/lib/workspace/workbenchCanvas";
 import { CollapsedRail, NonCreateRail } from "./workbenchRightRailCompactRails";
 import { WorkbenchRightRailExpandedPanel } from "./WorkbenchRightRailExpandedPanel";
 import { WorkbenchRightRailThemeSkillsView } from "./WorkbenchRightRailThemeSkillsView";
@@ -18,10 +18,6 @@ export function WorkbenchRightRail({
   theme,
   creationMode = "guided",
   creationType,
-  initialStyleGuideDialogOpen,
-  onInitialStyleGuideDialogConsumed,
-  initialStyleGuideSourceEntryId,
-  onInitialStyleGuideSourceEntryConsumed,
   onBackToCreateView,
   onCreateContentFromPrompt,
 }: WorkbenchRightRailProps) {
@@ -93,12 +89,6 @@ export function WorkbenchRightRail({
       onCreateContentFromPrompt={onCreateContentFromPrompt}
       initialExpandedActionKey={pendingExpandedActionKey}
       onInitialExpandedActionConsumed={handleExpandedActionConsumed}
-      initialStyleGuideDialogOpen={initialStyleGuideDialogOpen}
-      onInitialStyleGuideDialogConsumed={onInitialStyleGuideDialogConsumed}
-      initialStyleGuideSourceEntryId={initialStyleGuideSourceEntryId}
-      onInitialStyleGuideSourceEntryConsumed={
-        onInitialStyleGuideSourceEntryConsumed
-      }
     />
   );
 }

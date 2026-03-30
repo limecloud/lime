@@ -4,7 +4,7 @@ import type {
   A2UIComponent,
   ChoicePickerComponent,
   TextFieldComponent,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 
 import {
   buildLegacyQuestionnaireSubmissionPayload,

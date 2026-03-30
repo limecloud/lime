@@ -29,6 +29,7 @@ export interface AgentStreamPreparedSendEnv {
   modelRef: MutableRefObject<string>;
   sessionIdRef: MutableRefObject<string | null>;
   getQueuedTurnsCount: () => number;
+  isThreadBusy: () => boolean;
   getRequiredWorkspaceId: () => string;
   getSyncedSessionModelPreference: (
     sessionId: string,
@@ -69,17 +70,19 @@ export interface AgentStreamPreparedSendEnv {
 }
 
 export interface CreateAgentStreamPreparedSendEnvOptions
-  extends Omit<AgentStreamPreparedSendEnv, "getQueuedTurnsCount"> {
+  extends Omit<AgentStreamPreparedSendEnv, "getQueuedTurnsCount" | "isThreadBusy"> {
   queuedTurnsCount: number;
+  threadBusy: boolean;
 }
 
 export function createAgentStreamPreparedSendEnv(
   options: CreateAgentStreamPreparedSendEnvOptions,
 ): AgentStreamPreparedSendEnv {
-  const { queuedTurnsCount, ...rest } = options;
+  const { queuedTurnsCount, threadBusy, ...rest } = options;
 
   return {
     ...rest,
     getQueuedTurnsCount: () => queuedTurnsCount,
+    isThreadBusy: () => threadBusy,
   };
 }

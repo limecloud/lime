@@ -369,7 +369,7 @@ pub async fn get_or_create_default_project(
 
 /// 获取项目上下文
 ///
-/// 加载项目的完整上下文，包括人设、素材、模板等配置。
+/// 加载项目的完整上下文，包括人设、素材等配置。
 /// 用于在发送消息前构建 AI 的 System Prompt。
 ///
 /// # 参数
@@ -390,7 +390,7 @@ pub async fn get_project_context(
 /// 构建项目 System Prompt
 ///
 /// 根据项目配置构建 AI 的 System Prompt。
-/// 包含人设信息、素材引用、排版规则等。
+/// 包含人设信息、素材引用等。
 ///
 /// # 参数
 /// - `project_id`: 项目 ID

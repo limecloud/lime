@@ -19,13 +19,21 @@ interface RenderResult {
 
 const mounted: RenderResult[] = [];
 
-function renderPage(onTabChange = vi.fn()): RenderResult {
+function renderPage(
+  onTabChange = vi.fn(),
+  onTabPrefetch?: (tab: SettingsTabs) => void,
+): RenderResult {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
   act(() => {
-    root.render(<SettingsHomePage onTabChange={onTabChange} />);
+    root.render(
+      <SettingsHomePage
+        onTabChange={onTabChange}
+        onTabPrefetch={onTabPrefetch}
+      />,
+    );
   });
 
   const rendered = { container, root };
@@ -130,5 +138,19 @@ describe("SettingsHomePage", () => {
     });
 
     expect(onTabChange).toHaveBeenCalledWith(SettingsTabs.Appearance);
+  });
+
+  it("悬停常用入口时应触发对应 tab 预取", () => {
+    const onTabPrefetch = vi.fn();
+    const { container } = renderPage(vi.fn(), onTabPrefetch);
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("外观"),
+    );
+
+    act(() => {
+      button?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+
+    expect(onTabPrefetch).toHaveBeenCalledWith(SettingsTabs.Appearance);
   });
 });

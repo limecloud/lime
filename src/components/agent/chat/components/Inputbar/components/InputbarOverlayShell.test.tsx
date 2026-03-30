@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InputbarOverlayShell } from "./InputbarOverlayShell";
-import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
+import type { A2UIResponse } from "@/lib/workspace/a2ui";
 
 vi.mock("../../TaskFiles", () => ({
   TaskFileList: () => <div data-testid="task-file-list" />,

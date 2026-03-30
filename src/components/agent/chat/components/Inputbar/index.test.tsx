@@ -6,7 +6,7 @@ import { Inputbar } from "./index";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
-import type { A2UIResponse } from "@/components/content-creator/a2ui/types";
+import type { A2UIResponse } from "@/lib/workspace/a2ui";
 
 const mockCharacterMention =
   vi.fn<

@@ -17,6 +17,47 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
+fn map_config_change_kind(kind: &EventKind) -> Option<ConfigChangeKind> {
+    match kind {
+        EventKind::Create(_) => Some(ConfigChangeKind::Created),
+        EventKind::Modify(_) => Some(ConfigChangeKind::Modified),
+        EventKind::Remove(_) => Some(ConfigChangeKind::Removed),
+        _ => None,
+    }
+}
+
+fn paths_equivalent(path: &Path, watched_path: &Path) -> bool {
+    if path == watched_path {
+        return true;
+    }
+
+    match (
+        std::fs::canonicalize(path),
+        std::fs::canonicalize(watched_path),
+    ) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
+}
+
+fn filter_config_event_paths(paths: &[PathBuf], watched_path: &Path) -> Vec<PathBuf> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            if paths_equivalent(path, watched_path) {
+                Some(path.clone())
+            } else {
+                tracing::debug!(
+                    "[HOT_RELOAD] 忽略非目标配置文件事件: watched={:?}, event={:?}",
+                    watched_path,
+                    path
+                );
+                None
+            }
+        })
+        .collect()
+}
+
 /// 热重载错误类型
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -120,6 +161,7 @@ impl FileWatcher {
         tx: mpsc::UnboundedSender<ConfigChangeEvent>,
     ) -> Result<Self, HotReloadError> {
         let watched_path = path.to_path_buf();
+        let watched_path_for_events = watched_path.clone();
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
 
@@ -134,7 +176,17 @@ impl FileWatcher {
 
             match res {
                 Ok(event) => {
-                    // 检查是否需要防抖动
+                    let Some(kind) = map_config_change_kind(&event.kind) else {
+                        return;
+                    };
+
+                    let relevant_paths =
+                        filter_config_event_paths(&event.paths, &watched_path_for_events);
+                    if relevant_paths.is_empty() {
+                        return;
+                    }
+
+                    // 只对真实配置文件事件做防抖，避免同目录备份/临时文件吞掉有效更新。
                     let now = Instant::now();
                     {
                         let last = last_event.read();
@@ -143,29 +195,18 @@ impl FileWatcher {
                         }
                     }
 
-                    // 更新最后事件时间
                     {
                         let mut last = last_event.write();
                         *last = now;
                     }
 
-                    // 转换事件类型
-                    let kind = match event.kind {
-                        EventKind::Create(_) => Some(ConfigChangeKind::Created),
-                        EventKind::Modify(_) => Some(ConfigChangeKind::Modified),
-                        EventKind::Remove(_) => Some(ConfigChangeKind::Removed),
-                        _ => None,
-                    };
-
-                    if let Some(kind) = kind {
-                        for path in event.paths {
-                            let change_event = ConfigChangeEvent {
-                                path,
-                                kind: kind.clone(),
-                                timestamp: now,
-                            };
-                            let _ = tx.send(change_event);
-                        }
+                    for path in relevant_paths {
+                        let change_event = ConfigChangeEvent {
+                            path,
+                            kind: kind.clone(),
+                            timestamp: now,
+                        };
+                        let _ = tx.send(change_event);
                     }
                 }
                 Err(e) => {
@@ -537,7 +578,7 @@ pub struct HotReloadStatus {
 mod unit_tests {
     use super::*;
     use std::io::Write;
-    use tempfile::NamedTempFile;
+    use tempfile::{tempdir, NamedTempFile};
 
     #[test]
     fn test_hot_reload_manager_new() {
@@ -664,6 +705,49 @@ server:
     fn test_config_change_kind_eq() {
         assert_eq!(ConfigChangeKind::Modified, ConfigChangeKind::Modified);
         assert_ne!(ConfigChangeKind::Modified, ConfigChangeKind::Created);
+    }
+
+    #[test]
+    fn test_filter_config_event_paths_only_keeps_target_config() {
+        let temp_dir = tempdir().unwrap();
+        let config_path = temp_dir.path().join("config.yaml");
+        let backup_path = temp_dir.path().join("config.yaml.backup");
+        let temp_path = temp_dir.path().join("config.yaml.tmp");
+
+        std::fs::write(&config_path, "server:\n  port: 8999\n").unwrap();
+        std::fs::write(&backup_path, "backup").unwrap();
+        std::fs::write(&temp_path, "temp").unwrap();
+
+        let event_paths = vec![backup_path, config_path.clone(), temp_path];
+        let filtered = filter_config_event_paths(&event_paths, &config_path);
+
+        assert_eq!(filtered, vec![config_path]);
+    }
+
+    #[test]
+    fn test_filter_config_event_paths_accepts_canonical_target_path() {
+        let temp_dir = tempdir().unwrap();
+        let config_path = temp_dir.path().join("config.yaml");
+        std::fs::write(&config_path, "server:\n  port: 8999\n").unwrap();
+
+        let alias_path = temp_dir.path().join(".").join("config.yaml");
+        let filtered = filter_config_event_paths(&[alias_path.clone()], &config_path);
+
+        assert_eq!(filtered, vec![alias_path]);
+    }
+
+    #[test]
+    fn test_filter_config_event_paths_ignores_unrelated_files() {
+        let temp_dir = tempdir().unwrap();
+        let config_path = temp_dir.path().join("config.yaml");
+        let backup_path = temp_dir.path().join("config.yaml.backup");
+        let swap_path = temp_dir.path().join(".config.yaml.swp");
+
+        std::fs::write(&backup_path, "backup").unwrap();
+        std::fs::write(&swap_path, "swap").unwrap();
+
+        let filtered = filter_config_event_paths(&[backup_path, swap_path], &config_path);
+        assert!(filtered.is_empty());
     }
 
     #[test]

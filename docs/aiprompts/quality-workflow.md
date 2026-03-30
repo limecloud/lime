@@ -66,6 +66,10 @@
 
 如果本轮是在下线共享网关控制面，`start_server`、`stop_server`、`get_server_status`、`get_available_routes`、`get_route_curl_examples`、`test_api`、`get_network_info`，以及托盘残留 `sync_tray_state`、`update_tray_server_status`、`update_tray_credential_status`、`get_tray_state`、`refresh_tray_menu`、`refresh_tray_with_stats` 必须同步从前端网关、Rust 注册、DevBridge 和 mock 中撤掉；server 兼容面 `/v1/routes`、`/{selector}/v1/messages`、`/{selector}/v1/chat/completions` 也必须同步从 server 路由表与 services/core 模型中撤掉；开发者诊断只保留 `get_server_diagnostics`，托盘只保留 `sync_tray_model_shortcuts`，server 只保留标准 `/v1/messages` 与 `/v1/chat/completions`。
 
+如果本轮是在下线项目默认风格旧链路，`style_guide_get` / `style_guide_update` 与 `ProjectMemory.style_guide` 也必须同步从前端 API、Rust 注册、数据库 schema、默认 mock 和 GUI 入口中撤掉。
+
+如果本轮是在下线项目模板或品牌人设扩展旧链路，`create_template` / `list_templates` / `get_template` / `update_template` / `delete_template` / `set_default_template` / `get_default_template`，以及 `get_brand_persona` / `get_brand_extension` / `save_brand_extension` / `update_brand_extension` / `delete_brand_extension` / `list_brand_persona_templates` 也必须同步从前端 API、Rust 注册、services/core 模型、默认 mock 和 GUI 入口中撤掉。
+
 ### 3. 用户可见 UI 改动必须补稳定回归
 
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言

@@ -38,6 +38,14 @@ function renderComponent(
   return container;
 }
 
+async function flushEffects(times = 6) {
+  await act(async () => {
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const button = Array.from(container.querySelectorAll("button")).find((item) =>
     item.textContent?.includes(text),
@@ -73,8 +81,9 @@ afterEach(() => {
 });
 
 describe("MediaServicesSettings", () => {
-  it("默认应展示图片服务页签", () => {
+  it("默认应展示图片服务页签", async () => {
     const container = renderComponent();
+    await flushEffects();
     const text = container.textContent ?? "";
 
     expect(text).toContain("媒体服务");
@@ -82,22 +91,25 @@ describe("MediaServicesSettings", () => {
     expect(text).not.toContain("视频配置内容");
   });
 
-  it("应支持通过初始参数打开语音页签", () => {
+  it("应支持通过初始参数打开语音页签", async () => {
     const container = renderComponent({ initialSection: "voice" });
+    await flushEffects();
     const text = container.textContent ?? "";
 
     expect(text).toContain("语音配置内容");
     expect(text).not.toContain("图片配置内容");
   });
 
-  it("点击页签后应切换到视频配置", () => {
+  it("点击页签后应切换到视频配置", async () => {
     const container = renderComponent();
+    await flushEffects();
 
     act(() => {
       findButton(container, "视频服务").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });
+    await flushEffects();
 
     const text = container.textContent ?? "";
     expect(text).toContain("视频配置内容");

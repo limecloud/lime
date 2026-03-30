@@ -4,7 +4,6 @@ import type {
   Page,
   PageParams,
   ProjectDetailPageParams,
-  StylePageParams,
   ThemeWorkspacePage,
   WorkspaceTheme,
 } from "@/types/page";
@@ -52,15 +51,6 @@ export function useAppNavigation(): UseAppNavigationResult {
   );
 
   const handleNavigate = useCallback((page: Page, params?: PageParams) => {
-    if (
-      page === "memory" &&
-      (params as { section?: string } | undefined)?.section === "style-library"
-    ) {
-      setCurrentPage("style");
-      setPageParams({ section: "library" } as StylePageParams);
-      return;
-    }
-
     if (page === "projects") {
       const projectParams = params as
         | {
@@ -99,10 +89,6 @@ export function useAppNavigation(): UseAppNavigationResult {
           ? { projectId: projectParams.projectId }
           : {}),
         workspaceViewMode,
-        workspaceOpenProjectStyleGuide:
-          projectParams?.openProjectStyleGuide ?? false,
-        workspaceOpenProjectStyleGuideSourceEntryId:
-          projectParams?.openProjectStyleGuideSourceEntryId,
       });
       return;
     }

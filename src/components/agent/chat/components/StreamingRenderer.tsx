@@ -13,7 +13,6 @@ import {
   ExternalLink,
   FileText,
   Loader2,
-  Sparkles,
 } from "lucide-react";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { MarkdownRenderer } from "./MarkdownRenderer";
@@ -22,13 +21,13 @@ import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
 import { ToolCallItem } from "./ToolCallDisplay";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentPlanBlock } from "./AgentPlanBlock";
-import { parseAIResponse } from "@/components/content-creator/a2ui/parser";
+import { parseAIResponse } from "@/lib/workspace/a2ui";
 import type {
   A2UIFormData,
   ParseResult,
   ParsedMessageContent,
-} from "@/components/content-creator/a2ui/types";
-import { CHAT_A2UI_TASK_CARD_PRESET } from "@/components/content-creator/a2ui/taskCardPresets";
+} from "@/lib/workspace/a2ui";
+import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type {
   AgentRuntimeStatus,
@@ -826,6 +825,34 @@ const RUNTIME_PHASE_LABELS: Record<AgentRuntimeStatus["phase"], string> = {
   failed: "需要处理",
 };
 
+function normalizeRuntimeStatusLine(value?: string | null): string {
+  return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function buildRuntimeStatusSupportingLines(status: AgentRuntimeStatus): string[] {
+  const lines: string[] = [];
+  const normalizedTitle = normalizeRuntimeStatusLine(status.title);
+  const normalizedDetail = normalizeRuntimeStatusLine(status.detail);
+
+  if (normalizedDetail && normalizedDetail !== normalizedTitle) {
+    lines.push(normalizedDetail);
+  }
+
+  const checkpointText = (status.checkpoints || [])
+    .map((item) => normalizeRuntimeStatusLine(item))
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index)
+    .filter((item) => item !== normalizedTitle && item !== normalizedDetail)
+    .slice(0, 2)
+    .join(" · ");
+
+  if (checkpointText) {
+    lines.push(checkpointText);
+  }
+
+  return lines;
+}
+
 const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
   status,
 }) => {
@@ -834,83 +861,71 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
     !failed &&
     status.metadata?.concurrency_scope === "provider_global" &&
     status.metadata?.retryable_overload;
+  const supportingLines = buildRuntimeStatusSupportingLines(status);
+  const ToneIcon = failed ? AlertTriangle : Loader2;
 
   return (
     <div
+      data-testid="agent-runtime-status"
       className={cn(
-        "rounded-2xl border px-4 py-3",
+        "rounded-xl border px-3.5 py-2.5",
         failed
-          ? "border-rose-200 bg-rose-50/90"
-          : "border-border/70 bg-muted/30",
+          ? "border-rose-200 bg-rose-50/80"
+          : "border-border/60 bg-slate-50",
       )}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <div
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full",
-            failed ? "bg-rose-100 text-rose-600" : "bg-primary/10 text-primary",
-          )}
-        >
-          {failed ? (
-            <AlertTriangle className="h-4 w-4" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center">
+          <ToneIcon
+            className={cn(
+              "h-4 w-4",
+              failed ? "text-rose-600" : "animate-spin text-sky-600",
+            )}
+          />
         </div>
-        <div
-          className={cn(
-            "text-sm font-medium",
-            failed ? "text-rose-900" : "text-foreground",
-          )}
-        >
-          {status.title}
-        </div>
-        <div
-          className={cn(
-            "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs",
-            failed
-              ? "border-rose-200 bg-white text-rose-700"
-              : "border-border/70 bg-background/80 text-muted-foreground",
-          )}
-        >
-          {failed ? (
-            <AlertTriangle className="h-3 w-3" />
-          ) : (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          )}
-          {RUNTIME_PHASE_LABELS[status.phase]}
-        </div>
-        {sequentialProtection ? (
-          <div className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs text-amber-700">
-            稳妥处理
-          </div>
-        ) : null}
-      </div>
-      <div
-        className={cn(
-          "text-sm",
-          failed ? "text-rose-700" : "text-muted-foreground",
-        )}
-      >
-        {status.detail}
-      </div>
-      {status.checkpoints && status.checkpoints.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {status.checkpoints.map((item) => (
-            <span
-              key={item}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div
               className={cn(
-                "rounded-full border px-2.5 py-1 text-xs",
-                failed
-                  ? "border-rose-200 bg-white text-rose-700"
-                  : "border-border/60 bg-background/80 text-muted-foreground",
+                "min-w-0 text-sm font-medium leading-6",
+                failed ? "text-rose-900" : "text-slate-800",
               )}
             >
-              {item}
-            </span>
-          ))}
+              {status.title}
+            </div>
+            <div
+              className={cn(
+                "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none",
+                failed
+                  ? "border-rose-200 bg-white text-rose-700"
+                  : "border-slate-200 bg-white text-slate-500",
+              )}
+            >
+              {RUNTIME_PHASE_LABELS[status.phase]}
+            </div>
+            {sequentialProtection ? (
+              <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] leading-none text-amber-700">
+                稳妥处理
+              </div>
+            ) : null}
+          </div>
+          {supportingLines.length > 0 ? (
+            <div className="mt-0.5 space-y-0.5">
+              {supportingLines.map((line) => (
+                <div
+                  key={line}
+                  className={cn(
+                    "text-xs leading-5",
+                    failed ? "text-rose-700" : "text-slate-500",
+                  )}
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 };
@@ -1456,6 +1471,8 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     if (useInterleavedMode) {
       const nodes: React.ReactNode[] = [];
       let processBuffer: StreamingProcessEntry[] = [];
+      const shouldShowRuntimeStatus =
+        showRuntimeStatusInline && Boolean(runtimeStatus) && isStreaming;
 
       const flushProcessBuffer = (keySuffix: string) => {
         if (processBuffer.length === 0) {
@@ -1523,6 +1540,9 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
 
       return (
         <div className="flex flex-col gap-2">
+          {shouldShowRuntimeStatus && runtimeStatus ? (
+            <AgentRuntimeStatusBlock status={runtimeStatus} />
+          ) : null}
           {nodes}
 
           {/* 如果没有内容但正在流式输出，显示光标 */}
@@ -1539,8 +1559,6 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     }
 
     // 回退模式：将思考、工具和确认收敛成同一条执行过程
-    const hasToolCalls = toolCalls && toolCalls.length > 0;
-    const hasActionRequests = visibleActionRequests.length > 0;
     const legacyProcessEntries: StreamingProcessEntry[] = [];
     if (finalThinking) {
       legacyProcessEntries.push({
@@ -1567,11 +1585,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     const shouldShowRuntimeStatus =
       showRuntimeStatusInline &&
       Boolean(runtimeStatus) &&
-      isStreaming &&
-      !hasVisibleContent &&
-      !hasToolCalls &&
-      !hasActionRequests &&
-      !hasRunningTools;
+      isStreaming;
 
     return (
       <div className="flex flex-col gap-2">

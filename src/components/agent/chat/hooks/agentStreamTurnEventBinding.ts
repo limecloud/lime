@@ -6,7 +6,7 @@ import type {
   AutoContinueRequestPayload,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { ActionRequired, Message } from "../types";
 import { mapProviderName } from "./agentChatCoreUtils";
 import { handleTurnStreamEvent } from "./agentStreamRuntimeHandler";
@@ -30,6 +30,7 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   effectiveModel: string;
   effectiveExecutionStrategy: AsterExecutionStrategy;
   content: string;
+  webSearch?: boolean;
   autoContinue?: AutoContinueRequestPayload;
   expectingQueue: boolean;
   activeSessionId: string;
@@ -79,6 +80,7 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   setExecutionRuntime: Dispatch<
     SetStateAction<AsterSessionExecutionRuntime | null>
   >;
+  setIsSending: Dispatch<SetStateAction<boolean>>;
 }
 
 export async function registerAgentStreamTurnEventBinding(
@@ -93,6 +95,7 @@ export async function registerAgentStreamTurnEventBinding(
     effectiveModel,
     effectiveExecutionStrategy,
     content,
+    webSearch,
     autoContinue,
     expectingQueue,
     activeSessionId,
@@ -117,6 +120,7 @@ export async function registerAgentStreamTurnEventBinding(
     setThreadTurns,
     setCurrentTurnId,
     setExecutionRuntime,
+    setIsSending,
   } = options;
 
   requestState.requestStartedAt = Date.now();
@@ -175,7 +179,9 @@ export async function registerAgentStreamTurnEventBinding(
       activeSessionId,
       resolvedWorkspaceId,
       effectiveExecutionStrategy,
+      content,
       runtime,
+      webSearch,
       warnedKeysRef,
       actionLoggedKeys,
       toolLogIdByToolId,
@@ -188,6 +194,7 @@ export async function registerAgentStreamTurnEventBinding(
       setThreadTurns,
       setCurrentTurnId,
       setExecutionRuntime,
+      setIsSending,
     });
   });
 }

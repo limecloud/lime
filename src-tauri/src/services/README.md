@@ -35,7 +35,6 @@
 - `model_registry_service.rs` - 模型注册表服务
 - `persona_service.rs` - 人设服务（创建、列表、更新、删除、设置默认、模板）
 - `material_service.rs` - 素材服务（上传、存储、删除、内容读取）
-- `template_service.rs` - 排版模板服务（创建、列表、更新、删除、设置默认）
 
 ## 已迁移补充
 

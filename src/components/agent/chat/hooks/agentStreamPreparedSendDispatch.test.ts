@@ -64,6 +64,7 @@ describe("agentStreamPreparedSendDispatch", () => {
       modelRef: { current: "gpt-5.4" } as MutableRefObject<string>,
       sessionIdRef: { current: null } as MutableRefObject<string | null>,
       getQueuedTurnsCount: () => 0,
+      isThreadBusy: () => false,
       getRequiredWorkspaceId: () => "workspace-1",
       getSyncedSessionModelPreference: () => null,
       getSyncedSessionExecutionStrategy: (_sessionId) => "react",

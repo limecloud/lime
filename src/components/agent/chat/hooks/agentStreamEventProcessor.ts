@@ -17,7 +17,7 @@ import {
   resolveArtifactProtocolPreviewText,
 } from "@/lib/artifact-protocol";
 import type { ActionRequired, Message, WriteArtifactContext } from "../types";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import {
   isAskToolName,
   normalizeAskOptions,

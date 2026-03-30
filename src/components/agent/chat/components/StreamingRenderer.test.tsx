@@ -67,8 +67,10 @@ const mockToolCallItem = vi.fn(
   ),
 );
 
-vi.mock("@/components/content-creator/a2ui/parser", () => ({
+vi.mock("@/lib/workspace/a2ui", () => ({
   parseAIResponse: (...args: unknown[]) => parseAIResponseMock(...args),
+  CHAT_A2UI_TASK_CARD_PRESET: {},
+  TIMELINE_A2UI_TASK_CARD_PRESET: {},
 }));
 
 vi.mock("@/lib/artifact/hooks/useDebouncedValue", () => ({
@@ -593,6 +595,64 @@ describe("StreamingRenderer", () => {
 
     expect(container.textContent).toContain("当前服务较忙，稍后开始处理");
     expect(container.textContent).toContain("稳妥处理");
+  });
+
+  it("正文已经开始输出后，仍应继续显示轻量运行状态", () => {
+    const { container } = renderHarness({
+      content: "我来帮你先打开 GitHub 搜索页。",
+      isStreaming: true,
+      runtimeStatus: {
+        phase: "routing",
+        title: "正在搜索 GitHub",
+        detail: "已经打开搜索页，准备补充筛选条件。",
+        checkpoints: ["浏览器已就绪", "准备应用最近更新时间筛选"],
+      },
+      showRuntimeStatusInline: true,
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-runtime-status"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("正在搜索 GitHub");
+    expect(container.textContent).toContain("已经打开搜索页，准备补充筛选条件。");
+    expect(container.textContent).toContain("浏览器已就绪");
+  });
+
+  it("交错内容模式下也应继续显示轻量运行状态", () => {
+    const { container } = renderHarness({
+      content: "",
+      isStreaming: true,
+      runtimeStatus: {
+        phase: "context",
+        title: "正在整理搜索结果",
+        detail: "已拿到页面内容，正在提取最近一个月更新的仓库。",
+        checkpoints: ["页面内容已获取"],
+      },
+      showRuntimeStatusInline: true,
+      contentParts: [
+        {
+          type: "text",
+          text: "我已经打开 GitHub 搜索页，接下来开始筛选结果。",
+        },
+        {
+          type: "tool_use",
+          toolCall: {
+            id: "tool-runtime-status-inline",
+            name: "browser_snapshot",
+            arguments: JSON.stringify({ page: "github-search" }),
+            status: "running",
+            result: undefined,
+            startTime: new Date("2026-03-30T12:00:00.000Z"),
+          },
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-runtime-status"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("正在整理搜索结果");
+    expect(container.textContent).toContain("页面内容已获取");
   });
 
   it("思考内容进入流式阶段后应自动展开", () => {

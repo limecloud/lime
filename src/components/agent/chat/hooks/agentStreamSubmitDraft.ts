@@ -4,7 +4,7 @@ import type { Message, MessageImage } from "../types";
 import type { AssistantDraftState } from "./agentChatShared";
 import { buildInitialAgentRuntimeStatus } from "../utils/agentRuntimeStatus";
 
-function buildQueuedMessagePreview(content: string): string {
+export function buildQueuedMessagePreview(content: string): string {
   const compact = content.split(/\s+/).filter(Boolean).join(" ");
   if (!compact) {
     return "空白输入";
@@ -14,7 +14,7 @@ function buildQueuedMessagePreview(content: string): string {
   return compact.length > preview.length ? `${preview}...` : preview;
 }
 
-function buildQueuedRuntimeStatus(
+export function buildQueuedRuntimeStatus(
   executionStrategy: AsterExecutionStrategy,
   content: string,
   webSearch?: boolean,

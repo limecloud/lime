@@ -1,7 +1,7 @@
 /**
  * 记忆系统 API
  *
- * 提供角色、世界观、风格指南、大纲的 CRUD 操作
+ * 提供角色、世界观、大纲的 CRUD 操作
  */
 
 import { safeInvoke } from "@/lib/dev-bridge";
@@ -82,28 +82,6 @@ export interface UpdateWorldBuildingRequest {
   extra?: Record<string, unknown>;
 }
 
-/** 风格指南 */
-export interface StyleGuide {
-  project_id: string;
-  style: string;
-  tone?: string;
-  forbidden_words: string[];
-  preferred_words: string[];
-  examples?: string;
-  extra?: Record<string, unknown>;
-  updated_at: string;
-}
-
-/** 更新风格指南请求 */
-export interface UpdateStyleGuideRequest {
-  style?: string;
-  tone?: string;
-  forbidden_words?: string[];
-  preferred_words?: string[];
-  examples?: string;
-  extra?: Record<string, unknown>;
-}
-
 /** 大纲节点 */
 export interface OutlineNode {
   id: string;
@@ -149,7 +127,6 @@ export interface UpdateOutlineNodeRequest {
 export interface ProjectMemory {
   characters: Character[];
   world_building?: WorldBuilding;
-  style_guide?: StyleGuide;
   outline: OutlineNode[];
 }
 
@@ -203,23 +180,6 @@ export async function updateWorldBuilding(
     projectId,
     request,
   });
-}
-
-// ==================== 风格指南 API ====================
-
-/** 获取风格指南 */
-export async function getStyleGuide(
-  projectId: string,
-): Promise<StyleGuide | null> {
-  return safeInvoke<StyleGuide | null>("style_guide_get", { projectId });
-}
-
-/** 更新风格指南 */
-export async function updateStyleGuide(
-  projectId: string,
-  request: UpdateStyleGuideRequest,
-): Promise<StyleGuide> {
-  return safeInvoke<StyleGuide>("style_guide_update", { projectId, request });
 }
 
 // ==================== 大纲 API ====================
@@ -296,7 +256,6 @@ export async function getProjectMemory(
     logAgentDebug("AgentApi", "projectMemoryGet.success", {
       charactersCount: memory.characters.length,
       durationMs: Date.now() - startedAt,
-      hasStyleGuide: Boolean(memory.style_guide),
       hasWorldBuilding: Boolean(memory.world_building),
       outlineCount: memory.outline.length,
       projectId,

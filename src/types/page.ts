@@ -69,7 +69,6 @@ export type Page =
   | "openclaw"
   | "agent"
   | "skills"
-  | "style"
   | ThemeWorkspacePage
   | "image-gen"
   | "automation"
@@ -153,7 +152,7 @@ export interface AgentPageParams {
   initialSessionName?: string;
   /** 一次性入口提示文案 */
   entryBannerMessage?: string;
-  /** 首屏主题（用于左侧导航直达创作主题） */
+  /** 首屏工作区主题（用于直达指定工作区入口） */
   theme?: string;
   /** 是否锁定主题（锁定后不在首屏显示主题切换） */
   lockTheme?: boolean;
@@ -180,10 +179,6 @@ export interface AgentPageParams {
     | "project_created";
   /** 创建确认建议标题（可选） */
   workspaceCreateFallbackTitle?: string;
-  /** 进入工作台后立即打开项目风格策略 */
-  workspaceOpenProjectStyleGuide?: boolean;
-  /** 打开项目风格策略时，高亮的来源风格资产 ID */
-  workspaceOpenProjectStyleGuideSourceEntryId?: string;
 }
 
 /**
@@ -192,8 +187,6 @@ export interface AgentPageParams {
 export interface ProjectDetailPageParams {
   projectId: string;
   workspaceTheme?: WorkspaceTheme;
-  openProjectStyleGuide?: boolean;
-  openProjectStyleGuideSourceEntryId?: string;
 }
 
 /**
@@ -213,12 +206,6 @@ export type MemoryPageSection =
 
 export interface MemoryPageParams {
   section?: MemoryPageSection;
-}
-
-export type StylePageSection = "overview" | "library";
-
-export interface StylePageParams {
-  section?: StylePageSection;
 }
 
 export type AutomationWorkspaceTab = "tasks" | "overview";
@@ -265,5 +252,4 @@ export type PageParams =
   | SettingsPageParams
   | OpenClawPageParams
   | MemoryPageParams
-  | StylePageParams
   | Record<string, unknown>;

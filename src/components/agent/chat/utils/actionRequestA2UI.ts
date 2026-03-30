@@ -2,7 +2,7 @@ import type {
   A2UIComponent,
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 import type {
   ActionRequired,
   ActionRequestGovernanceMeta,

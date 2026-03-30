@@ -243,9 +243,11 @@ function renderComponent(): HTMLDivElement {
   return container;
 }
 
-async function flushEffects() {
+async function flushEffects(times = 8) {
   await act(async () => {
-    await Promise.resolve();
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
   });
 }
 
@@ -414,11 +416,11 @@ describe("DeveloperSettings", () => {
     await flushEffects();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("DEVELOPER DESK");
+    expect(text).toContain("目录联调改为区块级按需加载");
     expect(text).toContain("处理工作台与信息收集");
     expect(text).toContain("服务型技能目录联调");
     expect(text).toContain("站点脚本目录联调");
-    expect(text).toContain("外部来源 YAML 导入");
+    expect(text).toContain("正在准备站点脚本目录联调");
     expect(text).toContain("组件视图调试");
     expect(text).toContain("崩溃诊断日志（开发协作）");
     expect(text).toContain("诊断建议");

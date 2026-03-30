@@ -4,7 +4,7 @@
  * @module components/agent/chat/utils/workflowMapping
  */
 
-import type { ThemeType } from "@/components/content-creator/types";
+import type { ThemeType } from "@/lib/workspace/workbenchContract";
 
 /**
  * 根据主题类型获取文件名到步骤索引的映射

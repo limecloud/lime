@@ -1,7 +1,7 @@
 /**
  * 全局应用侧边栏
  *
- * 参考成熟产品的信息架构：用户区、搜索、主导航、助手分组、底部快捷入口
+ * 参考任务中心信息架构：任务、工作台、能力、资料库、系统入口分层展示
  */
 
 import { useState, useEffect, useMemo, type ReactElement } from "react";
@@ -9,19 +9,11 @@ import styled from "styled-components";
 import {
   ChevronDown,
   ChevronRight,
-  Image,
   Moon,
   Sun,
   Search,
   PanelLeftClose,
   PanelLeftOpen,
-  PenTool,
-  Video,
-  Music,
-  BookOpen,
-  Lightbulb,
-  CalendarRange,
-  FileType,
   Activity,
   LucideIcon,
 } from "lucide-react";
@@ -29,11 +21,10 @@ import * as LucideIcons from "lucide-react";
 import { getPluginsForSurface, PluginUIInfo } from "@/lib/api/pluginUI";
 import {
   AgentPageParams,
-  getThemeWorkspacePage,
   LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
   Page,
   PageParams,
-  ThemeWorkspacePage,
+  isThemeWorkspacePage,
 } from "@/types/page";
 import { getConfig } from "@/lib/api/appConfig";
 import {
@@ -43,15 +34,13 @@ import {
 } from "@/lib/workspace/navigation";
 import {
   DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
-  FOOTER_SIDEBAR_NAV_ITEMS,
+  FOOTER_SIDEBAR_NAV_SECTIONS,
+  MAIN_SIDEBAR_NAV_SECTIONS,
   MAIN_SIDEBAR_NAV_ITEMS,
   resolveEnabledSidebarNavItems,
   type SidebarNavItemDefinition,
+  type SidebarNavSectionDefinition,
 } from "@/lib/navigation/sidebarNav";
-import {
-  DEFAULT_ENABLED_CONTENT_THEME_IDS,
-  resolveEnabledContentThemes,
-} from "@/lib/contentCreator/themeDefaults";
 import {
   Tooltip,
   TooltipContent,
@@ -66,6 +55,7 @@ interface AppSidebarProps {
 }
 
 type SidebarNavItem = SidebarNavItemDefinition;
+type SidebarNavSection = SidebarNavSectionDefinition;
 
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
@@ -443,79 +433,11 @@ const IconActionButton = styled.button<{ $active?: boolean }>`
   }
 `;
 
-const THEME_MENU_ITEMS: SidebarNavItem[] = [
-  {
-    id: "theme-social-media",
-    label: "社媒内容",
-    icon: PenTool,
-    page: getThemeWorkspacePage("social-media"),
-    isActive: (currentPage) =>
-      currentPage === getThemeWorkspacePage("social-media"),
-  },
-  {
-    id: "theme-poster",
-    label: "图文海报",
-    icon: Image,
-    page: getThemeWorkspacePage("poster"),
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("poster"),
-  },
-  {
-    id: "theme-video",
-    label: "短视频",
-    icon: Video,
-    page: getThemeWorkspacePage("video"),
-    params: { workspaceViewMode: "workspace" },
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
-  },
-  {
-    id: "theme-music",
-    label: "歌词曲谱",
-    icon: Music,
-    page: getThemeWorkspacePage("music"),
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("music"),
-  },
-  {
-    id: "theme-novel",
-    label: "小说创作",
-    icon: BookOpen,
-    page: getThemeWorkspacePage("novel"),
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("novel"),
-  },
-  {
-    id: "theme-document",
-    label: "办公文档",
-    icon: FileType,
-    page: getThemeWorkspacePage("document"),
-    isActive: (currentPage) =>
-      currentPage === getThemeWorkspacePage("document"),
-  },
-  {
-    id: "theme-knowledge",
-    label: "知识探索",
-    icon: Lightbulb,
-    page: getThemeWorkspacePage("knowledge"),
-    isActive: (currentPage) =>
-      currentPage === getThemeWorkspacePage("knowledge"),
-  },
-  {
-    id: "theme-planning",
-    label: "计划规划",
-    icon: CalendarRange,
-    page: getThemeWorkspacePage("planning"),
-    isActive: (currentPage) =>
-      currentPage === getThemeWorkspacePage("planning"),
-  },
-];
-
 function getIconByName(iconName: string): LucideIcon {
   const IconComponent = (
     LucideIcons as unknown as Record<string, LucideIcon | undefined>
   )[iconName];
   return IconComponent || Activity;
-}
-
-function isThemeWorkspacePage(page: Page): page is ThemeWorkspacePage {
-  return typeof page === "string" && page.startsWith("workspace-");
 }
 
 export function AppSidebar({
@@ -547,14 +469,8 @@ export function AppSidebar({
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
     DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
   );
-  const [enabledThemes, setEnabledThemes] = useState<string[]>(
-    DEFAULT_ENABLED_CONTENT_THEME_IDS,
-  );
   const [sidebarPlugins, setSidebarPlugins] = useState<PluginUIInfo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [_activeThemeKey, setActiveThemeKey] = useState<string>(
-    getThemeWorkspacePage("general"),
-  );
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>(() =>
     MAIN_SIDEBAR_NAV_ITEMS.filter(
       (item) => item.defaultExpanded && item.children && item.children.length > 0,
@@ -567,9 +483,6 @@ export function AppSidebar({
         const config = await getConfig();
         const saved = config.navigation?.enabled_items;
         setEnabledNavItems(resolveEnabledSidebarNavItems(saved));
-
-        const savedThemes = config.content_creator?.enabled_themes;
-        setEnabledThemes(resolveEnabledContentThemes(savedThemes));
       } catch (error) {
         console.error("加载配置失败:", error);
       }
@@ -582,34 +495,31 @@ export function AppSidebar({
     };
 
     window.addEventListener("nav-config-changed", handleConfigChange);
-    window.addEventListener("theme-config-changed", handleConfigChange);
 
     return () => {
       window.removeEventListener("nav-config-changed", handleConfigChange);
-      window.removeEventListener("theme-config-changed", handleConfigChange);
     };
   }, []);
 
-  const filteredMainMenuItems = useMemo(() => {
-    return MAIN_SIDEBAR_NAV_ITEMS.filter((item) =>
-      item.configurable === false || enabledNavItems.includes(item.id),
-    );
+  const filteredMainSections = useMemo<SidebarNavSection[]>(() => {
+    return MAIN_SIDEBAR_NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) =>
+          item.configurable === false || enabledNavItems.includes(item.id),
+      ),
+    })).filter((section) => section.items.length > 0);
   }, [enabledNavItems]);
 
-  const filteredFooterMenuItems = useMemo(() => {
-    return FOOTER_SIDEBAR_NAV_ITEMS.filter(
-      (item) =>
-        item.configurable === false || enabledNavItems.includes(item.id),
-    );
+  const filteredFooterSections = useMemo<SidebarNavSection[]>(() => {
+    return FOOTER_SIDEBAR_NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) =>
+          item.configurable === false || enabledNavItems.includes(item.id),
+      ),
+    })).filter((section) => section.items.length > 0);
   }, [enabledNavItems]);
-
-  const filteredThemeMenuItems = useMemo(() => {
-    return THEME_MENU_ITEMS.filter((item) => {
-      // 从 theme-xxx 提取出 xxx
-      const themeId = item.id.replace("theme-", "");
-      return enabledThemes.includes(themeId);
-    });
-  }, [enabledThemes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -697,21 +607,6 @@ export function AppSidebar({
     setCollapsed(true);
   }, [isClawTaskCenter, isNewTaskHome]);
 
-  useEffect(() => {
-    if (isThemeWorkspacePage(currentPage)) {
-      setActiveThemeKey(currentPage);
-    }
-  }, [currentPage]);
-
-  useEffect(() => {
-    const savedThemeKey = localStorage.getItem(
-      LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
-    );
-    if (savedThemeKey) {
-      setActiveThemeKey(savedThemeKey);
-    }
-  }, []);
-
   const assistantItems = useMemo<SidebarNavItem[]>(() => {
     return sidebarPlugins.map((plugin) => {
       const pluginPageId = `plugin:${plugin.pluginId}` as Page;
@@ -733,10 +628,6 @@ export function AppSidebar({
       return false;
     }
 
-    if (item.id.startsWith("theme-")) {
-      return currentPage === item.page;
-    }
-
     if (item.isActive) {
       return item.isActive(currentPage, currentPageParams);
     }
@@ -752,10 +643,6 @@ export function AppSidebar({
 
       if (!item.page) {
         return false;
-      }
-
-      if (item.id.startsWith("theme-")) {
-        return currentPage === item.page;
       }
 
       if (item.isActive) {
@@ -786,7 +673,6 @@ export function AppSidebar({
     }
 
     if (isThemeWorkspacePage(item.page)) {
-      setActiveThemeKey(item.page);
       localStorage.setItem(LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY, item.page);
     }
 
@@ -941,16 +827,12 @@ export function AppSidebar({
         </HeaderArea>
 
         <MenuScroll>
-          <Section $collapsed={collapsed}>
-            {filteredMainMenuItems.map((item) => renderNavItem(item))}
-          </Section>
-
-          {filteredThemeMenuItems.length > 0 && (
-            <Section $collapsed={collapsed}>
-              <SectionTitle $collapsed={collapsed}>创作主题</SectionTitle>
-              {filteredThemeMenuItems.map((item) => renderNavItem(item))}
+          {filteredMainSections.map((section) => (
+            <Section key={section.id} $collapsed={collapsed}>
+              <SectionTitle $collapsed={collapsed}>{section.title}</SectionTitle>
+              {section.items.map((item) => renderNavItem(item))}
             </Section>
-          )}
+          ))}
 
           {assistantItems.length > 0 && (
             <Section $collapsed={collapsed}>
@@ -961,9 +843,12 @@ export function AppSidebar({
         </MenuScroll>
 
         <FooterArea $collapsed={collapsed}>
-          <Section $collapsed={collapsed}>
-            {filteredFooterMenuItems.map((item) => renderNavItem(item))}
-          </Section>
+          {filteredFooterSections.map((section) => (
+            <Section key={section.id} $collapsed={collapsed}>
+              <SectionTitle $collapsed={collapsed}>{section.title}</SectionTitle>
+              {section.items.map((item) => renderNavItem(item))}
+            </Section>
+          ))}
 
           <ActionRow $collapsed={collapsed}>
             {!collapsed ? <div /> : null}

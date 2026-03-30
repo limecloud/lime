@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { activityLogger } from "@/components/content-creator/utils/activityLogger";
+import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentProtocol";
 import type {
   AsterSessionExecutionRuntime,
@@ -63,6 +63,7 @@ describe("agentStreamUserInputSubmission", () => {
       modelRef: { current: "gpt-5.4" } as MutableRefObject<string>,
       sessionIdRef: { current: null } as MutableRefObject<string | null>,
       getQueuedTurnsCount: () => 0,
+      isThreadBusy: () => false,
       getRequiredWorkspaceId: () => "workspace-1",
       getSyncedSessionModelPreference: () => null,
       getSyncedSessionExecutionStrategy: () => "react",

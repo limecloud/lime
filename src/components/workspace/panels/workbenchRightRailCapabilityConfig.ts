@@ -1,4 +1,4 @@
-import type { CreationMode } from "@/components/content-creator/types";
+import type { CreationMode } from "@/lib/workspace/workbenchContract";
 import type { WorkspaceTheme } from "@/types/page";
 import {
   AudioLines,

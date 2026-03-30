@@ -318,6 +318,30 @@ afterEach(() => {
 });
 
 describe("ExperimentalSettings", () => {
+  it("应移除空洞头部与占位实验能力文案", async () => {
+    const container = renderComponent();
+    await waitForLoad();
+
+    const text = getText(container);
+    expect(text).not.toContain("EXPERIMENT LAB");
+    expect(text).not.toContain(
+      "把还在试验中的能力统一放到一处管理，但不要把风险提示藏起来",
+    );
+    expect(text).not.toContain("更多实验功能即将推出");
+    expect(text).toContain("Tool Calling");
+    expect(text).toContain("当前空闲");
+  });
+
+  it("应继续渲染后置加载的实验辅助区块", async () => {
+    const container = renderComponent();
+    await waitForLoad();
+
+    const text = getText(container);
+    expect(text).toContain("更新设置占位");
+    expect(text).toContain("语音设置占位");
+    expect(text).toContain("工作区自愈占位");
+  });
+
   it("应展示默认关闭的 WebMCP 预留开关", async () => {
     const container = renderComponent();
     await waitForLoad();

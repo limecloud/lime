@@ -18,6 +18,7 @@ describe("createAgentStreamPreparedSendEnv", () => {
   it("应把 queuedTurnsCount 封装成稳定 getter", () => {
     const env = createAgentStreamPreparedSendEnv({
       queuedTurnsCount: 3,
+      threadBusy: false,
       runtime: {} as never,
       ensureSession: async () => "session-1",
       executionStrategy: "react",

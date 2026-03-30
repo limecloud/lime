@@ -5,9 +5,9 @@ import {
   COVER_IMAGE_WORKBENCH_REQUEST_EVENT,
   type CoverImageReplacedDetail,
   type CoverImageWorkbenchRequestDetail,
-} from "@/components/content-creator/canvas/document/platforms/CoverImagePlaceholder";
-import type { CanvasStateUnion } from "@/components/content-creator/canvas/canvasUtils";
-import type { LayoutMode } from "@/components/content-creator/types";
+} from "@/lib/workspace/workbenchCanvas";
+import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
   findImageProviderForSelection,
   getImageModelIdsForProvider,

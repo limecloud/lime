@@ -1248,6 +1248,61 @@ describe("useAsterAgentChat.confirmAction", () => {
 });
 
 describe("useAsterAgentChat queue hydration", () => {
+  it("恢复态 thread 仍在运行时，发送继续应直接展示排队态而不是伪装成处理中", async () => {
+    const workspaceId = "ws-queue-on-restored-running";
+    const sessionId = "session-queue-on-restored-running";
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: sessionId,
+        name: "恢复中的运行会话",
+        created_at: 1,
+        updated_at: 2,
+        messages_count: 0,
+      },
+    ]);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      messages: [],
+      turns: [],
+      items: [],
+      queued_turns: [],
+      thread_read: {
+        thread_id: "thread-queue-on-restored-running",
+        status: "running",
+        active_turn_id: "turn-running-1",
+        pending_requests: [],
+        incidents: [],
+        queued_turns: [],
+      },
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(sessionId);
+      });
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请继续分析这个项目", [], false, false, false, "react");
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.runtimeStatus?.title).toBe("已加入排队列表");
+      expect(harness.getValue().isSending).toBe(false);
+      expect(harness.getValue().currentTurnId).toBeNull();
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("切换话题时应恢复后端返回的排队项", async () => {
     mockListAgentRuntimeSessions.mockResolvedValue([
       {
@@ -1707,6 +1762,79 @@ describe("useAsterAgentChat thread timeline", () => {
     }
   });
 
+  it("运行时意外返回 queue_added 时，应降级为排队态并清掉假 running 占位", async () => {
+    const workspaceId = "ws-thread-queue-added-fallback";
+    const sessionId = "session-thread-queue-added-fallback";
+    seedSession(workspaceId, sessionId);
+    let queuedAdded = false;
+    mockGetAgentRuntimeSession.mockImplementation(async () => ({
+      id: sessionId,
+      messages: [],
+      turns: [],
+      items: [],
+      queued_turns: queuedAdded
+        ? [
+            {
+              queuedTurnId: "queued-fallback-1",
+              messagePreview: "请继续往下分析",
+              messageText: "请继续往下分析",
+              createdAt: 1700000000000,
+              imageCount: 0,
+              position: 1,
+            },
+          ]
+        : [],
+    }));
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请继续往下分析", [], false, false, false, "react");
+      });
+
+      expect(harness.getValue().isSending).toBe(true);
+      expect(harness.getValue().turns).toHaveLength(1);
+
+      act(() => {
+        queuedAdded = true;
+        stream.emit({
+          type: "queue_added",
+          session_id: sessionId,
+          queued_turn: {
+            queued_turn_id: "queued-fallback-1",
+            message_preview: "请继续往下分析",
+            message_text: "请继续往下分析",
+            created_at: 1700000000000,
+            image_count: 0,
+            position: 1,
+          },
+        });
+      });
+      await flushEffects();
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(harness.getValue().isSending).toBe(false);
+      expect(harness.getValue().currentTurnId).toBeNull();
+      expect(harness.getValue().turns).toEqual([]);
+      expect(harness.getValue().queuedTurns).toEqual([
+        expect.objectContaining({
+          queued_turn_id: "queued-fallback-1",
+        }),
+      ]);
+      expect(assistantMessage?.runtimeStatus?.title).toBe("已加入排队列表");
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("submitTurn 失败时应保留失败回合与失败消息，而不是清空当前过程", async () => {
     const consoleErrorSpy = vi
       .spyOn(console, "error")
@@ -2018,6 +2146,30 @@ describe("useAsterAgentChat thread timeline", () => {
       );
       expect(mockToast.error).not.toHaveBeenCalledWith(
         expect.stringContaining("压缩上下文失败"),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("手动压缩上下文返回字符串错误时应透出真实原因", async () => {
+    const workspaceId = "ws-context-compaction-error";
+    seedSession(workspaceId, "session-context-compaction-error");
+    const harness = mountHook(workspaceId);
+
+    mockCompactAgentRuntimeSession.mockRejectedValueOnce(
+      "当前会话上下文尚未准备完成，请稍后再试",
+    );
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().compactSession();
+      });
+
+      expect(mockToast.error).toHaveBeenCalledWith(
+        "当前会话上下文尚未准备完成，请稍后再试",
       );
     } finally {
       harness.unmount();

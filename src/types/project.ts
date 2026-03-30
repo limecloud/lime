@@ -30,7 +30,6 @@ export interface Project {
   isArchived: boolean;
   tags: string[];
   defaultPersonaId?: string;
-  defaultTemplateId?: string;
   stats?: ProjectStats;
   createdAt: number;
   updatedAt: number;
@@ -68,7 +67,6 @@ export interface ProjectUpdate {
   isArchived?: boolean;
   tags?: string[];
   defaultPersonaId?: string;
-  defaultTemplateId?: string;
 }
 
 /**

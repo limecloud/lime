@@ -171,7 +171,7 @@
                 <div class="note">
                   <div class="note-title" data-i18n="extras_debug_title">About the debugging banner</div>
                   <div class="note-body" data-i18n="extras_debug_body">
-                    When the extension attaches to a tab, Chrome shows a yellow banner: <strong>"Lime Browser Bridge started debugging this browser"</strong>. This is a standard Chrome security notice. <strong>Do not click "Cancel"</strong> unless you want to disconnect that tab.
+                    Chrome may briefly show a yellow banner while Lime performs debugger-backed actions such as coordinate click, raw input, or scroll: <strong>"Lime Browser Bridge started debugging this browser"</strong>. The banner disappears after the action finishes. This is a standard Chrome security notice. <strong>Do not click "Cancel"</strong> unless you want to interrupt that action.
                   </div>
                 </div>
               </div>
@@ -262,7 +262,7 @@
         extras_pin_title: 'Pin the Extension',
         extras_pin_body: 'Click the puzzle piece icon in Chrome\'s toolbar and pin <strong>Lime Browser Bridge</strong> for quick access.',
         extras_debug_title: 'About the debugging banner',
-        extras_debug_body: 'When the extension attaches to a tab, Chrome shows a yellow banner: <strong>"Lime Browser Bridge started debugging this browser"</strong>. This is a standard Chrome security notice. <strong>Do not click "Cancel"</strong> unless you want to disconnect that tab.',
+        extras_debug_body: 'Chrome may briefly show a yellow banner while Lime performs debugger-backed actions such as coordinate click, raw input, or scroll: <strong>"Lime Browser Bridge started debugging this browser"</strong>. The banner disappears after the action finishes. This is a standard Chrome security notice. <strong>Do not click "Cancel"</strong> unless you want to interrupt that action.',
         extras_update_title: 'Updating the Extension',
         extras_update_body: 'When Lime is updated, go to <code>chrome://extensions</code>, remove the old version, then repeat the steps above. Or click the <strong>reload icon</strong> (↻) on the extension card to quick-reload.',
         extras_trouble_title: 'Troubleshooting',
@@ -303,7 +303,7 @@
         extras_pin_title: '固定扩展图标',
         extras_pin_body: '点击 Chrome 工具栏中的拼图图标，将 <strong>Lime Browser Bridge</strong> 固定，方便快速访问。',
         extras_debug_title: '关于调试提示栏',
-        extras_debug_body: '扩展附加到标签页时，Chrome 会显示黄色提示：<strong>"Lime Browser Bridge 已开始调试此浏览器"</strong>，这是正常的安全提示。<strong>请勿点击"取消"</strong>，否则该标签页将断开连接。',
+        extras_debug_body: 'Lime 执行依赖 debugger 的动作时，例如坐标点击、原始输入或滚动，Chrome 可能会短暂显示黄色提示：<strong>"Lime Browser Bridge 已开始调试此浏览器"</strong>。动作完成后提示会自动消失。这是正常的安全提示。<strong>请勿点击"取消"</strong>，否则会中断当前动作。',
         extras_update_title: '更新扩展',
         extras_update_body: 'Lime 更新后，前往 <code>chrome://extensions</code> 移除旧版本，然后重复以上步骤安装新版本。也可以点击扩展卡片上的 <strong>重新加载</strong> 图标 (↻) 快速刷新。',
         extras_trouble_title: '故障排查',
@@ -344,7 +344,7 @@
         extras_pin_title: 'Erweiterung anheften',
         extras_pin_body: 'Klicken Sie auf das Puzzle-Symbol in der Chrome-Symbolleiste und heften Sie <strong>Lime Browser Bridge</strong> für schnellen Zugriff an.',
         extras_debug_title: 'Über das Debugging-Banner',
-        extras_debug_body: 'Wenn die Erweiterung an einen Tab angehängt wird, zeigt Chrome ein gelbes Banner: <strong>„Lime Browser Bridge hat das Debugging dieses Browsers gestartet"</strong>. Dies ist ein normaler Sicherheitshinweis. <strong>Klicken Sie nicht auf „Abbrechen"</strong>, es sei denn, Sie möchten den Tab trennen.',
+        extras_debug_body: 'Chrome kann kurz ein gelbes Banner anzeigen, wenn Lime Aktionen mit Debugger-Unterstützung ausführt, etwa Koordinatenklicks, direkte Eingabe oder Scrollen: <strong>„Lime Browser Bridge hat das Debugging dieses Browsers gestartet"</strong>. Das Banner verschwindet nach Abschluss der Aktion automatisch. Dies ist ein normaler Sicherheitshinweis. <strong>Klicken Sie nicht auf „Abbrechen"</strong>, es sei denn, Sie möchten die Aktion unterbrechen.',
         extras_update_title: 'Erweiterung aktualisieren',
         extras_update_body: 'Nach einem Lime-Update gehen Sie zu <code>chrome://extensions</code>, entfernen Sie die alte Version und wiederholen Sie die obigen Schritte. Oder klicken Sie auf das <strong>Neuladen-Symbol</strong> (↻) auf der Erweiterungskarte.',
         extras_trouble_title: 'Fehlerbehebung',
@@ -385,7 +385,7 @@
         extras_pin_title: 'Fijar la extensión',
         extras_pin_body: 'Haz clic en el icono del puzzle en la barra de herramientas de Chrome y fija <strong>Lime Browser Bridge</strong> para acceso rápido.',
         extras_debug_title: 'Sobre el banner de depuración',
-        extras_debug_body: 'Cuando la extensión se conecta a una pestaña, Chrome muestra un banner amarillo: <strong>\"Lime Browser Bridge ha comenzado a depurar este navegador\"</strong>. Es un aviso de seguridad estándar. <strong>No hagas clic en \"Cancelar\"</strong> a menos que quieras desconectar esa pestaña.',
+        extras_debug_body: 'Chrome puede mostrar brevemente un banner amarillo mientras Lime ejecuta acciones basadas en debugger, como clic por coordenadas, entrada directa o desplazamiento: <strong>\"Lime Browser Bridge ha comenzado a depurar este navegador\"</strong>. El banner desaparece cuando termina la acción. Es un aviso de seguridad estándar. <strong>No hagas clic en \"Cancelar\"</strong> a menos que quieras interrumpir esa acción.',
         extras_update_title: 'Actualizar la extensión',
         extras_update_body: 'Cuando Lime se actualice, ve a <code>chrome://extensions</code>, elimina la versión antigua y repite los pasos anteriores. O haz clic en el <strong>icono de recarga</strong> (↻) en la tarjeta de la extensión.',
         extras_trouble_title: 'Solución de problemas',
@@ -426,7 +426,7 @@
         extras_pin_title: "Épingler l'extension",
         extras_pin_body: "Cliquez sur l'icône puzzle dans la barre d'outils Chrome et épinglez <strong>Lime Browser Bridge</strong> pour un accès rapide.",
         extras_debug_title: 'À propos de la bannière de débogage',
-        extras_debug_body: "Lorsque l'extension s'attache à un onglet, Chrome affiche une bannière jaune : <strong>\"Lime Browser Bridge a commencé à déboguer ce navigateur\"</strong>. C'est un avis de sécurité standard. <strong>Ne cliquez pas sur \"Annuler\"</strong> sauf si vous souhaitez déconnecter l'onglet.",
+        extras_debug_body: "Chrome peut afficher brièvement une bannière jaune pendant que Lime exécute des actions reposant sur le debugger, comme un clic par coordonnées, une saisie directe ou un défilement : <strong>\"Lime Browser Bridge a commencé à déboguer ce navigateur\"</strong>. La bannière disparaît à la fin de l'action. C'est un avis de sécurité standard. <strong>Ne cliquez pas sur \"Annuler\"</strong> sauf si vous souhaitez interrompre cette action.",
         extras_update_title: "Mettre à jour l'extension",
         extras_update_body: 'Après une mise à jour d\'Lime, allez sur <code>chrome://extensions</code>, supprimez l\'ancienne version et répétez les étapes. Ou cliquez sur l\'<strong>icône de rechargement</strong> (↻) sur la carte de l\'extension.',
         extras_trouble_title: 'Dépannage',
@@ -467,7 +467,7 @@
         extras_pin_title: 'Fixar a extensão',
         extras_pin_body: 'Clique no ícone de quebra-cabeça na barra de ferramentas do Chrome e fixe <strong>Lime Browser Bridge</strong> para acesso rápido.',
         extras_debug_title: 'Sobre o banner de depuração',
-        extras_debug_body: 'Quando a extensão se conecta a uma aba, o Chrome mostra um banner amarelo: <strong>"Lime Browser Bridge começou a depurar este navegador"</strong>. Este é um aviso de segurança padrão. <strong>Não clique em "Cancelar"</strong> a menos que queira desconectar a aba.',
+        extras_debug_body: 'O Chrome pode mostrar brevemente um banner amarelo enquanto o Lime executa ações com debugger, como clique por coordenadas, entrada direta ou rolagem: <strong>"Lime Browser Bridge começou a depurar este navegador"</strong>. O banner desaparece quando a ação termina. Este é um aviso de segurança padrão. <strong>Não clique em "Cancelar"</strong> a menos que queira interromper essa ação.',
         extras_update_title: 'Atualizar a extensão',
         extras_update_body: 'Quando o Lime for atualizado, vá para <code>chrome://extensions</code>, remova a versão antiga e repita os passos. Ou clique no <strong>ícone de recarregar</strong> (↻) no cartão da extensão.',
         extras_trouble_title: 'Solução de problemas',

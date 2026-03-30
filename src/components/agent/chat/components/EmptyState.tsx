@@ -64,10 +64,6 @@ import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
 } from "../service-skills/siteSkillExamplePrompts";
-import {
-  DEFAULT_ENABLED_CONTENT_THEME_IDS,
-  resolveEnabledContentThemes,
-} from "@/lib/contentCreator/themeDefaults";
 
 // Import Assets
 import capabilitySkillsPlaceholder from "@/assets/claw-home/capability-skills-placeholder.svg";
@@ -389,10 +385,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const siteSkillAutoLaunchExample =
     getSiteSkillAutoLaunchExample(serviceSkills);
 
-  // 从配置中读取启用的主题
-  const [enabledThemes, setEnabledThemes] = useState<string[]>(
-    DEFAULT_ENABLED_CONTENT_THEME_IDS,
-  );
   const [
     appendSelectedTextToRecommendation,
     setAppendSelectedTextToRecommendation,
@@ -403,17 +395,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     const loadConfigPreferences = async () => {
       try {
         const loadedConfig = await getConfig();
-        setEnabledThemes(
-          resolveEnabledContentThemes(
-            loadedConfig.content_creator?.enabled_themes,
-          ),
-        );
         setAppendSelectedTextToRecommendation(
           loadedConfig.chat_appearance
             ?.append_selected_text_to_recommendation ?? true,
         );
       } catch (e) {
-        console.error("加载主题配置失败:", e);
+        console.error("加载首页配置失败:", e);
       }
     };
     let cancelPendingLoad: () => void = () => undefined;
@@ -438,14 +425,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
       void loadConfigPreferences();
     };
-    window.addEventListener("theme-config-changed", handleConfigChange);
     window.addEventListener(
       "chat-appearance-config-changed",
       handleConfigChange,
     );
 
     return () => {
-      window.removeEventListener("theme-config-changed", handleConfigChange);
       window.removeEventListener(
         "chat-appearance-config-changed",
         handleConfigChange,
@@ -455,9 +440,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   }, [configLoadStrategy]);
 
   // 过滤后的主题列表
-  const categories = ALL_CATEGORIES.filter((cat) =>
-    enabledThemes.includes(cat.id),
-  );
+  const categories = ALL_CATEGORIES;
 
   // 使用外部传入的 activeTheme，如果有 onThemeChange 则使用受控模式
   const handleThemeChange = (theme: string) => {

@@ -22,6 +22,7 @@ describe("agentStreamUserInputSendPreparation", () => {
     sessionId?: string | null;
     activeStream?: ActiveStreamState | null;
     queuedTurnsCount?: number;
+    threadBusy?: boolean;
     providerType?: string;
     model?: string;
   }): AgentStreamUserInputSendPreparationEnv {
@@ -43,6 +44,7 @@ describe("agentStreamUserInputSendPreparation", () => {
         current: options?.activeStream ?? null,
       } as MutableRefObject<ActiveStreamState | null>,
       getQueuedTurnsCount: () => options?.queuedTurnsCount ?? 0,
+      isThreadBusy: () => options?.threadBusy ?? false,
       getSyncedSessionModelPreference: () => ({
         providerType: "openai",
         model: "gpt-5.4",
@@ -147,6 +149,38 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(result.userMsgId).toBeNull();
     expect(messages).toHaveLength(1);
     expect(messages[0]?.content).toBe("队列中");
+    expect(isSending).toBe(false);
+  });
+
+  it("恢复态 thread 仍忙时也应直接进入 queue 模式", () => {
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000004")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000005");
+
+    let messages: Message[] = [];
+    let isSending = false;
+    const env = {
+      ...createEnv({
+        threadBusy: true,
+      }),
+      setMessages: createStateSetter(() => messages, (value) => {
+        messages = value;
+      }),
+      setIsSending: createStateSetter(() => isSending, (value) => {
+        isSending = value;
+      }),
+    };
+
+    const result = prepareAgentStreamUserInputSend({
+      content: "继续分析这个项目",
+      images: [],
+      skipUserMessage: false,
+      env,
+    });
+
+    expect(result.expectingQueue).toBe(true);
+    expect(messages).toHaveLength(2);
+    expect(messages[1]?.runtimeStatus?.title).toBe("已加入排队列表");
     expect(isSending).toBe(false);
   });
 });

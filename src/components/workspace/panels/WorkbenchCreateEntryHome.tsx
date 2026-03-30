@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { FolderOpen, LayoutTemplate, PenTool, Sparkles } from "lucide-react";
-import { A2UIRenderer } from "@/components/content-creator/a2ui";
+import { A2UIRenderer } from "@/lib/workspace/a2ui";
 import type {
   A2UIFormData,
   A2UIResponse,
-} from "@/components/content-creator/a2ui/types";
+} from "@/lib/workspace/a2ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
