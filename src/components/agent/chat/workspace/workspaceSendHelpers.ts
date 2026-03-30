@@ -21,6 +21,7 @@ type PreparedRuntimeTeamState = NonNullable<
 
 export interface ContextWorkspaceSummary {
   enabled: boolean;
+  activeContextPrompt: string;
   prepareActiveContextPrompt: () => Promise<string>;
 }
 
@@ -66,6 +67,13 @@ interface BuildWorkspaceRequestMetadataOptions {
     reason: string;
     launchUrl: string;
   } | null;
+  browserAssistProfileKey?: string | null;
+  browserAssistPreferredBackend?:
+    | "aster_compat"
+    | "lime_extension_bridge"
+    | "cdp_direct"
+    | null;
+  browserAssistAutoLaunch?: boolean | null;
   preferredTeamPresetId?: string | null;
   selectedTeam?: TeamDefinition | null;
   selectedTeamLabel?: string;
@@ -137,10 +145,18 @@ export async function buildWorkspaceSendText(
   } = options;
 
   let text = sourceText;
-  const preparedActiveContextPrompt = contextWorkspace.enabled
-    ? await contextWorkspace.prepareActiveContextPrompt()
+  let preparedActiveContextPrompt = contextWorkspace.enabled
+    ? contextWorkspace.activeContextPrompt.trim()
     : "";
-  if (contextWorkspace.enabled && preparedActiveContextPrompt) {
+  if (!preparedActiveContextPrompt && contextWorkspace.enabled) {
+    preparedActiveContextPrompt =
+      (await contextWorkspace.prepareActiveContextPrompt()).trim();
+  } else if (preparedActiveContextPrompt) {
+    // 发送路径优先使用现成上下文快照，后台继续补齐正文缓存以优化后续轮次。
+    void contextWorkspace.prepareActiveContextPrompt().catch(() => undefined);
+  }
+
+  if (preparedActiveContextPrompt) {
     text = applyActiveContextPrompt(text, preparedActiveContextPrompt);
   }
 
@@ -209,6 +225,9 @@ export function buildWorkspaceRequestMetadata(
     themeWorkbenchActiveQueueTitle,
     contentId,
     browserRequirementMatch,
+    browserAssistProfileKey,
+    browserAssistPreferredBackend,
+    browserAssistAutoLaunch,
     preferredTeamPresetId,
     selectedTeam,
     selectedTeamLabel,
@@ -243,8 +262,10 @@ export function buildWorkspaceRequestMetadata(
       browserLaunchUrl: browserRequirementMatch?.launchUrl,
       browserAssistProfileKey:
         mappedTheme === "general"
-          ? GENERAL_BROWSER_ASSIST_PROFILE_KEY
+          ? browserAssistProfileKey || GENERAL_BROWSER_ASSIST_PROFILE_KEY
           : undefined,
+      browserAssistPreferredBackend,
+      browserAssistAutoLaunch,
       preferredTeamPresetId,
       selectedTeamId: selectedTeam?.id,
       selectedTeamSource: selectedTeam?.source,

@@ -87,12 +87,9 @@ function buildCloudCatalog(): SkillCatalog {
   };
 }
 
-function buildMetadataOnlySiteCatalog(): SkillCatalog {
+function buildLegacySiteCatalog(): SkillCatalog {
   const seeded = getSeededSkillCatalog();
-  const siteSkill = seeded.items.find((item) => item.groupKey === "github");
-  if (!siteSkill) {
-    throw new Error("缺少 GitHub seeded 技能");
-  }
+  const baseSkill = seeded.items[0]!;
 
   return {
     version: "tenant-2026-03-31",
@@ -109,13 +106,29 @@ function buildMetadataOnlySiteCatalog(): SkillCatalog {
     ],
     items: [
       {
-        ...siteSkill,
-        id: "metadata-only-site-skill",
-        title: "仅带分组信息的站点技能",
-        summary: "远端目录只保留分组与执行信息，由客户端回退渲染站点技能语义。",
-        siteCapabilityBinding: undefined,
+        ...baseSkill,
+        id: "legacy-site-skill",
+        title: "旧版站点技能",
+        summary: "旧目录里遗留的站点技能包装项。",
+        defaultExecutorBinding: "browser_assist",
+        siteCapabilityBinding: {
+          adapterName: "github/search",
+          autoRun: true,
+          requireAttachedSession: true,
+          saveMode: "current_content",
+        },
         execution: {
           kind: "site_adapter",
+        },
+      },
+      {
+        ...baseSkill,
+        id: "tenant-general-skill",
+        title: "租户通用技能",
+        summary: "保留在首页中的普通技能。",
+        groupKey: "general",
+        execution: {
+          kind: "agent_turn",
         },
       },
     ],
@@ -289,23 +302,26 @@ describe("useServiceSkills", () => {
     }
   });
 
-  it("站点技能缺少 siteCapabilityBinding 时也应保留站点执行语义", async () => {
-    saveSkillCatalog(buildMetadataOnlySiteCatalog(), "bootstrap_sync");
+  it("旧版站点技能目录项不应再出现在首页列表", async () => {
+    saveSkillCatalog(buildLegacySiteCatalog(), "bootstrap_sync");
 
     const harness = mountHook();
 
     try {
       await flushEffects();
 
+      expect(harness.getValue().skills).toHaveLength(1);
       expect(harness.getValue().skills[0]).toEqual(
         expect.objectContaining({
-          id: "metadata-only-site-skill",
-          runnerLabel: "站点登录态采集",
-          runnerDescription:
-            "会复用当前浏览器里的真实登录态执行站点任务，并优先把结果沉淀到当前工作区。",
-          actionLabel: "开始执行",
+          id: "tenant-general-skill",
         }),
       );
+      expect(
+        harness.getValue().skills.some((skill) => skill.id === "legacy-site-skill"),
+      ).toBe(false);
+      expect(harness.getValue().groups.map((group) => group.key)).toEqual([
+        "general",
+      ]);
     } finally {
       harness.unmount();
     }

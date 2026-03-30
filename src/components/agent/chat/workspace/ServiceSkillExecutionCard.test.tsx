@@ -76,7 +76,7 @@ describe("ServiceSkillExecutionCard", () => {
       '[data-testid="service-skill-execution-open-browser-runtime"]',
     ) as HTMLButtonElement | null;
 
-    expect(container.textContent).toContain("需要浏览器工作台");
+    expect(container.textContent).toContain("需要先准备浏览器");
     expect(button).toBeTruthy();
 
     act(() => {

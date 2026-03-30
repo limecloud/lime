@@ -340,7 +340,11 @@ async function main() {
 
   console.log(`[Smoke] 开始校验 session: ${args.sessionId}`);
 
-  await invoke("get_server_status");
+  const diagnostics = await invoke("get_server_diagnostics");
+  assert(
+    diagnostics && typeof diagnostics.running === "boolean",
+    "get_server_diagnostics 返回格式异常",
+  );
   console.log("[Smoke] Dev Bridge 可用");
 
   const runState = await waitTerminalState(

@@ -5,6 +5,10 @@ import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
 import {
+  matchAutoLaunchSiteSkillFromText,
+  type AutoMatchedSiteSkill,
+} from "../service-skills/autoMatchSiteSkill";
+import {
   saveChatToolPreferences,
   type ChatToolPreferences,
 } from "../utils/chatToolPreferences";
@@ -26,6 +30,7 @@ import {
 } from "./workspaceSendHelpers";
 import type { Character } from "@/lib/api/memory";
 import type { ThemeType } from "@/components/content-creator/types";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 
 type ExecutionStrategy = "react" | "code_orchestrated" | "auto";
 type SetStringState = (value: string) => void;
@@ -40,6 +45,7 @@ interface UseWorkspaceSendActionsParams {
   setMentionedCharacters: Dispatch<SetStateAction<Character[]>>;
   chatToolPreferences: ChatToolPreferences;
   setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
+  serviceSkills: ServiceSkillHomeItem[];
   activeTheme: string;
   mappedTheme: ThemeType;
   isThemeWorkbench: boolean;
@@ -55,6 +61,13 @@ interface UseWorkspaceSendActionsParams {
   currentGateKey: string;
   themeWorkbenchActiveQueueTitle?: string;
   contentId?: string | null;
+  browserAssistProfileKey?: string | null;
+  browserAssistPreferredBackend?:
+    | "aster_compat"
+    | "lime_extension_bridge"
+    | "cdp_direct"
+    | null;
+  browserAssistAutoLaunch?: boolean | null;
   workspaceRequestMetadataBase?: Record<string, unknown>;
   messagesCount: number;
   sendMessage: SendMessageFn;
@@ -62,7 +75,6 @@ interface UseWorkspaceSendActionsParams {
     sourceText: string;
     sendOptions?: HandleSendOptions;
   }) => ThemeWorkbenchSendBoundaryState;
-  isBlockedByBrowserPreflight: (sendOptions?: HandleSendOptions) => boolean;
   maybeStartBrowserTaskPreflight: (input: {
     boundary: ThemeWorkbenchSendBoundaryState;
     images?: MessageImage[];
@@ -82,6 +94,9 @@ interface UseWorkspaceSendActionsParams {
     target: string,
     options?: EnsureBrowserAssistCanvasOptions,
   ) => Promise<boolean>;
+  handleAutoLaunchMatchedSiteSkill: (
+    match: AutoMatchedSiteSkill<ServiceSkillHomeItem>,
+  ) => Promise<void>;
   handleImageWorkbenchCommand: (input: {
     rawText: string;
     parsedCommand: ParsedImageWorkbenchCommand;
@@ -132,6 +147,7 @@ export function useWorkspaceSendActions({
   setMentionedCharacters,
   chatToolPreferences,
   setChatToolPreferences,
+  serviceSkills,
   activeTheme,
   mappedTheme,
   isThemeWorkbench,
@@ -147,17 +163,20 @@ export function useWorkspaceSendActions({
   currentGateKey,
   themeWorkbenchActiveQueueTitle,
   contentId,
+  browserAssistProfileKey,
+  browserAssistPreferredBackend,
+  browserAssistAutoLaunch,
   workspaceRequestMetadataBase,
   messagesCount,
   sendMessage,
   resolveSendBoundary,
-  isBlockedByBrowserPreflight,
   maybeStartBrowserTaskPreflight,
   finalizeAfterSendSuccess,
   rollbackAfterSendFailure,
   prepareRuntimeTeamBeforeSend: _prepareRuntimeTeamBeforeSend,
   setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
+  handleAutoLaunchMatchedSiteSkill,
   handleImageWorkbenchCommand,
 }: UseWorkspaceSendActionsParams) {
   const resolveSendExecutionPlan = useCallback(
@@ -180,11 +199,6 @@ export function useWorkspaceSendActions({
         sendOptions,
       });
       sourceText = sendBoundary.sourceText;
-
-      if (isBlockedByBrowserPreflight(sendOptions)) {
-        toast.info("请先完成当前浏览器准备后，再继续发送新的任务");
-        return { kind: "done", result: false };
-      }
 
       const effectiveToolPreferences =
         sendOptions?.toolPreferencesOverride ?? chatToolPreferences;
@@ -219,6 +233,25 @@ export function useWorkspaceSendActions({
         };
       }
 
+      const trimmedSourceText = sourceText.trim();
+      if (
+        activeTheme === "general" &&
+        !sendOptions?.purpose &&
+        !images?.length &&
+        trimmedSourceText &&
+        !trimmedSourceText.startsWith("/") &&
+        !trimmedSourceText.startsWith("@")
+      ) {
+        const matchedSiteSkill = matchAutoLaunchSiteSkillFromText({
+          inputText: trimmedSourceText,
+          serviceSkills,
+        });
+        if (matchedSiteSkill) {
+          await handleAutoLaunchMatchedSiteSkill(matchedSiteSkill);
+          return { kind: "done", result: true };
+        }
+      }
+
       if (
         maybeStartBrowserTaskPreflight({
           boundary: sendBoundary,
@@ -233,19 +266,19 @@ export function useWorkspaceSendActions({
         return { kind: "done", result: true };
       }
 
+      primeBrowserAssistBeforeSend({
+        activeTheme,
+        sourceText,
+        browserRequirementMatch,
+        ensureBrowserAssistCanvas,
+      });
+
       const text = await buildWorkspaceSendText({
         sourceText,
         contextWorkspace,
         mentionedCharacters,
         runtimeStyleMessagePrompt,
         sendOptions,
-      });
-
-      primeBrowserAssistBeforeSend({
-        activeTheme,
-        sourceText,
-        browserRequirementMatch,
-        ensureBrowserAssistCanvas,
       });
 
       return {
@@ -269,14 +302,15 @@ export function useWorkspaceSendActions({
       chatToolPreferences,
       contextWorkspace,
       ensureBrowserAssistCanvas,
+      handleAutoLaunchMatchedSiteSkill,
       handleImageWorkbenchCommand,
       input,
-      isBlockedByBrowserPreflight,
       maybeStartBrowserTaskPreflight,
       mentionedCharacters,
       projectId,
       resolveSendBoundary,
       runtimeStyleMessagePrompt,
+      serviceSkills,
     ],
   );
 
@@ -331,6 +365,9 @@ export function useWorkspaceSendActions({
           themeWorkbenchActiveQueueTitle,
           contentId,
           browserRequirementMatch: sendBoundary.browserRequirementMatch,
+          browserAssistProfileKey,
+          browserAssistPreferredBackend,
+          browserAssistAutoLaunch,
           preferredTeamPresetId,
           selectedTeam,
           selectedTeamLabel,
@@ -377,6 +414,9 @@ export function useWorkspaceSendActions({
     },
     [
       _prepareRuntimeTeamBeforeSend,
+      browserAssistAutoLaunch,
+      browserAssistPreferredBackend,
+      browserAssistProfileKey,
       contentId,
       currentGateKey,
       finalizeAfterSendSuccess,

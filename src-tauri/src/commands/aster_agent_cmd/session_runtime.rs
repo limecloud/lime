@@ -49,6 +49,12 @@ pub(crate) struct SessionRecentHarnessContext {
     pub(crate) content_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SessionRecentRuntimeContext {
+    pub(crate) preferences: Option<lime_agent::SessionExecutionRuntimePreferences>,
+    pub(crate) team_selection: Option<lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
+}
+
 pub(crate) async fn persist_session_provider_routing(
     session_id: &str,
     provider_selector: &str,
@@ -69,32 +75,39 @@ pub(crate) fn resolve_session_provider_selector(
     SessionProviderRoutingState::from_session(session).map(|state| state.provider_selector)
 }
 
+fn build_session_recent_runtime_context(
+    session_id: &str,
+    session: &aster::session::Session,
+) -> SessionRecentRuntimeContext {
+    let runtime = lime_agent::build_session_execution_runtime(
+        session_id,
+        Some(session),
+        None,
+        None,
+        resolve_session_provider_selector(session),
+    );
+
+    SessionRecentRuntimeContext {
+        preferences: runtime
+            .as_ref()
+            .and_then(|value| value.recent_preferences.clone()),
+        team_selection: runtime.and_then(|value| value.recent_team_selection),
+    }
+}
+
+pub(crate) async fn resolve_session_recent_runtime_context(
+    session_id: &str,
+) -> Result<SessionRecentRuntimeContext, String> {
+    let session = read_session(session_id, false, "读取会话 recent runtime 上下文失败").await?;
+    Ok(build_session_recent_runtime_context(session_id, &session))
+}
+
 pub(crate) async fn resolve_session_recent_preferences(
     session_id: &str,
 ) -> Result<Option<lime_agent::SessionExecutionRuntimePreferences>, String> {
-    let session = read_session(session_id, false, "读取会话 recent_preferences 失败").await?;
-    Ok(lime_agent::build_session_execution_runtime(
-        session_id,
-        Some(&session),
-        None,
-        None,
-        resolve_session_provider_selector(&session),
-    )
-    .and_then(|runtime| runtime.recent_preferences))
-}
-
-pub(crate) async fn resolve_session_recent_team_selection(
-    session_id: &str,
-) -> Result<Option<lime_agent::SessionExecutionRuntimeRecentTeamSelection>, String> {
-    let session = read_session(session_id, false, "读取会话 recent_team_selection 失败").await?;
-    Ok(lime_agent::build_session_execution_runtime(
-        session_id,
-        Some(&session),
-        None,
-        None,
-        resolve_session_provider_selector(&session),
-    )
-    .and_then(|runtime| runtime.recent_team_selection))
+    Ok(resolve_session_recent_runtime_context(session_id)
+        .await?
+        .preferences)
 }
 
 pub(crate) async fn resolve_session_recent_harness_context(

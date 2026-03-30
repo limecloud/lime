@@ -63,7 +63,7 @@ describe("A2UIRenderer", () => {
     expect(root?.className).toContain("space-y-4");
     expect(container.textContent).toContain("这是推理提示");
     const submitButton = clickButtonByText(container, "开始处理");
-    expect(submitButton?.className).toContain("rounded-xl");
+    expect(submitButton?.className).toBe(A2UI_RENDERER_TOKENS.submitButton);
     expect(submitButton?.disabled).toBe(true);
     expect(submitSpy).not.toHaveBeenCalled();
   });

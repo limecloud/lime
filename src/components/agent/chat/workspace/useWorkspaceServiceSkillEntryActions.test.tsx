@@ -347,22 +347,56 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
         projectId: "project-1",
         contentId: "content-current",
         theme: "general",
+        lockTheme: true,
+        initialRequestMetadata: undefined,
         initialCreationMode: "guided",
         newChatAt: expect.any(Number),
-        initialSiteSkillLaunch: {
-          adapterName: "github/search",
-          args: {
-            query: "browser assist mcp",
-            limit: 10,
+        autoRunInitialPromptOnMount: true,
+        initialUserPrompt: "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
+        initialAutoSendRequestMetadata: {
+          harness: {
+            browser_requirement: "required",
+            browser_requirement_reason: expect.stringContaining(
+              "真实浏览器页面",
+            ),
+            browser_assist: {
+              enabled: true,
+              profile_key: "attached-github",
+              preferred_backend: "lime_extension_bridge",
+              auto_launch: false,
+              stream_mode: "both",
+            },
+            service_skill_launch: expect.objectContaining({
+              adapter_name: "github/search",
+              skill_title: "GitHub 仓库线索检索",
+              content_id: "content-current",
+              project_id: "project-1",
+              save_mode: "current_content",
+              args: {
+                query: "browser assist mcp",
+                limit: 10,
+              },
+              launch_readiness: expect.objectContaining({
+                status: "ready",
+                profile_key: "attached-github",
+                target_id: "tab-github",
+              }),
+            }),
           },
-          autoRun: true,
-          profileKey: "attached-github",
-          targetId: "tab-github",
-          requireAttachedSession: true,
-          saveTitle: undefined,
-          skillTitle: "GitHub 仓库线索检索",
         },
       }),
+    );
+    const firstSiteSkillLaunchPayload = onNavigate.mock.calls.find(
+      ([route]) => route === "agent",
+    )?.[1];
+    expect(firstSiteSkillLaunchPayload?.initialUserPrompt).not.toContain(
+      "[站点技能启动上下文]",
+    );
+    expect(firstSiteSkillLaunchPayload?.initialUserPrompt).not.toContain(
+      "adapter_name",
+    );
+    expect(firstSiteSkillLaunchPayload?.initialAutoSendRequestMetadata).not.toHaveProperty(
+      "artifact",
     );
     expect(recordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "github-repo-radar",
@@ -408,7 +442,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     });
   });
 
-  it("站点型技能缺少附着会话时不应进入 Claw 工作区", async () => {
+  it("站点型技能缺少附着会话时应留在入口层并提示先准备浏览器", async () => {
     const onNavigate = vi.fn();
     const { render, getValue } = renderHook({
       onNavigate,
@@ -429,8 +463,14 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       });
     });
 
-    expect(onNavigate).not.toHaveBeenCalledWith("agent", expect.anything());
-    expect(mockToastError).toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalledWith(
+      "agent",
+      expect.anything(),
+    );
+    expect(mockToastInfo).toHaveBeenCalledWith(
+      expect.stringContaining("请先去浏览器工作台连接真实浏览器"),
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("cloud_required 服务型技能成功后应回流本地工作区", async () => {

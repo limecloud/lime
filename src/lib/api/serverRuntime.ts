@@ -1,21 +1,5 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 
-export interface ServerStatus {
-  running: boolean;
-  host: string;
-  port: number;
-  requests: number;
-  uptime_secs: number;
-  error_rate_1m: number;
-  p95_latency_ms_1m: number | null;
-  open_circuit_count: number;
-  active_requests: number;
-  capability_routing: CapabilityRoutingMetricsSnapshot;
-  response_cache: ResponseCacheStats;
-  request_dedup: RequestDedupStats;
-  idempotency: IdempotencyStats;
-}
-
 export interface CapabilityRoutingMetricsSnapshot {
   filter_eval_total: number;
   filter_excluded_total: number;
@@ -174,18 +158,6 @@ export interface WindowsStartupDiagnostics {
   has_blocking_issues: boolean;
   has_warnings: boolean;
   summary_message?: string | null;
-}
-
-export async function startServer(): Promise<string> {
-  return safeInvoke("start_server");
-}
-
-export async function stopServer(): Promise<string> {
-  return safeInvoke("stop_server");
-}
-
-export async function getServerStatus(): Promise<ServerStatus> {
-  return safeInvoke("get_server_status");
 }
 
 export async function getServerDiagnostics(): Promise<ServerDiagnostics> {

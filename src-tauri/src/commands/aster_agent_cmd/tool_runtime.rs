@@ -74,7 +74,7 @@ fn sync_workspace_mode_native_tool_surface(
     config_manager: Arc<GlobalConfigManager>,
 ) {
     if surface.browser_assist {
-        browser_tools::register_browser_mcp_tools_to_registry(registry);
+        browser_tools::register_browser_mcp_tools_to_registry(registry, db.clone());
         site_tools::register_site_tools_to_registry(registry, db.clone());
     } else {
         browser_tools::unregister_browser_mcp_tools_from_registry(registry);
@@ -123,6 +123,8 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
         persisted_policy: Some(&current_config.agent.tool_execution),
         request_metadata,
     };
+    let lock_service_skill_launch_to_site_tools =
+        should_lock_service_skill_launch_to_site_tools(request_metadata);
     let tool_surface = WorkspaceToolSurface {
         creator: runtime_chat_mode == RuntimeChatMode::Creator,
         browser_assist: is_browser_assist_enabled(request_metadata),
@@ -162,7 +164,7 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
             execution_policy_input,
         });
 
-    if tool_surface.browser_assist {
+    if tool_surface.browser_assist && !lock_service_skill_launch_to_site_tools {
         for tool_name in browser_tools::browser_mcp_tool_names() {
             permissions.push(ToolPermission {
                 tool: tool_name,
@@ -179,6 +181,7 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     }
 
     append_browser_assist_session_permissions(&mut permissions, session_id, request_metadata);
+    append_service_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
 
     let (registry_arc, _) = resolve_agent_registry(state).await?;
     let mut registry = registry_arc.write().await;

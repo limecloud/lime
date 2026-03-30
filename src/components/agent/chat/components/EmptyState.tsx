@@ -60,6 +60,14 @@ import {
   getActiveSkillDisplayLabel,
   getSkillSelectionSummaryLabel,
 } from "./Inputbar/components/skillSelectionDisplay";
+import {
+  getSiteSkillAutoLaunchExample,
+  hasAutoLaunchableSiteSkill,
+} from "../service-skills/siteSkillExamplePrompts";
+import {
+  DEFAULT_ENABLED_CONTENT_THEME_IDS,
+  resolveEnabledContentThemes,
+} from "@/lib/contentCreator/themeDefaults";
 
 // Import Assets
 import capabilitySkillsPlaceholder from "@/assets/claw-home/capability-skills-placeholder.svg";
@@ -222,16 +230,6 @@ const ALL_CATEGORIES = [
   { id: "novel", label: "小说创作", icon: <PenTool className="w-4 h-4" /> },
 ];
 
-/** 默认启用的主题 */
-const DEFAULT_ENABLED_THEMES = [
-  "general",
-  "social-media",
-  "poster",
-  "music",
-  "video",
-  "novel",
-];
-
 // 需要显示创作模式选择器的主题
 const CREATION_THEMES = [
   "social-media",
@@ -264,7 +262,7 @@ const THEME_WORKBENCH_COPY: Record<
     title: "青柠一下，灵感即来",
     description: "从一句想法，到成稿、成图、成片、成事。",
     supportingDescription:
-      "Claw 工作台会围绕一个目标持续对话、检索网页、补充素材，并把结果沉淀到右侧画布，而不是只停留在一次性提问。",
+      "Claw 工作台会围绕一个目标持续对话、检索网页、补充素材，并把结果沉淀到工作台与项目资源，而不是只停留在一次性提问。",
   },
   "social-media": {
     title: "社媒内容工作台",
@@ -387,10 +385,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     activeSkill: currentSkill,
     skillCount: skillOptionCount,
   });
+  const hasAutoLaunchSiteSkill = hasAutoLaunchableSiteSkill(serviceSkills);
+  const siteSkillAutoLaunchExample =
+    getSiteSkillAutoLaunchExample(serviceSkills);
 
   // 从配置中读取启用的主题
   const [enabledThemes, setEnabledThemes] = useState<string[]>(
-    DEFAULT_ENABLED_THEMES,
+    DEFAULT_ENABLED_CONTENT_THEME_IDS,
   );
   const [
     appendSelectedTextToRecommendation,
@@ -402,9 +403,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     const loadConfigPreferences = async () => {
       try {
         const loadedConfig = await getConfig();
-        if (loadedConfig.content_creator?.enabled_themes) {
-          setEnabledThemes(loadedConfig.content_creator.enabled_themes);
-        }
+        setEnabledThemes(
+          resolveEnabledContentThemes(
+            loadedConfig.content_creator?.enabled_themes,
+          ),
+        );
         setAppendSelectedTextToRecommendation(
           loadedConfig.chat_appearance
             ?.append_selected_text_to_recommendation ?? true,
@@ -698,7 +701,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       case "novel":
         return "输入小说主题或情节，帮你创作章节内容...";
       case "general":
-        return "有什么我可以帮你的？";
+        return hasAutoLaunchSiteSkill
+          ? `直接说一句话，例如：${siteSkillAutoLaunchExample}`
+          : "有什么我可以帮你的？";
       default:
         return "输入你的想法...";
     }
@@ -886,15 +891,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     cards.push({
       key: "browser",
       eyebrow: "能力层",
-      title: "浏览器协助",
+      title: "浏览器工作台",
       value: browserAssistLoading
-        ? "正在准备远程浏览器"
-        : "网页操作 / 登录接管",
+        ? "正在准备浏览器会话"
+        : "网页登录 / 人工接管",
       description:
-        "需要处理登录、验证码或网页操作时，可直接在右侧画布接管远程浏览器。",
+        "需要处理登录、验证码或复杂网页操作时，可切到浏览器工作台接管真实浏览器。",
       icon: <Globe className="h-5 w-5" />,
       imageSrc: capabilityBrowserAssistPlaceholder,
-      imageAlt: "浏览器协助能力卡占位图",
+      imageAlt: "浏览器工作台能力卡占位图",
       tone: "slate",
       action: onLaunchBrowserAssist ? (
         <Button
@@ -905,7 +910,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           className={EMPTY_STATE_SECONDARY_ACTION_BUTTON_CLASSNAME}
         >
           <Globe className="mr-2 h-4 w-4" />
-          {browserAssistLoading ? "启动中..." : "打开浏览器协助"}
+          {browserAssistLoading ? "启动中..." : "打开浏览器工作台"}
         </Button>
       ) : null,
     });
@@ -933,7 +938,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         description:
           hasCanvasContent || hasContentId
             ? "当前会话已经接入画布，生成内容可继续整理、扩写和汇总。"
-            : "生成结果不会只停留在消息气泡里，而是继续进入右侧画布承接后续工作。",
+            : "生成结果不会只停留在消息气泡里，而是继续进入工作台承接后续整理与交付。",
       },
     ];
 
@@ -942,7 +947,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         key: "browser",
         title: "网页任务可接管",
         description:
-          "遇到登录、验证码或复杂网页操作时，可切换到浏览器协助继续完成任务。",
+          "遇到登录、验证码或复杂网页操作时，可切换到浏览器工作台继续完成任务。",
       });
     } else if (activeTheme === "social-media") {
       features.push({

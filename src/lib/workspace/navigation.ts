@@ -21,7 +21,7 @@ export function buildClawAgentParams(
     agentEntry: "claw",
     immersiveHome: overrides.immersiveHome ?? false,
     theme: overrides.theme ?? "general",
-    lockTheme: false,
+    lockTheme: overrides.lockTheme ?? false,
   };
 }
 

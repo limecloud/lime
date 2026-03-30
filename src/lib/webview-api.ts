@@ -308,11 +308,20 @@ export interface SystemConnectorSnapshot {
   capabilities: string[];
 }
 
+export interface BrowserActionCapabilitySnapshot {
+  key: string;
+  label: string;
+  description: string;
+  group: string;
+  enabled: boolean;
+}
+
 export interface BrowserConnectorSettingsSnapshot {
   enabled: boolean;
   install_root_dir?: string | null;
   install_dir?: string | null;
   system_connectors: SystemConnectorSnapshot[];
+  browser_action_capabilities?: BrowserActionCapabilitySnapshot[];
 }
 
 export interface BrowserConnectorInstallStatus {
@@ -730,6 +739,7 @@ export interface LaunchBrowserSessionRequest {
   environment?: BrowserEnvironmentLaunchConfig;
   target_id?: string;
   open_window?: boolean;
+  headless?: boolean;
   stream_mode?: BrowserStreamMode;
 }
 
@@ -739,6 +749,7 @@ export interface LaunchBrowserProfileRuntimeAssistRequest {
   environment_preset_id?: string;
   target_id?: string;
   open_window?: boolean;
+  headless?: boolean;
   stream_mode?: BrowserStreamMode;
 }
 
@@ -749,6 +760,7 @@ export interface LaunchBrowserRuntimeAssistRequest {
   environment?: BrowserEnvironmentLaunchConfig;
   target_id?: string;
   open_window?: boolean;
+  headless?: boolean;
   stream_mode?: BrowserStreamMode;
 }
 
@@ -944,6 +956,18 @@ export async function setSystemConnectorEnabled(request: {
   );
 }
 
+export async function setBrowserActionCapabilityEnabled(request: {
+  key: string;
+  enabled: boolean;
+}): Promise<BrowserConnectorSettingsSnapshot> {
+  return safeInvoke<BrowserConnectorSettingsSnapshot>(
+    "set_browser_action_capability_enabled_cmd",
+    {
+      request,
+    },
+  );
+}
+
 export async function getBrowserConnectorInstallStatus(): Promise<BrowserConnectorInstallStatus> {
   return safeInvoke<BrowserConnectorInstallStatus>(
     "get_browser_connector_install_status_cmd",
@@ -963,6 +987,10 @@ export async function installBrowserConnectorExtension(
 
 export async function openBrowserExtensionsPage(): Promise<boolean> {
   return safeInvoke<boolean>("open_browser_extensions_page_cmd");
+}
+
+export async function openBrowserRemoteDebuggingPage(): Promise<boolean> {
+  return safeInvoke<boolean>("open_browser_remote_debugging_page_cmd");
 }
 
 /**
@@ -1116,6 +1144,7 @@ export async function launchBrowserProfileRuntimeAssist(
     environment_preset_id: request.environment_preset_id,
     target_id: request.target_id,
     open_window: request.open_window,
+    headless: request.headless,
     stream_mode: request.stream_mode,
   });
 }
@@ -1130,6 +1159,7 @@ export async function launchBrowserRuntimeAssist(
     environment: request.environment,
     target_id: request.target_id,
     open_window: request.open_window,
+    headless: request.headless,
     stream_mode: request.stream_mode,
   });
 }

@@ -11,45 +11,6 @@ pub(super) async fn try_handle(
     args: Option<&JsonValue>,
 ) -> Result<Option<JsonValue>, DynError> {
     let result = match cmd {
-        "get_network_info" => serde_json::to_value(
-            crate::commands::network_cmd::get_network_info()
-                .map_err(|e| format!("获取网络信息失败: {e}"))?,
-        )?,
-        "test_api" => {
-            let args = args.cloned().ok_or("缺少参数")?;
-            let provider = args
-                .get("provider")
-                .and_then(|value| value.as_str())
-                .ok_or("缺少 provider 参数")?;
-
-            let credential = if let Some(db) = &state.db {
-                state
-                    .pool_service
-                    .select_credential(db, provider, None)
-                    .ok()
-                    .flatten()
-            } else {
-                None
-            };
-
-            match credential {
-                Some(cred) => {
-                    state.logs.write().await.add(
-                        "info",
-                        &format!("[DevBridge] 测试 API 使用凭证: {:?}", cred.name),
-                    );
-                    serde_json::json!({
-                        "success": true,
-                        "credential_name": cred.name,
-                        "provider_type": cred.provider_type,
-                    })
-                }
-                None => serde_json::json!({
-                    "success": false,
-                    "error": "未找到可用凭证"
-                }),
-            }
-        }
         "execution_run_list" => {
             let args = args_or_default(args);
             let limit = args

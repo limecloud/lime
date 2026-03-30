@@ -35,6 +35,21 @@ import type {
   ServiceSkillHomeItem,
 } from "./types";
 
+function shouldExposeServiceSkillHomeItem(item: SkillCatalogItem): boolean {
+  if (item.execution.kind === "site_adapter") {
+    return false;
+  }
+
+  if (
+    item.defaultExecutorBinding === "browser_assist" ||
+    item.siteCapabilityBinding
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 function getSkillBadge(item: SkillCatalogItem, isRecent: boolean): string {
   if (isRecent) {
     return "最近使用";
@@ -140,11 +155,16 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
 
   const applyCatalogSnapshot = useCallback(
     async (catalog: SkillCatalog) => {
+      const visibleItems = catalog.items.filter(shouldExposeServiceSkillHomeItem);
+      const visibleGroupKeys = new Set(visibleItems.map((item) => item.groupKey));
+      const visibleGroups = catalog.groups.filter((group) =>
+        visibleGroupKeys.has(group.key),
+      );
       const automationLinks = listServiceSkillAutomationLinks();
       let automationStatuses: Record<string, ServiceSkillAutomationStatus> = {};
       let resolvedAutomationLinkCount = automationLinks.length;
 
-      const hasLocalAutomationSkills = catalog.items.some((item) =>
+      const hasLocalAutomationSkills = visibleItems.some((item) =>
         supportsServiceSkillLocalAutomation(item),
       );
 
@@ -159,11 +179,17 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
         }
       }
 
-      setItems(catalog.items);
-      setGroups(catalog.groups);
+      setItems(visibleItems);
+      setGroups(visibleGroups);
       setAutomationLinkCount(resolvedAutomationLinkCount);
       setAutomationStatusMap(automationStatuses);
-      setCatalogMeta(buildCatalogMeta(catalog));
+      setCatalogMeta(
+        buildCatalogMeta({
+          ...catalog,
+          groups: visibleGroups,
+          items: visibleItems,
+        }),
+      );
     },
     [],
   );

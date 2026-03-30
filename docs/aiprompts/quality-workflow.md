@@ -64,6 +64,8 @@
 
 只改其中一侧，不算完成。
 
+如果本轮是在下线共享网关控制面，`start_server`、`stop_server`、`get_server_status`、`get_available_routes`、`get_route_curl_examples`、`test_api`、`get_network_info`，以及托盘残留 `sync_tray_state`、`update_tray_server_status`、`update_tray_credential_status`、`get_tray_state`、`refresh_tray_menu`、`refresh_tray_with_stats` 必须同步从前端网关、Rust 注册、DevBridge 和 mock 中撤掉；server 兼容面 `/v1/routes`、`/{selector}/v1/messages`、`/{selector}/v1/chat/completions` 也必须同步从 server 路由表与 services/core 模型中撤掉；开发者诊断只保留 `get_server_diagnostics`，托盘只保留 `sync_tray_model_shortcuts`，server 只保留标准 `/v1/messages` 与 `/v1/chat/completions`。
+
 ### 3. 用户可见 UI 改动必须补稳定回归
 
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言
@@ -134,6 +136,7 @@ npm run verify:gui-smoke
 - 等待 `DevBridge` 健康检查通过
 - 验证默认 workspace 的准备态可用
 - 验证 `browser runtime` 的启动、状态读取与审计主链可用
+- 其中 `browser runtime smoke` 默认以无界面浏览器会话执行，避免额外弹出仅用于校验的空白 Chrome
 - 验证 `site adapter catalog` 的状态、列表与推荐主链可读
 
 它解决的是 GUI 产品特有风险：
@@ -167,9 +170,10 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改 `agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy`
 - 修改 `agent_runtime_update_session` 或会话 provider/model / recent_access_mode / recent_preferences / recent_team_selection 恢复语义
 - 修改 `execution_runtime.recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id` 恢复语义，或前端 `harness.access_mode / harness.theme / harness.session_mode / harness.gate_key / harness.run_title / harness.content_id` steady-state 去重逻辑
+- 修改首页 / 工作区进入 `Claw` 时的首条自动发送上下文，例如 `initialUserPrompt`、`initialAutoSendRequestMetadata`、`harness.service_skill_launch`
 - 修改 `site_*` 站点适配器命令族，例如 `site_recommend_adapters`、`site_get_adapter_launch_readiness`、`site_import_adapter_yaml_bundle`、`site_run_adapter`
 - 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
-- 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器、扩展安装状态或主动断开扩展连接
+- 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器、浏览器动作配置、扩展安装状态、打开 Chrome 扩展 / 远程调试页，或主动断开扩展连接
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
@@ -207,6 +211,7 @@ npm run bridge:health -- --timeout-ms 120000
 补充说明：
 
 - 如果这次改动把 `ServiceSkill -> automation_job -> agent_turn` 接到 Artifact 主线，除了常规 `verify:local` / `test:contracts` 之外，还应至少补一条稳定回归，证明 `content_id + request_metadata.artifact` 没在表单编辑或执行链路里丢失。
+- 如果这次改动影响 `Claw` 与站点技能的直跑门禁，还应补回归证明：阻断停留在技能入口层，不再把浏览器准备态注入成对话里的继续执行确认。
 - 如果这次改动把 `content_id` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - session 已有 `execution_runtime.recent_content_id` 时，前端不会重复提交相同 `harness.content_id`
   - 切换到新 content 但 runtime 尚未同步时，前端仍会保留显式 `content_id`

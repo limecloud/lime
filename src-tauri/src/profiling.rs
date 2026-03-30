@@ -185,18 +185,6 @@ pub fn init() -> ProfilingGuard {
     }
 }
 
-pub fn should_open_webview_devtools() -> bool {
-    matches!(
-        env::var("LIME_OPEN_WEBVIEW_DEVTOOLS")
-            .ok()
-            .as_deref()
-            .map(str::trim)
-            .map(str::to_ascii_lowercase)
-            .as_deref(),
-        Some("1") | Some("true") | Some("yes") | Some("on")
-    )
-}
-
 fn try_init(config: &ProfilingConfig) -> Result<ProfilingGuard, String> {
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))

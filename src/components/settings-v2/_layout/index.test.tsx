@@ -65,9 +65,6 @@ vi.mock("../account/user-center-session", () => ({
 vi.mock("../agent/providers", () => ({
   CloudProviderSettings: () => <div>providers</div>,
 }));
-vi.mock("@/components/api-server/ApiServerPage", () => ({
-  ApiServerPage: () => <div>api-server</div>,
-}));
 vi.mock("@/components/mcp", () => ({
   McpPanel: () => <div>mcp</div>,
 }));
@@ -102,13 +99,21 @@ interface Mounted {
 
 const mounted: Mounted[] = [];
 
-function renderComponent(initialTab: SettingsTabs) {
+function renderComponent(
+  initialTab: SettingsTabs,
+  onNavigate?: (page: string) => void,
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
   act(() => {
-    root.render(<SettingsLayoutV2 initialTab={initialTab} />);
+    root.render(
+      <SettingsLayoutV2
+        initialTab={initialTab}
+        onNavigate={onNavigate as any}
+      />,
+    );
   });
 
   mounted.push({ container, root });
@@ -162,5 +167,19 @@ describe("SettingsLayoutV2 Profile Tab", () => {
     expect(text).toContain("个人资料");
     expect(text).toContain("USER_CENTER_SESSION");
     expect(text).toContain("PROFILE_SETTINGS");
+  });
+});
+
+describe("SettingsLayoutV2 Channels Redirect", () => {
+  it("旧的设置渠道入口应跳转到能力里的 IM 配置", async () => {
+    const onNavigate = vi.fn();
+
+    renderComponent(SettingsTabs.Channels, onNavigate);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("channels");
   });
 });

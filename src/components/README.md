@@ -10,7 +10,6 @@ React 组件层，包含 UI 组件和业务组件。
 ## 文件索引
 
 - `agent/` - AI Agent 聊天页面组件
-- `api-server/` - API 服务器配置组件
 - `clients/` - 客户端管理组件
 - `config/` - 配置管理组件
 - `connect/` - Lime Connect 组件（中转商 API Key 添加）

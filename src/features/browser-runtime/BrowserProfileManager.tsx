@@ -65,13 +65,13 @@ const PROFILE_TRANSPORT_OPTIONS: Array<{
   {
     value: "managed_cdp",
     label: "托管浏览器",
-    description:
-      "由 Lime 启动并管理独立 Chrome 资料，兼容当前实时会话链路。",
+    description: "由 Lime 启动并管理独立 Chrome 资料，兼容当前实时会话链路。",
   },
   {
     value: "existing_session",
     label: "附着当前 Chrome",
-    description: "复用你已登录的 Chrome，会话附着链路后续单独接入。",
+    description:
+      "复用你已登录的 Chrome，优先附着当前会话，不会静默拉起第二个托管浏览器。",
   },
 ];
 
@@ -89,6 +89,24 @@ function getExistingSessionEnvironmentNotice(
     return null;
   }
   return `已选择启动环境 "${presetName}"，但附着当前 Chrome 模式暂不应用代理、时区、语言、UA 或视口等启动级配置；如需这些能力，请改用托管浏览器模式。`;
+}
+
+const EXISTING_SESSION_RUNTIME_FALLBACK_PATTERNS = [
+  "附着当前 chrome",
+  "existing_session",
+  "可复用的浏览器会话",
+  "远程调试",
+  "未检测到可连接的 cdp 调试端口",
+  "没有可用的 chrome 会话",
+  "未找到 profile_key",
+];
+
+function shouldFallbackToExistingSessionBridge(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.trim().toLowerCase();
+  return EXISTING_SESSION_RUNTIME_FALLBACK_PATTERNS.some((pattern) =>
+    normalized.includes(pattern),
+  );
 }
 
 function toFormState(profile: BrowserProfileRecord): ProfileFormState {
@@ -296,6 +314,28 @@ export function BrowserProfileManager(props: BrowserProfileManagerProps) {
     async (profile: BrowserProfileRecord) => {
       try {
         if (profile.transport_kind === "existing_session") {
+          try {
+            await browserRuntimeApi.launchBrowserSession({
+              profile_id: profile.id,
+              environment_preset_id: launchEnvironmentPresetId || undefined,
+              open_window: false,
+              stream_mode: "both",
+            });
+            await refreshProfiles(showArchived);
+            onProfileLaunched?.(profile.profile_key);
+            onMessage?.({
+              type: "success",
+              text: selectedLaunchEnvironmentPreset
+                ? `已附着当前 Chrome：${profile.name}，并启动实时调试会话（环境：${selectedLaunchEnvironmentPreset.name}）`
+                : `已附着当前 Chrome：${profile.name}，并启动实时调试会话`,
+            });
+            return;
+          } catch (error) {
+            if (!shouldFallbackToExistingSessionBridge(error)) {
+              throw error;
+            }
+          }
+
           await handleAttachExistingSession(profile);
           return;
         }
@@ -572,9 +612,9 @@ export function BrowserProfileManager(props: BrowserProfileManagerProps) {
               : null;
           const pageInfo =
             transportKind === "existing_session"
-              ? pageInfoByProfileKey[profile.profile_key] ??
+              ? (pageInfoByProfileKey[profile.profile_key] ??
                 bridgeObserver?.last_page_info ??
-                null
+                null)
               : null;
           const currentTabs = tabsByProfileKey[profile.profile_key] ?? [];
           const isTabPanelOpen = tabPanelsOpen[profile.profile_key] === true;
@@ -625,8 +665,7 @@ export function BrowserProfileManager(props: BrowserProfileManagerProps) {
                     <span>最近使用: {profile.last_used_at || "从未"}</span>
                     {bridgeObserver ? (
                       <span>
-                        当前页面:{" "}
-                        {pageInfo?.title || pageInfo?.url || "已连接"}
+                        当前页面: {pageInfo?.title || pageInfo?.url || "已连接"}
                       </span>
                     ) : null}
                   </div>

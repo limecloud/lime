@@ -46,7 +46,6 @@ interface UseThemeWorkbenchSendBoundaryOptions {
   mappedTheme: string;
   socialArticleSkillKey: string;
   isBrowserAssistReady: boolean;
-  browserTaskPreflight: BrowserTaskPreflight | null;
   onConsumeInitialPrompt: (dispatchKey: string) => void;
   onResetConsumedInitialPrompt: () => void;
   onClearEntryPrompt: () => void;
@@ -153,7 +152,6 @@ export function useThemeWorkbenchSendBoundary({
   mappedTheme,
   socialArticleSkillKey,
   isBrowserAssistReady,
-  browserTaskPreflight,
   onConsumeInitialPrompt,
   onResetConsumedInitialPrompt,
   onClearEntryPrompt,
@@ -183,12 +181,6 @@ export function useThemeWorkbenchSendBoundary({
     ],
   );
 
-  const isBlockedByBrowserPreflight = useCallback(
-    (sendOptions?: HandleSendOptions) =>
-      Boolean(browserTaskPreflight) && !sendOptions?.browserPreflightConfirmed,
-    [browserTaskPreflight],
-  );
-
   const maybeStartBrowserTaskPreflight = useCallback(
     ({
       boundary,
@@ -199,11 +191,7 @@ export function useThemeWorkbenchSendBoundary({
       autoContinuePayload,
       sendOptions,
     }: StartBrowserTaskPreflightOptions) => {
-      if (
-        !boundary.browserRequirementMatch ||
-        sendOptions?.browserPreflightConfirmed ||
-        isBrowserAssistReady
-      ) {
+      if (!boundary.browserRequirementMatch || isBrowserAssistReady) {
         return false;
       }
 
@@ -269,7 +257,6 @@ export function useThemeWorkbenchSendBoundary({
 
   return {
     resolveSendBoundary,
-    isBlockedByBrowserPreflight,
     maybeStartBrowserTaskPreflight,
     finalizeAfterSendSuccess,
     rollbackAfterSendFailure,

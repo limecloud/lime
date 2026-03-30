@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentPageParams, Page } from "@/types/page";
+import type { AgentPageParams, Page, PageParams } from "@/types/page";
 import { AppPageContent } from "./AppPageContent";
 
 const latestAgentChatProps = vi.hoisted(
@@ -19,6 +19,10 @@ vi.mock("./agent/chat", () => ({
   },
 }));
 
+vi.mock("./channels/ImConfigPage", () => ({
+  ImConfigPage: () => <div data-testid="im-config-page" />,
+}));
+
 interface MountedContent {
   container: HTMLDivElement;
   root: Root;
@@ -26,7 +30,7 @@ interface MountedContent {
 
 const mountedContents: MountedContent[] = [];
 
-function renderContent(pageParams: AgentPageParams) {
+function renderContent(currentPage: Page, pageParams: PageParams = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -35,7 +39,7 @@ function renderContent(pageParams: AgentPageParams) {
     root.render(
       <Suspense fallback={<div data-testid="page-loading" />}>
         <AppPageContent
-          currentPage="agent"
+          currentPage={currentPage}
           pageParams={pageParams}
           onNavigate={vi.fn() as (page: Page) => void}
           onAgentHasMessagesChange={vi.fn()}
@@ -100,7 +104,7 @@ describe("AppPageContent", () => {
       },
     };
 
-    renderContent(pageParams);
+    renderContent("agent", pageParams);
     await flushEffects();
 
     expect(latestAgentChatProps.value).toMatchObject({
@@ -122,5 +126,12 @@ describe("AppPageContent", () => {
         skillTitle: "Linux.do 分类扫描",
       },
     });
+  });
+
+  it("channels 页面应渲染 IM 配置页", async () => {
+    const container = renderContent("channels");
+    await flushEffects();
+
+    expect(container.querySelector('[data-testid="im-config-page"]')).not.toBeNull();
   });
 });

@@ -7,6 +7,8 @@
 import { useState, useEffect, useMemo, type ReactElement } from "react";
 import styled from "styled-components";
 import {
+  ChevronDown,
+  ChevronRight,
   Image,
   Moon,
   Sun,
@@ -352,6 +354,49 @@ const NavLabel = styled.span<{ $collapsed?: boolean }>`
   display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
 `;
 
+const NavTrailingIcon = styled.span<{ $collapsed?: boolean; $active?: boolean }>`
+  display: ${({ $collapsed }) => ($collapsed ? "none" : "inline-flex")};
+  align-items: center;
+  justify-content: center;
+  color: ${({ $active }) =>
+    $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-muted)"};
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
+const NavGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const SubNavList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 16px;
+  padding-left: 12px;
+  border-left: 1px solid var(--sidebar-divider);
+`;
+
+const SubNavButton = styled(NavButton)`
+  height: 34px;
+  border-radius: 10px;
+  padding: 0 10px 0 12px;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+`;
+
+const SubNavLabel = styled(NavLabel)`
+  font-size: 13px;
+`;
+
 const FooterArea = styled.div<{ $collapsed?: boolean }>`
   margin-top: auto;
   padding-top: 10px;
@@ -509,6 +554,11 @@ export function AppSidebar({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [_activeThemeKey, setActiveThemeKey] = useState<string>(
     getThemeWorkspacePage("general"),
+  );
+  const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>(() =>
+    MAIN_SIDEBAR_NAV_ITEMS.filter(
+      (item) => item.defaultExpanded && item.children && item.children.length > 0,
+    ).map((item) => item.id),
   );
 
   useEffect(() => {
@@ -674,7 +724,15 @@ export function AppSidebar({
     });
   }, [sidebarPlugins]);
 
-  const isActive = (item: SidebarNavItem) => {
+  const isActive = (item: SidebarNavItem): boolean => {
+    if (item.children && item.children.length > 0) {
+      return item.children.some((child) => isActive(child));
+    }
+
+    if (!item.page) {
+      return false;
+    }
+
     if (item.id.startsWith("theme-")) {
       return currentPage === item.page;
     }
@@ -686,7 +744,47 @@ export function AppSidebar({
     return currentPage === item.page;
   };
 
+  useEffect(() => {
+    const isGroupActive = (item: SidebarNavItem): boolean => {
+      if (item.children && item.children.length > 0) {
+        return item.children.some((child) => isGroupActive(child));
+      }
+
+      if (!item.page) {
+        return false;
+      }
+
+      if (item.id.startsWith("theme-")) {
+        return currentPage === item.page;
+      }
+
+      if (item.isActive) {
+        return item.isActive(currentPage, currentPageParams);
+      }
+
+      return currentPage === item.page;
+    };
+
+    const activeGroupIds = MAIN_SIDEBAR_NAV_ITEMS.filter(
+      (item) => item.children && item.children.length > 0 && isGroupActive(item),
+    ).map((item) => item.id);
+
+    if (activeGroupIds.length === 0) {
+      return;
+    }
+
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      activeGroupIds.forEach((id) => next.add(id));
+      return Array.from(next);
+    });
+  }, [currentPage, currentPageParams]);
+
   const handleNavigate = (item: SidebarNavItem) => {
+    if (!item.page) {
+      return;
+    }
+
     if (isThemeWorkspacePage(item.page)) {
       setActiveThemeKey(item.page);
       localStorage.setItem(LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY, item.page);
@@ -708,6 +806,14 @@ export function AppSidebar({
     onNavigate(item.page, params);
   };
 
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId],
+    );
+  };
+
   const maybeWrapWithTooltip = (node: ReactElement, label: string) => {
     if (!collapsed) {
       return node;
@@ -719,6 +825,74 @@ export function AppSidebar({
         <TooltipContent side="right">{label}</TooltipContent>
       </Tooltip>
     );
+  };
+
+  const renderNavItem = (item: SidebarNavItem, nested: boolean = false) => {
+    const active = isActive(item);
+
+    if (item.children && item.children.length > 0) {
+      const expanded = expandedGroupIds.includes(item.id);
+      const groupButton = (
+        <NavButton
+          key={item.id}
+          $active={active}
+          $collapsed={collapsed}
+          onClick={() => {
+            if (collapsed) {
+              setCollapsed(false);
+              if (!expanded) {
+                setExpandedGroupIds((current) =>
+                  current.includes(item.id) ? current : [...current, item.id],
+                );
+              }
+              return;
+            }
+
+            toggleGroup(item.id);
+          }}
+          title={item.label}
+          aria-label={item.label}
+          aria-current={active ? "page" : undefined}
+          aria-expanded={collapsed ? undefined : expanded}
+        >
+          <item.icon />
+          <NavLabel $collapsed={collapsed}>{item.label}</NavLabel>
+          <NavTrailingIcon $collapsed={collapsed} $active={active}>
+            {expanded ? <ChevronDown /> : <ChevronRight />}
+          </NavTrailingIcon>
+        </NavButton>
+      );
+
+      return (
+        <NavGroup key={item.id}>
+          {maybeWrapWithTooltip(groupButton, item.label)}
+          {!collapsed && expanded ? (
+            <SubNavList>
+              {item.children.map((child) => renderNavItem(child, true))}
+            </SubNavList>
+          ) : null}
+        </NavGroup>
+      );
+    }
+
+    const ButtonComponent = nested ? SubNavButton : NavButton;
+    const LabelComponent = nested ? SubNavLabel : NavLabel;
+    const button = (
+      <ButtonComponent
+        key={item.id}
+        $active={active}
+        $collapsed={collapsed}
+        onClick={() => handleNavigate(item)}
+        title={item.label}
+        aria-label={item.label}
+        aria-current={active ? "page" : undefined}
+      >
+        <item.icon />
+        <LabelComponent $collapsed={collapsed}>{item.label}</LabelComponent>
+      </ButtonComponent>
+    );
+
+    return maybeWrapWithTooltip(button, item.label);
   };
 
   return (
@@ -768,85 +942,27 @@ export function AppSidebar({
 
         <MenuScroll>
           <Section $collapsed={collapsed}>
-            {filteredMainMenuItems.map((item) =>
-              maybeWrapWithTooltip(
-                <NavButton
-                  key={item.id}
-                  $active={isActive(item)}
-                  $collapsed={collapsed}
-                  onClick={() => handleNavigate(item)}
-                  title={item.label}
-                  aria-label={item.label}
-                >
-                  <item.icon />
-                  <NavLabel $collapsed={collapsed}>{item.label}</NavLabel>
-                </NavButton>,
-                item.label,
-              ),
-            )}
+            {filteredMainMenuItems.map((item) => renderNavItem(item))}
           </Section>
 
-          <Section $collapsed={collapsed}>
-            <SectionTitle $collapsed={collapsed}>创作主题</SectionTitle>
-            {filteredThemeMenuItems.map((item) =>
-              maybeWrapWithTooltip(
-                <NavButton
-                  key={item.id}
-                  $active={isActive(item)}
-                  $collapsed={collapsed}
-                  onClick={() => handleNavigate(item)}
-                  title={item.label}
-                  aria-label={item.label}
-                >
-                  <item.icon />
-                  <NavLabel $collapsed={collapsed}>{item.label}</NavLabel>
-                </NavButton>,
-                item.label,
-              ),
-            )}
-          </Section>
+          {filteredThemeMenuItems.length > 0 && (
+            <Section $collapsed={collapsed}>
+              <SectionTitle $collapsed={collapsed}>创作主题</SectionTitle>
+              {filteredThemeMenuItems.map((item) => renderNavItem(item))}
+            </Section>
+          )}
 
           {assistantItems.length > 0 && (
             <Section $collapsed={collapsed}>
               <SectionTitle $collapsed={collapsed}>助手</SectionTitle>
-              {assistantItems.map((item) =>
-                maybeWrapWithTooltip(
-                  <NavButton
-                    key={item.id}
-                    $active={isActive(item)}
-                    $collapsed={collapsed}
-                    onClick={() => handleNavigate(item)}
-                    title={item.label}
-                    aria-label={item.label}
-                  >
-                    <item.icon />
-                    <NavLabel $collapsed={collapsed}>{item.label}</NavLabel>
-                  </NavButton>,
-                  item.label,
-                ),
-              )}
+              {assistantItems.map((item) => renderNavItem(item))}
             </Section>
           )}
         </MenuScroll>
 
         <FooterArea $collapsed={collapsed}>
           <Section $collapsed={collapsed}>
-            {filteredFooterMenuItems.map((item) =>
-              maybeWrapWithTooltip(
-                <NavButton
-                  key={item.id}
-                  $active={isActive(item)}
-                  $collapsed={collapsed}
-                  onClick={() => handleNavigate(item)}
-                  title={item.label}
-                  aria-label={item.label}
-                >
-                  <item.icon />
-                  <NavLabel $collapsed={collapsed}>{item.label}</NavLabel>
-                </NavButton>,
-                item.label,
-              ),
-            )}
+            {filteredFooterMenuItems.map((item) => renderNavItem(item))}
           </Section>
 
           <ActionRow $collapsed={collapsed}>

@@ -94,7 +94,7 @@ async fn ensure_skill_agent_ready(
         tracing::info!("[execute_skill] Agent 初始化完成");
     }
 
-    ensure_browser_mcp_tools_registered(aster_state)
+    ensure_browser_mcp_tools_registered(aster_state, db)
         .await
         .map_err(|error| {
             format_skill_error(

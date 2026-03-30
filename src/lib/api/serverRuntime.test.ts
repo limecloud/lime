@@ -4,10 +4,7 @@ import {
   exportSupportBundle,
   getLogStorageDiagnostics,
   getServerDiagnostics,
-  getServerStatus,
   getWindowsStartupDiagnostics,
-  startServer,
-  stopServer,
 } from "./serverRuntime";
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -19,18 +16,8 @@ describe("serverRuntime API", () => {
     vi.clearAllMocks();
   });
 
-  it("应代理服务控制命令", async () => {
-    vi.mocked(safeInvoke)
-      .mockResolvedValueOnce("started")
-      .mockResolvedValueOnce("stopped");
-
-    await expect(startServer()).resolves.toBe("started");
-    await expect(stopServer()).resolves.toBe("stopped");
-  });
-
   it("应代理诊断类命令", async () => {
     vi.mocked(safeInvoke)
-      .mockResolvedValueOnce({ running: true, host: "127.0.0.1", port: 8080 })
       .mockResolvedValueOnce({ generated_at: "now", running: true })
       .mockResolvedValueOnce({
         current_log_exists: true,
@@ -44,9 +31,6 @@ describe("serverRuntime API", () => {
         has_warnings: false,
       });
 
-    await expect(getServerStatus()).resolves.toEqual(
-      expect.objectContaining({ running: true }),
-    );
     await expect(getServerDiagnostics()).resolves.toEqual(
       expect.objectContaining({ running: true }),
     );

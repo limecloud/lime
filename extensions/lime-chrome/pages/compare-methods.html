@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connection Methods Comparison</title>
+    <link rel="stylesheet" href="styles/install-common.css" />
+    <style>
+      .compare-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 32px;
+      }
+
+      .compare-card {
+        position: relative;
+        border-radius: 16px;
+        padding: 28px 24px 24px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        transition: border-color 0.2s;
+      }
+
+      .compare-card:hover {
+        border-color: var(--accent-border);
+      }
+
+      .compare-card.recommended {
+        border-color: var(--accent-border);
+        background: var(--accent-soft);
+      }
+
+      .compare-card-badge {
+        position: absolute;
+        top: -10px;
+        left: 20px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: #0ea5e9;
+        color: #fff;
+      }
+
+      .compare-card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 14px;
+      }
+
+      .compare-card.recommended .compare-card-icon {
+        background: color-mix(in oklab, var(--accent) 15%, transparent);
+        border: 1px solid var(--accent-border);
+        color: var(--accent);
+      }
+
+      .compare-card:not(.recommended) .compare-card-icon {
+        background: color-mix(in oklab, #6366f1 10%, transparent);
+        border: 1px solid color-mix(in oklab, #6366f1 20%, transparent);
+        color: #6366f1;
+      }
+
+      .compare-card-title {
+        font-size: 17px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        letter-spacing: -0.01em;
+      }
+
+      .compare-card-subtitle {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-bottom: 20px;
+      }
+
+      .compare-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .compare-item {
+        display: flex;
+        gap: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .compare-item-icon {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+
+      .compare-item-icon.pro {
+        background: color-mix(in oklab, var(--green) 12%, transparent);
+        color: var(--green);
+      }
+
+      .compare-item-icon.con {
+        background: color-mix(in oklab, #F59E0B 12%, transparent);
+        color: #F59E0B;
+      }
+
+      .compare-item-icon svg {
+        width: 10px;
+        height: 10px;
+      }
+
+      .compare-divider {
+        margin: 40px 0 32px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .compare-divider-line {
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      .compare-divider-text {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--dim);
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+
+      .feature-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .feature-table th,
+      .feature-table td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .feature-table tr:last-child th,
+      .feature-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .feature-table th {
+        font-weight: 600;
+        color: var(--dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--surface);
+      }
+
+      .feature-table td {
+        color: var(--muted);
+        background: canvas;
+      }
+
+      .feature-table td:first-child {
+        font-weight: 600;
+        color: canvasText;
+        white-space: nowrap;
+      }
+
+      .feature-table .check {
+        color: var(--green);
+        font-weight: 700;
+        font-size: 15px;
+      }
+
+      .feature-table .cross {
+        color: var(--dim);
+        font-size: 15px;
+      }
+
+      .choose-section {
+        margin-top: 40px;
+      }
+
+      .choose-btn {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 16px 20px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+        text-align: left;
+        -webkit-app-region: no-drag;
+        margin-bottom: 10px;
+      }
+
+      .choose-btn:hover {
+        border-color: var(--accent-border);
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .choose-btn:active { transform: scale(0.99); }
+
+      .choose-btn svg:first-child {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+      }
+
+      .choose-btn .arrow {
+        margin-left: auto;
+        flex-shrink: 0;
+        opacity: 0.4;
+      }
+
+      .choose-btn.primary {
+        border-color: #0ea5e9;
+        background: #0ea5e9;
+        color: #fff;
+      }
+
+      .choose-btn.primary:hover {
+        background: #0284c7;
+        border-color: #0284c7;
+      }
+
+      .choose-btn.primary .arrow { opacity: 0.7; }
+
+      @media (max-width: 600px) {
+        .compare-grid { grid-template-columns: 1fr; }
+      }
+
+      .compare-card { animation: step-enter 0.4s ease-out both; }
+      .compare-card:nth-child(1) { animation-delay: 0.1s; }
+      .compare-card:nth-child(2) { animation-delay: 0.2s; }
+      .feature-table { animation: step-enter 0.4s ease-out 0.3s both; }
+      .choose-section { animation: step-enter 0.4s ease-out 0.4s both; }
+    </style>
+  </head>
+  <body>
+    <div class="drag-handle"></div>
+    <div class="page">
+
+      <div class="header">
+        <div class="header-icon">
+          <img src="../icons/icon128.png" alt="Lime Browser Bridge" />
+        </div>
+        <div>
+          <h1 data-i18n="title">Choose Your Connection Method</h1>
+        </div>
+      </div>
+      <p class="subtitle" data-i18n="subtitle">
+        Two ways to connect your browser. Choose the one that works best for you.
+      </p>
+
+      <!-- ── Side-by-side cards ── -->
+
+      <div class="compare-grid">
+
+        <!-- Extension -->
+        <div class="compare-card recommended">
+          <div class="compare-card-badge" data-i18n="badge_recommended">Recommended</div>
+          <div class="compare-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.5 2.5v3h3v-3a1.5 1.5 0 00-3 0z"/>
+              <path d="M14 6H10a1 1 0 00-1 1v3H5.5a1.5 1.5 0 000 3H9v4a1 1 0 001 1h4a1 1 0 001-1v-4h3.5a1.5 1.5 0 000-3H15V7a1 1 0 00-1-1z"/>
+            </svg>
+          </div>
+          <div class="compare-card-title" data-i18n="ext_title">Browser Extension</div>
+          <p class="compare-card-subtitle" data-i18n="ext_subtitle">Install once, connect automatically. No repeated authorization needed.</p>
+          <ul class="compare-list">
+            <li class="compare-item">
+              <span class="compare-item-icon pro"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5.5l2 2 4-4"/></svg></span>
+              <span data-i18n="ext_pro1">Auto-connects on every launch</span>
+            </li>
+            <li class="compare-item">
+              <span class="compare-item-icon pro"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5.5l2 2 4-4"/></svg></span>
+              <span data-i18n="ext_pro2">No manual approval required</span>
+            </li>
+            <li class="compare-item">
+              <span class="compare-item-icon pro"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5.5l2 2 4-4"/></svg></span>
+              <span data-i18n="ext_pro3">Works with all Chrome versions</span>
+            </li>
+            <li class="compare-item">
+              <span class="compare-item-icon con"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l4 4M7 3l-4 4"/></svg></span>
+              <span data-i18n="ext_con1">Requires installing a Chrome extension</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- CDP Direct -->
+        <div class="compare-card">
+          <div class="compare-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 8l-4 4 4 4"/>
+              <path d="M17 8l4 4-4 4"/>
+              <path d="M14 4l-4 16"/>
+            </svg>
+          </div>
+          <div class="compare-card-title" data-i18n="cdp_title">CDP Direct Connect</div>
+          <p class="compare-card-subtitle" data-i18n="cdp_subtitle">Zero installation. Connect directly via Chrome DevTools Protocol.</p>
+          <ul class="compare-list">
+            <li class="compare-item">
+              <span class="compare-item-icon pro"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5.5l2 2 4-4"/></svg></span>
+              <span data-i18n="cdp_pro1">No extension installation needed</span>
+            </li>
+            <li class="compare-item">
+              <span class="compare-item-icon pro"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5.5l2 2 4-4"/></svg></span>
+              <span data-i18n="cdp_pro2">Works out of the box on Chrome 144+</span>
+            </li>
+            <li class="compare-item">
+              <span class="compare-item-icon con"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l4 4M7 3l-4 4"/></svg></span>
+              <span data-i18n="cdp_con1">Requires re-authorization after every Lime or Chrome restart</span>
+            </li>
+            <li class="compare-item">
+              <span class="compare-item-icon con"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l4 4M7 3l-4 4"/></svg></span>
+              <span data-i18n="cdp_con2">Chrome 144+ only</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── Feature table ── -->
+
+      <div class="compare-divider">
+        <span class="compare-divider-line"></span>
+        <span class="compare-divider-text" data-i18n="table_title">Feature Comparison</span>
+        <span class="compare-divider-line"></span>
+      </div>
+
+      <table class="feature-table">
+        <thead>
+          <tr>
+            <th data-i18n="th_feature">Feature</th>
+            <th data-i18n="th_extension">Extension</th>
+            <th data-i18n="th_cdp">CDP Direct</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-i18n="f_setup">Initial Setup</td>
+            <td data-i18n="f_setup_ext">Install extension</td>
+            <td data-i18n="f_setup_cdp">Enable in chrome://inspect</td>
+          </tr>
+          <tr>
+            <td data-i18n="f_reconnect">Reconnect after restart</td>
+            <td><span class="check" data-i18n="f_auto">Automatic</span></td>
+            <td data-i18n="f_manual">Manual (click "Allow")</td>
+          </tr>
+          <tr>
+            <td data-i18n="f_chrome_ver">Chrome version</td>
+            <td data-i18n="f_all_ver">All versions</td>
+            <td>144+</td>
+          </tr>
+          <tr>
+            <td data-i18n="f_stability">Connection stability</td>
+            <td><span class="check" data-i18n="f_high">High</span></td>
+            <td><span data-i18n="f_high2">Medium</span></td>
+          </tr>
+          <tr>
+            <td data-i18n="f_install">Requires installation</td>
+            <td><span class="cross">Yes</span></td>
+            <td><span class="check">No</span></td>
+          </tr>
+          <tr>
+            <td data-i18n="f_banner">Automation banner</td>
+            <td data-i18n="f_banner_ext">Extension debugging notice</td>
+            <td data-i18n="f_banner_cdp">Automated test software notice</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ── Choose buttons ── -->
+
+      <div class="choose-section">
+        <button class="choose-btn primary" onclick="navigateToInstallPage('install-extension.html')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.5 2.5v3h3v-3a1.5 1.5 0 00-3 0z"/>
+            <path d="M14 6H10a1 1 0 00-1 1v3H5.5a1.5 1.5 0 000 3H9v4a1 1 0 001 1h4a1 1 0 001-1v-4h3.5a1.5 1.5 0 000-3H15V7a1 1 0 00-1-1z"/>
+          </svg>
+          <span data-i18n="choose_ext">Use Extension (Recommended)</span>
+          <svg class="arrow" width="12" height="12" viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+        </button>
+        <button class="choose-btn" onclick="navigateToInstallPage('install-direct-cdp.html')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 8l-4 4 4 4"/>
+            <path d="M17 8l4 4-4 4"/>
+            <path d="M14 4l-4 16"/>
+          </svg>
+          <span data-i18n="choose_cdp">Use CDP Direct Connect</span>
+          <svg class="arrow" width="12" height="12" viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+        </button>
+      </div>
+
+    </div>
+    <script src="scripts/install-i18n.js"></script>
+    <script src="scripts/install-helpers.js"></script>
+    <script>
+      InstallI18n.register('en', {
+        title: 'Choose Your Connection Method',
+        subtitle: 'Two ways to connect your browser. Choose the one that works best for you.',
+        badge_recommended: 'Recommended',
+        ext_title: 'Browser Extension',
+        ext_subtitle: 'Install once, connect automatically. No repeated authorization needed.',
+        ext_pro1: 'Auto-connects on every launch',
+        ext_pro2: 'No manual approval required',
+        ext_pro3: 'Works with all Chrome versions',
+        ext_con1: 'Requires installing a Chrome extension',
+        cdp_title: 'CDP Direct Connect',
+        cdp_subtitle: 'Zero installation. Connect directly via Chrome DevTools Protocol.',
+        cdp_pro1: 'No extension installation needed',
+        cdp_pro2: 'Works out of the box on Chrome 144+',
+        cdp_con1: 'Requires re-authorization after every Lime or Chrome restart',
+        cdp_con2: 'Chrome 144+ only',
+        table_title: 'Feature Comparison',
+        th_feature: 'Feature',
+        th_extension: 'Extension',
+        th_cdp: 'CDP Direct',
+        f_setup: 'Initial setup',
+        f_setup_ext: 'Install extension',
+        f_setup_cdp: 'Enable in chrome://inspect',
+        f_reconnect: 'Reconnect after restart',
+        f_auto: 'Automatic',
+        f_manual: 'Manual (click "Allow")',
+        f_chrome_ver: 'Chrome version',
+        f_all_ver: 'All versions',
+        f_stability: 'Connection stability',
+        f_high: 'High',
+        f_high2: 'Medium',
+        f_install: 'Requires installation',
+        f_banner: 'Automation banner',
+        f_banner_ext: 'Extension debugging notice',
+        f_banner_cdp: 'Automated test software notice',
+        choose_ext: 'Use Extension (Recommended)',
+        choose_cdp: 'Use CDP Direct Connect',
+      });
+      InstallI18n.register('zh', {
+        title: '选择连接方式',
+        subtitle: '两种方式将浏览器连接到 Lime，选择最适合你的方案。',
+        badge_recommended: '推荐',
+        ext_title: '浏览器扩展',
+        ext_subtitle: '安装一次，自动连接。无需反复授权。',
+        ext_pro1: '每次启动自动连接',
+        ext_pro2: '无需手动点击授权',
+        ext_pro3: '支持所有 Chrome 版本',
+        ext_con1: '需要安装一个 Chrome 扩展',
+        cdp_title: 'CDP 直连',
+        cdp_subtitle: '零安装。通过 Chrome DevTools 协议直接连接。',
+        cdp_pro1: '无需安装任何扩展',
+        cdp_pro2: 'Chrome 144+ 即开即用',
+        cdp_con1: '每次重启 Lime 或 Chrome 后需要重新授权',
+        cdp_con2: '仅支持 Chrome 144+',
+        table_title: '功能对比',
+        th_feature: '功能',
+        th_extension: '扩展方式',
+        th_cdp: 'CDP 直连',
+        f_setup: '初始设置',
+        f_setup_ext: '安装扩展',
+        f_setup_cdp: '在 chrome://inspect 中启用',
+        f_reconnect: '重启后重连',
+        f_auto: '自动',
+        f_manual: '手动（点击"允许"）',
+        f_chrome_ver: 'Chrome 版本',
+        f_all_ver: '所有版本',
+        f_stability: '连接稳定性',
+        f_high: '高',
+        f_high2: '中',
+        f_install: '需要安装',
+        f_banner: '自动化提示',
+        f_banner_ext: '扩展调试提示',
+        f_banner_cdp: '自动化测试软件提示',
+        choose_ext: '使用扩展方式（推荐）',
+        choose_cdp: '使用 CDP 直连',
+      });
+      InstallI18n.register('de', {
+        title: 'Wählen Sie Ihre Verbindungsmethode',
+        subtitle: 'Zwei Möglichkeiten, Ihren Browser zu verbinden. Wählen Sie diejenige, die am besten für Sie funktioniert.',
+        badge_recommended: 'Empfohlen',
+        ext_title: 'Browser-Erweiterung',
+        ext_subtitle: 'Einmal installieren, automatisch verbinden. Keine wiederholte Autorisierung erforderlich.',
+        ext_pro1: 'Verbindet sich automatisch bei jedem Start',
+        ext_pro2: 'Keine manuelle Genehmigung erforderlich',
+        ext_pro3: 'Funktioniert mit allen Chrome-Versionen',
+        ext_con1: 'Erfordert die Installation einer Chrome-Erweiterung',
+        cdp_title: 'CDP-Direktverbindung',
+        cdp_subtitle: 'Keine Installation. Direkte Verbindung über das Chrome DevTools Protocol.',
+        cdp_pro1: 'Keine Installation einer Erweiterung erforderlich',
+        cdp_pro2: 'Funktioniert sofort mit Chrome 144+',
+        cdp_con1: 'Erfordert eine erneute Autorisierung nach jedem Neustart von Lime oder Chrome',
+        cdp_con2: 'Nur Chrome 144+',
+        table_title: 'Funktionsvergleich',
+        th_feature: 'Funktion',
+        th_extension: 'Erweiterung',
+        th_cdp: 'CDP-Direkt',
+        f_setup: 'Ersteinrichtung',
+        f_setup_ext: 'Erweiterung installieren',
+        f_setup_cdp: 'In chrome://inspect aktivieren',
+        f_reconnect: 'Wiederverbindung nach Neustart',
+        f_auto: 'Automatisch',
+        f_manual: 'Manuell (auf "Zulassen" klicken)',
+        f_chrome_ver: 'Chrome-Version',
+        f_all_ver: 'Alle Versionen',
+        f_stability: 'Verbindungsstabilität',
+        f_high: 'Hoch',
+        f_high2: 'Mittel',
+        f_install: 'Erfordert Installation',
+        f_banner: 'Automatisierungsbanner',
+        f_banner_ext: 'Hinweis zum Debugging der Erweiterung',
+        f_banner_cdp: 'Hinweis auf automatisierte Testsoftware',
+        choose_ext: 'Erweiterung verwenden (Empfohlen)',
+        choose_cdp: 'CDP-Direktverbindung verwenden',
+      });
+      InstallI18n.register('es', {
+        title: 'Elija su método de conexión',
+        subtitle: 'Dos formas de conectar su navegador. Elija la que mejor se adapte a sus necesidades.',
+        badge_recommended: 'Recomendado',
+        ext_title: 'Extensión del navegador',
+        ext_subtitle: 'Instale una vez, conéctese automáticamente. No se requiere autorización repetida.',
+        ext_pro1: 'Se conecta automáticamente en cada inicio',
+        ext_pro2: 'No se requiere aprobación manual',
+        ext_pro3: 'Funciona con todas las versiones de Chrome',
+        ext_con1: 'Requiere instalar una extensión de Chrome',
+        cdp_title: 'Conexión directa CDP',
+        cdp_subtitle: 'Sin instalación. Conéctese directamente a través del protocolo Chrome DevTools.',
+        cdp_pro1: 'No se necesita instalar ninguna extensión',
+        cdp_pro2: 'Funciona de inmediato en Chrome 144+',
+        cdp_con1: 'Requiere reautorización después de cada reinicio de Lime o Chrome',
+        cdp_con2: 'Solo Chrome 144+',
+        table_title: 'Comparación de funciones',
+        th_feature: 'Función',
+        th_extension: 'Extensión',
+        th_cdp: 'CDP directo',
+        f_setup: 'Configuración inicial',
+        f_setup_ext: 'Instalar extensión',
+        f_setup_cdp: 'Habilitar en chrome://inspect',
+        f_reconnect: 'Reconexión después de reiniciar',
+        f_auto: 'Automática',
+        f_manual: 'Manual (haga clic en "Permitir")',
+        f_chrome_ver: 'Versión de Chrome',
+        f_all_ver: 'Todas las versiones',
+        f_stability: 'Estabilidad de la conexión',
+        f_high: 'Alta',
+        f_high2: 'Media',
+        f_install: 'Requiere instalación',
+        f_banner: 'Banner de automatización',
+        f_banner_ext: 'Aviso de depuración de la extensión',
+        f_banner_cdp: 'Aviso de software de prueba automatizado',
+        choose_ext: 'Usar extensión (Recomendado)',
+        choose_cdp: 'Usar conexión directa CDP',
+      });
+      InstallI18n.register('fr', {
+        title: 'Choisissez votre méthode de connexion',
+        subtitle: 'Deux façons de connecter votre navigateur. Choisissez celle qui vous convient le mieux.',
+        badge_recommended: 'Recommandé',
+        ext_title: 'Extension de navigateur',
+        ext_subtitle: 'Installez une seule fois, connectez-vous automatiquement. Aucune autorisation répétée n’est nécessaire.',
+        ext_pro1: 'Connexion automatique à chaque lancement',
+        ext_pro2: 'Aucune approbation manuelle requise',
+        ext_pro3: 'Fonctionne avec toutes les versions de Chrome',
+        ext_con1: 'Nécessite l’installation d’une extension Chrome',
+        cdp_title: 'Connexion directe CDP',
+        cdp_subtitle: 'Zéro installation. Connectez-vous directement via le protocole Chrome DevTools.',
+        cdp_pro1: 'Aucune installation d’extension n’est nécessaire',
+        cdp_pro2: 'Fonctionne immédiatement sur Chrome 144+',
+        cdp_con1: 'Nécessite une réautorisation après chaque redémarrage d’Lime ou de Chrome',
+        cdp_con2: 'Chrome 144+ uniquement',
+        table_title: 'Comparaison des fonctionnalités',
+        th_feature: 'Fonctionnalité',
+        th_extension: 'Extension',
+        th_cdp: 'CDP direct',
+        f_setup: 'Configuration initiale',
+        f_setup_ext: 'Installer l’extension',
+        f_setup_cdp: 'Activer dans chrome://inspect',
+        f_reconnect: 'Reconnexion après redémarrage',
+        f_auto: 'Automatique',
+        f_manual: 'Manuelle (cliquer sur "Autoriser")',
+        f_chrome_ver: 'Version de Chrome',
+        f_all_ver: 'Toutes les versions',
+        f_stability: 'Stabilité de la connexion',
+        f_high: 'Haute',
+        f_high2: 'Moyenne',
+        f_install: 'Nécessite une installation',
+        f_banner: 'Bannière d’automatisation',
+        f_banner_ext: 'Avis de débogage de l’extension',
+        f_banner_cdp: 'Avis de logiciel de test automatisé',
+        choose_ext: 'Utiliser l’extension (Recommandé)',
+        choose_cdp: 'Utiliser la connexion directe CDP',
+      });
+      InstallI18n.register('pt', {
+        title: 'Escolha seu método de conexão',
+        subtitle: 'Duas formas de conectar seu navegador. Escolha a que melhor funciona para você.',
+        badge_recommended: 'Recomendado',
+        ext_title: 'Extensão do navegador',
+        ext_subtitle: 'Instale uma vez, conecte-se automaticamente. Não é necessária autorização repetida.',
+        ext_pro1: 'Conecta-se automaticamente em cada inicialização',
+        ext_pro2: 'Nenhuma aprovação manual necessária',
+        ext_pro3: 'Funciona com todas as versões do Chrome',
+        ext_con1: 'Requer a instalação de uma extensão do Chrome',
+        cdp_title: 'Conexão direta CDP',
+        cdp_subtitle: 'Instalação zero. Conecte-se diretamente via protocolo Chrome DevTools.',
+        cdp_pro1: 'Nenhuma instalação de extensão necessária',
+        cdp_pro2: 'Funciona imediatamente no Chrome 144+',
+        cdp_con1: 'Requer reautorização após cada reinicialização do Lime ou do Chrome',
+        cdp_con2: 'Apenas Chrome 144+',
+        table_title: 'Comparação de recursos',
+        th_feature: 'Recurso',
+        th_extension: 'Extensão',
+        th_cdp: 'CDP direto',
+        f_setup: 'Configuração inicial',
+        f_setup_ext: 'Instalar extensão',
+        f_setup_cdp: 'Ativar em chrome://inspect',
+        f_reconnect: 'Reconexão após reinicialização',
+        f_auto: 'Automática',
+        f_manual: 'Manual (clique em "Permitir")',
+        f_chrome_ver: 'Versão do Chrome',
+        f_all_ver: 'Todas as versões',
+        f_stability: 'Estabilidade da conexão',
+        f_high: 'Alta',
+        f_high2: 'Média',
+        f_install: 'Requer instalação',
+        f_banner: 'Banner de automação',
+        f_banner_ext: 'Aviso de depuração da extensão',
+        f_banner_cdp: 'Aviso de software de teste automatizado',
+        choose_ext: 'Usar extensão (Recomendado)',
+        choose_cdp: 'Usar conexão direta CDP',
+      });
+
+      InstallI18n.apply();
+    </script>
+  </body>
+</html>

@@ -81,6 +81,7 @@ describe("homeShellEntry", () => {
         initialUserPrompt: undefined,
         initialUserImages: undefined,
         theme: "document",
+        lockTheme: false,
         initialCreationMode: "guided",
         openBrowserAssistOnMount: undefined,
         newChatAt: 234,
@@ -144,6 +145,7 @@ describe("homeShellEntry", () => {
         },
         autoRunInitialPromptOnMount: true,
         theme: "social-media",
+        lockTheme: false,
         initialCreationMode: "guided",
         openBrowserAssistOnMount: undefined,
         newChatAt: 456,
@@ -186,6 +188,7 @@ describe("homeShellEntry", () => {
         initialUserPrompt: "",
         initialUserImages: undefined,
         theme: "general",
+        lockTheme: false,
         initialCreationMode: "guided",
         openBrowserAssistOnMount: true,
         newChatAt: 789,
@@ -236,13 +239,14 @@ describe("homeShellEntry", () => {
           requireAttachedSession: true,
         },
         newChatAt: 987,
-        lockTheme: false,
+        lockTheme: true,
       },
       workspaceBootstrap: {
         projectId: "project-1",
         initialUserPrompt: undefined,
         initialUserImages: undefined,
         theme: "general",
+        lockTheme: true,
         initialCreationMode: "guided",
         openBrowserAssistOnMount: undefined,
         initialSiteSkillLaunch: {
@@ -254,6 +258,88 @@ describe("homeShellEntry", () => {
           requireAttachedSession: true,
         },
         newChatAt: 987,
+      },
+    });
+  });
+
+  it("站点技能 metadata 启动时也应自动锁定 general 主题", () => {
+    expect(
+      resolveHomeShellWorkspaceEntry({
+        projectId: "project-music-1",
+        activeTheme: "music",
+        creationMode: "guided",
+        defaultToolPreferences,
+        payload: {
+          prompt: "你帮我在 GitHub 找一下和“AI Agent”相关的项目。",
+          contentId: "content-site-skill-1",
+          themeOverride: "general",
+          autoRunInitialPromptOnMount: true,
+          initialAutoSendRequestMetadata: {
+            harness: {
+              service_skill_launch: {
+                kind: "site_adapter",
+                adapter_name: "github/search",
+                args: {
+                  query: "AI Agent",
+                },
+              },
+            },
+          },
+        },
+        now: () => 111,
+      }),
+    ).toEqual({
+      ok: true,
+      toolPreferences: defaultToolPreferences,
+      targetTheme: "general",
+      nextNewChatAt: 111,
+      navigationParams: {
+        agentEntry: "claw",
+        immersiveHome: false,
+        projectId: "project-music-1",
+        contentId: "content-site-skill-1",
+        theme: "general",
+        lockTheme: true,
+        initialCreationMode: "guided",
+        initialUserPrompt: "你帮我在 GitHub 找一下和“AI Agent”相关的项目。",
+        initialUserImages: undefined,
+        initialAutoSendRequestMetadata: {
+          harness: {
+            service_skill_launch: {
+              kind: "site_adapter",
+              adapter_name: "github/search",
+              args: {
+                query: "AI Agent",
+              },
+            },
+          },
+        },
+        autoRunInitialPromptOnMount: true,
+        openBrowserAssistOnMount: undefined,
+        newChatAt: 111,
+      },
+      workspaceBootstrap: {
+        projectId: "project-music-1",
+        contentId: "content-site-skill-1",
+        initialUserPrompt: "你帮我在 GitHub 找一下和“AI Agent”相关的项目。",
+        initialUserImages: undefined,
+        initialAutoSendRequestMetadata: {
+          harness: {
+            service_skill_launch: {
+              kind: "site_adapter",
+              adapter_name: "github/search",
+              args: {
+                query: "AI Agent",
+              },
+            },
+          },
+        },
+        autoRunInitialPromptOnMount: true,
+        theme: "general",
+        lockTheme: true,
+        initialCreationMode: "guided",
+        openBrowserAssistOnMount: undefined,
+        newChatAt: 111,
       },
     });
   });

@@ -51,6 +51,50 @@ const mockSelectedTeam = {
   ],
 };
 
+function createGithubSearchServiceSkill() {
+  return {
+    id: "github-repo-radar",
+    title: "GitHub 仓库线索检索",
+    summary: "复用 GitHub 登录态检索项目。",
+    category: "情报研究",
+    outputHint: "仓库列表 + 关键线索",
+    source: "cloud_catalog" as const,
+    runnerType: "instant" as const,
+    defaultExecutorBinding: "browser_assist" as const,
+    executionLocation: "client_default" as const,
+    version: "seed-v1",
+    badge: "云目录",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "浏览器站点执行",
+    runnerTone: "emerald" as const,
+    runnerDescription: "直接复用浏览器登录态执行。",
+    actionLabel: "启动采集",
+    automationStatus: null,
+    slotSchema: [
+      {
+        key: "repository_query",
+        label: "检索主题",
+        type: "text" as const,
+        required: true,
+        placeholder: "例如 AI Agent",
+      },
+    ],
+    siteCapabilityBinding: {
+      adapterName: "github/search",
+      autoRun: true,
+      requireAttachedSession: true,
+      saveMode: "current_content" as const,
+      slotArgMap: {
+        repository_query: "query",
+      },
+      fixedArgs: {
+        limit: 10,
+      },
+    },
+  };
+}
+
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 beforeEach(() => {
@@ -273,6 +317,22 @@ describe("EmptyStateComposerPanel", () => {
     expect(
       container.querySelector('[data-testid="empty-state-skill-selector"]'),
     ).toBeTruthy();
+  });
+
+  it("通用对话且存在站点型 service skill 时不应再展示首页专属提示按钮", () => {
+    const container = renderPanel({
+      input: "",
+      isGeneralTheme: true,
+      skillSelection: createSkillSelection({
+        serviceSkills: [createGithubSearchServiceSkill()],
+      }),
+    });
+
+    const hint = container.querySelector(
+      '[data-testid="empty-state-site-skill-natural-hint"]',
+    );
+
+    expect(hint).toBeFalsy();
   });
 
   it("应将 onPaste 绑定到输入框", () => {

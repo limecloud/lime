@@ -54,6 +54,61 @@ function isFailedBrowserAssistLaunchState(
   return normalizeBrowserAssistState(value) === "failed";
 }
 
+const EXISTING_SESSION_LAUNCH_ERROR_PATTERNS = [
+  "附着当前 chrome",
+  "existing_session",
+  "现有 chrome / 扩展桥接",
+  "运行时附着链路尚未接入",
+];
+
+function isExistingSessionLaunchError(error: unknown): boolean {
+  const message =
+    error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.trim().toLowerCase();
+  return EXISTING_SESSION_LAUNCH_ERROR_PATTERNS.some((pattern) =>
+    normalized.includes(pattern),
+  );
+}
+
+function normalizeBrowserAssistBackend(
+  value: string | null | undefined,
+): "lime_extension_bridge" | "cdp_direct" | undefined {
+  if (value === "lime_extension_bridge" || value === "cdp_direct") {
+    return value;
+  }
+  return undefined;
+}
+
+function buildAttachedSessionOnlyErrorMessage(targetLabel: string): string {
+  return `当前流程要求复用已附着的 Chrome 会话执行 ${targetLabel}，不会自动拉起新的托管浏览器。请先确认 Lime Chrome 插件已连接并打开目标站点。`;
+}
+
+function resolveBrowserActionPageSnapshot(
+  resultData: unknown,
+  fallbackUrl: string,
+  fallbackTitle: string,
+) {
+  const normalizedResultData = asRecord(resultData);
+  const pageInfo =
+    asRecord(normalizedResultData?.page_info) ||
+    asRecord(normalizedResultData?.pageInfo);
+
+  return {
+    url:
+      readFirstString([pageInfo, normalizedResultData], [
+        "url",
+        "target_url",
+        "targetUrl",
+      ]) || fallbackUrl,
+    title:
+      readFirstString([pageInfo, normalizedResultData], [
+        "title",
+        "target_title",
+        "targetTitle",
+      ]) || fallbackTitle,
+  };
+}
+
 function hasActiveBrowserAssistSession(
   sessionState: BrowserAssistSessionState | null,
 ): boolean {
@@ -137,16 +192,14 @@ interface UseWorkspaceBrowserAssistRuntimeParams {
   siteSkillLaunchNonce?: number;
   artifacts: Artifact[];
   messages: Message[];
-  currentCanvasArtifact: Artifact | null;
-  layoutMode: LayoutMode;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
-  setSelectedArtifactId: (artifactId: string | null) => void;
   upsertGeneralArtifact: (artifact: Artifact) => void;
   generalBrowserAssistProfileKey: string;
 }
 
 interface WorkspaceBrowserAssistRuntimeResult {
   browserAssistLaunching: boolean;
+  browserAssistSessionState: BrowserAssistSessionState | null;
   siteSkillExecutionState: SiteSkillExecutionState | null;
   isBrowserAssistReady: boolean;
   isBrowserAssistCanvasVisible: boolean;
@@ -169,10 +222,7 @@ export function useWorkspaceBrowserAssistRuntime({
   siteSkillLaunchNonce,
   artifacts,
   messages,
-  currentCanvasArtifact,
-  layoutMode,
   setLayoutMode,
-  setSelectedArtifactId,
   upsertGeneralArtifact,
   generalBrowserAssistProfileKey,
 }: UseWorkspaceBrowserAssistRuntimeParams): WorkspaceBrowserAssistRuntimeResult {
@@ -216,6 +266,11 @@ export function useWorkspaceBrowserAssistRuntime({
       autoRun: initialSiteSkillLaunch.autoRun ?? null,
       requireAttachedSession:
         initialSiteSkillLaunch.requireAttachedSession ?? null,
+      preferredBackend:
+        normalizeBrowserAssistBackend(
+          initialSiteSkillLaunch.preferredBackend,
+        ) ?? null,
+      autoLaunch: initialSiteSkillLaunch.autoLaunch ?? null,
       saveTitle: initialSiteSkillLaunch.saveTitle?.trim() || null,
       skillTitle: initialSiteSkillLaunch.skillTitle?.trim() || null,
       projectId: projectId?.trim() || null,
@@ -223,6 +278,33 @@ export function useWorkspaceBrowserAssistRuntime({
       launchNonce: siteSkillLaunchNonce ?? null,
     });
   }, [contentId, initialSiteSkillLaunch, projectId, siteSkillLaunchNonce]);
+  const initialSiteSkillPreferredBackend = useMemo(
+    () =>
+      normalizeBrowserAssistBackend(initialSiteSkillLaunch?.preferredBackend) ||
+      (initialSiteSkillLaunch?.requireAttachedSession
+        ? "lime_extension_bridge"
+        : undefined),
+    [
+      initialSiteSkillLaunch?.preferredBackend,
+      initialSiteSkillLaunch?.requireAttachedSession,
+    ],
+  );
+  const shouldRestrictBrowserAssistToAttachedSession = useMemo(() => {
+    if (activeTheme !== "general") {
+      return false;
+    }
+
+    return (
+      initialSiteSkillLaunch?.requireAttachedSession === true ||
+      initialSiteSkillPreferredBackend === "lime_extension_bridge" ||
+      initialSiteSkillLaunch?.autoLaunch === false
+    );
+  }, [
+    activeTheme,
+    initialSiteSkillLaunch?.autoLaunch,
+    initialSiteSkillLaunch?.requireAttachedSession,
+    initialSiteSkillPreferredBackend,
+  ]);
 
   const browserAssistArtifact = useMemo(
     () =>
@@ -274,22 +356,17 @@ export function useWorkspaceBrowserAssistRuntime({
     [browserAssistSessionState],
   );
 
-  const isBrowserAssistCanvasVisible =
-    activeTheme === "general" &&
-    layoutMode !== "chat" &&
-    currentCanvasArtifact?.type === "browser_assist";
+  const isBrowserAssistCanvasVisible = false;
 
   const openBrowserAssistCanvas = useCallback(
-    (artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
+    (_artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
       browserAssistAutoOpenDismissedScopeRef.current = null;
-      setSelectedArtifactId(artifactId);
-      setLayoutMode("chat-canvas");
     },
-    [setLayoutMode, setSelectedArtifactId],
+    [],
   );
 
   const autoOpenBrowserAssistCanvas = useCallback(
-    (artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
+    (_artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
       if (
         activeTheme === "general" &&
         browserAssistAutoOpenDismissedScopeRef.current
@@ -297,11 +374,9 @@ export function useWorkspaceBrowserAssistRuntime({
         return false;
       }
 
-      setSelectedArtifactId(artifactId);
-      setLayoutMode("chat-canvas");
       return true;
     },
-    [activeTheme, setLayoutMode, setSelectedArtifactId],
+    [activeTheme],
   );
 
   const suppressBrowserAssistCanvasAutoOpen = useCallback(() => {
@@ -602,6 +677,58 @@ export function useWorkspaceBrowserAssistRuntime({
     sessionId,
   ]);
 
+  const attachExistingSessionBrowserAssist = useCallback(
+    async (params: {
+      profileKey: string;
+      url: string;
+      fallbackTitle: string;
+      silent?: boolean;
+    }) => {
+      const { profileKey, url, fallbackTitle, silent } = params;
+      const result = await browserExecuteAction({
+        profile_key: profileKey,
+        backend: "lime_extension_bridge",
+        action: "navigate",
+        args: {
+          url,
+          wait_for_page_info: true,
+        },
+        timeout_ms: 20000,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "附着当前 Chrome 导航失败");
+      }
+
+      const { url: nextUrl, title: nextTitle } = resolveBrowserActionPageSnapshot(
+        result.data,
+        url,
+        fallbackTitle,
+      );
+
+      commitBrowserAssistSessionState(
+        createBrowserAssistSessionState({
+          sessionId: result.session_id || undefined,
+          profileKey,
+          url: nextUrl,
+          title: nextTitle,
+          targetId: result.target_id || undefined,
+          transportKind: "existing_session",
+          lifecycleState: "live",
+          source: "runtime_launch",
+          updatedAt: Date.now(),
+        }),
+      );
+      openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
+
+      if (!silent) {
+        toast.success(`已附着当前 Chrome：${nextTitle}`);
+      }
+      return true;
+    },
+    [commitBrowserAssistSessionState, openBrowserAssistCanvas],
+  );
+
   const navigateBrowserAssistCanvasToUrl = useCallback(
     async (url: string, options?: { silent?: boolean }): Promise<boolean> => {
       if (activeTheme !== "general" || !url.trim()) {
@@ -616,6 +743,13 @@ export function useWorkspaceBrowserAssistRuntime({
           "profile_key",
         ]) ||
         generalBrowserAssistProfileKey;
+      const currentSessionId =
+        browserAssistSessionState?.sessionId ||
+        readFirstString(artifactMeta ? [artifactMeta] : [], [
+          "sessionId",
+          "session_id",
+        ]) ||
+        undefined;
       const currentUrl =
         browserAssistSessionState?.url ||
         readFirstString(artifactMeta ? [artifactMeta] : [], [
@@ -627,6 +761,13 @@ export function useWorkspaceBrowserAssistRuntime({
         browserAssistSessionState?.title ||
         browserAssistArtifact?.title?.trim() ||
         "浏览器协助";
+      const transportKind = normalizeBrowserAssistState(
+        browserAssistSessionState?.transportKind ||
+          readFirstString(artifactMeta ? [artifactMeta] : [], [
+            "transportKind",
+            "transport_kind",
+          ]),
+      );
 
       if (currentUrl === url) {
         openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
@@ -636,35 +777,83 @@ export function useWorkspaceBrowserAssistRuntime({
       setBrowserAssistLaunching(true);
 
       try {
-        const result = await browserExecuteAction({
-          profile_key: profileKey,
-          backend: "cdp_direct",
-          action: "navigate",
-          args: {
-            action: "goto",
-            url,
-            wait_for_page_info: true,
-          },
-          timeout_ms: 20000,
-        });
+        const attempts =
+          transportKind === "existing_session"
+            ? [
+                {
+                  backend: "lime_extension_bridge" as const,
+                  args: {
+                    url,
+                    wait_for_page_info: true,
+                  },
+                  transportKind: "existing_session",
+                },
+              ]
+            : !currentSessionId
+              ? [
+                  {
+                    backend: "lime_extension_bridge" as const,
+                    args: {
+                      url,
+                      wait_for_page_info: true,
+                    },
+                    transportKind: "existing_session",
+                  },
+                  {
+                    backend: "cdp_direct" as const,
+                    args: {
+                      action: "goto",
+                      url,
+                      wait_for_page_info: true,
+                    },
+                    transportKind: browserAssistSessionState?.transportKind,
+                  },
+                ]
+              : [
+                  {
+                    backend: "cdp_direct" as const,
+                    args: {
+                      action: "goto",
+                      url,
+                      wait_for_page_info: true,
+                    },
+                    transportKind: browserAssistSessionState?.transportKind,
+                  },
+                ];
 
-        if (!result.success) {
-          throw new Error(result.error || "浏览器导航失败");
+        let result: Awaited<ReturnType<typeof browserExecuteAction>> | null =
+          null;
+        let resolvedTransportKind = browserAssistSessionState?.transportKind;
+        let lastError: unknown = null;
+
+        for (const attempt of attempts) {
+          try {
+            const nextResult = await browserExecuteAction({
+              profile_key: profileKey,
+              backend: attempt.backend,
+              action: "navigate",
+              args: attempt.args,
+              timeout_ms: 20000,
+            });
+            if (!nextResult.success) {
+              throw new Error(nextResult.error || "浏览器导航失败");
+            }
+            result = nextResult;
+            resolvedTransportKind = attempt.transportKind;
+            break;
+          } catch (error) {
+            lastError = error;
+          }
         }
 
-        const resultData = asRecord(result.data);
-        const pageInfo =
-          asRecord(resultData?.page_info) || asRecord(resultData?.pageInfo);
-        const nextUrl =
-          readFirstString(
-            [pageInfo, resultData],
-            ["url", "target_url", "targetUrl"],
-          ) || url;
-        const nextTitle =
-          readFirstString(
-            [pageInfo, resultData],
-            ["title", "target_title", "targetTitle"],
-          ) || fallbackTitle;
+        if (!result) {
+          throw (lastError instanceof Error
+            ? lastError
+            : new Error("浏览器导航失败"));
+        }
+
+        const { url: nextUrl, title: nextTitle } =
+          resolveBrowserActionPageSnapshot(result.data, url, fallbackTitle);
 
         commitBrowserAssistSessionState(
           createBrowserAssistSessionState({
@@ -679,7 +868,7 @@ export function useWorkspaceBrowserAssistRuntime({
               result.target_id ||
               browserAssistSessionState?.targetId ||
               undefined,
-            transportKind: browserAssistSessionState?.transportKind,
+            transportKind: resolvedTransportKind,
             lifecycleState: browserAssistSessionState?.lifecycleState || "live",
             controlMode: browserAssistSessionState?.controlMode,
             source: "runtime_launch",
@@ -791,6 +980,40 @@ export function useWorkspaceBrowserAssistRuntime({
           }),
         );
         openBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
+
+        try {
+          if (
+            await attachExistingSessionBrowserAssist({
+              profileKey: generalBrowserAssistProfileKey,
+              url: targetUrl,
+              fallbackTitle: "浏览器协助",
+              silent: options?.silent,
+            })
+          ) {
+            return true;
+          }
+        } catch {
+          // 既有附着会话附着失败时继续尝试托管浏览器兜底。
+        }
+
+        if (shouldRestrictBrowserAssistToAttachedSession) {
+          const errorMessage = buildAttachedSessionOnlyErrorMessage("浏览器协助");
+          upsertGeneralArtifact(
+            buildFailedBrowserAssistArtifact({
+              scopeKey: browserAssistScopeKey,
+              profileKey: generalBrowserAssistProfileKey,
+              url: targetUrl,
+              title: "浏览器协助",
+              error: errorMessage,
+            }),
+          );
+          autoLaunchingBrowserAssistKeyRef.current = "";
+          if (!options?.silent) {
+            toast.error(errorMessage);
+          }
+          return false;
+        }
+
         setBrowserAssistLaunching(true);
 
         try {
@@ -834,6 +1057,17 @@ export function useWorkspaceBrowserAssistRuntime({
           }
           return true;
         } catch (error) {
+          if (
+            isExistingSessionLaunchError(error) &&
+            (await attachExistingSessionBrowserAssist({
+              profileKey: generalBrowserAssistProfileKey,
+              url: targetUrl,
+              fallbackTitle: "浏览器协助",
+              silent: options?.silent,
+            }))
+          ) {
+            return true;
+          }
           upsertGeneralArtifact(
             buildFailedBrowserAssistArtifact({
               scopeKey: browserAssistScopeKey,
@@ -864,10 +1098,12 @@ export function useWorkspaceBrowserAssistRuntime({
         commitBrowserAssistSessionState,
         currentBrowserAssistScopeKey,
         generalBrowserAssistProfileKey,
+        attachExistingSessionBrowserAssist,
         navigateBrowserAssistCanvasToUrl,
         openBrowserAssistCanvas,
         projectId,
         sessionId,
+        shouldRestrictBrowserAssistToAttachedSession,
         upsertGeneralArtifact,
       ],
     );
@@ -1100,6 +1336,36 @@ export function useWorkspaceBrowserAssistRuntime({
     browserAssistLaunchRequestIdRef.current = launchRequestId;
     void (async () => {
       try {
+        if (
+          await attachExistingSessionBrowserAssist({
+            profileKey: nextProfileKey,
+            url: nextUrl,
+            fallbackTitle: nextTitle,
+            silent: true,
+          })
+        ) {
+          return;
+        }
+      } catch {
+        // 既有附着会话附着失败时继续尝试托管浏览器兜底。
+      }
+
+      if (shouldRestrictBrowserAssistToAttachedSession) {
+        const errorMessage = buildAttachedSessionOnlyErrorMessage(nextTitle);
+        upsertGeneralArtifact(
+          buildFailedBrowserAssistArtifact({
+            scopeKey: browserAssistScopeKey,
+            profileKey: nextProfileKey,
+            url: nextUrl,
+            title: nextTitle,
+            error: errorMessage,
+          }),
+        );
+        autoLaunchingBrowserAssistKeyRef.current = "";
+        return;
+      }
+
+      try {
         setBrowserAssistLaunching(true);
         const result = await launchBrowserSession({
           profile_key: nextProfileKey,
@@ -1133,6 +1399,17 @@ export function useWorkspaceBrowserAssistRuntime({
         );
         autoOpenBrowserAssistCanvas(GENERAL_BROWSER_ASSIST_ARTIFACT_ID);
       } catch (error) {
+        if (
+          isExistingSessionLaunchError(error) &&
+          (await attachExistingSessionBrowserAssist({
+            profileKey: nextProfileKey,
+            url: nextUrl,
+            fallbackTitle: nextTitle,
+            silent: true,
+          }))
+        ) {
+          return;
+        }
         upsertGeneralArtifact(
           buildFailedBrowserAssistArtifact({
             scopeKey: browserAssistScopeKey,
@@ -1158,13 +1435,16 @@ export function useWorkspaceBrowserAssistRuntime({
     commitBrowserAssistSessionState,
     currentBrowserAssistScopeKey,
     generalBrowserAssistProfileKey,
+    attachExistingSessionBrowserAssist,
     projectId,
     sessionId,
+    shouldRestrictBrowserAssistToAttachedSession,
     upsertGeneralArtifact,
   ]);
 
   return {
     browserAssistLaunching,
+    browserAssistSessionState,
     siteSkillExecutionState,
     isBrowserAssistReady,
     isBrowserAssistCanvasVisible,

@@ -80,6 +80,7 @@ interface UseWorkspaceArtifactPreviewActionsParams {
   sessionFiles: SessionFile[];
   readSessionFile: (fileName: string) => Promise<string | null>;
   suppressBrowserAssistCanvasAutoOpen: () => void;
+  onOpenBrowserRuntimeForArtifact?: (artifact: Artifact) => void;
   upsertGeneralArtifact: (artifact: Artifact) => void;
   setSelectedArtifactId: (artifactId: string | null) => void;
   setArtifactViewMode: ApplyArtifactViewMode;
@@ -117,6 +118,7 @@ export function useWorkspaceArtifactPreviewActions({
   sessionFiles,
   readSessionFile,
   suppressBrowserAssistCanvasAutoOpen,
+  onOpenBrowserRuntimeForArtifact,
   upsertGeneralArtifact,
   setSelectedArtifactId,
   setArtifactViewMode,
@@ -201,7 +203,15 @@ export function useWorkspaceArtifactPreviewActions({
 
   const openArtifactInWorkbench = useCallback(
     async (artifact: Artifact) => {
-      if (activeTheme === "general" && artifact.type !== "browser_assist") {
+      if (artifact.type === "browser_assist") {
+        onOpenBrowserRuntimeForArtifact?.(artifact);
+        if (!onOpenBrowserRuntimeForArtifact) {
+          toast.info("浏览器协助已迁移到浏览器工作台");
+        }
+        return;
+      }
+
+      if (activeTheme === "general") {
         suppressBrowserAssistCanvasAutoOpen();
       }
 
@@ -244,6 +254,7 @@ export function useWorkspaceArtifactPreviewActions({
     [
       activeTheme,
       handleHarnessLoadFilePreview,
+      onOpenBrowserRuntimeForArtifact,
       setArtifactViewMode,
       setLayoutMode,
       setSelectedArtifactId,

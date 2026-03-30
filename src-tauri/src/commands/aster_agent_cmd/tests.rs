@@ -3,6 +3,9 @@ mod tests {
     use super::*;
     use crate::commands::aster_agent_cmd::action_runtime::build_runtime_action_scope;
     use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
+    use crate::services::site_capability_service::{
+        RunSiteAdapterRequest, SiteAdapterDefinition, SiteAdapterRunResult,
+    };
     use async_trait::async_trait;
     use lime_agent::request_tool_policy::resolve_request_tool_policy;
     use lime_agent::AgentEvent as RuntimeAgentEvent;
@@ -448,11 +451,7 @@ mod tests {
         };
 
         assert_eq!(
-            LimeBrowserMcpTool::resolve_backend("find", &params, Some(&session_hint)),
-            None
-        );
-        assert_eq!(
-            LimeBrowserMcpTool::resolve_backend("javascript_tool", &params, Some(&session_hint)),
+            LimeBrowserMcpTool::resolve_backend("drag", &params, Some(&session_hint)),
             None
         );
     }
@@ -472,9 +471,55 @@ mod tests {
             Some(BrowserBackendType::CdpDirect)
         );
         assert_eq!(
+            LimeBrowserMcpTool::resolve_backend("find", &params, Some(&session_hint)),
+            Some(BrowserBackendType::CdpDirect)
+        );
+        assert_eq!(
             LimeBrowserMcpTool::resolve_backend("read_page", &params, Some(&session_hint)),
             Some(BrowserBackendType::CdpDirect)
         );
+        assert_eq!(
+            LimeBrowserMcpTool::resolve_backend("javascript_tool", &params, Some(&session_hint)),
+            Some(BrowserBackendType::CdpDirect)
+        );
+        assert_eq!(
+            LimeBrowserMcpTool::resolve_backend("computer", &params, Some(&session_hint)),
+            Some(BrowserBackendType::CdpDirect)
+        );
+    }
+
+    #[test]
+    fn test_should_not_auto_launch_managed_browser_for_existing_session_profile() {
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "attached-xhs".to_string(),
+            preferred_backend: Some(BrowserBackendType::LimeExtensionBridge),
+            auto_launch: true,
+            launch_url: None,
+        };
+
+        assert!(!LimeBrowserMcpTool::should_auto_launch_managed_browser(
+            Some(BrowserBackendType::LimeExtensionBridge),
+            Some(&session_hint),
+            Some(lime_core::database::dao::browser_profile::BrowserProfileTransportKind::ExistingSession),
+        ));
+    }
+
+    #[test]
+    fn test_should_keep_managed_auto_launch_for_managed_cdp_profile() {
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: Some("https://www.google.com".to_string()),
+        };
+
+        assert!(LimeBrowserMcpTool::should_auto_launch_managed_browser(
+            Some(BrowserBackendType::CdpDirect),
+            Some(&session_hint),
+            Some(
+                lime_core::database::dao::browser_profile::BrowserProfileTransportKind::ManagedCdp
+            ),
+        ));
     }
 
     #[test]
@@ -541,6 +586,81 @@ mod tests {
         assert!(!deny_rule.allowed);
         assert_eq!(deny_rule.priority, 1200);
         assert_eq!(deny_rule.conditions, allow_rule.conditions);
+    }
+
+    #[test]
+    fn test_build_service_skill_launch_run_request_requires_attached_session() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "browser_assist": {
+                    "enabled": true,
+                    "profile_key": "attached-github"
+                },
+                "service_skill_launch": {
+                    "kind": "site_adapter",
+                    "skill_title": "GitHub 仓库线索检索",
+                    "adapter_name": "github/search",
+                    "args": {
+                        "query": "AI Agent",
+                        "limit": 10
+                    },
+                    "content_id": "content-1",
+                    "project_id": "project-1",
+                    "save_title": "AI Agent GitHub 结果",
+                    "launch_readiness": {
+                        "status": "ready",
+                        "target_id": "tab-github"
+                    }
+                }
+            }
+        });
+
+        let request = build_service_skill_launch_run_request(Some(&metadata))
+            .expect("should build run request");
+
+        assert_eq!(request.adapter_name, "github/search");
+        assert_eq!(request.profile_key.as_deref(), Some("attached-github"));
+        assert_eq!(request.target_id.as_deref(), Some("tab-github"));
+        assert_eq!(request.require_attached_session, Some(true));
+        assert_eq!(request.skill_title.as_deref(), Some("GitHub 仓库线索检索"));
+    }
+
+    #[test]
+    fn test_append_service_skill_launch_session_permissions_blocks_browser_compat_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "browser_assist": {
+                    "enabled": true,
+                    "profile_key": "attached-github"
+                },
+                "service_skill_launch": {
+                    "kind": "site_adapter",
+                    "adapter_name": "github/search",
+                    "args": {
+                        "query": "AI Agent"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_service_skill_launch_session_permissions(
+            &mut permissions,
+            "session-service-skill-1",
+            Some(&metadata),
+        );
+
+        let deny_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == "mcp__lime-browser__*")
+            .expect("should add browser compat deny rule");
+        assert!(!deny_rule.allowed);
+        assert_eq!(deny_rule.priority, 1250);
+        assert_eq!(deny_rule.conditions.len(), 1);
+        assert_eq!(
+            deny_rule.conditions[0].value,
+            serde_json::json!("session-service-skill-1")
+        );
     }
 
     #[test]
@@ -1709,6 +1829,235 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "browser_assist": {
+                    "enabled": true,
+                    "profile_key": "attached-github",
+                },
+                "service_skill_launch": {
+                    "kind": "site_adapter",
+                    "skill_title": "GitHub 仓库线索检索",
+                    "adapter_name": "github/search",
+                    "args": {
+                        "query": "AI Agent",
+                        "limit": 10
+                    },
+                    "save_mode": "current_content",
+                    "content_id": "content-1",
+                    "project_id": "project-1",
+                    "launch_readiness": {
+                        "status": "ready",
+                        "message": "已检测到 github.com 的真实浏览器页面。",
+                        "target_id": "tab-github"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_service_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains(SERVICE_SKILL_LAUNCH_PROMPT_MARKER));
+        assert!(merged.contains("github/search"));
+        assert!(merged.contains("\"query\":\"AI Agent\""));
+        assert!(merged.contains("profile_key=attached-github"));
+        assert!(merged.contains("target_id=tab-github"));
+        assert!(merged.contains("mcp__lime-browser__browser_navigate"));
+        assert!(merged.contains("严格 JSON 对象"));
+        assert!(merged.contains("\"adapter_name\":\"github/search\""));
+        assert!(merged.contains("不要再让用户额外确认"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_skips_duplicate_marker() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_skill_launch": {
+                    "kind": "site_adapter",
+                    "adapter_name": "github/search",
+                    "args": {
+                        "query": "AI Agent"
+                    }
+                }
+            }
+        });
+        let base = Some(format!(
+            "{SERVICE_SKILL_LAUNCH_PROMPT_MARKER}\n已有站点技能上下文"
+        ));
+
+        let merged = merge_system_prompt_with_service_skill_launch(base.clone(), Some(&metadata));
+
+        assert_eq!(merged, base);
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_includes_missing_session_failure_contract(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_skill_launch": {
+                    "kind": "site_adapter",
+                    "skill_title": "GitHub 仓库线索检索",
+                    "adapter_name": "github/search",
+                    "args": {
+                        "query": "AI Agent"
+                    },
+                    "launch_readiness": {
+                        "status": "attached_session_required",
+                        "message": "当前缺少已附着的 GitHub 浏览器上下文。",
+                        "report_hint": "请先连接并停留在 github.com。"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_service_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(
+            merged.contains("attached_session_required、no_matching_context、登录受限或权限受限")
+        );
+        assert!(merged.contains("当前缺少可执行的浏览器上下文"));
+        assert!(merged.contains("不要再让用户额外确认"));
+        assert!(merged.contains("请先连接并停留在 github.com。"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_preload_appends_result_context() {
+        let execution = ServiceSkillLaunchPreloadExecution {
+            request: RunSiteAdapterRequest {
+                adapter_name: "github/search".to_string(),
+                args: serde_json::json!({
+                    "query": "AI Agent",
+                    "limit": 10
+                }),
+                profile_key: Some("attached-github".to_string()),
+                target_id: Some("tab-github".to_string()),
+                timeout_ms: None,
+                content_id: Some("content-1".to_string()),
+                project_id: Some("project-1".to_string()),
+                save_title: Some("AI Agent GitHub 结果".to_string()),
+                require_attached_session: Some(true),
+                skill_title: Some("GitHub 仓库线索检索".to_string()),
+            },
+            adapter: Some(SiteAdapterDefinition {
+                name: "github/search".to_string(),
+                domain: "github.com".to_string(),
+                description: "按关键词采集 GitHub 仓库搜索结果。".to_string(),
+                read_only: true,
+                capabilities: vec!["search".to_string()],
+                input_schema: serde_json::json!({}),
+                example_args: serde_json::json!({"query":"mcp","limit":5}),
+                example: "github/search {\"query\":\"mcp\"}".to_string(),
+                auth_hint: Some("请先登录 GitHub。".to_string()),
+                source_kind: Some("bundled".to_string()),
+                source_version: Some("2026-03-25".to_string()),
+            }),
+            result: SiteAdapterRunResult {
+                ok: true,
+                adapter: "github/search".to_string(),
+                domain: "github.com".to_string(),
+                profile_key: "attached-github".to_string(),
+                session_id: Some("session-1".to_string()),
+                target_id: Some("tab-github".to_string()),
+                entry_url: "https://github.com/search?q=AI%20Agent&type=repositories".to_string(),
+                source_url: Some(
+                    "https://github.com/search?q=AI%20Agent&type=repositories".to_string(),
+                ),
+                data: Some(serde_json::json!({
+                    "items": [
+                        {"title": "microsoft/autogen"}
+                    ]
+                })),
+                error_code: None,
+                error_message: None,
+                auth_hint: None,
+                report_hint: None,
+                saved_content: None,
+                saved_project_id: None,
+                saved_by: None,
+                save_skipped_project_id: None,
+                save_skipped_by: None,
+                save_error_message: None,
+            },
+        };
+
+        let merged = merge_system_prompt_with_service_skill_launch_preload(
+            Some("你是助手".to_string()),
+            Some(&execution),
+        )
+        .expect("should contain preload prompt");
+
+        assert!(merged.contains(SERVICE_SKILL_LAUNCH_PRELOAD_PROMPT_MARKER));
+        assert!(merged.contains("系统侧预执行成功"));
+        assert!(merged.contains("不要再次调用 lime_site_run"));
+        assert!(merged.contains("microsoft/autogen"));
+        assert!(merged.contains("\"require_attached_session\":true"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_preload_handles_missing_context_failure()
+    {
+        let execution = ServiceSkillLaunchPreloadExecution {
+            request: RunSiteAdapterRequest {
+                adapter_name: "github/search".to_string(),
+                args: serde_json::json!({
+                    "query": "AI Agent"
+                }),
+                profile_key: Some("attached-github".to_string()),
+                target_id: None,
+                timeout_ms: None,
+                content_id: None,
+                project_id: None,
+                save_title: None,
+                require_attached_session: Some(true),
+                skill_title: Some("GitHub 仓库线索检索".to_string()),
+            },
+            adapter: None,
+            result: SiteAdapterRunResult {
+                ok: false,
+                adapter: "github/search".to_string(),
+                domain: "github.com".to_string(),
+                profile_key: "attached-github".to_string(),
+                session_id: None,
+                target_id: None,
+                entry_url: "https://github.com/search?q=AI%20Agent&type=repositories".to_string(),
+                source_url: None,
+                data: None,
+                error_code: Some("attached_session_required".to_string()),
+                error_message: Some("当前缺少已附着的 GitHub 浏览器上下文。".to_string()),
+                auth_hint: None,
+                report_hint: Some("请先连接并停留在 github.com。".to_string()),
+                saved_content: None,
+                saved_project_id: None,
+                saved_by: None,
+                save_skipped_project_id: None,
+                save_skipped_by: None,
+                save_error_message: None,
+            },
+        };
+
+        let merged = merge_system_prompt_with_service_skill_launch_preload(
+            Some("你是助手".to_string()),
+            Some(&execution),
+        )
+        .expect("should contain preload prompt");
+
+        assert!(merged.contains("attached_session_required"));
+        assert!(merged.contains("先连接并附着到目标站点页面"));
+        assert!(merged.contains("不要再次尝试调用 lime_site_run"));
+        assert!(merged.contains("请先连接并停留在 github.com。"));
+    }
+
+    #[test]
     fn test_should_fallback_to_react_from_code_orchestrated_when_no_event_emitted() {
         let error = ReplyAttemptError {
             message: "Stream error: timeout".to_string(),
@@ -1826,50 +2175,62 @@ mod tests {
 
     #[test]
     fn test_build_team_preference_system_prompt_requires_subagent_mode() {
-        let prompt = build_team_preference_system_prompt(Some(&serde_json::json!({
-            "harness": {
-                "subagent_mode_enabled": true,
-                "preferred_team_preset_id": "code-triage-team",
-            }
-        })), None, true)
+        let prompt = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "subagent_mode_enabled": true,
+                    "preferred_team_preset_id": "code-triage-team",
+                }
+            })),
+            None,
+            true,
+        )
         .expect("team prompt should exist");
 
         assert!(prompt.contains(TEAM_PREFERENCE_PROMPT_MARKER));
         assert!(prompt.contains("代码排障团队"));
         assert!(prompt.contains("spawn_agent"));
 
-        let disabled = build_team_preference_system_prompt(Some(&serde_json::json!({
-            "harness": {
-                "subagent_mode_enabled": false,
-                "preferred_team_preset_id": "code-triage-team",
-            }
-        })), None, false);
+        let disabled = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "subagent_mode_enabled": false,
+                    "preferred_team_preset_id": "code-triage-team",
+                }
+            })),
+            None,
+            false,
+        );
         assert!(disabled.is_none());
     }
 
     #[test]
     fn test_build_team_preference_system_prompt_renders_selected_team_details() {
-        let prompt = build_team_preference_system_prompt(Some(&serde_json::json!({
-            "harness": {
-                "subagent_mode_enabled": true,
-                "selected_team_source": "custom",
-                "selected_team_label": "前端联调团队",
-                "selected_team_summary": "分析、实现、验证三段式推进。",
-                "selected_team_roles": [
-                    {
-                        "label": "分析",
-                        "summary": "负责定位问题与影响范围。",
-                        "profile_id": "code-explorer",
-                        "role_key": "explorer",
-                        "skill_ids": ["repo-exploration"]
-                    },
-                    {
-                        "label": "执行",
-                        "summary": "负责提交实现与说明改动点。"
-                    }
-                ]
-            }
-        })), None, true)
+        let prompt = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "subagent_mode_enabled": true,
+                    "selected_team_source": "custom",
+                    "selected_team_label": "前端联调团队",
+                    "selected_team_summary": "分析、实现、验证三段式推进。",
+                    "selected_team_roles": [
+                        {
+                            "label": "分析",
+                            "summary": "负责定位问题与影响范围。",
+                            "profile_id": "code-explorer",
+                            "role_key": "explorer",
+                            "skill_ids": ["repo-exploration"]
+                        },
+                        {
+                            "label": "执行",
+                            "summary": "负责提交实现与说明改动点。"
+                        }
+                    ]
+                }
+            })),
+            None,
+            true,
+        )
         .expect("team prompt should exist");
 
         assert!(prompt.contains("前端联调团队"));
@@ -1884,22 +2245,26 @@ mod tests {
 
     #[test]
     fn test_build_team_preference_system_prompt_emphasizes_parent_coordination() {
-        let prompt = build_team_preference_system_prompt(Some(&serde_json::json!({
-            "harness": {
-                "subagent_mode_enabled": true,
-                "selected_team_label": "当前调试 Team",
-                "selected_team_roles": [
-                    {
-                        "id": "runtime-explorer",
-                        "label": "分析",
-                        "summary": "负责定位问题。",
-                        "profile_id": "code-explorer",
-                        "role_key": "explorer",
-                        "skill_ids": ["repo-exploration"]
-                    }
-                ]
-            }
-        })), None, true)
+        let prompt = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "subagent_mode_enabled": true,
+                    "selected_team_label": "当前调试 Team",
+                    "selected_team_roles": [
+                        {
+                            "id": "runtime-explorer",
+                            "label": "分析",
+                            "summary": "负责定位问题。",
+                            "profile_id": "code-explorer",
+                            "role_key": "explorer",
+                            "skill_ids": ["repo-exploration"]
+                        }
+                    ]
+                }
+            })),
+            None,
+            true,
+        )
         .expect("team prompt should exist");
 
         assert!(prompt.contains("当前调试 Team"));
@@ -1965,8 +2330,8 @@ mod tests {
     }
 
     #[test]
-    fn test_build_team_preference_system_prompt_prefers_request_metadata_over_session_recent_team_selection()
-    {
+    fn test_build_team_preference_system_prompt_prefers_request_metadata_over_session_recent_team_selection(
+    ) {
         let prompt = build_team_preference_system_prompt(
             Some(&serde_json::json!({
                 "harness": {

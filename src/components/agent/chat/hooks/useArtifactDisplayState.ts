@@ -44,7 +44,7 @@ export interface ResolveArtifactDisplayStateOptions {
 
 const SLOW_TRANSITION_THRESHOLD_MS = 900;
 
-function shouldDisplayArtifactWithoutContent(
+function shouldSuppressArtifactCanvasPreview(
   artifact: Pick<Artifact, "type"> | null | undefined,
 ): boolean {
   return artifact?.type === "browser_assist";
@@ -214,10 +214,16 @@ export function resolveArtifactDisplayState({
     };
   }
 
-  if (shouldDisplayArtifactWithoutContent(liveArtifact)) {
+  if (shouldSuppressArtifactCanvasPreview(liveArtifact)) {
+    const previousArtifact = findPreviousRenderableArtifact(
+      liveArtifact,
+      artifacts,
+      previousRenderableArtifact,
+    );
+
     return {
       liveArtifact,
-      displayArtifact: liveArtifact,
+      displayArtifact: previousArtifact,
       mode: "content",
       overlay: null,
       showPreviousVersionBadge: false,
@@ -322,7 +328,7 @@ export function useArtifactDisplayState(
       return;
     }
 
-    if (shouldDisplayArtifactWithoutContent(liveArtifact)) {
+    if (shouldSuppressArtifactCanvasPreview(liveArtifact)) {
       setIsSlowTransition(false);
       return;
     }

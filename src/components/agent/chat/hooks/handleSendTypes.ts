@@ -12,7 +12,6 @@ export interface HandleSendOptions {
   purpose?: "content_review" | "text_stylize" | "style_rewrite" | "style_audit";
   observer?: HandleSendObserver;
   requestMetadata?: Record<string, unknown>;
-  browserPreflightConfirmed?: boolean;
   toolPreferencesOverride?: ChatToolPreferences;
 }
 

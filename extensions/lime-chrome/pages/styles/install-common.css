@@ -1,0 +1,612 @@
+:root {
+  color-scheme: light dark;
+  --accent: #14b8a6;
+  --accent-soft: color-mix(in oklab, var(--accent) 10%, transparent);
+  --accent-border: color-mix(in oklab, var(--accent) 25%, transparent);
+  --green: #22C55E;
+  --surface: color-mix(in oklab, canvas 95%, canvasText 5%);
+  --border: color-mix(in oklab, canvasText 8%, transparent);
+  --muted: color-mix(in oklab, canvasText 50%, transparent);
+  --dim: color-mix(in oklab, canvasText 25%, transparent);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  line-height: 1.6;
+  color: canvasText;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { min-height: 100vh; background: canvas; }
+
+.drag-handle {
+  -webkit-app-region: drag;
+  height: 38px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+}
+
+.page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 56px 40px 80px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+
+.header-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.header-icon img { width: 32px; height: 32px; }
+
+h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 44px;
+}
+
+/* ── Chrome Web Store section ── */
+
+.webstore-section {
+  margin-bottom: 32px;
+  animation: step-enter 0.4s ease-out 0.05s both;
+}
+
+.webstore-card {
+  padding: 20px 24px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+}
+
+.webstore-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.webstore-badge svg { flex-shrink: 0; }
+
+.webstore-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.webstore-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.webstore-btn {
+  text-decoration: none;
+}
+
+/* ── Manual install divider ── */
+
+.manual-section {
+  margin-bottom: 28px;
+}
+
+.manual-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.manual-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.manual-divider-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* ── Steps ── */
+
+.step-list {
+  list-style: none;
+  counter-reset: step;
+}
+
+.step {
+  position: relative;
+  padding-left: 64px;
+  padding-bottom: 40px;
+  counter-increment: step;
+}
+
+.step:last-child { padding-bottom: 0; }
+
+.step::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent-border);
+}
+
+.step::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 46px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+
+.step:last-child::after { display: none; }
+
+.step-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-top: 8px;
+}
+
+.step-body {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.step-body code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+.step-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.step-body a:hover { text-decoration: underline; }
+
+.step-note {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--accent);
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+}
+
+.step-note strong { font-weight: 700; }
+
+.url-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: 10px 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  user-select: none;
+}
+
+.url-block:hover { border-color: var(--accent-border); }
+
+.url-block .copy-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.path-display {
+  display: block;
+  margin: 10px 0 4px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: color-mix(in oklab, canvas 80%, canvasText 5%);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  line-height: 1.5;
+  color: canvasText;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.action-btn:hover {
+  background: color-mix(in oklab, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+}
+
+.action-btn:active { transform: scale(0.97); }
+
+.open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.open-btn:hover {
+  background: color-mix(in oklab, var(--accent) 85%, black);
+  border-color: color-mix(in oklab, var(--accent) 85%, black);
+}
+
+.open-btn:active { transform: scale(0.97); }
+
+.open-btn svg { flex-shrink: 0; }
+
+.url-block, .action-btn, .open-btn, a, button {
+  -webkit-app-region: no-drag;
+}
+
+/* ── Per-step collapsible ── */
+
+.step-extras {
+  margin-top: 12px;
+}
+
+.step-extras-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--dim);
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font-family: inherit;
+  font-weight: 500;
+  -webkit-app-region: no-drag;
+}
+
+.step-extras-toggle svg {
+  width: 8px;
+  height: 8px;
+  transition: transform 0.2s;
+}
+
+.step-extras-toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+.step-extras-content {
+  display: none;
+  padding-top: 8px;
+}
+
+.step-extras-content.open {
+  display: block;
+}
+
+/* ── Collapsible extras ── */
+
+.extras {
+  margin-top: 48px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+
+.extras-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 6px 0;
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  -webkit-app-region: no-drag;
+}
+
+.extras-toggle svg {
+  width: 10px;
+  height: 10px;
+  transition: transform 0.2s;
+}
+
+.extras-toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+.extras-content {
+  display: none;
+  padding-top: 16px;
+}
+
+.extras-content.open {
+  display: block;
+}
+
+.note {
+  margin-top: 16px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.note:first-child { margin-top: 0; }
+
+.note-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+
+.note-body {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.note-body strong { color: canvasText; font-weight: 600; }
+
+/* ── Extension name badge ── */
+
+.ext-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.ext-name svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* ── Path display with truncation ── */
+
+.path-display {
+  position: relative;
+}
+
+.path-short {
+  display: inline;
+}
+
+.path-full {
+  display: none;
+}
+
+.path-display:hover .path-short {
+  display: none;
+}
+
+.path-display:hover .path-full {
+  display: inline;
+}
+
+.path-display .path-highlight {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.badge-demo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 16px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0 4px;
+  vertical-align: middle;
+}
+
+/* ── Alternative method link ── */
+
+.alt-method {
+  margin-top: 36px;
+  animation: step-enter 0.4s ease-out 0.6s both;
+}
+
+.alt-method-divider {
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 20px;
+}
+
+.alt-method-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+
+.alt-method-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.alt-method-btn:active { transform: scale(0.99); }
+
+.alt-method-btn svg:first-child {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.alt-method-btn:hover svg:first-child { opacity: 1; }
+
+.alt-method-btn svg:last-child {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ── Step entrance animation ── */
+
+@keyframes step-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.step {
+  animation: step-enter 0.4s ease-out both;
+}
+
+.step:nth-child(1) { animation-delay: 0.1s; }
+.step:nth-child(2) { animation-delay: 0.25s; }
+.step:nth-child(3) { animation-delay: 0.4s; }
+
+.extras {
+  animation: step-enter 0.4s ease-out 0.55s both;
+}
+
+/* ── Open button click feedback ── */
+
+.open-btn.clicked {
+  background: color-mix(in oklab, var(--green) 90%, black);
+  border-color: color-mix(in oklab, var(--green) 90%, black);
+}
+
+/* ── Success card ── */
+
+.success-card {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--green) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--green) 25%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.success-card svg {
+  flex-shrink: 0;
+  color: var(--green);
+}
+
+.success-card span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green);
+}

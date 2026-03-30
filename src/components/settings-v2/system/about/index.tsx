@@ -51,7 +51,7 @@ const TARGET_USERS = [
 ] as const;
 
 const PRODUCT_CAPABILITIES = [
-  "团队共享网关用于在局域网内统一暴露兼容 OpenAI/Anthropic 的接口，便于团队复用同一套 Provider 策略与默认模型；单人创作场景可不启用。",
+  "Lime 以本机 AI Agent 工作台为核心，默认围绕主题工作台、资源沉淀与创作链路组织能力。",
   "常见凭证路径：Kiro `~/.kiro/kiro_creds.json`、Gemini CLI `~/.gemini/oauth_creds.json`、Qwen `~/.qwen-coder/auth.json`。",
 ] as const;
 

@@ -9,8 +9,8 @@ use lime_core::models::parse_skill_manifest_from_content;
 use lime_core::models::{
     BROADCAST_GENERATE_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
     IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY, MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
-    RESEARCH_SKILL_DIRECTORY, SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY,
-    URL_PARSE_SKILL_DIRECTORY, VIDEO_GENERATE_SKILL_DIRECTORY,
+    RESEARCH_SKILL_DIRECTORY, SITE_SEARCH_SKILL_DIRECTORY, SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
+    TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY, VIDEO_GENERATE_SKILL_DIRECTORY,
 };
 
 const VIDEO_GENERATE_SKILL_CONTENT: &str =
@@ -35,6 +35,15 @@ const URL_PARSE_SKILL_CONTENT: &str =
 
 const RESEARCH_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/research/SKILL.md");
+
+const SITE_SEARCH_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/site_search/SKILL.md");
+
+const SITE_SEARCH_ADAPTER_CATALOG_CONTENT: &str =
+    include_str!("../../resources/default-skills/site_search/references/adapter-catalog.md");
+
+const BUNDLED_SITE_ADAPTER_INDEX_CONTENT: &str =
+    include_str!("../../resources/site-adapters/bundled/index.json");
 
 const TYPESETTING_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/typesetting/SKILL.md");
@@ -63,7 +72,12 @@ const SOCIAL_POST_WITH_COVER_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFi
     content: SOCIAL_POST_WITH_COVER_WORKFLOW_CONTENT,
 }];
 
-fn default_skills() -> [BundledSkillDefinition; 10] {
+const SITE_SEARCH_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
+    relative_path: "references/adapter-catalog.md",
+    content: SITE_SEARCH_ADAPTER_CATALOG_CONTENT,
+}];
+
+fn default_skills() -> [BundledSkillDefinition; 11] {
     [
         BundledSkillDefinition {
             directory: VIDEO_GENERATE_SKILL_DIRECTORY,
@@ -104,6 +118,11 @@ fn default_skills() -> [BundledSkillDefinition; 10] {
             directory: RESEARCH_SKILL_DIRECTORY,
             skill_content: RESEARCH_SKILL_CONTENT,
             extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: SITE_SEARCH_SKILL_DIRECTORY,
+            skill_content: SITE_SEARCH_SKILL_CONTENT,
+            extra_files: SITE_SEARCH_EXTRA_FILES,
         },
         BundledSkillDefinition {
             directory: TYPESETTING_SKILL_DIRECTORY,
@@ -301,6 +320,9 @@ mod tests {
         assert!(LIBRARY_SKILL_CONTENT.contains("name: library"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("name: url_parse"));
         assert!(RESEARCH_SKILL_CONTENT.contains("name: research"));
+        assert!(SITE_SEARCH_SKILL_CONTENT.contains("name: site_search"));
+        assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`github/search`"));
+        assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`zhihu/hot`"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("name: typesetting"));
     }
 
@@ -317,5 +339,41 @@ mod tests {
         assert!(workflow_path.exists());
         let workflow_content = fs::read_to_string(workflow_path).expect("read workflow");
         assert!(workflow_content.contains("\"cover\""));
+    }
+
+    #[test]
+    fn should_sync_extra_files_for_site_search_skill() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let skills_root = skills_root_from_base(temp.path());
+        ensure_default_local_skills_in_dir(&skills_root).expect("install");
+
+        let catalog_path = skills_root
+            .join(SITE_SEARCH_SKILL_DIRECTORY)
+            .join("references")
+            .join("adapter-catalog.md");
+        assert!(catalog_path.exists());
+        let catalog_content = fs::read_to_string(catalog_path).expect("read catalog");
+        assert!(catalog_content.contains("`github/search`"));
+        assert!(catalog_content.contains("`yahoo-finance/quote`"));
+    }
+
+    #[test]
+    fn should_cover_all_bundled_site_adapters_in_site_search_catalog() {
+        let bundled_index =
+            serde_json::from_str::<serde_json::Value>(BUNDLED_SITE_ADAPTER_INDEX_CONTENT)
+                .expect("parse bundled site adapter index");
+        let adapters = bundled_index["adapters"]
+            .as_array()
+            .expect("bundled site adapter index should contain adapters");
+
+        for adapter in adapters {
+            let adapter_name = adapter["name"]
+                .as_str()
+                .expect("bundled site adapter should contain name");
+            assert!(
+                SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains(&format!("`{adapter_name}`")),
+                "site_search adapter 目录缺少 bundled adapter: {adapter_name}"
+            );
+        }
     }
 }

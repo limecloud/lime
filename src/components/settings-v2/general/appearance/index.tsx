@@ -342,10 +342,6 @@ export function AppearanceSettings() {
         ? enabledThemes.filter((item) => item !== themeId)
         : [...enabledThemes, themeId];
 
-      if (nextThemes.length === 0) {
-        return;
-      }
-
       const previousConfig = config;
       const nextConfig = {
         ...config,

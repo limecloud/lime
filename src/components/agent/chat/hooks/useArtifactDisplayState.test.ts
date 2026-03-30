@@ -163,7 +163,7 @@ describe("resolveArtifactDisplayState", () => {
     expect(state.overlay).toBeNull();
   });
 
-  it("浏览器协助 artifact 即使 content 为空也应优先展示自身，而不是回退到上一份文档", () => {
+  it("浏览器协助 artifact 不应再占用 Claw 画布，而应回退到上一份可渲染内容", () => {
     const previousArtifact = createArtifact({
       id: "artifact-prev",
       title: "report.md",
@@ -194,7 +194,7 @@ describe("resolveArtifactDisplayState", () => {
     });
 
     expect(state.mode).toBe("content");
-    expect(state.displayArtifact?.id).toBe("browser-assist:general");
+    expect(state.displayArtifact?.id).toBe("artifact-prev");
     expect(state.overlay).toBeNull();
     expect(state.showPreviousVersionBadge).toBe(false);
   });

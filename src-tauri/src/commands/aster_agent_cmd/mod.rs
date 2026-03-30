@@ -149,6 +149,8 @@ const SOCIAL_IMAGE_DEFAULT_SIZE: &str = "1024x1024";
 const SOCIAL_IMAGE_DEFAULT_RESPONSE_FORMAT: &str = "url";
 const AUTO_CONTINUE_PROMPT_MARKER: &str = "【自动续写策略】";
 const ELICITATION_CONTEXT_PROMPT_MARKER: &str = "【已收集的补充信息】";
+const SERVICE_SKILL_LAUNCH_PROMPT_MARKER: &str = "【站点技能启动】";
+const SERVICE_SKILL_LAUNCH_PRELOAD_PROMPT_MARKER: &str = "【站点技能预执行结果】";
 const TEAM_PREFERENCE_PROMPT_MARKER: &str = "【Team 协作偏好】";
 const LIME_TOOL_METADATA_BEGIN: &str = "[Lime 工具元数据开始]";
 const LIME_TOOL_METADATA_END: &str = "[Lime 工具元数据结束]";
@@ -264,6 +266,7 @@ mod reply_runtime;
 mod request_model_resolution;
 mod run_metadata;
 mod runtime_turn;
+mod service_skill_launch;
 mod session_runtime;
 mod subagent_runtime;
 pub(crate) mod tool_runtime;
@@ -280,7 +283,6 @@ use self::tool_runtime::{
 #[cfg(test)]
 include!("tests.rs");
 
-pub(crate) use action_runtime::{agent_runtime_delete_session, agent_runtime_respond_action};
 #[cfg(test)]
 pub(crate) use action_runtime::{
     build_action_resume_runtime_status, build_runtime_action_user_data,
@@ -335,6 +337,8 @@ pub(crate) use mcp_bridge::{ensure_lime_mcp_servers_running, inject_mcp_extensio
 pub(crate) use prompt_context::build_team_preference_system_prompt;
 pub(crate) use prompt_context::{
     merge_system_prompt_with_auto_continue, merge_system_prompt_with_elicitation_context,
+    merge_system_prompt_with_service_skill_launch,
+    merge_system_prompt_with_service_skill_launch_preload,
     merge_system_prompt_with_team_preference,
 };
 #[cfg(test)]
@@ -360,11 +364,18 @@ pub(crate) use runtime_turn::{build_queued_turn_task, build_runtime_queue_execut
 pub(crate) use runtime_turn::{
     resolve_request_web_search_preference_from_sources, resolve_workspace_id_from_sources,
 };
+#[cfg(test)]
+pub(crate) use service_skill_launch::build_service_skill_launch_run_request;
+pub(crate) use service_skill_launch::{
+    append_service_skill_launch_session_permissions, preload_service_skill_launch_execution,
+    should_lock_service_skill_launch_to_site_tools, ServiceSkillLaunchPreloadExecution,
+};
 pub(crate) use session_runtime::{
     delete_runtime_session_internal, persist_session_provider_routing,
     resolve_recent_preference_from_sources, resolve_session_provider_selector,
     resolve_session_recent_harness_context, resolve_session_recent_preferences,
-    resolve_session_recent_team_selection, SessionRecentHarnessContext,
+    resolve_session_recent_runtime_context, SessionRecentHarnessContext,
+    SessionRecentRuntimeContext,
 };
 pub(crate) use subagent_runtime::{
     agent_runtime_close_subagent_internal, agent_runtime_resume_subagent_internal,

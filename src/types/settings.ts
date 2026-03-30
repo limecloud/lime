@@ -36,7 +36,6 @@ export enum SettingsTabs {
   MediaServices = "media-services",
 
   // 系统
-  ApiServer = "api-server",
   McpServer = "mcp-server",
   Channels = "channels",
   WebSearch = "web-search",
@@ -86,9 +85,7 @@ export const SETTINGS_GROUPS: Record<SettingsGroupKey, SettingsTabs[]> = {
     SettingsTabs.MediaServices,
   ],
   [SettingsGroupKey.System]: [
-    SettingsTabs.ApiServer,
     SettingsTabs.McpServer,
-    SettingsTabs.Channels,
     SettingsTabs.WebSearch,
     SettingsTabs.Environment,
     SettingsTabs.ChromeRelay,

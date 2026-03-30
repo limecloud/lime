@@ -451,6 +451,10 @@ describe("ServiceSkillLaunchDialog", () => {
 
     await flushEffects();
 
+    expect(document.body.textContent).toContain(
+      "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
+    );
+
     act(() => {
       browserRuntimeButton?.click();
     });
@@ -466,7 +470,7 @@ describe("ServiceSkillLaunchDialog", () => {
     );
   });
 
-  it("站点技能缺少附着会话时应禁用 Claw 主执行按钮并提示转去浏览器工作台", async () => {
+  it("站点技能缺少附着会话时应阻断 Claw 主按钮，并提示先准备浏览器", async () => {
     mockSiteGetAdapterLaunchReadiness.mockResolvedValueOnce({
       status: "requires_browser_runtime",
       adapter: "github/search",
@@ -511,9 +515,11 @@ describe("ServiceSkillLaunchDialog", () => {
 
     await flushEffects();
 
-    expect(document.body.textContent).toContain("需要浏览器工作台");
+    expect(document.body.textContent).toContain("需要先准备浏览器");
     expect(document.body.textContent).toContain("Claw 不会在后台偷偷启动浏览器");
+    expect(document.body.textContent).toContain("请先进入浏览器工作台连接真实浏览器并打开目标站点页面");
     expect(launchButton?.disabled).toBe(true);
+    expect(launchButton?.textContent).toBe("先准备浏览器再执行");
   });
 
   it("云端托管技能应显示云端运行文案且不暴露本地自动化入口", async () => {

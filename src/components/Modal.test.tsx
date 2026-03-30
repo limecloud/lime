@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Modal } from "./Modal";
+import { Modal, ModalBody, ModalFooter, ModalHeader } from "./Modal";
 
 interface MountedRoot {
   container: HTMLDivElement;
@@ -23,10 +23,15 @@ function renderModal() {
         draggable={true}
         dragHandleSelector='[data-drag-handle="true"]'
       >
-        <div>
+        <ModalHeader>
           <div data-drag-handle="true">拖拽头部</div>
+        </ModalHeader>
+        <ModalBody>
           <div>弹窗内容</div>
-        </div>
+        </ModalBody>
+        <ModalFooter>
+          <button type="button">保存</button>
+        </ModalFooter>
       </Modal>,
     );
   });
@@ -93,5 +98,26 @@ describe("Modal", () => {
     act(() => {
       window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
+  });
+
+  it("应为小屏场景提供可滚动的遮罩层与内容区", () => {
+    renderModal();
+
+    const overlay = document.body.querySelector(
+      '[data-testid="modal-overlay"]',
+    ) as HTMLDivElement | null;
+    const dialog = document.body.querySelector(
+      '[role="dialog"]',
+    ) as HTMLDivElement | null;
+    const body = document.body.querySelector(
+      '[data-testid="modal-body"]',
+    ) as HTMLDivElement | null;
+
+    expect(overlay?.className).toContain("overflow-y-auto");
+    expect(dialog?.className).toContain("max-h-[calc(100vh-2rem)]");
+    expect(dialog?.className).toContain("flex-col");
+    expect(body?.className).toContain("flex-1");
+    expect(body?.className).toContain("overflow-y-auto");
+    expect(body?.className).toContain("min-h-0");
   });
 });

@@ -3,6 +3,7 @@ const DEFAULT_SETTINGS = {
   bridgeKey: "",
   profileKey: "default",
   monitoringEnabled: true,
+  enabled: true,
 };
 
 const bridgeStatusEl = document.getElementById("bridgeStatus");
@@ -24,9 +25,9 @@ const captureBtnEl = document.getElementById("captureBtn");
 const pageTitleEl = document.getElementById("pageTitle");
 const pageUrlEl = document.getElementById("pageUrl");
 
-function setBadge(el, isOn, onText, offText) {
-  el.textContent = isOn ? onText : offText;
-  el.className = `badge ${isOn ? "badge-on" : "badge-off"}`;
+function setBadge(el, label, variant = "off") {
+  el.textContent = label;
+  el.className = `badge badge-${variant}`;
 }
 
 function buildObserverEndpoint(serverUrl, bridgeKey, profileKey) {
@@ -41,15 +42,53 @@ function buildObserverEndpoint(serverUrl, bridgeKey, profileKey) {
 
 function applyStatus(status) {
   const connected = Boolean(status?.isConnected);
+  const connecting = Boolean(status?.isConnecting);
+  const controlConnected = Boolean(status?.isControlConnected);
+  const controlConnecting = Boolean(status?.isControlConnecting);
+  const enabled = status?.enabled !== false;
   const monitoring = Boolean(status?.monitoringEnabled);
-  setBadge(bridgeStatusEl, connected, "已连接", "未连接");
-  setBadge(monitorStatusEl, monitoring, "开启", "关闭");
-  toggleConnBtnEl.textContent = connected ? "断开连接" : "立即连接";
+  const errorText =
+    typeof status?.lastError === "string" ? status.lastError.trim() : "";
+  const controlErrorText =
+    typeof status?.controlLastError === "string"
+      ? status.controlLastError.trim()
+      : "";
+
+  if (connected) {
+    setBadge(bridgeStatusEl, "已连接", "on");
+  } else if (enabled && connecting) {
+    setBadge(bridgeStatusEl, "连接中", "warn");
+  } else if (enabled && errorText) {
+    setBadge(bridgeStatusEl, "待重试", "warn");
+  } else if (enabled) {
+    setBadge(bridgeStatusEl, "已启用", "warn");
+  } else {
+    setBadge(bridgeStatusEl, "已停用", "off");
+  }
+
+  setBadge(monitorStatusEl, monitoring ? "开启" : "关闭", monitoring ? "on" : "off");
+  toggleConnBtnEl.textContent = enabled ? "停止自动连接" : "启用并连接";
   toggleMonitorBtnEl.textContent = monitoring ? "关闭页面监控" : "开启页面监控";
 
-  statusHintEl.textContent = connected
-    ? "浏览器扩展已经接入当前 Lime 运行时。后续如需重新安装或切换目录，请回到 Lime 的“连接器”页处理。"
-    : "如果当前仍未连接，请先打开 Lime 的“连接器”页启用浏览器连接器，或重新同步扩展到你选择的目录。";
+  if (connected && controlConnected) {
+    statusHintEl.textContent =
+      "浏览器扩展的 observer/control 双通道都已接入当前 Lime 运行时，后续会持续复用你当前已登录的 Chrome 标签页。";
+  } else if (connected && (controlConnecting || controlErrorText)) {
+    statusHintEl.textContent = controlErrorText
+      ? `页面观察已接入，但控制通道当前异常：${controlErrorText}`
+      : "页面观察已接入，控制通道正在补连。";
+  } else if (enabled && connecting) {
+    statusHintEl.textContent =
+      "扩展已启用，正在尝试连接本地 Lime relay。保持当前 Chrome 打开即可，连接成功后会自动抓取当前标签页。";
+  } else if (enabled && errorText) {
+    statusHintEl.textContent = `扩展已启用，但当前连接失败：${errorText}`;
+  } else if (enabled) {
+    statusHintEl.textContent =
+      "扩展已启用，但当前还未连上 Lime。请确认桌面端已经启动，并检查连接器页中的地址和密钥。";
+  } else {
+    statusHintEl.textContent =
+      "扩展当前处于停用状态，不会自动重连。需要时点击“启用并连接”，或回到 Lime 的“连接器”页重新同步配置。";
+  }
 
   const latestPageInfo = status?.latestPageInfo;
   if (latestPageInfo?.title || latestPageInfo?.url) {
@@ -124,6 +163,7 @@ async function saveAndReconnect() {
     serverUrl: serverUrlEl.value.trim(),
     bridgeKey: bridgeKeyEl.value.trim(),
     profileKey: profileKeyEl.value.trim() || "default",
+    enabled: true,
     reconnect: true,
   };
 

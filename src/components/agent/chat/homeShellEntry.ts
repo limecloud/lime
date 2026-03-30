@@ -13,9 +13,11 @@ export interface AgentChatWorkspaceBootstrap {
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
   initialRequestMetadata?: Record<string, unknown>;
+  initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
   theme?: string;
   initialCreationMode?: CreationMode;
+  lockTheme?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   newChatAt?: number;
@@ -26,11 +28,13 @@ export interface HomeShellEnterWorkspacePayload {
   images?: MessageImage[];
   contentId?: string;
   initialRequestMetadata?: Record<string, unknown>;
+  initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   toolPreferences?: ChatToolPreferences;
   themeOverride?: string;
+  lockTheme?: boolean;
 }
 
 export interface ResolveHomeShellWorkspaceEntryInput {
@@ -60,6 +64,35 @@ export type ResolvedHomeShellWorkspaceEntry =
       workspaceBootstrap: AgentChatWorkspaceBootstrap;
     };
 
+function asRecord(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function hasServiceSkillLaunchMetadata(
+  metadata?: Record<string, unknown>,
+): boolean {
+  const record = asRecord(metadata);
+  if (!record) {
+    return false;
+  }
+
+  const harness = asRecord(record.harness) ?? record;
+  const launch =
+    asRecord(harness.service_skill_launch) ??
+    asRecord(harness.serviceSkillLaunch);
+  if (!launch) {
+    return false;
+  }
+
+  const adapterName = launch.adapter_name ?? launch.adapterName;
+  return typeof adapterName === "string" && adapterName.trim().length > 0;
+}
+
 export function resolveHomeShellWorkspaceEntry(
   input: ResolveHomeShellWorkspaceEntryInput,
 ): ResolvedHomeShellWorkspaceEntry {
@@ -80,6 +113,12 @@ export function resolveHomeShellWorkspaceEntry(
   );
   const toolPreferences = payload.toolPreferences ?? defaultToolPreferences;
   const targetTheme = payload.themeOverride ?? activeTheme;
+  const lockTheme =
+    payload.lockTheme ??
+    (targetTheme === "general" &&
+      (hasSiteSkillLaunch ||
+        hasServiceSkillLaunchMetadata(payload.initialAutoSendRequestMetadata) ||
+        hasServiceSkillLaunchMetadata(payload.initialRequestMetadata)));
   const openBrowserAssistOnMount = payload.openBrowserAssistOnMount;
   const autoRunInitialPromptOnMount = payload.autoRunInitialPromptOnMount;
 
@@ -108,10 +147,17 @@ export function resolveHomeShellWorkspaceEntry(
     projectId: projectId ?? undefined,
     contentId: payload.contentId,
     theme: targetTheme,
+    lockTheme,
     initialCreationMode: creationMode,
     initialUserPrompt: payload.prompt,
     initialUserImages: payload.images,
     initialRequestMetadata: payload.initialRequestMetadata,
+    ...(payload.initialAutoSendRequestMetadata
+      ? {
+          initialAutoSendRequestMetadata:
+            payload.initialAutoSendRequestMetadata,
+        }
+      : {}),
     ...(autoRunInitialPromptOnMount !== undefined
       ? { autoRunInitialPromptOnMount }
       : {}),
@@ -134,8 +180,15 @@ export function resolveHomeShellWorkspaceEntry(
       initialUserPrompt: payload.prompt,
       initialUserImages: payload.images,
       initialRequestMetadata: payload.initialRequestMetadata,
+      ...(payload.initialAutoSendRequestMetadata
+        ? {
+            initialAutoSendRequestMetadata:
+              payload.initialAutoSendRequestMetadata,
+          }
+        : {}),
       autoRunInitialPromptOnMount,
       theme: targetTheme,
+      lockTheme,
       initialCreationMode: creationMode,
       openBrowserAssistOnMount,
       ...(payload.initialSiteSkillLaunch

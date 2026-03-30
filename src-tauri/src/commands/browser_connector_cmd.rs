@@ -4,9 +4,10 @@ use crate::app::AppState;
 use crate::services::browser_connector_service::{
     get_browser_connector_install_status, get_browser_connector_settings,
     install_browser_connector_extension, sync_browser_connector_auto_config_if_installed,
-    update_browser_connector_enabled, update_browser_connector_install_root,
-    update_system_connector_enabled, BrowserConnectorAutoConfig, BrowserConnectorInstallResult,
-    BrowserConnectorInstallStatus, BrowserConnectorSettingsSnapshot,
+    update_browser_action_capability_enabled, update_browser_connector_enabled,
+    update_browser_connector_install_root, update_system_connector_enabled,
+    BrowserConnectorAutoConfig, BrowserConnectorInstallResult, BrowserConnectorInstallStatus,
+    BrowserConnectorSettingsSnapshot,
 };
 use serde::Deserialize;
 use tauri::{AppHandle, State};
@@ -27,6 +28,12 @@ pub struct InstallBrowserConnectorExtensionRequest {
 #[derive(Debug, Deserialize)]
 pub struct SetSystemConnectorEnabledRequest {
     pub id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetBrowserActionCapabilityEnabledRequest {
+    pub key: String,
     pub enabled: bool,
 }
 
@@ -60,6 +67,62 @@ async fn build_auto_config(
     })
 }
 
+fn open_chrome_url(url: &str) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = std::process::Command::new("open");
+        command.args(["-a", "Google Chrome", url]);
+        if let Err(primary_error) = command.spawn() {
+            std::process::Command::new("open")
+                .arg(url)
+                .spawn()
+                .map_err(|fallback_error| {
+                    format!("打开 Chrome 页面失败: {primary_error}; fallback: {fallback_error}")
+                })?;
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map_err(|error| format!("打开 Chrome 页面失败: {error}"))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let attempts = [
+            ("google-chrome", vec![url]),
+            ("chromium", vec![url]),
+            ("xdg-open", vec![url]),
+        ];
+
+        let mut last_error = None;
+        let mut opened = false;
+        for (binary, args) in attempts {
+            match std::process::Command::new(binary).args(args).spawn() {
+                Ok(_) => {
+                    opened = true;
+                    break;
+                }
+                Err(error) => {
+                    last_error = Some(format!("{binary}: {error}"));
+                }
+            }
+        }
+
+        if !opened {
+            return Err(format!(
+                "打开 Chrome 页面失败: {}",
+                last_error.unwrap_or_else(|| "没有可用的浏览器命令".to_string())
+            ));
+        }
+    }
+
+    Ok(true)
+}
+
 #[tauri::command]
 pub fn get_browser_connector_settings_cmd() -> Result<BrowserConnectorSettingsSnapshot, String> {
     get_browser_connector_settings()
@@ -88,6 +151,13 @@ pub fn set_system_connector_enabled_cmd(
     request: SetSystemConnectorEnabledRequest,
 ) -> Result<BrowserConnectorSettingsSnapshot, String> {
     update_system_connector_enabled(&request.id, request.enabled)
+}
+
+#[tauri::command]
+pub fn set_browser_action_capability_enabled_cmd(
+    request: SetBrowserActionCapabilityEnabledRequest,
+) -> Result<BrowserConnectorSettingsSnapshot, String> {
+    update_browser_action_capability_enabled(&request.key, request.enabled)
 }
 
 #[tauri::command]
@@ -124,57 +194,10 @@ pub async fn install_browser_connector_extension_cmd(
 
 #[tauri::command]
 pub async fn open_browser_extensions_page_cmd() -> Result<bool, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let mut command = std::process::Command::new("open");
-        command.args(["-a", "Google Chrome", "chrome://extensions"]);
-        if let Err(primary_error) = command.spawn() {
-            std::process::Command::new("open")
-                .arg("chrome://extensions")
-                .spawn()
-                .map_err(|fallback_error| {
-                    format!("打开 Chrome 扩展页面失败: {primary_error}; fallback: {fallback_error}")
-                })?;
-        }
-    }
+    open_chrome_url("chrome://extensions")
+}
 
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", "chrome://extensions"])
-            .spawn()
-            .map_err(|error| format!("打开 Chrome 扩展页面失败: {error}"))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let attempts = [
-            ("google-chrome", vec!["chrome://extensions"]),
-            ("chromium", vec!["chrome://extensions"]),
-            ("xdg-open", vec!["chrome://extensions"]),
-        ];
-
-        let mut last_error = None;
-        let mut opened = false;
-        for (binary, args) in attempts {
-            match std::process::Command::new(binary).args(args).spawn() {
-                Ok(_) => {
-                    opened = true;
-                    break;
-                }
-                Err(error) => {
-                    last_error = Some(format!("{binary}: {error}"));
-                }
-            }
-        }
-
-        if !opened {
-            return Err(format!(
-                "打开 Chrome 扩展页面失败: {}",
-                last_error.unwrap_or_else(|| "没有可用的浏览器命令".to_string())
-            ));
-        }
-    }
-
-    Ok(true)
+#[tauri::command]
+pub async fn open_browser_remote_debugging_page_cmd() -> Result<bool, String> {
+    open_chrome_url("chrome://inspect/#remote-debugging")
 }

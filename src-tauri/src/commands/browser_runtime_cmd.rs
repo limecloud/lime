@@ -3,9 +3,10 @@
 use crate::app::AppState;
 use crate::commands::webview_cmd::{
     append_browser_runtime_launch_audit, open_cdp_session_global,
-    open_chrome_profile_window_global, shared_browser_runtime, start_browser_stream_global,
-    BrowserRuntimeLaunchAuditInput, ChromeProfileLaunchOptions, OpenCdpSessionRequest,
-    OpenChromeProfileRequest, OpenChromeProfileResponse, StartBrowserStreamRequest,
+    open_chrome_profile_window_global, resolve_profile_session_global, shared_browser_runtime,
+    start_browser_stream_global, BrowserRuntimeLaunchAuditInput, ChromeProfileLaunchOptions,
+    ChromeProfileSessionInfo, OpenCdpSessionRequest, OpenChromeProfileRequest,
+    OpenChromeProfileResponse, StartBrowserStreamRequest,
 };
 use crate::database::{lock_db, DbConnection};
 use crate::services::browser_environment_service::{
@@ -14,7 +15,7 @@ use crate::services::browser_environment_service::{
     BrowserEnvironmentLaunchConfig,
 };
 use crate::services::browser_profile_service::{
-    get_browser_profile, touch_browser_profile_last_used,
+    get_browser_profile, get_browser_profile_by_key, touch_browser_profile_last_used,
 };
 use crate::services::browser_runtime_window;
 use lime_browser_runtime::BrowserStreamMode;
@@ -54,6 +55,8 @@ pub struct LaunchBrowserSessionRequest {
     pub target_id: Option<String>,
     #[serde(default = "default_open_window")]
     pub open_window: bool,
+    #[serde(default)]
+    pub headless: bool,
     #[serde(default = "default_stream_mode")]
     pub stream_mode: BrowserStreamMode,
 }
@@ -68,6 +71,8 @@ pub struct LaunchBrowserRuntimeAssistRequest {
     pub target_id: Option<String>,
     #[serde(default = "default_open_window")]
     pub open_window: bool,
+    #[serde(default)]
+    pub headless: bool,
     #[serde(default = "default_stream_mode")]
     pub stream_mode: BrowserStreamMode,
     #[serde(default)]
@@ -86,11 +91,13 @@ pub type BrowserRuntimeAssistLaunchResponse = BrowserSessionLaunchResponse;
 pub struct ResolvedLaunchBrowserSessionRequest {
     pub profile_id: Option<String>,
     pub profile_key: String,
+    pub transport_kind: Option<BrowserProfileTransportKind>,
     pub url: String,
     pub environment_preset_id: Option<String>,
     pub environment: Option<BrowserEnvironmentLaunchConfig>,
     pub target_id: Option<String>,
     pub open_window: bool,
+    pub headless: bool,
     pub stream_mode: BrowserStreamMode,
 }
 
@@ -126,6 +133,7 @@ fn resolve_launch_browser_session_request(
     }
 
     let mut resolved_profile_id = None;
+    let mut resolved_transport_kind = None;
     let mut resolved_profile_key = request
         .profile_key
         .as_deref()
@@ -153,14 +161,8 @@ fn resolve_launch_browser_session_request(
                 ));
             }
         }
-        if profile.transport_kind == BrowserProfileTransportKind::ExistingSession {
-            return Err(
-                "当前资料使用“附着当前 Chrome”模式，运行时附着链路尚未接入；请先改用“托管浏览器”模式启动"
-                    .to_string(),
-            );
-        }
-
         resolved_profile_id = Some(profile.id.clone());
+        resolved_transport_kind = Some(profile.transport_kind.clone());
         resolved_profile_key = Some(profile.profile_key.clone());
         if resolved_url.is_none() {
             resolved_url = profile.launch_url.clone();
@@ -170,6 +172,16 @@ fn resolve_launch_browser_session_request(
     let profile_key = resolved_profile_key
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "启动浏览器会话时必须提供 profile_id 或 profile_key".to_string())?;
+
+    if resolved_profile_id.is_none() {
+        let conn = lock_db(db)?;
+        if let Some(profile) = get_browser_profile_by_key(&conn, &profile_key)?
+            .filter(|profile| profile.archived_at.is_none())
+        {
+            resolved_profile_id = Some(profile.id.clone());
+            resolved_transport_kind = Some(profile.transport_kind.clone());
+        }
+    }
 
     let environment = if let Some(preset_id) = request.environment_preset_id.as_deref() {
         let conn = lock_db(db)?;
@@ -190,11 +202,13 @@ fn resolve_launch_browser_session_request(
     Ok(ResolvedLaunchBrowserSessionRequest {
         profile_id: resolved_profile_id,
         profile_key,
+        transport_kind: resolved_transport_kind,
         url: resolved_url.unwrap_or_else(default_launch_url),
         environment_preset_id,
         environment,
         target_id: request.target_id,
         open_window: request.open_window,
+        headless: request.headless,
         stream_mode: request.stream_mode,
     })
 }
@@ -326,6 +340,7 @@ pub async fn launch_browser_runtime_assist(
         profile_id = ?request.profile_id,
         target_id = ?request.target_id,
         open_window = request.open_window,
+        headless = request.headless,
         stream_mode = ?request.stream_mode
     )
 )]
@@ -340,6 +355,7 @@ pub async fn launch_browser_runtime_assist_global(
         ResolvedLaunchBrowserSessionRequest {
             profile_id: request.profile_id,
             profile_key: request.profile_key,
+            transport_kind: None,
             url: request.url,
             environment_preset_id: request
                 .environment
@@ -348,6 +364,7 @@ pub async fn launch_browser_runtime_assist_global(
             environment: request.environment,
             target_id: request.target_id,
             open_window: request.open_window,
+            headless: request.headless,
             stream_mode: request.stream_mode,
         },
     )
@@ -363,6 +380,7 @@ pub async fn launch_browser_runtime_assist_global(
         environment_preset_id = ?request.environment_preset_id,
         target_id = ?request.target_id,
         open_window = request.open_window,
+        headless = request.headless,
         stream_mode = ?request.stream_mode
     )
 )]
@@ -395,6 +413,10 @@ pub async fn launch_browser_session_global(
         .as_ref()
         .map(build_chrome_launch_options)
         .unwrap_or_default();
+    let chrome_launch_options = ChromeProfileLaunchOptions {
+        headless: request.headless,
+        ..chrome_launch_options
+    };
     let launch_url = request.url.clone();
     let bootstrap_url = if request.environment.is_some() {
         "about:blank".to_string()
@@ -403,25 +425,48 @@ pub async fn launch_browser_session_global(
     };
     let launch_started_at = Instant::now();
     let profile_started_at = Instant::now();
-    let profile = match open_chrome_profile_window_global(
-        app_handle.clone(),
-        app_state,
-        OpenChromeProfileRequest {
-            profile_key: request.profile_key.clone(),
-            url: bootstrap_url.clone(),
-            launch_options: Some(chrome_launch_options),
-        },
-    )
-    .instrument(tracing::info_span!(
-        "launch_browser_session_global.open_profile"
-    ))
-    .await
-    {
-        Ok(profile) => profile,
-        Err(error) => {
-            finalize_browser_runtime_launch_audit(launch_audit, Some(error.clone())).await;
-            return Err(error);
+    let profile = match request.transport_kind.clone() {
+        Some(BrowserProfileTransportKind::ExistingSession) => {
+            let profile_session = match resolve_profile_session_global(Some(
+                request.profile_key.clone(),
+            ))
+            .instrument(tracing::info_span!(
+                "launch_browser_session_global.resolve_existing_session"
+            ))
+            .await
+            {
+                Ok(session) => session,
+                Err(error) => {
+                    let wrapped = format!(
+                        "当前资料使用“附着当前 Chrome”模式，但没有检测到可复用的浏览器会话：{error}。请确认 Lime Chrome 插件已连接，并且当前 Chrome 已开启远程调试。"
+                    );
+                    finalize_browser_runtime_launch_audit(launch_audit, Some(wrapped.clone()))
+                        .await;
+                    return Err(wrapped);
+                }
+            };
+            build_existing_session_profile_response(&profile_session)
         }
+        _ => match open_chrome_profile_window_global(
+            app_handle.clone(),
+            app_state,
+            OpenChromeProfileRequest {
+                profile_key: request.profile_key.clone(),
+                url: bootstrap_url.clone(),
+                launch_options: Some(chrome_launch_options),
+            },
+        )
+        .instrument(tracing::info_span!(
+            "launch_browser_session_global.open_profile"
+        ))
+        .await
+        {
+            Ok(profile) => profile,
+            Err(error) => {
+                finalize_browser_runtime_launch_audit(launch_audit, Some(error.clone())).await;
+                return Err(error);
+            }
+        },
     };
     let profile_elapsed_ms = profile_started_at.elapsed().as_millis();
     launch_audit.reused = Some(profile.reused);
@@ -631,11 +676,36 @@ pub async fn launch_browser_session_global(
         open_session_elapsed_ms,
         stream_elapsed_ms,
         open_window = request.open_window,
+        headless = request.headless,
         "browser session launch: launch completed"
     );
 
     finalize_browser_runtime_launch_audit(launch_audit, None).await;
     Ok(BrowserSessionLaunchResponse { profile, session })
+}
+
+fn build_existing_session_profile_response(
+    profile_session: &ChromeProfileSessionInfo,
+) -> OpenChromeProfileResponse {
+    let browser_path = (!profile_session.browser_path.trim().is_empty())
+        .then(|| profile_session.browser_path.clone());
+    let profile_dir = (!profile_session.profile_dir.trim().is_empty())
+        .then(|| profile_session.profile_dir.clone());
+    let devtools_http_url = format!(
+        "http://127.0.0.1:{}/json/version",
+        profile_session.remote_debugging_port
+    );
+    OpenChromeProfileResponse {
+        success: true,
+        reused: true,
+        browser_source: Some(profile_session.browser_source.clone()),
+        browser_path,
+        profile_dir,
+        remote_debugging_port: Some(profile_session.remote_debugging_port),
+        pid: Some(profile_session.pid),
+        devtools_http_url: Some(devtools_http_url),
+        error: None,
+    }
 }
 
 fn build_chrome_launch_options(
@@ -644,6 +714,7 @@ fn build_chrome_launch_options(
     ChromeProfileLaunchOptions {
         proxy_server: environment.proxy_server.clone(),
         language: environment.browser_launch_language(),
+        headless: false,
     }
 }
 
@@ -750,6 +821,7 @@ mod tests {
                 environment: None,
                 target_id: Some("target-1".to_string()),
                 open_window: false,
+                headless: true,
                 stream_mode: BrowserStreamMode::Both,
             },
         )
@@ -773,6 +845,7 @@ mod tests {
                 .and_then(|value| value.proxy_server.as_deref()),
             Some("http://127.0.0.1:7890")
         );
+        assert!(resolved.headless);
     }
 
     #[test]
@@ -788,6 +861,7 @@ mod tests {
                 environment: Some(BrowserEnvironmentLaunchConfig::default()),
                 target_id: None,
                 open_window: false,
+                headless: false,
                 stream_mode: BrowserStreamMode::Both,
             },
         )
@@ -797,7 +871,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_launch_browser_session_request_should_reject_existing_session_profile() {
+    fn resolve_launch_browser_session_request_should_allow_existing_session_profile() {
         let db = setup_db();
         {
             let conn = lock_db(&db).unwrap();
@@ -817,7 +891,7 @@ mod tests {
             .unwrap();
         }
 
-        let error = resolve_launch_browser_session_request(
+        let resolved = resolve_launch_browser_session_request(
             &db,
             LaunchBrowserSessionRequest {
                 profile_id: Some("profile-attach".to_string()),
@@ -827,11 +901,62 @@ mod tests {
                 environment: None,
                 target_id: None,
                 open_window: false,
+                headless: false,
                 stream_mode: BrowserStreamMode::Both,
             },
         )
-        .unwrap_err();
+        .expect("existing_session profile should resolve");
 
-        assert!(error.contains("附着当前 Chrome"));
+        assert_eq!(resolved.profile_id.as_deref(), Some("profile-attach"));
+        assert_eq!(resolved.profile_key, "weibo_attach");
+        assert_eq!(
+            resolved.transport_kind,
+            Some(BrowserProfileTransportKind::ExistingSession)
+        );
+    }
+
+    #[test]
+    fn resolve_launch_browser_session_request_should_allow_existing_session_profile_key() {
+        let db = setup_db();
+        {
+            let conn = lock_db(&db).unwrap();
+            conn.execute(
+                "INSERT INTO browser_profiles (
+                    id, profile_key, name, description, site_scope, launch_url, transport_kind,
+                    profile_dir, managed_profile_dir, created_at, updated_at, last_used_at, archived_at
+                ) VALUES (?1, ?2, ?3, NULL, NULL, ?4, 'existing_session', '', NULL, ?5, ?5, NULL, NULL)",
+                (
+                    "profile-attach",
+                    "weibo_attach",
+                    "微博附着",
+                    "https://weibo.com/",
+                    "2026-03-15T00:00:00Z",
+                ),
+            )
+            .unwrap();
+        }
+
+        let resolved = resolve_launch_browser_session_request(
+            &db,
+            LaunchBrowserSessionRequest {
+                profile_id: None,
+                profile_key: Some("weibo_attach".to_string()),
+                url: Some("https://weibo.com/".to_string()),
+                environment_preset_id: None,
+                environment: None,
+                target_id: None,
+                open_window: false,
+                headless: false,
+                stream_mode: BrowserStreamMode::Both,
+            },
+        )
+        .expect("existing_session profile_key should resolve");
+
+        assert_eq!(resolved.profile_id.as_deref(), Some("profile-attach"));
+        assert_eq!(resolved.profile_key, "weibo_attach");
+        assert_eq!(
+            resolved.transport_kind,
+            Some(BrowserProfileTransportKind::ExistingSession)
+        );
     }
 }

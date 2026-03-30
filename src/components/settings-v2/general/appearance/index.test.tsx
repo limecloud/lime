@@ -145,7 +145,7 @@ describe("AppearanceSettings", () => {
     expect(text).toContain("左侧边栏导航");
     expect(text).toContain("工作区入口");
     expect(text).toContain("底部入口");
-    expect(text).toContain("核心入口固定显示：技能");
+    expect(text).toContain("核心入口固定显示：能力");
     expect(text).toContain("OpenClaw");
     expect(text).toContain("资源");
     expect(text).toContain("我的风格");
@@ -178,7 +178,7 @@ describe("AppearanceSettings", () => {
     ).toBe("openai");
   });
 
-  it("缺少主题配置时应回退到新的默认创作主题", async () => {
+  it("缺少主题配置时应允许从默认隐藏状态单独开启主题", async () => {
     mockGetConfig.mockResolvedValue({
       language: "zh",
       chat_appearance: {
@@ -198,10 +198,33 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.content_creator.enabled_themes).toEqual([
-      "social-media",
-      "video",
-    ]);
+    expect(savedConfig.content_creator.enabled_themes).toEqual(["video"]);
+  });
+
+  it("关闭最后一个创作模式时应允许保存为空列表", async () => {
+    mockGetConfig.mockResolvedValue({
+      language: "zh",
+      content_creator: {
+        enabled_themes: ["social-media"],
+      },
+      chat_appearance: {
+        append_selected_text_to_recommendation: true,
+      },
+    });
+
+    const { container } = await renderPage();
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("社媒内容"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
+
+    expect(savedConfig.content_creator.enabled_themes).toEqual([]);
   });
 
   it("切换底部入口时应保存完整的侧栏导航配置", async () => {
@@ -251,7 +274,6 @@ describe("AppearanceSettings", () => {
       "claw",
       "video",
       "image-gen",
-      "automation",
       "openclaw",
       "resources",
       "style-library",

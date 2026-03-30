@@ -5,6 +5,9 @@
 ## 功能
 
 - Observer 通道自动连接：`/lime-chrome-observer/<bridge_key>?profileKey=...`
+- 启停状态持久化：手动停用或桌面端主动断开后，不会在后台偷偷重连
+- MV3 保活与自动重连：使用 `chrome.alarms` 保持 relay 存活，并在浏览器恢复后自动重连
+- 按需注入 content script：不再对所有站点常驻注入，只在抓取或执行命令时动态注入
 - 页面信息上报：标题、URL、Markdown
 - 远程指令执行：`open_url` / `click` / `type` / `scroll` / `switch_tab` / `list_tabs` / `go_back` 等
 - 弹窗入口：直接打开 Lime 的“连接器”页，并保留高级手动配置
@@ -91,5 +94,6 @@ npm run bridge:e2e -- --server ws://127.0.0.1:8787 --key proxy_cast --profile de
 ## 兼容说明
 
 - 扩展只负责浏览器侧采集与动作执行。
+- 当前主链仍然是 `API -> observer socket -> 扩展 -> 当前已登录 Chrome 标签页`，不会额外拉起新的托管 Chrome。
 - Agent 侧通过 `aster_agent_cmd` 暴露的现役浏览器 MCP 工具访问。
 - 若你同时使用独立 Chrome Profile（Tauri `open_chrome_profile_window`），请在对应 Profile 内安装该扩展，并使用不同 `profileKey` 做隔离。

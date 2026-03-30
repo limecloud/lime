@@ -304,13 +304,24 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     sessionState: runtime.sessionState,
     onMessage,
   });
+  const preferRuntimeLivePresentation =
+    runtime.isExistingSessionProfile &&
+    !runtime.runtimeConnectionError &&
+    Boolean(
+      runtime.sessionState ||
+        runtime.openingSession ||
+        runtime.refreshingState ||
+        runtime.selectedSession,
+    );
+  const showAttachPresentation =
+    shouldUseAttachPresentation && !preferRuntimeLivePresentation;
 
   const currentTitle =
     runtime.sessionState?.last_page_info?.title ||
     runtime.sessionState?.target_title ||
     attachPageInfo?.title ||
     attachProfile?.name ||
-    (shouldUseAttachPresentation ? "附着当前 Chrome" : "未打开会话");
+    (showAttachPresentation ? "附着当前 Chrome" : "未打开会话");
   const currentUrl =
     runtime.sessionState?.last_page_info?.url ||
     runtime.sessionState?.target_url ||
@@ -319,13 +330,13 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     "";
   const statusInfo = useMemo(
     () =>
-      shouldUseAttachPresentation
+      showAttachPresentation
         ? attachPresentation.statusInfo
         : resolveSessionStatus(runtime.sessionState),
     [
       attachPresentation.statusInfo,
       runtime.sessionState,
-      shouldUseAttachPresentation,
+      showAttachPresentation,
     ],
   );
   const hasAttachIntent = Boolean(
@@ -358,7 +369,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     refreshingState: runtime.refreshingState,
     sessionState: runtime.sessionState,
   });
-  const effectiveLiveViewPlaceholder = shouldUseAttachPresentation
+  const effectiveLiveViewPlaceholder = showAttachPresentation
     ? attachPresentation.placeholder
     : liveViewPlaceholder;
   const visibleAuditLogs = useMemo(() => {
@@ -748,7 +759,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
   };
 
   if (embedded) {
-    const embeddedAction = shouldUseAttachPresentation ? (
+    const embeddedAction = showAttachPresentation ? (
       <button
         type="button"
         className={embeddedPrimaryButtonClass}
@@ -837,21 +848,21 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
             type="button"
             className={embeddedIconButtonClass}
             onClick={() =>
-              void (shouldUseAttachPresentation
+              void (showAttachPresentation
                 ? loadAttachContext()
                 : runtime.refreshSessionState())
             }
             disabled={
-              shouldUseAttachPresentation
+              showAttachPresentation
                 ? attachContextLoading
                 : runtime.refreshingState || !runtime.sessionState
             }
-            aria-label={shouldUseAttachPresentation ? "刷新桥接" : "刷新会话"}
-            title={shouldUseAttachPresentation ? "刷新桥接" : "刷新会话"}
+            aria-label={showAttachPresentation ? "刷新桥接" : "刷新会话"}
+            title={showAttachPresentation ? "刷新桥接" : "刷新会话"}
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${
-                shouldUseAttachPresentation
+                showAttachPresentation
                   ? attachContextLoading
                     ? "animate-spin"
                     : ""
@@ -914,7 +925,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
             </div>
           ) : showEmbeddedControlTray ? (
             <div className="absolute bottom-3 left-3 right-3 rounded-full bg-black/55 px-3 py-1.5 text-[11px] text-white/90 backdrop-blur">
-              {shouldUseAttachPresentation
+              {showAttachPresentation
                 ? attachPresentation.embeddedControlHint
                 : runtime.canDirectControl
                   ? "已接管：可以直接点击画面、滚轮滚动，并向当前焦点输入文本。"
@@ -967,7 +978,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
                   {runtime.streaming ? "停止画面" : "恢复画面"}
                 </button>
               ) : null}
-              {shouldUseAttachPresentation ? (
+              {showAttachPresentation ? (
                 <button
                   type="button"
                   className={compactActionButtonClass}
@@ -989,19 +1000,19 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
                   type="button"
                   className={compactActionButtonClass}
                   onClick={() =>
-                    void (shouldUseAttachPresentation
+                    void (showAttachPresentation
                       ? loadAttachPage()
                       : handleOpenSystemBrowser())
                   }
                   disabled={
-                    shouldUseAttachPresentation
+                    showAttachPresentation
                       ? attachPageLoading ||
                         !attachPresentation.observerConnected
                       : !currentUrl
                   }
                 >
                   <Globe className="h-3.5 w-3.5" />
-                  {shouldUseAttachPresentation
+                  {showAttachPresentation
                     ? attachPresentation.pageActionLabel
                     : "在 Chrome 中继续"}
                 </button>
@@ -1053,7 +1064,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
 
             {showAdvanced ? (
               <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
-                {shouldUseAttachPresentation ? (
+                {showAttachPresentation ? (
                   <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
                     <div>{renderAttachFallbackPanel("max-h-[180px]")}</div>
                     <div>{renderAuditPanel("max-h-[180px]")}</div>
@@ -1367,13 +1378,13 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
 
               <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">
                 {runtime.sessionState?.transport_kind ||
-                  (shouldUseAttachPresentation
+                  (showAttachPresentation
                     ? "existing_session"
                     : "cdp_frames")}
               </div>
 
               <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/60 px-3 py-2 text-[11px] text-white/90">
-                {shouldUseAttachPresentation
+                {showAttachPresentation
                   ? attachPresentation.liveViewHint
                   : runtime.canDirectControl
                     ? "当前支持点击画面、滚轮滚动，并把文本发送到当前焦点元素。"
@@ -1383,7 +1394,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {shouldUseAttachPresentation ? (
+            {showAttachPresentation ? (
               <>
                 <button
                   type="button"
@@ -1582,7 +1593,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
           </div>
 
           {showAdvanced ? (
-            shouldUseAttachPresentation ? (
+            showAttachPresentation ? (
               <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
                 <div>{renderAttachFallbackPanel("max-h-[220px]")}</div>
                 <div>{renderAuditPanel("max-h-[220px]")}</div>

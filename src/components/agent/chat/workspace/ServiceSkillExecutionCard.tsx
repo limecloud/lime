@@ -11,7 +11,7 @@ const PHASE_LABELS: Record<SiteSkillExecutionState["phase"], string> = {
   running: "执行中",
   success: "已完成",
   error: "执行失败",
-  blocked: "需要浏览器工作台",
+  blocked: "需要先准备浏览器",
 };
 
 const PHASE_TONE_CLASSES: Record<SiteSkillExecutionState["phase"], string> = {

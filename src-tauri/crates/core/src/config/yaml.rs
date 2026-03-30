@@ -70,13 +70,15 @@ impl ConfigManager {
     ///
     /// 如果文件不存在，返回默认配置
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
-        let config = if path.exists() {
+        let mut config = if path.exists() {
             let content =
                 std::fs::read_to_string(path).map_err(|e| ConfigError::ReadError(e.to_string()))?;
             Self::parse_yaml(&content)?
         } else {
             Config::default()
         };
+        config.normalize_local_server_surface();
+        config.normalize_workspace_preferences();
 
         Ok(Self {
             config,
@@ -110,7 +112,7 @@ impl ConfigManager {
             let backup_path = path.with_extension("yaml.backup");
             let _ = std::fs::copy(path, backup_path);
         }
-        let yaml = Self::to_yaml(&self.config)?;
+        let yaml = Self::to_yaml(&normalized_config_for_persistence(&self.config))?;
         std::fs::write(path, yaml).map_err(|e| ConfigError::WriteError(e.to_string()))
     }
 
@@ -119,6 +121,8 @@ impl ConfigManager {
         let content = std::fs::read_to_string(&self.config_path)
             .map_err(|e| ConfigError::ReadError(e.to_string()))?;
         self.config = Self::parse_yaml(&content)?;
+        self.config.normalize_local_server_surface();
+        self.config.normalize_workspace_preferences();
         Ok(())
     }
 
@@ -238,6 +242,13 @@ impl ConfigManager {
 }
 
 use super::types::{LoggingConfig, RetrySettings, ServerConfig};
+
+fn normalized_config_for_persistence(config: &Config) -> Config {
+    let mut normalized = config.clone();
+    normalized.normalize_local_server_surface();
+    normalized.normalize_workspace_preferences();
+    normalized
+}
 
 impl Default for ConfigManager {
     fn default() -> Self {
@@ -665,6 +676,9 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
         let content = std::fs::read_to_string(&yaml_path)?;
         let mut config: Config = serde_yaml::from_str(&content)?;
         let mut should_save = config.normalize_workspace_preferences();
+        if config.normalize_local_server_surface() {
+            should_save = true;
+        }
         // 如果配置中使用默认 API Key，生成强随机 Key 并保存
         if is_default_api_key(&config.server.api_key) {
             let new_key = generate_secure_api_key();
@@ -685,6 +699,9 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
         let content = std::fs::read_to_string(&json_path)?;
         let mut config: Config = serde_json::from_str(&content)?;
         let mut should_save = config.normalize_workspace_preferences();
+        if config.normalize_local_server_surface() {
+            should_save = true;
+        }
         // 如果配置中使用默认 API Key，生成强随机 Key 并保存
         if is_default_api_key(&config.server.api_key) {
             let new_key = generate_secure_api_key();
@@ -714,21 +731,24 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
 
 /// 保存配置（同时写入 YAML 与 JSON，兼容旧版）
 pub fn save_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let normalized = normalized_config_for_persistence(config);
+
     // 主配置优先写入 YAML
-    save_config_yaml(config)?;
+    save_config_yaml(&normalized)?;
 
     // 兼容旧版 JSON 配置
     let path = json_config_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let content = serde_json::to_string_pretty(config)?;
+    let content = serde_json::to_string_pretty(&normalized)?;
     std::fs::write(&path, content)?;
     Ok(())
 }
 
 /// 保存配置为 YAML 格式
 pub fn save_config_yaml(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let normalized = normalized_config_for_persistence(config);
     let path = ConfigManager::default_config_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -737,7 +757,7 @@ pub fn save_config_yaml(config: &Config) -> Result<(), Box<dyn std::error::Error
         let backup_path = path.with_extension("yaml.backup");
         let _ = std::fs::copy(&path, &backup_path);
     }
-    let content = serde_yaml::to_string(config)?;
+    let content = serde_yaml::to_string(&normalized)?;
     std::fs::write(&path, content)?;
     Ok(())
 }

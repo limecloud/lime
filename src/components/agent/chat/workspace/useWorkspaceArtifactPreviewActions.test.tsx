@@ -9,6 +9,13 @@ vi.mock("../hooks/useArtifactAutoPreviewSync", () => ({
   useArtifactAutoPreviewSync: vi.fn(),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 type HookProps = Parameters<typeof useWorkspaceArtifactPreviewActions>[0];
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
@@ -53,6 +60,7 @@ function renderHook(props?: Partial<HookProps>) {
     sessionFiles: [],
     readSessionFile: vi.fn(async () => null),
     suppressBrowserAssistCanvasAutoOpen: vi.fn(),
+    onOpenBrowserRuntimeForArtifact: undefined,
     upsertGeneralArtifact: vi.fn(),
     setSelectedArtifactId: vi.fn(),
     setArtifactViewMode: vi.fn(),
@@ -143,8 +151,11 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     });
   });
 
-  it("显式打开浏览器协助 artifact 时不应抑制其自动打开", async () => {
+  it("显式打开浏览器协助 artifact 时应改走浏览器工作台入口", async () => {
     const suppressBrowserAssistCanvasAutoOpen = vi.fn();
+    const onOpenBrowserRuntimeForArtifact = vi.fn();
+    const setSelectedArtifactId = vi.fn();
+    const setLayoutMode = vi.fn();
     const artifact = createArtifact({
       id: "browser-assist:general",
       type: "browser_assist",
@@ -157,6 +168,9 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     });
     const { render, getValue } = renderHook({
       suppressBrowserAssistCanvasAutoOpen,
+      onOpenBrowserRuntimeForArtifact,
+      setSelectedArtifactId,
+      setLayoutMode,
     });
 
     await render();
@@ -170,6 +184,9 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     });
 
     expect(suppressBrowserAssistCanvasAutoOpen).not.toHaveBeenCalled();
+    expect(onOpenBrowserRuntimeForArtifact).toHaveBeenCalledWith(artifact);
+    expect(setSelectedArtifactId).not.toHaveBeenCalled();
+    expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
   it("通用模式打开文件预览时应把生成的 artifact 标记为持久项，避免后续同步被清掉", async () => {

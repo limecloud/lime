@@ -43,12 +43,15 @@ import {
   installBrowserConnectorExtension,
   launchBrowserSession,
   openBrowserExtensionsPage,
+  openBrowserRemoteDebuggingPage,
   openBrowserRuntimeDebuggerWindow,
   openChromeProfileWindow,
+  setBrowserActionCapabilityEnabled,
   setBrowserConnectorEnabled,
   setBrowserConnectorInstallRoot,
   setBrowserBackendPolicy,
   setSystemConnectorEnabled,
+  type BrowserActionCapabilitySnapshot,
   type BrowserConnectorInstallStatus,
   type BrowserConnectorSettingsSnapshot,
   type BrowserBackendPolicy,
@@ -102,32 +105,64 @@ const SECTION_TAB_TRIGGER_CLASS_NAME =
   "rounded-full border px-4 py-2 text-sm font-medium";
 const SECTION_TAB_BADGE_CLASS_NAME =
   "inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold";
+const REMOTE_DEBUGGING_URL = "chrome://inspect/#remote-debugging";
 
-const BROWSER_READ_CAPABILITIES = [
-  "列出标签页",
-  "页面快照",
-  "截图",
-  "控制台消息",
-  "网络请求",
-  "页面错误",
-  "等待文本",
+const DEFAULT_EXTENSION_BRIDGE_CAPABILITIES = [
+  "navigate",
+  "read_page",
+  "get_page_text",
+  "find",
+  "computer",
+  "form_input",
+  "tabs_context_mcp",
+  "open_url",
+  "click",
+  "type",
+  "scroll",
+  "scroll_page",
+  "get_page_info",
+  "refresh_page",
+  "go_back",
+  "go_forward",
+  "switch_tab",
+  "list_tabs",
 ];
 
-const BROWSER_WRITE_CAPABILITIES = [
-  "新建标签页",
-  "点击元素",
-  "输入文本",
-  "切换标签页",
-  "关闭标签页",
-  "导航",
-  "按键",
-  "悬停",
-  "滚动",
-  "拖放",
-  "上传文件",
-  "执行脚本",
-  "处理弹窗",
-];
+const READ_BROWSER_CAPABILITY_ACTIONS = new Set([
+  "tabs_context_mcp",
+  "list_tabs",
+  "read_page",
+  "get_page_text",
+  "get_page_info",
+  "find",
+  "read_console_messages",
+  "read_network_requests",
+]);
+
+const BROWSER_CAPABILITY_LABELS: Record<string, string> = {
+  tabs_context_mcp: "标签页概览",
+  list_tabs: "列出标签页",
+  tabs_create_mcp: "新建标签页",
+  navigate: "导航",
+  open_url: "打开链接",
+  read_page: "页面快照",
+  get_page_text: "页面文本",
+  get_page_info: "页面信息",
+  find: "页面内查找",
+  click: "点击元素",
+  type: "输入文本",
+  form_input: "表单输入",
+  switch_tab: "切换标签页",
+  scroll: "滚动页面",
+  scroll_page: "滚动页面",
+  refresh_page: "刷新页面",
+  go_back: "返回上一页",
+  go_forward: "前进到下一页",
+  javascript: "执行脚本",
+  javascript_tool: "执行脚本",
+  read_console_messages: "控制台消息",
+  read_network_requests: "网络请求",
+};
 
 const ENGINE_ORDER: SearchEngine[] = ["google", "xiaohongshu"];
 const ENGINE_DEFINITIONS: Record<SearchEngine, EngineDefinition> = {
@@ -301,6 +336,41 @@ function getSystemConnectorStatusLabel(
   }
 }
 
+function resolveBrowserCapabilityLabel(capability: string) {
+  return BROWSER_CAPABILITY_LABELS[capability.trim().toLowerCase()] ?? null;
+}
+
+function buildBrowserCapabilityGroups(capabilities: string[]) {
+  const read: string[] = [];
+  const write: string[] = [];
+  const seenRead = new Set<string>();
+  const seenWrite = new Set<string>();
+
+  for (const capability of capabilities) {
+    const normalized = capability.trim().toLowerCase();
+    if (!normalized) {
+      continue;
+    }
+    const label = resolveBrowserCapabilityLabel(normalized);
+    if (!label) {
+      continue;
+    }
+    if (READ_BROWSER_CAPABILITY_ACTIONS.has(normalized)) {
+      if (!seenRead.has(label)) {
+        seenRead.add(label);
+        read.push(label);
+      }
+      continue;
+    }
+    if (!seenWrite.has(label)) {
+      seenWrite.add(label);
+      write.push(label);
+    }
+  }
+
+  return { read, write };
+}
+
 export function ChromeRelaySettings() {
   const [activeEngine, setActiveEngine] = useState<SearchEngine>("google");
   const [activeSectionTab, setActiveSectionTab] =
@@ -342,11 +412,17 @@ export function ChromeRelaySettings() {
   const [installingConnector, setInstallingConnector] = useState(false);
   const [savingConnectorEnabled, setSavingConnectorEnabled] = useState(false);
   const [openingExtensionsPage, setOpeningExtensionsPage] = useState(false);
+  const [openingRemoteDebuggingPage, setOpeningRemoteDebuggingPage] =
+    useState(false);
   const [openingInstallDirectory, setOpeningInstallDirectory] = useState(false);
   const [disconnectingConnector, setDisconnectingConnector] = useState(false);
   const [updatingSystemConnectorId, setUpdatingSystemConnectorId] = useState<
     string | null
   >(null);
+  const [
+    updatingBrowserActionCapabilityKey,
+    setUpdatingBrowserActionCapabilityKey,
+  ] = useState<string | null>(null);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -844,6 +920,45 @@ export function ChromeRelaySettings() {
     }
   }, [pushMessage]);
 
+  const copyPlainText = useCallback(
+    async (text: string, label: string) => {
+      try {
+        if (!navigator.clipboard?.writeText) {
+          throw new Error("当前环境不支持剪贴板写入");
+        }
+        await navigator.clipboard.writeText(text);
+        pushMessage({
+          type: "success",
+          text: `${label} 已复制到剪贴板`,
+        });
+      } catch (error) {
+        pushMessage({
+          type: "error",
+          text: `复制 ${label} 失败: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      }
+    },
+    [pushMessage],
+  );
+
+  const handleOpenRemoteDebuggingPage = useCallback(async () => {
+    try {
+      setOpeningRemoteDebuggingPage(true);
+      await openBrowserRemoteDebuggingPage();
+    } catch (error) {
+      pushMessage({
+        type: "error",
+        text: `打开 Chrome 远程调试页失败: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    } finally {
+      setOpeningRemoteDebuggingPage(false);
+    }
+  }, [pushMessage]);
+
   const handleDisconnectBrowserConnector = useCallback(async () => {
     try {
       setDisconnectingConnector(true);
@@ -916,6 +1031,36 @@ export function ChromeRelaySettings() {
       }
     },
     [pushMessage],
+  );
+
+  const handleSetBrowserActionCapabilityEnabled = useCallback(
+    async (key: string, enabled: boolean) => {
+      try {
+        setUpdatingBrowserActionCapabilityKey(key);
+        const next = await setBrowserActionCapabilityEnabled({ key, enabled });
+        setBrowserConnectorSettings(next);
+        await refreshBackendStatus(true);
+        const updatedCapability = next.browser_action_capabilities?.find(
+          (capability) => capability.key === key,
+        );
+        pushMessage({
+          type: "success",
+          text: updatedCapability
+            ? `${updatedCapability.label} 已${enabled ? "开启" : "关闭"}`
+            : `浏览器动作已${enabled ? "开启" : "关闭"}`,
+        });
+      } catch (error) {
+        pushMessage({
+          type: "error",
+          text: `更新浏览器动作配置失败: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      } finally {
+        setUpdatingBrowserActionCapabilityKey(null);
+      }
+    },
+    [pushMessage, refreshBackendStatus],
   );
 
   const copyBridgeConfig = useCallback(
@@ -1134,6 +1279,23 @@ export function ChromeRelaySettings() {
     }),
     [backendsStatus, bridgeStatus],
   );
+  const extensionBridgeCapabilityGroups = useMemo(() => {
+    const extensionBridgeStatus = backendStatusList.find(
+      (item) => item.backend === "lime_extension_bridge",
+    );
+    const capabilitySource =
+      extensionBridgeStatus?.capabilities?.length
+        ? extensionBridgeStatus.capabilities
+        : DEFAULT_EXTENSION_BRIDGE_CAPABILITIES;
+    return buildBrowserCapabilityGroups(capabilitySource);
+  }, [backendStatusList]);
+  const browserActionCapabilityGroups = useMemo(() => {
+    const items = browserConnectorSettings?.browser_action_capabilities ?? [];
+    return {
+      read: items.filter((item) => item.group === "read"),
+      write: items.filter((item) => item.group === "write"),
+    };
+  }, [browserConnectorSettings?.browser_action_capabilities]);
 
   const renderProfilePanel = (keyPrefix = "") => (
     <SurfacePanel
@@ -1791,6 +1953,8 @@ export function ChromeRelaySettings() {
           ? "安装异常"
           : "未安装";
   const connectorEnabled = browserConnectorSettings?.enabled ?? true;
+  const hasControlConnected = runtimeSummary.controlCount > 0;
+  const hasCdpDirectAvailable = runtimeSummary.cdpAliveProfiles > 0;
   const visibleSystemConnectors = (browserConnectorSettings?.system_connectors ?? [])
     .filter((item) => item.visible !== false);
   const shouldShowSystemConnectors = visibleSystemConnectors.length > 0;
@@ -1959,6 +2123,13 @@ export function ChromeRelaySettings() {
               <StatusPill tone={connectorEnabled ? "success" : "neutral"}>
                 {connectorEnabled ? "连接器已开启" : "连接器已关闭"}
               </StatusPill>
+              <StatusPill
+                tone={runtimeSummary.controlCount > 0 ? "success" : "warning"}
+              >
+                {runtimeSummary.controlCount > 0
+                  ? `控制已接入 ${runtimeSummary.controlCount}`
+                  : "等待控制通道"}
+              </StatusPill>
             </div>
           </div>
 
@@ -1975,9 +2146,13 @@ export function ChromeRelaySettings() {
                 </div>
                 <p className="text-sm leading-6 text-slate-500">
                   {hasObserverConnected
-                    ? `当前已接入 ${runtimeSummary.observerCount} 个 observer，Lime 可以读取页面信息并下发基础控制命令。`
+                    ? `当前已接入 ${runtimeSummary.observerCount} 个 observer、${runtimeSummary.controlCount} 个 control，Lime 可以复用当前 Chrome 标签页并验证桥接闭环。`
                     : browserConnectorInstallStatus?.message ||
                       "先导出浏览器连接器到用户目录，再在 Chrome 扩展页加载已解压目录。"}
+                </p>
+                <p className="text-xs leading-5 text-slate-400">
+                  QoderWork 扩展本身负责 `chrome.debugger` / `chrome.tabs`
+                  中继；下面展示的是 Lime 当前在扩展桥接后端已经封装完成的动作。
                 </p>
                 {hasObserverConnected ? (
                   <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3 text-sm leading-6 text-emerald-700">
@@ -1994,7 +2169,7 @@ export function ChromeRelaySettings() {
                       读取
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {BROWSER_READ_CAPABILITIES.map((capability) => (
+                      {extensionBridgeCapabilityGroups.read.map((capability) => (
                         <div
                           key={`read-${capability}`}
                           className="inline-flex items-center gap-2 text-sm text-slate-600"
@@ -2013,7 +2188,7 @@ export function ChromeRelaySettings() {
                       写入
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {BROWSER_WRITE_CAPABILITIES.map((capability) => (
+                      {extensionBridgeCapabilityGroups.write.map((capability) => (
                         <div
                           key={`write-${capability}`}
                           className="inline-flex items-center gap-2 text-sm text-slate-600"
@@ -2025,6 +2200,202 @@ export function ChromeRelaySettings() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {browserActionCapabilityGroups.read.length > 0 ||
+            browserActionCapabilityGroups.write.length > 0 ? (
+              <div className="rounded-[22px] border border-slate-200/80 bg-white/90 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-slate-900">
+                    动作配置
+                  </p>
+                  <p className="text-sm leading-6 text-slate-500">
+                    关闭某项后，Lime 会在真正发起浏览器动作前直接拦截，
+                    不再把该动作分发到扩展桥接或 CDP 后端。
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {[
+                    {
+                      title: "读取权限",
+                      items: browserActionCapabilityGroups.read,
+                    },
+                    {
+                      title: "写入权限",
+                      items: browserActionCapabilityGroups.write,
+                    },
+                  ].map((section) => (
+                    <div
+                      key={section.title}
+                      className="rounded-[18px] border border-slate-200/80 bg-slate-50/70 p-3"
+                    >
+                      <p className="text-xs font-semibold tracking-[0.12em] text-slate-500">
+                        {section.title}
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {section.items.map(
+                          (capability: BrowserActionCapabilitySnapshot) => (
+                            <div
+                              key={capability.key}
+                              className="flex items-start justify-between gap-3 rounded-[16px] border border-slate-200/80 bg-white px-3 py-2.5"
+                            >
+                              <div className="min-w-0 space-y-1">
+                                <p className="text-sm font-medium text-slate-900">
+                                  {capability.label}
+                                </p>
+                                <p className="text-xs leading-5 text-slate-500">
+                                  {capability.description}
+                                </p>
+                              </div>
+                              <Switch
+                                aria-label={`切换${capability.label}`}
+                                checked={capability.enabled}
+                                disabled={
+                                  updatingBrowserActionCapabilityKey ===
+                                  capability.key
+                                }
+                                onCheckedChange={(checked) =>
+                                  void handleSetBrowserActionCapabilityEnabled(
+                                    capability.key,
+                                    checked,
+                                  )
+                                }
+                              />
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-900">连接方式</p>
+                <p className="text-sm leading-6 text-slate-500">
+                  对齐 Accio 的两条主线说明，但保持 Lime 当前执行边界不变：
+                  复用已登录 Chrome 优先走扩展桥接，临时调试与人工接管优先走 CDP。
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <div className="rounded-[20px] border border-emerald-200 bg-emerald-50/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        浏览器扩展
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        安装一次，长期自动连接。适合稳定复用当前登录态与真实页面上下文。
+                      </p>
+                    </div>
+                    <StatusPill
+                      tone={hasObserverConnected && hasControlConnected ? "success" : "warning"}
+                    >
+                      {hasObserverConnected && hasControlConnected
+                        ? "推荐"
+                        : "待完成"}
+                    </StatusPill>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm text-slate-600">
+                    <p>1. 打开 `chrome://extensions` 并开启开发者模式。</p>
+                    <p>2. 加载已解压目录 `Lime Browser Connector`。</p>
+                    <p>3. 在扩展弹窗确认 observer / control 都已接入。</p>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenBrowserExtensionsPage()}
+                      disabled={openingExtensionsPage}
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <Link2 className="h-4 w-4" />
+                      {openingExtensionsPage ? "打开中..." : "打开扩展页"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyPlainText("chrome://extensions", "chrome://extensions")
+                      }
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <Copy className="h-4 w-4" />
+                      复制扩展页地址
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-sky-200 bg-sky-50/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        CDP 直连
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        零扩展，适合临时调试、实时画面观察和人工接管。当前 Lime 仍以可复用 CDP 会话为主。
+                      </p>
+                    </div>
+                    <StatusPill tone={hasCdpDirectAvailable ? "success" : "warning"}>
+                      {hasCdpDirectAvailable ? "已就绪" : "待接入"}
+                    </StatusPill>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm text-slate-600">
+                    <p>1. 打开 `chrome://inspect/#remote-debugging`。</p>
+                    <p>2. 按需开启远程调试，并允许本地调试连接。</p>
+                    <p>3. 回到 Lime 使用“打开独立调试窗口”或实时调试面板验证会话。</p>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenRemoteDebuggingPage()}
+                      disabled={openingRemoteDebuggingPage}
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {openingRemoteDebuggingPage ? "打开中..." : "打开远程调试页"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyPlainText(
+                          REMOTE_DEBUGGING_URL,
+                          "chrome://inspect/#remote-debugging",
+                        )
+                      }
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <Copy className="h-4 w-4" />
+                      复制远程调试地址
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[20px] border border-slate-200/80 bg-white/90 p-4">
+                <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+                  <div>
+                    <p className="font-medium text-slate-900">初始设置</p>
+                    <p className="mt-1 leading-6">
+                      扩展方式要安装一次；CDP 方式要在 Chrome 中显式开启远程调试。
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">重启后行为</p>
+                    <p className="mt-1 leading-6">
+                      扩展会自动重连；CDP 直连通常需要重新确认调试连接或重新建立会话。
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">推荐场景</p>
+                    <p className="mt-1 leading-6">
+                      站点技能、资料采集优先扩展；页面调试、人工接管优先 CDP。
+                    </p>
                   </div>
                 </div>
               </div>

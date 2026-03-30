@@ -99,6 +99,14 @@ pub fn get_browser_profile(
     BrowserProfileDao::get_by_id(conn, id).map_err(|error| format!("读取浏览器资料失败: {error}"))
 }
 
+pub fn get_browser_profile_by_key(
+    conn: &Connection,
+    profile_key: &str,
+) -> Result<Option<BrowserProfileRecord>, String> {
+    BrowserProfileDao::get_by_profile_key(conn, profile_key)
+        .map_err(|error| format!("读取浏览器资料失败: {error}"))
+}
+
 pub fn save_browser_profile(
     conn: &Connection,
     input: SaveBrowserProfileInput,

@@ -327,12 +327,15 @@ async fn execute_aster_chat_request(
         }
     }
     ensure_tool_search_tool_registered(state).await?;
+    let request_session_id = request.session_id.clone();
+    let mcp_runtime_prepare_future = async {
+        let (_start_ok, start_fail) = ensure_lime_mcp_servers_running(db, mcp_manager).await;
+        let (_mcp_ok, mcp_fail) = inject_mcp_extensions(state, mcp_manager).await;
+        (start_fail, mcp_fail)
+    };
+    let session_recent_runtime_context_future =
+        resolve_session_recent_runtime_context(&request_session_id);
 
-    if let Some(resolved_provider_config) =
-        resolve_runtime_request_provider_config(app, db, api_key_provider_service, &request).await?
-    {
-        request.provider_config = Some(resolved_provider_config);
-    }
     let should_resolve_session_recent_harness_context = extract_harness_string(
         request.metadata.as_ref(),
         &["theme", "harness_theme", "harnessTheme"],
@@ -348,11 +351,22 @@ async fn execute_aster_chat_request(
         .is_none()
         || extract_harness_string(request.metadata.as_ref(), &["content_id", "contentId"])
             .is_none();
-    let session_recent_harness_context = if should_resolve_session_recent_harness_context {
-        resolve_session_recent_harness_context(&request.session_id).await?
-    } else {
-        SessionRecentHarnessContext::default()
+    let provider_config_future =
+        resolve_runtime_request_provider_config(app, db, api_key_provider_service, &request);
+    let session_recent_harness_context_future = async {
+        if should_resolve_session_recent_harness_context {
+            resolve_session_recent_harness_context(&request.session_id).await
+        } else {
+            Ok(SessionRecentHarnessContext::default())
+        }
     };
+    let (resolved_provider_config, session_recent_harness_context) = tokio::try_join!(
+        provider_config_future,
+        session_recent_harness_context_future
+    )?;
+    if let Some(resolved_provider_config) = resolved_provider_config {
+        request.provider_config = Some(resolved_provider_config);
+    }
     normalize_runtime_turn_request_metadata(
         &mut request,
         session_recent_harness_context.theme.as_deref(),
@@ -464,16 +478,17 @@ async fn execute_aster_chat_request(
             session_state_snapshot.with_working_dir(Some(workspace_root.clone()));
     }
 
-    // 启动并注入 MCP extensions 到 Aster Agent
-    let (_start_ok, start_fail) = ensure_lime_mcp_servers_running(db, mcp_manager).await;
+    let ((start_fail, mcp_fail), session_recent_runtime_context) = tokio::join!(
+        mcp_runtime_prepare_future,
+        session_recent_runtime_context_future
+    );
+
     if start_fail > 0 {
         tracing::warn!(
             "[AsterAgent] 部分 MCP server 自动启动失败 ({} 失败)，后续可用工具可能不完整",
             start_fail
         );
     }
-
-    let (_mcp_ok, mcp_fail) = inject_mcp_extensions(state, mcp_manager).await;
     if mcp_fail > 0 {
         tracing::warn!(
             "[AsterAgent] 部分 MCP extension 注入失败 ({} 失败)，Agent 可能无法使用某些 MCP 工具",
@@ -481,8 +496,10 @@ async fn execute_aster_chat_request(
         );
     }
 
-    let session_recent_preferences = resolve_session_recent_preferences(session_id).await?;
-    let session_recent_team_selection = resolve_session_recent_team_selection(session_id).await?;
+    let SessionRecentRuntimeContext {
+        preferences: session_recent_preferences,
+        team_selection: session_recent_team_selection,
+    } = session_recent_runtime_context?;
     let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
     let mode_default_web_search = default_web_search_enabled_for_chat_mode(runtime_chat_mode);
     let resolved_request_web_search = resolve_request_web_search_preference_from_sources(
@@ -639,8 +656,17 @@ async fn execute_aster_chat_request(
         prompt_with_artifact.clone(),
     );
 
-    let prompt_with_elicitation = merge_system_prompt_with_elicitation_context(
+    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
         prompt_with_artifact,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ServiceSkillLaunch,
+        prompt_with_service_skill_launch.clone(),
+    );
+
+    let prompt_with_elicitation = merge_system_prompt_with_elicitation_context(
+        prompt_with_service_skill_launch,
         request.metadata.as_ref(),
     );
     turn_input_builder.apply_prompt_stage(
@@ -863,6 +889,18 @@ async fn execute_aster_chat_request(
     let auto_continue_metadata = auto_continue_config.clone();
     let request_metadata = request.metadata.clone();
     sync_browser_assist_runtime_hint(session_id, request_metadata.as_ref()).await;
+    let service_skill_preload =
+        preload_service_skill_launch_execution(db, request_metadata.as_ref())
+            .await
+            .map_err(|error| format!("站点技能预执行失败: {error}"))?;
+    let system_prompt = merge_system_prompt_with_service_skill_launch_preload(
+        system_prompt,
+        service_skill_preload.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ServiceSkillLaunchPreload,
+        system_prompt.clone(),
+    );
     let model_skill_tool_enabled = should_enable_model_skill_tool(request_metadata.as_ref());
     let run_observation = Arc::new(Mutex::new(ChatRunObservation::default()));
     let run_observation_for_finalize = run_observation.clone();
@@ -942,6 +980,22 @@ async fn execute_aster_chat_request(
     }
     if let Ok(turn_input_value) = serde_json::to_value(&turn_input_diagnostics) {
         run_start_metadata.insert("turn_input".to_string(), turn_input_value);
+    }
+    if let Some(preload) = service_skill_preload.as_ref() {
+        run_start_metadata.insert(
+            "service_skill_launch_preload".to_string(),
+            serde_json::json!({
+                "executed": true,
+                "adapter_name": preload.request.adapter_name,
+                "ok": preload.result.ok,
+                "error_code": preload.result.error_code,
+                "saved_content_id": preload
+                    .result
+                    .saved_content
+                    .as_ref()
+                    .map(|content| content.content_id.clone()),
+            }),
+        );
     }
     let run_start_metadata_for_finalize = run_start_metadata.clone();
     let timeline_recorder = Arc::new(Mutex::new(AgentTimelineRecorder::create(
@@ -2091,6 +2145,90 @@ mod tests {
                 .and_then(Value::as_str),
             Some("stage2")
         );
+    }
+
+    #[test]
+    fn service_skill_launch_stage_should_preserve_simple_user_message_and_force_site_run_first() {
+        let user_message = "请帮我使用 GitHub 查一下 AI Agent 项目";
+        let metadata = json!({
+            "harness": {
+                "browser_assist": {
+                    "enabled": true,
+                    "profile_key": "attached-github",
+                },
+                "service_skill_launch": {
+                    "kind": "site_adapter",
+                    "skill_title": "GitHub 仓库线索检索",
+                    "adapter_name": "github/search",
+                    "args": {
+                        "query": "AI Agent",
+                        "limit": 10
+                    },
+                    "save_mode": "current_content",
+                    "content_id": "content-1",
+                    "project_id": "project-1",
+                    "launch_readiness": {
+                        "status": "ready",
+                        "message": "已检测到 github.com 的真实浏览器页面。",
+                        "target_id": "tab-github"
+                    }
+                }
+            }
+        });
+
+        let prompt_with_web_search =
+            Some("基础系统提示\n- 如果需要可使用 WebSearch 补充信息。".to_string());
+        let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+            prompt_with_web_search.clone(),
+            Some(&metadata),
+        )
+        .expect("service skill prompt");
+
+        let mut turn_input_builder =
+            TurnInputEnvelopeBuilder::new("session-service-skill", "workspace-service-skill");
+        turn_input_builder
+            .set_base_system_prompt(
+                TurnSystemPromptSource::Frontend,
+                Some("基础系统提示".to_string()),
+            )
+            .set_turn_context_metadata_from_value(Some(&metadata))
+            .set_effective_user_message(user_message)
+            .apply_prompt_stage(
+                TurnPromptAugmentationStageKind::WebSearch,
+                prompt_with_web_search,
+            )
+            .apply_prompt_stage(
+                TurnPromptAugmentationStageKind::ServiceSkillLaunch,
+                Some(prompt_with_service_skill_launch.clone()),
+            );
+
+        let envelope = turn_input_builder.build();
+        let diagnostics = envelope.diagnostics_snapshot();
+        let final_prompt = envelope.system_prompt().expect("final prompt");
+        let service_skill_stage = diagnostics
+            .prompt_augmentation_stages
+            .iter()
+            .find(|stage| stage.stage == TurnPromptAugmentationStageKind::ServiceSkillLaunch)
+            .expect("service skill stage");
+
+        assert_eq!(
+            diagnostics.effective_user_message_len,
+            user_message.chars().count()
+        );
+        assert!(diagnostics.has_turn_context_metadata);
+        assert!(diagnostics
+            .turn_context_metadata_keys
+            .contains(&"harness".to_string()));
+        assert!(service_skill_stage.changed);
+        assert!(final_prompt.contains(SERVICE_SKILL_LAUNCH_PROMPT_MARKER));
+        assert!(final_prompt.contains("第一步优先调用 lime_site_run"));
+        assert!(final_prompt.contains("不要先用 WebSearch、research、webReader"));
+        assert!(final_prompt.contains("不要直接调用 mcp__lime-browser__browser_navigate"));
+        assert!(final_prompt.contains("第一工具调用示例(lime_site_run 参数 JSON)"));
+        assert!(final_prompt.contains("profile_key=attached-github"));
+        assert!(final_prompt.contains("target_id=tab-github"));
+        assert!(final_prompt.contains("\"adapter_name\":\"github/search\""));
+        assert!(final_prompt.contains("attached_session_required、no_matching_context"));
     }
 
     #[test]

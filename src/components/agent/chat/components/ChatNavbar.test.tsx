@@ -196,11 +196,11 @@ describe("ChatNavbar", () => {
     });
 
     const button = container.querySelector(
-      'button[aria-label="在右侧画布打开浏览器协助"]',
+      'button[aria-label="打开浏览器工作台"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
-    expect(button?.textContent).toContain("浏览器协助");
+    expect(button?.textContent).toContain("浏览器工作台");
 
     act(() => {
       button?.click();
@@ -216,7 +216,7 @@ describe("ChatNavbar", () => {
     });
 
     const button = container.querySelector(
-      'button[aria-label="在右侧画布打开浏览器协助"]',
+      'button[aria-label="打开浏览器工作台"]',
     ) as HTMLButtonElement | null;
 
     expect(button?.textContent).toContain("等待登录");
@@ -230,7 +230,7 @@ describe("ChatNavbar", () => {
     });
 
     const button = container.querySelector(
-      'button[aria-label="恢复浏览器协助"]',
+      'button[aria-label="恢复浏览器工作台"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
@@ -247,7 +247,7 @@ describe("ChatNavbar", () => {
     });
 
     const button = container.querySelector(
-      'button[aria-label="查看浏览器启动状态"]',
+      'button[aria-label="查看浏览器工作台状态"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();

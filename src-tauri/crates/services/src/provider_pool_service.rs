@@ -18,7 +18,6 @@ use lime_core::models::provider_pool_model::{
     HealthCheckResult, OAuthStatus, PoolProviderType, PoolStats, ProviderCredential,
     ProviderPoolOverview,
 };
-use lime_core::models::route_model::RouteInfo;
 use lime_providers::providers::antigravity::TokenRefreshError;
 use lime_providers::providers::kiro::KiroProvider;
 use reqwest::Client;
@@ -157,6 +156,16 @@ impl ProviderPoolService {
         }
 
         Ok(credentials.iter().map(|c| c.into()).collect())
+    }
+
+    /// 获取指定 UUID 的凭证
+    pub fn get_by_uuid(
+        &self,
+        db: &DbConnection,
+        uuid: &str,
+    ) -> Result<Option<ProviderCredential>, String> {
+        let conn = lime_core::database::lock_db(db)?;
+        ProviderPoolDao::get_by_uuid(&conn, uuid).map_err(|e| e.to_string())
     }
 
     /// 添加凭证
@@ -1710,75 +1719,6 @@ impl ProviderPoolService {
         } else {
             Err(format!("HTTP {}", response.status()))
         }
-    }
-
-    /// 根据名称获取凭证
-    pub fn get_by_name(
-        &self,
-        db: &DbConnection,
-        name: &str,
-    ) -> Result<Option<ProviderCredential>, String> {
-        let conn = lime_core::database::lock_db(db)?;
-        ProviderPoolDao::get_by_name(&conn, name).map_err(|e| e.to_string())
-    }
-
-    /// 根据 UUID 获取凭证
-    pub fn get_by_uuid(
-        &self,
-        db: &DbConnection,
-        uuid: &str,
-    ) -> Result<Option<ProviderCredential>, String> {
-        let conn = lime_core::database::lock_db(db)?;
-        ProviderPoolDao::get_by_uuid(&conn, uuid).map_err(|e| e.to_string())
-    }
-
-    /// 获取所有可用的路由端点
-    pub fn get_available_routes(
-        &self,
-        db: &DbConnection,
-        base_url: &str,
-    ) -> Result<Vec<RouteInfo>, String> {
-        let conn = lime_core::database::lock_db(db)?;
-        let grouped = ProviderPoolDao::get_grouped(&conn).map_err(|e| e.to_string())?;
-        drop(conn);
-
-        let mut routes = Vec::new();
-
-        // 为每种 Provider 类型创建路由
-        for (provider_type, credentials) in &grouped {
-            let available: Vec<_> = credentials.iter().filter(|c| c.is_available()).collect();
-            if available.is_empty() {
-                continue;
-            }
-
-            // Provider 类型路由 (轮询)
-            let mut route = RouteInfo::new(provider_type.to_string(), provider_type.to_string());
-            route.credential_count = available.len();
-            route.add_endpoint(base_url, "claude");
-            route.add_endpoint(base_url, "openai");
-            route.tags.push("轮询".to_string());
-            routes.push(route);
-        }
-
-        // 为每个命名凭证创建路由
-        for credentials in grouped.values() {
-            for cred in credentials {
-                if let Some(name) = &cred.name {
-                    if cred.is_available() {
-                        let mut route =
-                            RouteInfo::new(name.clone(), cred.provider_type.to_string());
-                        route.credential_count = 1;
-                        route.enabled = !cred.is_disabled;
-                        route.add_endpoint(base_url, "claude");
-                        route.add_endpoint(base_url, "openai");
-                        route.tags.push("指定凭证".to_string());
-                        routes.push(route);
-                    }
-                }
-            }
-        }
-
-        Ok(routes)
     }
 
     /// 获取 OAuth 凭证状态

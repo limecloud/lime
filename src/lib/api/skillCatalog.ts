@@ -8,12 +8,7 @@ import {
   type ServiceSkillExecutorBinding,
   type ServiceSkillItem,
   type ServiceSkillSiteCapabilityBinding,
-  type ServiceSkillSlotDefinition,
 } from "./serviceSkills";
-import {
-  siteListAdapters,
-  type SiteAdapterDefinition,
-} from "../webview-api";
 
 export type SkillCatalogExecutionKind =
   | "native_skill"
@@ -130,25 +125,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     sort: 90,
   },
 ] as const;
-const SEEDED_SKILL_CATALOG_VERSION = "client-seed-skill-catalog-2026-03-29";
-const SITE_ADAPTER_TITLE_OVERRIDES: Record<string, string> = {
-  "36kr/newsflash": "36Kr 快讯追踪",
-  "bilibili/search": "Bilibili 视频检索",
-  "github/issues": "GitHub Issue 检索",
-  "github/search": "GitHub 仓库检索",
-  "linux-do/categories": "Linux.do 分类扫描",
-  "linux-do/hot": "Linux.do 热门话题",
-  "smzdm/search": "什么值得买线索检索",
-  "yahoo-finance/quote": "Yahoo Finance 行情摘要",
-};
-const SITE_ADAPTER_ARG_LABEL_OVERRIDES: Record<string, string> = {
-  query: "检索词",
-  limit: "条目上限",
-  repo: "仓库",
-  state: "状态",
-  symbol: "股票代码",
-  period: "时间周期",
-};
+const SEEDED_SKILL_CATALOG_VERSION = "client-seed-skill-catalog-2026-03-30";
 const SITE_GROUP_TITLE_OVERRIDES: Record<string, string> = {
   github: "GitHub",
   zhihu: "知乎",
@@ -270,14 +247,6 @@ function resolveAdapterGroupKey(adapterName?: string | null): string {
   return prefix || "general";
 }
 
-function normalizeSiteAdapterId(adapterName: string): string {
-  return `site-adapter-${adapterName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")}`;
-}
-
 function titleCaseSegment(value: string): string {
   if (!value) {
     return value;
@@ -298,266 +267,6 @@ function resolveGroupTitle(groupKey: string): string {
 
 function resolveKnownGroupPreset(groupKey: string) {
   return SEEDED_SKILL_GROUP_PRESETS.find((preset) => preset.key === groupKey);
-}
-
-function sanitizeSentence(value: string, fallback: string): string {
-  const normalized = value.trim();
-  if (!normalized) {
-    return fallback;
-  }
-  return /[。！？.!?]$/.test(normalized) ? normalized : `${normalized}。`;
-}
-
-function resolveSiteAdapterTitle(adapter: SiteAdapterDefinition): string {
-  const normalizedName = adapter.name.trim().toLowerCase();
-  if (SITE_ADAPTER_TITLE_OVERRIDES[normalizedName]) {
-    return SITE_ADAPTER_TITLE_OVERRIDES[normalizedName]!;
-  }
-
-  const groupTitle = resolveGroupTitle(resolveAdapterGroupKey(adapter.name));
-  const action = normalizedName.split("/")[1] ?? normalizedName;
-  return `${groupTitle} ${action
-    .split(/[-_]/)
-    .map(titleCaseSegment)
-    .join(" ")}`;
-}
-
-function resolveSiteAdapterCategory(adapter: SiteAdapterDefinition): string {
-  const capabilities = adapter.capabilities.map((item) => item.toLowerCase());
-  if (capabilities.includes("video")) {
-    return "视频研究";
-  }
-  if (capabilities.includes("finance") || capabilities.includes("quote")) {
-    return "财经研究";
-  }
-  if (capabilities.includes("shopping") || capabilities.includes("deals")) {
-    return "消费研究";
-  }
-  if (capabilities.includes("community") || capabilities.includes("topics")) {
-    return "社区研究";
-  }
-  return "情报研究";
-}
-
-function resolveSiteAdapterOutputHint(adapter: SiteAdapterDefinition): string {
-  const capabilities = adapter.capabilities.map((item) => item.toLowerCase());
-  if (capabilities.includes("video")) {
-    return "视频线索 + 结构化结果";
-  }
-  if (capabilities.includes("finance") || capabilities.includes("quote")) {
-    return "行情摘要 + 结构化结果";
-  }
-  if (capabilities.includes("newsflash")) {
-    return "快讯列表 + 结构化结果";
-  }
-  if (capabilities.includes("categories")) {
-    return "分类列表 + 结构化结果";
-  }
-  if (capabilities.includes("topics") || capabilities.includes("hot")) {
-    return "热门话题 + 结构化结果";
-  }
-  return "结构化线索";
-}
-
-function resolveSiteAdapterThemeTarget(adapter: SiteAdapterDefinition): string {
-  const capabilities = adapter.capabilities.map((item) => item.toLowerCase());
-  if (capabilities.includes("video")) {
-    return "video";
-  }
-  return "knowledge";
-}
-
-function resolveSiteAdapterAliases(adapter: SiteAdapterDefinition): string[] {
-  const siteTitle = resolveGroupTitle(resolveAdapterGroupKey(adapter.name));
-  return [
-    adapter.name,
-    adapter.domain,
-    siteTitle,
-    ...adapter.capabilities,
-  ].filter((value, index, array) => value && array.indexOf(value) === index);
-}
-
-function resolveSiteAdapterEntryHint(adapter: SiteAdapterDefinition): string {
-  const siteTitle = resolveGroupTitle(resolveAdapterGroupKey(adapter.name));
-  const authHint = normalizeText(adapter.auth_hint);
-  if (authHint) {
-    return authHint;
-  }
-  return sanitizeSentence(
-    `复用你当前浏览器里的 ${siteTitle} 上下文，直接执行一轮站点采集并把结果回流到当前工作区`,
-    `复用你当前浏览器里的 ${siteTitle} 上下文，直接执行一轮站点采集并把结果回流到当前工作区。`,
-  );
-}
-
-function resolveSiteAdapterSetupRequirements(
-  adapter: SiteAdapterDefinition,
-): string[] {
-  const siteTitle = resolveGroupTitle(resolveAdapterGroupKey(adapter.name));
-  const requirements = [
-    `需要浏览器里已有 ${siteTitle} 可用会话。`,
-    "建议在目标项目内启动，方便采集结果继续沉淀到当前工作区。",
-  ];
-  const authHint = normalizeText(adapter.auth_hint);
-  if (authHint) {
-    requirements.unshift(sanitizeSentence(authHint, authHint));
-  }
-  return requirements.filter(
-    (value, index, array) => array.indexOf(value) === index,
-  );
-}
-
-function resolveSiteAdapterUsageGuidelines(
-  adapter: SiteAdapterDefinition,
-): string[] {
-  return [
-    sanitizeSentence(adapter.description, "适合先采集一轮站点结果。"),
-    "优先补齐最关键的检索参数，再进入当前工作区继续分析和整理。",
-  ];
-}
-
-function resolveSiteAdapterExamples(adapter: SiteAdapterDefinition): string[] {
-  const example = normalizeText(adapter.example);
-  return example ? [example] : [];
-}
-
-function resolveSiteAdapterOutputDestination(): string {
-  return "结果会优先写回当前内容；如果当前内容不可用，再沉淀为项目资源。";
-}
-
-function resolveSiteAdapterArgLabel(argName: string, description?: string): string {
-  if (SITE_ADAPTER_ARG_LABEL_OVERRIDES[argName]) {
-    return SITE_ADAPTER_ARG_LABEL_OVERRIDES[argName]!;
-  }
-  const normalizedDescription = normalizeText(description);
-  if (normalizedDescription && normalizedDescription.length <= 12) {
-    return normalizedDescription;
-  }
-  return argName
-    .split(/[_-]/)
-    .map(titleCaseSegment)
-    .join(" ");
-}
-
-function stringifySiteAdapterDefaultValue(value: unknown): string | undefined {
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return String(value);
-  }
-  return undefined;
-}
-
-function buildSiteAdapterSlotSchema(
-  adapter: SiteAdapterDefinition,
-): ServiceSkillSlotDefinition[] {
-  const schema = isPlainRecord(adapter.input_schema) ? adapter.input_schema : null;
-  const properties = isPlainRecord(schema?.properties) ? schema.properties : null;
-  const requiredSet = new Set(
-    Array.isArray(schema?.required)
-      ? schema.required.filter((item): item is string => typeof item === "string")
-      : [],
-  );
-  const exampleArgs = isPlainRecord(adapter.example_args) ? adapter.example_args : {};
-  const keys = properties
-    ? Object.keys(properties)
-    : Object.keys(exampleArgs);
-
-  return keys.map((key) => {
-    const property = properties && isPlainRecord(properties[key]) ? properties[key] : null;
-    const description = normalizeText(property?.description);
-    const example =
-      property?.example !== undefined ? property.example : exampleArgs[key];
-    const slotType =
-      /url|link/i.test(key) || /链接|地址/.test(description ?? "")
-        ? "url"
-        : "text";
-
-    return {
-      key,
-      label: resolveSiteAdapterArgLabel(key, description ?? undefined),
-      type: slotType,
-      required: requiredSet.has(key),
-      placeholder:
-        description ?? `输入${resolveSiteAdapterArgLabel(key, description ?? undefined)}`,
-      defaultValue: stringifySiteAdapterDefaultValue(example),
-      helpText: description ?? undefined,
-    };
-  });
-}
-
-function buildSiteAdapterSlotArgMap(
-  slotSchema: ServiceSkillSlotDefinition[],
-): Record<string, string> | undefined {
-  if (slotSchema.length === 0) {
-    return undefined;
-  }
-
-  return slotSchema.reduce<Record<string, string>>((acc, slot) => {
-    acc[slot.key] = slot.key;
-    return acc;
-  }, {});
-}
-
-function buildSiteAdapterSkillItem(
-  adapter: SiteAdapterDefinition,
-): SkillCatalogItem {
-  const id = normalizeSiteAdapterId(adapter.name);
-  const slotSchema = buildSiteAdapterSlotSchema(adapter);
-  const groupKey = resolveAdapterGroupKey(adapter.name);
-  const summary = sanitizeSentence(adapter.description, "站点采集技能。");
-
-  return {
-    id,
-    skillKey: id,
-    skillType: "site",
-    title: resolveSiteAdapterTitle(adapter),
-    summary,
-    entryHint: resolveSiteAdapterEntryHint(adapter),
-    aliases: resolveSiteAdapterAliases(adapter),
-    category: resolveSiteAdapterCategory(adapter),
-    outputHint: resolveSiteAdapterOutputHint(adapter),
-    triggerHints: [
-      sanitizeSentence(adapter.description, "需要站点采集时使用。"),
-      "适合复用当前浏览器里的真实登录态直接抓一轮结构化结果。",
-    ],
-    source: "cloud_catalog",
-    runnerType: "instant",
-    defaultExecutorBinding: "browser_assist",
-    executionLocation: "client_default",
-    defaultArtifactKind: "analysis",
-    readinessRequirements: {
-      requiresBrowser: true,
-      requiresProject: true,
-    },
-    usageGuidelines: resolveSiteAdapterUsageGuidelines(adapter),
-    setupRequirements: resolveSiteAdapterSetupRequirements(adapter),
-    examples: resolveSiteAdapterExamples(adapter),
-    outputDestination: resolveSiteAdapterOutputDestination(),
-    siteCapabilityBinding: {
-      adapterName: adapter.name,
-      autoRun: true,
-      requireAttachedSession: true,
-      saveMode: "current_content",
-      slotArgMap: buildSiteAdapterSlotArgMap(slotSchema),
-    },
-    slotSchema,
-    surfaceScopes: ["home", "mention", "workspace"],
-    themeTarget: resolveSiteAdapterThemeTarget(adapter),
-    version: adapter.source_version || SEEDED_SKILL_CATALOG_VERSION,
-    groupKey,
-    execution: {
-      kind: "site_adapter",
-      siteAdapterBinding: {
-        adapterName: adapter.name,
-        autoRun: true,
-        requireAttachedSession: true,
-        saveMode: "current_content",
-        slotArgMap: buildSiteAdapterSlotArgMap(slotSchema),
-      },
-    },
-  };
 }
 
 function buildFallbackGroupPreset(groupKey: string): Omit<SkillCatalogGroup, "itemCount"> {
@@ -585,7 +294,7 @@ function mergeCatalogGroups(
   for (const group of currentGroups) {
     groupsByKey.set(group.key, {
       ...group,
-      itemCount: itemCountByGroup[group.key] ?? group.itemCount ?? 0,
+      itemCount: itemCountByGroup[group.key] ?? 0,
     });
   }
 
@@ -607,40 +316,30 @@ function mergeCatalogGroups(
     .sort((left, right) => left.sort - right.sort);
 }
 
-async function mergeRuntimeSiteAdaptersIntoCatalog(
-  catalog: SkillCatalog,
-): Promise<SkillCatalog> {
-  try {
-    const adapters = await siteListAdapters();
-    const existingAdapterNames = new Set(
-      catalog.items
-        .map((item) => normalizeText(item.siteCapabilityBinding?.adapterName))
-        .filter((item): item is string => Boolean(item))
-        .map((item) => item.toLowerCase()),
-    );
-
-    const synthesizedItems = adapters
-      .filter((adapter) => {
-        const normalizedName = adapter.name.trim().toLowerCase();
-        return !existingAdapterNames.has(normalizedName);
-      })
-      .map((adapter) => buildSiteAdapterSkillItem(adapter));
-
-    if (synthesizedItems.length === 0) {
-      return catalog;
-    }
-
-    const mergedItems = [...catalog.items, ...synthesizedItems];
-    const mergedGroups = mergeCatalogGroups(catalog.groups, mergedItems);
-
-    return cloneSkillCatalog({
-      ...catalog,
-      groups: mergedGroups,
-      items: mergedItems,
-    });
-  } catch {
-    return catalog;
+function shouldExposeSkillCatalogItem(item: SkillCatalogItem): boolean {
+  if (item.execution.kind === "site_adapter") {
+    return false;
   }
+
+  if (
+    item.defaultExecutorBinding === "browser_assist" ||
+    item.siteCapabilityBinding
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeSkillCatalog(catalog: SkillCatalog): SkillCatalog {
+  const filteredItems = catalog.items.filter(shouldExposeSkillCatalogItem);
+  const normalizedGroups = mergeCatalogGroups(catalog.groups, filteredItems);
+
+  return cloneSkillCatalog({
+    ...catalog,
+    groups: normalizedGroups,
+    items: filteredItems,
+  });
 }
 
 function parseSkillCatalogExecution(value: unknown): SkillCatalogExecution | null {
@@ -787,7 +486,7 @@ export function parseSkillCatalog(value: unknown): SkillCatalog | null {
     items.push(parsed);
   }
 
-  return cloneSkillCatalog({
+  return normalizeSkillCatalog({
     version,
     tenantId,
     syncedAt,
@@ -1062,7 +761,7 @@ async function requestRemoteSkillCatalog(): Promise<SkillCatalog> {
 }
 
 export async function getSkillCatalog(): Promise<SkillCatalog> {
-  const seeded = await mergeRuntimeSiteAdaptersIntoCatalog(getSeededSkillCatalog());
+  const seeded = getSeededSkillCatalog();
   const cached = readCachedSkillCatalog();
   if (cached) {
     if (!isSeededCatalogCompatibleWithActiveTenant(cached)) {
@@ -1074,11 +773,7 @@ export async function getSkillCatalog(): Promise<SkillCatalog> {
       return seeded;
     }
 
-    const mergedCached = await mergeRuntimeSiteAdaptersIntoCatalog(cached);
-    if (!isSameSkillCatalog(cached, mergedCached)) {
-      persistSkillCatalog(mergedCached);
-    }
-    return mergedCached;
+    return cached;
   }
 
   persistSkillCatalog(seeded);
@@ -1092,6 +787,5 @@ export async function refreshSkillCatalogFromRemote(): Promise<SkillCatalog | nu
   }
 
   const catalog = await requestRemoteSkillCatalog();
-  const mergedCatalog = await mergeRuntimeSiteAdaptersIntoCatalog(catalog);
-  return applyServerSyncedSkillCatalog(mergedCatalog, "bootstrap_sync");
+  return applyServerSyncedSkillCatalog(catalog, "bootstrap_sync");
 }

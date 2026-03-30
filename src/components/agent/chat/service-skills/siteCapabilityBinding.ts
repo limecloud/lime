@@ -1,6 +1,10 @@
 import type { ServiceSkillItem } from "@/lib/api/serviceSkills";
+import type { SiteAdapterLaunchReadinessResult } from "@/lib/webview-api";
 import type { ServiceSkillSlotValues } from "./types";
-import { resolveServiceSkillSlotValue } from "./promptComposer";
+import {
+  composeServiceSkillPrompt,
+  resolveServiceSkillSlotValue,
+} from "./promptComposer";
 
 export function isServiceSkillSiteCapabilityBound(
   skill: Pick<ServiceSkillItem, "defaultExecutorBinding" | "siteCapabilityBinding">,
@@ -18,6 +22,262 @@ export function isServiceSkillSiteCapabilityBound(
 
 export const isServiceSkillExecutableAsSiteAdapter =
   isServiceSkillSiteCapabilityBound;
+
+export interface ServiceSkillClawLaunchReadiness {
+  status: SiteAdapterLaunchReadinessResult["status"];
+  profileKey?: string;
+  targetId?: string;
+  domain: string;
+  message: string;
+  reportHint?: string;
+}
+
+export interface ServiceSkillClawLaunchContext {
+  kind: "site_adapter";
+  skillId: string;
+  skillTitle: string;
+  adapterName: string;
+  args: Record<string, unknown>;
+  saveMode: "current_content" | "project_resource";
+  saveTitle?: string;
+  contentId?: string;
+  projectId?: string;
+  launchReadiness?: ServiceSkillClawLaunchReadiness;
+}
+
+type SiteLaunchReadinessLike =
+  | ServiceSkillClawLaunchReadiness
+  | SiteAdapterLaunchReadinessResult
+  | null
+  | undefined;
+
+function isClawLaunchReadiness(
+  launchReadiness: SiteLaunchReadinessLike,
+): launchReadiness is ServiceSkillClawLaunchReadiness {
+  return Boolean(launchReadiness && "reportHint" in launchReadiness);
+}
+
+export function isSiteLaunchReadinessReady(
+  launchReadiness?: SiteLaunchReadinessLike,
+): boolean {
+  return launchReadiness?.status === "ready";
+}
+
+export function buildSiteLaunchBlockedMessage(
+  launchReadiness?: SiteLaunchReadinessLike,
+): string {
+  const message = launchReadiness?.message?.trim();
+  const reportHint = launchReadiness
+    ? isClawLaunchReadiness(launchReadiness)
+      ? launchReadiness.reportHint?.trim()
+      : launchReadiness.report_hint?.trim()
+    : undefined;
+
+  return (
+    [message, reportHint, "请先在浏览器工作台完成连接、登录或授权后再重试。"]
+      .filter((item, index, items): item is string => {
+        if (!item) {
+          return false;
+        }
+        return items.indexOf(item) === index;
+      })
+      .join(" ")
+  );
+}
+
+const SITE_LABELS: Record<string, string> = {
+  "36kr": "36Kr",
+  bilibili: "B 站",
+  github: "GitHub",
+  "linux-do": "linux.do",
+  smzdm: "什么值得买",
+  "yahoo-finance": "Yahoo Finance",
+  zhihu: "知乎",
+};
+
+function normalizeNaturalText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized ? normalized : null;
+}
+
+function ensureSentence(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    return normalized;
+  }
+  return /[。！？.!?]$/.test(normalized) ? normalized : `${normalized}。`;
+}
+
+function quoteNaturalValue(value: string): string {
+  return `“${value}”`;
+}
+
+function normalizeAdapterName(adapterName: string): string {
+  return adapterName.trim().toLowerCase();
+}
+
+function resolveSiteLabel(adapterName: string): string {
+  const groupKey = normalizeAdapterName(adapterName).split("/")[0] || "general";
+  return SITE_LABELS[groupKey] ?? groupKey;
+}
+
+function readStringArg(
+  args: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = args[key];
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    const normalized = String(value).trim();
+    return normalized || undefined;
+  }
+  return undefined;
+}
+
+function isGenericContinuationUserInput(value: string): boolean {
+  const normalized = value.replace(/[\s，,。！？.!?]/g, "");
+  return [
+    "继续",
+    "请继续",
+    "继续处理",
+    "继续处理当前任务",
+    "继续当前任务",
+    "请继续处理当前任务",
+    "请结合当前上下文继续",
+    "结合当前上下文继续",
+    "请结合上下文继续",
+    "结合上下文继续",
+  ].includes(normalized);
+}
+
+function buildSupplementalSentence(value: string): string {
+  if (/^(请|帮我|麻烦|另外|并且|同时|优先|只看)/.test(value)) {
+    return ensureSentence(value);
+  }
+  return ensureSentence(`另外，${value}`);
+}
+
+function resolveGithubIssuesStateLabel(value?: string): string | null {
+  switch (value?.trim().toLowerCase()) {
+    case "open":
+      return "open 状态";
+    case "closed":
+      return "closed 状态";
+    case "all":
+      return "全部状态";
+    default:
+      return value?.trim() || null;
+  }
+}
+
+function buildSiteSkillPrimarySentence(
+  skill: ServiceSkillItem,
+  args: Record<string, unknown>,
+): string {
+  const adapterName = normalizeAdapterName(skill.siteCapabilityBinding?.adapterName ?? "");
+  const query = readStringArg(args, "query");
+  const repo = readStringArg(args, "repo");
+  const symbol = readStringArg(args, "symbol");
+  const period = readStringArg(args, "period");
+
+  switch (adapterName) {
+    case "github/search":
+      return query
+        ? `你帮我在 GitHub 找一下和${quoteNaturalValue(query)}相关的项目`
+        : "你帮我在 GitHub 找一些值得关注的项目";
+    case "github/issues": {
+      const stateLabel = resolveGithubIssuesStateLabel(readStringArg(args, "state"));
+      if (repo && query && stateLabel) {
+        return `你帮我看一下 GitHub 上 ${repo} 仓库里 ${stateLabel}、和${quoteNaturalValue(query)}相关的 issue`;
+      }
+      if (repo && query) {
+        return `你帮我看一下 GitHub 上 ${repo} 仓库里和${quoteNaturalValue(query)}相关的 issue`;
+      }
+      if (repo && stateLabel) {
+        return `你帮我看一下 GitHub 上 ${repo} 仓库里 ${stateLabel} 的 issue`;
+      }
+      if (repo) {
+        return `你帮我看一下 GitHub 上 ${repo} 仓库的 issue`;
+      }
+      if (query) {
+        return `你帮我在 GitHub 看一下和${quoteNaturalValue(query)}相关的 issue`;
+      }
+      return "你帮我在 GitHub 看一下值得关注的 issue";
+    }
+    case "bilibili/search":
+      return query
+        ? `你帮我在 B 站搜一下和${quoteNaturalValue(query)}相关的视频`
+        : "你帮我在 B 站搜一些值得关注的视频";
+    case "zhihu/search":
+      return query
+        ? `你帮我在知乎搜一下和${quoteNaturalValue(query)}相关的内容`
+        : "你帮我在知乎搜一些值得关注的内容";
+    case "zhihu/hot":
+      return "你帮我看一下当前知乎热榜";
+    case "36kr/newsflash":
+      return "你帮我看一下 36Kr 最新快讯";
+    case "linux-do/categories":
+      return "你帮我看一下 linux.do 的分类列表";
+    case "linux-do/hot":
+      return period
+        ? `你帮我看一下 linux.do 在 ${period} 范围内的热门话题`
+        : "你帮我看一下 linux.do 当前的热门话题";
+    case "smzdm/search":
+      return query
+        ? `你帮我在什么值得买搜一下和${quoteNaturalValue(query)}相关的商品线索`
+        : "你帮我在什么值得买搜一些值得关注的商品线索";
+    case "yahoo-finance/quote":
+      return symbol
+        ? `你帮我看一下 ${symbol} 的最新行情摘要`
+        : "你帮我看一下最新行情摘要";
+    default: {
+      const siteLabel = resolveSiteLabel(adapterName);
+      if (query) {
+        return `你帮我在 ${siteLabel} 搜一下和${quoteNaturalValue(query)}相关的内容`;
+      }
+      if (symbol) {
+        return `你帮我在 ${siteLabel} 看一下 ${symbol} 的最新信息`;
+      }
+      return `你帮我在 ${siteLabel} 执行一下${skill.title}`;
+    }
+  }
+}
+
+export function buildServiceSkillNaturalLaunchMessage(input: {
+  skill: ServiceSkillItem;
+  slotValues: ServiceSkillSlotValues;
+  userInput?: string;
+}): string {
+  const { skill, slotValues, userInput } = input;
+  if (!isServiceSkillSiteCapabilityBound(skill)) {
+    return composeServiceSkillPrompt({
+      skill,
+      slotValues,
+      userInput,
+    });
+  }
+
+  const primarySentence = ensureSentence(
+    buildSiteSkillPrimarySentence(
+      skill,
+      buildServiceSkillSiteCapabilityArgs(skill, slotValues),
+    ),
+  );
+  const normalizedUserInput = normalizeNaturalText(userInput);
+
+  if (!normalizedUserInput || isGenericContinuationUserInput(normalizedUserInput)) {
+    return primarySentence;
+  }
+
+  return `${primarySentence}${buildSupplementalSentence(normalizedUserInput)}`;
+}
 
 export function buildServiceSkillSiteCapabilityArgs(
   skill: ServiceSkillItem,
@@ -49,6 +309,111 @@ export function buildServiceSkillSiteCapabilityArgs(
     ...mappedArgs,
     ...(skill.siteCapabilityBinding.fixedArgs ?? {}),
   };
+}
+
+export function buildServiceSkillClawLaunchContext(
+  skill: ServiceSkillItem,
+  slotValues: ServiceSkillSlotValues,
+  options?: {
+    contentId?: string | null;
+    projectId?: string | null;
+    launchReadiness?: SiteAdapterLaunchReadinessResult | null;
+  },
+): ServiceSkillClawLaunchContext {
+  if (!isServiceSkillSiteCapabilityBound(skill)) {
+    throw new Error("当前技能未绑定站点执行能力");
+  }
+
+  const binding = skill.siteCapabilityBinding;
+  const launchReadiness = options?.launchReadiness
+    ? {
+        status: options.launchReadiness.status,
+        profileKey: options.launchReadiness.profile_key?.trim() || undefined,
+        targetId: options.launchReadiness.target_id?.trim() || undefined,
+        domain: options.launchReadiness.domain,
+        message: options.launchReadiness.message,
+        reportHint: options.launchReadiness.report_hint?.trim() || undefined,
+      }
+    : undefined;
+
+  return {
+    kind: "site_adapter",
+    skillId: skill.id,
+    skillTitle: skill.title,
+    adapterName: binding.adapterName,
+    args: buildServiceSkillSiteCapabilityArgs(skill, slotValues),
+    saveMode: binding.saveMode ?? "project_resource",
+    saveTitle: buildServiceSkillSiteCapabilitySaveTitle(skill, slotValues),
+    contentId: options?.contentId?.trim() || undefined,
+    projectId: options?.projectId?.trim() || undefined,
+    launchReadiness,
+  };
+}
+
+export function buildServiceSkillClawLaunchRequestMetadata(
+  context: ServiceSkillClawLaunchContext,
+): Record<string, unknown> {
+  const readyLaunchReadiness = isSiteLaunchReadinessReady(context.launchReadiness)
+    ? context.launchReadiness
+    : undefined;
+  const attachedProfileKey = readyLaunchReadiness?.profileKey?.trim() || undefined;
+  const browserRequirementReason =
+    context.launchReadiness?.message ||
+    "当前任务要求优先复用已连接的浏览器上下文执行站点技能，不应回退到 WebSearch。";
+
+  return {
+    harness: {
+      browser_requirement: "required",
+      browser_requirement_reason: browserRequirementReason,
+      ...(attachedProfileKey
+        ? {
+            browser_assist: {
+              enabled: true,
+              profile_key: attachedProfileKey,
+              preferred_backend: "lime_extension_bridge",
+              auto_launch: false,
+              stream_mode: "both",
+            },
+          }
+        : {}),
+      service_skill_launch: {
+        kind: context.kind,
+        skill_id: context.skillId,
+        skill_title: context.skillTitle,
+        adapter_name: context.adapterName,
+        args: context.args,
+        save_mode: context.saveMode,
+        save_title: context.saveTitle,
+        content_id: context.contentId,
+        project_id: context.projectId,
+        launch_readiness: context.launchReadiness
+          ? {
+              status: context.launchReadiness.status,
+              profile_key: context.launchReadiness.profileKey,
+              target_id: context.launchReadiness.targetId,
+              domain: context.launchReadiness.domain,
+              message: context.launchReadiness.message,
+              report_hint: context.launchReadiness.reportHint,
+            }
+          : undefined,
+      },
+    },
+  };
+}
+
+export function composeServiceSkillClawLaunchPrompt(input: {
+  skill: ServiceSkillItem;
+  slotValues: ServiceSkillSlotValues;
+  context: ServiceSkillClawLaunchContext;
+  userInput?: string;
+}): string {
+  const { skill, slotValues, context, userInput } = input;
+  void context;
+  return buildServiceSkillNaturalLaunchMessage({
+    skill,
+    slotValues,
+    userInput,
+  });
 }
 
 function normalizeTemplateSegment(value: unknown): string {

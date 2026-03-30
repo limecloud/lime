@@ -17,9 +17,7 @@ import {
   Bot,
   Blocks,
   Image,
-  Server,
   Plug,
-  Route,
   Search,
   Variable,
   Monitor,
@@ -144,19 +142,9 @@ export function useSettingsCategory(): CategoryGroup[] {
       title: t("settings.group.system", "系统"),
       items: [
         {
-          key: SettingsTabs.ApiServer,
-          label: t("settings.tab.apiServer", "团队共享网关"),
-          icon: Server,
-        },
-        {
           key: SettingsTabs.McpServer,
           label: t("settings.tab.mcpServer", "MCP 服务器"),
           icon: Plug,
-        },
-        {
-          key: SettingsTabs.Channels,
-          label: t("settings.tab.channels", "渠道管理"),
-          icon: Route,
         },
         {
           key: SettingsTabs.WebSearch,

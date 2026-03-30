@@ -27,6 +27,9 @@ pub async fn save_config(
     config_manager: tauri::State<'_, GlobalConfigManagerState>,
     config: config::Config,
 ) -> Result<(), String> {
+    let mut config = config;
+    config.normalize_local_server_surface();
+    config.normalize_workspace_preferences();
     let host = config.server.host.to_lowercase();
 
     tracing::info!(
@@ -42,12 +45,6 @@ pub async fn save_config(
             "无效的监听地址。允许的地址：127.0.0.1、localhost、::1、0.0.0.0、:: 或局域网 IP"
                 .to_string(),
         );
-    }
-
-    // 禁止开启远程管理
-    if config.remote_management.allow_remote {
-        tracing::warn!("[CONFIG] 安全限制：不允许开启远程管理功能");
-        return Err("安全限制：不允许开启远程管理功能".to_string());
     }
 
     {
@@ -214,7 +211,7 @@ pub async fn set_endpoint_provider(
 
 /// 根据 API Key Provider 更新环境变量
 ///
-/// 当用户在 API Server 页面选择一个 API Key Provider 时调用
+/// 当用户切换本机默认 Provider 的凭证来源时调用
 /// 会更新 ~/.claude/settings.json 和 shell 配置文件中的环境变量
 #[tauri::command]
 pub async fn update_provider_env_vars(

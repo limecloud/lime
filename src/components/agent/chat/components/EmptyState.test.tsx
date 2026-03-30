@@ -204,6 +204,50 @@ function renderEmptyState(
   return container;
 }
 
+function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
+  return {
+    id: "github-repo-radar",
+    title: "GitHub 仓库线索检索",
+    summary: "复用 GitHub 登录态检索项目。",
+    category: "情报研究",
+    outputHint: "仓库列表 + 关键线索",
+    source: "cloud_catalog",
+    runnerType: "instant",
+    defaultExecutorBinding: "browser_assist",
+    executionLocation: "client_default",
+    version: "seed-v1",
+    badge: "云目录",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "浏览器站点执行",
+    runnerTone: "emerald",
+    runnerDescription: "直接复用浏览器登录态执行。",
+    actionLabel: "启动采集",
+    automationStatus: null,
+    slotSchema: [
+      {
+        key: "repository_query",
+        label: "检索主题",
+        type: "text",
+        required: true,
+        placeholder: "例如 AI Agent",
+      },
+    ],
+    siteCapabilityBinding: {
+      adapterName: "github/search",
+      autoRun: true,
+      requireAttachedSession: true,
+      saveMode: "current_content",
+      slotArgMap: {
+        repository_query: "query",
+      },
+      fixedArgs: {
+        limit: 10,
+      },
+    },
+  };
+}
+
 describe("EmptyState", () => {
   it("应挂载 CharacterMention，并透传角色与技能", async () => {
     const characters: Character[] = [
@@ -420,6 +464,21 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("2 项技能可挂载");
   });
 
+  it("通用对话且存在站点型 service skill 时，应展示自然句占位示例", async () => {
+    const container = renderEmptyState({
+      serviceSkills: [createGithubSearchServiceSkill()],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const textarea = container.querySelector("textarea");
+    expect(textarea?.getAttribute("placeholder")).toContain(
+      "帮我用 GitHub 查一下 AI Agent 项目",
+    );
+  });
+
   it("点击地球按钮应切换联网搜索开关", async () => {
     const onWebSearchEnabledChange = vi.fn<(enabled: boolean) => void>();
     const container = renderEmptyState({
@@ -630,7 +689,7 @@ describe("EmptyState", () => {
     });
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("打开浏览器协助"),
+      (button) => button.textContent?.includes("打开浏览器工作台"),
     );
     expect(launchButton).toBeTruthy();
 

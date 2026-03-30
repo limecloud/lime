@@ -35,10 +35,16 @@ import { recordServiceSkillAutomationLink } from "../service-skills/automationLi
 import { recordServiceSkillCloudRun } from "../service-skills/cloudRunStorage";
 import { buildServiceSkillWorkspaceSeed } from "../service-skills/workspaceLaunch";
 import {
+  buildSiteLaunchBlockedMessage,
+  buildServiceSkillClawLaunchContext,
+  buildServiceSkillClawLaunchRequestMetadata,
   buildServiceSkillSiteCapabilityArgs,
   buildServiceSkillSiteCapabilitySaveTitle,
+  composeServiceSkillClawLaunchPrompt,
   isServiceSkillExecutableAsSiteAdapter,
+  isSiteLaunchReadinessReady,
 } from "../service-skills/siteCapabilityBinding";
+import type { AutoMatchedSiteSkill } from "../service-skills/autoMatchSiteSkill";
 import type {
   ServiceSkillHomeItem,
   ServiceSkillSlotValues,
@@ -76,6 +82,21 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+interface ServiceSkillLaunchOptions {
+  launchUserInput?: string | null;
+}
+
+function resolveServiceSkillLaunchUserInput(
+  currentInput: string,
+  options?: ServiceSkillLaunchOptions,
+): string | undefined {
+  if (options && "launchUserInput" in options) {
+    return normalizeOptionalText(options.launchUserInput);
+  }
+
+  return normalizeOptionalText(currentInput);
 }
 
 function buildServiceSkillCloudResultBody(
@@ -372,10 +393,17 @@ export function useWorkspaceServiceSkillEntryActions({
     async (
       skill: ServiceSkillHomeItem,
       slotValues: ServiceSkillSlotValues,
-      launchReadiness: Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>,
+      launchReadiness:
+        | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
+        | null,
+      options?: ServiceSkillLaunchOptions,
     ): Promise<HomeShellEnterWorkspacePayload> => {
       if (!isServiceSkillExecutableAsSiteAdapter(skill)) {
         throw new Error("当前技能未绑定站点执行能力");
+      }
+
+      if (!isSiteLaunchReadinessReady(launchReadiness)) {
+        throw new Error(buildSiteLaunchBlockedMessage(launchReadiness));
       }
 
       if (
@@ -387,10 +415,6 @@ export function useWorkspaceServiceSkillEntryActions({
 
       const binding = skill.siteCapabilityBinding;
       const saveMode = binding.saveMode ?? "project_resource";
-      const initialArgs = buildServiceSkillSiteCapabilityArgs(
-        skill,
-        slotValues,
-      );
       const initialSaveTitle = buildServiceSkillSiteCapabilitySaveTitle(
         skill,
         slotValues,
@@ -409,35 +433,31 @@ export function useWorkspaceServiceSkillEntryActions({
         nextContentId = created?.id ?? undefined;
       }
 
-      const seed = buildServiceSkillWorkspaceSeed(
+      const clawLaunchContext = {
+        ...buildServiceSkillClawLaunchContext(skill, slotValues, {
+          contentId: nextContentId,
+          projectId: currentProjectId,
+          launchReadiness,
+        }),
+        saveTitle: nextContentId ? undefined : initialSaveTitle,
+      };
+      const prompt = composeServiceSkillClawLaunchPrompt({
         skill,
-        skill.themeTarget ?? activeTheme,
-      );
+        slotValues,
+        userInput: resolveServiceSkillLaunchUserInput(input, options),
+        context: clawLaunchContext,
+      });
 
       return {
+        prompt,
         contentId: nextContentId,
         themeOverride: "general",
-        ...(seed?.requestMetadata
-          ? { initialRequestMetadata: seed.requestMetadata }
-          : {}),
-        initialSiteSkillLaunch: {
-          adapterName: binding.adapterName,
-          args: initialArgs,
-          autoRun: binding.autoRun ?? true,
-          profileKey: launchReadiness.profile_key,
-          targetId: launchReadiness.target_id,
-          requireAttachedSession: true,
-          saveTitle: nextContentId ? undefined : initialSaveTitle,
-          skillTitle: skill.title,
-        },
+        initialAutoSendRequestMetadata:
+          buildServiceSkillClawLaunchRequestMetadata(clawLaunchContext),
+        autoRunInitialPromptOnMount: true,
       };
     },
-    [
-      activeTheme,
-      createServiceSkillSeededContent,
-      currentContentId,
-      currentProjectId,
-    ],
+    [createServiceSkillSeededContent, currentContentId, currentProjectId, input],
   );
 
   const prepareServiceSkillCloudResultWorkspacePayload = useCallback(
@@ -585,26 +605,25 @@ export function useWorkspaceServiceSkillEntryActions({
   );
 
   const handleServiceSkillLaunch = useCallback(
-    async (skill: ServiceSkillHomeItem, slotValues: ServiceSkillSlotValues) => {
+    async (
+      skill: ServiceSkillHomeItem,
+      slotValues: ServiceSkillSlotValues,
+      options?: ServiceSkillLaunchOptions,
+    ) => {
       if (isServiceSkillExecutableAsSiteAdapter(skill)) {
-        let launchReadiness: Awaited<
-          ReturnType<typeof siteGetAdapterLaunchReadiness>
-        >;
+        let launchReadiness:
+          | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
+          | null = null;
         try {
           launchReadiness = await siteGetAdapterLaunchReadiness({
             adapter_name: skill.siteCapabilityBinding.adapterName,
           });
-        } catch (error) {
-          toast.error(`检测浏览器会话失败：${getErrorMessage(error)}`);
-          return;
+        } catch {
+          // 门禁检查失败时保持当前入口态，由后续阻断提示兜底。
         }
 
-        if (launchReadiness.status !== "ready") {
-          toast.error(
-            launchReadiness.report_hint
-              ? `${launchReadiness.message} ${launchReadiness.report_hint}`
-              : launchReadiness.message,
-          );
+        if (!isSiteLaunchReadinessReady(launchReadiness)) {
+          toast.info(buildSiteLaunchBlockedMessage(launchReadiness));
           return;
         }
 
@@ -614,6 +633,7 @@ export function useWorkspaceServiceSkillEntryActions({
             skill,
             slotValues,
             launchReadiness,
+            options,
           );
         } catch (error) {
           toast.error(`准备站点技能失败：${getErrorMessage(error)}`);
@@ -637,7 +657,7 @@ export function useWorkspaceServiceSkillEntryActions({
       const prompt = composeServiceSkillPrompt({
         skill,
         slotValues,
-        userInput: input.trim() || undefined,
+        userInput: resolveServiceSkillLaunchUserInput(input, options),
       });
 
       if (skill.executionLocation === "cloud_required") {
@@ -763,6 +783,15 @@ export function useWorkspaceServiceSkillEntryActions({
       prepareServiceSkillWorkspacePayload,
       recordServiceSkillUsage,
     ],
+  );
+
+  const handleAutoLaunchMatchedSiteSkill = useCallback(
+    async (match: AutoMatchedSiteSkill<ServiceSkillHomeItem>) => {
+      await handleServiceSkillLaunch(match.skill, match.slotValues, {
+        launchUserInput: match.launchUserInput,
+      });
+    },
+    [handleServiceSkillLaunch],
   );
 
   const handleServiceSkillAutomationSetup = useCallback(
@@ -944,6 +973,7 @@ export function useWorkspaceServiceSkillEntryActions({
     handleServiceSkillSelect,
     handleServiceSkillDialogOpenChange,
     handleServiceSkillLaunch,
+    handleAutoLaunchMatchedSiteSkill,
     handleServiceSkillBrowserRuntimeLaunch,
     handleServiceSkillAutomationSetup,
     handleAutomationDialogOpenChange,

@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 import { useWorkspaceSendActions } from "./useWorkspaceSendActions";
 import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
 
@@ -28,7 +29,52 @@ const mockSetMentionedCharacters = vi.fn();
 const mockSetChatToolPreferences = vi.fn();
 const mockSetRuntimeTeamDispatchPreview = vi.fn();
 const mockEnsureBrowserAssistCanvas = vi.fn(async () => true);
+const mockHandleAutoLaunchMatchedSiteSkill = vi.fn(async () => undefined);
 const mockHandleImageWorkbenchCommand = vi.fn(async () => false);
+
+function createGithubSiteSkill(): ServiceSkillHomeItem {
+  return {
+    id: "github-repo-radar",
+    title: "GitHub 仓库线索检索",
+    summary: "复用 GitHub 登录态检索项目。",
+    category: "情报研究",
+    outputHint: "仓库列表 + 关键线索",
+    source: "cloud_catalog",
+    runnerType: "instant",
+    defaultExecutorBinding: "browser_assist",
+    executionLocation: "client_default",
+    version: "seed-v1",
+    badge: "云目录",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "浏览器站点执行",
+    runnerTone: "emerald",
+    runnerDescription: "直接复用浏览器登录态执行。",
+    actionLabel: "启动采集",
+    automationStatus: null,
+    slotSchema: [
+      {
+        key: "repository_query",
+        label: "检索主题",
+        type: "text",
+        required: true,
+        placeholder: "例如 AI Agent",
+      },
+    ],
+    siteCapabilityBinding: {
+      adapterName: "github/search",
+      autoRun: true,
+      requireAttachedSession: true,
+      saveMode: "current_content",
+      slotArgMap: {
+        repository_query: "query",
+      },
+      fixedArgs: {
+        limit: 10,
+      },
+    },
+  };
+}
 
 function createPreparedRuntimeTeamState(): TeamWorkspaceRuntimeFormationState {
   return {
@@ -81,11 +127,13 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       subagent: false,
     },
     setChatToolPreferences: mockSetChatToolPreferences,
+    serviceSkills: [],
     activeTheme: "general",
     mappedTheme: "general",
     isThemeWorkbench: false,
     contextWorkspace: {
       enabled: false,
+      activeContextPrompt: "",
       prepareActiveContextPrompt: async () => "",
     },
     runtimeStyleMessagePrompt: "",
@@ -108,8 +156,6 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       shouldConsumePendingThemeWorkbenchInitialPrompt: false,
       shouldDismissThemeWorkbenchEntryPrompt: false,
     })) as HookProps["resolveSendBoundary"],
-    isBlockedByBrowserPreflight: (() =>
-      false) as HookProps["isBlockedByBrowserPreflight"],
     maybeStartBrowserTaskPreflight: (() =>
       false) as HookProps["maybeStartBrowserTaskPreflight"],
     finalizeAfterSendSuccess:
@@ -122,6 +168,8 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       mockSetRuntimeTeamDispatchPreview as HookProps["setRuntimeTeamDispatchPreview"],
     ensureBrowserAssistCanvas:
       mockEnsureBrowserAssistCanvas as HookProps["ensureBrowserAssistCanvas"],
+    handleAutoLaunchMatchedSiteSkill:
+      mockHandleAutoLaunchMatchedSiteSkill as HookProps["handleAutoLaunchMatchedSiteSkill"],
     handleImageWorkbenchCommand:
       mockHandleImageWorkbenchCommand as HookProps["handleImageWorkbenchCommand"],
     ...initialProps,
@@ -244,6 +292,70 @@ describe("useWorkspaceSendActions", () => {
           }),
         }),
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("普通自然句命中站点 service skill 时应直接走自动启动链", async () => {
+    const harness = mountHook({
+      input: "请帮我使用 GitHub 查一下 AI Agent 项目",
+      serviceSkills: [createGithubSiteSkill()],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockHandleAutoLaunchMatchedSiteSkill).toHaveBeenCalledTimes(1);
+      expect(mockHandleAutoLaunchMatchedSiteSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skill: expect.objectContaining({
+            id: "github-repo-radar",
+          }),
+          slotValues: {
+            repository_query: "AI Agent",
+          },
+          launchUserInput: undefined,
+        }),
+      );
+      expect(mockSendMessage).not.toHaveBeenCalled();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("已有活动上下文快照时不应等待正文加载后才发送", async () => {
+    const slowPrepareActiveContextPrompt = vi
+      .fn()
+      .mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            setTimeout(() => resolve("[生效上下文]\n1. [素材] 品牌手册"), 50);
+          }),
+      );
+    const harness = mountHook({
+      contextWorkspace: {
+        enabled: true,
+        activeContextPrompt: "[生效上下文]\n1. [素材] 品牌手册",
+        prepareActiveContextPrompt: slowPrepareActiveContextPrompt,
+      },
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[0]).toContain("[生效上下文]\n1. [素材] 品牌手册");
+      expect(slowPrepareActiveContextPrompt).toHaveBeenCalledTimes(1);
     } finally {
       harness.unmount();
     }

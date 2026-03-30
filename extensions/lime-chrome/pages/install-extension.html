@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Install Lime Browser Bridge</title>
+    <link rel="stylesheet" href="styles/install-common.css" />
+  </head>
+  <body>
+    <div class="drag-handle"></div>
+    <div class="page">
+
+      <div class="header">
+        <div class="header-icon">
+          <img src="../icons/icon128.png" alt="Lime Browser Bridge" />
+        </div>
+        <div>
+          <h1>
+            <span data-i18n="title">Install Lime Browser Bridge</span>
+            <span class="title-tag" data-i18n="title_tag">Extension</span>
+          </h1>
+        </div>
+      </div>
+      <p class="subtitle" data-i18n="subtitle">
+        Install the extension to connect your browser to Lime.
+      </p>
+
+      <!-- Chrome Web Store install (hidden until published) -->
+      <div class="webstore-section" style="display:none">
+        <div class="webstore-card">
+          <div class="webstore-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M12 2v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M20.66 7l-5.2 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M20.66 17l-5.2-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span data-i18n="webstore_label">Chrome Web Store</span>
+            <span class="webstore-tag" data-i18n="webstore_tag">Recommended</span>
+          </div>
+          <p class="webstore-desc" data-i18n="webstore_desc">Install directly from the Chrome Web Store — the simplest way.</p>
+          <a class="open-btn webstore-btn" href="https://chromewebstore.google.com/detail/lime-chrome/cpidmllglbedhpombjibeoalnafofipo" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 8.5V12a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 012 12V5a1.5 1.5 0 011.5-1.5H7"/>
+              <path d="M10 2h4v4"/>
+              <path d="M7 9L14 2"/>
+            </svg>
+            <span data-i18n="webstore_install">Install from Chrome Web Store</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Manual install steps (divider hidden while webstore is hidden) -->
+      <div class="manual-section" style="display:none">
+        <div class="manual-divider">
+          <span class="manual-divider-line"></span>
+          <span class="manual-divider-text" data-i18n="manual_divider">Or install manually from local files</span>
+          <span class="manual-divider-line"></span>
+        </div>
+      </div>
+
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-title" data-i18n="step1_title">Open Chrome Extensions &amp; Enable Developer Mode</div>
+          <div class="step-body">
+            <button class="open-btn" onclick="openChromeUrl('chrome://extensions')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 8.5V12a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 012 12V5a1.5 1.5 0 011.5-1.5H7"/>
+                <path d="M10 2h4v4"/>
+                <path d="M7 9L14 2"/>
+              </svg>
+              <span data-i18n="step1_open">Open chrome://extensions</span>
+            </button>
+            <div class="step-note">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                <path d="M8 5v3"/>
+                <circle cx="8" cy="11" r="0.5" fill="currentColor"/>
+                <circle cx="8" cy="8" r="6.5"/>
+              </svg>
+              <span data-i18n="step1_devmode">Then turn on the <strong>Developer mode</strong> toggle in the top-right corner of the page.</span>
+            </div>
+            <div class="step-extras">
+              <button class="step-extras-toggle" data-target="step1-extras" aria-expanded="false">
+                <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+                <span data-i18n="step1_more">Manually copy the URL to open extensions</span>
+              </button>
+              <div class="step-extras-content" id="step1-extras">
+                <span data-i18n="step1_body">Open a new Chrome tab and copy the address:</span>
+                <div class="url-block" id="copy-url-block">
+                  chrome://extensions
+                  <svg class="copy-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+                    <path d="M3.5 10.5h-1a1 1 0 01-1-1v-7a1 1 0 011-1h7a1 1 0 011 1v1"/>
+                  </svg>
+                  <span class="copy-label" style="font-size:11px;color:var(--muted)" data-i18n="click_to_copy">Click to copy</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-title" data-i18n="step2_title">Open the Extension Folder</div>
+          <div class="step-body">
+            <span data-i18n="step2_body">Open the folder that contains the browser extension files:</span>
+            <code class="path-display" id="extension-path">chrome-extension/lime-chrome</code>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button id="open-folder-btn" class="open-btn" style="display:none" onclick="openExtensionFolder()">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/>
+                </svg>
+                <span data-i18n="open_folder">Open Folder</span>
+              </button>
+              <button id="copy-path-btn" class="action-btn" style="display:none" onclick="copyExtensionPath()">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="4" width="9" height="9" rx="1.5"/>
+                  <path d="M4 11.5H3.5A1.5 1.5 0 012 10V3.5A1.5 1.5 0 013.5 2H10A1.5 1.5 0 0111.5 4"/>
+                </svg>
+                <span data-i18n="copy_path">Copy Path</span>
+              </button>
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-title" data-i18n="step3_title">Drag the Extension Folder into Chrome</div>
+          <div class="step-body">
+            <span data-i18n="step3_body">
+              Drag the <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span> folder directly onto the <code>chrome://extensions</code> page. Chrome will install it immediately.
+            </span>
+            <div class="step-extras">
+              <button class="step-extras-toggle" data-target="step3-alt-extras" aria-expanded="false">
+                <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+                <span data-i18n="step3_alt"><strong style="font-weight:700">Can't drag?</strong> Try loading unpacked manually</span>
+              </button>
+              <div class="step-extras-content" id="step3-alt-extras">
+                <div class="note" style="margin-top:8px">
+                  <div class="note-title" data-i18n="extras_devmode_title">Load Unpacked</div>
+                  <div class="note-body" data-i18n="extras_devmode_body">
+                    Click <strong>"Load unpacked"</strong> on the <code>chrome://extensions</code> page and select the extension folder.
+                  </div>
+                </div>
+                <div class="note">
+                  <div class="note-title" data-i18n="extras_finder_title">Navigating to a path in Finder (macOS)</div>
+                  <div class="note-body" data-i18n="extras_finder_body">
+                    In the file picker dialog, press <strong>⌘ + Shift + G</strong> to open "Go to the folder", then paste the extension folder path and press Enter.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="step-extras">
+              <button class="step-extras-toggle" data-target="step3-extras" aria-expanded="false">
+                <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+                <span data-i18n="step3_more">After installation</span>
+              </button>
+              <div class="step-extras-content" id="step3-extras">
+                <div class="note" style="margin-top:8px">
+                  <div class="note-title" data-i18n="extras_pin_title">Pin the Extension</div>
+                  <div class="note-body" data-i18n="extras_pin_body">
+                    Click the puzzle piece icon in Chrome's toolbar and pin <strong>Lime Browser Bridge</strong> for quick access.
+                  </div>
+                </div>
+                <div class="note">
+                  <div class="note-title" data-i18n="extras_update_title">Updating the Extension</div>
+                  <div class="note-body" data-i18n="extras_update_body">
+                    When Lime is updated, go to <code>chrome://extensions</code>, remove the old version, then repeat the steps above. Or click the <strong>reload icon</strong> (↻) on the extension card to quick-reload.
+                  </div>
+                </div>
+                <div class="note">
+                  <div class="note-title" data-i18n="extras_debug_title">About the debugging banner</div>
+                  <div class="note-body" data-i18n="extras_debug_body">
+                    When the extension attaches to a tab, Chrome shows a yellow banner: <strong>"Lime Browser Bridge started debugging this browser"</strong>. This is a standard Chrome security notice. <strong>Do not click "Cancel"</strong> unless you want to disconnect that tab.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+
+      </ol>
+
+      <div class="alt-method" id="alt-direct-cdp" style="display:none">
+        <div class="alt-method-divider"></div>
+        <button class="alt-method-btn" onclick="navigateToInstallPage('install-direct-cdp.html')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 8h8"/>
+            <path d="M11 5l3 3-3 3"/>
+          </svg>
+          <span data-i18n="alt_use_direct">Your Chrome supports direct connection — try the faster method</span>
+          <svg width="12" height="12" viewBox="0 0 8 12" fill="currentColor" style="opacity:0.5"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+        </button>
+      </div>
+
+      <!-- Bottom extras for general maintenance info -->
+      <div class="extras">
+        <button class="extras-toggle" id="extras-toggle" aria-expanded="false">
+          <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+          <span data-i18n="more_info">More information</span>
+        </button>
+        <div class="extras-content" id="extras-content">
+
+          <div class="note">
+            <div class="note-title" data-i18n="extras_trouble_title">Troubleshooting</div>
+            <div class="note-body">
+              <span data-i18n="extras_trouble_badge"><strong>Badge shows <span class="badge-demo" style="background:#F59E0B">…</span></strong> — Lime is not running or browser control is not enabled.</span>
+              <br><br>
+              <span data-i18n="extras_trouble_page"><strong>Can't control a page</strong> — Internal pages (<code>chrome://</code>) cannot be debugged. Use a regular webpage.</span>
+              <br><br>
+              <span data-i18n="extras_trouble_restart"><strong>Extension disappeared</strong> — Unpacked extensions may get disabled after Chrome restart. Re-enable at <code>chrome://extensions</code>.</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="alt-method">
+        <div class="alt-method-divider"></div>
+        <button class="alt-method-btn" onclick="navigateToInstallPage('compare-methods.html')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1.5" y="2.5" width="5" height="11" rx="1"/>
+            <rect x="9.5" y="2.5" width="5" height="11" rx="1"/>
+          </svg>
+          <span data-i18n="compare_methods">Compare connection methods</span>
+          <svg width="12" height="12" viewBox="0 0 8 12" fill="currentColor" style="opacity:0.5"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+        </button>
+      </div>
+
+    </div>
+    <script src="scripts/install-i18n.js"></script>
+    <script src="scripts/install-helpers.js"></script>
+    <script>
+      InstallI18n.register('en', {
+        title: 'Install Lime Browser Bridge',
+        title_tag: 'Extension',
+        subtitle: 'Install the extension to connect your browser to Lime.',
+        webstore_label: 'Chrome Web Store',
+        webstore_tag: 'Recommended',
+        webstore_desc: 'Install directly from the Chrome Web Store — the simplest way.',
+        webstore_install: 'Install from Chrome Web Store',
+        manual_divider: 'Or install manually from local files',
+        step1_title: 'Open Chrome Extensions & Enable Developer Mode',
+        step1_open: 'Open chrome://extensions',
+        step1_devmode: 'Then turn on the <strong>Developer mode</strong> toggle in the top-right corner of the page.',
+        step1_more: 'Manually copy the URL to open extensions',
+        step1_body: 'Open a new Chrome tab and copy the address:',
+        step2_title: 'Open the Extension Folder',
+        step2_body: 'Open the folder that contains the browser extension files:',
+        step3_title: 'Drag the Extension Folder into Chrome',
+        step3_body: 'Drag the <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span> folder directly onto the <code>chrome://extensions</code> page. Chrome will install it immediately.',
+        step3_alt: '<strong style="font-weight:700">Can\'t drag?</strong> Try loading unpacked manually',
+        step3_more: 'After installation',
+        click_to_copy: 'Click to copy',
+        open_folder: 'Open Folder',
+        copy_path: 'Copy Path',
+        more_info: 'More information',
+        extras_devmode_title: 'Load Unpacked',
+        extras_devmode_body: 'Click <strong>"Load unpacked"</strong> on the <code>chrome://extensions</code> page and select the extension folder.',
+        extras_finder_title: 'Navigating to a path in Finder (macOS)',
+        extras_finder_body: 'In the file picker dialog, press <strong>⌘ + Shift + G</strong> to open "Go to the folder", then paste the extension folder path and press Enter.',
+        extras_pin_title: 'Pin the Extension',
+        extras_pin_body: 'Click the puzzle piece icon in Chrome\'s toolbar and pin <strong>Lime Browser Bridge</strong> for quick access.',
+        extras_debug_title: 'About the debugging banner',
+        extras_debug_body: 'When the extension attaches to a tab, Chrome shows a yellow banner: <strong>"Lime Browser Bridge started debugging this browser"</strong>. This is a standard Chrome security notice. <strong>Do not click "Cancel"</strong> unless you want to disconnect that tab.',
+        extras_update_title: 'Updating the Extension',
+        extras_update_body: 'When Lime is updated, go to <code>chrome://extensions</code>, remove the old version, then repeat the steps above. Or click the <strong>reload icon</strong> (↻) on the extension card to quick-reload.',
+        extras_trouble_title: 'Troubleshooting',
+        extras_trouble_badge: '<strong>Badge shows <span class="badge-demo" style="background:#F59E0B">…</span></strong> — Lime is not running or browser control is not enabled.',
+        extras_trouble_page: '<strong>Can\'t control a page</strong> — Internal pages (<code>chrome://</code>) cannot be debugged. Use a regular webpage.',
+        extras_trouble_restart: '<strong>Extension disappeared</strong> — Unpacked extensions may get disabled after Chrome restart. Re-enable at <code>chrome://extensions</code>.',
+        alt_use_direct: 'Your Chrome supports direct connection — try the faster method',
+        compare_methods: 'Compare connection methods',
+      });
+      InstallI18n.register('zh', {
+        title: '安装 Lime Browser Bridge',
+        title_tag: '扩展程序',
+        subtitle: '安装扩展以将浏览器连接到 Lime。',
+        webstore_label: 'Chrome 应用商店',
+        webstore_tag: '推荐',
+        webstore_desc: '从 Chrome 应用商店一键安装，最简单的方式。',
+        webstore_install: '前往 Chrome 应用商店安装',
+        manual_divider: '或从本地文件手动安装',
+        step1_title: '打开 Chrome 扩展管理页面并启用开发者模式',
+        step1_open: '打开 chrome://extensions',
+        step1_devmode: '然后打开页面右上角的 <strong>开发者模式</strong> 开关。',
+        step1_more: '手动复制地址并打开扩展管理页面',
+        step1_body: '在 Chrome 中打开新标签页，复制以下地址：',
+        step2_title: '打开扩展文件夹',
+        step2_body: '打开包含浏览器扩展文件的文件夹：',
+        step3_title: '将扩展文件夹拖入 Chrome',
+        step3_body: '将 <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span> 文件夹直接拖到 <code>chrome://extensions</code> 页面上，Chrome 会立即安装。',
+        step3_alt: '<strong style="font-weight:700">不方便拖拽？</strong>尝试手动加载已解压的扩展程序',
+        step3_more: '安装后须知',
+        click_to_copy: '点击复制',
+        open_folder: '打开文件夹',
+        copy_path: '复制路径',
+        more_info: '更多信息',
+        extras_devmode_title: '加载已解压的扩展程序',
+        extras_devmode_body: '在 <code>chrome://extensions</code> 页面点击 <strong>"加载已解压的扩展程序"</strong>，选择扩展文件夹。',
+        extras_finder_title: '在访达中定位路径（macOS）',
+        extras_finder_body: '在文件选择对话框中，按 <strong>⌘ + Shift + G</strong> 打开"前往文件夹"，粘贴扩展文件夹路径后按回车。',
+        extras_pin_title: '固定扩展图标',
+        extras_pin_body: '点击 Chrome 工具栏中的拼图图标，将 <strong>Lime Browser Bridge</strong> 固定，方便快速访问。',
+        extras_debug_title: '关于调试提示栏',
+        extras_debug_body: '扩展附加到标签页时，Chrome 会显示黄色提示：<strong>"Lime Browser Bridge 已开始调试此浏览器"</strong>，这是正常的安全提示。<strong>请勿点击"取消"</strong>，否则该标签页将断开连接。',
+        extras_update_title: '更新扩展',
+        extras_update_body: 'Lime 更新后，前往 <code>chrome://extensions</code> 移除旧版本，然后重复以上步骤安装新版本。也可以点击扩展卡片上的 <strong>重新加载</strong> 图标 (↻) 快速刷新。',
+        extras_trouble_title: '故障排查',
+        extras_trouble_badge: '<strong>图标显示 <span class="badge-demo" style="background:#F59E0B">…</span></strong> — Lime 未运行或浏览器控制未开启。',
+        extras_trouble_page: '<strong>无法控制页面</strong> — 内部页面（<code>chrome://</code>）无法调试，请打开普通网页。',
+        extras_trouble_restart: '<strong>扩展消失</strong> — 解压安装的扩展可能在 Chrome 重启后被禁用，请到 <code>chrome://extensions</code> 重新启用。',
+        alt_use_direct: '您的 Chrome 支持直接连接 — 试试更快的方式',
+        compare_methods: '对比两种连接方式',
+      });
+      InstallI18n.register('de', {
+        title: 'Lime Browser Bridge installieren',
+        title_tag: 'Erweiterung',
+        subtitle: 'Installieren Sie die Erweiterung, um Ihren Browser mit Lime zu verbinden.',
+        webstore_label: 'Chrome Web Store',
+        webstore_tag: 'Empfohlen',
+        webstore_desc: 'Direkt aus dem Chrome Web Store installieren — der einfachste Weg.',
+        webstore_install: 'Aus dem Chrome Web Store installieren',
+        manual_divider: 'Oder manuell aus lokalen Dateien installieren',
+        step1_title: 'Chrome-Erweiterungen öffnen & Entwicklermodus aktivieren',
+        step1_open: 'chrome://extensions öffnen',
+        step1_devmode: 'Aktivieren Sie dann den <strong>Entwicklermodus</strong>-Schalter oben rechts.',
+        step1_more: 'URL manuell kopieren, um Erweiterungen zu öffnen',
+        step1_body: 'Öffnen Sie einen neuen Chrome-Tab und kopieren Sie die Adresse:',
+        step2_title: 'Erweiterungsordner öffnen',
+        step2_body: 'Öffnen Sie den Ordner mit den Browser-Erweiterungsdateien:',
+        step3_title: 'Erweiterungsordner in Chrome ziehen',
+        step3_body: 'Ziehen Sie den <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span>-Ordner direkt auf die <code>chrome://extensions</code>-Seite. Chrome installiert ihn sofort.',
+        step3_alt: '<strong style="font-weight:700">Ziehen nicht möglich?</strong> Versuchen Sie, entpackt zu laden',
+        step3_more: 'Nach der Installation',
+        click_to_copy: 'Zum Kopieren klicken',
+        open_folder: 'Ordner öffnen',
+        copy_path: 'Pfad kopieren',
+        more_info: 'Weitere Informationen',
+        extras_devmode_title: 'Entpackte Erweiterung laden',
+        extras_devmode_body: 'Klicken Sie auf <strong>„Entpackte Erweiterung laden"</strong> auf der <code>chrome://extensions</code>-Seite und wählen Sie den Erweiterungsordner.',
+        extras_finder_title: 'Zu einem Pfad im Finder navigieren (macOS)',
+        extras_finder_body: 'Drücken Sie im Dateiauswahldialog <strong>⌘ + Shift + G</strong>, um „Gehe zum Ordner" zu öffnen, fügen Sie den Pfad ein und drücken Sie Enter.',
+        extras_pin_title: 'Erweiterung anheften',
+        extras_pin_body: 'Klicken Sie auf das Puzzle-Symbol in der Chrome-Symbolleiste und heften Sie <strong>Lime Browser Bridge</strong> für schnellen Zugriff an.',
+        extras_debug_title: 'Über das Debugging-Banner',
+        extras_debug_body: 'Wenn die Erweiterung an einen Tab angehängt wird, zeigt Chrome ein gelbes Banner: <strong>„Lime Browser Bridge hat das Debugging dieses Browsers gestartet"</strong>. Dies ist ein normaler Sicherheitshinweis. <strong>Klicken Sie nicht auf „Abbrechen"</strong>, es sei denn, Sie möchten den Tab trennen.',
+        extras_update_title: 'Erweiterung aktualisieren',
+        extras_update_body: 'Nach einem Lime-Update gehen Sie zu <code>chrome://extensions</code>, entfernen Sie die alte Version und wiederholen Sie die obigen Schritte. Oder klicken Sie auf das <strong>Neuladen-Symbol</strong> (↻) auf der Erweiterungskarte.',
+        extras_trouble_title: 'Fehlerbehebung',
+        extras_trouble_badge: '<strong>Symbol zeigt <span class="badge-demo" style="background:#F59E0B">…</span></strong> — Lime läuft nicht oder die Browsersteuerung ist nicht aktiviert.',
+        extras_trouble_page: '<strong>Seite kann nicht gesteuert werden</strong> — Interne Seiten (<code>chrome://</code>) können nicht debuggt werden. Verwenden Sie eine normale Webseite.',
+        extras_trouble_restart: '<strong>Erweiterung verschwunden</strong> — Entpackte Erweiterungen können nach einem Chrome-Neustart deaktiviert werden. Aktivieren Sie sie unter <code>chrome://extensions</code> erneut.',
+        alt_use_direct: 'Ihr Chrome unterstützt Direktverbindung — probieren Sie die schnellere Methode',
+        compare_methods: 'Verbindungsmethoden vergleichen',
+      });
+      InstallI18n.register('es', {
+        title: 'Instalar Lime Browser Bridge',
+        title_tag: 'Extensión',
+        subtitle: 'Instala la extensión para conectar tu navegador a Lime.',
+        webstore_label: 'Chrome Web Store',
+        webstore_tag: 'Recomendado',
+        webstore_desc: 'Instalar directamente desde la Chrome Web Store — la forma más sencilla.',
+        webstore_install: 'Instalar desde Chrome Web Store',
+        manual_divider: 'O instalar manualmente desde archivos locales',
+        step1_title: 'Abrir extensiones de Chrome y activar modo desarrollador',
+        step1_open: 'Abrir chrome://extensions',
+        step1_devmode: 'Luego activa el interruptor de <strong>Modo desarrollador</strong> en la esquina superior derecha.',
+        step1_more: 'Copiar la URL manualmente para abrir extensiones',
+        step1_body: 'Abre una nueva pestaña de Chrome y copia la dirección:',
+        step2_title: 'Abrir la carpeta de la extensión',
+        step2_body: 'Abre la carpeta que contiene los archivos de la extensión:',
+        step3_title: 'Arrastra la carpeta de la extensión a Chrome',
+        step3_body: 'Arrastra la carpeta <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span> directamente a la página <code>chrome://extensions</code>. Chrome la instalará inmediatamente.',
+        step3_alt: '<strong style="font-weight:700">¿No puedes arrastrar?</strong> Intenta cargar desempaquetada manualmente',
+        step3_more: 'Después de la instalación',
+        click_to_copy: 'Clic para copiar',
+        open_folder: 'Abrir carpeta',
+        copy_path: 'Copiar ruta',
+        more_info: 'Más información',
+        extras_devmode_title: 'Cargar desempaquetada',
+        extras_devmode_body: 'Haz clic en <strong>\"Cargar desempaquetada\"</strong> en la página <code>chrome://extensions</code> y selecciona la carpeta de la extensión.',
+        extras_finder_title: 'Navegar a una ruta en Finder (macOS)',
+        extras_finder_body: 'En el diálogo de selección de archivos, presiona <strong>⌘ + Shift + G</strong> para abrir \"Ir a la carpeta\", pega la ruta y presiona Enter.',
+        extras_pin_title: 'Fijar la extensión',
+        extras_pin_body: 'Haz clic en el icono del puzzle en la barra de herramientas de Chrome y fija <strong>Lime Browser Bridge</strong> para acceso rápido.',
+        extras_debug_title: 'Sobre el banner de depuración',
+        extras_debug_body: 'Cuando la extensión se conecta a una pestaña, Chrome muestra un banner amarillo: <strong>\"Lime Browser Bridge ha comenzado a depurar este navegador\"</strong>. Es un aviso de seguridad estándar. <strong>No hagas clic en \"Cancelar\"</strong> a menos que quieras desconectar esa pestaña.',
+        extras_update_title: 'Actualizar la extensión',
+        extras_update_body: 'Cuando Lime se actualice, ve a <code>chrome://extensions</code>, elimina la versión antigua y repite los pasos anteriores. O haz clic en el <strong>icono de recarga</strong> (↻) en la tarjeta de la extensión.',
+        extras_trouble_title: 'Solución de problemas',
+        extras_trouble_badge: '<strong>El icono muestra <span class="badge-demo" style="background:#F59E0B">…</span></strong> — Lime no está ejecutándose o el control del navegador no está activado.',
+        extras_trouble_page: '<strong>No se puede controlar una página</strong> — Las páginas internas (<code>chrome://</code>) no se pueden depurar. Usa una página web normal.',
+        extras_trouble_restart: '<strong>La extensión desapareció</strong> — Las extensiones desempaquetadas pueden desactivarse tras reiniciar Chrome. Reactívalas en <code>chrome://extensions</code>.',
+        alt_use_direct: 'Tu Chrome soporta conexión directa — prueba el método más rápido',
+        compare_methods: 'Comparar métodos de conexión',
+      });
+      InstallI18n.register('fr', {
+        title: 'Installer Lime Browser Bridge',
+        title_tag: 'Extension',
+        subtitle: "Installez l'extension pour connecter votre navigateur à Lime.",
+        webstore_label: 'Chrome Web Store',
+        webstore_tag: 'Recommandé',
+        webstore_desc: 'Installer directement depuis le Chrome Web Store — la méthode la plus simple.',
+        webstore_install: 'Installer depuis le Chrome Web Store',
+        manual_divider: 'Ou installer manuellement depuis des fichiers locaux',
+        step1_title: 'Ouvrir les extensions Chrome et activer le mode développeur',
+        step1_open: 'Ouvrir chrome://extensions',
+        step1_devmode: 'Puis activez le <strong>Mode développeur</strong> en haut à droite de la page.',
+        step1_more: "Copier l'URL manuellement pour ouvrir les extensions",
+        step1_body: "Ouvrez un nouvel onglet Chrome et copiez l'adresse :",
+        step2_title: "Ouvrir le dossier de l'extension",
+        step2_body: "Ouvrez le dossier contenant les fichiers de l'extension :",
+        step3_title: "Glisser le dossier de l'extension dans Chrome",
+        step3_body: 'Glissez le dossier <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span> directement sur la page <code>chrome://extensions</code>. Chrome l\'installera immédiatement.',
+        step3_alt: '<strong style="font-weight:700">Impossible de glisser ?</strong> Essayez de charger manuellement',
+        step3_more: "Après l'installation",
+        click_to_copy: 'Cliquer pour copier',
+        open_folder: 'Ouvrir le dossier',
+        copy_path: 'Copier le chemin',
+        more_info: "Plus d'informations",
+        extras_devmode_title: 'Charger une extension non empaquetée',
+        extras_devmode_body: 'Cliquez sur <strong>\"Charger l\'extension non empaquetée\"</strong> sur la page <code>chrome://extensions</code> et sélectionnez le dossier.',
+        extras_finder_title: 'Naviguer vers un chemin dans le Finder (macOS)',
+        extras_finder_body: 'Dans la boîte de dialogue, appuyez sur <strong>⌘ + Shift + G</strong> pour ouvrir \"Aller au dossier\", collez le chemin et appuyez sur Entrée.',
+        extras_pin_title: "Épingler l'extension",
+        extras_pin_body: "Cliquez sur l'icône puzzle dans la barre d'outils Chrome et épinglez <strong>Lime Browser Bridge</strong> pour un accès rapide.",
+        extras_debug_title: 'À propos de la bannière de débogage',
+        extras_debug_body: "Lorsque l'extension s'attache à un onglet, Chrome affiche une bannière jaune : <strong>\"Lime Browser Bridge a commencé à déboguer ce navigateur\"</strong>. C'est un avis de sécurité standard. <strong>Ne cliquez pas sur \"Annuler\"</strong> sauf si vous souhaitez déconnecter l'onglet.",
+        extras_update_title: "Mettre à jour l'extension",
+        extras_update_body: 'Après une mise à jour d\'Lime, allez sur <code>chrome://extensions</code>, supprimez l\'ancienne version et répétez les étapes. Ou cliquez sur l\'<strong>icône de rechargement</strong> (↻) sur la carte de l\'extension.',
+        extras_trouble_title: 'Dépannage',
+        extras_trouble_badge: '<strong>L\'icône affiche <span class="badge-demo" style="background:#F59E0B">…</span></strong> — Lime ne fonctionne pas ou le contrôle du navigateur n\'est pas activé.',
+        extras_trouble_page: '<strong>Impossible de contrôler une page</strong> — Les pages internes (<code>chrome://</code>) ne peuvent pas être déboguées. Utilisez une page web normale.',
+        extras_trouble_restart: '<strong>Extension disparue</strong> — Les extensions non empaquetées peuvent être désactivées après le redémarrage de Chrome. Réactivez-les sur <code>chrome://extensions</code>.',
+        alt_use_direct: 'Votre Chrome supporte la connexion directe — essayez la méthode plus rapide',
+        compare_methods: 'Comparer les méthodes de connexion',
+      });
+      InstallI18n.register('pt', {
+        title: 'Instalar Lime Browser Bridge',
+        title_tag: 'Extensão',
+        subtitle: 'Instale a extensão para conectar seu navegador ao Lime.',
+        webstore_label: 'Chrome Web Store',
+        webstore_tag: 'Recomendado',
+        webstore_desc: 'Instale diretamente da Chrome Web Store — a maneira mais simples.',
+        webstore_install: 'Instalar da Chrome Web Store',
+        manual_divider: 'Ou instalar manualmente a partir de arquivos locais',
+        step1_title: 'Abrir extensões do Chrome e ativar modo desenvolvedor',
+        step1_open: 'Abrir chrome://extensions',
+        step1_devmode: 'Em seguida, ative o <strong>Modo desenvolvedor</strong> no canto superior direito.',
+        step1_more: 'Copiar a URL manualmente para abrir extensões',
+        step1_body: 'Abra uma nova aba do Chrome e copie o endereço:',
+        step2_title: 'Abrir a pasta da extensão',
+        step2_body: 'Abra a pasta que contém os arquivos da extensão:',
+        step3_title: 'Arraste a pasta da extensão para o Chrome',
+        step3_body: 'Arraste a pasta <span class="ext-name"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 013.5 3h3.172a1 1 0 01.707.293L8.5 4.414a1 1 0 00.707.293H12.5A1.5 1.5 0 0114 6.207V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V4.5z"/></svg>lime-chrome</span> diretamente para a página <code>chrome://extensions</code>. O Chrome a instalará imediatamente.',
+        step3_alt: '<strong style="font-weight:700">Não consegue arrastar?</strong> Tente carregar descompactada manualmente',
+        step3_more: 'Após a instalação',
+        click_to_copy: 'Clique para copiar',
+        open_folder: 'Abrir pasta',
+        copy_path: 'Copiar caminho',
+        more_info: 'Mais informações',
+        extras_devmode_title: 'Carregar extensão descompactada',
+        extras_devmode_body: 'Clique em <strong>"Carregar sem compactação"</strong> na página <code>chrome://extensions</code> e selecione a pasta da extensão.',
+        extras_finder_title: 'Navegar para um caminho no Finder (macOS)',
+        extras_finder_body: 'Na caixa de seleção de arquivo, pressione <strong>⌘ + Shift + G</strong> para abrir "Ir para a pasta", cole o caminho e pressione Enter.',
+        extras_pin_title: 'Fixar a extensão',
+        extras_pin_body: 'Clique no ícone de quebra-cabeça na barra de ferramentas do Chrome e fixe <strong>Lime Browser Bridge</strong> para acesso rápido.',
+        extras_debug_title: 'Sobre o banner de depuração',
+        extras_debug_body: 'Quando a extensão se conecta a uma aba, o Chrome mostra um banner amarelo: <strong>"Lime Browser Bridge começou a depurar este navegador"</strong>. Este é um aviso de segurança padrão. <strong>Não clique em "Cancelar"</strong> a menos que queira desconectar a aba.',
+        extras_update_title: 'Atualizar a extensão',
+        extras_update_body: 'Quando o Lime for atualizado, vá para <code>chrome://extensions</code>, remova a versão antiga e repita os passos. Ou clique no <strong>ícone de recarregar</strong> (↻) no cartão da extensão.',
+        extras_trouble_title: 'Solução de problemas',
+        extras_trouble_badge: '<strong>O ícone mostra <span class="badge-demo" style="background:#F59E0B">…</span></strong> — O Lime não está em execução ou o controle do navegador não está ativado.',
+        extras_trouble_page: '<strong>Não é possível controlar uma página</strong> — Páginas internas (<code>chrome://</code>) não podem ser depuradas. Use uma página web normal.',
+        extras_trouble_restart: '<strong>Extensão desapareceu</strong> — Extensões descompactadas podem ser desativadas após reiniciar o Chrome. Reative-as em <code>chrome://extensions</code>.',
+        alt_use_direct: 'Seu Chrome suporta conexão direta — experimente o método mais rápido',
+        compare_methods: 'Comparar métodos de conexão',
+      });
+
+      InstallI18n.apply();
+
+      var params = new URLSearchParams(window.location.search);
+      var browserVersion = parseInt(params.get('version') || '0', 10);
+      if (browserVersion >= 144) {
+        var altEl = document.getElementById('alt-direct-cdp');
+        if (altEl) altEl.style.display = 'block';
+      }
+
+      setupExtensionPath();
+      setupCopyBlock('copy-url-block', 'chrome://extensions');
+      setupAllStepExtras();
+      setupExtrasToggle('extras-toggle', 'extras-content');
+    </script>
+  </body>
+</html>

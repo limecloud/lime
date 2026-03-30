@@ -353,7 +353,7 @@ describe("useAsterAgentChat 首页新会话", () => {
     }
   });
 
-  it("加载话题不应依赖预先初始化 Agent", async () => {
+  it("加载话题时应后台预热 Agent，但不阻塞话题列表返回", async () => {
     const workspaceId = "ws-topic-lazy-init";
     const sessionId = "session-topic-lazy-init";
     mockListAgentRuntimeSessions.mockResolvedValue([
@@ -372,11 +372,12 @@ describe("useAsterAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockInitAsterAgent).not.toHaveBeenCalled();
+      expect(mockInitAsterAgent).toHaveBeenCalledTimes(1);
       expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
       expect(harness.getValue().topics.map((topic) => topic.id)).toEqual([
         sessionId,
       ]);
+      expect(harness.getValue().processStatus.running).toBe(true);
     } finally {
       harness.unmount();
     }

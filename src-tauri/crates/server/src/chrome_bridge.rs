@@ -994,14 +994,14 @@ fn validate_command(
     }
 
     if normalized == "run_adapter" {
-        let script = payload
+        let adapter_name = payload
             .as_ref()
-            .and_then(|value| value.get("script"))
+            .and_then(|value| value.get("adapter_name"))
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|value| !value.is_empty());
-        if script.is_none() {
-            return Err("run_adapter 命令需要提供 payload.script。".to_string());
+        if adapter_name.is_none() {
+            return Err("run_adapter 命令需要提供 payload.adapter_name。".to_string());
         }
     }
 
@@ -1183,7 +1183,8 @@ mod tests {
             "run_adapter",
             &None,
             &Some(json!({
-                "script": "(async () => ({ ok: true }))()",
+                "adapter_name": "github/search",
+                "args": {"query": "mcp"},
             })),
         )
         .is_ok());
@@ -1466,7 +1467,8 @@ mod tests {
             None,
             None,
             Some(json!({
-                "script": "(async () => ({ ok: true }))()",
+                "adapter_name": "github/search",
+                "args": {"query": "mcp"},
             })),
             false,
         );
@@ -1474,8 +1476,9 @@ mod tests {
         assert_eq!(payload["data"]["command"], json!("run_adapter"));
         assert_eq!(payload["data"]["target"], json!("202"));
         assert_eq!(
-            payload["data"]["payload"]["script"],
-            json!("(async () => ({ ok: true }))()")
+            payload["data"]["payload"]["adapter_name"],
+            json!("github/search")
         );
+        assert_eq!(payload["data"]["payload"]["args"]["query"], json!("mcp"));
     }
 }

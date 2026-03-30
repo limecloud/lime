@@ -8,6 +8,10 @@ import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { TYPE_CONFIGS, type UserType } from "@/lib/api/project";
 import { getConfig } from "@/lib/api/appConfig";
+import {
+  DEFAULT_ENABLED_CONTENT_THEME_IDS,
+  resolveEnabledContentThemes,
+} from "@/lib/contentCreator/themeDefaults";
 
 export type ProjectFilter = "all" | UserType | "favorites" | "archived";
 
@@ -16,16 +20,6 @@ interface ProjectCategoriesProps {
   onFilterChange: (filter: ProjectFilter) => void;
   counts?: Record<ProjectFilter, number>;
 }
-
-/** 默认启用的主题 */
-const DEFAULT_ENABLED_THEMES = [
-  "general",
-  "social-media",
-  "poster",
-  "music",
-  "video",
-  "novel",
-];
 
 const allFilterItems: { id: ProjectFilter; label: string; icon?: string }[] = [
   { id: "all", label: "全部" },
@@ -85,7 +79,7 @@ export function ProjectCategories({
 }: ProjectCategoriesProps) {
   // 从配置中读取启用的主题
   const [enabledThemes, setEnabledThemes] = useState<string[]>(
-    DEFAULT_ENABLED_THEMES,
+    DEFAULT_ENABLED_CONTENT_THEME_IDS,
   );
 
   // 加载配置
@@ -93,9 +87,9 @@ export function ProjectCategories({
     const loadEnabledThemes = async () => {
       try {
         const config = await getConfig();
-        if (config.content_creator?.enabled_themes) {
-          setEnabledThemes(config.content_creator.enabled_themes);
-        }
+        setEnabledThemes(
+          resolveEnabledContentThemes(config.content_creator?.enabled_themes),
+        );
       } catch (e) {
         console.error("加载主题配置失败:", e);
       }

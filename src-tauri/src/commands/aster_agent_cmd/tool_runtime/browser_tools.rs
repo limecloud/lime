@@ -1,4 +1,5 @@
 use super::*;
+use lime_core::database::dao::browser_profile::BrowserProfileTransportKind;
 
 #[derive(Debug, Clone)]
 pub(crate) struct LimeBrowserMcpTool {
@@ -6,6 +7,7 @@ pub(crate) struct LimeBrowserMcpTool {
     action_name: String,
     description: String,
     input_schema: serde_json::Value,
+    db: DbConnection,
 }
 
 impl LimeBrowserMcpTool {
@@ -14,12 +16,14 @@ impl LimeBrowserMcpTool {
         action_name: String,
         description: String,
         input_schema: serde_json::Value,
+        db: DbConnection,
     ) -> Self {
         Self {
             tool_name,
             action_name,
             description,
             input_schema,
+            db,
         }
     }
 
@@ -34,6 +38,10 @@ impl LimeBrowserMcpTool {
             "tabs_context_mcp"
                 | "tabs_create_mcp"
                 | "navigate"
+                | "find"
+                | "computer"
+                | "javascript"
+                | "javascript_tool"
                 | "click"
                 | "type"
                 | "form_input"
@@ -106,6 +114,50 @@ impl LimeBrowserMcpTool {
         }
         None
     }
+
+    fn load_profile_transport_kind(
+        db: &DbConnection,
+        profile_key: &str,
+    ) -> Option<BrowserProfileTransportKind> {
+        let conn = db.lock().ok()?;
+        crate::services::browser_profile_service::get_browser_profile_by_key(&conn, profile_key)
+            .ok()
+            .flatten()
+            .map(|profile| profile.transport_kind)
+    }
+
+    pub(crate) fn should_auto_launch_managed_browser(
+        resolved_backend: Option<BrowserBackendType>,
+        session_hint: Option<&BrowserAssistRuntimeHint>,
+        profile_transport: Option<BrowserProfileTransportKind>,
+    ) -> bool {
+        if !session_hint.is_some_and(|hint| hint.auto_launch) {
+            return false;
+        }
+
+        if matches!(
+            profile_transport,
+            Some(BrowserProfileTransportKind::ExistingSession)
+        ) {
+            return false;
+        }
+
+        if matches!(
+            resolved_backend,
+            Some(BrowserBackendType::LimeExtensionBridge)
+        ) {
+            return false;
+        }
+
+        if matches!(
+            session_hint.and_then(|hint| hint.preferred_backend.clone()),
+            Some(BrowserBackendType::LimeExtensionBridge)
+        ) {
+            return false;
+        }
+
+        true
+    }
 }
 
 #[async_trait]
@@ -139,7 +191,13 @@ impl Tool for LimeBrowserMcpTool {
         let profile_key = Self::extract_profile_key(&params, _context)
             .or_else(|| session_hint.as_ref().map(|hint| hint.profile_key.clone()));
         if let (Some(hint), Some(profile_key)) = (session_hint.as_ref(), profile_key.as_ref()) {
-            if hint.auto_launch {
+            let profile_transport =
+                Self::load_profile_transport_kind(&self.db, profile_key.as_str());
+            if Self::should_auto_launch_managed_browser(
+                backend.clone(),
+                Some(hint),
+                profile_transport,
+            ) {
                 let launch_url = Self::extract_launch_url(&self.action_name, &params)
                     .or_else(|| hint.launch_url.clone());
                 ensure_managed_chrome_profile_global(profile_key.clone(), launch_url)
@@ -158,7 +216,7 @@ impl Tool for LimeBrowserMcpTool {
             timeout_ms,
         };
 
-        let result = browser_execute_action_global(request)
+        let result = browser_execute_action_global(self.db.clone(), request)
             .await
             .map_err(|e| ToolError::execution_failed(format!("浏览器动作执行失败: {e}")))?;
 
@@ -226,7 +284,10 @@ pub(super) fn browser_mcp_tool_names() -> Vec<String> {
     names
 }
 
-pub(super) fn register_browser_mcp_tools_to_registry(registry: &mut aster::tools::ToolRegistry) {
+pub(super) fn register_browser_mcp_tools_to_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    db: DbConnection,
+) {
     let tool_defs = get_chrome_mcp_tools();
     for tool_def in tool_defs {
         for prefix in ["mcp__lime-browser__"] {
@@ -239,6 +300,7 @@ pub(super) fn register_browser_mcp_tools_to_registry(registry: &mut aster::tools
                 tool_def.name.clone(),
                 tool_def.description.clone(),
                 tool_def.input_schema.clone(),
+                db.clone(),
             );
             registry.register(Box::new(tool));
         }
@@ -255,10 +317,11 @@ pub(super) fn unregister_browser_mcp_tools_from_registry(
 
 pub(crate) async fn ensure_browser_mcp_tools_registered(
     state: &AsterAgentState,
+    db: &DbConnection,
 ) -> Result<(), String> {
     let (registry_arc, extension_manager) = resolve_agent_registry(state).await?;
     let mut registry = registry_arc.write().await;
-    register_browser_mcp_tools_to_registry(&mut registry);
+    register_browser_mcp_tools_to_registry(&mut registry, db.clone());
     search_bridge::register_tool_search_tool_to_registry(
         &mut registry,
         registry_arc.clone(),

@@ -62,14 +62,14 @@ function resolveBrowserAssistTitle(
   attentionLevel: NonNullable<ChatNavbarProps["browserAssistAttentionLevel"]>,
 ): string {
   if (attentionLevel === "warning") {
-    return "恢复浏览器协助";
+    return "恢复浏览器工作台";
   }
 
   if (attentionLevel === "info") {
-    return "查看浏览器启动状态";
+    return "查看浏览器工作台状态";
   }
 
-  return "在右侧画布打开浏览器协助";
+  return "打开浏览器工作台";
 }
 
 const toolbarGroupClassName =
@@ -383,7 +383,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 <span>
                   {browserAssistLoading
                     ? "启动中..."
-                    : browserAssistLabel?.trim() || "浏览器协助"}
+                    : browserAssistLabel?.trim() || "浏览器工作台"}
                 </span>
               </Button>
             ) : null}

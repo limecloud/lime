@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentPageParams, PageParams } from "@/types/page";
+import type { AgentPageParams, Page, PageParams } from "@/types/page";
 import { AppSidebar } from "./AppSidebar";
 
 const { mockGetConfig, mockGetPluginsForSurface } = vi.hoisted(() => ({
@@ -26,7 +26,10 @@ const mountedSidebars: MountedSidebar[] = [];
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 
 function mountSidebar(
-  currentPageParams?: PageParams,
+  options?: {
+    currentPage?: Page;
+    currentPageParams?: PageParams;
+  },
 ): MountedSidebar["container"] {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -35,8 +38,8 @@ function mountSidebar(
   act(() => {
     root.render(
       <AppSidebar
-        currentPage="agent"
-        currentPageParams={currentPageParams}
+        currentPage={options?.currentPage ?? "agent"}
+        currentPageParams={options?.currentPageParams}
         onNavigate={vi.fn()}
       />,
     );
@@ -79,8 +82,10 @@ describe("AppSidebar", () => {
     localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "false");
 
     const container = mountSidebar({
-      agentEntry: "claw",
-    } as AgentPageParams);
+      currentPageParams: {
+        agentEntry: "claw",
+      } as AgentPageParams,
+    });
     await flushEffects();
 
     expect(
@@ -93,8 +98,10 @@ describe("AppSidebar", () => {
     localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "true");
 
     const container = mountSidebar({
-      agentEntry: "new-task",
-    } as AgentPageParams);
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
     await flushEffects();
 
     expect(
@@ -103,7 +110,7 @@ describe("AppSidebar", () => {
     expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe("false");
   });
 
-  it("旧导航配置未包含技能时也应显示固定技能入口", async () => {
+  it("旧导航配置未包含能力分组时也应显示固定能力入口和二级项", async () => {
     mockGetConfig.mockResolvedValue({
       navigation: {
         enabled_items: ["home-general", "claw"],
@@ -111,10 +118,46 @@ describe("AppSidebar", () => {
     });
 
     const container = mountSidebar({
-      agentEntry: "new-task",
-    } as AgentPageParams);
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
     await flushEffects();
 
+    expect(container.textContent).toContain("能力");
     expect(container.textContent).toContain("技能");
+    expect(container.textContent).toContain("自动化");
+    expect(container.textContent).toContain("IM 配置");
+  });
+
+  it("进入 IM 配置页时应高亮能力分组和对应二级导航", async () => {
+    const container = mountSidebar({
+      currentPage: "channels",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector('button[aria-label="能力"][aria-current="page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="IM 配置"][aria-current="page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="能力"]')?.getAttribute(
+        "aria-expanded",
+      ),
+    ).toBe("true");
+  });
+
+  it("未启用创作主题时不应渲染主题分组标题", async () => {
+    const container = mountSidebar({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(container.textContent).not.toContain("创作主题");
+    expect(container.textContent).not.toContain("社媒内容");
   });
 });

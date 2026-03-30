@@ -53,6 +53,8 @@ pub struct LaunchBrowserProfileRuntimeAssistRequest {
     #[serde(default)]
     pub open_window: Option<bool>,
     #[serde(default)]
+    pub headless: Option<bool>,
+    #[serde(default)]
     pub stream_mode: Option<BrowserStreamMode>,
 }
 
@@ -125,6 +127,7 @@ pub async fn launch_browser_profile_runtime_assist_cmd(
             environment: None,
             target_id: request.target_id,
             open_window: request.open_window.unwrap_or(false),
+            headless: request.headless.unwrap_or(false),
             stream_mode: request.stream_mode.unwrap_or(BrowserStreamMode::Both),
         },
     )

@@ -79,8 +79,8 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const handleOverlayClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (closeOnOverlayClick && e.target === e.currentTarget) {
+  const handleOverlayClick = () => {
+    if (closeOnOverlayClick) {
       onClose();
     }
   };
@@ -146,29 +146,35 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/50"
+      data-testid="modal-overlay"
       onClick={handleOverlayClick}
     >
-      <div
-        className={`relative w-full ${maxWidth} rounded-lg bg-background shadow-xl ${className}`}
-        data-draggable={draggable ? "true" : "false"}
-        onMouseDown={handleDragStart}
-        style={{
-          transform:
-            dragOffset.x !== 0 || dragOffset.y !== 0
-              ? `translate(${dragOffset.x}px, ${dragOffset.y}px)`
-              : undefined,
-        }}
-      >
-        {showCloseButton && (
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 rounded-lg p-1 hover:bg-muted"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-        {children}
+      <div className="flex min-h-full items-start justify-center p-3 sm:items-center sm:p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className={`relative my-4 flex w-full ${maxWidth} max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-lg bg-background shadow-xl sm:my-6 sm:max-h-[calc(100vh-3rem)] ${className}`}
+          data-draggable={draggable ? "true" : "false"}
+          onClick={(event) => event.stopPropagation()}
+          onMouseDown={handleDragStart}
+          style={{
+            transform:
+              dragOffset.x !== 0 || dragOffset.y !== 0
+                ? `translate(${dragOffset.x}px, ${dragOffset.y}px)`
+                : undefined,
+          }}
+        >
+          {showCloseButton && (
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 z-10 rounded-lg p-1 hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          {children}
+        </div>
       </div>
     </div>,
     document.body,
@@ -184,7 +190,7 @@ export function ModalHeader({
   className?: string;
 }) {
   return (
-    <div className={`border-b px-6 py-4 ${className}`}>
+    <div className={`shrink-0 border-b px-6 py-4 pr-12 ${className}`}>
       <h2 className="text-lg font-semibold">{children}</h2>
     </div>
   );
@@ -198,7 +204,14 @@ export function ModalBody({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`p-6 ${className}`}>{children}</div>;
+  return (
+    <div
+      className={`min-h-0 flex-1 overflow-y-auto p-6 ${className}`}
+      data-testid="modal-body"
+    >
+      {children}
+    </div>
+  );
 }
 
 /** Modal 底部操作区 */
@@ -210,7 +223,7 @@ export function ModalFooter({
   className?: string;
 }) {
   return (
-    <div className={`flex justify-end gap-2 border-t px-6 py-4 ${className}`}>
+    <div className={`shrink-0 flex flex-wrap justify-end gap-2 border-t px-6 py-4 ${className}`}>
       {children}
     </div>
   );

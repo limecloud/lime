@@ -4,6 +4,7 @@ import {
   CalendarRange,
   Compass,
   Image,
+  LayoutGrid,
   Library,
   MessageSquare,
   Palette,
@@ -31,11 +32,40 @@ export interface SidebarNavItemDefinition {
   id: string;
   label: string;
   icon: LucideIcon;
-  page: Page;
+  page?: Page;
   params?: PageParams;
   isActive?: (currentPage: Page, currentParams?: PageParams) => boolean;
   configurable?: boolean;
+  children?: SidebarNavItemDefinition[];
+  defaultExpanded?: boolean;
 }
+
+const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+  {
+    id: "skills",
+    label: "技能",
+    icon: Sparkles,
+    page: "skills",
+    isActive: (currentPage) => currentPage === "skills",
+    configurable: false,
+  },
+  {
+    id: "automation",
+    label: "自动化",
+    icon: CalendarRange,
+    page: "automation",
+    isActive: (currentPage) => currentPage === "automation",
+    configurable: false,
+  },
+  {
+    id: "channels",
+    label: "IM 配置",
+    icon: MessageSquare,
+    page: "channels",
+    isActive: (currentPage) => currentPage === "channels",
+    configurable: false,
+  },
+];
 
 export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
@@ -59,12 +89,12 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
       (currentParams as AgentPageParams | undefined)?.agentEntry !== "new-task",
   },
   {
-    id: "skills",
-    label: "技能",
-    icon: Sparkles,
-    page: "skills",
-    isActive: (currentPage) => currentPage === "skills",
+    id: "capabilities",
+    label: "能力",
+    icon: LayoutGrid,
     configurable: false,
+    children: CAPABILITY_SIDEBAR_NAV_ITEMS,
+    defaultExpanded: true,
   },
   {
     id: "video",
@@ -75,12 +105,6 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
   },
   { id: "image-gen", label: "插图", icon: Image, page: "image-gen" },
-  {
-    id: "automation",
-    label: "自动化",
-    icon: CalendarRange,
-    page: "automation",
-  },
   { id: "terminal", label: "终端", icon: Terminal, page: "terminal" },
   { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
 ];
@@ -155,7 +179,6 @@ export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS = [
   "claw",
   "video",
   "image-gen",
-  "automation",
   "openclaw",
   "resources",
   "style-library",

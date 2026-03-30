@@ -121,8 +121,10 @@ import {
 } from "@/lib/style-guide";
 import { useWorkbenchStore } from "@/stores/useWorkbenchStore";
 import {
+  asRecord,
   isResumableBrowserTaskReason,
   mergeMessageArtifactsIntoStore,
+  readFirstString,
 } from "./workspace/browserAssistArtifact";
 import { ServiceSkillExecutionCard } from "./workspace/ServiceSkillExecutionCard";
 import { useWorkspaceBrowserAssistRuntime } from "./workspace/useWorkspaceBrowserAssistRuntime";
@@ -224,6 +226,7 @@ export function AgentChatWorkspace({
   projectId: externalProjectId,
   contentId,
   initialRequestMetadata,
+  initialAutoSendRequestMetadata,
   autoRunInitialPromptOnMount = false,
   agentEntry = "claw",
   theme: initialTheme,
@@ -1466,12 +1469,12 @@ export function AgentChatWorkspace({
   });
   const {
     browserAssistLaunching,
+    browserAssistSessionState,
     siteSkillExecutionState,
     isBrowserAssistReady,
     isBrowserAssistCanvasVisible,
     currentBrowserAssistScopeKey,
     ensureBrowserAssistCanvas,
-    handleOpenBrowserAssistInCanvas,
     suppressBrowserAssistCanvasAutoOpen,
     suppressGeneralCanvasArtifactAutoOpen,
   } = useWorkspaceBrowserAssistRuntime({
@@ -1486,13 +1489,125 @@ export function AgentChatWorkspace({
     siteSkillLaunchNonce: newChatAt,
     artifacts,
     messages,
-    currentCanvasArtifact,
-    layoutMode,
     setLayoutMode,
-    setSelectedArtifactId,
     upsertGeneralArtifact,
     generalBrowserAssistProfileKey: GENERAL_BROWSER_ASSIST_PROFILE_KEY,
   });
+  const initialHarnessBrowserAssist = useMemo(() => {
+    return asRecord(
+      asRecord(initialAutoSendRequestMetadata)?.harness
+        ? asRecord(asRecord(initialAutoSendRequestMetadata)?.harness)
+            ?.browser_assist
+        : undefined,
+    );
+  }, [initialAutoSendRequestMetadata]);
+  const initialHarnessPreferredBackend = useMemo(() => {
+    const value = readFirstString(
+      initialHarnessBrowserAssist ? [initialHarnessBrowserAssist] : [],
+      ["preferred_backend", "preferredBackend"],
+    );
+    return value === "lime_extension_bridge" || value === "cdp_direct"
+      ? value
+      : undefined;
+  }, [initialHarnessBrowserAssist]);
+  const initialHarnessAutoLaunch = useMemo(() => {
+    const rawValue =
+      initialHarnessBrowserAssist?.auto_launch ??
+      initialHarnessBrowserAssist?.autoLaunch;
+    return typeof rawValue === "boolean" ? rawValue : undefined;
+  }, [initialHarnessBrowserAssist]);
+  const browserAssistRequestProfileKey = useMemo(() => {
+    if (mappedTheme !== "general") {
+      return undefined;
+    }
+
+    return (
+      browserAssistSessionState?.profileKey?.trim() ||
+      initialSiteSkillLaunch?.profileKey?.trim() ||
+      GENERAL_BROWSER_ASSIST_PROFILE_KEY
+    );
+  }, [
+    browserAssistSessionState?.profileKey,
+    initialSiteSkillLaunch?.profileKey,
+    mappedTheme,
+  ]);
+  const shouldPreferExistingSessionBridgeForClaw = useMemo(() => {
+    if (mappedTheme !== "general") {
+      return false;
+    }
+
+    return (
+      browserAssistSessionState?.transportKind === "existing_session" ||
+      initialHarnessPreferredBackend === "lime_extension_bridge" ||
+      initialHarnessAutoLaunch === false ||
+      Boolean(initialSiteSkillLaunch?.profileKey?.trim()) ||
+      Boolean(initialSiteSkillLaunch?.requireAttachedSession) ||
+      initialSiteSkillLaunch?.preferredBackend === "lime_extension_bridge" ||
+      initialSiteSkillLaunch?.autoLaunch === false
+    );
+  }, [
+    browserAssistSessionState?.transportKind,
+    initialHarnessAutoLaunch,
+    initialHarnessPreferredBackend,
+    initialSiteSkillLaunch?.autoLaunch,
+    initialSiteSkillLaunch?.profileKey,
+    initialSiteSkillLaunch?.preferredBackend,
+    initialSiteSkillLaunch?.requireAttachedSession,
+    mappedTheme,
+  ]);
+  const browserAssistRequestPreferredBackend =
+    initialSiteSkillLaunch?.preferredBackend ||
+    initialHarnessPreferredBackend ||
+    (shouldPreferExistingSessionBridgeForClaw
+      ? "lime_extension_bridge"
+      : undefined);
+  const browserAssistRequestAutoLaunch =
+    initialSiteSkillLaunch?.autoLaunch ??
+    initialHarnessAutoLaunch ??
+    (shouldPreferExistingSessionBridgeForClaw ? false : true);
+  const handleOpenBrowserRuntimeForBrowserAssist = useCallback(
+    (artifact?: Artifact) => {
+      if (!_onNavigate) {
+        toast.error("当前入口暂不支持打开浏览器工作台，请从桌面主界面重试。");
+        return;
+      }
+
+      const artifactMeta = artifact ? asRecord(artifact.meta) : null;
+      _onNavigate("browser-runtime", {
+        projectId: projectId ?? undefined,
+        contentId: contentId ?? undefined,
+        initialProfileKey:
+          readFirstString(artifactMeta ? [artifactMeta] : [], [
+            "profileKey",
+            "profile_key",
+          ]) ||
+          browserAssistSessionState?.profileKey ||
+          GENERAL_BROWSER_ASSIST_PROFILE_KEY,
+        initialSessionId:
+          readFirstString(artifactMeta ? [artifactMeta] : [], [
+            "sessionId",
+            "session_id",
+          ]) ||
+          browserAssistSessionState?.sessionId ||
+          undefined,
+        initialTargetId:
+          readFirstString(artifactMeta ? [artifactMeta] : [], [
+            "targetId",
+            "target_id",
+          ]) ||
+          browserAssistSessionState?.targetId ||
+          undefined,
+      });
+    },
+    [
+      _onNavigate,
+      browserAssistSessionState?.profileKey,
+      browserAssistSessionState?.sessionId,
+      browserAssistSessionState?.targetId,
+      contentId,
+      projectId,
+    ],
+  );
   const handleOpenBrowserRuntimeForSiteSkillExecution = useCallback(() => {
     if (!_onNavigate || !initialSiteSkillLaunch?.adapterName?.trim()) {
       return;
@@ -1502,7 +1617,8 @@ export function AgentChatWorkspace({
       projectId: projectId ?? undefined,
       contentId: contentId ?? undefined,
       initialProfileKey:
-        siteSkillExecutionState?.profileKey || initialSiteSkillLaunch.profileKey,
+        siteSkillExecutionState?.profileKey ||
+        initialSiteSkillLaunch.profileKey,
       initialTargetId:
         siteSkillExecutionState?.targetId || initialSiteSkillLaunch.targetId,
       initialAdapterName: initialSiteSkillLaunch.adapterName,
@@ -1530,10 +1646,7 @@ export function AgentChatWorkspace({
         }
       />
     ),
-    [
-      handleOpenBrowserRuntimeForSiteSkillExecution,
-      siteSkillExecutionState,
-    ],
+    [handleOpenBrowserRuntimeForSiteSkillExecution, siteSkillExecutionState],
   );
 
   const compatSubagentRuntime = useCompatSubagentRuntime(sessionId);
@@ -1616,6 +1729,13 @@ export function AgentChatWorkspace({
     const fallbackArtifactId = defaultSelectedArtifact?.id || null;
 
     if (!selectedArtifact) {
+      if (selectedArtifactId !== fallbackArtifactId) {
+        setSelectedArtifactId(fallbackArtifactId);
+      }
+      return;
+    }
+
+    if (selectedArtifact.type === "browser_assist") {
       if (selectedArtifactId !== fallbackArtifactId) {
         setSelectedArtifactId(fallbackArtifactId);
       }
@@ -1745,10 +1865,9 @@ export function AgentChatWorkspace({
         gateKey: isThemeWorkbench ? currentGate.key : undefined,
         runTitle: themeWorkbenchActiveQueueItem?.title?.trim() || undefined,
         contentId: contentId || undefined,
-        browserAssistProfileKey:
-          mappedTheme === "general"
-            ? GENERAL_BROWSER_ASSIST_PROFILE_KEY
-            : undefined,
+        browserAssistProfileKey: browserAssistRequestProfileKey,
+        browserAssistPreferredBackend: browserAssistRequestPreferredBackend,
+        browserAssistAutoLaunch: browserAssistRequestAutoLaunch,
         preferredTeamPresetId,
         selectedTeamId: selectedTeam?.id,
         selectedTeamSource: selectedTeam?.source,
@@ -1762,6 +1881,9 @@ export function AgentChatWorkspace({
       effectiveChatToolPreferences.task,
       effectiveChatToolPreferences.thinking,
       effectiveChatToolPreferences.webSearch,
+      browserAssistRequestAutoLaunch,
+      browserAssistRequestPreferredBackend,
+      browserAssistRequestProfileKey,
       contentId,
       currentGate.key,
       isThemeWorkbench,
@@ -1855,6 +1977,7 @@ export function AgentChatWorkspace({
   } = useBootstrapDispatchPreview({
     initialUserPrompt,
     initialUserImages,
+    browserTaskPreflight,
     messagesCount: messages.length,
     isSending,
     queuedTurnCount: queuedTurns.length,
@@ -1899,15 +2022,12 @@ export function AgentChatWorkspace({
   }, []);
   const prepareBrowserTaskPreflight = useCallback(
     (preflight: BrowserTaskPreflight) => {
-      setInput("");
-      setMentionedCharacters([]);
       setBrowserTaskPreflight(preflight);
     },
     [],
   );
   const {
     resolveSendBoundary,
-    isBlockedByBrowserPreflight,
     maybeStartBrowserTaskPreflight,
     finalizeAfterSendSuccess,
     rollbackAfterSendFailure,
@@ -1920,7 +2040,6 @@ export function AgentChatWorkspace({
     mappedTheme,
     socialArticleSkillKey: SOCIAL_ARTICLE_SKILL_KEY,
     isBrowserAssistReady,
-    browserTaskPreflight,
     onConsumeInitialPrompt: consumeInitialPrompt,
     onResetConsumedInitialPrompt: resetConsumedInitialPrompt,
     onClearEntryPrompt: clearThemeWorkbenchEntryPrompt,
@@ -2028,6 +2147,17 @@ export function AgentChatWorkspace({
     updateCurrentImageWorkbenchState,
   });
   const { handleImageWorkbenchCommand } = imageWorkbenchActionRuntime;
+  const workspaceServiceSkillEntryActions =
+    useWorkspaceServiceSkillEntryActions({
+      activeTheme,
+      creationMode,
+      projectId,
+      contentId,
+      input,
+      chatToolPreferences: effectiveChatToolPreferences,
+      onNavigate: _onNavigate,
+      recordServiceSkillUsage,
+    });
 
   const {
     handleSend,
@@ -2041,11 +2171,13 @@ export function AgentChatWorkspace({
     setMentionedCharacters,
     chatToolPreferences: effectiveChatToolPreferences,
     setChatToolPreferences,
+    serviceSkills: activeTheme === "general" ? serviceSkills : [],
     activeTheme,
     mappedTheme,
     isThemeWorkbench,
     contextWorkspace: {
       enabled: contextWorkspace.enabled,
+      activeContextPrompt: contextWorkspace.activeContextPrompt,
       prepareActiveContextPrompt: contextWorkspace.prepareActiveContextPrompt,
     },
     runtimeStyleMessagePrompt,
@@ -2059,17 +2191,21 @@ export function AgentChatWorkspace({
     currentGateKey: currentGate.key,
     themeWorkbenchActiveQueueTitle: themeWorkbenchActiveQueueItem?.title,
     contentId,
+    browserAssistProfileKey: browserAssistRequestProfileKey,
+    browserAssistPreferredBackend: browserAssistRequestPreferredBackend,
+    browserAssistAutoLaunch: browserAssistRequestAutoLaunch,
     workspaceRequestMetadataBase: initialRequestMetadata,
     messagesCount: messages.length,
     sendMessage,
     resolveSendBoundary,
-    isBlockedByBrowserPreflight,
     maybeStartBrowserTaskPreflight,
     finalizeAfterSendSuccess,
     rollbackAfterSendFailure,
     prepareRuntimeTeamBeforeSend,
     setRuntimeTeamDispatchPreview,
     ensureBrowserAssistCanvas,
+    handleAutoLaunchMatchedSiteSkill:
+      workspaceServiceSkillEntryActions.handleAutoLaunchMatchedSiteSkill,
     handleImageWorkbenchCommand,
   });
 
@@ -2101,7 +2237,6 @@ export function AgentChatWorkspace({
   const {
     browserAssistEntryLabel,
     browserAssistAttentionLevel,
-    browserPreflightMessages,
     handlePermissionResponseWithBrowserPreflight,
   } = useWorkspaceBrowserPreflightRuntime({
     browserTaskPreflight,
@@ -2110,7 +2245,6 @@ export function AgentChatWorkspace({
     isBrowserAssistReady,
     ensureBrowserAssistCanvas,
     handlePermissionResponse,
-    sendRef: handleSendRef,
   });
   const {
     handleDocumentThinkingEnabledChange,
@@ -2167,8 +2301,8 @@ export function AgentChatWorkspace({
   }, [pendingSkillKey, isThemeWorkbench, consumePendingSkill, handleSend]);
 
   const { displayMessages } = useWorkspaceDisplayMessagesRuntime({
+    browserTaskPreflight,
     bootstrapDispatchPreviewMessages,
-    browserPreflightMessages,
     isSending,
     messages,
     pendingActionCount: pendingActions.length,
@@ -2186,9 +2320,9 @@ export function AgentChatWorkspace({
     [displayMessages],
   );
 
-  // 当开始对话时自动折叠侧边栏
-  const hasMessages = messages.length > 0;
+  // 布局层按实际展示内容判断，避免 browser preflight / bootstrap 预览仍被视为空白态。
   const hasDisplayMessages = displayMessages.length > 0;
+  const hasMessages = hasDisplayMessages;
 
   const handleCanvasSelectionTextChange = useCallback((text: string) => {
     const normalized = text.trim().replace(/\s+/g, " ");
@@ -2274,13 +2408,13 @@ export function AgentChatWorkspace({
   const handleResumeSidebarTask = useCallback(
     async (topicId: string, statusReason?: TaskStatusReason) => {
       if (topicId === sessionId && isResumableBrowserTaskReason(statusReason)) {
-        await handleOpenBrowserAssistInCanvas();
+        handleOpenBrowserRuntimeForBrowserAssist();
         return;
       }
 
       await switchTopic(topicId);
     },
-    [handleOpenBrowserAssistInCanvas, sessionId, switchTopic],
+    [handleOpenBrowserRuntimeForBrowserAssist, sessionId, switchTopic],
   );
 
   const handleWriteFile = useWorkspaceWriteFileAction({
@@ -2388,6 +2522,7 @@ export function AgentChatWorkspace({
     sessionFiles,
     readSessionFile,
     suppressBrowserAssistCanvasAutoOpen,
+    onOpenBrowserRuntimeForArtifact: handleOpenBrowserRuntimeForBrowserAssist,
     upsertGeneralArtifact,
     setSelectedArtifactId,
     setArtifactViewMode: applyAutoArtifactViewMode,
@@ -2443,6 +2578,7 @@ export function AgentChatWorkspace({
     sessionId,
     initialUserPrompt,
     initialUserImages,
+    initialAutoSendRequestMetadata,
     autoRunInitialPromptOnMount,
     initialDispatchKey,
     messagesCount: messages.length,
@@ -2543,17 +2679,6 @@ export function AgentChatWorkspace({
     setWorkspaceHealthError,
     workspacePathMissing,
   });
-  const workspaceServiceSkillEntryActions =
-    useWorkspaceServiceSkillEntryActions({
-      activeTheme,
-      creationMode,
-      projectId,
-      contentId,
-      input,
-      chatToolPreferences: effectiveChatToolPreferences,
-      onNavigate: _onNavigate,
-      recordServiceSkillUsage,
-    });
 
   const inputbarScene = useWorkspaceInputbarSceneRuntime({
     setMentionedCharacters,
@@ -2761,7 +2886,7 @@ export function AgentChatWorkspace({
     skillsLoading: combinedSkillsLoading,
     handleNavigateToSkillSettings,
     handleRefreshSkills,
-    handleOpenBrowserAssistInCanvas,
+    handleOpenBrowserAssistInCanvas: handleOpenBrowserRuntimeForBrowserAssist,
     browserAssistLaunching,
     hideHistoryToggle,
     showChatPanel,

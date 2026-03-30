@@ -85,6 +85,13 @@ type MockBrowserConnectorSettings = {
   enabled: boolean;
   install_root_dir: string | null;
   install_dir: string | null;
+  browser_action_capabilities: Array<{
+    key: string;
+    label: string;
+    description: string;
+    group: string;
+    enabled: boolean;
+  }>;
   system_connectors: Array<{
     id: string;
     label: string;
@@ -108,6 +115,149 @@ type MockBrowserConnectorInstallStatus = {
   installed_version: string | null;
   message: string | null;
 };
+
+const DEFAULT_MOCK_BROWSER_ACTION_CAPABILITIES = [
+  {
+    key: "tabs_context_mcp",
+    label: "标签页概览",
+    description: "读取当前已附着标签页的上下文摘要。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "list_tabs",
+    label: "列出标签页",
+    description: "列出当前浏览器标签页。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "tabs_create_mcp",
+    label: "新建标签页",
+    description: "创建新的浏览器标签页。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "read_page",
+    label: "页面快照",
+    description: "抓取当前页面快照。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "get_page_text",
+    label: "页面文本",
+    description: "读取当前页面文本内容。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "get_page_info",
+    label: "页面信息",
+    description: "读取页面标题、URL 与快照信息。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "find",
+    label: "页面内查找",
+    description: "在当前页面中查找文本。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "read_console_messages",
+    label: "控制台消息",
+    description: "读取浏览器控制台消息。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "read_network_requests",
+    label: "网络请求",
+    description: "读取页面网络请求记录。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "navigate",
+    label: "导航",
+    description: "导航到目标地址。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "open_url",
+    label: "打开链接",
+    description: "直接打开目标链接。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "click",
+    label: "点击元素",
+    description: "点击页面元素。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "type",
+    label: "输入文本",
+    description: "向当前页面输入文本。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "form_input",
+    label: "表单输入",
+    description: "按字段填写页面表单。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "switch_tab",
+    label: "切换标签页",
+    description: "切换当前操作标签页。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "scroll_page",
+    label: "滚动页面",
+    description: "滚动当前页面或容器。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "refresh_page",
+    label: "刷新页面",
+    description: "刷新当前页面。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "go_back",
+    label: "返回上一页",
+    description: "返回上一页。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "go_forward",
+    label: "前进到下一页",
+    description: "前进到下一页。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "javascript",
+    label: "执行脚本",
+    description: "在当前页面执行脚本。",
+    group: "write",
+    enabled: true,
+  },
+] as const;
 
 const mockBrowserProfiles: MockBrowserProfileRecord[] = [
   {
@@ -155,6 +305,9 @@ let mockBrowserConnectorSettings: MockBrowserConnectorSettings = {
   enabled: true,
   install_root_dir: "/mock/path/to/connectors",
   install_dir: "/mock/path/to/connectors/Lime Browser Connector",
+  browser_action_capabilities: DEFAULT_MOCK_BROWSER_ACTION_CAPABILITIES.map(
+    (capability) => ({ ...capability }),
+  ),
   system_connectors: [
     {
       id: "reminders",
@@ -165,11 +318,7 @@ let mockBrowserConnectorSettings: MockBrowserConnectorSettings = {
       visible: true,
       authorization_status: "not_determined",
       last_error: null,
-      capabilities: [
-        "list_reminders",
-        "create_reminder",
-        "update_reminder",
-      ],
+      capabilities: ["list_reminders", "create_reminder", "update_reminder"],
     },
     {
       id: "calendar",
@@ -217,6 +366,102 @@ let mockBrowserConnectorSettings: MockBrowserConnectorSettings = {
     },
   ],
 };
+
+function normalizeMockBrowserActionCapabilityKey(key: string) {
+  if (key === "scroll") {
+    return "scroll_page";
+  }
+  if (key === "javascript_tool") {
+    return "javascript";
+  }
+  return key;
+}
+
+function filterMockBrowserBackendCapabilities(capabilities: string[]) {
+  const enabledCapabilities = new Set(
+    mockBrowserConnectorSettings.browser_action_capabilities
+      .filter((capability) => capability.enabled)
+      .map((capability) => capability.key),
+  );
+  return capabilities.filter((capability) => {
+    const normalized = normalizeMockBrowserActionCapabilityKey(capability);
+    return (
+      !DEFAULT_MOCK_BROWSER_ACTION_CAPABILITIES.some(
+        (item) => item.key === normalized,
+      ) || enabledCapabilities.has(normalized)
+    );
+  });
+}
+
+function buildMockBrowserBackendsStatus() {
+  return {
+    policy: {
+      priority: ["aster_compat", "lime_extension_bridge", "cdp_direct"],
+      auto_fallback: true,
+    },
+    bridge_observer_count: 1,
+    bridge_control_count: 0,
+    running_profile_count: 1,
+    cdp_alive_profile_count: 1,
+    aster_native_host_supported: true,
+    aster_native_host_configured: false,
+    backends: [
+      {
+        backend: "aster_compat",
+        available: true,
+        capabilities: filterMockBrowserBackendCapabilities([
+          "navigate",
+          "read_page",
+          "tabs_context_mcp",
+          "list_tabs",
+        ]),
+      },
+      {
+        backend: "lime_extension_bridge",
+        available: true,
+        capabilities: filterMockBrowserBackendCapabilities([
+          "navigate",
+          "read_page",
+          "get_page_text",
+          "find",
+          "form_input",
+          "tabs_context_mcp",
+          "open_url",
+          "click",
+          "type",
+          "scroll",
+          "scroll_page",
+          "get_page_info",
+          "refresh_page",
+          "go_back",
+          "go_forward",
+          "switch_tab",
+          "list_tabs",
+        ]),
+      },
+      {
+        backend: "cdp_direct",
+        available: true,
+        capabilities: filterMockBrowserBackendCapabilities([
+          "tabs_context_mcp",
+          "navigate",
+          "read_page",
+          "get_page_text",
+          "find",
+          "click",
+          "type",
+          "scroll_page",
+          "get_page_info",
+          "read_console_messages",
+          "read_network_requests",
+          "javascript",
+        ]),
+      },
+    ],
+  };
+}
+
+let mockBrowserBackendsStatus = buildMockBrowserBackendsStatus();
 
 let mockBrowserConnectorInstallStatus: MockBrowserConnectorInstallStatus = {
   status: "not_installed",
@@ -510,11 +755,6 @@ function buildMockBrowserSessionLaunchResponse(request: any) {
   const currentTime = new Date().toISOString();
 
   if (profile) {
-    if (profile.transport_kind === "existing_session") {
-      throw new Error(
-        "当前资料使用“附着当前 Chrome”模式，运行时附着链路尚未接入；请先改用“托管浏览器”模式启动",
-      );
-    }
     profile.last_used_at = currentTime;
     profile.updated_at = currentTime;
   }
@@ -523,14 +763,18 @@ function buildMockBrowserSessionLaunchResponse(request: any) {
     environmentPreset.updated_at = currentTime;
   }
 
+  const isExistingSession = profile?.transport_kind === "existing_session";
+
   return upsertMockBrowserSessionState({
     profile: {
       success: true,
-      reused: false,
+      reused: isExistingSession,
       browser_source: "system",
       browser_path:
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      profile_dir: `/tmp/lime/chrome_profiles/${profileKey}`,
+      profile_dir: isExistingSession
+        ? ""
+        : `/tmp/lime/chrome_profiles/${profileKey}`,
       remote_debugging_port: 13001,
       pid: 12345,
       devtools_http_url: "http://127.0.0.1:13001/json/version",
@@ -1083,7 +1327,7 @@ const defaultMocks: Record<string, any> = {
     },
     content_creator: {
       schema_version: 1,
-      enabled_themes: ["social-media"],
+      enabled_themes: [],
       media_defaults: {},
     },
     navigation: {
@@ -1249,56 +1493,6 @@ const defaultMocks: Record<string, any> = {
     message: "Provider 配置已同步到浏览器 mock 环境。",
   }),
 
-  // 服务器相关
-  get_server_status: () => ({
-    running: false,
-    host: "127.0.0.1",
-    port: 8787,
-    requests: 0,
-    uptime_secs: 0,
-    error_rate_1m: 0,
-    p95_latency_ms_1m: null,
-    open_circuit_count: 0,
-    active_requests: 0,
-    capability_routing: {
-      filter_eval_total: 0,
-      filter_excluded_total: 0,
-      filter_excluded_tools_total: 0,
-      filter_excluded_vision_total: 0,
-      filter_excluded_context_total: 0,
-      provider_fallback_total: 0,
-      model_fallback_total: 0,
-      all_candidates_excluded_total: 0,
-    },
-    response_cache: {
-      size: 0,
-      hits: 0,
-      misses: 0,
-      evictions: 0,
-    },
-    request_dedup: {
-      inflight_size: 0,
-      completed_size: 0,
-      check_new_total: 0,
-      check_in_progress_total: 0,
-      check_completed_total: 0,
-      wait_success_total: 0,
-      wait_timeout_total: 0,
-      wait_no_result_total: 0,
-      complete_total: 0,
-      remove_total: 0,
-    },
-    idempotency: {
-      entries_size: 0,
-      in_progress_size: 0,
-      completed_size: 0,
-      check_new_total: 0,
-      check_in_progress_total: 0,
-      check_completed_total: 0,
-      complete_total: 0,
-      remove_total: 0,
-    },
-  }),
   get_server_diagnostics: () => ({
     generated_at: new Date().toISOString(),
     running: false,
@@ -1382,55 +1576,6 @@ const defaultMocks: Record<string, any> = {
       replay_rate_percent: 0,
     },
   }),
-  check_server_status: () => ({
-    running: false,
-    host: "127.0.0.1",
-    port: 8787,
-    requests: 0,
-    uptime_secs: 0,
-    error_rate_1m: 0,
-    p95_latency_ms_1m: null,
-    open_circuit_count: 0,
-    active_requests: 0,
-    capability_routing: {
-      filter_eval_total: 0,
-      filter_excluded_total: 0,
-      filter_excluded_tools_total: 0,
-      filter_excluded_vision_total: 0,
-      filter_excluded_context_total: 0,
-      provider_fallback_total: 0,
-      model_fallback_total: 0,
-      all_candidates_excluded_total: 0,
-    },
-    response_cache: {
-      size: 0,
-      hits: 0,
-      misses: 0,
-      evictions: 0,
-    },
-    request_dedup: {
-      inflight_size: 0,
-      completed_size: 0,
-      check_new_total: 0,
-      check_in_progress_total: 0,
-      check_completed_total: 0,
-      wait_success_total: 0,
-      wait_timeout_total: 0,
-      wait_no_result_total: 0,
-      complete_total: 0,
-      remove_total: 0,
-    },
-    idempotency: {
-      entries_size: 0,
-      in_progress_size: 0,
-      completed_size: 0,
-      check_new_total: 0,
-      check_in_progress_total: 0,
-      check_completed_total: 0,
-      complete_total: 0,
-      remove_total: 0,
-    },
-  }),
   get_log_storage_diagnostics: () => ({
     log_directory: "/tmp/lime/logs",
     current_log_path: "/tmp/lime/logs/lime.log",
@@ -1439,15 +1584,6 @@ const defaultMocks: Record<string, any> = {
     in_memory_log_count: 0,
     related_log_files: [],
     raw_response_files: [],
-  }),
-  start_server: () => "Server started (mock)",
-  stop_server: () => "Server stopped (mock)",
-
-  // 网络相关
-  get_network_info: () => ({
-    localhost: "127.0.0.1",
-    lan_ip: "192.168.1.100",
-    all_ips: ["127.0.0.1", "192.168.1.100"],
   }),
   list_browser_environment_presets_cmd: (args: any) => {
     const includeArchived = Boolean(args?.request?.include_archived);
@@ -1727,7 +1863,8 @@ const defaultMocks: Record<string, any> = {
         adapter: adapter.name,
         domain: adapter.domain,
         profile_key: requestedProfileKey || "attached-site-session",
-        target_id: requestedTargetId || String(matchingTab?.id ?? "mock-target-1"),
+        target_id:
+          requestedTargetId || String(matchingTab?.id ?? "mock-target-1"),
         message: `已检测到 ${adapter.domain} 的真实浏览器页面，Claw 可以直接复用当前会话执行。`,
       };
     }
@@ -1831,7 +1968,9 @@ const defaultMocks: Record<string, any> = {
       return {
         ok: false,
         adapter: adapterName || "github/search",
-        domain: adapterName.startsWith("zhihu") ? "www.zhihu.com" : "github.com",
+        domain: adapterName.startsWith("zhihu")
+          ? "www.zhihu.com"
+          : "github.com",
         profile_key: request.profile_key ?? "general_browser_assist",
         entry_url: "https://example.com/mock-site",
         error_code: "attached_session_required",
@@ -2032,14 +2171,36 @@ const defaultMocks: Record<string, any> = {
     };
     return mockBrowserConnectorSettings;
   },
-  get_browser_connector_install_status_cmd: () => mockBrowserConnectorInstallStatus,
+  set_browser_action_capability_enabled_cmd: (args: any) => {
+    const request = args?.request ?? {};
+    const targetKey = normalizeMockBrowserActionCapabilityKey(
+      String(request.key ?? ""),
+    );
+    mockBrowserConnectorSettings = {
+      ...mockBrowserConnectorSettings,
+      browser_action_capabilities:
+        mockBrowserConnectorSettings.browser_action_capabilities.map(
+          (capability) =>
+            capability.key === targetKey
+              ? {
+                  ...capability,
+                  enabled: request.enabled !== false,
+                }
+              : capability,
+        ),
+    };
+    mockBrowserBackendsStatus = buildMockBrowserBackendsStatus();
+    return mockBrowserConnectorSettings;
+  },
+  get_browser_connector_install_status_cmd: () =>
+    mockBrowserConnectorInstallStatus,
   install_browser_connector_extension_cmd: (args: any) => {
     const installRootDir =
       typeof args?.request?.install_root_dir === "string" &&
       args.request.install_root_dir.trim()
         ? args.request.install_root_dir.trim()
-        : mockBrowserConnectorSettings.install_root_dir ??
-          "/mock/path/to/connectors";
+        : (mockBrowserConnectorSettings.install_root_dir ??
+          "/mock/path/to/connectors");
     const installDir = `${installRootDir}/Lime Browser Connector`;
     mockBrowserConnectorSettings = {
       ...mockBrowserConnectorSettings,
@@ -2065,6 +2226,7 @@ const defaultMocks: Record<string, any> = {
     };
   },
   open_browser_extensions_page_cmd: () => true,
+  open_browser_remote_debugging_page_cmd: () => true,
   chrome_bridge_execute_command: (args: any) => ({
     success: true,
     request_id: `mock-${Date.now()}`,
@@ -2095,47 +2257,7 @@ const defaultMocks: Record<string, any> = {
     ],
     auto_fallback: args?.policy?.auto_fallback ?? true,
   }),
-  get_browser_backends_status: () => ({
-    policy: {
-      priority: ["aster_compat", "lime_extension_bridge", "cdp_direct"],
-      auto_fallback: true,
-    },
-    bridge_observer_count: 1,
-    bridge_control_count: 0,
-    running_profile_count: 1,
-    cdp_alive_profile_count: 1,
-    aster_native_host_supported: true,
-    aster_native_host_configured: false,
-    backends: [
-      {
-        backend: "aster_compat",
-        available: true,
-        capabilities: [
-          "navigate",
-          "read_page",
-          "tabs_context_mcp",
-          "list_tabs",
-        ],
-      },
-      {
-        backend: "lime_extension_bridge",
-        available: true,
-        capabilities: [
-          "open_url",
-          "click",
-          "type",
-          "get_page_info",
-          "switch_tab",
-          "list_tabs",
-        ],
-      },
-      {
-        backend: "cdp_direct",
-        available: true,
-        capabilities: ["tabs_context_mcp", "navigate", "read_page"],
-      },
-    ],
-  }),
+  get_browser_backends_status: () => mockBrowserBackendsStatus,
   list_cdp_targets: () => [
     {
       id: "mock-target-1",
@@ -2531,21 +2653,16 @@ const defaultMocks: Record<string, any> = {
     default_decision_status: "pending_review",
     decision: {
       decision_status:
-        request?.decision_status ||
-        request?.decisionStatus ||
-        "pending_review",
+        request?.decision_status || request?.decisionStatus || "pending_review",
       decision_summary:
         request?.decision_summary || request?.decisionSummary || "",
       chosen_fix_strategy:
         request?.chosen_fix_strategy || request?.chosenFixStrategy || "",
       risk_level: request?.risk_level || request?.riskLevel || "unknown",
       risk_tags: request?.risk_tags || request?.riskTags || [],
-      human_reviewer:
-        request?.human_reviewer || request?.humanReviewer || "",
+      human_reviewer: request?.human_reviewer || request?.humanReviewer || "",
       reviewed_at:
-        request?.reviewed_at ||
-        request?.reviewedAt ||
-        "2026-03-27T00:07:00Z",
+        request?.reviewed_at || request?.reviewedAt || "2026-03-27T00:07:00Z",
       followup_actions:
         request?.followup_actions || request?.followupActions || [],
       regression_requirements:
@@ -3217,10 +3334,6 @@ const defaultMocks: Record<string, any> = {
   get_token_stats_by_model: () => ({ stats: [] }),
   get_token_stats_by_day: () => ({ stats: [] }),
 
-  // Routes 相关
-  get_available_routes: () => ({ routes: [] }),
-  get_route_curl_examples: () => ({ examples: [] }),
-
   // Prompts 相关
   get_prompts: () => [],
   upsert_prompt: () => ({ success: true }),
@@ -3328,23 +3441,6 @@ const defaultMocks: Record<string, any> = {
   }),
   clear_logs: () => ({}),
   clear_diagnostic_log_history: () => ({}),
-
-  // Test 相关
-  test_api: () => ({
-    success: true,
-    status: 200,
-    body: "",
-    time_ms: 0,
-    response_headers: {
-      "x-lime-request-id": "mock-request-id",
-      "x-lime-cache": "store",
-      "x-lime-dedup": "new",
-      "x-lime-idempotency": "new",
-      "x-lime-requested-provider": "openai",
-      "x-lime-effective-provider": "openai",
-      "x-lime-model": "gpt-4o-mini",
-    },
-  }),
 
   // Kiro Credentials 相关
   get_kiro_credentials: () => ({ loaded: false }),

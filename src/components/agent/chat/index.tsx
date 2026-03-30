@@ -62,6 +62,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
     entryBannerMessage,
     newChatAt,
     autoRunInitialPromptOnMount = false,
+    initialAutoSendRequestMetadata,
     initialSiteSkillLaunch,
     onHasMessagesChange,
     onSessionChange,
@@ -166,6 +167,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
         initialCreationMode={
           activeBootstrap?.initialCreationMode ?? initialCreationMode
         }
+        lockTheme={activeBootstrap?.lockTheme ?? lockTheme}
         initialUserPrompt={
           activeBootstrap?.initialUserPrompt ?? initialUserPrompt
         }
@@ -175,6 +177,10 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
         initialRequestMetadata={
           activeBootstrap?.initialRequestMetadata ??
           props.initialRequestMetadata
+        }
+        initialAutoSendRequestMetadata={
+          activeBootstrap?.initialAutoSendRequestMetadata ??
+          initialAutoSendRequestMetadata
         }
         autoRunInitialPromptOnMount={
           activeBootstrap?.autoRunInitialPromptOnMount ??

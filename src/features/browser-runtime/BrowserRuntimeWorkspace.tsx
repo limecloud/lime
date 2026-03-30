@@ -242,7 +242,7 @@ export function BrowserRuntimeWorkspace(props: BrowserRuntimeWorkspaceProps) {
           {attachObserverCount > 0 ? (
             <p className="text-xs text-muted-foreground">
               附着当前 Chrome
-              复用的是你正在使用的浏览器页面，不会额外创建独立实时会话。
+              会优先复用你正在使用的浏览器页面，并在可用时直接接管到实时调试会话。
             </p>
           ) : null}
         </div>

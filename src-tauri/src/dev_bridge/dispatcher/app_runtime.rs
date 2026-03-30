@@ -15,8 +15,10 @@ pub(super) async fn try_handle(
             serde_json::to_value(manager.config())?
         }
         "save_config" => {
-            let config: lime_core::config::Config =
+            let mut config: lime_core::config::Config =
                 serde_json::from_value(args.cloned().unwrap_or_default())?;
+            config.normalize_local_server_surface();
+            config.normalize_workspace_preferences();
             lime_core::config::save_config(&config)?;
             crate::services::environment_service::apply_configured_environment(&config).await;
             serde_json::json!({ "success": true })
@@ -37,10 +39,6 @@ pub(super) async fn try_handle(
         "get_endpoint_providers" => {
             let providers = { state.server.read().await.config.endpoint_providers.clone() };
             serde_json::to_value(providers)?
-        }
-        "get_server_status" => {
-            let status = { state.server.read().await.status() };
-            serde_json::to_value(status)?
         }
         "get_server_diagnostics" => {
             let (status, capability_routing, response_cache, request_dedup, idempotency) = {

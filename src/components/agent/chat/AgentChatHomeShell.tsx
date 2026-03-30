@@ -20,6 +20,7 @@ import type { BrowserRuntimePageParams, Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import { EmptyState } from "./components/EmptyState";
 import type { CreationMode } from "./components/types";
+import type { MessageImage } from "./types";
 import {
   alignChatToolPreferencesWithExecutionStrategy,
   saveChatToolPreferences,
@@ -52,8 +53,8 @@ import {
   type HomeShellEnterWorkspacePayload,
 } from "./homeShellEntry";
 import { useServiceSkills } from "./service-skills/useServiceSkills";
-import { ServiceSkillHomePanel } from "./service-skills/ServiceSkillHomePanel";
 import { ServiceSkillLaunchDialog } from "./service-skills/ServiceSkillLaunchDialog";
+import { matchAutoLaunchSiteSkillFromText } from "./service-skills/autoMatchSiteSkill";
 import { composeServiceSkillPrompt } from "./service-skills/promptComposer";
 import {
   buildServiceSkillAutomationAgentTurnPayloadContext,
@@ -68,9 +69,14 @@ import type {
 } from "./service-skills/types";
 import { buildServiceSkillWorkspaceSeed } from "./service-skills/workspaceLaunch";
 import {
+  buildSiteLaunchBlockedMessage,
+  buildServiceSkillClawLaunchContext,
+  buildServiceSkillClawLaunchRequestMetadata,
   buildServiceSkillSiteCapabilityArgs,
   buildServiceSkillSiteCapabilitySaveTitle,
+  composeServiceSkillClawLaunchPrompt,
   isServiceSkillExecutableAsSiteAdapter,
+  isSiteLaunchReadinessReady,
 } from "./service-skills/siteCapabilityBinding";
 
 const PageContainer = styled.div<{ $compact?: boolean }>`
@@ -185,6 +191,21 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+interface ServiceSkillLaunchOptions {
+  launchUserInput?: string | null;
+}
+
+function resolveServiceSkillLaunchUserInput(
+  currentInput: string,
+  options?: ServiceSkillLaunchOptions,
+): string | undefined {
+  if (options && "launchUserInput" in options) {
+    return normalizeOptionalText(options.launchUserInput);
+  }
+
+  return normalizeOptionalText(currentInput);
 }
 
 function buildServiceSkillCloudResultBody(
@@ -391,9 +412,9 @@ export function AgentChatHomeShell({
   } = useClawSolutions(activeTheme === "general");
   const {
     skills: serviceSkills,
-    groups: serviceSkillGroups,
-    catalogMeta: serviceSkillCatalogMeta,
-    isLoading: serviceSkillsLoading,
+    groups: _serviceSkillGroups,
+    catalogMeta: _serviceSkillCatalogMeta,
+    isLoading: _serviceSkillsLoading,
     error: serviceSkillsError,
     recordUsage: recordServiceSkillUsage,
   } = useServiceSkills(activeTheme === "general");
@@ -471,6 +492,27 @@ export function AgentChatHomeShell({
     },
     [externalProjectId, rememberProjectId, setCurrentProjectId],
   );
+
+  const handleOpenBrowserRuntimeFromHome = useCallback(() => {
+    if (!onNavigate) {
+      toast.error("当前入口暂不支持打开浏览器工作台，请从桌面主界面重试。");
+      return;
+    }
+
+    const normalizedProjectId = normalizeProjectId(currentProjectId);
+    if (normalizedProjectId) {
+      rememberProjectId(normalizedProjectId);
+    }
+
+    onNavigate(
+      "browser-runtime",
+      normalizedProjectId
+        ? {
+            projectId: normalizedProjectId,
+          }
+        : undefined,
+    );
+  }, [currentProjectId, onNavigate, rememberProjectId]);
 
   const handleEnterWorkspace = useCallback(
     (payload: HomeShellEnterWorkspacePayload) => {
@@ -617,7 +659,7 @@ export function AgentChatHomeShell({
     [],
   );
 
-  const handleOpenServiceSkillAutomationJob = useCallback(
+  const _handleOpenServiceSkillAutomationJob = useCallback(
     (skill: ServiceSkillHomeItem) => {
       const jobId = skill.automationStatus?.jobId;
       if (!jobId || !onNavigate) {
@@ -773,10 +815,17 @@ export function AgentChatHomeShell({
     async (
       skill: ServiceSkillHomeItem,
       slotValues: ServiceSkillSlotValues,
-      launchReadiness: Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>,
+      launchReadiness:
+        | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
+        | null,
+      options?: ServiceSkillLaunchOptions,
     ): Promise<HomeShellEnterWorkspacePayload> => {
       if (!isServiceSkillExecutableAsSiteAdapter(skill)) {
         throw new Error("当前技能未绑定站点执行能力");
+      }
+
+      if (!isSiteLaunchReadinessReady(launchReadiness)) {
+        throw new Error(buildSiteLaunchBlockedMessage(launchReadiness));
       }
 
       const normalizedProjectId = normalizeProjectId(currentProjectId);
@@ -788,10 +837,6 @@ export function AgentChatHomeShell({
       }
       const binding = skill.siteCapabilityBinding;
       const saveMode = binding.saveMode ?? "project_resource";
-      const initialArgs = buildServiceSkillSiteCapabilityArgs(
-        skill,
-        slotValues,
-      );
       const initialSaveTitle = buildServiceSkillSiteCapabilitySaveTitle(
         skill,
         slotValues,
@@ -806,30 +851,31 @@ export function AgentChatHomeShell({
         nextContentId = created?.id ?? undefined;
       }
 
-      const seed = buildServiceSkillWorkspaceSeed(
+      const clawLaunchContext = {
+        ...buildServiceSkillClawLaunchContext(skill, slotValues, {
+          contentId: nextContentId,
+          projectId: normalizedProjectId,
+          launchReadiness,
+        }),
+        saveTitle: nextContentId ? undefined : initialSaveTitle,
+      };
+      const prompt = composeServiceSkillClawLaunchPrompt({
         skill,
-        skill.themeTarget ?? activeTheme,
-      );
+        slotValues,
+        userInput: resolveServiceSkillLaunchUserInput(input, options),
+        context: clawLaunchContext,
+      });
 
       return {
+        prompt,
         contentId: nextContentId,
         themeOverride: "general",
-        ...(seed?.requestMetadata
-          ? { initialRequestMetadata: seed.requestMetadata }
-          : {}),
-        initialSiteSkillLaunch: {
-          adapterName: binding.adapterName,
-          args: initialArgs,
-          autoRun: binding.autoRun ?? true,
-          profileKey: launchReadiness.profile_key,
-          targetId: launchReadiness.target_id,
-          requireAttachedSession: true,
-          saveTitle: nextContentId ? undefined : initialSaveTitle,
-          skillTitle: skill.title,
-        },
+        initialAutoSendRequestMetadata:
+          buildServiceSkillClawLaunchRequestMetadata(clawLaunchContext),
+        autoRunInitialPromptOnMount: true,
       };
     },
-    [activeTheme, createServiceSkillSeededContent, currentProjectId],
+    [createServiceSkillSeededContent, currentProjectId, input],
   );
 
   const handleServiceSkillBrowserRuntimeLaunch = useCallback(
@@ -925,26 +971,25 @@ export function AgentChatHomeShell({
   );
 
   const handleServiceSkillLaunch = useCallback(
-    async (skill: ServiceSkillHomeItem, slotValues: ServiceSkillSlotValues) => {
+    async (
+      skill: ServiceSkillHomeItem,
+      slotValues: ServiceSkillSlotValues,
+      options?: ServiceSkillLaunchOptions,
+    ) => {
       if (isServiceSkillExecutableAsSiteAdapter(skill)) {
-        let launchReadiness: Awaited<
-          ReturnType<typeof siteGetAdapterLaunchReadiness>
-        >;
+        let launchReadiness:
+          | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
+          | null = null;
         try {
           launchReadiness = await siteGetAdapterLaunchReadiness({
             adapter_name: skill.siteCapabilityBinding.adapterName,
           });
-        } catch (error) {
-          toast.error(`检测浏览器会话失败：${getErrorMessage(error)}`);
-          return;
+        } catch {
+          // 门禁检查失败时保持弹窗可见，交由后续阻断提示兜底。
         }
 
-        if (launchReadiness.status !== "ready") {
-          toast.error(
-            launchReadiness.report_hint
-              ? `${launchReadiness.message} ${launchReadiness.report_hint}`
-              : launchReadiness.message,
-          );
+        if (!isSiteLaunchReadinessReady(launchReadiness)) {
+          toast.info(buildSiteLaunchBlockedMessage(launchReadiness));
           return;
         }
 
@@ -954,6 +999,7 @@ export function AgentChatHomeShell({
             skill,
             slotValues,
             launchReadiness,
+            options,
           );
         } catch (error) {
           toast.error(`准备站点技能失败：${getErrorMessage(error)}`);
@@ -977,7 +1023,7 @@ export function AgentChatHomeShell({
       const prompt = composeServiceSkillPrompt({
         skill,
         slotValues,
-        userInput: input.trim() || undefined,
+        userInput: resolveServiceSkillLaunchUserInput(input, options),
       });
 
       if (skill.executionLocation === "cloud_required") {
@@ -1101,6 +1147,54 @@ export function AgentChatHomeShell({
       prepareServiceSkillSiteWorkspacePayload,
       prepareServiceSkillWorkspacePayload,
       recordServiceSkillUsage,
+    ],
+  );
+
+  const handleEmptyStateSend = useCallback(
+    async (
+      value: string,
+      sendExecutionStrategy?: "react" | "code_orchestrated" | "auto",
+      images?: MessageImage[],
+    ) => {
+      if (sendExecutionStrategy) {
+        setExecutionStrategy(sendExecutionStrategy);
+      }
+
+      const trimmedValue = value.trim();
+      if (
+        activeTheme === "general" &&
+        !images?.length &&
+        trimmedValue &&
+        !trimmedValue.startsWith("/") &&
+        !trimmedValue.startsWith("@")
+      ) {
+        const matchedSiteSkill = matchAutoLaunchSiteSkillFromText({
+          inputText: trimmedValue,
+          serviceSkills,
+        });
+        if (matchedSiteSkill) {
+          await handleServiceSkillLaunch(
+            matchedSiteSkill.skill,
+            matchedSiteSkill.slotValues,
+            {
+              launchUserInput: matchedSiteSkill.launchUserInput,
+            },
+          );
+          return;
+        }
+      }
+
+      handleEnterWorkspace({
+        prompt: value,
+        images,
+      });
+    },
+    [
+      activeTheme,
+      handleEnterWorkspace,
+      handleServiceSkillLaunch,
+      serviceSkills,
+      setExecutionStrategy,
     ],
   );
 
@@ -1304,13 +1398,11 @@ export function AgentChatHomeShell({
                 input={input}
                 setInput={setInput}
                 onSend={(value, sendExecutionStrategy, images) => {
-                  if (sendExecutionStrategy) {
-                    setExecutionStrategy(sendExecutionStrategy);
-                  }
-                  handleEnterWorkspace({
-                    prompt: value,
+                  void handleEmptyStateSend(
+                    value,
+                    sendExecutionStrategy,
                     images,
-                  });
+                  );
                 }}
                 providerType={providerType}
                 setProviderType={setProviderType}
@@ -1363,23 +1455,11 @@ export function AgentChatHomeShell({
                 onRecommendationClick={handleRecommendationClick}
                 supportingSlotOverride={
                   activeTheme === "general" ? (
-                    <>
-                      <ServiceSkillHomePanel
-                        skills={serviceSkills}
-                        groups={serviceSkillGroups}
-                        catalogMeta={serviceSkillCatalogMeta}
-                        loading={serviceSkillsLoading}
-                        onSelect={handleServiceSkillSelect}
-                        onOpenAutomationJob={
-                          handleOpenServiceSkillAutomationJob
-                        }
-                      />
-                      <ClawHomeSolutionsPanel
-                        solutions={clawSolutions}
-                        loading={clawSolutionsLoading}
-                        onSelect={handleClawSolutionSelect}
-                      />
-                    </>
+                    <ClawHomeSolutionsPanel
+                      solutions={clawSolutions}
+                      loading={clawSolutionsLoading}
+                      onSelect={handleClawSolutionSelect}
+                    />
                   ) : undefined
                 }
                 characters={projectMemory?.characters || []}
@@ -1391,16 +1471,11 @@ export function AgentChatHomeShell({
                   onNavigate?.("skills");
                 }}
                 onRefreshSkills={handleRefreshSkills}
-                onLaunchBrowserAssist={() => {
-                  if (activeTheme !== "general") {
-                    return;
-                  }
-                  setBrowserAssistLoading(true);
-                  handleEnterWorkspace({
-                    prompt: input,
-                    openBrowserAssistOnMount: true,
-                  });
-                }}
+                onLaunchBrowserAssist={
+                  activeTheme === "general"
+                    ? handleOpenBrowserRuntimeFromHome
+                    : undefined
+                }
                 browserAssistLoading={browserAssistLoading}
                 projectId={currentProjectId}
                 onProjectChange={handleProjectChange}

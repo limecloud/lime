@@ -173,6 +173,13 @@
       "allowedPaths": []
     },
     {
+      "id": "settings-api-server-page-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的共享网关设置页入口",
+      "targets": ["src/components/api-server/ApiServerPage.tsx"],
+      "allowedPaths": []
+    },
+    {
       "id": "team-subagent-scheduler-hook",
       "classification": "compat",
       "description": "旧 SubAgent scheduler Hook 只允许停留在 compat 展示层",
@@ -195,6 +202,35 @@
     }
   ],
   "commands": [
+    {
+      "id": "shared-gateway-control-commands",
+      "classification": "dead-candidate",
+      "description": "已下线的共享网关桌面命令边界",
+      "commands": [
+        "start_server",
+        "stop_server",
+        "get_server_status",
+        "get_available_routes",
+        "get_route_curl_examples",
+        "test_api",
+        "get_network_info"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "shared-gateway-tray-sync-commands",
+      "classification": "dead-candidate",
+      "description": "已下线的共享网关托盘同步命令边界",
+      "commands": [
+        "sync_tray_state",
+        "update_tray_server_status",
+        "update_tray_credential_status",
+        "get_tray_state",
+        "refresh_tray_menu",
+        "refresh_tray_with_stats"
+      ],
+      "allowedPaths": []
+    },
     {
       "id": "agent-create-session-compat-command",
       "classification": "dead-candidate",
@@ -678,6 +714,32 @@
       "classification": "dead-candidate",
       "description": "已零引用的 provider pool legacy 凭证选择兼容方法",
       "patterns": ["select_credential_with_fallback_legacy"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-shared-gateway-route-list-http-surface",
+      "classification": "dead-candidate",
+      "description": "已下线的共享网关 /v1/routes 与 route_model 兼容面",
+      "patterns": [
+        "\"/v1/routes\"",
+        "async fn list_routes(",
+        "get_available_routes(",
+        "models::route_model",
+        "RouteListResponse"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-shared-gateway-selector-http-routes",
+      "classification": "dead-candidate",
+      "description": "已下线的共享网关 selector HTTP 路由兼容面",
+      "patterns": [
+        "\"/{selector}/v1/messages\"",
+        "\"/{selector}/v1/chat/completions\"",
+        "anthropic_messages_with_selector(",
+        "chat_completions_with_selector(",
+        "selector '{selector}'"
+      ],
       "allowedPaths": []
     },
     {

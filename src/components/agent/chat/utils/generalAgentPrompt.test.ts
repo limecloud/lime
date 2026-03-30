@@ -95,10 +95,16 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("当前通用对话已启用 Browser Assist");
     expect(prompt).toContain("general_browser_assist");
     expect(prompt).toContain("Playwright code");
-    expect(prompt).toContain("右侧画布");
+    expect(prompt).toContain("浏览器工作台");
     expect(prompt).toContain("browser session");
     expect(prompt).toContain("显式给出 URL");
     expect(prompt).toContain("不得先退化成 WebSearch");
     expect(prompt).toContain("一旦给了 URL，先打开页面");
+    expect(prompt).toContain("service_skill_launch");
+    expect(prompt).toContain("站点技能启动上下文");
+    expect(prompt).toContain("lime_site_run");
+    expect(prompt).toContain("mcp__lime-browser__browser_navigate");
+    expect(prompt).toContain("严格 JSON 对象");
+    expect(prompt).toContain("attached_session_required");
   });
 });

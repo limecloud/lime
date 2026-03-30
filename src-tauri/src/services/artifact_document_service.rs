@@ -1089,7 +1089,16 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::schema::create_tables;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
+
+    fn setup_test_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        create_tables(&conn).expect("初始化表结构失败");
+        Arc::new(Mutex::new(conn))
+    }
 
     fn build_params() -> ArtifactDocumentPersistParams {
         let workspace_root = tempdir().expect("tempdir").keep();
@@ -1290,10 +1299,9 @@ mod tests {
     #[test]
     fn sync_persisted_artifact_document_to_content_should_update_body_and_metadata() {
         use crate::content::{ContentCreateRequest, ContentManager};
-        use crate::database::init_database;
         use crate::workspace::{WorkspaceManager, WorkspaceType};
 
-        let db = init_database().expect("db should init");
+        let db = setup_test_db();
         let workspace_root = tempdir().expect("tempdir").keep();
         let workspace = WorkspaceManager::new(db.clone())
             .create_with_type(

@@ -18,6 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const LIME_SKIP_STARTUP_WINDOW_REVEAL = "LIME_SKIP_STARTUP_WINDOW_REVEAL";
 
 const state = {
   child: null,
@@ -155,7 +156,10 @@ function startHeadlessTauri() {
   state.child = spawn(npmCommand, ["run", "tauri:dev:headless"], {
     cwd: rootDir,
     stdio: "inherit",
-    env: process.env,
+    env: {
+      ...process.env,
+      [LIME_SKIP_STARTUP_WINDOW_REVEAL]: "1",
+    },
     detached: process.platform !== "win32",
   });
 }
@@ -367,6 +371,7 @@ async function main() {
         String(options.timeoutMs),
         "--interval-ms",
         String(options.intervalMs),
+        "--headless",
       ],
       "smoke:browser-runtime",
     );

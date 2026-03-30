@@ -16,6 +16,23 @@ use super::commands as app_commands;
 use super::types::{AppState, TrayManagerState};
 
 const MAIN_WINDOW_LABEL: &str = "main";
+const SKIP_STARTUP_WINDOW_REVEAL_ENV: &str = "LIME_SKIP_STARTUP_WINDOW_REVEAL";
+
+fn env_flag_enabled(key: &str) -> bool {
+    matches!(
+        std::env::var(key)
+            .ok()
+            .as_deref()
+            .map(str::trim)
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("1") | Some("true") | Some("yes") | Some("on")
+    )
+}
+
+fn should_reveal_main_window_on_startup() -> bool {
+    !env_flag_enabled(SKIP_STARTUP_WINDOW_REVEAL_ENV)
+}
 
 fn compiled_updater_public_key() -> Option<&'static str> {
     option_env!("LIME_UPDATER_PUBLIC_KEY")
@@ -161,8 +178,12 @@ pub fn run() {
             tracing::info!("[单实例] 收到来自新实例的参数: {:?}", args);
 
             // 将窗口带到前台
-            if let Some(window) = app.get_webview_window("main") {
-                reveal_main_window(&window);
+            if should_reveal_main_window_on_startup() {
+                if let Some(window) = app.get_webview_window("main") {
+                    reveal_main_window(&window);
+                }
+            } else {
+                tracing::info!("[启动] 已跳过主窗口展示流程（headless smoke 模式）");
             }
 
             let deep_link_urls: Vec<String> = args
@@ -266,10 +287,14 @@ pub fn run() {
 
             // 启动时先最大化再显示，避免用户看到“先小窗后展开”的过程。
             if let Some(main_window) = app.get_webview_window("main") {
-                reveal_main_window(&main_window);
+                if should_reveal_main_window_on_startup() {
+                    reveal_main_window(&main_window);
+                } else {
+                    tracing::info!("[启动] 已跳过主窗口展示流程（headless smoke 模式）");
+                }
 
                 #[cfg(debug_assertions)]
-                if crate::profiling::should_open_webview_devtools() {
+                if env_flag_enabled("LIME_OPEN_WEBVIEW_DEVTOOLS") {
                     main_window.open_devtools();
                     tracing::info!("[Profiling] 已自动打开主窗口 WebView DevTools");
                 }
@@ -756,8 +781,6 @@ pub fn run() {
                     }
                 }
                 // 启动服务器（使用共享的遥测实例）
-                let server_started;
-                let server_address;
                 {
                     let mut s = state.write().await;
                     logs.write()
@@ -783,28 +806,21 @@ pub fn run() {
                             logs.write()
                                 .await
                                 .add("info", &format!("[启动] 服务器已启动: {host}:{port}"));
-                            server_started = true;
-                            server_address = format!("{host}:{port}");
                         }
                         Err(e) => {
                             logs.write()
                                 .await
                                 .add("error", &format!("[启动] 服务器启动失败: {e}"));
-                            server_started = false;
-                            server_address = String::new();
                         }
                     }
                 }
 
                 // 更新托盘状态
-                // Requirements 7.1: API 服务器状态变化时更新托盘图标
                 if let Some(tray_state) = app_handle.try_state::<TrayManagerState<tauri::Wry>>() {
                     let tray_guard = tray_state.0.read().await;
                     if let Some(tray_manager) = tray_guard.as_ref() {
                         let current_state = tray_manager.get_state().await;
-                        let icon_status = if !server_started {
-                            TrayIconStatus::Stopped
-                        } else if total_credentials > 0 && available_credentials == 0 {
+                        let icon_status = if total_credentials == 0 || available_credentials == 0 {
                             TrayIconStatus::Error
                         } else if available_credentials < total_credentials {
                             TrayIconStatus::Warning
@@ -814,8 +830,6 @@ pub fn run() {
 
                         let snapshot = TrayStateSnapshot {
                             icon_status,
-                            server_running: server_started,
-                            server_address,
                             available_credentials,
                             total_credentials,
                             today_requests: current_state.today_requests,
@@ -1038,9 +1052,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             // Server commands (from app::commands)
-            app_commands::start_server,
-            app_commands::stop_server,
-            app_commands::get_server_status,
             app_commands::get_server_diagnostics,
             // Config commands (from app::commands)
             app_commands::get_config,
@@ -1089,7 +1100,6 @@ pub fn run() {
             app_commands::report_frontend_crash,
             app_commands::report_frontend_debug_log,
             // API test commands (from app::commands)
-            app_commands::test_api,
             app_commands::get_available_models,
             app_commands::check_api_compatibility,
             // Switch commands
@@ -1320,9 +1330,6 @@ pub fn run() {
             // API Key Provider connection test command
             commands::api_key_provider_cmd::test_api_key_provider_connection,
             commands::api_key_provider_cmd::test_api_key_provider_chat,
-            // Route commands
-            commands::route_cmd::get_available_routes,
-            commands::route_cmd::get_route_curl_examples,
             // Resilience config commands
             commands::resilience_cmd::get_retry_config,
             commands::resilience_cmd::update_retry_config,
@@ -1360,12 +1367,6 @@ pub fn run() {
             // Usage commands
             commands::usage_cmd::get_kiro_usage,
             // Tray commands
-            commands::tray_cmd::sync_tray_state,
-            commands::tray_cmd::update_tray_server_status,
-            commands::tray_cmd::update_tray_credential_status,
-            commands::tray_cmd::get_tray_state,
-            commands::tray_cmd::refresh_tray_menu,
-            commands::tray_cmd::refresh_tray_with_stats,
             commands::tray_cmd::sync_tray_model_shortcuts,
             // Plugin commands
             commands::plugin_cmd::get_plugin_status,
@@ -1479,8 +1480,6 @@ pub fn run() {
             commands::models_cmd::toggle_model_enabled,
             commands::models_cmd::add_provider,
             commands::models_cmd::remove_provider,
-            // Network commands
-            commands::network_cmd::get_network_info,
             // Orchestrator commands
             commands::orchestrator_cmd::init_orchestrator,
             commands::orchestrator_cmd::get_orchestrator_config,
@@ -1569,9 +1568,11 @@ pub fn run() {
             commands::browser_connector_cmd::set_browser_connector_install_root_cmd,
             commands::browser_connector_cmd::set_browser_connector_enabled_cmd,
             commands::browser_connector_cmd::set_system_connector_enabled_cmd,
+            commands::browser_connector_cmd::set_browser_action_capability_enabled_cmd,
             commands::browser_connector_cmd::get_browser_connector_install_status_cmd,
             commands::browser_connector_cmd::install_browser_connector_extension_cmd,
             commands::browser_connector_cmd::open_browser_extensions_page_cmd,
+            commands::browser_connector_cmd::open_browser_remote_debugging_page_cmd,
             // Browser profile commands
             commands::browser_profile_cmd::list_browser_profiles_cmd,
             commands::browser_profile_cmd::save_browser_profile_cmd,

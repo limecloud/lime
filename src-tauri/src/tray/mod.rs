@@ -5,7 +5,6 @@
 //! - 托盘菜单构建
 //! - 菜单事件处理
 //! - 托盘图标点击事件处理
-//! - 状态同步
 
 mod events;
 mod format;
@@ -13,7 +12,6 @@ mod manager;
 mod menu;
 mod menu_handler;
 mod state;
-mod sync;
 
 pub use events::*;
 pub use format::*;
@@ -21,4 +19,3 @@ pub use manager::*;
 pub use menu::*;
 pub use menu_handler::*;
 pub use state::*;
-pub use sync::*;

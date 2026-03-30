@@ -46,6 +46,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   const runtime = runtimeAdapter ?? defaultAgentRuntimeAdapter;
 
   const [isInitialized, setIsInitialized] = useState(false);
+  const runtimeWarmupPromiseRef = useRef<Promise<void> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const currentAssistantMsgIdRef = useRef<string | null>(null);
   const currentStreamingSessionIdRef = useRef<string | null>(null);
@@ -257,14 +258,45 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     tools.warnedKeysRef.current.clear();
   }, [tools.warnedKeysRef, workspaceId]);
 
+  const warmupRuntime = useCallback(async () => {
+    if (runtimeWarmupPromiseRef.current) {
+      await runtimeWarmupPromiseRef.current;
+      return;
+    }
+
+    const warmupPromise = runtime
+      .init()
+      .then(() => {
+        setIsInitialized(true);
+        console.log("[AsterChat] Agent 初始化成功");
+      })
+      .catch((err) => {
+        setIsInitialized(false);
+        console.error("[AsterChat] 初始化失败:", err);
+        throw err;
+      })
+      .finally(() => {
+        runtimeWarmupPromiseRef.current = null;
+      });
+
+    runtimeWarmupPromiseRef.current = warmupPromise;
+    await warmupPromise;
+  }, [runtime]);
+
+  useEffect(() => {
+    if (!workspaceId.trim()) {
+      setIsInitialized(false);
+      return;
+    }
+
+    void warmupRuntime().catch(() => undefined);
+  }, [warmupRuntime, workspaceId]);
+
   const handleStartProcess = async () => {
     try {
-      await runtime.init();
-      setIsInitialized(true);
-      console.log("[AsterChat] Agent 初始化成功");
-    } catch (err) {
-      setIsInitialized(false);
-      console.error("[AsterChat] 初始化失败:", err);
+      await warmupRuntime();
+    } catch {
+      return;
     }
   };
 

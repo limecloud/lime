@@ -295,7 +295,7 @@ pub async fn generate_persona(
     if !agent_state.is_initialized().await {
         agent_state.init_agent_with_db(&db).await?;
     }
-    ensure_browser_mcp_tools_registered(agent_state.inner()).await?;
+    ensure_browser_mcp_tools_registered(agent_state.inner(), &db).await?;
 
     // 创建临时会话 ID
     let session_id = format!("persona-gen-{}", uuid::Uuid::new_v4());

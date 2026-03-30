@@ -1,19 +1,9 @@
-//! API 测试和兼容性检查命令
+//! API 兼容性与模型查询命令
 //!
-//! 包含 API 测试、模型列表和兼容性检查命令。
+//! 保留面向开发者与内部工具的只读能力。
 
 use crate::app::types::{AppState, LogState, ProviderType};
 use crate::commands::model_registry_cmd::ModelRegistryState;
-
-/// 测试结果
-#[derive(serde::Serialize)]
-pub struct TestResult {
-    pub success: bool,
-    pub status: u16,
-    pub body: String,
-    pub time_ms: u64,
-    pub response_headers: std::collections::HashMap<String, String>,
-}
 
 /// 模型信息
 #[derive(serde::Serialize)]
@@ -297,86 +287,4 @@ pub async fn get_available_models(
             owned_by: m.provider_id,
         })
         .collect())
-}
-
-/// 测试 API
-#[tauri::command]
-pub async fn test_api(
-    state: tauri::State<'_, AppState>,
-    method: String,
-    path: String,
-    body: Option<String>,
-    auth: bool,
-) -> Result<TestResult, String> {
-    let s = state.read().await;
-    // 使用 status() 获取实际监听的地址（可能与配置不同）
-    let status = s.status();
-    let base_url = format!("http://{}:{}", status.host, status.port);
-    let api_key = s
-        .running_api_key
-        .as_ref()
-        .unwrap_or(&s.config.server.api_key);
-
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let url = format!("{base_url}{path}");
-
-    tracing::info!("Testing API: {} {}", method, url);
-
-    let start = std::time::Instant::now();
-
-    let mut req = match method.as_str() {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url),
-        _ => return Err("Unsupported method".to_string()),
-    };
-
-    req = req.header("Content-Type", "application/json");
-
-    if auth {
-        req = req.header("Authorization", format!("Bearer {api_key}"));
-    }
-
-    if let Some(b) = body {
-        req = req.body(b);
-    }
-
-    match req.send().await {
-        Ok(resp) => {
-            let status = resp.status().as_u16();
-            let response_headers = resp
-                .headers()
-                .iter()
-                .filter_map(|(name, value)| {
-                    value
-                        .to_str()
-                        .ok()
-                        .map(|text| (name.as_str().to_string(), text.to_string()))
-                })
-                .collect::<std::collections::HashMap<_, _>>();
-            let body = resp.text().await.unwrap_or_default();
-            let time_ms = start.elapsed().as_millis() as u64;
-
-            tracing::info!(
-                "API test result: status={}, body_len={}",
-                status,
-                body.len()
-            );
-
-            Ok(TestResult {
-                success: (200..300).contains(&status),
-                status,
-                body,
-                time_ms,
-                response_headers,
-            })
-        }
-        Err(e) => {
-            tracing::error!("API test error: {}", e);
-            Err(e.to_string())
-        }
-    }
 }

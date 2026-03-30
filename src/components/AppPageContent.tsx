@@ -86,6 +86,11 @@ const AutomationPage = lazy(() =>
     default: module.AutomationPage,
   })),
 );
+const ImConfigPage = lazy(() =>
+  import("./channels/ImConfigPage").then((module) => ({
+    default: module.ImConfigPage,
+  })),
+);
 const OpenClawPage = lazy(() =>
   import("./openclaw").then((module) => ({
     default: module.OpenClawPage,
@@ -193,6 +198,18 @@ export function AppPageContent({
           onNavigate={onNavigate}
           pageParams={pageParams as AutomationPageParams}
         />
+      </div>
+    );
+  }
+
+  if (currentPage === "channels") {
+    return (
+      <div style={columnPageStyle}>
+        <div className="flex-1 overflow-auto px-6 py-6">
+          <div className="mx-auto w-full max-w-[1440px]">
+            <ImConfigPage />
+          </div>
+        </div>
       </div>
     );
   }

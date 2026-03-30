@@ -393,46 +393,47 @@ describe("DecisionPanel copywriting", () => {
 });
 
 describe("DecisionPanel browser preflight", () => {
-  it("浏览器未就绪时应支持重试启动浏览器", () => {
+  it("浏览器未就绪时应支持重试打开浏览器", () => {
     const request = createBrowserPreflightRequest("req-browser-preflight");
     const { container, onSubmit } = renderDecisionPanel(request);
 
     expect(container.textContent).toContain("浏览器未就绪");
     expect(container.textContent).toContain("必须浏览器执行");
 
-    clickButton(findButtonByText(container, "重试启动浏览器"));
+    clickButton(findButtonByText(container, "重试打开浏览器"));
 
     expect(onSubmit).toHaveBeenCalledWith({
       requestId: "req-browser-preflight",
       confirmed: true,
-      response: "重新启动浏览器",
+      response: "重新打开浏览器",
       actionType: "ask_user",
       userData: {
-        answer: "重新启动浏览器",
+        answer: "重新打开浏览器",
         browserAction: "launch",
       },
     });
   });
 
-  it("等待用户完成登录时应支持继续执行", () => {
+  it("等待用户完成登录时不应再提供继续执行确认", () => {
     const request = createBrowserPreflightRequest(
       "req-browser-awaiting",
       "awaiting_user",
     );
     const { container, onSubmit } = renderDecisionPanel(request);
 
-    expect(container.textContent).toContain("等待你完成浏览器准备");
+    expect(container.textContent).toContain("请先完成浏览器准备");
+    expect(container.textContent).not.toContain("我已完成登录，继续执行");
 
-    clickButton(findButtonByText(container, "我已完成登录，继续执行"));
+    clickButton(findButtonByText(container, "重新打开浏览器"));
 
     expect(onSubmit).toHaveBeenCalledWith({
       requestId: "req-browser-awaiting",
       confirmed: true,
-      response: "我已完成登录，继续执行",
+      response: "重新打开浏览器",
       actionType: "ask_user",
       userData: {
-        answer: "我已完成登录，继续执行",
-        browserAction: "continue",
+        answer: "重新打开浏览器",
+        browserAction: "launch",
       },
     });
   });

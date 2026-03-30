@@ -157,7 +157,7 @@ interface ServiceSkillCatalogResponseEnvelope {
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
 export const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
-const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-03-24";
+const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-03-30";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
   { value: "xiaohongshu", label: "小红书" },
@@ -660,68 +660,6 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
             { value: "bilingual", label: "中英双语字幕" },
             { value: "dub_only", label: "只做配音稿" },
           ],
-        },
-      ],
-    },
-    {
-      id: "github-repo-radar",
-      skillKey: "github-repo-radar",
-      skillType: "site",
-      title: "GitHub 仓库线索检索",
-      summary:
-        "复用你当前浏览器里的 GitHub 登录态，直接检索主题仓库并沉淀成结构化线索。",
-      category: "情报研究",
-      outputHint: "仓库列表 + 关键线索",
-      triggerHints: [
-        "需要围绕某个技术主题快速找 GitHub 仓库线索时使用。",
-        "已经登录 GitHub，希望直接把真实检索结果沉淀到当前内容时使用。",
-      ],
-      source: "cloud_catalog",
-      runnerType: "instant",
-      defaultExecutorBinding: "browser_assist",
-      executionLocation: "client_default",
-      defaultArtifactKind: "analysis",
-      readinessRequirements: {
-        requiresBrowser: true,
-        requiresProject: true,
-      },
-      usageGuidelines: [
-        "适合先做一轮主题检索，再回到工作区筛选值得继续跟进的仓库。",
-        "检索词尽量包含技术栈、业务场景或目标能力，结果会更聚焦。",
-      ],
-      setupRequirements: [
-        "需要浏览器里已有 GitHub 登录态。",
-        "建议在目标项目内启动，方便结果优先写回当前内容。",
-      ],
-      examples: [
-        "帮我查一批和 MCP browser automation 相关的 GitHub 仓库。",
-        "围绕 AI coding agent 这个主题搜 GitHub 仓库，并沉淀关键线索。",
-      ],
-      outputDestination:
-        "采集结果会优先写回当前内容；如果当前内容不可用，再沉淀为项目资源。",
-      siteCapabilityBinding: {
-        adapterName: "github/search",
-        autoRun: true,
-        requireAttachedSession: true,
-        saveMode: "current_content",
-        slotArgMap: {
-          repository_query: "query",
-        },
-        fixedArgs: {
-          limit: 10,
-        },
-        suggestedTitleTemplate: "GitHub 仓库线索 · {{repository_query}}",
-      },
-      themeTarget: "knowledge",
-      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
-      slotSchema: [
-        {
-          key: "repository_query",
-          label: "检索主题",
-          type: "text",
-          required: true,
-          placeholder: "例如 MCP agent browser automation",
-          helpText: "开始后会复用当前浏览器登录态执行 GitHub 仓库搜索。",
         },
       ],
     },

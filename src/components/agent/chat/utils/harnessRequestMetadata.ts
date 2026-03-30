@@ -21,6 +21,12 @@ export interface BuildHarnessRequestMetadataOptions {
   browserRequirementReason?: string | null;
   browserLaunchUrl?: string | null;
   browserAssistProfileKey?: string | null;
+  browserAssistPreferredBackend?:
+    | "aster_compat"
+    | "lime_extension_bridge"
+    | "cdp_direct"
+    | null;
+  browserAssistAutoLaunch?: boolean | null;
   preferredTeamPresetId?: string | null;
   selectedTeamId?: string | null;
   selectedTeamSource?: TeamDefinitionSource | null;
@@ -89,6 +95,8 @@ export function buildHarnessRequestMetadata(
     browserRequirementReason,
     browserLaunchUrl,
     browserAssistProfileKey,
+    browserAssistPreferredBackend,
+    browserAssistAutoLaunch,
     preferredTeamPresetId,
     selectedTeamId,
     selectedTeamSource,
@@ -141,15 +149,17 @@ export function buildHarnessRequestMetadata(
     browser_launch_url: browserLaunchUrl || undefined,
     browser_user_step_required:
       browserRequirement === "required_with_user_step",
-    browser_assist: browserAssistProfileKey
+    ...(browserAssistProfileKey
       ? {
-          enabled: true,
-          profile_key: browserAssistProfileKey,
-          preferred_backend: "cdp_direct",
-          auto_launch: true,
-          stream_mode: "both",
+          browser_assist: {
+            enabled: true,
+            profile_key: browserAssistProfileKey,
+            preferred_backend: browserAssistPreferredBackend || undefined,
+            auto_launch: browserAssistAutoLaunch ?? true,
+            stream_mode: "both",
+          },
         }
-      : undefined,
+      : {}),
   };
 
   clearLegacyHarnessStateFields(metadata);

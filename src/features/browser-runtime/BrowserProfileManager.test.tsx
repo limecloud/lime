@@ -454,9 +454,9 @@ describe("BrowserProfileManager", () => {
     const container = await renderManager({ onMessage });
     const toggleTabsButton = Array.from(
       container.querySelectorAll("button"),
-    ).find(
-      (element) => element.textContent?.includes("查看标签页"),
-    ) as HTMLButtonElement | undefined;
+    ).find((element) => element.textContent?.includes("查看标签页")) as
+      | HTMLButtonElement
+      | undefined;
 
     await act(async () => {
       toggleTabsButton?.click();
@@ -591,22 +591,17 @@ describe("BrowserProfileManager", () => {
       await Promise.resolve();
     });
 
-    expect(mockGetChromeBridgeStatus).toHaveBeenCalled();
-    expect(mockBrowserExecuteAction).toHaveBeenCalledWith({
-      profile_key: "weibo_attach",
-      backend: "lime_extension_bridge",
-      action: "navigate",
-      args: {
-        url: "https://weibo.com",
-        wait_for_page_info: true,
-      },
-      timeout_ms: 30000,
+    expect(mockLaunchBrowserSession).toHaveBeenCalledWith({
+      profile_id: "profile-attach",
+      environment_preset_id: "env-1",
+      open_window: false,
+      stream_mode: "both",
     });
-    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
+    expect(mockBrowserExecuteAction).not.toHaveBeenCalled();
     expect(onProfileLaunched).toHaveBeenCalledWith("weibo_attach");
     expect(onMessage).toHaveBeenCalledWith({
       type: "success",
-      text: '已附着当前 Chrome：微博附着，并导航到 https://weibo.com。已选择启动环境 "美区桌面"，但附着当前 Chrome 模式暂不应用代理、时区、语言、UA 或视口等启动级配置；如需这些能力，请改用托管浏览器模式。',
+      text: "已附着当前 Chrome：微博附着，并启动实时调试会话（环境：美区桌面）",
     });
   });
 
@@ -628,6 +623,11 @@ describe("BrowserProfileManager", () => {
         archived_at: null,
       },
     ]);
+    mockLaunchBrowserSession.mockRejectedValueOnce(
+      new Error(
+        "当前资料使用“附着当前 Chrome”模式，但没有检测到可复用的浏览器会话",
+      ),
+    );
     const onMessage = vi.fn();
 
     const container = await renderManager({ onMessage });
@@ -641,10 +641,85 @@ describe("BrowserProfileManager", () => {
     });
 
     expect(mockBrowserExecuteAction).not.toHaveBeenCalled();
-    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
+    expect(mockLaunchBrowserSession).toHaveBeenCalled();
     expect(onMessage).toHaveBeenCalledWith({
       type: "error",
       text: "启动资料失败: 没有检测到 profile_key=weibo_attach 的当前 Chrome 连接。请先在当前 Chrome 安装并连接 Lime Browser Bridge 扩展。",
     });
+  });
+
+  it("附着当前 Chrome 资料在 runtime attach 失败时应回退到扩展桥接", async () => {
+    mockListBrowserProfiles.mockResolvedValueOnce([
+      {
+        id: "profile-attach",
+        profile_key: "weibo_attach",
+        name: "微博附着",
+        description: "复用当前 Chrome",
+        site_scope: "weibo.com",
+        launch_url: "https://weibo.com",
+        transport_kind: "existing_session",
+        profile_dir: "",
+        managed_profile_dir: null,
+        created_at: "2026-03-15T00:00:00Z",
+        updated_at: "2026-03-15T00:00:00Z",
+        last_used_at: null,
+        archived_at: null,
+      },
+    ]);
+    mockLaunchBrowserSession.mockRejectedValueOnce(
+      new Error(
+        "当前资料使用“附着当前 Chrome”模式，但没有检测到可复用的浏览器会话",
+      ),
+    );
+    mockGetChromeBridgeStatus.mockResolvedValue({
+      observer_count: 1,
+      control_count: 0,
+      pending_command_count: 0,
+      observers: [
+        {
+          client_id: "observer-1",
+          profile_key: "weibo_attach",
+          connected_at: "2026-03-15T00:00:00Z",
+          user_agent: "Chrome",
+          last_heartbeat_at: "2026-03-15T00:00:02Z",
+          last_page_info: null,
+        },
+      ],
+      controls: [],
+      pending_commands: [],
+    });
+    const onMessage = vi.fn();
+    const onProfileLaunched = vi.fn();
+
+    const container = await renderManager({
+      onMessage,
+      onProfileLaunched,
+    });
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("附着当前 Chrome"),
+    ) as HTMLButtonElement | undefined;
+
+    await act(async () => {
+      launchButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockLaunchBrowserSession).toHaveBeenCalledWith({
+      profile_id: "profile-attach",
+      environment_preset_id: undefined,
+      open_window: false,
+      stream_mode: "both",
+    });
+    expect(mockBrowserExecuteAction).toHaveBeenCalledWith({
+      profile_key: "weibo_attach",
+      backend: "lime_extension_bridge",
+      action: "navigate",
+      args: {
+        url: "https://weibo.com",
+        wait_for_page_info: true,
+      },
+      timeout_ms: 30000,
+    });
+    expect(onProfileLaunched).toHaveBeenCalledWith("weibo_attach");
   });
 });

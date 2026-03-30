@@ -45,10 +45,13 @@ const defaultRuntimeState = {
   streaming: false,
   refreshingState: false,
   controlBusy: false,
+  selectedProfileTransportKind: "managed_cdp",
+  runtimeConnectionError: null,
   lifecycleState: null,
   isHumanControlling: false,
   isWaitingForHuman: false,
   isAgentResuming: false,
+  isExistingSessionProfile: false,
   canDirectControl: false,
   refreshTargets: vi.fn(async () => undefined),
   openSession: vi.fn(async () => undefined),
@@ -428,6 +431,74 @@ describe("BrowserRuntimeDebugPanel", () => {
     expect(container.textContent).toContain("微博附着");
     expect(container.textContent).toContain("微博首页");
     expect(container.textContent).toContain("当前窗口标签页");
+  });
+
+  it("existing_session 正在切到 runtime 会话时不应回退附着面板", async () => {
+    mockUseBrowserRuntimeDebug.mockReturnValue({
+      ...defaultRuntimeState,
+      selectedProfileKey: "weibo_attach",
+      selectedSession: {
+        profile_key: "weibo_attach",
+        browser_source: "system",
+        browser_path: "",
+        profile_dir: "",
+        remote_debugging_port: 16666,
+        pid: 0,
+        started_at: "2026-03-15T00:00:00Z",
+        last_url: "https://weibo.com/home",
+      },
+      openingSession: true,
+      selectedProfileTransportKind: "existing_session",
+      isExistingSessionProfile: true,
+    });
+    mockListBrowserProfiles.mockResolvedValue([
+      {
+        id: "profile-attach",
+        profile_key: "weibo_attach",
+        name: "微博附着",
+        description: "复用当前 Chrome",
+        site_scope: "weibo.com",
+        launch_url: "https://weibo.com/home",
+        transport_kind: "existing_session",
+        profile_dir: "",
+        managed_profile_dir: null,
+        created_at: "2026-03-15T00:00:00Z",
+        updated_at: "2026-03-15T00:00:00Z",
+        last_used_at: null,
+        archived_at: null,
+      },
+    ]);
+    mockGetChromeBridgeStatus.mockResolvedValue({
+      observer_count: 1,
+      control_count: 0,
+      pending_command_count: 0,
+      observers: [
+        {
+          client_id: "observer-1",
+          profile_key: "weibo_attach",
+          connected_at: "2026-03-15T00:00:00Z",
+          user_agent: "Chrome",
+          last_heartbeat_at: "2026-03-15T00:00:08Z",
+          last_page_info: {
+            title: "微博首页",
+            url: "https://weibo.com/home",
+            markdown: "# 微博首页",
+            updated_at: "2026-03-15T00:00:08Z",
+          },
+        },
+      ],
+      controls: [],
+      pending_commands: [],
+    });
+
+    const container = await renderPanel({
+      initialProfileKey: "weibo_attach",
+      initialSessionId: undefined,
+    });
+
+    expect(container.textContent).toContain("正在启动 Chrome、连接调试通道");
+    expect(container.textContent).not.toContain("当前窗口标签页");
+    expect(container.textContent).not.toContain("附着当前 Chrome");
   });
 
   it("附着模式应支持读取并切换当前 Chrome 标签页", async () => {

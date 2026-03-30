@@ -4,6 +4,5 @@
 //! 本模块保留兼容导出。
 
 pub use lime_core::tray_format::{
-    format_api_address, format_credential_status, format_current_model_status,
-    format_request_count, format_server_status,
+    format_credential_status, format_current_model_status, format_request_count,
 };

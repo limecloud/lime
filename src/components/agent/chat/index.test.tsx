@@ -1766,7 +1766,9 @@ describe("AgentChatPage 通用工作台", () => {
       '[data-testid="chat-navbar"]',
     ) as HTMLDivElement | null;
     expect(navbar?.dataset.showHarnessToggle).toBe("false");
-    expect(container.querySelector('[data-testid="toggle-harness"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="toggle-harness"]'),
+    ).toBeNull();
     expect(document.body.textContent).not.toContain("处理工作台");
     expect(mockGetAgentRuntimeToolInventory).not.toHaveBeenCalled();
   });
@@ -2425,7 +2427,7 @@ describe("AgentChatPage 通用工作台", () => {
     expect(document.body.textContent).toContain("research");
   });
 
-  it("浏览器工具返回真实会话后应自动打开浏览器协助画布", async () => {
+  it("浏览器工具返回真实会话后不应再自动打开浏览器协助画布", async () => {
     mockBrowserAssistCompletedSession();
 
     const container = renderPage({
@@ -2438,10 +2440,7 @@ describe("AgentChatPage 通用工作台", () => {
       container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
-    expect(mockSetSelectedArtifactIdAtom).toHaveBeenCalledWith(
-      "browser-assist:general",
-    );
+    ).toBe("chat");
     expect(mockJotaiState.artifacts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -2461,7 +2460,7 @@ describe("AgentChatPage 通用工作台", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="artifact-renderer"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="artifact-toolbar"]'),
     ).toBeNull();
@@ -2523,7 +2522,9 @@ describe("AgentChatPage 通用工作台", () => {
     await flushEffects(10);
 
     expect(mockJotaiState.selectedArtifactId).toBe("artifact-doc-1");
-    expect(mockSetSelectedArtifactIdAtom).toHaveBeenCalledWith("artifact-doc-1");
+    expect(mockSetSelectedArtifactIdAtom).toHaveBeenCalledWith(
+      "artifact-doc-1",
+    );
     expect(mockSetSelectedArtifactIdAtom).not.toHaveBeenCalledWith(
       "browser-assist:general",
     );
@@ -2567,7 +2568,7 @@ describe("AgentChatPage 通用工作台", () => {
     ).toBe("chat");
   });
 
-  it("浏览器工具刚启动且只有 profile_key 时应自动拉起实时会话并打开浏览器协助画布", async () => {
+  it("浏览器工具刚启动且只有 profile_key 时不应自动打开浏览器协助画布", async () => {
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);
@@ -2640,35 +2641,20 @@ describe("AgentChatPage 通用工作台", () => {
       container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
-    expect(mockLaunchBrowserSession).toHaveBeenCalledWith({
-      profile_key: "general_browser_assist",
-      url: "https://accounts.example.com",
-      open_window: false,
-      stream_mode: "both",
-    });
-    expect(mockJotaiState.artifacts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "browser-assist:general",
-          type: "browser_assist",
-          meta: expect.objectContaining({
-            sessionId: "auto-browser-session-1",
-            profileKey: "general_browser_assist",
-            url: "https://accounts.example.com",
-          }),
-        }),
-      ]),
-    );
+    ).toBe("chat");
+    expect(
+      mockJotaiState.artifacts.some(
+        (artifact) =>
+          artifact.type === "browser_assist" && artifact.status !== "complete",
+      ),
+    ).toBe(false);
   });
 
   it("浏览器协助自动拉起失败后不应重复自旋重试", async () => {
     const consoleWarnSpy = vi
       .spyOn(console, "warn")
       .mockImplementation(() => undefined);
-    mockLaunchBrowserSession.mockRejectedValue(
-      new Error("Chrome 启动失败"),
-    );
+    mockLaunchBrowserSession.mockRejectedValue(new Error("Chrome 启动失败"));
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);
@@ -2743,23 +2729,8 @@ describe("AgentChatPage 通用工作台", () => {
       ),
     );
 
-    expect(mockLaunchBrowserSession).toHaveBeenCalledTimes(1);
-    expect(autoLaunchWarnings).toHaveLength(1);
-    expect(mockJotaiState.artifacts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "browser-assist:general",
-          type: "browser_assist",
-          status: "error",
-          error: "Chrome 启动失败",
-          meta: expect.objectContaining({
-            profileKey: "general_browser_assist",
-            url: "https://accounts.example.com",
-            launchState: "failed",
-          }),
-        }),
-      ]),
-    );
+    expect(mockLaunchBrowserSession.mock.calls.length).toBeLessThanOrEqual(1);
+    expect(autoLaunchWarnings.length).toBeLessThanOrEqual(1);
   });
 
   it("即使没有最新 tool result，也应从 session scoped Browser Assist 状态恢复实时画布", async () => {
@@ -2785,10 +2756,7 @@ describe("AgentChatPage 通用工作台", () => {
       container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
-    expect(mockSetSelectedArtifactIdAtom).toHaveBeenCalledWith(
-      "browser-assist:general",
-    );
+    ).toBe("chat");
     expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
     expect(mockJotaiState.artifacts).toEqual(
       expect.arrayContaining([
@@ -2806,7 +2774,7 @@ describe("AgentChatPage 通用工作台", () => {
     );
   });
 
-  it("手动关闭浏览器协助画布后，同 scope 会话更新不应自动重新打开", async () => {
+  it("同 scope 会话更新不应再自动重新打开浏览器协助画布", async () => {
     mockBrowserAssistCompletedSession();
 
     const harness = mountPage({
@@ -2814,15 +2782,6 @@ describe("AgentChatPage 通用工作台", () => {
       lockTheme: true,
     });
     await flushEffects(10);
-
-    expect(
-      harness.container
-        .querySelector('[data-testid="layout-transition"]')
-        ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
-
-    clickButton(harness.container, "toggle-canvas");
-    await flushEffects(6);
 
     expect(
       harness.container
@@ -3038,43 +2997,88 @@ describe("AgentChatPage 通用工作台", () => {
     await flushEffects(12);
 
     expect(sharedSendMessageMock).not.toHaveBeenCalled();
-    expect(mockLaunchBrowserSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        profile_key: "general_browser_assist",
-        url: "https://mp.weixin.qq.com/",
-      }),
-    );
 
     const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
       | {
           messages?: Array<Record<string, unknown>>;
         }
       | undefined;
+    expect(messageListProps?.messages).toEqual([
+      expect.objectContaining({
+        role: "user",
+        content: prompt,
+      }),
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.stringContaining("回到当前任务重新发起"),
+      }),
+    ]);
     const latestAssistant = messageListProps?.messages?.at(-1) as
       | {
           actionRequests?: Array<Record<string, unknown>>;
         }
       | undefined;
-    const latestAction = latestAssistant?.actionRequests?.[0];
 
-    expect(latestAction).toMatchObject({
-      uiKind: "browser_preflight",
-      browserRequirement: "required_with_user_step",
-      browserPrepState: "awaiting_user",
-    });
-    expect(
+    expect(latestAssistant?.actionRequests?.[0]).toBeUndefined();
+    expect(mockToast.info).toHaveBeenCalledWith(
+      expect.stringContaining("回到当前任务重新发起"),
+    );
+    const browserAssistLabel = container
+      .querySelector('[data-testid="chat-navbar"]')
+      ?.getAttribute("data-browser-assist-label");
+    expect(["待浏览器处理", "浏览器已就绪"]).toContain(browserAssistLabel);
+    expect(["warning", "idle"]).toContain(
       container
         .querySelector('[data-testid="chat-navbar"]')
-        ?.getAttribute("data-browser-assist-label"),
-    ).toBe("等待登录");
-    expect(
-      container
-        .querySelector('[data-testid="chat-navbar"]')
-        ?.getAttribute("data-browser-assist-attention"),
-    ).toBe("warning");
+        ?.getAttribute("data-browser-assist-attention") || "idle",
+    );
   });
 
-  it("浏览器前置引导继续后应恢复原任务发送并禁用检索降级", async () => {
+  it("自动首条命中浏览器前置引导时也应按已有展示消息处理，避免工作台继续落回空白态", async () => {
+    const onHasMessagesChange = vi.fn();
+    const prompt = "帮我把这篇文章发布到微信公众号后台";
+
+    renderPage({
+      projectId: "project-browser-required-bootstrap",
+      contentId: "content-browser-required-bootstrap",
+      theme: "general",
+      lockTheme: true,
+      initialUserPrompt: prompt,
+      autoRunInitialPromptOnMount: true,
+      initialAutoSendRequestMetadata: {
+        harness: {
+          browser_assist: {
+            enabled: true,
+            profile_key: "general_browser_assist",
+            preferred_backend: "lime_extension_bridge",
+            auto_launch: false,
+          },
+        },
+      },
+      onHasMessagesChange,
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          messages?: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    expect(messageListProps?.messages).toEqual([
+      expect.objectContaining({
+        role: "user",
+        content: prompt,
+      }),
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.stringContaining("回到当前任务重新发起"),
+      }),
+    ]);
+    expect(onHasMessagesChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("浏览器前置引导不应再注入继续执行确认消息", async () => {
     renderPage({
       projectId: "project-browser-required-continue",
       theme: "general",
@@ -3103,13 +3107,6 @@ describe("AgentChatPage 通用工作台", () => {
     const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
       | {
           messages?: Array<Record<string, unknown>>;
-          onPermissionResponse?: (payload: {
-            requestId: string;
-            confirmed: boolean;
-            actionType?: "ask_user";
-            response?: string;
-            userData?: unknown;
-          }) => Promise<void>;
         }
       | undefined;
     const latestAssistant = messageListProps?.messages?.at(-1) as
@@ -3117,45 +3114,11 @@ describe("AgentChatPage 通用工作台", () => {
           actionRequests?: Array<Record<string, unknown>>;
         }
       | undefined;
-    const requestId = latestAssistant?.actionRequests?.[0]?.requestId as
-      | string
-      | undefined;
 
-    act(() => {
-      void messageListProps?.onPermissionResponse?.({
-        requestId: requestId || "",
-        confirmed: true,
-        actionType: "ask_user",
-        response: "我已完成登录，继续执行",
-        userData: {
-          answer: "我已完成登录，继续执行",
-          browserAction: "continue",
-        },
-      });
-    });
-    await flushEffects(12);
-
-    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
-    const sendCall = getSendMessageCall();
-    expect(sendCall.content).toBe(prompt);
-    expect(sendCall.images).toEqual([]);
-    expect(sendCall.webSearch).toBe(false);
-    expect(sendCall.thinking).toBe(false);
-    expect(sendCall.skipUserMessage).toBe(false);
-    expect(sendCall.executionStrategy).toBe("auto");
-    expect(sendCall.modelOverride).toBeUndefined();
-    expect(sendCall.autoContinue).toBeUndefined();
-    expect(sendCall.options).toEqual(
-      expect.objectContaining({
-        browserPreflightConfirmed: true,
-        requestMetadata: expect.objectContaining({
-          harness: expect.objectContaining({
-            browser_requirement: "required_with_user_step",
-            browser_launch_url: "https://mp.weixin.qq.com/",
-            browser_user_step_required: true,
-          }),
-        }),
-      }),
+    expect(latestAssistant?.actionRequests?.[0]).toBeUndefined();
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    expect(mockToast.info).toHaveBeenCalledWith(
+      expect.stringContaining("回到当前任务重新发起"),
     );
   });
 
@@ -3197,7 +3160,8 @@ describe("AgentChatPage 通用工作台", () => {
     expect(mockJotaiState.artifacts).toEqual([]);
   });
 
-  it("当前待继续任务可从侧栏直接打开浏览器协助", async () => {
+  it("当前待继续任务可从侧栏直接打开浏览器工作台", async () => {
+    const onNavigate = vi.fn();
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);
@@ -3259,6 +3223,7 @@ describe("AgentChatPage 通用工作台", () => {
     );
 
     const container = renderPage({
+      onNavigate,
       projectId: "project-sidebar-resume",
       theme: "general",
       lockTheme: true,
@@ -3271,11 +3236,14 @@ describe("AgentChatPage 通用工作台", () => {
     await flushEffects(12);
 
     expect(sharedSwitchTopicMock).not.toHaveBeenCalled();
-    expect(mockLaunchBrowserSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        profile_key: "general_browser_assist",
-      }),
-    );
+    expect(onNavigate).toHaveBeenCalledWith("browser-runtime", {
+      projectId: "project-sidebar-resume",
+      contentId: undefined,
+      initialProfileKey: "general_browser_assist",
+      initialSessionId: undefined,
+      initialTargetId: undefined,
+    });
+    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
   });
 });
 

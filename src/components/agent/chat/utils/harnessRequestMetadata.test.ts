@@ -253,6 +253,59 @@ describe("harnessRequestMetadata", () => {
     });
   });
 
+  it("应允许附着会话覆盖浏览器后端与自动拉起策略", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      preferences: {
+        webSearch: true,
+        thinking: true,
+        task: true,
+        subagent: true,
+      },
+      sessionMode: "default",
+      browserAssistProfileKey: "attached-xhs",
+      browserAssistPreferredBackend: "lime_extension_bridge",
+      browserAssistAutoLaunch: false,
+    });
+
+    expect(metadata).toMatchObject({
+      browser_assist: {
+        enabled: true,
+        profile_key: "attached-xhs",
+        preferred_backend: "lime_extension_bridge",
+        auto_launch: false,
+        stream_mode: "both",
+      },
+    });
+  });
+
+  it("未显式指定浏览器后端时不应强制写入 cdp_direct", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      preferences: {
+        webSearch: true,
+        thinking: true,
+        task: true,
+        subagent: true,
+      },
+      sessionMode: "default",
+      browserAssistProfileKey: "general_browser_assist",
+    });
+
+    expect(metadata).toMatchObject({
+      browser_assist: {
+        enabled: true,
+        profile_key: "general_browser_assist",
+        auto_launch: true,
+        stream_mode: "both",
+      },
+    });
+    expect(
+      (metadata.browser_assist as { preferred_backend?: string })
+        ?.preferred_backend,
+    ).toBeUndefined();
+  });
+
   it("应能从 request metadata 中提取已有 harness metadata", () => {
     expect(
       extractExistingHarnessMetadata({

@@ -8,6 +8,8 @@ import { buildBrowserAssistArtifact } from "./browserAssistArtifact";
 import { useWorkspaceBrowserAssistRuntime } from "./useWorkspaceBrowserAssistRuntime";
 
 const mockSiteRunAdapter = vi.fn();
+const mockLaunchBrowserSession = vi.fn();
+const mockBrowserExecuteAction = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
@@ -18,8 +20,9 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/webview-api", () => ({
-  browserExecuteAction: vi.fn(),
-  launchBrowserSession: vi.fn(),
+  browserExecuteAction: (...args: unknown[]) =>
+    mockBrowserExecuteAction(...args),
+  launchBrowserSession: (...args: unknown[]) => mockLaunchBrowserSession(...args),
   siteRunAdapter: (...args: unknown[]) => mockSiteRunAdapter(...args),
 }));
 
@@ -61,10 +64,7 @@ function renderHook(props?: Partial<HookProps>) {
     openBrowserAssistOnMount: false,
     artifacts: [],
     messages: [],
-    currentCanvasArtifact: null,
-    layoutMode: "chat",
     setLayoutMode: vi.fn(),
-    setSelectedArtifactId: vi.fn(),
     upsertGeneralArtifact: vi.fn(),
     generalBrowserAssistProfileKey: "general-browser",
   };
@@ -102,7 +102,10 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   window.localStorage.clear();
+  window.sessionStorage.clear();
   mockSiteRunAdapter.mockReset();
+  mockLaunchBrowserSession.mockReset();
+  mockBrowserExecuteAction.mockReset();
 });
 
 afterEach(() => {
@@ -118,6 +121,7 @@ afterEach(() => {
   }
   vi.restoreAllMocks();
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 describe("useWorkspaceBrowserAssistRuntime", () => {
@@ -229,5 +233,159 @@ describe("useWorkspaceBrowserAssistRuntime", () => {
     await render();
 
     expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+  });
+
+  it("existing_session 启动失败时应回退到当前 Chrome 扩展桥接", async () => {
+    mockBrowserExecuteAction.mockResolvedValue({
+      success: true,
+      action: "navigate",
+      request_id: "req-1",
+      target_id: "tab-attached",
+      data: {
+        page_info: {
+          title: "GitHub",
+          url: "https://github.com/",
+          markdown: "# GitHub",
+          updated_at: "2026-03-29T00:00:00Z",
+        },
+      },
+      attempts: [],
+    });
+
+    const upsertGeneralArtifact = vi.fn();
+    const { render, getValue } = renderHook({
+      input: "https://github.com/",
+      upsertGeneralArtifact,
+    });
+
+    await render();
+
+    await act(async () => {
+      await getValue().ensureBrowserAssistCanvas("https://github.com/", {
+        navigationMode: "explicit-url",
+        silent: true,
+      });
+      await Promise.resolve();
+    });
+
+    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
+    expect(mockBrowserExecuteAction).toHaveBeenCalledWith({
+      profile_key: "general-browser",
+      backend: "lime_extension_bridge",
+      action: "navigate",
+      args: {
+        url: "https://github.com/",
+        wait_for_page_info: true,
+      },
+      timeout_ms: 20000,
+    });
+    expect(getValue().browserAssistSessionState).toEqual(
+      expect.objectContaining({
+        profileKey: "general-browser",
+        targetId: "tab-attached",
+        url: "https://github.com/",
+        title: "GitHub",
+        transportKind: "existing_session",
+      }),
+    );
+    expect(upsertGeneralArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "pending",
+      }),
+    );
+  });
+
+  it("existing_session 已建立后再次导航失败时不应回退到 cdp_direct", async () => {
+    mockBrowserExecuteAction.mockResolvedValueOnce({
+      success: true,
+      action: "navigate",
+      request_id: "req-initial",
+      target_id: "tab-attached",
+      data: {
+        page_info: {
+          title: "GitHub",
+          url: "https://github.com/",
+          markdown: "# GitHub",
+          updated_at: "2026-03-29T00:00:00Z",
+        },
+      },
+      attempts: [],
+    });
+
+    const { render, getValue } = renderHook({
+      input: "https://github.com/",
+    });
+
+    await render();
+
+    await act(async () => {
+      await getValue().ensureBrowserAssistCanvas("https://github.com/", {
+        navigationMode: "explicit-url",
+        silent: true,
+      });
+      await Promise.resolve();
+    });
+
+    mockBrowserExecuteAction.mockClear();
+    mockBrowserExecuteAction.mockRejectedValueOnce(
+      new Error("当前 Chrome bridge 暂时不可用"),
+    );
+
+    await act(async () => {
+      await getValue().ensureBrowserAssistCanvas("https://github.com/features", {
+        navigationMode: "explicit-url",
+        silent: true,
+      });
+      await Promise.resolve();
+    });
+
+    expect(mockBrowserExecuteAction).toHaveBeenCalledTimes(1);
+    expect(mockBrowserExecuteAction).toHaveBeenCalledWith({
+      profile_key: "general-browser",
+      backend: "lime_extension_bridge",
+      action: "navigate",
+      args: {
+        url: "https://github.com/features",
+        wait_for_page_info: true,
+      },
+      timeout_ms: 20000,
+    });
+    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
+  });
+
+  it("限制为附着会话时不应回退拉起托管浏览器", async () => {
+    mockBrowserExecuteAction.mockRejectedValue(
+      new Error("没有可用的 Chrome observer 连接"),
+    );
+
+    const upsertGeneralArtifact = vi.fn();
+    const { render, getValue } = renderHook({
+      input: "https://github.com/",
+      initialSiteSkillLaunch: {
+        adapterName: "github/search",
+        profileKey: "attached-github",
+        requireAttachedSession: true,
+        preferredBackend: "lime_extension_bridge",
+        autoLaunch: false,
+      },
+      upsertGeneralArtifact,
+    });
+
+    await render();
+
+    await act(async () => {
+      await getValue().ensureBrowserAssistCanvas("https://github.com/", {
+        navigationMode: "explicit-url",
+        silent: true,
+      });
+      await Promise.resolve();
+    });
+
+    expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
+    expect(upsertGeneralArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "error",
+      }),
+    );
   });
 });

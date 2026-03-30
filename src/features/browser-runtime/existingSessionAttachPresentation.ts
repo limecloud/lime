@@ -53,11 +53,12 @@ export function buildExistingSessionAttachPresentation(params: {
       toneClass:
         "border-emerald-300/70 bg-emerald-50 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/30 dark:text-emerald-200",
       description:
-        "当前资料直接复用你正在使用的 Chrome 页面，不会额外启动独立 CDP 会话；可读取页面摘要并切换标签页。",
+        "当前资料直接复用你正在使用的 Chrome 页面；若远程调试可用，将优先接管到实时会话，否则继续保留摘要与标签页桥接能力。",
     };
   }
 
-  let placeholder = "附着当前 Chrome 模式暂不提供实时画面；可读取当前页面摘要、查看标签页并切换到目标页面。";
+  let placeholder =
+    "附着当前 Chrome 会优先尝试接管实时会话；若当前环境尚未开放远程调试，仍可读取页面摘要、查看标签页并切换目标页面。";
   if (loading) {
     placeholder = "正在检查当前 Chrome 的桥接连接...";
   } else if (!observerConnected) {
@@ -82,10 +83,10 @@ export function buildExistingSessionAttachPresentation(params: {
     pageActionLabel: pageLoading ? "读取中..." : "读取当前页面",
     tabsActionLabel: tabsLoading ? "读取中..." : "读取标签页",
     embeddedControlHint: observerConnected
-      ? "附着模式已连接：可读取页面摘要，并在高级调试里切换当前 Chrome 标签页。"
+      ? "附着模式已连接：会优先尝试接管实时会话，并保留页面摘要与标签页切换能力。"
       : "当前资料为附着模式，请先连接 Lime Browser Bridge 扩展。",
     liveViewHint: observerConnected
-      ? "附着模式当前不采集实时画面，可在高级调试里读取页面摘要并切换标签页。"
+      ? "附着模式会优先尝试接管实时画面；若当前环境未开放远程调试，可继续读取页面摘要并切换标签页。"
       : "当前资料为附着模式，请先连接 Lime Browser Bridge 扩展。",
   };
 }

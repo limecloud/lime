@@ -3,9 +3,9 @@
 //! 提供托盘图标和菜单的管理功能
 //!
 //! # Requirements
-//! - 1.1: 服务器运行且凭证健康时显示正常状态图标
-//! - 1.4: 应用启动时显示停止状态图标
-//! - 7.1, 7.2, 7.3: 状态变化时更新托盘
+//! - 1.1: 账号可用时显示正常状态图标
+//! - 1.4: 应用启动时显示初始状态图标
+//! - 7.1, 7.2: 状态变化时更新托盘
 
 use super::events::handle_tray_icon_event;
 use super::menu::build_tray_menu;
@@ -185,7 +185,7 @@ impl TrayIcons {
 ///
 /// # Requirements
 /// - 1.1, 1.4: 托盘图标状态管理
-/// - 7.1, 7.2, 7.3: 状态同步和更新
+/// - 7.1, 7.2: 状态同步和更新
 pub struct TrayManager<R: Runtime> {
     /// Tauri 托盘图标句柄
     tray: TrayIcon<R>,
@@ -203,7 +203,7 @@ impl<R: Runtime> TrayManager<R> {
     /// 初始化托盘图标，设置初始状态为 Stopped
     ///
     /// # Requirements
-    /// - 1.4: 应用启动时显示停止状态图标
+    /// - 1.4: 应用启动时显示初始状态图标
     pub fn new(app: &AppHandle<R>) -> Result<Self, TrayError> {
         info!("初始化托盘管理器...");
 
@@ -263,8 +263,8 @@ impl<R: Runtime> TrayManager<R> {
     /// 更新内部状态并刷新图标和菜单
     ///
     /// # Requirements
-    /// - 7.1: API 服务器状态变化时更新托盘图标
-    /// - 7.2: 凭证健康状态变化时更新托盘图标
+    /// - 7.1: 账号状态变化时更新托盘图标
+    /// - 7.2: 托盘菜单信息变化时更新菜单
     pub async fn update_state(&self, snapshot: TrayStateSnapshot) -> Result<(), TrayError> {
         let old_status = {
             let state = self.state.read().await;
@@ -395,7 +395,7 @@ mod tests {
         let manager = SimpleTrayManager::new();
         let state = manager.get_state().await;
         assert_eq!(state.icon_status, TrayIconStatus::Stopped);
-        assert!(!state.server_running);
+        assert_eq!(state.available_credentials, 0);
     }
 
     #[tokio::test]
@@ -404,8 +404,6 @@ mod tests {
 
         let new_state = TrayStateSnapshot {
             icon_status: TrayIconStatus::Running,
-            server_running: true,
-            server_address: "127.0.0.1:8080".to_string(),
             available_credentials: 3,
             total_credentials: 5,
             today_requests: 100,
@@ -417,8 +415,6 @@ mod tests {
 
         let state = manager.get_state().await;
         assert_eq!(state.icon_status, TrayIconStatus::Running);
-        assert!(state.server_running);
-        assert_eq!(state.server_address, "127.0.0.1:8080");
         assert_eq!(state.available_credentials, 3);
         assert_eq!(state.total_credentials, 5);
         assert_eq!(state.today_requests, 100);

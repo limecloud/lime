@@ -737,20 +737,6 @@ pub async fn run_site_adapter(
         );
     }
 
-    let wrapped_script = match build_wrapped_adapter_script(&spec.script, &args) {
-        Ok(value) => value,
-        Err(error) => {
-            return build_error_result(
-                &spec,
-                profile_key,
-                None,
-                None,
-                entry_url,
-                "internal_error",
-                &format!("构造适配器脚本失败: {error}"),
-            );
-        }
-    };
     let timeout_ms = normalize_timeout_ms(request.timeout_ms);
     let resolved_target_id = attached_session_readiness
         .and_then(|result| result.target_id)
@@ -764,11 +750,25 @@ pub async fn run_site_adapter(
                 resolved_target_id,
                 entry_url,
                 timeout_ms,
-                wrapped_script,
+                args,
             )
             .await
         }
         SiteAdapterTransportRoute::ManagedCdp => {
+            let wrapped_script = match build_wrapped_adapter_script(&spec.script, &args) {
+                Ok(value) => value,
+                Err(error) => {
+                    return build_error_result(
+                        &spec,
+                        profile_key,
+                        None,
+                        None,
+                        entry_url,
+                        "internal_error",
+                        &format!("构造适配器脚本失败: {error}"),
+                    );
+                }
+            };
             run_managed_cdp_adapter(
                 db,
                 &spec,
@@ -1688,7 +1688,7 @@ async fn run_existing_session_adapter(
     target_id: Option<String>,
     entry_url: String,
     timeout_ms: u64,
-    wrapped_script: String,
+    args: Map<String, Value>,
 ) -> SiteAdapterRunResult {
     let selected_target = if let Some(explicit_target_id) = target_id
         .clone()
@@ -1785,7 +1785,8 @@ async fn run_existing_session_adapter(
         text: None,
         url: None,
         payload: Some(json!({
-            "script": wrapped_script,
+            "adapter_name": spec.name,
+            "args": Value::Object(args),
         })),
         wait_for_page_info: false,
         timeout_ms: Some(normalize_adapter_evaluate_timeout_ms(timeout_ms)),

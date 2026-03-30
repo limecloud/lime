@@ -28,7 +28,12 @@ import {
   listServiceSkillDependencies,
 } from "./skillPresentation";
 import { supportsServiceSkillLocalAutomation } from "./automationDraft";
-import { isServiceSkillExecutableAsSiteAdapter } from "./siteCapabilityBinding";
+import {
+  buildServiceSkillNaturalLaunchMessage,
+  buildSiteLaunchBlockedMessage,
+  isServiceSkillExecutableAsSiteAdapter,
+  isSiteLaunchReadinessReady,
+} from "./siteCapabilityBinding";
 import type {
   ServiceSkillHomeItem,
   ServiceSkillSlotDefinition,
@@ -168,6 +173,12 @@ export function ServiceSkillLaunchDialog({
     if (!skill) {
       return "";
     }
+    if (isServiceSkillExecutableAsSiteAdapter(skill)) {
+      return buildServiceSkillNaturalLaunchMessage({
+        skill,
+        slotValues,
+      });
+    }
     return formatServiceSkillPromptPreview(skill, slotValues);
   }, [skill, slotValues]);
   const supportsAutomation = useMemo(
@@ -191,11 +202,14 @@ export function ServiceSkillLaunchDialog({
   );
   const primaryActionLabel = skill
     ? isSiteSkill
-      ? "在 Claw 中执行"
+      ? siteLaunchReadiness.phase === "blocked"
+        ? "先准备浏览器再执行"
+        : "在 Claw 中执行"
       : getServiceSkillPrimaryActionLabel(skill, canCreateAutomation)
     : "进入工作区";
   const canLaunchInClaw =
-    validation.valid && (!isSiteSkill || siteLaunchReadiness.phase === "ready");
+    validation.valid &&
+    (!isSiteSkill || siteLaunchReadiness.phase !== "blocked");
 
   const refreshSiteLaunchReadiness = useCallback(async () => {
     if (!open || !skill || !isServiceSkillExecutableAsSiteAdapter(skill)) {
@@ -270,7 +284,7 @@ export function ServiceSkillLaunchDialog({
     siteLaunchReadiness.phase === "ready"
       ? "可直接执行"
       : siteLaunchReadiness.phase === "blocked"
-        ? "需要浏览器工作台"
+        ? "需要先准备浏览器"
         : siteLaunchReadiness.phase === "error"
           ? "检测失败"
           : "检测中";
@@ -356,6 +370,12 @@ export function ServiceSkillLaunchDialog({
                   {readinessHint ? (
                     <p className="mt-2 text-[11px] opacity-80">
                       {readinessHint}
+                    </p>
+                  ) : null}
+                  {siteLaunchReadiness.phase === "blocked" &&
+                  canOpenBrowserRuntime ? (
+                    <p className="mt-2 text-[11px] opacity-80">
+                      {buildSiteLaunchBlockedMessage(siteLaunchReadiness.result)}
                     </p>
                   ) : null}
                   <button
@@ -474,6 +494,13 @@ export function ServiceSkillLaunchDialog({
             }
             disabled={!canLaunchInClaw}
             onClick={() => {
+              if (
+                isSiteSkill &&
+                siteLaunchReadiness.phase === "blocked" &&
+                !isSiteLaunchReadinessReady(siteLaunchReadiness.result)
+              ) {
+                return;
+              }
               if (canCreateAutomation && onCreateAutomation) {
                 void onCreateAutomation(skill, slotValues);
                 return;

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Enable Browser Connection</title>
+    <link rel="stylesheet" href="styles/install-common.css" />
+  </head>
+  <body>
+    <div class="drag-handle"></div>
+    <div class="page">
+
+      <div class="header">
+        <div class="header-icon">
+          <img src="../icons/icon128.png" alt="Lime Browser Bridge" />
+        </div>
+        <div>
+          <h1 data-i18n="title">Enable Browser Connection</h1>
+        </div>
+      </div>
+      <p class="subtitle" data-i18n="subtitle">
+        Your Chrome supports direct connection — no extension needed!
+      </p>
+
+      <div id="browser-info" style="display:none;margin-bottom:24px;">
+        <div class="note" style="margin-top:0">
+          <div class="note-body" style="display:flex;align-items:center;gap:10px">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 8.5l3 3 7-7"/>
+            </svg>
+            <span id="browser-info-text" style="color:var(--green);font-weight:600;font-size:13px"></span>
+          </div>
+        </div>
+      </div>
+
+      <ol class="step-list">
+
+        <li class="step">
+          <div class="step-title" data-i18n="step1_title">Enable Remote Debugging</div>
+          <div class="step-body">
+            <button class="open-btn" onclick="openChromeUrl('chrome://inspect/#remote-debugging')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 8.5V12a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 012 12V5a1.5 1.5 0 011.5-1.5H7"/>
+                <path d="M10 2h4v4"/>
+                <path d="M7 9L14 2"/>
+              </svg>
+              <span data-i18n="step1_open">Open chrome://inspect/#remote-debugging</span>
+            </button>
+            <span data-i18n="step1_detail" style="display:block;margin-top:8px">Toggle the remote debugging switch to <strong>On</strong>.</span>
+            <div class="step-extras">
+              <button class="step-extras-toggle" data-target="step1-extras" aria-expanded="false">
+                <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+                <span data-i18n="step1_more">Can't open? Copy URL instead</span>
+              </button>
+              <div class="step-extras-content" id="step1-extras">
+                <span data-i18n="step1_body">On Windows, Chrome may block this page from opening automatically. Copy and paste the URL into your address bar:</span>
+                <div class="url-block" id="copy-url-block">
+                  chrome://inspect/#remote-debugging
+                  <svg class="copy-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+                    <path d="M3.5 10.5h-1a1 1 0 01-1-1v-7a1 1 0 011-1h7a1 1 0 011 1v1"/>
+                  </svg>
+                  <span class="copy-label" style="font-size:11px;color:var(--muted)" data-i18n="click_to_copy">Click to copy</span>
+                </div>
+                <div class="note" style="margin-top:8px">
+                  <div class="note-title" data-i18n="extras_how_title">How it works</div>
+                  <div class="note-body" data-i18n="extras_how_body">
+                    Chrome M144+ includes a built-in remote debugging interface. Lime connects directly to Chrome via the DevTools Protocol (CDP) — faster and simpler than using an extension.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-title" data-i18n="step2_title">Allow Connection</div>
+          <div class="step-body">
+            <span data-i18n="step2_body">When Lime requests a debugging session, Chrome will show a permission dialog. Click <strong>Allow</strong> to let Lime connect.</span>
+            <div class="step-extras">
+              <button class="step-extras-toggle" data-target="step2-extras" aria-expanded="false">
+                <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+                <span data-i18n="step2_more">Details</span>
+              </button>
+              <div class="step-extras-content" id="step2-extras">
+                <div class="note" style="margin-top:8px">
+                  <div class="note-title" data-i18n="extras_banner_title">About the automation banner</div>
+                  <div class="note-body" data-i18n="extras_banner_body">
+                    While Lime is connected, Chrome displays <strong>"Chrome is being controlled by automated test software"</strong>. This is a standard security notice confirming the debugging session is active.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+
+        <li class="step">
+          <div class="step-title" data-i18n="step3_title">You're All Set</div>
+          <div class="step-body">
+            <span data-i18n="step3_body">Lime can now directly control your browser tabs. No extension installation required.</span>
+            <div class="note" style="margin-top:12px">
+              <div class="note-title" data-i18n="extras_reconnect_title">When do I need to reconnect?</div>
+              <div class="note-body" data-i18n="extras_reconnect_body">
+                You need to click "Allow" again each time you restart Lime or Chrome. During normal use, the connection stays active automatically — no repeated approval needed.
+              </div>
+            </div>
+            <div class="step-extras">
+              <button class="step-extras-toggle" data-target="step3-extras" aria-expanded="false">
+                <svg viewBox="0 0 8 12" fill="currentColor"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+                <span data-i18n="step3_more">Security details</span>
+              </button>
+              <div class="step-extras-content" id="step3-extras">
+                <div class="note" style="margin-top:8px">
+                  <div class="note-title" data-i18n="extras_security_title">Security</div>
+                  <div class="note-body" data-i18n="extras_security_body">
+                    Remote debugging only works on localhost (127.0.0.1). Each new session requires explicit user permission via the Chrome dialog. You can disable it at any time by toggling the switch off.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+
+      </ol>
+
+      <div class="alt-method">
+        <div class="alt-method-divider"></div>
+        <button class="alt-method-btn" onclick="navigateToInstallPage('install-extension.html')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.5 2.5v3h3"/>
+            <path d="M5.5 13.5v-3h-3"/>
+            <path d="M13.5 5.5h-3v-3"/>
+            <path d="M2.5 10.5h3v3"/>
+          </svg>
+          <span data-i18n="alt_use_extension">Having trouble? Use the extension method instead</span>
+          <svg width="12" height="12" viewBox="0 0 8 12" fill="currentColor" style="opacity:0.5"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+        </button>
+      </div>
+
+      <div class="alt-method" style="margin-top:10px">
+        <button class="alt-method-btn" onclick="navigateToInstallPage('compare-methods.html')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1.5" y="2.5" width="5" height="11" rx="1"/>
+            <rect x="9.5" y="2.5" width="5" height="11" rx="1"/>
+          </svg>
+          <span data-i18n="compare_methods">Compare connection methods</span>
+          <svg width="12" height="12" viewBox="0 0 8 12" fill="currentColor" style="opacity:0.5"><path d="M1.5 0L7.5 6L1.5 12L0 10.5L4.5 6L0 1.5Z"/></svg>
+        </button>
+      </div>
+
+    </div>
+    <script src="scripts/install-i18n.js"></script>
+    <script src="scripts/install-helpers.js"></script>
+    <script>
+      InstallI18n.register('en', {
+        title: 'Enable Browser Connection',
+        subtitle: 'Your Chrome supports direct connection — no extension needed!',
+        step1_title: 'Enable Remote Debugging',
+        step1_open: 'Open chrome://inspect/#remote-debugging',
+        step1_more: 'Can\'t open? Copy URL instead',
+        step1_body: 'On Windows, Chrome may block this page from opening automatically. Copy and paste the URL into your address bar:',
+        step1_detail: 'Toggle the remote debugging switch to <strong>On</strong>.',
+        step2_title: 'Allow Connection',
+        step2_body: 'When Lime requests a debugging session, Chrome will show a permission dialog. Click <strong>Allow</strong> to let Lime connect.',
+        step2_more: 'Details',
+        step3_title: 'You\'re All Set',
+        step3_body: 'Lime can now directly control your browser tabs. No extension installation required.',
+        step3_more: 'Security details',
+        click_to_copy: 'Click to copy',
+        more_info: 'More information',
+        extras_how_title: 'How it works',
+        extras_how_body: 'Chrome M144+ includes a built-in remote debugging interface. Lime connects directly to Chrome via the DevTools Protocol (CDP) — faster and simpler than using an extension.',
+        extras_banner_title: 'About the automation banner',
+        extras_banner_body: 'While Lime is connected, Chrome displays <strong>"Chrome is being controlled by automated test software"</strong>. This is a standard security notice confirming the debugging session is active.',
+        extras_reconnect_title: 'When do I need to reconnect?',
+        extras_reconnect_body: 'You need to click "Allow" again each time you restart Lime or Chrome. During normal use, the connection stays active automatically \u2014 no repeated approval needed.',
+        extras_security_title: 'Security',
+        extras_security_body: 'Remote debugging only works on localhost (127.0.0.1). Each new session requires explicit user permission via the Chrome dialog. You can disable it at any time by toggling the switch off.',
+        alt_use_extension: 'Having trouble? Use the extension method instead',
+        compare_methods: 'Compare connection methods',
+      });
+      InstallI18n.register('zh', {
+        title: '启用浏览器连接',
+        subtitle: '您的 Chrome 支持直接连接 — 无需安装扩展！',
+        step1_title: '启用远程调试',
+        step1_open: '打开 chrome://inspect/#remote-debugging',
+        step1_more: '无法打开？复制链接',
+        step1_body: '在 Windows 上，Chrome 可能会阻止自动打开此页面。请复制以下地址并粘贴到浏览器地址栏：',
+        step1_detail: '将远程调试开关切换为 <strong>开启</strong>。',
+        step2_title: '允许连接',
+        step2_body: '当 Lime 请求调试会话时，Chrome 会弹出权限对话框，点击 <strong>允许</strong> 即可让 Lime 连接。',
+        step2_more: '详情',
+        step3_title: '设置完成',
+        step3_body: 'Lime 现在可以直接控制您的浏览器标签页，无需安装任何扩展。',
+        step3_more: '安全详情',
+        click_to_copy: '点击复制',
+        more_info: '更多信息',
+        extras_how_title: '工作原理',
+        extras_how_body: 'Chrome M144+ 内置了远程调试接口。Lime 通过 DevTools 协议 (CDP) 直接连接 Chrome — 比使用扩展更快速、更简单。',
+        extras_banner_title: '关于自动化提示栏',
+        extras_banner_body: 'Lime 连接期间，Chrome 会显示 <strong>"Chrome 正在由自动化测试软件控制"</strong>，这是标准的安全提示，确认调试会话处于活动状态。',
+        extras_reconnect_title: '什么时候需要重新连接？',
+        extras_reconnect_body: '每次重启 Lime 或 Chrome 后，需要重新点击"允许"。正常使用期间连接会自动保持，无需反复授权。',
+        extras_security_title: '安全性',
+        extras_security_body: '远程调试仅在本地回环地址 (127.0.0.1) 上工作，每次新会话都需要用户通过 Chrome 对话框明确授权。随时可以关闭开关来禁用。',
+        alt_use_extension: '遇到问题？使用扩展方式连接',
+        compare_methods: '对比两种连接方式',
+      });
+      InstallI18n.register('de', {
+        title: 'Browserverbindung aktivieren',
+        subtitle: 'Ihr Chrome unterstützt die direkte Verbindung — keine Erweiterung erforderlich!',
+        step1_title: 'Remote-Debugging aktivieren',
+        step1_open: 'Öffnen Sie chrome://inspect/#remote-debugging',
+        step1_more: 'Lässt sich nicht öffnen? URL kopieren',
+        step1_body: 'Unter Windows verhindert Chrome möglicherweise das automatische Öffnen dieser Seite. Kopieren Sie die URL und fügen Sie sie in die Adressleiste ein:',
+        step1_detail: 'Stellen Sie den Schalter für Remote-Debugging auf <strong>Ein</strong>.',
+        step2_title: 'Verbindung zulassen',
+        step2_body: 'Wenn Lime eine Debugging-Sitzung anfordert, zeigt Chrome einen Berechtigungsdialog an. Klicken Sie auf <strong>Zulassen</strong>, um Lime die Verbindung zu ermöglichen.',
+        step2_more: 'Details',
+        step3_title: 'Alles bereit',
+        step3_body: 'Lime kann jetzt Ihre Browser-Tabs direkt steuern. Keine Installation einer Erweiterung erforderlich.',
+        step3_more: 'Sicherheitsdetails',
+        click_to_copy: 'Zum Kopieren klicken',
+        more_info: 'Weitere Informationen',
+        extras_how_title: 'Wie es funktioniert',
+        extras_how_body: 'Chrome M144+ enthält eine integrierte Remote-Debugging-Schnittstelle. Lime verbindet sich direkt mit Chrome über das DevTools-Protokoll (CDP) — schneller und einfacher als die Verwendung einer Erweiterung.',
+        extras_banner_title: 'Über das Automatisierungsbanner',
+        extras_banner_body: 'Während Lime verbunden ist, zeigt Chrome <strong>"Chrome wird von automatisierter Testsoftware gesteuert"</strong> an. Dies ist ein Standard-Sicherheitshinweis, der bestätigt, dass die Debugging-Sitzung aktiv ist.',
+        extras_reconnect_title: 'Wann muss ich die Verbindung wiederherstellen?',
+        extras_reconnect_body: 'Sie müssen jedes Mal erneut auf "Zulassen" klicken, wenn Sie Lime oder Chrome neu starten. Während der normalen Nutzung bleibt die Verbindung automatisch aktiv — keine wiederholte Zustimmung erforderlich.',
+        extras_security_title: 'Sicherheit',
+        extras_security_body: 'Remote-Debugging funktioniert nur auf localhost (127.0.0.1). Jede neue Sitzung erfordert eine ausdrückliche Benutzererlaubnis über den Chrome-Dialog. Sie können es jederzeit deaktivieren, indem Sie den Schalter ausschalten.',
+        alt_use_extension: 'Probleme? Verwenden Sie stattdessen die Erweiterungsmethode',
+        compare_methods: 'Verbindungsmethoden vergleichen',
+      });
+      InstallI18n.register('es', {
+        title: 'Activar conexión del navegador',
+        subtitle: '¡Tu Chrome admite conexión directa — no se necesita extensión!',
+        step1_title: 'Activar depuración remota',
+        step1_open: 'Abre chrome://inspect/#remote-debugging',
+        step1_more: '¿No se abre? Copia la URL',
+        step1_body: 'En Windows, Chrome puede bloquear la apertura automática de esta página. Copia la URL y pégala en la barra de direcciones:',
+        step1_detail: 'Cambia el interruptor de depuración remota a <strong>Activado</strong>.',
+        step2_title: 'Permitir conexión',
+        step2_body: 'Cuando Lime solicite una sesión de depuración, Chrome mostrará un cuadro de diálogo de permiso. Haz clic en <strong>Permitir</strong> para que Lime se conecte.',
+        step2_more: 'Detalles',
+        step3_title: 'Todo listo',
+        step3_body: 'Lime ahora puede controlar directamente las pestañas de tu navegador. No se requiere instalación de extensiones.',
+        step3_more: 'Detalles de seguridad',
+        click_to_copy: 'Haz clic para copiar',
+        more_info: 'Más información',
+        extras_how_title: 'Cómo funciona',
+        extras_how_body: 'Chrome M144+ incluye una interfaz de depuración remota integrada. Lime se conecta directamente a Chrome a través del Protocolo DevTools (CDP), más rápido y sencillo que usar una extensión.',
+        extras_banner_title: 'Sobre el banner de automatización',
+        extras_banner_body: 'Mientras Lime está conectado, Chrome muestra <strong>"Chrome está siendo controlado por un software de prueba automatizado"</strong>. Este es un aviso de seguridad estándar que confirma que la sesión de depuración está activa.',
+        extras_reconnect_title: '¿Cuándo necesito volver a conectar?',
+        extras_reconnect_body: 'Debes hacer clic en "Permitir" nuevamente cada vez que reinicies Lime o Chrome. Durante el uso normal, la conexión permanece activa automáticamente; no se necesita aprobación repetida.',
+        extras_security_title: 'Seguridad',
+        extras_security_body: 'La depuración remota solo funciona en localhost (127.0.0.1). Cada nueva sesión requiere el permiso explícito del usuario a través del cuadro de diálogo de Chrome. Puedes desactivarla en cualquier momento apagando el interruptor.',
+        alt_use_extension: '¿Tienes problemas? Usa el método de extensión en su lugar',
+        compare_methods: 'Comparar métodos de conexión',
+      });
+      InstallI18n.register('fr', {
+        title: 'Activer la connexion au navigateur',
+        subtitle: 'Votre Chrome prend en charge la connexion directe — aucune extension n\'est nécessaire !',
+        step1_title: 'Activer le débogage à distance',
+        step1_open: 'Ouvrez chrome://inspect/#remote-debugging',
+        step1_more: 'Impossible d\'ouvrir ? Copiez l\'URL',
+        step1_body: 'Sous Windows, Chrome peut empêcher l\'ouverture automatique de cette page. Copiez l\'URL et collez-la dans la barre d\'adresse :',
+        step1_detail: 'Basculez l\'interrupteur de débogage à distance sur <strong>Activé</strong>.',
+        step2_title: 'Autoriser la connexion',
+        step2_body: 'Lorsque Lime demande une session de débogage, Chrome affiche une boîte de dialogue d\'autorisation. Cliquez sur <strong>Autoriser</strong> pour permettre à Lime de se connecter.',
+        step2_more: 'Détails',
+        step3_title: 'Tout est prêt',
+        step3_body: 'Lime peut désormais contrôler directement les onglets de votre navigateur. Aucune installation d\'extension n\'est requise.',
+        step3_more: 'Détails de sécurité',
+        click_to_copy: 'Cliquez pour copier',
+        more_info: 'Plus d\'informations',
+        extras_how_title: 'Comment ça marche',
+        extras_how_body: 'Chrome M144+ inclut une interface de débogage à distance intégrée. Lime se connecte directement à Chrome via le protocole DevTools (CDP) — plus rapide et plus simple que l\'utilisation d\'une extension.',
+        extras_banner_title: 'À propos de la bannière d\'automatisation',
+        extras_banner_body: 'Pendant qu\'Lime est connecté, Chrome affiche <strong>"Chrome est contrôlé par un logiciel de test automatisé"</strong>. Il s\'agit d\'un avis de sécurité standard confirmant que la session de débogage est active.',
+        extras_reconnect_title: 'Quand dois-je me reconnecter ?',
+        extras_reconnect_body: 'Vous devez cliquer à nouveau sur "Autoriser" chaque fois que vous redémarrez Lime ou Chrome. En utilisation normale, la connexion reste active automatiquement — aucune approbation répétée n\'est nécessaire.',
+        extras_security_title: 'Sécurité',
+        extras_security_body: 'Le débogage à distance ne fonctionne que sur localhost (127.0.0.1). Chaque nouvelle session nécessite l\'autorisation explicite de l\'utilisateur via la boîte de dialogue Chrome. Vous pouvez le désactiver à tout moment en éteignant l\'interrupteur.',
+        alt_use_extension: 'Vous rencontrez des problèmes ? Utilisez plutôt la méthode par extension',
+        compare_methods: 'Comparer les méthodes de connexion',
+      });
+      InstallI18n.register('pt', {
+        title: 'Ativar conexão do navegador',
+        subtitle: 'O seu Chrome suporta ligação direta — não é necessária nenhuma extensão!',
+        step1_title: 'Ativar depuração remota',
+        step1_open: 'Abra chrome://inspect/#remote-debugging',
+        step1_more: 'Não abre? Copie a URL',
+        step1_body: 'No Windows, o Chrome pode bloquear a abertura automática desta página. Copie a URL e cole-a na barra de endereços:',
+        step1_detail: 'Ative o interruptor de depuração remota para <strong>Ligado</strong>.',
+        step2_title: 'Permitir ligação',
+        step2_body: 'Quando o Lime solicita uma sessão de depuração, o Chrome mostra um diálogo de permissão. Clique em <strong>Permitir</strong> para deixar o Lime ligar-se.',
+        step2_more: 'Detalhes',
+        step3_title: 'Tudo pronto',
+        step3_body: 'O Lime pode agora controlar diretamente os separadores do seu navegador. No é necessária a instalação de extensões.',
+        step3_more: 'Detalhes de segurança',
+        click_to_copy: 'Clique para copiar',
+        more_info: 'Mais informações',
+        extras_how_title: 'Como funciona',
+        extras_how_body: 'O Chrome M144+ inclui uma interface de depuração remota integrada. O Lime liga-se diretamente ao Chrome através do Protocolo DevTools (CDP) — mais rápido e simples do que usar uma extensão.',
+        extras_banner_title: 'Sobre o banner de automação',
+        extras_banner_body: 'Enquanto o Lime está ligado, o Chrome exibe <strong>"O Chrome está a ser controlado por software de teste automatizado"</strong>. Este é um aviso de segurança padrão que confirma que a sessão de depuração está ativa.',
+        extras_reconnect_title: 'Quando preciso de me voltar a ligar?',
+        extras_reconnect_body: 'Precisa de clicar em "Permitir" novamente cada vez que reiniciar o Lime ou o Chrome. Durante a utilização normal, a ligação permanece ativa automaticamente — não é necessária aprovação repetida.',
+        extras_security_title: 'Segurança',
+        extras_security_body: 'A depuração remota só funciona em localhost (127.0.0.1). Cada nova sessão requer permissão explícita do utilizador através do diálogo do Chrome. Pode desativá-la a qualquer momento, desligando o interruptor.',
+        alt_use_extension: 'Problemas? Utilize o método de extensão em vez disso',
+        compare_methods: 'Comparar métodos de ligação',
+      });
+
+      var lang = InstallI18n.apply();
+
+      var params = new URLSearchParams(window.location.search);
+      var browserName = params.get('browser');
+      var browserVersion = params.get('version');
+      if (browserName && browserVersion) {
+        var infoEl = document.getElementById('browser-info');
+        var textEl = document.getElementById('browser-info-text');
+        if (infoEl && textEl) {
+          infoEl.style.display = 'block';
+          textEl.textContent = lang === 'zh'
+            ? (browserName + ' M' + browserVersion + ' — 支持直连 CDP')
+            : (browserName + ' M' + browserVersion + ' — Direct CDP supported');
+        }
+      }
+
+      setupCopyBlock('copy-url-block', 'chrome://inspect/#remote-debugging');
+      setupAllStepExtras();
+    </script>
+  </body>
+</html>

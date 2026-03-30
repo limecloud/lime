@@ -4,12 +4,12 @@
  * @module components/provider-pool/ModelRegistryTab
  */
 
-import { EnhancedModelsTab } from "@/components/api-server/EnhancedModelsTab";
+import { EnhancedModelsTab } from "./EnhancedModelsTab";
 
 /**
  * 模型库 Tab 组件
  *
- * 复用 API Server 的 EnhancedModelsTab 组件
+ * 复用 Provider Pool 的增强模型列表组件
  */
 export function ModelRegistryTab() {
   return (

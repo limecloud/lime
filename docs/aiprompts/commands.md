@@ -30,9 +30,11 @@
 - `set_browser_connector_install_root_cmd`
 - `set_browser_connector_enabled_cmd`
 - `set_system_connector_enabled_cmd`
+- `set_browser_action_capability_enabled_cmd`
 - `get_browser_connector_install_status_cmd`
 - `install_browser_connector_extension_cmd`
 - `open_browser_extensions_page_cmd`
+- `open_browser_remote_debugging_page_cmd`
 - `disconnect_browser_connector_session`
 
 这些命令属于当前设置主路径，不应再在页面组件里散落裸 `invoke`。
@@ -99,18 +101,20 @@
 // src/lib/api/serverRuntime.ts
 import { safeInvoke } from "@/lib/dev-bridge";
 
-export async function getServerStatus() {
-  return safeInvoke<ServerStatus>("get_server_status");
+export async function getServerDiagnostics() {
+  return safeInvoke<ServerDiagnostics>("get_server_diagnostics");
 }
 ```
 
 业务层只消费网关：
 
 ```typescript
-import { getServerStatus } from "@/lib/api/serverRuntime";
+import { getServerDiagnostics } from "@/lib/api/serverRuntime";
 
-const status = await getServerStatus();
+const diagnostics = await getServerDiagnostics();
 ```
+
+共享网关控制面已下线后，`start_server`、`stop_server`、`get_server_status`、`get_available_routes`、`get_route_curl_examples`、`test_api`、`get_network_info`，以及托盘残留 `sync_tray_state`、`update_tray_server_status`、`update_tray_credential_status`、`get_tray_state`、`refresh_tray_menu`、`refresh_tray_with_stats` 都应视为 `dead` 候选，不应重新接回前端主路径；server 兼容面 `/v1/routes`、`/{selector}/v1/messages`、`/{selector}/v1/chat/completions` 也应视为 `dead` 候选，不应重新接回本地共享网关主链；开发者诊断统一继续走 `get_server_diagnostics`，托盘只保留 `sync_tray_model_shortcuts`，server 只保留标准 `/v1/messages` 与 `/v1/chat/completions`。
 
 ### 3. Rust 命令与注册表同步
 
@@ -227,10 +231,13 @@ npm run verify:local
 - **站点能力主链**：继续收敛到 `site_list_adapters / site_recommend_adapters / site_search_adapters / site_get_adapter_info / site_get_adapter_launch_readiness / site_get_adapter_catalog_status / site_import_adapter_yaml_bundle / site_run_adapter`
 - **站点适配器导入主链**：`site_import_adapter_yaml_bundle` 只负责把外部 YAML 来源编译为 Lime 标准并写入 `imported` 目录，不允许带入第二套 runtime、daemon 或自动唤醒浏览器链路
 - **站点 Agent 工具主链**：继续收敛到 `lime_site_list / lime_site_recommend / lime_site_search / lime_site_info / lime_site_run`
+- **站点技能首页入口主链**：首页 / 工作区弹窗只负责补参数、组装 `initialUserPrompt + harness.service_skill_launch` 上下文并进入 `Claw`；真正执行统一收口到 `Claw` 首回合，不再由首页弹窗或工作区挂载副作用直接调用 `site_run_adapter`
 - **站点结果沉淀主线**：`site_run_adapter` / `lime_site_run` 优先透传 `content_id` 写回当前主稿；只有缺少 `content_id` 时，才回退到 `project_id` 新建结果文档
 - **Claw 站点直跑门禁主链**：`site_get_adapter_launch_readiness` 只负责检测“是否存在已附着的真实浏览器会话 + 目标站点上下文”；`site_run_adapter.require_attached_session = true` 时，后端必须拒绝 managed/default fallback，不能后台偷偷起 Chrome
+- **attached-session 执行主链**：真实浏览器附着场景下，Bridge `run_adapter` 只允许下发 `adapter_name + args`，禁止继续透传原始脚本文本到扩展 content script，以免触发站点 CSP 的 `unsafe-eval`
 - **站点运行失败语义**：`SiteAdapterRunResult` 至少统一输出 `auth_required / no_matching_context / adapter_runtime_error`，并在前端与 Agent 结果里保留 `report_hint`
 - **浏览器资料 / 环境预设主链**：`list/save/archive/restore_browser_profile_cmd` 与 `list/save/archive/restore_browser_environment_preset_cmd` 已进入真实 DevBridge 主路径；浏览器模式下不应再默认放进 `mockPriorityCommands`，仅在 DevBridge 不可用时才允许回落 `defaultMocks`
+- **浏览器运行时启动主链**：`launch_browser_session` / `launch_browser_runtime_assist` 支持显式 `headless` 启动参数；仅用于 `verify:gui-smoke` 一类自动化校验避免弹出空白 Chrome，正常用户态调用默认仍保持有界面浏览器
 
 ## 相关检查脚本
 

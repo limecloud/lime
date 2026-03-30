@@ -73,6 +73,7 @@ export type Page =
   | ThemeWorkspacePage
   | "image-gen"
   | "automation"
+  | "channels"
   | "resources"
   | "browser-runtime"
   | "tools"
@@ -135,6 +136,7 @@ export interface AgentPageParams {
   projectId?: string;
   contentId?: string;
   initialRequestMetadata?: Record<string, unknown>;
+  initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
   /** Agent 入口模式：新建任务或任务中心 */
   agentEntry?: "new-task" | "claw";
@@ -246,6 +248,8 @@ export interface AgentSiteSkillLaunchParams {
   profileKey?: string;
   targetId?: string;
   requireAttachedSession?: boolean;
+  preferredBackend?: "lime_extension_bridge" | "cdp_direct";
+  autoLaunch?: boolean;
   saveTitle?: string;
   skillTitle?: string;
 }

@@ -55,7 +55,7 @@ pub async fn agent_start_process(
     };
 
     agent_state.init_agent_with_db(&db).await?;
-    ensure_browser_mcp_tools_registered(agent_state.inner()).await?;
+    ensure_browser_mcp_tools_registered(agent_state.inner(), &db).await?;
     let base_url = if gateway_running {
         Some(format!("http://{host}:{port}"))
     } else {

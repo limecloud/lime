@@ -26,6 +26,33 @@ fn emit_runtime_queue_event(
     emitter(event_name.to_string(), event);
 }
 
+fn spawn_runtime_turn_task<C>(
+    session_id: String,
+    context: C,
+    executor: RuntimeQueueExecutor<C>,
+    emitter: RuntimeQueueEventEmitter,
+    payload: Value,
+) where
+    C: Clone + Send + Sync + 'static,
+{
+    tokio::spawn(async move {
+        let result = executor(context.clone(), payload).await;
+        if let Err(error) = continue_runtime_queue_after_turn(
+            session_id,
+            context.clone(),
+            executor.clone(),
+            emitter.clone(),
+        )
+        .await
+        {
+            tracing::warn!("[AsterAgent][Queue] 调度下一条排队 turn 失败: {}", error);
+        }
+        if let Err(error) = result {
+            tracing::warn!("[AsterAgent][Queue] 队列任务执行失败: {}", error);
+        }
+    });
+}
+
 async fn continue_runtime_queue_after_turn<C>(
     session_id: String,
     context: C,
@@ -76,30 +103,13 @@ where
         },
     );
 
-    let runtime_handle = tokio::runtime::Handle::current();
-    let executor_for_task = executor.clone();
-    let emitter_for_task = emitter.clone();
-    let context_for_task = context.clone();
-    let session_id_for_task = session_id.clone();
-    let payload = next_queued_turn.payload;
-    tokio::task::spawn_blocking(move || {
-        runtime_handle.block_on(async move {
-            let result = executor_for_task(context_for_task.clone(), payload).await;
-            if let Err(error) = continue_runtime_queue_after_turn(
-                session_id_for_task,
-                context_for_task.clone(),
-                executor_for_task.clone(),
-                emitter_for_task.clone(),
-            )
-            .await
-            {
-                tracing::warn!("[AsterAgent][Queue] 调度下一条排队 turn 失败: {}", error);
-            }
-            if let Err(error) = result {
-                tracing::warn!("[AsterAgent][Queue] 队列任务执行失败: {}", error);
-            }
-        });
-    });
+    spawn_runtime_turn_task(
+        session_id,
+        context,
+        executor,
+        emitter,
+        next_queued_turn.payload,
+    );
     Ok(true)
 }
 
@@ -149,14 +159,8 @@ where
         .map_err(|error| format!("提交 runtime queue turn 失败: {error}"))?
     {
         RuntimeQueueSubmitResult::StartNow => {
-            let result = executor(context.clone(), queued_task.payload).await;
-            if let Err(error) =
-                continue_runtime_queue_after_turn(session_id, context, executor.clone(), emitter)
-                    .await
-            {
-                tracing::warn!("[AsterAgent][Queue] 调度下一条排队 turn 失败: {}", error);
-            }
-            result
+            spawn_runtime_turn_task(session_id, context, executor, emitter, queued_task.payload);
+            Ok(())
         }
         RuntimeQueueSubmitResult::Busy => Err("当前会话仍在生成，无法立即开始执行".to_string()),
         RuntimeQueueSubmitResult::Enqueued {

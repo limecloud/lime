@@ -50,8 +50,9 @@ pub(super) async fn try_handle(
         }
         "browser_execute_action" => {
             let request: crate::commands::webview_cmd::BrowserActionRequest = parse_request(args)?;
+            let db = get_db(state)?.clone();
             serde_json::to_value(
-                crate::commands::webview_cmd::browser_execute_action_global(request).await?,
+                crate::commands::webview_cmd::browser_execute_action_global(db, request).await?,
             )?
         }
         "get_browser_action_audit_logs" => {

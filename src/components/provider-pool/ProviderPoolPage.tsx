@@ -355,8 +355,8 @@ export const ProviderPoolPage = forwardRef<
           <div>
             <h2 className="text-2xl font-bold">凭证池</h2>
             <p className="text-muted-foreground text-sm">
-              管理多个 AI 服务凭证，自动轮询负载均衡。在团队共享网关中选择默认
-              Provider 后自动使用对应凭证
+              管理多个 AI 服务凭证，自动轮询负载均衡，并为本机默认 Provider
+              提供稳定的凭证来源
             </p>
           </div>
         </div>

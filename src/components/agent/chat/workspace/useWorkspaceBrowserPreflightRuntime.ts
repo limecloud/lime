@@ -4,28 +4,13 @@ import {
   useMemo,
   useRef,
   type Dispatch,
-  type MutableRefObject,
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
-import type {
-  BrowserTaskPreflight,
-  HandleSendOptions,
-} from "../hooks/handleSendTypes";
-import type { ConfirmResponse, Message, MessageImage } from "../types";
+import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
+import type { ConfirmResponse } from "../types";
 
 type BrowserAssistAttentionLevel = "idle" | "info" | "warning";
-
-type WorkspaceSendHandler = (
-  images?: MessageImage[],
-  webSearch?: boolean,
-  thinking?: boolean,
-  textOverride?: string,
-  sendExecutionStrategy?: "react" | "code_orchestrated" | "auto",
-  autoContinuePayload?: AutoContinueRequestPayload,
-  sendOptions?: HandleSendOptions,
-) => Promise<boolean>;
 
 type EnsureBrowserAssistCanvasHandler = (
   sourceText: string,
@@ -44,50 +29,22 @@ interface UseWorkspaceBrowserPreflightRuntimeParams {
   isBrowserAssistReady: boolean;
   ensureBrowserAssistCanvas: EnsureBrowserAssistCanvasHandler;
   handlePermissionResponse: (response: ConfirmResponse) => Promise<void>;
-  sendRef: MutableRefObject<WorkspaceSendHandler>;
 }
 
 interface WorkspaceBrowserPreflightRuntimeResult {
   browserAssistEntryLabel: string;
   browserAssistAttentionLevel: BrowserAssistAttentionLevel;
-  browserPreflightMessages: Message[] | null;
   handlePermissionResponseWithBrowserPreflight: (
     response: ConfirmResponse,
   ) => Promise<void>;
 }
 
-function buildBrowserPreflightMessages(
-  preflight: BrowserTaskPreflight,
-): Message[] {
-  const timestamp = new Date(preflight.createdAt);
-  const actionRequired = {
-    requestId: preflight.requestId,
-    actionType: "ask_user" as const,
-    uiKind: "browser_preflight" as const,
-    browserRequirement: preflight.requirement,
-    browserPrepState: preflight.phase,
-    prompt: preflight.reason,
-    detail: preflight.detail,
-    allowCapabilityFallback: false,
-  };
+function buildAwaitingUserDetail(preflight: BrowserTaskPreflight): string {
+  if (preflight.requirement === "required_with_user_step") {
+    return `已打开${preflight.platformLabel || "浏览器工作台"}。请先完成登录、扫码、验证码或授权，然后回到当前任务重新发起。`;
+  }
 
-  return [
-    {
-      id: `${preflight.requestId}:user`,
-      role: "user",
-      content: preflight.sourceText,
-      images: preflight.images.length > 0 ? preflight.images : undefined,
-      timestamp,
-    },
-    {
-      id: `${preflight.requestId}:assistant`,
-      role: "assistant",
-      content: "",
-      timestamp: new Date(preflight.createdAt + 1),
-      actionRequests: [actionRequired],
-      contentParts: [{ type: "action_required", actionRequired }],
-    },
-  ];
+  return "浏览器已经准备好。请确认页面可操作后，回到当前任务重新发起。";
 }
 
 export function useWorkspaceBrowserPreflightRuntime({
@@ -97,25 +54,24 @@ export function useWorkspaceBrowserPreflightRuntime({
   isBrowserAssistReady,
   ensureBrowserAssistCanvas,
   handlePermissionResponse,
-  sendRef,
 }: UseWorkspaceBrowserPreflightRuntimeParams): WorkspaceBrowserPreflightRuntimeResult {
   const browserTaskPreflightLaunchIdRef = useRef("");
 
   const browserAssistEntryLabel = useMemo(() => {
-    if (browserTaskPreflight?.phase === "launching" || browserAssistLaunching) {
+    if (browserAssistLaunching || browserTaskPreflight?.phase === "launching") {
       return "浏览器启动中";
+    }
+    if (isBrowserAssistReady) {
+      return "浏览器已就绪";
     }
     if (
       browserTaskPreflight?.phase === "awaiting_user" ||
       browserTaskPreflight?.phase === "ready_to_resume"
     ) {
-      return "等待登录";
+      return "待浏览器处理";
     }
     if (browserTaskPreflight?.phase === "failed") {
       return "浏览器未连接";
-    }
-    if (isBrowserAssistReady) {
-      return "浏览器已就绪";
     }
     return "浏览器协助";
   }, [
@@ -126,32 +82,17 @@ export function useWorkspaceBrowserPreflightRuntime({
 
   const browserAssistAttentionLevel = useMemo<BrowserAssistAttentionLevel>(
     () => {
-      if (
-        browserTaskPreflight?.phase === "launching" ||
-        browserAssistLaunching
-      ) {
+      if (browserAssistLaunching || browserTaskPreflight?.phase === "launching") {
         return "info";
       }
 
-      if (
-        browserTaskPreflight?.phase === "awaiting_user" ||
-        browserTaskPreflight?.phase === "ready_to_resume" ||
-        browserTaskPreflight?.phase === "failed"
-      ) {
+      if (!isBrowserAssistReady && browserTaskPreflight) {
         return "warning";
       }
 
       return "idle";
     },
-    [browserAssistLaunching, browserTaskPreflight?.phase],
-  );
-
-  const browserPreflightMessages = useMemo(
-    () =>
-      browserTaskPreflight
-        ? buildBrowserPreflightMessages(browserTaskPreflight)
-        : null,
-    [browserTaskPreflight],
+    [browserAssistLaunching, browserTaskPreflight, isBrowserAssistReady],
   );
 
   const runBrowserTaskPreflight = useCallback(
@@ -161,7 +102,7 @@ export function useWorkspaceBrowserPreflightRuntime({
           ? {
               ...current,
               phase: "launching",
-              detail: current.detail,
+              detail: "正在准备浏览器上下文，请稍候...",
             }
           : current,
       );
@@ -178,44 +119,47 @@ export function useWorkspaceBrowserPreflightRuntime({
           navigationMode,
         });
 
-        setBrowserTaskPreflight((current) => {
-          if (current?.requestId !== preflight.requestId) {
-            return current;
-          }
+        if (!launched) {
+          const detail = "还没有建立可用的浏览器会话。请确认本机浏览器可用后重试。";
+          setBrowserTaskPreflight((current) =>
+            current?.requestId === preflight.requestId
+              ? {
+                  ...current,
+                  phase: "failed",
+                  detail,
+                }
+              : current,
+          );
+          toast.error(detail);
+          return;
+        }
 
-          if (!launched) {
-            return {
-              ...current,
-              phase: "failed",
-              detail:
-                "还没有建立可用的浏览器会话。请确认本机浏览器/CDP 可用后重试。",
-            };
-          }
-
-          return {
-            ...current,
-            phase: "awaiting_user",
-            detail:
-              preflight.requirement === "required_with_user_step"
-                ? `已为你打开${preflight.platformLabel || "浏览器协助"}。请先在右侧浏览器完成登录、扫码、验证码或授权，再继续当前任务。`
-                : "浏览器已经准备好。请确认右侧页面可操作后继续当前任务。",
-          };
-        });
+        const detail = buildAwaitingUserDetail(preflight);
+        setBrowserTaskPreflight((current) =>
+          current?.requestId === preflight.requestId
+            ? {
+                ...current,
+                phase: "awaiting_user",
+                detail,
+              }
+            : current,
+        );
+        toast.info(detail);
       } catch (error) {
-        setBrowserTaskPreflight((current) => {
-          if (current?.requestId !== preflight.requestId) {
-            return current;
-          }
-
-          return {
-            ...current,
-            phase: "failed",
-            detail:
-              error instanceof Error && error.message
-                ? error.message
-                : "启动浏览器协助失败，请稍后重试。",
-          };
-        });
+        const detail =
+          error instanceof Error && error.message
+            ? error.message
+            : "启动浏览器协助失败，请稍后重试。";
+        setBrowserTaskPreflight((current) =>
+          current?.requestId === preflight.requestId
+            ? {
+                ...current,
+                phase: "failed",
+                detail,
+              }
+            : current,
+        );
+        toast.error(detail);
       }
     },
     [ensureBrowserAssistCanvas, setBrowserTaskPreflight],
@@ -226,20 +170,17 @@ export function useWorkspaceBrowserPreflightRuntime({
       return;
     }
 
-    if (isBrowserAssistReady) {
+    if (!isBrowserAssistReady) {
       if (
-        browserTaskPreflight.phase === "launching" ||
-        browserTaskPreflight.phase === "failed"
+        browserTaskPreflight.phase === "awaiting_user" ||
+        browserTaskPreflight.phase === "ready_to_resume"
       ) {
         setBrowserTaskPreflight((current) =>
           current?.requestId === browserTaskPreflight.requestId
             ? {
                 ...current,
-                phase: "awaiting_user",
-                detail:
-                  current.requirement === "required_with_user_step"
-                    ? `浏览器已经连接。请先在右侧完成${current.platformLabel || "目标站点"}登录、扫码或验证码，然后继续当前任务。`
-                    : "浏览器已经连接，请确认页面可操作后继续当前任务。",
+                phase: "failed",
+                detail: "浏览器会话已断开，请重新启动浏览器后再重试。",
               }
             : current,
         );
@@ -248,88 +189,20 @@ export function useWorkspaceBrowserPreflightRuntime({
     }
 
     if (
-      browserTaskPreflight.phase === "awaiting_user" ||
-      browserTaskPreflight.phase === "ready_to_resume"
+      browserTaskPreflight.phase === "launching" ||
+      browserTaskPreflight.phase === "failed"
     ) {
       setBrowserTaskPreflight((current) =>
         current?.requestId === browserTaskPreflight.requestId
           ? {
               ...current,
-              phase: "failed",
-              detail: "浏览器会话已断开，请重新启动浏览器后再继续。",
+              phase: "ready_to_resume",
+              detail: "浏览器已经连接。完成必要操作后，请回到当前任务重新发起。",
             }
           : current,
       );
     }
   }, [browserTaskPreflight, isBrowserAssistReady, setBrowserTaskPreflight]);
-
-  const handlePermissionResponseWithBrowserPreflight = useCallback(
-    async (response: ConfirmResponse) => {
-      if (
-        !browserTaskPreflight ||
-        response.requestId !== browserTaskPreflight.requestId
-      ) {
-        await handlePermissionResponse(response);
-        return;
-      }
-
-      const userData =
-        response.userData && typeof response.userData === "object"
-          ? (response.userData as Record<string, unknown>)
-          : null;
-      const browserAction =
-        typeof userData?.browserAction === "string"
-          ? userData.browserAction
-          : "";
-
-      if (browserAction === "launch") {
-        await runBrowserTaskPreflight(browserTaskPreflight);
-        return;
-      }
-
-      if (browserAction === "continue") {
-        if (!isBrowserAssistReady) {
-          setBrowserTaskPreflight((current) =>
-            current?.requestId === browserTaskPreflight.requestId
-              ? {
-                  ...current,
-                  phase: "failed",
-                  detail: "尚未检测到可用的浏览器会话，请先启动或恢复浏览器。",
-                }
-              : current,
-          );
-          toast.error("浏览器还没有准备好，请先完成启动或恢复浏览器");
-          return;
-        }
-
-        const pending = browserTaskPreflight;
-        setBrowserTaskPreflight(null);
-        await sendRef.current(
-          pending.images,
-          pending.webSearch,
-          pending.thinking,
-          pending.sourceText,
-          pending.sendExecutionStrategy,
-          pending.autoContinuePayload,
-          {
-            ...(pending.sendOptions || {}),
-            browserPreflightConfirmed: true,
-          },
-        );
-        return;
-      }
-
-      await handlePermissionResponse(response);
-    },
-    [
-      browserTaskPreflight,
-      handlePermissionResponse,
-      isBrowserAssistReady,
-      runBrowserTaskPreflight,
-      sendRef,
-      setBrowserTaskPreflight,
-    ],
-  );
 
   useEffect(() => {
     if (!browserTaskPreflight || browserTaskPreflight.phase !== "launching") {
@@ -349,10 +222,16 @@ export function useWorkspaceBrowserPreflightRuntime({
     void runBrowserTaskPreflight(browserTaskPreflight);
   }, [browserTaskPreflight, runBrowserTaskPreflight]);
 
+  const handlePermissionResponseWithBrowserPreflight = useCallback(
+    async (response: ConfirmResponse) => {
+      await handlePermissionResponse(response);
+    },
+    [handlePermissionResponse],
+  );
+
   return {
     browserAssistEntryLabel,
     browserAssistAttentionLevel,
-    browserPreflightMessages,
     handlePermissionResponseWithBrowserPreflight,
   };
 }

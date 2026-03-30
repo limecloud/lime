@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { BrowserTaskPreflight } from "./handleSendTypes";
 import type { Message, MessageImage } from "../types";
 
 export interface InitialDispatchPreviewSnapshot {
@@ -10,6 +11,7 @@ export interface InitialDispatchPreviewSnapshot {
 interface UseBootstrapDispatchPreviewOptions {
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
+  browserTaskPreflight?: BrowserTaskPreflight | null;
   messagesCount: number;
   isSending: boolean;
   queuedTurnCount: number;
@@ -42,6 +44,7 @@ export function buildInitialDispatchPreviewMessages(
   dispatchKey: string,
   prompt?: string,
   images?: MessageImage[],
+  assistantPreviewText?: string,
 ): Message[] {
   const normalizedPrompt = (prompt || "").trim();
   const normalizedImages = images || [];
@@ -51,6 +54,10 @@ export function buildInitialDispatchPreviewMessages(
   }
 
   const timestamp = new Date();
+  const normalizedAssistantPreviewText =
+    assistantPreviewText?.trim() || "正在开始处理任务…";
+  const isAssistantThinking =
+    normalizedAssistantPreviewText === "正在开始处理任务…";
 
   return [
     {
@@ -63,9 +70,9 @@ export function buildInitialDispatchPreviewMessages(
     {
       id: `initial-dispatch:${dispatchKey}:assistant`,
       role: "assistant",
-      content: "正在开始处理任务…",
+      content: normalizedAssistantPreviewText,
       timestamp: new Date(timestamp.getTime() + 1),
-      isThinking: true,
+      isThinking: isAssistantThinking,
     },
   ];
 }
@@ -73,6 +80,7 @@ export function buildInitialDispatchPreviewMessages(
 export function useBootstrapDispatchPreview({
   initialUserPrompt,
   initialUserImages,
+  browserTaskPreflight,
   messagesCount,
   isSending,
   queuedTurnCount,
@@ -132,11 +140,15 @@ export function useBootstrapDispatchPreview({
   const isBootstrapDispatchPending =
     activeBootstrapDispatch !== null &&
     consumedInitialPromptKey !== activeBootstrapDispatch.key;
+  const bootstrapDispatchPreviewDetail =
+    browserTaskPreflight?.detail?.trim() || undefined;
   const shouldShowBootstrapDispatchPreview =
     !shouldUseCompactThemeWorkbench &&
     Boolean(activeBootstrapDispatch) &&
     messagesCount === 0 &&
-    (isSending || queuedTurnCount > 0);
+    (isSending ||
+      queuedTurnCount > 0 ||
+      Boolean(bootstrapDispatchPreviewDetail));
   const bootstrapDispatchPreviewMessages = useMemo(() => {
     if (!shouldShowBootstrapDispatchPreview || !activeBootstrapDispatch) {
       return [] as Message[];
@@ -146,8 +158,13 @@ export function useBootstrapDispatchPreview({
       activeBootstrapDispatch.key,
       activeBootstrapDispatch.prompt,
       activeBootstrapDispatch.images,
+      bootstrapDispatchPreviewDetail,
     );
-  }, [activeBootstrapDispatch, shouldShowBootstrapDispatchPreview]);
+  }, [
+    activeBootstrapDispatch,
+    bootstrapDispatchPreviewDetail,
+    shouldShowBootstrapDispatchPreview,
+  ]);
 
   return {
     initialDispatchKey,

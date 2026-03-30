@@ -9,6 +9,7 @@ const DEFAULTS = {
   intervalMs: 1_000,
   launchUrl: "about:blank",
   openWindow: false,
+  headless: false,
   streamMode: "both",
 };
 
@@ -29,6 +30,7 @@ Lime Browser Runtime Smoke
   --interval-ms <ms>       健康检查轮询间隔，默认 1000
   --launch-url <url>       启动浏览器会话的 URL，默认 about:blank
   --open-window            显式打开浏览器窗口
+  --headless               以无界面浏览器会话执行 smoke，避免弹出空白 Chrome
   --stream-mode <mode>     events | frames | both，默认 both
   -h, --help               显示帮助
 `);
@@ -71,6 +73,10 @@ function parseArgs(argv) {
     }
     if (arg === "--open-window") {
       options.openWindow = true;
+      continue;
+    }
+    if (arg === "--headless") {
+      options.headless = true;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -179,6 +185,7 @@ async function main() {
         profile_key: profileKey,
         url: options.launchUrl,
         open_window: options.openWindow,
+        headless: options.headless,
         stream_mode: options.streamMode,
       },
     });

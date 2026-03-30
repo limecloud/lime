@@ -17,6 +17,7 @@ pub async fn execute_action(
         "navigate" => navigate(session, &args).await,
         "click" => click(session, &args).await,
         "type" | "form_input" => type_text(session, &args).await,
+        "javascript" => execute_javascript(session, &args).await,
         "scroll" | "scroll_page" => scroll(session, &args).await,
         "refresh_page" => evaluate_navigation(session, "window.location.reload()").await,
         "go_back" => evaluate_navigation(session, "window.history.back()").await,
@@ -33,6 +34,7 @@ pub async fn execute_action(
                 "page_info": page,
             }))
         }
+        "find" => find_in_page(session, &args).await,
         "read_console_messages" => {
             let events =
                 session.collect_console_messages(args.get("since").and_then(Value::as_u64));
@@ -249,6 +251,53 @@ async fn scroll(session: &CdpSessionHandle, args: &Value) -> Result<Value, Strin
     Ok(json!({ "scrolled": true, "amount": signed_amount }))
 }
 
+async fn execute_javascript(session: &CdpSessionHandle, args: &Value) -> Result<Value, String> {
+    let expression = get_string_arg(
+        args,
+        &[
+            "expression",
+            "script",
+            "code",
+            "javascript",
+            "text",
+            "value",
+        ],
+    )
+    .ok_or_else(|| "javascript 需要 expression/script/code 参数".to_string())?;
+    let return_by_value = args
+        .get("return_by_value")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let timeout_ms = get_u64_arg(args, &["timeout_ms"]).unwrap_or(DEFAULT_ACTION_TIMEOUT_MS);
+    let result = session
+        .runtime_evaluate(expression.clone(), return_by_value, timeout_ms)
+        .await?;
+    Ok(json!({
+        "evaluated": true,
+        "expression": expression,
+        "result": result,
+    }))
+}
+
+async fn find_in_page(session: &CdpSessionHandle, args: &Value) -> Result<Value, String> {
+    let query =
+        get_string_arg(args, &["query"]).ok_or_else(|| "find 需要提供 query 参数".to_string())?;
+    let page = if let Some(page_info) = capture_and_sync_page_info(session).await {
+        page_info
+    } else if let Some(page_info) = session.state().await.last_page_info.clone() {
+        page_info
+    } else {
+        return Err("读取页面信息失败".to_string());
+    };
+    let matches = find_markdown_matches(&page.markdown, &query, 30);
+    Ok(json!({
+        "query": query,
+        "match_count": matches.len(),
+        "matches": matches,
+        "page_info": page,
+    }))
+}
+
 async fn evaluate_navigation(session: &CdpSessionHandle, script: &str) -> Result<Value, String> {
     let previous_url = session
         .state()
@@ -398,6 +447,19 @@ fn normalize_url_for_navigation(url: &str) -> String {
     }
 }
 
+fn find_markdown_matches(markdown: &str, query: &str, limit: usize) -> Vec<String> {
+    let normalized_query = query.trim().to_ascii_lowercase();
+    if normalized_query.is_empty() {
+        return Vec::new();
+    }
+    markdown
+        .lines()
+        .filter(|line| line.to_ascii_lowercase().contains(&normalized_query))
+        .take(limit)
+        .map(str::to_string)
+        .collect()
+}
+
 fn get_string_arg(args: &Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
         args.get(*key)
@@ -455,5 +517,25 @@ mod tests {
             Some("https://search.bilibili.com/all?keyword=AI%20Agent"),
             Some("https://www.36kr.com/newsflashes"),
         ));
+    }
+
+    #[test]
+    fn find_markdown_matches_should_match_case_insensitively_and_limit_results() {
+        let markdown = [
+            "# GitHub",
+            "AI Agent Starter",
+            "agent framework",
+            "AGENT runtime",
+            "plain text",
+        ]
+        .join("\n");
+
+        assert_eq!(
+            find_markdown_matches(&markdown, "agent", 2),
+            vec![
+                "AI Agent Starter".to_string(),
+                "agent framework".to_string(),
+            ]
+        );
     }
 }

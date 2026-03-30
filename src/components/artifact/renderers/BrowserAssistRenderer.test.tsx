@@ -4,31 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Artifact } from "@/lib/artifact/types";
 import { BrowserAssistRenderer } from "./BrowserAssistRenderer";
 
-const { mockBrowserRuntimeWorkspace } = vi.hoisted(() => ({
-  mockBrowserRuntimeWorkspace: vi.fn(
-    ({
-      initialProfileKey,
-      initialSessionId,
-      initialTargetId,
-    }: {
-      initialProfileKey?: string;
-      initialSessionId?: string;
-      initialTargetId?: string;
-    }) => (
-      <div
-        data-testid="browser-runtime-workspace"
-        data-profile-key={initialProfileKey || ""}
-        data-session-id={initialSessionId || ""}
-        data-target-id={initialTargetId || ""}
-      />
-    ),
-  ),
-}));
-
-vi.mock("@/features/browser-runtime", () => ({
-  BrowserRuntimeWorkspace: mockBrowserRuntimeWorkspace,
-}));
-
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 function createArtifact(overrides: Partial<Artifact> = {}): Artifact {
@@ -104,7 +79,7 @@ describe("BrowserAssistRenderer", () => {
     expect(container.textContent).toContain("https://example.com");
   });
 
-  it("完整会话 Artifact 应渲染浏览器工作区", async () => {
+  it("完整会话 Artifact 也不应再在 Claw 画布内渲染浏览器工作区", async () => {
     const container = await renderArtifact(
       createArtifact({
         status: "complete",
@@ -116,15 +91,10 @@ describe("BrowserAssistRenderer", () => {
       }),
     );
 
-    const workspace = container.querySelector(
-      "[data-testid=\"browser-runtime-workspace\"]",
-    );
-
-    expect(workspace).not.toBeNull();
-    expect(workspace?.getAttribute("data-profile-key")).toBe(
-      "general_browser_assist",
-    );
-    expect(workspace?.getAttribute("data-session-id")).toBe("session-1");
-    expect(workspace?.getAttribute("data-target-id")).toBe("target-1");
+    expect(container.textContent).toContain("浏览器协助已迁移到浏览器工作台");
+    expect(container.textContent).toContain("session-1");
+    expect(
+      container.querySelector("[data-testid=\"browser-runtime-workspace\"]"),
+    ).toBeNull();
   });
 });

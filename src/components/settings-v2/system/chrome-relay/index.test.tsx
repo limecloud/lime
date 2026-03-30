@@ -11,7 +11,9 @@ const {
   mockInstallBrowserConnectorExtension,
   mockSetBrowserConnectorEnabled,
   mockSetSystemConnectorEnabled,
+  mockSetBrowserActionCapabilityEnabled,
   mockOpenBrowserExtensionsPage,
+  mockOpenBrowserRemoteDebuggingPage,
   mockLaunchBrowserSession,
   mockOpenBrowserRuntimeDebuggerWindow,
   mockGetChromeProfileSessions,
@@ -29,7 +31,9 @@ const {
   mockInstallBrowserConnectorExtension: vi.fn(),
   mockSetBrowserConnectorEnabled: vi.fn(),
   mockSetSystemConnectorEnabled: vi.fn(),
+  mockSetBrowserActionCapabilityEnabled: vi.fn(),
   mockOpenBrowserExtensionsPage: vi.fn(),
+  mockOpenBrowserRemoteDebuggingPage: vi.fn(),
   mockLaunchBrowserSession: vi.fn(),
   mockOpenBrowserRuntimeDebuggerWindow: vi.fn(),
   mockGetChromeProfileSessions: vi.fn(),
@@ -62,7 +66,9 @@ vi.mock("@/lib/webview-api", async () => {
     installBrowserConnectorExtension: mockInstallBrowserConnectorExtension,
     setBrowserConnectorEnabled: mockSetBrowserConnectorEnabled,
     setSystemConnectorEnabled: mockSetSystemConnectorEnabled,
+    setBrowserActionCapabilityEnabled: mockSetBrowserActionCapabilityEnabled,
     openBrowserExtensionsPage: mockOpenBrowserExtensionsPage,
+    openBrowserRemoteDebuggingPage: mockOpenBrowserRemoteDebuggingPage,
     launchBrowserSession: mockLaunchBrowserSession,
     openBrowserRuntimeDebuggerWindow: mockOpenBrowserRuntimeDebuggerWindow,
     getChromeProfileSessions: mockGetChromeProfileSessions,
@@ -88,6 +94,36 @@ interface Mounted {
 
 const mounted: Mounted[] = [];
 const mockWriteClipboardText = vi.fn();
+const mockBrowserActionCapabilities = [
+  {
+    key: "read_page",
+    label: "页面快照",
+    description: "抓取当前页面快照。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "find",
+    label: "页面内查找",
+    description: "在当前页面中查找文本。",
+    group: "read",
+    enabled: true,
+  },
+  {
+    key: "navigate",
+    label: "导航",
+    description: "导航到目标地址。",
+    group: "write",
+    enabled: true,
+  },
+  {
+    key: "click",
+    label: "点击元素",
+    description: "点击页面元素。",
+    group: "write",
+    enabled: true,
+  },
+] as const;
 
 function renderComponent() {
   const container = document.createElement("div");
@@ -154,6 +190,9 @@ beforeEach(() => {
     enabled: true,
     install_root_dir: null,
     install_dir: null,
+    browser_action_capabilities: mockBrowserActionCapabilities.map(
+      (capability) => ({ ...capability }),
+    ),
     system_connectors: [
       {
         id: "calendar",
@@ -172,6 +211,9 @@ beforeEach(() => {
     enabled: true,
     install_root_dir: "/Users/test/connectors",
     install_dir: "/Users/test/connectors/Lime Browser Connector",
+    browser_action_capabilities: mockBrowserActionCapabilities.map(
+      (capability) => ({ ...capability }),
+    ),
     system_connectors: [
       {
         id: "calendar",
@@ -209,6 +251,9 @@ beforeEach(() => {
     enabled: false,
     install_root_dir: null,
     install_dir: null,
+    browser_action_capabilities: mockBrowserActionCapabilities.map(
+      (capability) => ({ ...capability }),
+    ),
     system_connectors: [
       {
         id: "calendar",
@@ -227,6 +272,57 @@ beforeEach(() => {
     enabled: true,
     install_root_dir: null,
     install_dir: null,
+    browser_action_capabilities: mockBrowserActionCapabilities.map(
+      (capability) => ({ ...capability }),
+    ),
+    system_connectors: [
+      {
+        id: "calendar",
+        label: "日历",
+        description: "读取和管理你的日历事件。",
+        enabled: true,
+        available: true,
+        visible: true,
+        authorization_status: "authorized",
+        last_error: null,
+        capabilities: ["list_events", "create_event", "update_event"],
+      },
+    ],
+  });
+  mockSetBrowserActionCapabilityEnabled.mockResolvedValue({
+    enabled: true,
+    install_root_dir: null,
+    install_dir: null,
+    browser_action_capabilities: [
+      {
+        key: "read_page",
+        label: "页面快照",
+        description: "抓取当前页面快照。",
+        group: "read",
+        enabled: true,
+      },
+      {
+        key: "find",
+        label: "页面内查找",
+        description: "在当前页面中查找文本。",
+        group: "read",
+        enabled: false,
+      },
+      {
+        key: "navigate",
+        label: "导航",
+        description: "导航到目标地址。",
+        group: "write",
+        enabled: true,
+      },
+      {
+        key: "click",
+        label: "点击元素",
+        description: "点击页面元素。",
+        group: "write",
+        enabled: true,
+      },
+    ],
     system_connectors: [
       {
         id: "calendar",
@@ -242,6 +338,7 @@ beforeEach(() => {
     ],
   });
   mockOpenBrowserExtensionsPage.mockResolvedValue(true);
+  mockOpenBrowserRemoteDebuggingPage.mockResolvedValue(true);
   mockLaunchBrowserSession.mockResolvedValue({
     profile: {
       success: true,
@@ -423,6 +520,31 @@ describe("ChromeRelaySettings", () => {
     expect(container.textContent).toContain("已打开独立浏览器调试窗口");
   });
 
+  it("应提供扩展与远程调试引导入口", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    expect(container.textContent).toContain("连接方式");
+    expect(container.textContent).toContain("浏览器扩展");
+    expect(container.textContent).toContain("CDP 直连");
+
+    const extensionButton = findButton(container, "打开扩展页");
+    await act(async () => {
+      extensionButton.click();
+      await flushEffects();
+    });
+
+    expect(mockOpenBrowserExtensionsPage).toHaveBeenCalledTimes(1);
+
+    const remoteDebuggingButton = findButton(container, "打开远程调试页");
+    await act(async () => {
+      remoteDebuggingButton.click();
+      await flushEffects();
+    });
+
+    expect(mockOpenBrowserRemoteDebuggingPage).toHaveBeenCalledTimes(1);
+  });
+
   it("扩展已连接时应允许断开当前连接", async () => {
     mockGetChromeBridgeStatus.mockResolvedValueOnce({
       observer_count: 1,
@@ -447,6 +569,8 @@ describe("ChromeRelaySettings", () => {
     const container = renderComponent();
     await flushEffects();
 
+    expect(container.textContent).toContain("控制已接入 1");
+
     const button = findButton(container, "断开已连接扩展");
     await act(async () => {
       button.click();
@@ -455,6 +579,79 @@ describe("ChromeRelaySettings", () => {
 
     expect(mockDisconnectBrowserConnectorSession).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("已断开 1 个扩展观察连接和 1 个控制连接");
+  });
+
+  it("应按扩展桥接真实能力渲染动作清单", async () => {
+    mockGetBrowserBackendsStatus.mockResolvedValueOnce({
+      policy: {
+        priority: ["aster_compat", "lime_extension_bridge", "cdp_direct"],
+        auto_fallback: true,
+      },
+      bridge_observer_count: 1,
+      bridge_control_count: 1,
+      running_profile_count: 1,
+      cdp_alive_profile_count: 1,
+      aster_native_host_supported: true,
+      aster_native_host_configured: false,
+      backends: [
+        {
+          backend: "lime_extension_bridge",
+          available: true,
+          capabilities: [
+            "navigate",
+            "read_page",
+            "get_page_text",
+            "find",
+            "form_input",
+            "tabs_context_mcp",
+            "open_url",
+            "click",
+            "type",
+            "scroll",
+            "scroll_page",
+            "get_page_info",
+            "refresh_page",
+            "go_back",
+            "go_forward",
+            "switch_tab",
+            "list_tabs",
+          ],
+        },
+      ],
+    });
+
+    const container = renderComponent();
+    await flushEffects();
+
+    expect(container.textContent).toContain("页面内查找");
+    expect(container.textContent).toContain("页面文本");
+    expect(container.textContent).toContain("表单输入");
+    expect(container.textContent).toContain("返回上一页");
+    expect(container.textContent).not.toContain("悬停");
+    expect(container.textContent).not.toContain("拖放");
+    expect(container.textContent).not.toContain("上传文件");
+    expect(container.textContent).not.toContain("处理弹窗");
+  });
+
+  it("应允许切换浏览器动作配置", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    const target = container.querySelector(
+      'button[aria-label="切换页面内查找"]',
+    );
+    expect(target).not.toBeNull();
+
+    await act(async () => {
+      (target as HTMLButtonElement).click();
+      await flushEffects();
+    });
+
+    expect(mockSetBrowserActionCapabilityEnabled).toHaveBeenCalledWith({
+      key: "find",
+      enabled: false,
+    });
+    expect(container.textContent).toContain("页面内查找 已关闭");
   });
 
   it("系统连接器为空时不应渲染 macOS 连接器卡片", async () => {

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useThemeWorkbenchSendBoundary,
 } from "./useThemeWorkbenchSendBoundary";
-import type { BrowserTaskPreflight } from "./handleSendTypes";
 
 interface HookHarnessProps {
   isThemeWorkbench: boolean;
@@ -12,7 +11,6 @@ interface HookHarnessProps {
   initialDispatchKey: string | null;
   consumedInitialPromptKey: string | null;
   mappedTheme: string;
-  browserTaskPreflight: BrowserTaskPreflight | null;
   isBrowserAssistReady: boolean;
 }
 
@@ -24,19 +22,6 @@ interface HookHarness {
   onResetConsumedInitialPrompt: ReturnType<typeof vi.fn>;
   onClearEntryPrompt: ReturnType<typeof vi.fn>;
   onPrepareBrowserTaskPreflight: ReturnType<typeof vi.fn>;
-}
-
-function createPreflight(): BrowserTaskPreflight {
-  return {
-    requestId: "browser-preflight:existing",
-    createdAt: 123,
-    sourceText: "旧任务",
-    images: [],
-    requirement: "required_with_user_step",
-    reason: "需要浏览器",
-    phase: "awaiting_user",
-    launchUrl: "https://mp.weixin.qq.com/",
-  };
 }
 
 function mountHook(initialProps?: Partial<HookHarnessProps>): HookHarness {
@@ -56,7 +41,6 @@ function mountHook(initialProps?: Partial<HookHarnessProps>): HookHarness {
     initialDispatchKey: "dispatch-1",
     consumedInitialPromptKey: null,
     mappedTheme: "social-media",
-    browserTaskPreflight: null,
     isBrowserAssistReady: true,
     ...initialProps,
   };
@@ -138,24 +122,6 @@ describe("useThemeWorkbenchSendBoundary", () => {
       );
       expect(boundary.shouldDismissThemeWorkbenchEntryPrompt).toBe(true);
       expect(boundary.browserRequirementMatch).toBeNull();
-    } finally {
-      harness.unmount();
-    }
-  });
-
-  it("已有浏览器前置引导时应阻止未确认发送", () => {
-    const harness = mountHook({
-      mappedTheme: "general",
-      browserTaskPreflight: createPreflight(),
-    });
-
-    try {
-      expect(harness.getValue().isBlockedByBrowserPreflight()).toBe(true);
-      expect(
-        harness.getValue().isBlockedByBrowserPreflight({
-          browserPreflightConfirmed: true,
-        }),
-      ).toBe(false);
     } finally {
       harness.unmount();
     }

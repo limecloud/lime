@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   BrowserEvent,
+  BrowserProfileTransportKind,
   BrowserSessionLifecycleState,
   BrowserStreamMode,
   ChromeProfileSessionInfo,
@@ -137,6 +138,12 @@ export function useBrowserRuntimeDebug(
   const [streaming, setStreaming] = useState(false);
   const [refreshingState, setRefreshingState] = useState(false);
   const [controlBusy, setControlBusy] = useState(false);
+  const [selectedProfileTransportKind, setSelectedProfileTransportKind] =
+    useState<BrowserProfileTransportKind | null>(null);
+  const [loadingProfileTransport, setLoadingProfileTransport] = useState(false);
+  const [runtimeConnectionError, setRuntimeConnectionError] = useState<
+    string | null
+  >(null);
   const eventCursorRef = useRef<number>(0);
   const autoAttachedSessionRef = useRef<string>("");
   const autoOpenedProfileRef = useRef<string>("");
@@ -192,6 +199,10 @@ export function useBrowserRuntimeDebug(
       null,
     [selectedProfileKey, sessions],
   );
+  const runtimeProfileKey =
+    sessionState?.profile_key || selectedProfileKey || initialProfileKey;
+  const isExistingSessionProfile =
+    selectedProfileTransportKind === "existing_session";
 
   const emitMessage = useCallback(
     (message: StatusMessage) => {
@@ -199,6 +210,49 @@ export function useBrowserRuntimeDebug(
     },
     [onMessage],
   );
+
+  useEffect(() => {
+    if (!runtimeProfileKey) {
+      setSelectedProfileTransportKind(null);
+      setLoadingProfileTransport(false);
+      return;
+    }
+
+    let active = true;
+    setLoadingProfileTransport(true);
+
+    void browserRuntimeApi
+      .listBrowserProfiles({
+        include_archived: false,
+      })
+      .then((profiles) => {
+        if (!active) {
+          return;
+        }
+        const matchedProfile = profiles.find(
+          (profile) => profile.profile_key === runtimeProfileKey,
+        );
+        setSelectedProfileTransportKind(
+          matchedProfile?.transport_kind ?? "managed_cdp",
+        );
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setSelectedProfileTransportKind(null);
+      })
+      .finally(() => {
+        if (!active) {
+          return;
+        }
+        setLoadingProfileTransport(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [runtimeProfileKey]);
 
   const applyEvent = useCallback((event: BrowserEvent) => {
     setSessionState((previous) => reduceSessionStateWithEvent(previous, event));
@@ -299,6 +353,7 @@ export function useBrowserRuntimeDebug(
             open_window: false,
             stream_mode: "both",
           });
+          setRuntimeConnectionError(null);
           setSelectedProfileKey(result.session.profile_key);
           setSelectedTargetId(result.session.target_id || "");
           setSessionState(result.session);
@@ -320,6 +375,7 @@ export function useBrowserRuntimeDebug(
           });
           return true;
         } catch (error) {
+          setRuntimeConnectionError(normalizeRuntimeErrorMessage(error));
           emitMessage({
             type: "error",
             text: `${reason}，自动恢复失败: ${normalizeRuntimeErrorMessage(error)}`,
@@ -374,6 +430,22 @@ export function useBrowserRuntimeDebug(
 
   const refreshTargets = useCallback(async () => {
     if (!selectedProfileKey) return;
+    if (loadingProfileTransport) {
+      return;
+    }
+    if (isExistingSessionProfile) {
+      setTargets([]);
+      return;
+    }
+    const hasManagedSessionContext = Boolean(
+      sessionState?.session_id ||
+        initialSessionId ||
+        sessions.some((session) => session.profile_key === selectedProfileKey),
+    );
+    if (!hasManagedSessionContext) {
+      setTargets([]);
+      return;
+    }
     setLoadingTargets(true);
     try {
       const nextTargets =
@@ -401,9 +473,14 @@ export function useBrowserRuntimeDebug(
   }, [
     emitMessage,
     handleRecoverableError,
+    initialSessionId,
     initialTargetId,
+    isExistingSessionProfile,
+    loadingProfileTransport,
     selectedProfileKey,
     selectedTargetId,
+    sessionState?.session_id,
+    sessions,
   ]);
 
   useEffect(() => {
@@ -421,6 +498,7 @@ export function useBrowserRuntimeDebug(
         setRefreshingState(true);
         let nextState =
           await browserRuntimeApi.getBrowserSessionState(initialSessionId);
+        setRuntimeConnectionError(null);
         setSessionState(nextState);
         setSelectedProfileKey(nextState.profile_key);
         setSelectedTargetId(nextState.target_id || initialTargetId);
@@ -431,6 +509,7 @@ export function useBrowserRuntimeDebug(
         if (await handleRecoverableError(error, "附着浏览器会话失败")) {
           return;
         }
+        setRuntimeConnectionError(normalizeRuntimeErrorMessage(error));
         emitMessage({
           type: "error",
           text: `附着浏览器会话失败: ${normalizeRuntimeErrorMessage(error)}`,
@@ -452,7 +531,9 @@ export function useBrowserRuntimeDebug(
 
   const openSession = useCallback(async () => {
     if (!selectedProfileKey) return;
+    if (loadingProfileTransport) return;
     setOpeningSession(true);
+    setRuntimeConnectionError(null);
     try {
       setConsoleEvents([]);
       setNetworkEvents([]);
@@ -460,12 +541,27 @@ export function useBrowserRuntimeDebug(
       setLatestFrameMetadata(null);
       eventCursorRef.current = 0;
       setEventCursor(0);
-      let nextState = await browserRuntimeApi.openCdpSession({
-        profile_key: selectedProfileKey,
-        target_id: selectedTargetId || undefined,
-      });
+      let nextState: CdpSessionState;
+      if (isExistingSessionProfile) {
+        const result = await browserRuntimeApi.launchBrowserSession({
+          profile_key: selectedProfileKey,
+          url: selectedSession?.last_url || "https://www.google.com/",
+          target_id: selectedTargetId || undefined,
+          open_window: false,
+          stream_mode: "both",
+        });
+        nextState = result.session;
+      } else {
+        nextState = await browserRuntimeApi.openCdpSession({
+          profile_key: selectedProfileKey,
+          target_id: selectedTargetId || undefined,
+        });
+      }
       setSessionState(nextState);
+      setSelectedProfileKey(nextState.profile_key);
+      setSelectedTargetId(nextState.target_id || selectedTargetId);
       nextState = await ensureSessionStream(nextState);
+      setRuntimeConnectionError(null);
       await syncBuffer(nextState.session_id);
       emitMessage({
         type: "success",
@@ -475,6 +571,7 @@ export function useBrowserRuntimeDebug(
       if (await handleRecoverableError(error, "打开 CDP 会话失败")) {
         return;
       }
+      setRuntimeConnectionError(normalizeRuntimeErrorMessage(error));
       emitMessage({
         type: "error",
         text: `打开 CDP 会话失败: ${normalizeRuntimeErrorMessage(error)}`,
@@ -486,13 +583,19 @@ export function useBrowserRuntimeDebug(
     emitMessage,
     ensureSessionStream,
     handleRecoverableError,
+    loadingProfileTransport,
     selectedProfileKey,
     selectedTargetId,
     syncBuffer,
+    isExistingSessionProfile,
+    selectedSession?.last_url,
   ]);
 
   useEffect(() => {
     if (initialSessionId || sessionState?.session_id || openingSession) {
+      return;
+    }
+    if (loadingProfileTransport) {
       return;
     }
 
@@ -514,6 +617,7 @@ export function useBrowserRuntimeDebug(
   }, [
     initialProfileKey,
     initialSessionId,
+    loadingProfileTransport,
     openSession,
     openingSession,
     selectedProfileKey,
@@ -528,6 +632,7 @@ export function useBrowserRuntimeDebug(
       const nextState = await browserRuntimeApi.getBrowserSessionState(
         sessionState.session_id,
       );
+      setRuntimeConnectionError(null);
       setSessionState(nextState);
       setStreaming(Boolean(nextState.stream_mode));
       await syncBuffer(nextState.session_id, eventCursorRef.current);
@@ -535,6 +640,7 @@ export function useBrowserRuntimeDebug(
       if (await handleRecoverableError(error, "刷新浏览器会话失败")) {
         return;
       }
+      setRuntimeConnectionError(normalizeRuntimeErrorMessage(error));
       emitMessage({
         type: "error",
         text: `刷新会话状态失败: ${normalizeRuntimeErrorMessage(error)}`,
@@ -702,9 +808,12 @@ export function useBrowserRuntimeDebug(
       }
       setControlBusy(true);
       try {
+        const backend = isExistingSessionProfile
+          ? "lime_extension_bridge"
+          : "cdp_direct";
         await browserRuntimeApi.browserExecuteAction({
           profile_key: sessionState.profile_key,
-          backend: "cdp_direct",
+          backend,
           action,
           args: {
             ...args,
@@ -727,7 +836,13 @@ export function useBrowserRuntimeDebug(
         setControlBusy(false);
       }
     },
-    [emitMessage, handleRecoverableError, sessionState, syncBuffer],
+    [
+      emitMessage,
+      handleRecoverableError,
+      isExistingSessionProfile,
+      sessionState,
+      syncBuffer,
+    ],
   );
 
   const clickAt = useCallback(
@@ -855,10 +970,13 @@ export function useBrowserRuntimeDebug(
     streaming,
     refreshingState,
     controlBusy,
+    selectedProfileTransportKind,
+    runtimeConnectionError,
     lifecycleState,
     isHumanControlling,
     isWaitingForHuman,
     isAgentResuming,
+    isExistingSessionProfile,
     canDirectControl,
     refreshTargets,
     openSession,

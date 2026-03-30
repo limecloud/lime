@@ -1,15 +1,14 @@
 import { useEffect, useMemo } from "react";
-import {
-  buildLiveTaskSnapshot,
-} from "../hooks/agentChatShared";
+import { buildLiveTaskSnapshot } from "../hooks/agentChatShared";
+import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
 import { buildLegacyQuestionnaireA2UI } from "../utils/legacyQuestionnaireA2UI";
 import { buildRuntimeTeamDispatchPreviewMessages } from "./runtimeTeamPreview";
 import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
 import type { Message } from "../types";
 
 interface UseWorkspaceDisplayMessagesRuntimeParams {
+  browserTaskPreflight: BrowserTaskPreflight | null;
   bootstrapDispatchPreviewMessages: Message[];
-  browserPreflightMessages?: Message[] | null;
   isSending: boolean;
   messages: Message[];
   pendingActionCount: number;
@@ -66,9 +65,34 @@ function collapseLegacyQuestionnaireMessages(messages: Message[]): Message[] {
   return mutated ? collapsedMessages : messages;
 }
 
+function buildBrowserTaskPreflightPreviewMessages(
+  preflight: BrowserTaskPreflight,
+): Message[] {
+  const timestamp = new Date(preflight.createdAt || Date.now());
+  const assistantContent =
+    preflight.detail?.trim() || "正在准备浏览器上下文，请稍候...";
+
+  return [
+    {
+      id: `browser-preflight:${preflight.requestId}:user`,
+      role: "user",
+      content: preflight.sourceText,
+      images: preflight.images.length > 0 ? preflight.images : undefined,
+      timestamp,
+    },
+    {
+      id: `browser-preflight:${preflight.requestId}:assistant`,
+      role: "assistant",
+      content: assistantContent,
+      timestamp: new Date(timestamp.getTime() + 1),
+      isThinking: preflight.phase === "launching",
+    },
+  ];
+}
+
 export function useWorkspaceDisplayMessagesRuntime({
+  browserTaskPreflight,
   bootstrapDispatchPreviewMessages,
-  browserPreflightMessages,
   isSending,
   messages,
   pendingActionCount,
@@ -84,12 +108,12 @@ export function useWorkspaceDisplayMessagesRuntime({
       ? buildRuntimeTeamDispatchPreviewMessages(runtimeTeamDispatchPreview)
       : [];
 
-    if (browserPreflightMessages) {
-      return [...collapsedMessages, ...browserPreflightMessages];
-    }
-
     if (runtimeTeamDispatchPreviewMessages.length > 0) {
       return [...collapsedMessages, ...runtimeTeamDispatchPreviewMessages];
+    }
+
+    if (collapsedMessages.length === 0 && browserTaskPreflight) {
+      return buildBrowserTaskPreflightPreviewMessages(browserTaskPreflight);
     }
 
     if (
@@ -101,8 +125,8 @@ export function useWorkspaceDisplayMessagesRuntime({
 
     return collapsedMessages;
   }, [
+    browserTaskPreflight,
     bootstrapDispatchPreviewMessages,
-    browserPreflightMessages,
     messages,
     runtimeTeamDispatchPreview,
   ]);

@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 
@@ -27,8 +28,63 @@ const SYSTEM_CONNECTOR_DEFINITIONS: [(&str, &str, &str); 5] = [
     ("contacts", "通讯录", "搜索、读取和创建联系人。"),
 ];
 
+const BROWSER_ACTION_CAPABILITY_DEFINITIONS: [(&str, &str, &str, &str); 20] = [
+    (
+        "tabs_context_mcp",
+        "标签页概览",
+        "读取当前已附着标签页的上下文摘要。",
+        "read",
+    ),
+    ("list_tabs", "列出标签页", "列出当前浏览器标签页。", "read"),
+    (
+        "tabs_create_mcp",
+        "新建标签页",
+        "创建新的浏览器标签页。",
+        "write",
+    ),
+    ("read_page", "页面快照", "抓取当前页面快照。", "read"),
+    (
+        "get_page_text",
+        "页面文本",
+        "读取当前页面文本内容。",
+        "read",
+    ),
+    (
+        "get_page_info",
+        "页面信息",
+        "读取页面标题、URL 与快照信息。",
+        "read",
+    ),
+    ("find", "页面内查找", "在当前页面中查找文本。", "read"),
+    (
+        "read_console_messages",
+        "控制台消息",
+        "读取浏览器控制台消息。",
+        "read",
+    ),
+    (
+        "read_network_requests",
+        "网络请求",
+        "读取页面网络请求记录。",
+        "read",
+    ),
+    ("navigate", "导航", "导航到目标地址。", "write"),
+    ("open_url", "打开链接", "直接打开目标链接。", "write"),
+    ("click", "点击元素", "点击页面元素。", "write"),
+    ("type", "输入文本", "向当前页面输入文本。", "write"),
+    ("form_input", "表单输入", "按字段填写页面表单。", "write"),
+    ("switch_tab", "切换标签页", "切换当前操作标签页。", "write"),
+    ("scroll_page", "滚动页面", "滚动当前页面或容器。", "write"),
+    ("refresh_page", "刷新页面", "刷新当前页面。", "write"),
+    ("go_back", "返回上一页", "返回上一页。", "write"),
+    ("go_forward", "前进到下一页", "前进到下一页。", "write"),
+    ("javascript", "执行脚本", "在当前页面执行脚本。", "write"),
+];
+
 const AUTH_STATUS_NOT_DETERMINED: &str = "not_determined";
+#[cfg(target_os = "macos")]
 const AUTH_STATUS_AUTHORIZED: &str = "authorized";
+#[cfg(target_os = "macos")]
 const AUTH_STATUS_DENIED: &str = "denied";
 const AUTH_STATUS_ERROR: &str = "error";
 const AUTH_STATUS_UNSUPPORTED: &str = "unsupported";
@@ -81,11 +137,21 @@ pub struct SystemConnectorSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserActionCapabilitySnapshot {
+    pub key: String,
+    pub label: String,
+    pub description: String,
+    pub group: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConnectorSettingsSnapshot {
     pub enabled: bool,
     pub install_root_dir: Option<String>,
     pub install_dir: Option<String>,
     pub system_connectors: Vec<SystemConnectorSnapshot>,
+    pub browser_action_capabilities: Vec<BrowserActionCapabilitySnapshot>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +159,8 @@ struct BrowserConnectorSettingsRecord {
     enabled: bool,
     install_root_dir: Option<String>,
     system_connectors: HashMap<String, StoredSystemConnectorState>,
+    #[serde(default = "default_browser_action_capability_states")]
+    browser_action_capabilities: HashMap<String, bool>,
     updated_at: String,
 }
 
@@ -122,6 +190,7 @@ impl Default for BrowserConnectorSettingsRecord {
             enabled: true,
             install_root_dir: None,
             system_connectors: default_system_connector_state_records(),
+            browser_action_capabilities: default_browser_action_capability_states(),
             updated_at: Utc::now().to_rfc3339(),
         }
     }
@@ -138,6 +207,13 @@ fn default_system_connector_state_records() -> HashMap<String, StoredSystemConne
     default_system_connector_states()
         .into_iter()
         .map(|(id, enabled)| (id, StoredSystemConnectorState::LegacyBool(enabled)))
+        .collect()
+}
+
+fn default_browser_action_capability_states() -> HashMap<String, bool> {
+    BROWSER_ACTION_CAPABILITY_DEFINITIONS
+        .iter()
+        .map(|(key, _, _, _)| ((*key).to_string(), true))
         .collect()
 }
 
@@ -161,6 +237,59 @@ fn normalize_connector_record(
         Some(StoredSystemConnectorState::Detailed(record)) => record.clone(),
         None => default_connector_record(false),
     }
+}
+
+fn normalize_browser_action_capability_key(raw: &str) -> String {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "scroll" => "scroll_page".to_string(),
+        "javascript_tool" => "javascript".to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn browser_action_capability_definition(
+    key: &str,
+) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
+    BROWSER_ACTION_CAPABILITY_DEFINITIONS
+        .iter()
+        .copied()
+        .find(|(candidate, _, _, _)| *candidate == key)
+}
+
+fn browser_action_capability_enabled_in_record(
+    record: &BrowserConnectorSettingsRecord,
+    action: &str,
+) -> bool {
+    let normalized = normalize_browser_action_capability_key(action);
+    match browser_action_capability_definition(&normalized) {
+        Some((key, _, _, _)) => record
+            .browser_action_capabilities
+            .get(key)
+            .copied()
+            .unwrap_or(true),
+        None => true,
+    }
+}
+
+fn browser_action_capability_snapshots(
+    record: &BrowserConnectorSettingsRecord,
+) -> Vec<BrowserActionCapabilitySnapshot> {
+    BROWSER_ACTION_CAPABILITY_DEFINITIONS
+        .iter()
+        .map(
+            |(key, label, description, group)| BrowserActionCapabilitySnapshot {
+                key: (*key).to_string(),
+                label: (*label).to_string(),
+                description: (*description).to_string(),
+                group: (*group).to_string(),
+                enabled: record
+                    .browser_action_capabilities
+                    .get(*key)
+                    .copied()
+                    .unwrap_or(true),
+            },
+        )
+        .collect()
 }
 
 fn connector_capabilities(id: &str) -> Vec<String> {
@@ -206,6 +335,7 @@ fn connector_probe_script(id: &str) -> Option<&'static str> {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn truncate_connector_error(input: &str) -> String {
     input
         .trim()
@@ -304,6 +434,12 @@ fn load_settings_record() -> Result<BrowserConnectorSettingsRecord, String> {
             .system_connectors
             .entry(id)
             .or_insert(StoredSystemConnectorState::LegacyBool(enabled));
+    }
+    for (key, enabled) in default_browser_action_capability_states() {
+        record
+            .browser_action_capabilities
+            .entry(key)
+            .or_insert(enabled);
     }
 
     Ok(record)
@@ -574,6 +710,7 @@ fn build_settings_snapshot(
         enabled: record.enabled,
         install_root_dir,
         install_dir,
+        browser_action_capabilities: browser_action_capability_snapshots(record),
         system_connectors: if cfg!(target_os = "macos") {
             SYSTEM_CONNECTOR_DEFINITIONS
                 .iter()
@@ -597,6 +734,29 @@ fn build_settings_snapshot(
             Vec::new()
         },
     }
+}
+
+pub fn ensure_browser_action_capability_enabled(action: &str) -> Result<(), String> {
+    let record = load_settings_record()?;
+    let normalized = normalize_browser_action_capability_key(action);
+    let Some((key, label, _, _)) = browser_action_capability_definition(&normalized) else {
+        return Ok(());
+    };
+    if browser_action_capability_enabled_in_record(&record, key) {
+        return Ok(());
+    }
+    Err(format!("浏览器动作已被禁用: {label}"))
+}
+
+pub fn filter_enabled_browser_action_capabilities(
+    capabilities: &[String],
+) -> Result<Vec<String>, String> {
+    let record = load_settings_record()?;
+    Ok(capabilities
+        .iter()
+        .filter(|capability| browser_action_capability_enabled_in_record(&record, capability))
+        .cloned()
+        .collect())
 }
 
 pub fn update_browser_connector_install_root(
@@ -651,6 +811,24 @@ pub fn update_system_connector_enabled(
         id.to_string(),
         StoredSystemConnectorState::Detailed(next_state),
     );
+    record.updated_at = Utc::now().to_rfc3339();
+    save_settings_record(&record)?;
+    Ok(build_settings_snapshot(&record))
+}
+
+pub fn update_browser_action_capability_enabled(
+    key: &str,
+    enabled: bool,
+) -> Result<BrowserConnectorSettingsSnapshot, String> {
+    let normalized = normalize_browser_action_capability_key(key);
+    let Some((definition_key, _, _, _)) = browser_action_capability_definition(&normalized) else {
+        return Err(format!("未知的浏览器动作能力: {key}"));
+    };
+
+    let mut record = load_settings_record()?;
+    record
+        .browser_action_capabilities
+        .insert(definition_key.to_string(), enabled);
     record.updated_at = Utc::now().to_rfc3339();
     save_settings_record(&record)?;
     Ok(build_settings_snapshot(&record))
@@ -748,5 +926,36 @@ mod tests {
         let snapshot = build_settings_snapshot(&record);
 
         assert!(snapshot.system_connectors.is_empty());
+    }
+
+    #[test]
+    fn settings_snapshot_should_include_browser_action_capabilities() {
+        let record = BrowserConnectorSettingsRecord::default();
+        let snapshot = build_settings_snapshot(&record);
+
+        assert!(!snapshot.browser_action_capabilities.is_empty());
+        assert!(snapshot
+            .browser_action_capabilities
+            .iter()
+            .any(|capability| capability.key == "find" && capability.enabled));
+    }
+
+    #[test]
+    fn filter_enabled_browser_action_capabilities_should_hide_disabled_actions() {
+        let mut record = BrowserConnectorSettingsRecord::default();
+        record
+            .browser_action_capabilities
+            .insert("find".to_string(), false);
+
+        let filtered = vec![
+            "read_page".to_string(),
+            "find".to_string(),
+            "click".to_string(),
+        ]
+        .into_iter()
+        .filter(|capability| browser_action_capability_enabled_in_record(&record, capability))
+        .collect::<Vec<_>>();
+
+        assert_eq!(filtered, vec!["read_page".to_string(), "click".to_string()]);
     }
 }

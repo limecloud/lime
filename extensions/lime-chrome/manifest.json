@@ -1,22 +1,42 @@
 {
   "manifest_version": 3,
   "name": "Lime Browser Bridge",
-  "description": "Connect Chrome tabs with Lime browser runtime for AI agents.",
-  "version": "0.2.0",
-  "permissions": ["storage", "tabs", "activeTab", "scripting", "clipboardRead"],
-  "host_permissions": ["http://*/*", "https://*/*"],
+  "description": "Attach Lime to your current Chrome tab via the Lime browser bridge.",
+  "version": "0.3.0",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "debugger",
+    "tabs",
+    "tabGroups",
+    "windows",
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardRead",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_title": "Lime Browser Bridge",
-    "default_popup": "popup.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content_script.js"],
-      "run_at": "document_idle"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
-  ]
+  },
+  "options_ui": {
+    "page": "pages/options.html",
+    "open_in_tab": true
+  }
 }

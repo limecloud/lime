@@ -341,11 +341,9 @@ function Greeting({ name, date }: Props) {
 | `selected_total` | 已选择 {selected} / {total} | Selected {selected} of {total} |
 | `total_records` | 共 {total} 条记录 | Total {total} record(s) |
 
-### API Server
+### Local Runtime
 | Key | Chinese | English |
 |-----|---------|---------|
-| `start_failed` | 启动失败: {error} | Start failed: {error} |
-| `stop_failed` | 停止失败: {error} | Stop failed: {error} |
 | `switched_to` | 已切换到 {provider} | Switched to {provider} |
 | `switch_failed` | 切换失败: {error} | Switch failed: {error} |
 | `request_failed` | 请求失败: {error} | Request failed: {error} |

@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lime Browser Bridge</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f4f4f5;
+        --surface-hover: #e4e4e7;
+        --border: #e4e4e7;
+        --text: #18181b;
+        --muted: #71717a;
+        --dim: #a1a1aa;
+        --accent: #14b8a6;
+        --accent-soft: rgba(20, 184, 166, 0.08);
+        --accent-glow: rgba(20, 184, 166, 0.2);
+        --green: #34d399;
+        --green-soft: rgba(52, 211, 153, 0.08);
+        --green-glow: rgba(52, 211, 153, 0.35);
+        --yellow: #f59e0b;
+        --yellow-soft: rgba(245, 158, 11, 0.08);
+        --yellow-glow: rgba(245, 158, 11, 0.15);
+        --red: #ef4444;
+        --coral: #f43f5e;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html { background: transparent; }
+      body {
+        width: 268px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        color: var(--text);
+        background: var(--bg);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .popup { padding: 16px; }
+
+      /* ── Header ── */
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .header img {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s;
+      }
+      .header img:hover {
+        transform: scale(1.1) rotate(-4deg);
+        filter: drop-shadow(0 0 6px var(--accent-glow));
+      }
+      .header-text {
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--text);
+      }
+
+      /* ── Status card ── */
+      .status-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        transition: border-color 0.4s, box-shadow 0.4s, background 0.3s;
+        position: relative;
+        overflow: hidden;
+      }
+      .status-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        transition: opacity 0.5s;
+        pointer-events: none;
+        border-radius: inherit;
+      }
+      .status-card[data-state="connected"] {
+        border-color: rgba(52, 211, 153, 0.25);
+        box-shadow: 0 2px 16px -4px var(--green-glow);
+      }
+      .status-card[data-state="connected"]::before {
+        opacity: 1;
+        background: linear-gradient(135deg, var(--green-soft) 0%, transparent 60%);
+      }
+      .status-card[data-state="disconnected"] {
+        border-color: rgba(245, 158, 11, 0.3);
+        box-shadow: 0 2px 12px -4px var(--yellow-glow);
+      }
+      .status-card[data-state="disconnected"]::before {
+        opacity: 1;
+        background: linear-gradient(135deg, var(--yellow-soft) 0%, transparent 60%);
+      }
+
+      /* ── Status indicator ── */
+      .status-ring {
+        position: relative;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
+      .status-dot {
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--dim);
+        transition: background 0.3s, box-shadow 0.3s;
+      }
+      .status-ring::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 1.5px solid transparent;
+        transition: border-color 0.3s;
+      }
+      .status-card[data-state="connected"] .status-dot {
+        background: var(--green);
+        box-shadow: 0 0 8px var(--green-glow);
+      }
+      .status-card[data-state="connected"] .status-ring::after {
+        border-color: rgba(52, 211, 153, 0.3);
+        animation: ring-expand 2.5s ease-out infinite;
+      }
+      .status-card[data-state="disconnected"] .status-dot {
+        background: var(--yellow);
+        box-shadow: 0 0 6px var(--yellow-glow);
+        animation: dot-pulse 1.5s ease-in-out infinite;
+      }
+      .status-card[data-state="disconnected"] .status-ring::after {
+        border-color: rgba(245, 158, 11, 0.2);
+      }
+
+      @keyframes ring-expand {
+        0% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.6); opacity: 0; }
+        100% { transform: scale(1.6); opacity: 0; }
+      }
+      @keyframes dot-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+
+      .status-label {
+        flex: 1;
+        font-weight: 600;
+        position: relative;
+      }
+
+      /* ── Toggle ── */
+      .toggle {
+        position: relative;
+        width: 36px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+      .toggle input { opacity: 0; width: 0; height: 0; }
+      .toggle-track {
+        position: absolute;
+        inset: 0;
+        background: var(--dim);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background .25s, box-shadow .3s;
+      }
+      .toggle-track::after {
+        content: '';
+        position: absolute;
+        left: 2px; top: 2px;
+        width: 16px; height: 16px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: transform .25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow .3s;
+      }
+      .toggle input:checked + .toggle-track {
+        background: var(--accent);
+        box-shadow: 0 0 10px var(--accent-glow);
+      }
+      .toggle input:checked + .toggle-track::after {
+        transform: translateX(16px);
+      }
+
+      /* ── Meta chips ── */
+      .meta {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .meta:empty { margin-bottom: 0; }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 500;
+        transition: transform 0.15s;
+      }
+      .chip:hover { transform: translateY(-1px); }
+      .chip-tabs {
+        background: rgba(100, 116, 139, 0.08);
+        color: #64748b;
+      }
+      .chip-agent {
+        background: rgba(249, 115, 22, 0.08);
+        color: #f97316;
+      }
+      .chip-retained {
+        background: rgba(168, 85, 247, 0.08);
+        color: #a855f7;
+      }
+      .chip-num { font-weight: 700; }
+
+      /* ── Divider ── */
+      .divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border), transparent);
+        margin: 10px 0;
+      }
+
+      /* ── Tabs section ── */
+      .tabs-section {
+        margin-bottom: 10px;
+        overflow: hidden;
+      }
+      .tabs-section[data-empty="true"] { display: none; }
+
+      .tabs-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 0;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--dim);
+        cursor: pointer;
+        user-select: none;
+      }
+      .tabs-header svg {
+        width: 10px;
+        height: 10px;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .tabs-section[data-open="true"] .tabs-header svg {
+        transform: rotate(90deg);
+      }
+
+      .tabs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow: hidden;
+        max-height: 0;
+        opacity: 0;
+        transition: max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                    opacity 0.3s ease,
+                    margin 0.3s ease;
+        margin-top: 0;
+      }
+      .tabs-section[data-open="true"] .tabs-list {
+        max-height: 180px;
+        opacity: 1;
+        margin-top: 6px;
+        overflow-y: auto;
+      }
+      .tabs-list::-webkit-scrollbar { width: 3px; }
+      .tabs-list::-webkit-scrollbar-track { background: transparent; }
+      .tabs-list::-webkit-scrollbar-thumb {
+        background: var(--dim);
+        border-radius: 2px;
+      }
+
+      .tab-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: var(--surface);
+        cursor: pointer;
+        transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      }
+      .tab-item:hover {
+        background: var(--surface-hover);
+        transform: translateX(2px);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      }
+      .tab-item:active { transform: translateX(2px) scale(0.99); }
+
+      .tab-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--dim);
+        transition: background 0.2s, box-shadow 0.2s;
+      }
+      .tab-dot[data-state="connected"] {
+        background: var(--green);
+        box-shadow: 0 0 6px var(--green-glow);
+      }
+      .tab-dot[data-state="attaching"] {
+        background: var(--yellow);
+        box-shadow: 0 0 6px var(--yellow-glow);
+      }
+      .tab-dot[data-state="virtual"] { background: var(--dim); }
+
+      .tab-title {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tab-badge {
+        font-size: 9px;
+        font-weight: 600;
+        padding: 1px 5px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+      .tab-badge-agent {
+        background: rgba(249, 115, 22, 0.08);
+        color: #f97316;
+      }
+      .tab-badge-retained {
+        background: rgba(168, 85, 247, 0.08);
+        color: #a855f7;
+      }
+      .tab-go {
+        width: 12px; height: 12px;
+        color: var(--dim);
+        flex-shrink: 0;
+        transition: color 0.15s, transform 0.15s;
+      }
+      .tab-item:hover .tab-go {
+        color: var(--accent);
+        transform: translateX(2px);
+      }
+
+      /* ── Settings link ── */
+      .settings-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 8px 12px;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        font-family: inherit;
+        border-radius: 10px;
+        transition: color 0.2s, background 0.2s, border-color 0.2s;
+      }
+      .settings-link:hover {
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-color: rgba(20, 184, 166, 0.2);
+      }
+      .settings-link svg {
+        width: 14px; height: 14px;
+        transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .settings-link:hover svg { transform: rotate(60deg); }
+
+      /* ── Entrance animations ── */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+      .anim-d1 { animation-delay: 40ms; }
+      .anim-d2 { animation-delay: 80ms; }
+      .anim-d3 { animation-delay: 120ms; }
+      .anim-d4 { animation-delay: 160ms; }
+    </style>
+  </head>
+  <body>
+    <div class="popup">
+      <div class="header anim">
+        <img src="../icons/icon128.png" alt="" />
+        <span class="header-text">Lime Browser Bridge</span>
+      </div>
+
+      <div class="status-card anim anim-d1" id="status-card" data-state="disabled">
+        <div class="status-ring">
+          <div class="status-dot" id="dot"></div>
+        </div>
+        <span class="status-label" id="label">Checking…</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle" />
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="meta anim anim-d2" id="meta"></div>
+
+      <div class="tabs-section anim anim-d2" id="tabs-section" data-empty="true" data-open="false">
+        <div class="tabs-header" id="tabs-header">
+          <svg viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l5 4-5 4z"/></svg>
+          <span>Attached Tabs</span>
+        </div>
+        <div class="tabs-list" id="tabs-list"></div>
+      </div>
+
+      <div class="divider anim anim-d3"></div>
+
+      <button class="settings-link anim anim-d4" id="open-settings">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="2.5"/>
+          <path d="M13.5 8a5.5 5.5 0 01-.4 2.1l1.2 1.2-1.5 1.5-1.2-1.2A5.5 5.5 0 018 13.5a5.5 5.5 0 01-2.1-.4l-1.2 1.2-1.5-1.5 1.2-1.2A5.5 5.5 0 012.5 8c0-.7.1-1.4.4-2.1L1.7 4.7l1.5-1.5 1.2 1.2A5.5 5.5 0 018 2.5c.7 0 1.4.1 2.1.4l1.2-1.2 1.5 1.5-1.2 1.2c.3.7.4 1.4.4 2.1z"/>
+        </svg>
+        Settings
+      </button>
+    </div>
+
+    <script src="scripts/popup.js" type="module"></script>
+  </body>
+</html>

@@ -29,10 +29,11 @@ pub const IMAGE_GENERATE_SKILL_DIRECTORY: &str = "image_generate";
 pub const LIBRARY_SKILL_DIRECTORY: &str = "library";
 pub const URL_PARSE_SKILL_DIRECTORY: &str = "url_parse";
 pub const RESEARCH_SKILL_DIRECTORY: &str = "research";
+pub const SITE_SEARCH_SKILL_DIRECTORY: &str = "site_search";
 pub const TYPESETTING_SKILL_DIRECTORY: &str = "typesetting";
 pub const SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY: &str = "social_post_with_cover";
 
-pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 10] = [
+pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 11] = [
     VIDEO_GENERATE_SKILL_DIRECTORY,
     BROADCAST_GENERATE_SKILL_DIRECTORY,
     COVER_GENERATE_SKILL_DIRECTORY,
@@ -41,6 +42,7 @@ pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 10] = [
     LIBRARY_SKILL_DIRECTORY,
     URL_PARSE_SKILL_DIRECTORY,
     RESEARCH_SKILL_DIRECTORY,
+    SITE_SEARCH_SKILL_DIRECTORY,
     TYPESETTING_SKILL_DIRECTORY,
     SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
 ];
@@ -559,6 +561,7 @@ mod tests {
     #[test]
     fn test_default_lime_skill_directories_include_embedded_defaults() {
         assert!(is_default_lime_skill(VIDEO_GENERATE_SKILL_DIRECTORY));
+        assert!(is_default_lime_skill(SITE_SEARCH_SKILL_DIRECTORY));
         assert!(is_default_lime_skill(
             SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY
         ));

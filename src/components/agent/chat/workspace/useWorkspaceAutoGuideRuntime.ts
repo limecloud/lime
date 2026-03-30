@@ -23,6 +23,7 @@ interface UseWorkspaceAutoGuideRuntimeParams {
   sessionId?: string | null;
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
+  initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount: boolean;
   initialDispatchKey: string | null;
   messagesCount: number;
@@ -51,6 +52,7 @@ export function useWorkspaceAutoGuideRuntime({
   sessionId,
   initialUserPrompt,
   initialUserImages,
+  initialAutoSendRequestMetadata,
   autoRunInitialPromptOnMount,
   initialDispatchKey,
   messagesCount,
@@ -127,6 +129,13 @@ export function useWorkspaceAutoGuideRuntime({
           chatToolPreferences.webSearch,
           chatToolPreferences.thinking,
           pendingInitialPrompt,
+          undefined,
+          undefined,
+          initialAutoSendRequestMetadata
+            ? {
+                requestMetadata: initialAutoSendRequestMetadata,
+              }
+            : undefined,
         );
         if (disposed) {
           return;
@@ -192,6 +201,7 @@ export function useWorkspaceAutoGuideRuntime({
     creationMode,
     handleSend,
     initialDispatchKey,
+    initialAutoSendRequestMetadata,
     initialUserImages,
     initialUserPrompt,
     autoRunInitialPromptOnMount,
@@ -239,6 +249,13 @@ export function useWorkspaceAutoGuideRuntime({
         chatToolPreferences.webSearch,
         chatToolPreferences.thinking,
         pendingInitialPrompt,
+        undefined,
+        undefined,
+        initialAutoSendRequestMetadata
+          ? {
+              requestMetadata: initialAutoSendRequestMetadata,
+            }
+          : undefined,
       );
       if (disposed) {
         return;
@@ -259,6 +276,7 @@ export function useWorkspaceAutoGuideRuntime({
     contentId,
     handleSend,
     initialDispatchKey,
+    initialAutoSendRequestMetadata,
     initialUserImages,
     initialUserPrompt,
     isSending,

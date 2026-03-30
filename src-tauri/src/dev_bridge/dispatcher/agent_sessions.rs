@@ -246,7 +246,7 @@ pub(super) async fn try_handle(
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let db = app_handle.state::<crate::database::DbConnection>();
 
-            crate::commands::aster_agent_cmd::agent_runtime_delete_session(
+            crate::commands::aster_agent_cmd::action_runtime::agent_runtime_delete_session(
                 app_handle.clone(),
                 aster_state,
                 db,
@@ -302,7 +302,7 @@ pub(super) async fn try_handle(
             >(args)?;
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
 
-            crate::commands::aster_agent_cmd::agent_runtime_respond_action(
+            crate::commands::aster_agent_cmd::action_runtime::agent_runtime_respond_action(
                 app_handle.clone(),
                 aster_state,
                 request,

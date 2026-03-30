@@ -2,10 +2,7 @@
 //!
 //! 定义菜单项 ID 和菜单构建函数
 
-use super::format::{
-    format_credential_status, format_current_model_status, format_request_count,
-    format_server_status,
-};
+use super::format::{format_credential_status, format_current_model_status, format_request_count};
 use super::state::TrayStateSnapshot;
 use tauri::{
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -13,9 +10,7 @@ use tauri::{
 };
 
 pub use lime_core::tray_menu_meta::menu_ids;
-pub use lime_core::tray_menu_meta::{
-    build_quick_model_item_id, get_menu_item_ids, parse_server_address,
-};
+pub use lime_core::tray_menu_meta::{build_quick_model_item_id, get_menu_item_ids};
 
 /// 托盘菜单构建错误
 #[derive(Debug, thiserror::Error)]
@@ -91,27 +86,23 @@ fn build_quick_model_submenu<R: Runtime>(
 /// 构建托盘菜单
 ///
 /// 根据当前状态快照构建完整的托盘菜单，包含：
-/// - 状态信息（服务器状态、凭证状态、请求统计）
-/// - 服务器控制（启动/停止、刷新 Token、健康检查）
-/// - 快捷工具（打开主窗口、复制 API 地址、打开日志目录）
+/// - 状态信息（凭证状态、请求统计）
+/// - 运维动作（刷新 Token、健康检查）
+/// - 快捷工具（打开主窗口、打开日志目录）
 /// - 设置（开机自启）
 /// - 退出
 ///
 /// # Requirements
 /// - 2.1: 右键点击托盘图标显示包含所有可用操作的托盘菜单
-/// - 2.2: 显示当前服务器状态，包括运行状态和端口号
-/// - 2.3: 显示凭证池状态，包括可用凭证数和总凭证数
-/// - 2.4: 显示今日请求次数
-/// - 3.1, 3.2, 3.3, 3.4: 服务器控制菜单项
-/// - 4.1, 4.2, 4.3, 4.4: 快捷工具菜单项
+/// - 2.2: 显示凭证池状态，包括可用凭证数和总凭证数
+/// - 2.3: 显示今日请求次数
+/// - 3.3, 3.4: 运行时维护菜单项
+/// - 4.1, 4.3, 4.4: 快捷工具菜单项
 /// - 5.1, 5.2: 开机自启设置
 pub fn build_tray_menu<R: Runtime>(
     app: &AppHandle<R>,
     state: &TrayStateSnapshot,
 ) -> Result<Menu<R>, MenuBuildError> {
-    // 解析服务器地址
-    let (host, port) = parse_server_address(&state.server_address);
-
     // === 当前模型信息 ===
     let current_model_text = format_current_model_status(
         &state.current_model_provider_label,
@@ -133,17 +124,6 @@ pub fn build_tray_menu<R: Runtime>(
     let quick_model_submenu = build_quick_model_submenu(app, state)?;
     let separator_0 = PredefinedMenuItem::separator(app)
         .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    // === 状态信息区域 ===
-    let status_text = format_server_status(state.server_running, &host, port);
-    let status_info = MenuItem::with_id(
-        app,
-        menu_ids::STATUS_INFO,
-        &status_text,
-        false,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
 
     let credential_text =
         format_credential_status(state.available_credentials, state.total_credentials);
@@ -170,28 +150,7 @@ pub fn build_tray_menu<R: Runtime>(
     let separator_1 = PredefinedMenuItem::separator(app)
         .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
 
-    // === 服务器控制区域 ===
-    // 启动服务器（服务器未运行时可用）
-    let start_server = MenuItem::with_id(
-        app,
-        menu_ids::START_SERVER,
-        "启动 Lime 网关",
-        !state.server_running,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    // 停止服务器（服务器运行时可用）
-    let stop_server = MenuItem::with_id(
-        app,
-        menu_ids::STOP_SERVER,
-        "停止 Lime 网关",
-        state.server_running,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    // 刷新所有 Token
+    // === 运行时维护区域 ===
     let refresh_tokens = MenuItem::with_id(
         app,
         menu_ids::REFRESH_TOKENS,
@@ -219,15 +178,6 @@ pub fn build_tray_menu<R: Runtime>(
     let open_window =
         MenuItem::with_id(app, menu_ids::OPEN_WINDOW, "打开 Lime", true, None::<&str>)
             .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    let copy_api_address = MenuItem::with_id(
-        app,
-        menu_ids::COPY_API_ADDRESS,
-        "复制网关地址",
-        state.server_running,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
 
     let open_log_dir = MenuItem::with_id(
         app,
@@ -268,17 +218,13 @@ pub fn build_tray_menu<R: Runtime>(
     }
     items.extend([
         &separator_0 as &dyn IsMenuItem<R>,
-        &status_info,
         &credential_info,
         &request_info,
         &separator_1,
-        &start_server,
-        &stop_server,
         &refresh_tokens,
         &health_check,
         &separator_2,
         &open_window,
-        &copy_api_address,
         &open_log_dir,
         &separator_3,
         &auto_start,
@@ -316,61 +262,26 @@ mod tests {
         let ids = menu_ids::all_required_ids();
 
         // 验证所有预定义的菜单项 ID 都在列表中
-        assert!(ids.contains(&menu_ids::STATUS_INFO), "应包含 STATUS_INFO");
         assert!(
             ids.contains(&menu_ids::CREDENTIAL_INFO),
             "应包含 CREDENTIAL_INFO"
         );
         assert!(ids.contains(&menu_ids::REQUEST_INFO), "应包含 REQUEST_INFO");
-        assert!(ids.contains(&menu_ids::START_SERVER), "应包含 START_SERVER");
-        assert!(ids.contains(&menu_ids::STOP_SERVER), "应包含 STOP_SERVER");
         assert!(
             ids.contains(&menu_ids::REFRESH_TOKENS),
             "应包含 REFRESH_TOKENS"
         );
         assert!(ids.contains(&menu_ids::HEALTH_CHECK), "应包含 HEALTH_CHECK");
         assert!(ids.contains(&menu_ids::OPEN_WINDOW), "应包含 OPEN_WINDOW");
-        assert!(
-            ids.contains(&menu_ids::COPY_API_ADDRESS),
-            "应包含 COPY_API_ADDRESS"
-        );
         assert!(ids.contains(&menu_ids::OPEN_LOG_DIR), "应包含 OPEN_LOG_DIR");
         assert!(ids.contains(&menu_ids::AUTO_START), "应包含 AUTO_START");
         assert!(ids.contains(&menu_ids::QUIT), "应包含 QUIT");
     }
 
     #[test]
-    fn test_parse_server_address_with_port() {
-        let (host, port) = parse_server_address("127.0.0.1:8080");
-        assert_eq!(host, "127.0.0.1");
-        assert_eq!(port, 8080);
-    }
-
-    #[test]
-    fn test_parse_server_address_without_port() {
-        let (host, port) = parse_server_address("localhost");
-        assert_eq!(host, "localhost");
-        assert_eq!(port, 8080);
-    }
-
-    #[test]
-    fn test_parse_server_address_empty() {
-        let (host, port) = parse_server_address("");
-        assert_eq!(host, "127.0.0.1");
-        assert_eq!(port, 8080);
-    }
-
-    #[test]
-    fn test_parse_server_address_ipv6() {
-        let (host, port) = parse_server_address("[::1]:9000");
-        assert_eq!(host, "[::1]");
-        assert_eq!(port, 9000);
-    }
-
-    #[test]
     fn test_get_menu_item_ids() {
         let ids = get_menu_item_ids();
-        assert_eq!(ids.len(), 12, "应有 12 个必需的菜单项");
+        assert_eq!(ids.len(), 8, "应有 8 个必需的菜单项");
     }
 
     proptest! {
@@ -380,7 +291,6 @@ mod tests {
         /// 验证对于任意托盘菜单构建，生成的菜单 SHALL 包含所有预定义的菜单项 ID
         #[test]
         fn prop_menu_ids_completeness(
-            _server_running in any::<bool>(),
             _available in 0usize..100,
             _total in 0usize..100,
             _requests in 0u64..1000000,
@@ -391,15 +301,11 @@ mod tests {
 
             // 必须包含所有预定义的 ID
             let required = vec![
-                menu_ids::STATUS_INFO,
                 menu_ids::CREDENTIAL_INFO,
                 menu_ids::REQUEST_INFO,
-                menu_ids::START_SERVER,
-                menu_ids::STOP_SERVER,
                 menu_ids::REFRESH_TOKENS,
                 menu_ids::HEALTH_CHECK,
                 menu_ids::OPEN_WINDOW,
-                menu_ids::COPY_API_ADDRESS,
                 menu_ids::OPEN_LOG_DIR,
                 menu_ids::AUTO_START,
                 menu_ids::QUIT,

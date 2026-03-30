@@ -78,6 +78,17 @@ describe("buildClawAgentParams", () => {
     expect(params.lockTheme).toBe(false);
   });
 
+  it("应允许显式锁定主题，避免被项目工作区主题覆盖", () => {
+    const params = buildClawAgentParams({
+      theme: "general",
+      lockTheme: true,
+    });
+
+    expect(params.agentEntry).toBe("claw");
+    expect(params.theme).toBe("general");
+    expect(params.lockTheme).toBe(true);
+  });
+
   it("应透传首页壳提交后的首条上下文参数", () => {
     const params = buildClawAgentParams({
       projectId: "proj-3",

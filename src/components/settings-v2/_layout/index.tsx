@@ -39,9 +39,7 @@ import { StatsSettings } from "../account/stats";
 import { ProfileSettings } from "../account/profile";
 import { UserCenterSessionSettings } from "../account/user-center-session";
 import { CloudProviderSettings } from "../agent/providers";
-import { ApiServerPage } from "@/components/api-server/ApiServerPage";
 import { McpPanel } from "@/components/mcp";
-import { ChannelsSettings } from "../system/channels";
 import { EnvironmentSettings } from "../system/environment";
 import { WebSearchSettings } from "../system/web-search";
 import { ChromeRelaySettings } from "../system/chrome-relay";
@@ -121,6 +119,22 @@ const PlaceholderPage = styled.div`
     font-size: 14px;
   }
 `;
+
+function SettingsChannelsRedirect({
+  onNavigate,
+}: {
+  onNavigate?: (page: Page, params?: PageParams) => void;
+}) {
+  useEffect(() => {
+    onNavigate?.("channels");
+  }, [onNavigate]);
+
+  return (
+    <PlaceholderPage>
+      <p>渠道管理已迁移到「能力 {"->"} IM 配置」</p>
+    </PlaceholderPage>
+  );
+}
 
 /**
  * 渲染设置内容
@@ -205,14 +219,6 @@ function renderSettingsContent(
       );
 
     // 系统组
-    case SettingsTabs.ApiServer:
-      return (
-        <>
-          <SettingHeader title="团队共享网关（内网）" />
-          <ApiServerPage hideHeader />
-        </>
-      );
-
     case SettingsTabs.McpServer:
       return (
         <>
@@ -222,12 +228,7 @@ function renderSettingsContent(
       );
 
     case SettingsTabs.Channels:
-      return (
-        <>
-          <SettingHeader title="渠道管理" />
-          <ChannelsSettings />
-        </>
-      );
+      return <SettingsChannelsRedirect onNavigate={onNavigate} />;
 
     case SettingsTabs.WebSearch:
       return (
@@ -311,10 +312,8 @@ const WIDE_CONTENT_TABS = new Set<SettingsTabs>([
   SettingsTabs.Providers,
   SettingsTabs.Skills,
   SettingsTabs.MediaServices,
-  SettingsTabs.ApiServer,
   SettingsTabs.Automation,
   SettingsTabs.McpServer,
-  SettingsTabs.Channels,
   SettingsTabs.SecurityPerformance,
   SettingsTabs.Developer,
   SettingsTabs.WebSearch,

@@ -65,35 +65,12 @@ describe("serviceSkills API", () => {
     expect(catalog.tenantId).toBe("local-seeded");
     expect(catalog.items.length).toBeGreaterThan(0);
     expect(
-      catalog.items.find((item) => item.id === "github-repo-radar")
-    ).toEqual(
-      expect.objectContaining({
-        skillType: "site",
-        outputDestination:
-          "采集结果会优先写回当前内容；如果当前内容不可用，再沉淀为项目资源。",
-        triggerHints: expect.arrayContaining(["需要围绕某个技术主题快速找 GitHub 仓库线索时使用。"]),
-        setupRequirements: expect.arrayContaining(["需要浏览器里已有 GitHub 登录态。"]),
-        examples: expect.arrayContaining([
-          "帮我查一批和 MCP browser automation 相关的 GitHub 仓库。",
-        ]),
-        siteCapabilityBinding: expect.objectContaining({
-          adapterName: "github/search",
-          autoRun: true,
-          requireAttachedSession: true,
-          saveMode: "current_content",
-        }),
-        skillBundle: expect.objectContaining({
-          name: "github-repo-radar",
-          standardCompliance: expect.objectContaining({
-            isStandard: true,
-          }),
-          metadata: expect.objectContaining({
-            Lime_skill_type: "site",
-            Lime_site_adapter: "github/search",
-          }),
-        }),
-      }),
-    );
+      catalog.items.some(
+        (item) =>
+          item.defaultExecutorBinding === "browser_assist" ||
+          Boolean(item.siteCapabilityBinding),
+      ),
+    ).toBe(false);
     expect(
       catalog.items.find((item) => item.id === "carousel-post-replication"),
     ).toEqual(
@@ -169,7 +146,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-03-24");
+    expect(catalog.version).toBe("client-seed-2026-03-30");
   });
 
   it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
@@ -182,14 +159,14 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-03-24");
+    expect(catalog.version).toBe("client-seed-2026-03-30");
   });
 
   it("旧的 seeded 本地缓存应自动升级到当前 seeded 目录", async () => {
     const oldSeeded = getSeededServiceSkillCatalog();
     const downgraded = {
       ...oldSeeded,
-      items: oldSeeded.items.filter((item) => item.id !== "github-repo-radar"),
+      items: oldSeeded.items.filter((item) => item.id !== "daily-trend-briefing"),
     };
 
     window.localStorage.setItem(
@@ -199,11 +176,11 @@ describe("serviceSkills API", () => {
 
     const catalog = await getServiceSkillCatalog();
 
-    expect(catalog.items.some((item) => item.id === "github-repo-radar")).toBe(
+    expect(catalog.items.some((item) => item.id === "daily-trend-briefing")).toBe(
       true,
     );
     const stored = window.localStorage.getItem("lime:service-skill-catalog:v1");
-    expect(stored).toContain('"github-repo-radar"');
+    expect(stored).toContain('"daily-trend-briefing"');
   });
 
   it("目录变更时应广播 catalog change 事件", () => {

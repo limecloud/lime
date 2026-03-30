@@ -329,6 +329,7 @@ const {
 vi.mock("./components/EmptyState", () => ({
   EmptyState: ({
     onSend,
+    onLaunchBrowserAssist,
     onRecommendationClick,
     supportingSlotOverride,
     serviceSkills,
@@ -339,6 +340,7 @@ vi.mock("./components/EmptyState", () => ({
       executionStrategy?: unknown,
       images?: Array<{ data: string; mediaType: string }>,
     ) => void;
+    onLaunchBrowserAssist?: () => void;
     onRecommendationClick?: (shortLabel: string, fullPrompt: string) => void;
     supportingSlotOverride?: React.ReactNode;
     serviceSkills?: Array<{ id: string; title: string }>;
@@ -354,6 +356,15 @@ vi.mock("./components/EmptyState", () => ({
       </button>
       <button
         type="button"
+        data-testid="home-shell-send-github-site-skill"
+        onClick={() =>
+          onSend("请帮我使用 GitHub 查一下 AI Agent 项目", undefined, [])
+        }
+      >
+        自然句启动站点技能
+      </button>
+      <button
+        type="button"
         data-testid="home-shell-team-recommendation"
         onClick={() =>
           onRecommendationClick?.(
@@ -364,15 +375,28 @@ vi.mock("./components/EmptyState", () => ({
       >
         Team 推荐
       </button>
-      {serviceSkills?.[0] && onSelectServiceSkill ? (
+      {onLaunchBrowserAssist ? (
         <button
           type="button"
-          data-testid="home-shell-empty-state-service-skill"
-          onClick={() => onSelectServiceSkill(serviceSkills[0]!)}
+          data-testid="home-shell-open-browser-runtime"
+          onClick={() => onLaunchBrowserAssist()}
         >
-          通过 @ 选择服务技能
+          打开浏览器工作台
         </button>
       ) : null}
+      {serviceSkills?.map((skill) =>
+        onSelectServiceSkill ? (
+          <React.Fragment key={skill.id}>
+            <button
+              type="button"
+              data-testid={`home-shell-empty-state-service-skill-${skill.id}`}
+              onClick={() => onSelectServiceSkill(skill)}
+            >
+              通过统一技能选择器打开 {skill.title}
+            </button>
+          </React.Fragment>
+        ) : null,
+      )}
       {supportingSlotOverride}
     </>
   ),
@@ -534,49 +558,6 @@ vi.mock("./service-skills/useServiceSkills", () => ({
 
 vi.mock("./service-skills/automationLinkStorage", () => ({
   recordServiceSkillAutomationLink: mockRecordServiceSkillAutomationLink,
-}));
-
-vi.mock("./service-skills/ServiceSkillHomePanel", () => ({
-  ServiceSkillHomePanel: ({
-    skills,
-    onSelect,
-    onOpenAutomationJob,
-  }: {
-    skills: Array<{
-      id: string;
-      title: string;
-      automationStatus?: { jobId: string } | null;
-    }>;
-    onSelect: (skill: { id: string; title: string }) => void;
-    onOpenAutomationJob?: (skill: {
-      id: string;
-      title: string;
-      automationStatus?: { jobId: string } | null;
-    }) => void;
-  }) => (
-    <>
-      {skills.map((skill) => (
-        <React.Fragment key={skill.id}>
-          <button
-            type="button"
-            data-testid={`home-shell-service-skill-${skill.id}`}
-            onClick={() => onSelect(skill)}
-          >
-            {skill.title}
-          </button>
-          {skill.automationStatus && onOpenAutomationJob ? (
-            <button
-              type="button"
-              data-testid={`home-shell-service-skill-open-automation-${skill.id}`}
-              onClick={() => onOpenAutomationJob(skill)}
-            >
-              打开任务
-            </button>
-          ) : null}
-        </React.Fragment>
-      ))}
-    </>
-  ),
 }));
 
 vi.mock("./service-skills/ServiceSkillLaunchDialog", () => ({
@@ -946,6 +927,87 @@ describe("AgentChatHomeShell", () => {
     expect(onEnterWorkspace).not.toHaveBeenCalled();
   });
 
+  it("首页普通自然句命中站点 skill 时应直接走 service skill 启动链", async () => {
+    const onNavigate = vi.fn();
+    const onEnterWorkspace = vi.fn();
+    const { container } = renderShell({
+      onNavigate,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const sendButton = container.querySelector(
+      '[data-testid="home-shell-send-github-site-skill"]',
+    ) as HTMLButtonElement | null;
+
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        projectId: "project-1",
+        contentId: "content-service-skill-1",
+        theme: "general",
+        lockTheme: true,
+        initialCreationMode: "guided",
+        autoRunInitialPromptOnMount: true,
+        initialUserPrompt: "你帮我在 GitHub 找一下和“AI Agent”相关的项目。",
+        initialAutoSendRequestMetadata: {
+          harness: expect.objectContaining({
+            browser_requirement: "required",
+            service_skill_launch: expect.objectContaining({
+              adapter_name: "github/search",
+              args: {
+                query: "AI Agent",
+                limit: 10,
+              },
+            }),
+          }),
+        },
+      }),
+    );
+    expect(onEnterWorkspace).not.toHaveBeenCalled();
+    expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
+      skillId: "github-repo-radar",
+      runnerType: "instant",
+    });
+  });
+
+  it("首页浏览器入口应直接打开浏览器工作台", async () => {
+    const onNavigate = vi.fn();
+    const onEnterWorkspace = vi.fn();
+    const { container } = renderShell({
+      onNavigate,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const browserRuntimeButton = container.querySelector(
+      '[data-testid="home-shell-open-browser-runtime"]',
+    ) as HTMLButtonElement | null;
+
+    expect(browserRuntimeButton).toBeTruthy();
+
+    act(() => {
+      browserRuntimeButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(onNavigate).toHaveBeenCalledWith("browser-runtime", {
+      projectId: "project-1",
+    });
+    expect(onEnterWorkspace).not.toHaveBeenCalled();
+  });
+
   it("点击 team 推荐时应开启多代理偏好并直接进入工作区", async () => {
     const onEnterWorkspace = vi.fn();
     const { container } = renderShell({
@@ -1301,7 +1363,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const serviceSkillButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-short-video-script-replication"]',
+      '[data-testid="home-shell-empty-state-service-skill-short-video-script-replication"]',
     ) as HTMLButtonElement | null;
 
     expect(serviceSkillButton).toBeTruthy();
@@ -1369,7 +1431,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const mentionServiceSkillButton = container.querySelector(
-      '[data-testid="home-shell-empty-state-service-skill"]',
+      '[data-testid="home-shell-empty-state-service-skill-short-video-script-replication"]',
     ) as HTMLButtonElement | null;
 
     expect(mentionServiceSkillButton).toBeTruthy();
@@ -1398,7 +1460,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const serviceSkillButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-github-repo-radar"]',
+      '[data-testid="home-shell-empty-state-service-skill-github-repo-radar"]',
     ) as HTMLButtonElement | null;
 
     expect(serviceSkillButton).toBeTruthy();
@@ -1439,27 +1501,52 @@ describe("AgentChatHomeShell", () => {
         contentId: "content-service-skill-1",
         theme: "general",
         initialCreationMode: "guided",
-        initialRequestMetadata: {
-          artifact: {
-            artifact_mode: "draft",
-            artifact_kind: "analysis",
-            workbench_surface: "right_panel",
+        autoRunInitialPromptOnMount: true,
+        initialUserPrompt: "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
+        initialRequestMetadata: undefined,
+        initialAutoSendRequestMetadata: {
+          harness: {
+            browser_requirement: "required",
+            browser_requirement_reason: expect.stringContaining(
+              "真实浏览器页面",
+            ),
+            browser_assist: {
+              enabled: true,
+              profile_key: "attached-github",
+              preferred_backend: "lime_extension_bridge",
+              auto_launch: false,
+              stream_mode: "both",
+            },
+            service_skill_launch: expect.objectContaining({
+              adapter_name: "github/search",
+              content_id: "content-service-skill-1",
+              project_id: "project-1",
+              save_mode: "current_content",
+              args: {
+                query: "browser assist mcp",
+                limit: 10,
+              },
+              launch_readiness: expect.objectContaining({
+                status: "ready",
+                profile_key: "attached-github",
+                target_id: "tab-github",
+              }),
+            }),
           },
-        },
-        initialSiteSkillLaunch: {
-          adapterName: "github/search",
-          args: {
-            query: "browser assist mcp",
-            limit: 10,
-          },
-          autoRun: true,
-          profileKey: "attached-github",
-          targetId: "tab-github",
-          requireAttachedSession: true,
-          saveTitle: undefined,
-          skillTitle: "GitHub 仓库线索检索",
         },
       }),
+    );
+    const firstSiteSkillLaunchPayload = onNavigate.mock.calls.find(
+      ([route]) => route === "agent",
+    )?.[1];
+    expect(firstSiteSkillLaunchPayload?.initialUserPrompt).not.toContain(
+      "[站点技能启动上下文]",
+    );
+    expect(firstSiteSkillLaunchPayload?.initialUserPrompt).not.toContain(
+      "adapter_name",
+    );
+    expect(firstSiteSkillLaunchPayload?.initialAutoSendRequestMetadata).not.toHaveProperty(
+      "artifact",
     );
     expect(onEnterWorkspace).not.toHaveBeenCalled();
     expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
@@ -1479,7 +1566,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const serviceSkillButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-github-repo-radar"]',
+      '[data-testid="home-shell-empty-state-service-skill-github-repo-radar"]',
     ) as HTMLButtonElement | null;
 
     act(() => {
@@ -1517,7 +1604,7 @@ describe("AgentChatHomeShell", () => {
     expect(onEnterWorkspace).not.toHaveBeenCalled();
   });
 
-  it("站点型服务技能缺少附着会话时不应进入 Claw 工作区", async () => {
+  it("站点型服务技能缺少附着会话时应留在入口层并提示先准备浏览器", async () => {
     const onNavigate = vi.fn();
     const onEnterWorkspace = vi.fn();
     mockSiteGetAdapterLaunchReadiness.mockResolvedValueOnce({
@@ -1535,7 +1622,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const serviceSkillButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-github-repo-radar"]',
+      '[data-testid="home-shell-empty-state-service-skill-github-repo-radar"]',
     ) as HTMLButtonElement | null;
 
     act(() => {
@@ -1554,9 +1641,15 @@ describe("AgentChatHomeShell", () => {
 
     await flushEffects();
 
-    expect(onNavigate).not.toHaveBeenCalledWith("agent", expect.anything());
+    expect(onNavigate).not.toHaveBeenCalledWith(
+      "agent",
+      expect.anything(),
+    );
     expect(onEnterWorkspace).not.toHaveBeenCalled();
-    expect(mockToastError).toHaveBeenCalled();
+    expect(mockToastInfo).toHaveBeenCalledWith(
+      expect.stringContaining("请先去浏览器工作台连接真实浏览器"),
+    );
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("cloud_required 服务型技能成功后应回流本地工作区", async () => {
@@ -1598,7 +1691,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const serviceSkillButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-cloud-video-dubbing"]',
+      '[data-testid="home-shell-empty-state-service-skill-cloud-video-dubbing"]',
     ) as HTMLButtonElement | null;
 
     expect(serviceSkillButton).toBeTruthy();
@@ -1691,7 +1784,7 @@ describe("AgentChatHomeShell", () => {
     await flushEffects();
 
     const serviceSkillButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-daily-trend-briefing"]',
+      '[data-testid="home-shell-empty-state-service-skill-daily-trend-briefing"]',
     ) as HTMLButtonElement | null;
 
     expect(serviceSkillButton).toBeTruthy();
@@ -1828,28 +1921,16 @@ describe("AgentChatHomeShell", () => {
     });
   });
 
-  it("点击服务型技能任务状态后应跳转到 automation 对应任务", async () => {
-    const onNavigate = vi.fn();
-    const { container } = renderShell({
-      onNavigate,
-    });
+  it("首页不应再展示 service skill 专属任务状态快捷入口", async () => {
+    const { container } = renderShell();
 
     await flushEffects();
 
     const openAutomationButton = container.querySelector(
-      '[data-testid="home-shell-service-skill-open-automation-daily-trend-briefing"]',
-    ) as HTMLButtonElement | null;
+      '[data-testid="home-shell-empty-state-service-skill-open-automation-daily-trend-briefing"]',
+    );
 
-    expect(openAutomationButton).toBeTruthy();
-
-    act(() => {
-      openAutomationButton?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith("automation", {
-      selectedJobId: "automation-job-daily-trend",
-      workspaceTab: "tasks",
-    });
+    expect(openAutomationButton).toBeFalsy();
   });
 
   it("方案未就绪且缺少模型时应直接跳到供应商设置", async () => {

@@ -588,12 +588,12 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
     const detailText =
       request.detail ||
       (request.browserRequirement === "required_with_user_step"
-        ? "请在右侧浏览器中完成登录、扫码、验证码或授权后，再继续当前任务。"
-        : "请先让右侧浏览器处于可操作状态，再继续当前任务。");
+        ? "请先在浏览器工作台完成登录、扫码、验证码或授权，然后回到原入口重新发起任务。"
+        : "请先让浏览器工作台中的页面处于可操作状态，然后回到原入口重新发起任务。");
     const title = isLaunching
       ? "正在准备浏览器执行环境"
       : isAwaitingUser
-        ? "等待你完成浏览器准备"
+        ? "请先完成浏览器准备"
         : isFailed
           ? "浏览器未就绪"
           : "此任务需要先准备浏览器";
@@ -652,50 +652,30 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 启动中...
               </Button>
-            ) : isAwaitingUser ? (
-              <Button
-                size="sm"
-                onClick={() =>
-                  handleBrowserAction("continue", "我已完成登录，继续执行")
-                }
-                className="bg-amber-600 hover:bg-amber-700"
-                disabled={isSubmitting}
-              >
-                {submissionState?.key ===
-                "browser:continue:我已完成登录，继续执行" ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="mr-1 h-4 w-4" />
-                )}
-                {submissionState?.key ===
-                "browser:continue:我已完成登录，继续执行"
-                  ? "继续中..."
-                  : "我已完成登录，继续执行"}
-              </Button>
             ) : (
               <Button
                 size="sm"
                 onClick={() =>
                   handleBrowserAction(
                     "launch",
-                    isFailed ? "重新启动浏览器" : "启动浏览器并继续",
+                    isFailed ? "重新打开浏览器" : "打开浏览器工作台",
                   )
                 }
                 className="bg-amber-600 hover:bg-amber-700"
                 disabled={isSubmitting}
               >
                 {submissionState?.key ===
-                `browser:launch:${isFailed ? "重新启动浏览器" : "启动浏览器并继续"}` ? (
+                `browser:launch:${isFailed ? "重新打开浏览器" : "打开浏览器工作台"}` ? (
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
                   <Globe className="mr-1 h-4 w-4" />
                 )}
                 {submissionState?.key ===
-                `browser:launch:${isFailed ? "重新启动浏览器" : "启动浏览器并继续"}`
+                `browser:launch:${isFailed ? "重新打开浏览器" : "打开浏览器工作台"}`
                   ? "启动中..."
                   : isFailed
-                    ? "重试启动浏览器"
-                    : "启动浏览器并继续"}
+                    ? "重试打开浏览器"
+                    : "打开浏览器工作台"}
               </Button>
             )}
 

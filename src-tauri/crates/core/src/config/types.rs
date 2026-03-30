@@ -655,7 +655,7 @@ fn current_workspace_preferences_schema_version() -> u8 {
 }
 
 fn default_enabled_themes() -> Vec<String> {
-    vec!["social-media".to_string()]
+    vec![]
 }
 
 impl Default for ContentCreatorConfig {
@@ -770,7 +770,9 @@ const CURRENT_FOOTER_NAV_ITEM_IDS: &[&str] = &[
     "memory",
 ];
 
-const LEGACY_ONLY_NAV_ITEM_IDS: &[&str] = &["agent", "projects", "api-server", "provider-pool"];
+const REMOVED_NAV_ITEM_IDS: &[&str] = &["api-server"];
+
+const LEGACY_ONLY_NAV_ITEM_IDS: &[&str] = &["agent", "projects", "provider-pool"];
 
 const LEGACY_DEFAULT_NAV_ITEM_SETS: &[&[&str]] = &[
     &["home-general", "claw", "video", "image-gen"],
@@ -2185,9 +2187,33 @@ impl Default for Config {
 }
 
 impl Config {
+    pub fn normalize_local_server_surface(&mut self) -> bool {
+        let mut changed = false;
+
+        if self.server.host != default_host() {
+            self.server.host = default_host();
+            changed = true;
+        }
+
+        if self.remote_management.allow_remote {
+            self.remote_management.allow_remote = false;
+            changed = true;
+        }
+
+        changed
+    }
+
     pub fn normalize_workspace_preferences(&mut self) -> bool {
         let mut changed = false;
         let current_version = current_workspace_preferences_schema_version();
+
+        let original_nav_len = self.navigation.enabled_items.len();
+        self.navigation
+            .enabled_items
+            .retain(|item| !REMOVED_NAV_ITEM_IDS.contains(&item.as_str()));
+        if self.navigation.enabled_items.len() != original_nav_len {
+            changed = true;
+        }
 
         if self.content_creator.schema_version < current_version {
             if self.content_creator.enabled_themes.is_empty()
@@ -2744,10 +2770,7 @@ mod unit_tests {
         assert_eq!(config.crash_reporting.sample_rate, 1.0);
         assert!(!config.crash_reporting.send_pii);
         assert_eq!(config.content_creator.schema_version, 1);
-        assert_eq!(
-            config.content_creator.enabled_themes,
-            vec!["social-media".to_string()]
-        );
+        assert_eq!(config.content_creator.enabled_themes, Vec::<String>::new());
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
@@ -2853,10 +2876,7 @@ mod unit_tests {
 
         assert!(changed);
         assert_eq!(config.content_creator.schema_version, 1);
-        assert_eq!(
-            config.content_creator.enabled_themes,
-            vec!["social-media".to_string()]
-        );
+        assert_eq!(config.content_creator.enabled_themes, Vec::<String>::new());
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
@@ -2906,6 +2926,42 @@ mod unit_tests {
                 "tools".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn test_normalize_workspace_preferences_removes_api_server_entry_even_on_current_schema() {
+        let mut config = Config::default();
+        config.navigation.enabled_items = vec![
+            "home-general".to_string(),
+            "claw".to_string(),
+            REMOVED_NAV_ITEM_IDS[0].to_string(),
+            "resources".to_string(),
+        ];
+
+        let changed = config.normalize_workspace_preferences();
+
+        assert!(changed);
+        assert_eq!(
+            config.navigation.enabled_items,
+            vec![
+                "home-general".to_string(),
+                "claw".to_string(),
+                "resources".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_local_server_surface_forces_loopback_and_disables_remote_management() {
+        let mut config = Config::default();
+        config.server.host = "192.168.1.9".to_string();
+        config.remote_management.allow_remote = true;
+
+        let changed = config.normalize_local_server_surface();
+
+        assert!(changed);
+        assert_eq!(config.server.host, "127.0.0.1");
+        assert!(!config.remote_management.allow_remote);
     }
 
     #[test]

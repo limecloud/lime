@@ -110,8 +110,10 @@ struct SiteAdapterManifestEntry {
     #[serde(default, alias = "authHint")]
     auth_hint: Option<String>,
     entry: SiteAdapterEntryManifest,
-    #[serde(alias = "scriptFile")]
+    #[serde(default, alias = "scriptFile")]
     script_file: String,
+    #[serde(default)]
+    script: Option<String>,
     #[serde(default, alias = "sourceVersion")]
     source_version: Option<String>,
 }
@@ -435,13 +437,7 @@ fn manifest_entry_to_spec(
     dir: Option<&Path>,
     source_kind: SiteAdapterSourceKind,
 ) -> Result<SiteAdapterSpec, String> {
-    let script = if let Some(base_dir) = dir {
-        let script_path = base_dir.join(&entry.script_file);
-        fs::read_to_string(&script_path)
-            .map_err(|error| format!("读取站点适配器脚本失败 {}: {error}", script_path.display()))?
-    } else {
-        load_embedded_bundled_script(&entry.script_file)?.to_string()
-    };
+    let script = resolve_manifest_entry_script(&entry, dir, source_kind)?;
 
     Ok(SiteAdapterSpec {
         name: entry.name,
@@ -467,6 +463,83 @@ fn manifest_entry_to_spec(
         source_kind,
         source_version: entry.source_version,
     })
+}
+
+fn resolve_manifest_entry_script(
+    entry: &SiteAdapterManifestEntry,
+    dir: Option<&Path>,
+    source_kind: SiteAdapterSourceKind,
+) -> Result<String, String> {
+    if let Some(base_dir) = dir {
+        if let Some(script_file) = normalize_optional_text(Some(entry.script_file.clone())) {
+            let script_path = base_dir.join(&script_file);
+            match fs::read_to_string(&script_path) {
+                Ok(content) => return Ok(content),
+                Err(error) if should_allow_bundled_script_fallback(source_kind) => {
+                    if let Some(script) = try_load_bundled_fallback_script(&entry.name)? {
+                        return Ok(script);
+                    }
+                    return Err(format!(
+                        "读取站点适配器脚本失败 {}: {error}",
+                        script_path.display()
+                    ));
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "读取站点适配器脚本失败 {}: {error}",
+                        script_path.display()
+                    ));
+                }
+            }
+        }
+
+        if let Some(script) = entry
+            .script
+            .as_ref()
+            .and_then(|value| normalize_optional_text(Some(value.clone())))
+        {
+            return Ok(script);
+        }
+
+        if should_allow_bundled_script_fallback(source_kind) {
+            if let Some(script) = try_load_bundled_fallback_script(&entry.name)? {
+                return Ok(script);
+            }
+        }
+
+        return Err(format!("站点适配器 {} 缺少 script", entry.name));
+    }
+
+    if let Some(script) = entry
+        .script
+        .as_ref()
+        .and_then(|value| normalize_optional_text(Some(value.clone())))
+    {
+        return Ok(script);
+    }
+
+    if let Some(script_file) = normalize_optional_text(Some(entry.script_file.clone())) {
+        return load_embedded_bundled_script(&script_file).map(|value| value.to_string());
+    }
+
+    if let Some(script) = try_load_bundled_fallback_script(&entry.name)? {
+        return Ok(script);
+    }
+
+    Err(format!("站点适配器 {} 缺少 script", entry.name))
+}
+
+fn should_allow_bundled_script_fallback(source_kind: SiteAdapterSourceKind) -> bool {
+    !matches!(source_kind, SiteAdapterSourceKind::Bundled)
+}
+
+fn try_load_bundled_fallback_script(adapter_name: &str) -> Result<Option<String>, String> {
+    let Some(bundled_manifest) = find_embedded_bundled_manifest_entry(adapter_name)? else {
+        return Ok(None);
+    };
+    Ok(Some(
+        load_embedded_bundled_script(&bundled_manifest.script_file)?.to_string(),
+    ))
 }
 
 fn normalize_manifest_entry(mut entry: SiteAdapterManifestEntry) -> SiteAdapterManifestEntry {
@@ -587,6 +660,7 @@ fn write_server_synced_catalog_to_dir(
             auth_hint: normalize_optional_text(entry.auth_hint),
             entry: entry.entry,
             script_file,
+            script: None,
             source_version: normalize_optional_text(entry.source_version),
         }));
     }
@@ -1342,6 +1416,119 @@ mod tests {
         assert_eq!(adapters[0].name, "github/search");
         assert_eq!(adapters[0].source_version.as_deref(), Some("tenant-sync-2"));
         assert_eq!(adapters[0].source_kind, SiteAdapterSourceKind::ServerSynced);
+    }
+
+    #[test]
+    fn should_load_legacy_server_synced_catalog_without_script_file_by_falling_back_to_bundled() {
+        let temp_dir = tempdir().expect("temp dir should exist");
+        fs::write(
+            temp_dir.path().join("index.json"),
+            serde_json::json!({
+                "registry_version": 1,
+                "catalog_version": "tenant-sync-legacy",
+                "adapters": [
+                    {
+                        "name": "github/search",
+                        "domain": "github.com",
+                        "description": "legacy server synced github search",
+                        "read_only": true,
+                        "capabilities": ["search"],
+                        "args": [],
+                        "example": "github/search {\"query\":\"lime\"}",
+                        "entry": {
+                            "kind": "fixed_url",
+                            "url": "https://github.com/search"
+                        }
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .expect("index.json should write");
+
+        let adapters =
+            load_site_adapters_from_dir(temp_dir.path(), SiteAdapterSourceKind::ServerSynced)
+                .expect("legacy adapters should load with bundled fallback");
+        assert_eq!(adapters.len(), 1);
+        assert_eq!(adapters[0].name, "github/search");
+        assert_eq!(adapters[0].source_kind, SiteAdapterSourceKind::ServerSynced);
+        assert!(adapters[0].script.contains("a.v-align-middle"));
+    }
+
+    #[test]
+    fn should_load_legacy_server_synced_catalog_inline_script_without_script_file() {
+        let temp_dir = tempdir().expect("temp dir should exist");
+        fs::write(
+            temp_dir.path().join("index.json"),
+            serde_json::json!({
+                "registry_version": 1,
+                "catalog_version": "tenant-sync-inline",
+                "adapters": [
+                    {
+                        "name": "github/search",
+                        "domain": "github.com",
+                        "description": "legacy inline github search",
+                        "read_only": true,
+                        "capabilities": ["search"],
+                        "args": [],
+                        "example": "github/search {\"query\":\"lime\"}",
+                        "entry": {
+                            "kind": "fixed_url",
+                            "url": "https://github.com/search"
+                        },
+                        "script": "async () => ({ items: [{ title: \"inline\" }] })"
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .expect("index.json should write");
+
+        let adapters =
+            load_site_adapters_from_dir(temp_dir.path(), SiteAdapterSourceKind::ServerSynced)
+                .expect("legacy adapters should load with inline script");
+        assert_eq!(adapters.len(), 1);
+        assert_eq!(
+            adapters[0].script,
+            "async () => ({ items: [{ title: \"inline\" }] })"
+        );
+    }
+
+    #[test]
+    fn should_fallback_to_bundled_when_server_synced_script_file_is_missing() {
+        let temp_dir = tempdir().expect("temp dir should exist");
+        fs::create_dir_all(temp_dir.path().join("scripts")).expect("scripts dir should exist");
+        fs::write(
+            temp_dir.path().join("index.json"),
+            serde_json::json!({
+                "registry_version": 1,
+                "catalog_version": "tenant-sync-missing-file",
+                "adapters": [
+                    {
+                        "name": "github/search",
+                        "domain": "github.com",
+                        "description": "missing file github search",
+                        "read_only": true,
+                        "capabilities": ["search"],
+                        "args": [],
+                        "example": "github/search {\"query\":\"lime\"}",
+                        "entry": {
+                            "kind": "fixed_url",
+                            "url": "https://github.com/search"
+                        },
+                        "script_file": "scripts/missing.js"
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .expect("index.json should write");
+
+        let adapters =
+            load_site_adapters_from_dir(temp_dir.path(), SiteAdapterSourceKind::ServerSynced)
+                .expect("legacy adapters should load with bundled fallback");
+        assert_eq!(adapters.len(), 1);
+        assert!(adapters[0].script.contains("a.v-align-middle"));
     }
 
     #[test]

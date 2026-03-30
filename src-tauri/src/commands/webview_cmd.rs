@@ -9,12 +9,15 @@
 //! - 控制窗口位置和大小
 
 use crate::app::AppState;
-use crate::database::DbConnection;
+use crate::database::{lock_db, DbConnection};
 use crate::services::automation_service::browser_runtime_sync::{
     complete_browser_session_after_resume, sync_browser_session_runtime_state,
 };
+use crate::services::browser_connector_service::{
+    ensure_browser_action_capability_enabled, filter_enabled_browser_action_capabilities,
+};
 use crate::services::browser_profile_service::{
-    normalize_browser_profile_key,
+    get_browser_profile_by_key, normalize_browser_profile_key,
     resolve_chrome_profile_data_dir as resolve_managed_chrome_profile_data_dir,
     resolve_chrome_profile_data_dir_from_base as resolve_managed_chrome_profile_data_dir_from_base,
 };
@@ -25,11 +28,13 @@ use lime_browser_runtime::{
     BrowserEvent, BrowserRuntimeManager, BrowserStreamMode, CdpSessionState, CdpTargetInfo,
     EventBufferSnapshot, OpenSessionRequest,
 };
+use lime_core::database::dao::browser_profile::BrowserProfileTransportKind;
 use lime_server::chrome_bridge::{
     self, ChromeBridgeCommandRequest, ChromeBridgeCommandResult, ChromeBridgeDisconnectResult,
     ChromeBridgeStatusSnapshot,
 };
 use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -141,6 +146,14 @@ static BROWSER_STREAM_RELAY_TASKS: Lazy<Mutex<HashMap<String, JoinHandle<()>>>> 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 const MANAGED_CHROME_RECOVERY_WAIT_MS: u64 = 800;
+static WINDOW_SCROLL_SCRIPT_TOP_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?is)window\.scroll(?:By|To)\s*\(\s*\{[^}]*top\s*:\s*(?P<amount>-?\d+)"#)
+        .expect("window scroll top regex should be valid")
+});
+static WINDOW_SCROLL_SCRIPT_COORD_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?is)window\.scroll(?:By|To)\s*\(\s*-?\d+\s*,\s*(?P<amount>-?\d+)"#)
+        .expect("window scroll coord regex should be valid")
+});
 
 pub fn shared_chrome_profile_manager() -> Arc<Mutex<ChromeProfileManagerState>> {
     SHARED_CHROME_PROFILE_MANAGER.clone()
@@ -195,6 +208,8 @@ pub struct ChromeProfileLaunchOptions {
     pub proxy_server: Option<String>,
     #[serde(default)]
     pub language: Option<String>,
+    #[serde(default)]
+    pub headless: bool,
 }
 
 /// 启动外部 Chrome Profile 的请求参数
@@ -774,8 +789,9 @@ async fn open_chrome_profile_window_with_manager(
 
     let _ = cleanup_orphan_chrome_profile_processes(&profile_dir).await?;
 
-    // 准备 Chrome 扩展（获取 server 配置并生成 auto_config.json）
-    let extension_dir = {
+    let extension_dir = if launch_options.headless {
+        None
+    } else {
         let state_guard = app_state.read().await;
         let status = state_guard.status();
         let host = normalize_bridge_host(&status.host);
@@ -783,7 +799,13 @@ async fn open_chrome_profile_window_with_manager(
         let bridge_key = state_guard.config.server.api_key.clone();
         let server_url = format!("ws://{host}:{port}");
 
-        prepare_chrome_extension(&app, &profile_dir, &server_url, &bridge_key, &profile_key)?
+        Some(prepare_chrome_extension(
+            &app,
+            &profile_dir,
+            &server_url,
+            &bridge_key,
+            &profile_key,
+        )?)
     };
 
     {
@@ -836,7 +858,7 @@ async fn open_chrome_profile_window_with_manager(
         remote_port,
         &url_text,
         true,
-        Some(&extension_dir),
+        extension_dir.as_deref(),
         &launch_options,
     )?;
     let pid = child.id();
@@ -1269,7 +1291,7 @@ pub async fn get_browser_backends_status(
                 } else {
                     Some("aster 兼容层当前无可用下游连接（扩展/CDP/native-host）".to_string())
                 },
-                capabilities: aster_backend_capabilities(),
+                capabilities: filter_backend_capabilities(aster_backend_capabilities()),
             },
             BrowserBackendStatusItem {
                 backend: BrowserBackendType::LimeExtensionBridge,
@@ -1279,17 +1301,22 @@ pub async fn get_browser_backends_status(
                 } else {
                     Some("未检测到扩展 observer 连接".to_string())
                 },
-                capabilities: extension_backend_capabilities(),
+                capabilities: filter_backend_capabilities(extension_backend_capabilities()),
             },
             BrowserBackendStatusItem {
                 backend: BrowserBackendType::CdpDirect,
                 available: cdp_available,
                 reason: if cdp_available {
                     None
+                } else if extension_available {
+                    Some(
+                        "已检测到扩展 observer，但未命中可连接的 CDP 调试端口；请确认当前 Chrome 已开启远程调试。"
+                            .to_string(),
+                    )
                 } else {
                     Some("未检测到可连接的 CDP 调试端口".to_string())
                 },
-                capabilities: cdp_backend_capabilities(),
+                capabilities: filter_backend_capabilities(cdp_backend_capabilities()),
             },
         ],
     })
@@ -1336,7 +1363,7 @@ pub async fn get_browser_backends_status_global() -> Result<BrowserBackendsStatu
                 } else {
                     Some("aster 兼容层当前无可用下游连接（扩展/CDP/native-host）".to_string())
                 },
-                capabilities: aster_backend_capabilities(),
+                capabilities: filter_backend_capabilities(aster_backend_capabilities()),
             },
             BrowserBackendStatusItem {
                 backend: BrowserBackendType::LimeExtensionBridge,
@@ -1346,17 +1373,22 @@ pub async fn get_browser_backends_status_global() -> Result<BrowserBackendsStatu
                 } else {
                     Some("未检测到扩展 observer 连接".to_string())
                 },
-                capabilities: extension_backend_capabilities(),
+                capabilities: filter_backend_capabilities(extension_backend_capabilities()),
             },
             BrowserBackendStatusItem {
                 backend: BrowserBackendType::CdpDirect,
                 available: cdp_available,
                 reason: if cdp_available {
                     None
+                } else if extension_available {
+                    Some(
+                        "已检测到扩展 observer，但未命中可连接的 CDP 调试端口；请确认当前 Chrome 已开启远程调试。"
+                            .to_string(),
+                    )
                 } else {
                     Some("未检测到可连接的 CDP 调试端口".to_string())
                 },
-                capabilities: cdp_backend_capabilities(),
+                capabilities: filter_backend_capabilities(cdp_backend_capabilities()),
             },
         ],
     })
@@ -1609,9 +1641,10 @@ fn sync_automation_browser_state(db: &DbConnection, state: &CdpSessionState, fin
 pub async fn browser_execute_action(
     _app: AppHandle,
     state: tauri::State<'_, ChromeProfileManagerWrapper>,
+    db: tauri::State<'_, DbConnection>,
     request: BrowserActionRequest,
 ) -> Result<BrowserActionResult, String> {
-    browser_execute_action_with_manager(state.0.clone(), request).await
+    browser_execute_action_with_manager(state.0.clone(), db.inner().clone(), request).await
 }
 
 /// 获取浏览器动作审计日志
@@ -1639,27 +1672,61 @@ pub async fn get_browser_action_audit_logs_global(
 /// 使用指定 profile manager 执行动作（供非 Tauri 命令入口复用）
 pub async fn browser_execute_action_with_manager(
     manager: Arc<Mutex<ChromeProfileManagerState>>,
+    db: DbConnection,
     request: BrowserActionRequest,
 ) -> Result<BrowserActionResult, String> {
-    let action = normalize_action_name(&request.action)?;
+    let requested_backend = request.backend.clone();
+    let timeout_ms = request.timeout_ms;
+    let (action, normalized_args) =
+        normalize_browser_action_request(&request.action, request.args)?;
     let request_id = format!("browser-{}", uuid::Uuid::new_v4());
     let policy = BROWSER_BACKEND_POLICY.read().await.clone();
-    let candidates = build_backend_candidates(request.backend.clone(), &policy);
-    let allow_fallback = request.backend.is_none() && policy.auto_fallback;
+    let allow_fallback = requested_backend.is_none() && policy.auto_fallback;
     let profile_key = request
         .profile_key
         .as_deref()
         .map(normalize_profile_key)
         .or_else(|| Some("default".to_string()));
+    if let Err(error) = ensure_browser_action_capability_enabled(&action) {
+        let result = BrowserActionResult {
+            success: false,
+            backend: None,
+            session_id: None,
+            target_id: None,
+            action: action.clone(),
+            request_id: request_id.clone(),
+            data: None,
+            error: Some(error.clone()),
+            attempts: Vec::new(),
+        };
+        append_browser_runtime_audit(BrowserRuntimeAuditRecord::action(
+            request_id,
+            action,
+            profile_key.clone(),
+            requested_backend,
+            None,
+            None,
+            None,
+            false,
+            Some(error),
+            Vec::new(),
+        ))
+        .await;
+        return Ok(result);
+    }
+    let profile_transport =
+        load_browser_profile_transport_kind(&db, profile_key.as_deref(), &requested_backend);
+    let candidates =
+        build_backend_candidates(requested_backend.clone(), &policy, profile_transport);
 
     let mut attempts = Vec::new();
     for (idx, backend) in candidates.iter().enumerate() {
         match execute_browser_action_with_backend(
             backend.clone(),
             &action,
-            request.args.clone(),
+            normalized_args.clone(),
             profile_key.clone(),
-            request.timeout_ms,
+            timeout_ms,
             manager.clone(),
         )
         .await
@@ -1689,7 +1756,7 @@ pub async fn browser_execute_action_with_manager(
                     request_id,
                     result.action.clone(),
                     profile_key.clone(),
-                    request.backend.clone(),
+                    requested_backend.clone(),
                     result.backend.clone(),
                     result.session_id.clone(),
                     result.target_id.clone(),
@@ -1722,7 +1789,7 @@ pub async fn browser_execute_action_with_manager(
                         request_id,
                         result.action.clone(),
                         profile_key.clone(),
-                        request.backend.clone(),
+                        requested_backend.clone(),
                         None,
                         None,
                         None,
@@ -1752,7 +1819,7 @@ pub async fn browser_execute_action_with_manager(
         request_id,
         action,
         profile_key,
-        request.backend,
+        requested_backend,
         None,
         None,
         None,
@@ -1767,9 +1834,10 @@ pub async fn browser_execute_action_with_manager(
 /// 使用全局 profile manager 执行动作（供 Agent 工具复用）
 #[cfg_attr(any(test, not(debug_assertions)), allow(dead_code))]
 pub async fn browser_execute_action_global(
+    db: DbConnection,
     request: BrowserActionRequest,
 ) -> Result<BrowserActionResult, String> {
-    browser_execute_action_with_manager(shared_chrome_profile_manager(), request).await
+    browser_execute_action_with_manager(shared_chrome_profile_manager(), db, request).await
 }
 
 pub async fn append_browser_runtime_launch_audit(input: BrowserRuntimeLaunchAuditInput) {
@@ -1812,7 +1880,23 @@ fn normalize_backend_policy(policy: BrowserBackendPolicy) -> Result<BrowserBacke
 fn build_backend_candidates(
     forced_backend: Option<BrowserBackendType>,
     policy: &BrowserBackendPolicy,
+    profile_transport: Option<BrowserProfileTransportKind>,
 ) -> Vec<BrowserBackendType> {
+    if matches!(
+        profile_transport,
+        Some(BrowserProfileTransportKind::ExistingSession)
+    ) {
+        if forced_backend
+            .as_ref()
+            .is_some_and(|backend| *backend != BrowserBackendType::LimeExtensionBridge)
+        {
+            tracing::warn!(
+                "[BrowserRuntime] existing_session 资料不支持 {:?}，已强制切换为 lime_extension_bridge",
+                forced_backend
+            );
+        }
+        return vec![BrowserBackendType::LimeExtensionBridge];
+    }
     if let Some(backend) = forced_backend {
         return vec![backend];
     }
@@ -1820,6 +1904,39 @@ fn build_backend_candidates(
         return BrowserBackendPolicy::default().priority;
     }
     policy.priority.clone()
+}
+
+fn load_browser_profile_transport_kind(
+    db: &DbConnection,
+    profile_key: Option<&str>,
+    requested_backend: &Option<BrowserBackendType>,
+) -> Option<BrowserProfileTransportKind> {
+    let normalized_profile_key = profile_key.map(normalize_profile_key)?;
+    let conn = match lock_db(db) {
+        Ok(conn) => conn,
+        Err(error) => {
+            tracing::warn!(
+                "[BrowserRuntime] 读取浏览器资料 transport_kind 失败: profile_key={}, requested_backend={:?}, error={}",
+                normalized_profile_key,
+                requested_backend,
+                error
+            );
+            return None;
+        }
+    };
+    match get_browser_profile_by_key(&conn, &normalized_profile_key) {
+        Ok(Some(profile)) if profile.archived_at.is_none() => Some(profile.transport_kind),
+        Ok(_) => None,
+        Err(error) => {
+            tracing::warn!(
+                "[BrowserRuntime] 查询浏览器资料 transport_kind 失败: profile_key={}, requested_backend={:?}, error={}",
+                normalized_profile_key,
+                requested_backend,
+                error
+            );
+            None
+        }
+    }
 }
 
 fn normalize_action_name(action: &str) -> Result<String, String> {
@@ -1835,6 +1952,124 @@ fn normalize_action_name(action: &str) -> Result<String, String> {
         return Err("action 无效".to_string());
     }
     Ok(stripped.to_ascii_lowercase())
+}
+
+fn normalize_browser_action_request(action: &str, args: Value) -> Result<(String, Value), String> {
+    let normalized_action = normalize_action_name(action)?;
+    match normalized_action.as_str() {
+        "computer" => normalize_legacy_computer_action(args),
+        "javascript_tool" => normalize_legacy_javascript_tool_action(args),
+        _ => Ok((normalized_action, args)),
+    }
+}
+
+fn value_into_object(args: Value) -> serde_json::Map<String, Value> {
+    match args {
+        Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    }
+}
+
+fn extract_scroll_amount_from_script(script: &str) -> Option<i64> {
+    WINDOW_SCROLL_SCRIPT_TOP_REGEX
+        .captures(script)
+        .and_then(|captures| captures.name("amount"))
+        .or_else(|| {
+            WINDOW_SCROLL_SCRIPT_COORD_REGEX
+                .captures(script)
+                .and_then(|captures| captures.name("amount"))
+        })
+        .and_then(|amount| amount.as_str().trim().parse::<i64>().ok())
+}
+
+fn normalize_legacy_computer_action(args: Value) -> Result<(String, Value), String> {
+    let mut next_args = value_into_object(args);
+    let computer_action = next_args
+        .get("action")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("click")
+        .to_ascii_lowercase();
+
+    match computer_action.as_str() {
+        "click" => Ok(("click".to_string(), Value::Object(next_args))),
+        "type" | "input" => Ok(("type".to_string(), Value::Object(next_args))),
+        "scroll" => {
+            let raw_amount = next_args
+                .get("amount")
+                .and_then(Value::as_i64)
+                .or_else(|| next_args.get("y").and_then(Value::as_i64))
+                .unwrap_or(500);
+            let direction = next_args
+                .get("direction")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+                .unwrap_or_else(|| {
+                    if raw_amount < 0 {
+                        "up".to_string()
+                    } else {
+                        "down".to_string()
+                    }
+                });
+            let amount = raw_amount.unsigned_abs().max(1);
+            next_args.insert(
+                "direction".to_string(),
+                Value::String(direction.clone()),
+            );
+            next_args.insert("amount".to_string(), Value::from(amount));
+            next_args.insert(
+                "text".to_string(),
+                Value::String(format!("{direction}:{amount}")),
+            );
+            Ok(("scroll_page".to_string(), Value::Object(next_args)))
+        }
+        _ => Err(format!(
+            "当前浏览器兼容层暂不支持 computer.action={computer_action}，请改用 click/type/scroll 一类动作"
+        )),
+    }
+}
+
+fn normalize_legacy_javascript_tool_action(args: Value) -> Result<(String, Value), String> {
+    let mut next_args = value_into_object(args);
+    let script = [
+        "script",
+        "code",
+        "javascript",
+        "expression",
+        "text",
+        "value",
+    ]
+    .iter()
+    .find_map(|key| {
+        next_args
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+    })
+    .ok_or_else(|| "javascript_tool 需要提供 script/code/expression 参数".to_string())?;
+
+    if let Some(amount) = extract_scroll_amount_from_script(&script) {
+        let direction = if amount < 0 { "up" } else { "down" };
+        let normalized_amount = amount.unsigned_abs().max(1);
+        next_args.insert(
+            "direction".to_string(),
+            Value::String(direction.to_string()),
+        );
+        next_args.insert("amount".to_string(), Value::from(normalized_amount));
+        next_args.insert(
+            "text".to_string(),
+            Value::String(format!("{direction}:{normalized_amount}")),
+        );
+        return Ok(("scroll_page".to_string(), Value::Object(next_args)));
+    }
+
+    next_args.insert("expression".to_string(), Value::String(script));
+    Ok(("javascript".to_string(), Value::Object(next_args)))
 }
 
 fn normalize_action_timeout(timeout_ms: Option<u64>) -> u64 {
@@ -2046,6 +2281,9 @@ fn cdp_backend_capabilities() -> Vec<String> {
         "navigate".to_string(),
         "read_page".to_string(),
         "get_page_text".to_string(),
+        "find".to_string(),
+        "computer".to_string(),
+        "javascript_tool".to_string(),
         "click".to_string(),
         "type".to_string(),
         "scroll".to_string(),
@@ -2057,6 +2295,10 @@ fn cdp_backend_capabilities() -> Vec<String> {
         "read_console_messages".to_string(),
         "read_network_requests".to_string(),
     ]
+}
+
+fn filter_backend_capabilities(capabilities: Vec<String>) -> Vec<String> {
+    filter_enabled_browser_action_capabilities(&capabilities).unwrap_or(capabilities)
 }
 
 fn action_arg_string(args: &Value, keys: &[&str]) -> Option<String> {
@@ -2347,7 +2589,7 @@ async fn execute_extension_backend_action(
                 target: action_arg_string(&args, &["target", "ref_id"]),
                 text: action_arg_string(&args, &["text", "value"]),
                 url: action_arg_string(&args, &["url"]),
-                payload: None,
+                payload: Some(args.clone()),
                 wait_for_page_info: action_arg_bool(
                     &args,
                     "wait_for_page_info",
@@ -2400,6 +2642,8 @@ async fn execute_cdp_backend_action(
         | "click"
         | "type"
         | "form_input"
+        | "javascript"
+        | "find"
         | "scroll"
         | "scroll_page"
         | "refresh_page"
@@ -2556,6 +2800,52 @@ async fn discover_unmanaged_profile_session(
     }))
 }
 
+async fn discover_bridge_backed_profile_session(
+    profile_key: &str,
+) -> Result<Option<ChromeProfileSessionInfo>, String> {
+    let normalized_profile_key = normalize_profile_key(profile_key);
+    let observer = chrome_bridge::chrome_bridge_hub()
+        .get_status_snapshot()
+        .await
+        .observers
+        .into_iter()
+        .find(|item| item.profile_key == normalized_profile_key);
+    let Some(observer) = observer else {
+        return Ok(None);
+    };
+
+    let remote_debugging_port = profile_remote_debugging_port(&normalized_profile_key);
+    let runtime = shared_browser_runtime();
+    let targets = match runtime.list_targets(remote_debugging_port).await {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+
+    let last_url = targets
+        .iter()
+        .find(|target| target.target_type == "page" && !target.url.trim().is_empty())
+        .map(|target| target.url.trim().to_string())
+        .or_else(|| {
+            observer
+                .last_page_info
+                .as_ref()
+                .and_then(|page| page.url.as_ref().map(|value| value.trim().to_string()))
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| "about:blank".to_string());
+
+    Ok(Some(ChromeProfileSessionInfo {
+        profile_key: normalized_profile_key,
+        browser_source: "system".to_string(),
+        browser_path: String::new(),
+        profile_dir: String::new(),
+        remote_debugging_port,
+        pid: 0,
+        started_at: observer.connected_at,
+        last_url,
+    }))
+}
+
 async fn discover_unmanaged_profile_sessions() -> Result<Vec<ChromeProfileSessionInfo>, String> {
     let base_dir = lime_core::app_paths::preferred_data_dir()
         .map_err(|error| format!("获取应用数据目录失败: {error}"))?;
@@ -2586,6 +2876,29 @@ async fn discover_unmanaged_profile_sessions() -> Result<Vec<ChromeProfileSessio
     Ok(discovered)
 }
 
+async fn discover_bridge_backed_profile_sessions() -> Result<Vec<ChromeProfileSessionInfo>, String>
+{
+    let bridge_status = chrome_bridge::chrome_bridge_hub()
+        .get_status_snapshot()
+        .await;
+    let mut discovered = Vec::new();
+    let mut seen_profile_keys = HashSet::new();
+
+    for observer in bridge_status.observers {
+        if !seen_profile_keys.insert(observer.profile_key.clone()) {
+            continue;
+        }
+
+        if let Some(session) = discover_bridge_backed_profile_session(&observer.profile_key).await?
+        {
+            discovered.push(session);
+        }
+    }
+
+    discovered.sort_by(|left, right| left.profile_key.cmp(&right.profile_key));
+    Ok(discovered)
+}
+
 async fn list_alive_profile_sessions(
     manager: Arc<Mutex<ChromeProfileManagerState>>,
 ) -> Vec<ChromeProfileSessionInfo> {
@@ -2605,7 +2918,7 @@ async fn list_alive_profile_sessions(
         guard.sessions.remove(&key);
     }
 
-    let managed_profile_keys = sessions
+    let mut known_profile_keys = sessions
         .iter()
         .map(|session| session.profile_key.clone())
         .collect::<HashSet<_>>();
@@ -2619,11 +2932,25 @@ async fn list_alive_profile_sessions(
         }
     };
 
-    sessions.extend(
-        unmanaged_sessions
-            .into_iter()
-            .filter(|session| !managed_profile_keys.contains(&session.profile_key)),
-    );
+    for session in unmanaged_sessions {
+        if known_profile_keys.insert(session.profile_key.clone()) {
+            sessions.push(session);
+        }
+    }
+
+    let bridge_backed_sessions = match discover_bridge_backed_profile_sessions().await {
+        Ok(items) => items,
+        Err(error) => {
+            tracing::warn!("[ChromeProfile] 发现扩展附着会话失败: {}", error);
+            Vec::new()
+        }
+    };
+
+    for session in bridge_backed_sessions {
+        if known_profile_keys.insert(session.profile_key.clone()) {
+            sessions.push(session);
+        }
+    }
     sessions
 }
 
@@ -2633,7 +2960,10 @@ async fn select_profile_session(
 ) -> Result<ChromeProfileSessionInfo, String> {
     let sessions = list_alive_profile_sessions(manager).await;
     if sessions.is_empty() {
-        return Err("没有可用的 Chrome profile 会话，请先打开独立浏览器窗口".to_string());
+        return Err(
+            "没有可用的 Chrome 会话，请先连接当前 Chrome 扩展并开启远程调试，或启动托管浏览器。"
+                .to_string(),
+        );
     }
 
     if let Some(key) = profile_key {
@@ -2647,7 +2977,13 @@ async fn select_profile_session(
     sessions
         .into_iter()
         .next()
-        .ok_or_else(|| "没有可用的 Chrome profile 会话".to_string())
+        .ok_or_else(|| "没有可用的 Chrome 会话".to_string())
+}
+
+pub async fn resolve_profile_session_global(
+    profile_key: Option<String>,
+) -> Result<ChromeProfileSessionInfo, String> {
+    select_profile_session(shared_chrome_profile_manager(), profile_key).await
 }
 
 async fn ensure_cdp_runtime_session(
@@ -2816,12 +3152,17 @@ fn spawn_chrome_with_profile(
         cmd.arg(format!("--lang={language}"));
     }
 
-    // 如果提供了扩展目录，添加 --load-extension 参数
-    if let Some(ext_dir) = extension_dir {
-        cmd.arg(format!("--load-extension={}", ext_dir.to_string_lossy()));
+    if launch_options.headless {
+        cmd.arg("--headless=new").arg("--disable-gpu");
     }
 
-    if new_window {
+    if !launch_options.headless {
+        if let Some(ext_dir) = extension_dir {
+            cmd.arg(format!("--load-extension={}", ext_dir.to_string_lossy()));
+        }
+    }
+
+    if new_window && !launch_options.headless {
         cmd.arg("--new-window");
     }
     cmd.arg(url);
@@ -3269,6 +3610,31 @@ pub async fn focus_webview_panel(app: AppHandle, panel_id: String) -> Result<boo
 mod tests {
     use super::*;
     use crate::services::browser_profile_service::sanitize_browser_profile_key;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    fn setup_db() -> DbConnection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE browser_profiles (
+                id TEXT PRIMARY KEY,
+                profile_key TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                description TEXT,
+                site_scope TEXT,
+                launch_url TEXT,
+                transport_kind TEXT NOT NULL DEFAULT 'managed_cdp',
+                profile_dir TEXT NOT NULL,
+                managed_profile_dir TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_used_at TEXT,
+                archived_at TEXT
+            );",
+        )
+        .unwrap();
+        Arc::new(Mutex::new(conn))
+    }
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     #[test]
@@ -3342,6 +3708,37 @@ mod tests {
     }
 
     #[test]
+    fn load_browser_profile_transport_kind_should_resolve_existing_session_profile() {
+        let db = setup_db();
+        {
+            let conn = lock_db(&db).unwrap();
+            conn.execute(
+                "INSERT INTO browser_profiles (
+                    id, profile_key, name, description, site_scope, launch_url, transport_kind,
+                    profile_dir, managed_profile_dir, created_at, updated_at, last_used_at, archived_at
+                ) VALUES (?1, ?2, ?3, NULL, NULL, ?4, 'existing_session', '', NULL, ?5, ?5, NULL, NULL)",
+                (
+                    "profile-attach",
+                    "xhs_attach",
+                    "小红书附着",
+                    "https://www.xiaohongshu.com/",
+                    "2026-03-30T00:00:00Z",
+                ),
+            )
+            .unwrap();
+        }
+
+        let requested_backend: Option<BrowserBackendType> = None;
+        let transport =
+            load_browser_profile_transport_kind(&db, Some("xhs_attach"), &requested_backend);
+
+        assert_eq!(
+            transport,
+            Some(BrowserProfileTransportKind::ExistingSession)
+        );
+    }
+
+    #[test]
     fn normalize_action_name_should_strip_aster_prefix() {
         let action =
             normalize_action_name("mcp__lime-browser__read_page").expect("action must normalize");
@@ -3349,8 +3746,60 @@ mod tests {
     }
 
     #[test]
+    fn normalize_browser_action_request_should_map_computer_scroll() {
+        let (action, args) = normalize_browser_action_request(
+            "computer",
+            json!({
+                "action": "scroll",
+                "amount": 2000,
+            }),
+        )
+        .expect("computer scroll should normalize");
+
+        assert_eq!(action, "scroll_page");
+        assert_eq!(args.get("direction"), Some(&json!("down")));
+        assert_eq!(args.get("amount"), Some(&json!(2000)));
+        assert_eq!(args.get("text"), Some(&json!("down:2000")));
+    }
+
+    #[test]
+    fn normalize_browser_action_request_should_convert_scroll_script() {
+        let (action, args) = normalize_browser_action_request(
+            "javascript_tool",
+            json!({
+                "code": "// 滚动页面以加载更多内容\nwindow.scrollBy(0, 2000);\n// 等待一会儿",
+            }),
+        )
+        .expect("scroll script should normalize");
+
+        assert_eq!(action, "scroll_page");
+        assert_eq!(args.get("direction"), Some(&json!("down")));
+        assert_eq!(args.get("amount"), Some(&json!(2000)));
+        assert_eq!(args.get("text"), Some(&json!("down:2000")));
+    }
+
+    #[test]
+    fn normalize_browser_action_request_should_keep_generic_javascript() {
+        let (action, args) = normalize_browser_action_request(
+            "javascript_tool",
+            json!({
+                "script": "document.title",
+            }),
+        )
+        .expect("generic javascript should normalize");
+
+        assert_eq!(action, "javascript");
+        assert_eq!(args.get("expression"), Some(&json!("document.title")));
+    }
+
+    #[test]
     fn extension_backend_capabilities_should_include_list_tabs() {
         assert!(extension_backend_capabilities().contains(&"list_tabs".to_string()));
+    }
+
+    #[test]
+    fn cdp_backend_capabilities_should_include_find() {
+        assert!(cdp_backend_capabilities().contains(&"find".to_string()));
     }
 
     #[test]
@@ -3390,8 +3839,23 @@ mod tests {
     #[test]
     fn build_backend_candidates_should_prefer_forced_backend() {
         let policy = BrowserBackendPolicy::default();
-        let candidates = build_backend_candidates(Some(BrowserBackendType::CdpDirect), &policy);
+        let candidates = build_backend_candidates(
+            Some(BrowserBackendType::CdpDirect),
+            &policy,
+            Some(BrowserProfileTransportKind::ManagedCdp),
+        );
         assert_eq!(candidates, vec![BrowserBackendType::CdpDirect]);
+    }
+
+    #[test]
+    fn build_backend_candidates_should_pin_existing_session_to_extension_bridge() {
+        let policy = BrowserBackendPolicy::default();
+        let candidates = build_backend_candidates(
+            Some(BrowserBackendType::CdpDirect),
+            &policy,
+            Some(BrowserProfileTransportKind::ExistingSession),
+        );
+        assert_eq!(candidates, vec![BrowserBackendType::LimeExtensionBridge]);
     }
 
     #[tokio::test]

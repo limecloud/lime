@@ -66,6 +66,8 @@ pub enum TurnPromptAugmentationStageKind {
     WebSearch,
     RequestToolPolicy,
     Artifact,
+    ServiceSkillLaunch,
+    ServiceSkillLaunchPreload,
     Elicitation,
     TeamPreference,
     AutoContinue,

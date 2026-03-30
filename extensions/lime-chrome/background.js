@@ -2,26 +2,71 @@ const HEARTBEAT_INTERVAL_MS = 30000;
 const RECONNECT_MIN_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 const PAGE_CAPTURE_RETRY_LIMIT = 3;
+const KEEPALIVE_ALARM_NAME = "limeBridgeKeepAlive";
+const KEEPALIVE_PERIOD_MINUTES = 1;
+const DEBUGGER_PROTOCOL_VERSION = "1.3";
+const MAX_LOG_ENTRIES = 200;
 
 const DEFAULT_SETTINGS = {
   serverUrl: "ws://127.0.0.1:8999",
   bridgeKey: "",
   profileKey: "default",
   monitoringEnabled: true,
+  enabled: true,
 };
 
 let ws = null;
 let isConnected = false;
+let isConnecting = false;
+let controlWs = null;
+let isControlConnected = false;
+let isControlConnecting = false;
+let isEnabled = true;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
+let controlReconnectAttempts = 0;
+let controlReconnectTimer = null;
 let heartbeatTimer = null;
 let activeTabId = null;
 let monitoringEnabled = true;
 let latestPageInfo = null;
+let lastError = null;
+let controlLastError = null;
 let lastSettings = { ...DEFAULT_SETTINGS };
+const debuggerAttachedTabIds = new Set();
 const expectedClosedSockets = new WeakSet();
+const logBuffer = [];
+
+function stringifyPayload(payload) {
+  if (payload === undefined || payload === null) {
+    return "";
+  }
+  if (typeof payload === "string") {
+    return payload;
+  }
+  try {
+    return JSON.stringify(payload);
+  } catch (_) {
+    return String(payload);
+  }
+}
+
+function pushLog(dir, method, detail) {
+  const normalizedMethod = String(method || "").trim() || "event";
+  const normalizedDetail = String(detail || "").trim();
+  logBuffer.push({
+    ts: Date.now(),
+    dir: String(dir || "").trim() || "sys",
+    method: normalizedMethod,
+    detail: normalizedDetail,
+  });
+  if (logBuffer.length > MAX_LOG_ENTRIES) {
+    logBuffer.splice(0, logBuffer.length - MAX_LOG_ENTRIES);
+  }
+}
 
 function logInfo(message, payload) {
+  pushLog("sys", message, stringifyPayload(payload));
   if (payload === undefined) {
     console.log(`[LimeBridge] ${message}`);
   } else {
@@ -30,6 +75,7 @@ function logInfo(message, payload) {
 }
 
 function logWarn(message, payload) {
+  pushLog("warn", message, stringifyPayload(payload));
   if (payload === undefined) {
     console.warn(`[LimeBridge] ${message}`);
   } else {
@@ -51,6 +97,12 @@ function writeSettings(partial) {
   });
 }
 
+function applySettingsState(settings) {
+  lastSettings = settings;
+  monitoringEnabled = Boolean(settings.monitoringEnabled);
+  isEnabled = settings.enabled !== false;
+}
+
 function buildObserverUrl(settings) {
   const serverUrl = String(settings.serverUrl || "").trim();
   const bridgeKey = String(settings.bridgeKey || "").trim();
@@ -63,85 +115,139 @@ function buildObserverUrl(settings) {
   return `${normalized}/lime-chrome-observer/${encodeURIComponent(bridgeKey)}?profileKey=${profileKey}`;
 }
 
+function buildControlUrl(settings) {
+  const serverUrl = String(settings.serverUrl || "").trim();
+  const bridgeKey = String(settings.bridgeKey || "").trim();
+  if (!serverUrl || !bridgeKey) {
+    return null;
+  }
+
+  const normalized = serverUrl.replace(/\/$/, "");
+  return `${normalized}/lime-chrome-control/${encodeURIComponent(bridgeKey)}`;
+}
+
 function isCapturableUrl(url) {
   return /^https?:\/\//i.test(String(url || "").trim());
 }
 
-async function connectObserver(forceReconnect = false) {
-  if (ws && ws.readyState === WebSocket.OPEN && !forceReconnect) {
-    return;
-  }
+function isDebuggerAttachableUrl(url) {
+  const normalizedUrl = String(url || "").trim();
+  return /^(https?|file):\/\//i.test(normalizedUrl) || normalizedUrl === "about:blank";
+}
 
-  clearReconnectTimer();
-  clearHeartbeatTimer();
-
-  const settings = await readSettings();
-  lastSettings = settings;
-  monitoringEnabled = Boolean(settings.monitoringEnabled);
-
-  const url = buildObserverUrl(settings);
-  if (!url) {
-    logWarn("缺少 serverUrl 或 bridgeKey，无法建立连接");
-    setConnectionState(false);
-    broadcastStatus();
-    return;
-  }
-
-  if (forceReconnect && ws) {
-    closeObserverSocket(ws, { shouldReconnect: false });
-  }
-
-  logInfo(`连接 observer: ${url}`);
-  const socket = new WebSocket(url);
-  ws = socket;
-
-  socket.onopen = () => {
-    reconnectAttempts = 0;
-    setConnectionState(true);
-    startHeartbeat();
-    broadcastStatus();
-    triggerPageCapture("ws_open");
-  };
-
-  socket.onmessage = async (event) => {
-    try {
-      const payload = JSON.parse(event.data);
-      await handleObserverMessage(payload);
-    } catch (error) {
-      logWarn("解析消息失败", error?.message || String(error));
-    }
-  };
-
-  socket.onclose = () => {
-    const shouldReconnect = !expectedClosedSockets.has(socket);
-    if (ws === socket) {
-      ws = null;
-    }
-    setConnectionState(false);
-    clearHeartbeatTimer();
-    if (shouldReconnect) {
-      scheduleReconnect();
-    } else {
-      reconnectAttempts = 0;
-    }
-    broadcastStatus();
-  };
-
-  socket.onerror = (error) => {
-    logWarn("WebSocket 错误", error?.message || error);
+function maskSettings(settings) {
+  return {
+    ...settings,
+    bridgeKey: settings.bridgeKey ? "***" : "",
   };
 }
 
-function disconnectObserver(manual = true) {
-  clearReconnectTimer();
-  clearHeartbeatTimer();
-  if (ws) {
-    closeObserverSocket(ws, { shouldReconnect: false });
+function getRelayState() {
+  if (!isEnabled) {
+    return "disabled";
   }
-  if (manual) {
-    setConnectionState(false);
-    broadcastStatus();
+  if (isConnected && isControlConnected) {
+    return "connected";
   }
+  return "disconnected";
+}
+
+function buildRelayCompatibilityPayload() {
+  return {
+    state: getRelayState(),
+    connected: isConnected && isControlConnected,
+    active: isConnected,
+    reconnecting:
+      isConnecting ||
+      isControlConnecting ||
+      Boolean(reconnectTimer) ||
+      Boolean(controlReconnectTimer),
+    attachedTabs: debuggerAttachedTabIds.size,
+    agentTabs: 0,
+    retainedTabs: 0,
+    observerConnected: isConnected,
+    controlConnected: isControlConnected,
+    debuggerTabs: Array.from(debuggerAttachedTabIds.values()),
+    activeTabId,
+    lastError,
+    controlLastError,
+  };
+}
+
+function buildStatusPayload(extra) {
+  return {
+    isConnected,
+    isConnecting,
+    isControlConnected,
+    isControlConnecting,
+    enabled: isEnabled,
+    monitoringEnabled,
+    activeTabId,
+    latestPageInfo,
+    debuggerTabIds: Array.from(debuggerAttachedTabIds.values()),
+    lastError,
+    controlLastError,
+    relayState: getRelayState(),
+    settings: maskSettings(lastSettings),
+    ...extra,
+  };
+}
+
+function setBadgeState() {
+  let text = "OFF";
+  let color = "#64748b";
+
+  if (isConnected) {
+    text = "ON";
+    color = "#16a34a";
+  } else if (isConnecting || reconnectTimer) {
+    text = "…";
+    color = "#d97706";
+  } else if (lastError && isEnabled) {
+    text = "!";
+    color = "#dc2626";
+  }
+
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color });
+}
+
+function clearLastError() {
+  lastError = null;
+}
+
+function rememberLastError(error) {
+  const normalized = String(error || "").trim();
+  lastError = normalized || "浏览器连接器执行失败";
+}
+
+function clearControlLastError() {
+  controlLastError = null;
+}
+
+function rememberControlLastError(error) {
+  const normalized = String(error || "").trim();
+  controlLastError = normalized || "控制通道执行失败";
+}
+
+function broadcastStatus(extra) {
+  setBadgeState();
+  chrome.runtime
+    .sendMessage({
+      type: "STATUS_UPDATE",
+      data: buildStatusPayload(extra),
+    })
+    .catch(() => {});
+}
+
+function ensureKeepAliveAlarm() {
+  chrome.alarms.create(KEEPALIVE_ALARM_NAME, {
+    periodInMinutes: KEEPALIVE_PERIOD_MINUTES,
+  });
+}
+
+function clearKeepAliveAlarm() {
+  chrome.alarms.clear(KEEPALIVE_ALARM_NAME);
 }
 
 function closeObserverSocket(socket, { shouldReconnect }) {
@@ -156,18 +262,11 @@ function closeObserverSocket(socket, { shouldReconnect }) {
   } catch (_) {}
 }
 
-function setConnectionState(connected) {
-  isConnected = connected;
-  chrome.action.setBadgeText({ text: connected ? "ON" : "OFF" });
-  chrome.action.setBadgeBackgroundColor({
-    color: connected ? "#16a34a" : "#dc2626",
-  });
-}
-
 function startHeartbeat() {
   clearHeartbeatTimer();
   heartbeatTimer = setInterval(() => {
     sendObserverMessage({ type: "heartbeat", timestamp: Date.now() });
+    sendControlMessage({ type: "heartbeat", timestamp: Date.now() });
   }, HEARTBEAT_INTERVAL_MS);
 }
 
@@ -178,22 +277,6 @@ function clearHeartbeatTimer() {
   }
 }
 
-function scheduleReconnect() {
-  if (reconnectTimer) {
-    return;
-  }
-  reconnectAttempts += 1;
-  const delay = Math.min(
-    RECONNECT_MAX_DELAY_MS,
-    RECONNECT_MIN_DELAY_MS * Math.pow(2, reconnectAttempts - 1),
-  );
-  reconnectTimer = setTimeout(async () => {
-    reconnectTimer = null;
-    await connectObserver();
-  }, delay);
-  logInfo(`连接断开，${delay}ms 后重连（第 ${reconnectAttempts} 次）`);
-}
-
 function clearReconnectTimer() {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
@@ -201,47 +284,529 @@ function clearReconnectTimer() {
   }
 }
 
+function clearControlReconnectTimer() {
+  if (controlReconnectTimer) {
+    clearTimeout(controlReconnectTimer);
+    controlReconnectTimer = null;
+  }
+}
+
 function sendObserverMessage(payload) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     return false;
   }
+  pushLog("out", payload?.type || "observer_message", stringifyPayload(payload?.data));
   ws.send(JSON.stringify(payload));
   return true;
 }
 
-function broadcastStatus(extra) {
-  chrome.runtime
-    .sendMessage({
-      type: "STATUS_UPDATE",
-      data: {
-        isConnected,
-        monitoringEnabled,
-        activeTabId,
-        latestPageInfo,
-        settings: {
-          ...lastSettings,
-          bridgeKey: lastSettings.bridgeKey ? "***" : "",
-        },
-        ...extra,
-      },
-    })
-    .catch(() => {});
+function sendControlMessage(payload) {
+  if (!controlWs || controlWs.readyState !== WebSocket.OPEN) {
+    return false;
+  }
+  pushLog("out", payload?.type || "control_message", stringifyPayload(payload?.data));
+  controlWs.send(JSON.stringify(payload));
+  return true;
+}
+
+async function disconnectObserver(options = {}) {
+  const {
+    disableAutoReconnect = false,
+    reason = null,
+    silent = false,
+  } = options;
+
+  clearReconnectTimer();
+  clearControlReconnectTimer();
+  clearHeartbeatTimer();
+
+  if (disableAutoReconnect) {
+    isEnabled = false;
+    lastSettings = { ...lastSettings, enabled: false };
+    await writeSettings({ enabled: false });
+    clearKeepAliveAlarm();
+  } else if (isEnabled) {
+    ensureKeepAliveAlarm();
+  }
+
+  const socket = ws;
+  ws = null;
+  if (socket) {
+    closeObserverSocket(socket, { shouldReconnect: false });
+  }
+  const controlSocket = controlWs;
+  controlWs = null;
+  if (controlSocket) {
+    closeObserverSocket(controlSocket, { shouldReconnect: false });
+  }
+
+  isConnected = false;
+  isConnecting = false;
+  isControlConnected = false;
+  isControlConnecting = false;
+  if (typeof reason === "string" && reason.trim()) {
+    rememberLastError(reason);
+    rememberControlLastError(reason);
+  } else if (disableAutoReconnect) {
+    clearLastError();
+    clearControlLastError();
+  }
+
+  if (!silent) {
+    broadcastStatus();
+  } else {
+    setBadgeState();
+  }
+}
+
+async function connectObserver(forceReconnect = false) {
+  if (ws && ws.readyState === WebSocket.OPEN && !forceReconnect) {
+    return;
+  }
+  if (isConnecting && !forceReconnect) {
+    return;
+  }
+
+  clearReconnectTimer();
+  clearHeartbeatTimer();
+
+  const settings = await readSettings();
+  applySettingsState(settings);
+  if (!isEnabled) {
+    clearKeepAliveAlarm();
+    isConnecting = false;
+    isConnected = false;
+    isControlConnecting = false;
+    isControlConnected = false;
+    clearLastError();
+    clearControlLastError();
+    broadcastStatus();
+    return;
+  }
+
+  ensureKeepAliveAlarm();
+
+  const url = buildObserverUrl(settings);
+  if (!url) {
+    isConnecting = false;
+    isConnected = false;
+    rememberLastError("缺少 serverUrl 或 bridgeKey，无法建立连接");
+    broadcastStatus();
+    return;
+  }
+
+  if (forceReconnect && ws) {
+    closeObserverSocket(ws, { shouldReconnect: false });
+    ws = null;
+  }
+
+  isConnecting = true;
+  isConnected = false;
+  clearLastError();
+  broadcastStatus();
+
+  logInfo(`连接 observer: ${url}`);
+  const socket = new WebSocket(url);
+  ws = socket;
+
+  socket.onopen = () => {
+    if (ws !== socket) {
+      return;
+    }
+    reconnectAttempts = 0;
+    isConnected = true;
+    isConnecting = false;
+    clearLastError();
+    startHeartbeat();
+    broadcastStatus();
+    void connectControl();
+    void triggerPageCapture("ws_open");
+  };
+
+  socket.onmessage = async (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      pushLog("in", payload?.type || "observer_message", stringifyPayload(payload?.data));
+      await handleObserverMessage(payload);
+    } catch (error) {
+      logWarn("解析消息失败", error?.message || String(error));
+    }
+  };
+
+  socket.onclose = () => {
+    const shouldReconnect = !expectedClosedSockets.has(socket) && isEnabled;
+    if (ws === socket) {
+      ws = null;
+    }
+    isConnected = false;
+    isConnecting = false;
+    clearHeartbeatTimer();
+    if (shouldReconnect) {
+      scheduleReconnect();
+    } else {
+      reconnectAttempts = 0;
+      broadcastStatus();
+    }
+  };
+
+  socket.onerror = (error) => {
+    rememberLastError(error?.message || String(error));
+    broadcastStatus();
+  };
+}
+
+async function connectControl(forceReconnect = false) {
+  if (controlWs && controlWs.readyState === WebSocket.OPEN && !forceReconnect) {
+    return;
+  }
+  if (isControlConnecting && !forceReconnect) {
+    return;
+  }
+
+  clearControlReconnectTimer();
+
+  const settings = await readSettings();
+  applySettingsState(settings);
+  if (!isEnabled) {
+    isControlConnecting = false;
+    isControlConnected = false;
+    clearControlLastError();
+    broadcastStatus();
+    return;
+  }
+
+  const url = buildControlUrl(settings);
+  if (!url) {
+    isControlConnecting = false;
+    isControlConnected = false;
+    rememberControlLastError("缺少 serverUrl 或 bridgeKey，无法建立控制通道");
+    broadcastStatus();
+    return;
+  }
+
+  if (forceReconnect && controlWs) {
+    closeObserverSocket(controlWs, { shouldReconnect: false });
+    controlWs = null;
+  }
+
+  isControlConnecting = true;
+  isControlConnected = false;
+  clearControlLastError();
+  broadcastStatus();
+
+  logInfo(`连接 control: ${url}`);
+  const socket = new WebSocket(url);
+  controlWs = socket;
+
+  socket.onopen = () => {
+    if (controlWs !== socket) {
+      return;
+    }
+    controlReconnectAttempts = 0;
+    isControlConnected = true;
+    isControlConnecting = false;
+    clearControlLastError();
+    broadcastStatus();
+  };
+
+  socket.onmessage = async (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      pushLog("in", payload?.type || "control_message", stringifyPayload(payload?.data));
+      await handleControlMessage(payload);
+    } catch (error) {
+      logWarn("解析控制消息失败", error?.message || String(error));
+    }
+  };
+
+  socket.onclose = () => {
+    const shouldReconnect = !expectedClosedSockets.has(socket) && isEnabled;
+    if (controlWs === socket) {
+      controlWs = null;
+    }
+    isControlConnected = false;
+    isControlConnecting = false;
+    if (shouldReconnect) {
+      scheduleControlReconnect();
+    } else {
+      controlReconnectAttempts = 0;
+      broadcastStatus();
+    }
+  };
+
+  socket.onerror = (error) => {
+    rememberControlLastError(error?.message || String(error));
+    broadcastStatus();
+  };
+}
+
+function scheduleReconnect() {
+  if (!isEnabled || reconnectTimer) {
+    return;
+  }
+  reconnectAttempts += 1;
+  const delay = Math.min(
+    RECONNECT_MAX_DELAY_MS,
+    RECONNECT_MIN_DELAY_MS * Math.pow(2, reconnectAttempts - 1),
+  );
+  isConnecting = true;
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    await connectObserver();
+  }, delay);
+  logInfo(`连接断开，${delay}ms 后重连（第 ${reconnectAttempts} 次）`);
+  broadcastStatus();
+}
+
+function scheduleControlReconnect() {
+  if (!isEnabled || controlReconnectTimer) {
+    return;
+  }
+  controlReconnectAttempts += 1;
+  const delay = Math.min(
+    RECONNECT_MAX_DELAY_MS,
+    RECONNECT_MIN_DELAY_MS * Math.pow(2, controlReconnectAttempts - 1),
+  );
+  isControlConnecting = true;
+  controlReconnectTimer = setTimeout(async () => {
+    controlReconnectTimer = null;
+    await connectControl();
+  }, delay);
+  logInfo(`控制通道断开，${delay}ms 后重连（第 ${controlReconnectAttempts} 次）`);
+  broadcastStatus();
+}
+
+async function ensureObserverEnabled() {
+  if (isConnected || isConnecting) {
+    if (!isControlConnected && !isControlConnecting) {
+      await connectControl();
+    }
+    return;
+  }
+  const settings = await readSettings();
+  applySettingsState(settings);
+  if (!isEnabled) {
+    broadcastStatus();
+    return;
+  }
+  await connectObserver();
+}
+
+async function handleKeepAliveAlarm() {
+  const settings = await readSettings();
+  applySettingsState(settings);
+  if (!isEnabled) {
+    clearKeepAliveAlarm();
+    isConnecting = false;
+    isConnected = false;
+    isControlConnecting = false;
+    isControlConnected = false;
+    broadcastStatus();
+    return;
+  }
+
+  if (isConnected) {
+    sendObserverMessage({ type: "heartbeat", timestamp: Date.now() });
+    if (isControlConnected) {
+      sendControlMessage({ type: "heartbeat", timestamp: Date.now() });
+    } else if (!isControlConnecting) {
+      await connectControl();
+    }
+    return;
+  }
+
+  if (!isConnecting) {
+    await connectObserver();
+  }
+  if (isConnected && !isControlConnected && !isControlConnecting) {
+    await connectControl();
+  }
 }
 
 async function handleObserverMessage(payload) {
   const type = payload?.type;
   if (type === "heartbeat_ack" || type === "connection_ack") {
+    clearLastError();
+    broadcastStatus();
     return;
   }
   if (type === "force_disconnect") {
     logInfo("收到桌面端主动断开指令");
-    disconnectObserver(true);
+    await disconnectObserver({
+      disableAutoReconnect: true,
+      reason: payload?.message || "Lime 已主动断开当前扩展连接。",
+    });
     return;
   }
   if (type !== "command" || !payload.data) {
     return;
   }
   await executeRemoteCommand(payload.data);
+}
+
+async function handleControlMessage(payload) {
+  const type = payload?.type;
+  if (type === "heartbeat_ack" || type === "connection_ack") {
+    clearControlLastError();
+    broadcastStatus();
+    return;
+  }
+  if (type === "command_result" || type === "page_info_update") {
+    broadcastStatus();
+  }
+}
+
+async function getTabById(tabId) {
+  try {
+    return await chrome.tabs.get(tabId);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function ensureCapturableTab(tabId) {
+  const tab = await getTabById(tabId);
+  if (!tab?.id) {
+    throw new Error("没有可用的活动标签页");
+  }
+  if (!isCapturableUrl(tab.url)) {
+    throw new Error("当前标签页不是可控制的网页，请切换到 http/https 页面后重试");
+  }
+  return tab;
+}
+
+async function ensureDebuggerAttached(tabId) {
+  if (!Number.isInteger(tabId) || tabId <= 0) {
+    return false;
+  }
+  if (debuggerAttachedTabIds.has(tabId)) {
+    return true;
+  }
+
+  const tab = await getTabById(tabId);
+  if (!tab?.id || !isDebuggerAttachableUrl(tab.url)) {
+    return false;
+  }
+
+  try {
+    await chrome.debugger.attach({ tabId }, DEBUGGER_PROTOCOL_VERSION);
+  } catch (error) {
+    const message = error?.message || String(error);
+    if (/already attached/i.test(message)) {
+      debuggerAttachedTabIds.add(tabId);
+      return true;
+    }
+    logWarn("附着 Chrome debugger 失败", { tabId, message });
+    return false;
+  }
+
+  debuggerAttachedTabIds.add(tabId);
+  await Promise.allSettled([
+    chrome.debugger.sendCommand({ tabId }, "Runtime.enable"),
+    chrome.debugger.sendCommand({ tabId }, "Page.enable"),
+    chrome.debugger.sendCommand({ tabId }, "DOM.enable"),
+  ]);
+  broadcastStatus();
+  return true;
+}
+
+async function sendDebuggerCommand(tabId, method, params = {}) {
+  if (!(await ensureDebuggerAttached(tabId))) {
+    throw new Error("当前标签页未能附着 Lime CDP 会话，请确认插件已获取 debugger 权限。");
+  }
+  return await chrome.debugger.sendCommand({ tabId }, method, params);
+}
+
+function readPayloadNumber(payload, key) {
+  const value = payload?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readScrollInstruction(payload, fallbackText) {
+  const text =
+    typeof fallbackText === "string" && fallbackText.trim()
+      ? fallbackText.trim()
+      : typeof payload?.text === "string" && payload.text.trim()
+        ? payload.text.trim()
+        : "";
+  let direction = "down";
+  let amount = 500;
+
+  if (text.includes(":")) {
+    const parts = text.split(":");
+    direction = normalizeText(parts[0]) || "down";
+    const parsed = Number(parts[1]);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      amount = parsed;
+    }
+  } else if (text) {
+    direction = normalizeText(text) || "down";
+  }
+
+  return { direction, amount };
+}
+
+async function executeDebuggerClick(tabId, payload) {
+  const x = readPayloadNumber(payload, "x");
+  const y = readPayloadNumber(payload, "y");
+  if (x == null || y == null) {
+    return false;
+  }
+
+  await sendDebuggerCommand(tabId, "Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+  await sendDebuggerCommand(tabId, "Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+  });
+  return true;
+}
+
+async function executeDebuggerType(tabId, text, target) {
+  if (target || !text) {
+    return false;
+  }
+  await sendDebuggerCommand(tabId, "Input.insertText", {
+    text,
+  });
+  return true;
+}
+
+async function executeDebuggerScroll(tabId, payload, text) {
+  const { direction, amount } = readScrollInstruction(payload, text);
+  const deltaX =
+    direction === "left" ? -amount : direction === "right" ? amount : 0;
+  const deltaY =
+    direction === "up" ? -amount : direction === "down" ? amount : 0;
+
+  await sendDebuggerCommand(tabId, "Runtime.evaluate", {
+    expression: `window.scrollBy(${deltaX}, ${deltaY});`,
+    userGesture: true,
+    awaitPromise: false,
+  });
+  return {
+    direction,
+    amount,
+  };
+}
+
+async function detachDebugger(tabId) {
+  if (!debuggerAttachedTabIds.has(tabId)) {
+    return;
+  }
+  debuggerAttachedTabIds.delete(tabId);
+  try {
+    await chrome.debugger.detach({ tabId });
+  } catch (_) {}
+  broadcastStatus();
 }
 
 async function executeRemoteCommand(commandData) {
@@ -281,26 +846,57 @@ async function executeRemoteCommand(commandData) {
   }
 
   try {
-    const response = await sendCommandToTab(tabId, {
-      type: "EXECUTE_COMMAND",
-      data: commandData,
-    });
+    const tab = await ensureCapturableTab(tabId);
+    const payload =
+      commandData.payload && typeof commandData.payload === "object"
+        ? commandData.payload
+        : null;
+    const text = commandData.text == null ? "" : String(commandData.text);
+    let handledByDebugger = false;
+    let debuggerMessage = null;
 
-    if (response?.status === "error") {
-      sendCommandResult({
-        requestId,
-        sourceClientId,
-        status: "error",
-        error: response.error || "命令执行失败",
+    if (command === "click") {
+      handledByDebugger = await executeDebuggerClick(tab.id, payload);
+      if (handledByDebugger) {
+        debuggerMessage = "click 执行成功";
+      }
+    } else if (command === "type") {
+      handledByDebugger = await executeDebuggerType(tab.id, text, commandData.target);
+      if (handledByDebugger) {
+        debuggerMessage = "type 执行成功";
+      }
+    } else if (command === "scroll" || command === "scroll_page") {
+      const scrollResult = await executeDebuggerScroll(tab.id, payload, text);
+      handledByDebugger = true;
+      debuggerMessage = `${command} 执行成功`;
+      commandData.text = `${scrollResult.direction}:${scrollResult.amount}`;
+    }
+
+    activeTabId = tab.id;
+    let response = null;
+    if (!handledByDebugger) {
+      await ensureDebuggerAttached(tab.id);
+      response = await sendCommandToTab(tab.id, {
+        type: "EXECUTE_COMMAND",
+        data: commandData,
       });
-      return;
+
+      if (response?.status === "error") {
+        sendCommandResult({
+          requestId,
+          sourceClientId,
+          status: "error",
+          error: response.error || "命令执行失败",
+        });
+        return;
+      }
     }
 
     sendCommandResult({
       requestId,
       sourceClientId,
       status: "success",
-      message: response?.message || `${command} 执行成功`,
+      message: debuggerMessage || response?.message || `${command} 执行成功`,
       data: response?.data,
     });
 
@@ -325,13 +921,11 @@ async function resolveCommandTargetTabId(rawTarget) {
 
   const byId = Number(normalizedTarget);
   if (Number.isInteger(byId) && byId > 0) {
-    try {
-      const tab = await chrome.tabs.get(byId);
-      if (tab?.id) {
-        activeTabId = tab.id;
-        return tab.id;
-      }
-    } catch (_) {}
+    const tab = await getTabById(byId);
+    if (tab?.id) {
+      activeTabId = tab.id;
+      return tab.id;
+    }
   }
 
   return await resolveTargetTabId();
@@ -383,6 +977,7 @@ async function handleOpenUrl(commandData, waitForPageInfo) {
           });
 
     activeTabId = tab.id;
+    await ensureDebuggerAttached(tab.id);
     sendCommandResult({
       requestId,
       sourceClientId,
@@ -428,11 +1023,7 @@ async function handleSwitchTab(commandData, waitForPageInfo) {
   let targetTab = null;
   const byId = Number(raw);
   if (!Number.isNaN(byId) && byId > 0) {
-    try {
-      targetTab = await chrome.tabs.get(byId);
-    } catch (_) {
-      targetTab = null;
-    }
+    targetTab = await getTabById(byId);
   }
 
   if (!targetTab) {
@@ -507,6 +1098,11 @@ async function handleListTabs(commandData) {
 }
 
 function sendCommandResult(data) {
+  pushLog(
+    data?.status === "error" ? "warn" : "sys",
+    data?.command || "command_result",
+    data?.error || data?.message || stringifyPayload(data?.data),
+  );
   sendObserverMessage({
     type: "command_result",
     data,
@@ -515,12 +1111,10 @@ function sendCommandResult(data) {
 
 async function resolveTargetTabId() {
   if (activeTabId) {
-    try {
-      const tab = await chrome.tabs.get(activeTabId);
-      if (tab && !tab.discarded) {
-        return tab.id;
-      }
-    } catch (_) {}
+    const tab = await getTabById(activeTabId);
+    if (tab && !tab.discarded) {
+      return tab.id;
+    }
   }
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -534,13 +1128,14 @@ async function resolveTargetTabId() {
 async function sendCommandToTab(tabId, payload) {
   try {
     return await chrome.tabs.sendMessage(tabId, payload);
-  } catch (error) {
+  } catch (_) {
     await injectContentScript(tabId);
     return await chrome.tabs.sendMessage(tabId, payload);
   }
 }
 
 async function injectContentScript(tabId) {
+  await ensureCapturableTab(tabId);
   await chrome.scripting.executeScript({
     target: { tabId },
     files: ["content_script.js"],
@@ -557,30 +1152,24 @@ async function triggerPageCapture(reason, retry = 0) {
     return;
   }
 
-  let tab = null;
-  try {
-    tab = await chrome.tabs.get(tabId);
-  } catch (_) {
-    tab = null;
-  }
-
+  const tab = await getTabById(tabId);
   if (!tab || !isCapturableUrl(tab.url)) {
     return;
   }
 
   try {
+    if (!(await ensureDebuggerAttached(tabId))) {
+      throw new Error("页面抓取前无法附着当前 Chrome CDP 会话");
+    }
     await sendCommandToTab(tabId, {
       type: "REQUEST_PAGE_CAPTURE",
       data: { reason },
     });
   } catch (error) {
     if (retry < PAGE_CAPTURE_RETRY_LIMIT) {
-      setTimeout(
-        () => {
-          triggerPageCapture(reason, retry + 1);
-        },
-        250 * (retry + 1),
-      );
+      setTimeout(() => {
+        void triggerPageCapture(reason, retry + 1);
+      }, 250 * (retry + 1));
     } else {
       logWarn("页面抓取请求失败", error?.message || String(error));
     }
@@ -616,20 +1205,43 @@ function waitTabLoadComplete(tabId, timeoutMs) {
   });
 }
 
+async function listTrackedTabs() {
+  const trackedTabIds = new Set(debuggerAttachedTabIds.values());
+  if (Number.isInteger(activeTabId) && activeTabId > 0) {
+    trackedTabIds.add(activeTabId);
+  }
+
+  const tabs = await Promise.all(
+    Array.from(trackedTabIds.values()).map((tabId) => getTabById(tabId)),
+  );
+
+  return tabs
+    .filter((tab) => tab?.id)
+    .map((tab) => ({
+      tabId: tab.id,
+      state:
+        tab.id === activeTabId
+          ? "active"
+          : debuggerAttachedTabIds.has(tab.id)
+            ? "attached"
+            : "idle",
+      url: tab.url || "",
+      title: tab.title || "",
+      isAgent: false,
+      isRetained: false,
+    }));
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const type = request?.type;
 
   if (type === "GET_STATUS") {
-    sendResponse({
-      isConnected,
-      monitoringEnabled,
-      activeTabId,
-      latestPageInfo,
-      settings: {
-        ...lastSettings,
-        bridgeKey: lastSettings.bridgeKey ? "***" : "",
-      },
-    });
+    sendResponse(buildStatusPayload());
+    return true;
+  }
+
+  if (type === "getRelayStatus") {
+    sendResponse(buildRelayCompatibilityPayload());
     return true;
   }
 
@@ -652,13 +1264,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         typeof patch.monitoringEnabled === "boolean"
           ? patch.monitoringEnabled
           : monitoringEnabled,
+      enabled:
+        typeof patch.enabled === "boolean"
+          ? patch.enabled
+          : patch.reconnect === true
+            ? true
+            : lastSettings.enabled,
     };
 
     writeSettings(next).then(async () => {
-      lastSettings = { ...lastSettings, ...next };
-      monitoringEnabled = Boolean(next.monitoringEnabled);
-      if (request?.data?.reconnect === true) {
-        await connectObserver(true);
+      applySettingsState(next);
+      if (!isEnabled) {
+        await disconnectObserver({ disableAutoReconnect: false, silent: true });
+        clearLastError();
+        clearControlLastError();
+        clearKeepAliveAlarm();
+      } else if (patch.reconnect === true) {
+        await Promise.allSettled([connectObserver(true), connectControl(true)]);
+      } else {
+        ensureKeepAliveAlarm();
       }
       broadcastStatus();
       sendResponse({ success: true });
@@ -666,13 +1290,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (type === "TOGGLE_CONNECTION") {
-    if (isConnected) {
-      disconnectObserver(true);
-      sendResponse({ success: true, isConnected: false });
+  if (type === "toggleRelay") {
+    if (isEnabled) {
+      disconnectObserver({ disableAutoReconnect: true }).then(() => {
+        sendResponse(buildRelayCompatibilityPayload());
+      });
     } else {
-      connectObserver().then(() => {
-        sendResponse({ success: true, isConnected: isConnected });
+      const next = { ...lastSettings, enabled: true };
+      writeSettings({ enabled: true }).then(async () => {
+        applySettingsState(next);
+        await Promise.allSettled([connectObserver(true), connectControl(true)]);
+        sendResponse(buildRelayCompatibilityPayload());
+      });
+    }
+    return true;
+  }
+
+  if (type === "TOGGLE_CONNECTION") {
+    if (isEnabled) {
+      disconnectObserver({ disableAutoReconnect: true }).then(() => {
+        sendResponse({ success: true, isConnected: false, enabled: false });
+      });
+    } else {
+      const next = { ...lastSettings, enabled: true };
+      writeSettings({ enabled: true }).then(async () => {
+        applySettingsState(next);
+        await Promise.allSettled([connectObserver(true), connectControl(true)]);
+        sendResponse({
+          success: true,
+          isConnected,
+          enabled: true,
+        });
       });
     }
     return true;
@@ -680,9 +1328,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (type === "TOGGLE_MONITORING") {
     monitoringEnabled = !monitoringEnabled;
+    lastSettings = { ...lastSettings, monitoringEnabled };
     writeSettings({ monitoringEnabled }).then(() => {
       if (monitoringEnabled) {
-        triggerPageCapture("manual");
+        void triggerPageCapture("manual");
       }
       broadcastStatus();
       sendResponse({ success: true, monitoringEnabled });
@@ -694,6 +1343,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     triggerPageCapture("manual").then(() => {
       sendResponse({ success: true });
     });
+    return true;
+  }
+
+  if (type === "getTabList") {
+    listTrackedTabs()
+      .then((tabs) => {
+        sendResponse({ tabs });
+      })
+      .catch((error) => {
+        sendResponse({
+          tabs: [],
+          error: error?.message || String(error),
+        });
+      });
+    return true;
+  }
+
+  if (type === "getLogs") {
+    const limit = Math.max(1, Math.min(Number(request?.limit) || 100, MAX_LOG_ENTRIES));
+    sendResponse({ logs: logBuffer.slice(-limit) });
     return true;
   }
 
@@ -736,6 +1405,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   activeTabId = tabId;
+  if (isEnabled && !isConnected && !isConnecting) {
+    void ensureObserverEnabled();
+  }
+  void ensureDebuggerAttached(tabId);
   await triggerPageCapture("tab_activated");
   broadcastStatus();
 });
@@ -745,8 +1418,40 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     activeTabId = tabId;
   }
   if (tab.active && changeInfo.status === "complete") {
+    if (isEnabled && !isConnected && !isConnecting) {
+      void ensureObserverEnabled();
+    }
+    void ensureDebuggerAttached(tabId);
     await triggerPageCapture("tab_updated");
   }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void detachDebugger(tabId);
+});
+
+chrome.debugger.onDetach.addListener((source, reason) => {
+  const tabId = source?.tabId;
+  if (!Number.isInteger(tabId)) {
+    return;
+  }
+  debuggerAttachedTabIds.delete(tabId);
+  logWarn("Chrome debugger 已断开", { tabId, reason });
+  broadcastStatus();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === KEEPALIVE_ALARM_NAME) {
+    void handleKeepAliveAlarm();
+  }
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void init();
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  void init(true);
 });
 
 async function loadAutoConfig() {
@@ -768,6 +1473,7 @@ async function loadAutoConfig() {
         bridgeKey: config.bridgeKey,
         profileKey: config.profileKey || "default",
         monitoringEnabled: config.monitoringEnabled !== false,
+        enabled: config.enabled !== false,
       });
       logInfo("自动配置已应用");
     } else {
@@ -787,21 +1493,16 @@ async function loadAutoConfig() {
   }
 }
 
-async function init() {
+async function init(forceReconnect = false) {
   await loadAutoConfig();
 
   const settings = await readSettings();
-  lastSettings = settings;
-  monitoringEnabled = Boolean(settings.monitoringEnabled);
+  applySettingsState(settings);
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tabs[0]?.id || null;
-
-  if (settings.serverUrl && settings.bridgeKey) {
-    await connectObserver();
-  } else {
-    setConnectionState(false);
-    broadcastStatus();
+  if (activeTabId) {
+    void ensureDebuggerAttached(activeTabId);
   }
 
   chrome.storage.local.get(["latestPageInfo"], (stored) => {
@@ -810,6 +1511,32 @@ async function init() {
       broadcastStatus();
     }
   });
+
+  if (!isEnabled) {
+    clearKeepAliveAlarm();
+    isConnecting = false;
+    isConnected = false;
+    clearLastError();
+    broadcastStatus();
+    return;
+  }
+
+  ensureKeepAliveAlarm();
+
+  if (settings.serverUrl && settings.bridgeKey) {
+    await Promise.allSettled([
+      connectObserver(forceReconnect),
+      connectControl(forceReconnect),
+    ]);
+  } else {
+    isConnecting = false;
+    isConnected = false;
+    isControlConnecting = false;
+    isControlConnected = false;
+    clearLastError();
+    clearControlLastError();
+    broadcastStatus();
+  }
 }
 
-init();
+void init();

@@ -24,7 +24,6 @@ use lime_core::logger::LogStore;
 use lime_core::models::anthropic::*;
 use lime_core::models::openai::*;
 use lime_core::models::provider_pool_model::CredentialData;
-use lime_core::models::route_model::{RouteInfo, RouteListResponse};
 use lime_credential::CredentialSyncService;
 use lime_infra::injection::Injector;
 use lime_processor::{RequestContext, RequestProcessor};
@@ -281,9 +280,6 @@ pub struct ServerState {
     /// 路由器引用（用于动态更新默认 Provider）
     pub router_ref: Option<Arc<RwLock<lime_core::router::Router>>>,
     shutdown_tx: Option<oneshot::Sender<()>>,
-    /// 服务器运行时使用的 API key（启动时从配置复制）
-    /// 用于 test_api 命令，确保测试使用的 API key 和服务器一致
-    pub running_api_key: Option<String>,
     /// 服务器实际监听的 host（可能与配置不同，因为会自动切换到有效的 IP）
     pub running_host: Option<String>,
     /// 能力路由指标（能力过滤/模型回退/Provider 回退）
@@ -332,7 +328,6 @@ impl ServerState {
             default_provider_ref,
             router_ref: None,
             shutdown_tx: None,
-            running_api_key: None,
             running_host: None,
             capability_routing_metrics_store: Arc::new(
                 middleware::capability_routing_metrics::CapabilityRoutingMetricsStore::new(),
@@ -454,7 +449,6 @@ impl ServerState {
 
         let port = self.config.server.port;
         let api_key = self.config.server.api_key.clone();
-        let api_key_for_state = api_key.clone(); // 用于保存到 running_api_key
         let default_provider_ref = self.default_provider_ref.clone();
 
         // 重新加载凭证
@@ -577,8 +571,6 @@ impl ServerState {
 
         self.running = true;
         self.start_time = Some(std::time::Instant::now());
-        // 保存服务器运行时使用的 API key，用于 test_api 命令
-        self.running_api_key = Some(api_key_for_state);
         // 保存服务器实际监听的 host（可能与配置不同）
         self.running_host = Some(running_host);
         Ok(())
@@ -590,7 +582,6 @@ impl ServerState {
         }
         self.running = false;
         self.start_time = None;
-        self.running_api_key = None;
         self.running_host = None;
         self.router_ref = None;
     }
@@ -1169,7 +1160,6 @@ async fn run_server(
         .route("/cache", get(cache_diagnostics))
         .route("/stats", get(stats_diagnostics))
         .route("/v1/models", get(models))
-        .route("/v1/routes", get(list_routes))
         .route("/v1/chat/completions", post(
             |State(state): State<AppState>,
              headers: HeaderMap,
@@ -1200,15 +1190,6 @@ async fn run_server(
         .route(
             "/lime-chrome-control/:lime_key",
             get(handlers::chrome_control_ws_upgrade),
-        )
-        // 多供应商路由
-        .route(
-            "/{selector}/v1/messages",
-            post(anthropic_messages_with_selector),
-        )
-        .route(
-            "/{selector}/v1/chat/completions",
-            post(chat_completions_with_selector),
         )
         // Kiro凭证管理API路由
         .merge(kiro_api_routes)
@@ -1735,263 +1716,6 @@ async fn gemini_generate_content(
             })),
         )
             .into_response(),
-    }
-}
-
-/// 列出所有可用路由
-async fn list_routes(State(state): State<AppState>) -> impl IntoResponse {
-    // 处理 base_url：检查 IP 是否有效（在当前网卡列表中或是特殊地址）
-    let display_base_url = {
-        // 从 base_url 中提取 host 部分
-        let url_parts: Vec<&str> = state.base_url.split("://").collect();
-        let host_port = if url_parts.len() > 1 {
-            url_parts[1]
-        } else {
-            &state.base_url
-        };
-        let host = host_port.split(':').next().unwrap_or("localhost");
-
-        // 检查是否需要替换 IP
-        let should_replace = if host == "0.0.0.0" || host == "127.0.0.1" || host == "localhost" {
-            // 0.0.0.0 需要替换为局域网 IP，127.0.0.1 和 localhost 保持不变
-            host == "0.0.0.0"
-        } else {
-            // 检查 IP 是否在当前网卡列表中
-            if let Ok(network_info) = lime_core::network::get_network_info() {
-                !network_info.all_ips.contains(&host.to_string())
-            } else {
-                false
-            }
-        };
-
-        if should_replace {
-            // 获取局域网 IP 进行替换
-            // 优先选择 192.168.x.x 或 10.x.x.x 开头的 IP（真正的局域网 IP）
-            if let Ok(network_info) = lime_core::network::get_network_info() {
-                let new_ip = network_info
-                    .all_ips
-                    .iter()
-                    .find(|ip| ip.starts_with("192.168.") || ip.starts_with("10."))
-                    .or(network_info.lan_ip.as_ref())
-                    .or_else(|| network_info.all_ips.first())
-                    .cloned()
-                    .unwrap_or_else(|| "localhost".to_string());
-                state.base_url.replace(host, &new_ip)
-            } else {
-                state.base_url.replace(host, "localhost")
-            }
-        } else {
-            state.base_url.clone()
-        }
-    };
-
-    let routes = match &state.db {
-        Some(db) => state
-            .pool_service
-            .get_available_routes(db, &display_base_url)
-            .unwrap_or_default(),
-        None => Vec::new(),
-    };
-
-    // 获取默认 Provider
-    let default_provider = state.default_provider.read().await.clone();
-
-    // 添加默认路由
-    let mut all_routes = vec![RouteInfo {
-        selector: "default".to_string(),
-        provider_type: default_provider.clone(),
-        credential_count: 1,
-        endpoints: vec![
-            lime_core::models::route_model::RouteEndpoint {
-                path: "/v1/messages".to_string(),
-                protocol: "claude".to_string(),
-                url: format!("{display_base_url}/v1/messages"),
-            },
-            lime_core::models::route_model::RouteEndpoint {
-                path: "/v1/chat/completions".to_string(),
-                protocol: "openai".to_string(),
-                url: format!("{display_base_url}/v1/chat/completions"),
-            },
-        ],
-        tags: vec!["默认".to_string()],
-        enabled: true,
-    }];
-    all_routes.extend(routes);
-
-    let response = RouteListResponse {
-        base_url: display_base_url,
-        default_provider,
-        routes: all_routes,
-    };
-
-    Json(response)
-}
-
-/// 带选择器的 Anthropic messages 处理
-async fn anthropic_messages_with_selector(
-    State(state): State<AppState>,
-    Path(selector): Path<String>,
-    headers: HeaderMap,
-    Json(request): Json<AnthropicMessagesRequest>,
-) -> Response {
-    // 使用 Anthropic 格式的认证验证
-    if let Err(e) = handlers::verify_api_key_anthropic(&headers, &state.api_key).await {
-        state.logs.write().await.add(
-            "warn",
-            &format!("Unauthorized request to /{selector}/v1/messages"),
-        );
-        return e.into_response();
-    }
-
-    state.logs.write().await.add(
-        "info",
-        &format!(
-            "[REQ] POST /{}/v1/messages model={} stream={}",
-            selector, request.model, request.stream
-        ),
-    );
-
-    // 尝试解析凭证（不降级，指定什么就用什么）
-    let credential = match &state.db {
-        Some(db) => {
-            // 首先尝试按名称查找
-            if let Ok(Some(cred)) = state.pool_service.get_by_name(db, &selector) {
-                Some(cred)
-            }
-            // 然后尝试按 UUID 查找
-            else if let Ok(Some(cred)) = state.pool_service.get_by_uuid(db, &selector) {
-                Some(cred)
-            }
-            // 最后尝试按 provider 类型选择（不降级）
-            else if let Ok(Some(cred)) =
-                state
-                    .pool_service
-                    .select_credential(db, &selector, Some(&request.model))
-            {
-                Some(cred)
-            } else {
-                None
-            }
-        }
-        None => None,
-    };
-
-    match credential {
-        Some(cred) => {
-            state.logs.write().await.add(
-                "info",
-                &format!(
-                    "[ROUTE] Using credential: type={} name={:?} uuid={}",
-                    cred.provider_type,
-                    cred.name,
-                    &cred.uuid[..8]
-                ),
-            );
-
-            // 根据凭证类型调用相应的 Provider
-            // 注意：这里没有 Flow 捕获，因为是通过 selector 路由的请求
-            handlers::call_provider_anthropic(&state, &cred, &request, None).await
-        }
-        None => {
-            // 不再回退到默认 provider，直接返回错误
-            state.logs.write().await.add(
-                "error",
-                &format!(
-                    "[ROUTE] No available credentials for selector '{selector}', refusing to fallback"
-                ),
-            );
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({
-                    "error": {
-                        "type": "provider_unavailable",
-                        "message": format!("No available credentials for selector '{}'", selector)
-                    }
-                })),
-            )
-                .into_response()
-        }
-    }
-}
-
-/// 带选择器的 OpenAI chat completions 处理
-async fn chat_completions_with_selector(
-    State(state): State<AppState>,
-    Path(selector): Path<String>,
-    headers: HeaderMap,
-    Json(request): Json<ChatCompletionRequest>,
-) -> Response {
-    if let Err(e) = handlers::verify_api_key(&headers, &state.api_key).await {
-        state.logs.write().await.add(
-            "warn",
-            &format!("Unauthorized request to /{selector}/v1/chat/completions"),
-        );
-        return e.into_response();
-    }
-
-    state.logs.write().await.add(
-        "info",
-        &format!(
-            "[REQ] POST /{}/v1/chat/completions model={} stream={}",
-            selector, request.model, request.stream
-        ),
-    );
-
-    // 尝试解析凭证（不降级，指定什么就用什么）
-    let credential = match &state.db {
-        Some(db) => {
-            if let Ok(Some(cred)) = state.pool_service.get_by_name(db, &selector) {
-                Some(cred)
-            } else if let Ok(Some(cred)) = state.pool_service.get_by_uuid(db, &selector) {
-                Some(cred)
-            } else if let Ok(Some(cred)) =
-                state
-                    .pool_service
-                    .select_credential(db, &selector, Some(&request.model))
-            {
-                Some(cred)
-            } else {
-                None
-            }
-        }
-        None => None,
-    };
-
-    match credential {
-        Some(cred) => {
-            state.logs.write().await.add(
-                "info",
-                &format!(
-                    "[ROUTE] Using credential: type={} name={:?} uuid={}",
-                    cred.provider_type,
-                    cred.name,
-                    &cred.uuid[..8]
-                ),
-            );
-
-            // 注意：这里没有 Flow 捕获，因为是通过 selector 路由的请求
-            handlers::call_provider_openai(&state, &cred, &request, None).await
-        }
-        None => {
-            // 不再回退到默认 provider，直接返回错误
-            state.logs.write().await.add(
-                "error",
-                &format!(
-                    "[ROUTE] No available credentials for selector '{selector}', refusing to fallback"
-                ),
-            );
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({
-                    "error": {
-                        "message": format!("No available credentials for selector '{}'", selector),
-                        "type": "provider_unavailable",
-                        "code": "no_credentials"
-                    }
-                })),
-            )
-                .into_response()
-        }
     }
 }
 
