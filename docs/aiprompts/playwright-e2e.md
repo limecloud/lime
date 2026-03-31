@@ -210,6 +210,17 @@ npm run test:contracts
 3. 在两个话题之间来回切换，必要时新建一个空白话题再切回
 4. 验证 Team 选择器、摘要区和 Team Workbench 展示恢复的是该话题最近一次 `recent_team_selection`，而不是主题级 localStorage 的旧值
 5. 对 custom Team 额外确认：切回后 label / description / roles 没丢；如果本轮是从 fallback 回填，继续切换一次确认第二次开始已优先走 runtime 恢复
+6. 如果当前项目已有子代理或父会话上下文，再发送一条新消息，确认 Team Workbench 的 shadow 卡片与当前 Team 恢复一致，不会退回到全局 theme fallback；本轮如涉及 `harness.team_memory_shadow`，这里就是最小 GUI 续测锚点
+
+### 上下文压缩链路验证
+
+1. 准备一个长线程，确保能够稳定接近上下文上限
+2. 在 `workspace.settings.auto_compact=true` 时发送普通消息，确认需要时会自动压缩，并且时间线出现 `自动压缩`
+3. 再把同一工作区切到 `workspace.settings.auto_compact=false`
+4. 分别验证两条链路：
+   - 普通发送消息
+   - ask-user / elicitation 回填后继续执行
+5. 两条链路都不应再静默自动压缩；如果达到上下文上限，页面应出现“请先手动压缩上下文或新建会话后重试”的可见错误
 
 ### 运行时交接制品验证
 
@@ -289,7 +300,8 @@ npm run test:contracts
 1. 从社媒内容项目进入 `素材`
 2. 验证素材列表可加载
 3. 验证素材计数、列表项或空状态正常显示
-4. 检查控制台无新增 error
+4. 如当前环境能查看调试面板或 DevBridge 日志，优先确认素材页读取的是 `gallery_material_*` 命令，而不是旧 `poster_material_*` 命名
+5. 检查控制台无新增 error
 
 ## 每一步至少记录什么
 

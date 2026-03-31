@@ -568,14 +568,67 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
-    "task",
+    "taskcreate",
     {
-      family: "task",
-      label: "后台任务",
-      verb: "创建任务",
+      family: "plan",
+      label: "任务创建",
+      verb: "创建",
       icon: FilePlus,
-      groupTitle: "任务",
-      actionKey: "task",
+      groupTitle: "计划",
+      actionKey: "plan",
+      actions: {
+        failed: "创建失败",
+        completed: "已创建任务",
+        running: "创建中",
+      },
+    },
+  ],
+  [
+    "tasklist",
+    {
+      family: "plan",
+      label: "任务列表",
+      verb: "查看",
+      icon: FileText,
+      groupTitle: "计划",
+      actionKey: "plan",
+      actions: {
+        failed: "获取失败",
+        completed: "已获取任务列表",
+        running: "获取中",
+      },
+    },
+  ],
+  [
+    "taskget",
+    {
+      family: "plan",
+      label: "任务详情",
+      verb: "查看",
+      icon: FileText,
+      groupTitle: "计划",
+      actionKey: "plan",
+      actions: {
+        failed: "获取失败",
+        completed: "已获取任务详情",
+        running: "获取中",
+      },
+    },
+  ],
+  [
+    "taskupdate",
+    {
+      family: "plan",
+      label: "任务更新",
+      verb: "更新",
+      icon: Edit3,
+      groupTitle: "计划",
+      actionKey: "plan",
+      actions: {
+        failed: "更新失败",
+        completed: "已更新任务",
+        running: "更新中",
+      },
     },
   ],
   [
@@ -595,25 +648,19 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
-    "todowrite",
+    "taskstop",
     {
-      family: "plan",
-      label: "任务清单",
-      verb: "更新计划",
-      icon: FileText,
-      groupTitle: "计划",
-      actionKey: "plan",
-    },
-  ],
-  [
-    "writetodos",
-    {
-      family: "plan",
-      label: "任务清单",
-      verb: "更新计划",
-      icon: FileText,
-      groupTitle: "计划",
-      actionKey: "plan",
+      family: "task",
+      label: "终止任务",
+      verb: "终止",
+      icon: Terminal,
+      groupTitle: "任务",
+      actionKey: "task",
+      actions: {
+        failed: "终止失败",
+        completed: "已终止任务",
+        running: "终止中",
+      },
     },
   ],
   [
@@ -1123,8 +1170,10 @@ const BROWSER_TOOL_MATCHERS: Array<{
 ];
 
 const PLANNING_TOOL_KEYS = new Set([
-  "todowrite",
-  "writetodos",
+  "taskcreate",
+  "tasklist",
+  "taskget",
+  "taskupdate",
   "enterplanmode",
   "exitplanmode",
 ]);
@@ -1137,7 +1186,11 @@ const getToolIcon = (toolName: string): LucideIcon => {
   if (isBrowserToolName(name)) {
     return Globe;
   }
-  if (name.includes("bash") || name.includes("shell") || name.includes("exec")) {
+  if (
+    name.includes("bash") ||
+    name.includes("shell") ||
+    name.includes("exec")
+  ) {
     return Terminal;
   }
   if (name.includes("read")) {
@@ -1146,13 +1199,21 @@ const getToolIcon = (toolName: string): LucideIcon => {
   if (name.includes("write") || name.includes("create")) {
     return FilePlus;
   }
-  if (name.includes("edit") || name.includes("replace") || name.includes("patch")) {
+  if (
+    name.includes("edit") ||
+    name.includes("replace") ||
+    name.includes("patch")
+  ) {
     return Edit3;
   }
   if (name.includes("list") || name.includes("dir")) {
     return FolderOpen;
   }
-  if (name.includes("search") || name.includes("find") || name.includes("grep")) {
+  if (
+    name.includes("search") ||
+    name.includes("find") ||
+    name.includes("grep")
+  ) {
     return Search;
   }
   if (name.includes("web") || name.includes("fetch") || name.includes("http")) {
@@ -1242,8 +1303,22 @@ const getFileName = (filePath: string): string => {
   return parts[parts.length - 1] || filePath;
 };
 
-export const normalizeToolNameKey = (value: string): string =>
-  value.replace(/[\s_-]+/g, "").trim().toLowerCase();
+export const normalizeToolNameKey = (value: string): string => {
+  const normalized = value
+    .replace(/[\s_-]+/g, "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "task") {
+    return "bash";
+  }
+  if (normalized === "killshell") {
+    return "taskstop";
+  }
+  if (normalized === "todowrite" || normalized === "writetodos") {
+    return "taskupdate";
+  }
+  return normalized;
+};
 
 export const humanizeToolName = (toolName: string): string =>
   toolName
@@ -1402,13 +1477,19 @@ export const resolveToolPrimarySubject = (
   }
 
   if (
-    normalizedName === "task" ||
+    normalizedName === "taskcreate" ||
+    normalizedName === "tasklist" ||
+    normalizedName === "taskget" ||
+    normalizedName === "taskupdate" ||
     normalizedName === "taskoutput" ||
+    normalizedName === "taskstop" ||
     normalizedName.startsWith("limecreate") ||
     normalizedName === "socialgeneratecoverimage" ||
     normalizedName === "generateimage"
   ) {
     return resolveToolArgumentPreview(args, [
+      "subject",
+      "taskId",
       "title",
       "topic",
       "keyword",
@@ -1419,10 +1500,7 @@ export const resolveToolPrimarySubject = (
     ]);
   }
 
-  if (
-    normalizedName === "limesiterun" ||
-    normalizedName === "limesiteinfo"
-  ) {
+  if (normalizedName === "limesiterun" || normalizedName === "limesiteinfo") {
     return (
       resolveToolArgumentPreview(args, [
         "adapter_name",
@@ -1488,13 +1566,19 @@ export const getToolDisplayInfo = (
   }
 
   if (isBrowserToolName(name)) {
-    const browserMatcher = BROWSER_TOOL_MATCHERS.find((item) => item.match(name));
+    const browserMatcher = BROWSER_TOOL_MATCHERS.find((item) =>
+      item.match(name),
+    );
     if (browserMatcher) {
       return toToolDisplayDescriptor(browserMatcher.config, status);
     }
   }
 
-  if (name.includes("workspace") || name.includes("artifact") || name.includes("snapshot")) {
+  if (
+    name.includes("workspace") ||
+    name.includes("artifact") ||
+    name.includes("snapshot")
+  ) {
     return toToolDisplayDescriptor(
       {
         family: "generic",
@@ -1508,7 +1592,11 @@ export const getToolDisplayInfo = (
     );
   }
 
-  if (name.includes("patch") || name.includes("replace") || name.includes("edit")) {
+  if (
+    name.includes("patch") ||
+    name.includes("replace") ||
+    name.includes("edit")
+  ) {
     return toToolDisplayDescriptor(
       {
         family: "edit",
@@ -1564,7 +1652,11 @@ export const getToolDisplayInfo = (
     );
   }
 
-  if (name.includes("bash") || name.includes("shell") || name.includes("exec")) {
+  if (
+    name.includes("bash") ||
+    name.includes("shell") ||
+    name.includes("exec")
+  ) {
     return toToolDisplayDescriptor(
       {
         family: "command",
@@ -1578,7 +1670,11 @@ export const getToolDisplayInfo = (
     );
   }
 
-  if (name.includes("search") || name.includes("grep") || name.includes("find")) {
+  if (
+    name.includes("search") ||
+    name.includes("grep") ||
+    name.includes("find")
+  ) {
     return toToolDisplayDescriptor(
       {
         family: "search",
@@ -1645,14 +1741,22 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
 
   if (info.family === "search") {
     if (info.groupTitle === "站点") {
-      return running ? "站点搜索中" : failed ? "站点搜索失败" : "已搜索站点能力";
+      return running
+        ? "站点搜索中"
+        : failed
+          ? "站点搜索失败"
+          : "已搜索站点能力";
     }
     return running ? "搜索中" : failed ? "搜索失败" : "已搜索";
   }
 
   if (["read", "list"].includes(info.family)) {
     if (info.groupTitle === "站点") {
-      return running ? "站点浏览中" : failed ? "站点浏览失败" : "已浏览站点能力";
+      return running
+        ? "站点浏览中"
+        : failed
+          ? "站点浏览失败"
+          : "已浏览站点能力";
     }
     return running ? "探索中" : failed ? "探索失败" : "已探索";
   }
@@ -1734,7 +1838,7 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
       ? `图像分析失败 ${toolCalls.length} 项`
       : running
         ? `图像分析中 ${toolCalls.length} 项`
-      : `已分析 ${toolCalls.length} 项图像`;
+        : `已分析 ${toolCalls.length} 项图像`;
   }
 
   if (info.groupTitle === "站点") {

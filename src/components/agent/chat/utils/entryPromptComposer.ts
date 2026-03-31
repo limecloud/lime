@@ -8,9 +8,6 @@ import type {
 
 export interface EntryComposeContext {
   platform?: string;
-  ratio?: string;
-  style?: string;
-  depth?: string;
 }
 
 export interface ComposeEntryPromptInput {

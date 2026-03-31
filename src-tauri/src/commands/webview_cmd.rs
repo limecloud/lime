@@ -40,7 +40,7 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use sysinfo::{Pid, Signal, System};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -3167,36 +3167,78 @@ fn spawn_chrome_with_profile(
     extension_dir: Option<&Path>,
     launch_options: &ChromeProfileLaunchOptions,
 ) -> Result<Child, String> {
-    let profile_arg = format!("--user-data-dir={}", profile_dir.to_string_lossy());
     let mut cmd = Command::new(browser_path);
-    cmd.arg(profile_arg)
-        .arg(format!("--remote-debugging-port={remote_debugging_port}"))
-        .arg("--remote-allow-origins=*")
-        .arg("--no-first-run")
-        .arg("--no-default-browser-check");
+    cmd.args(build_chrome_launch_args(
+        profile_dir,
+        remote_debugging_port,
+        url,
+        new_window,
+        extension_dir,
+        launch_options,
+    ));
+
+    if should_silence_chrome_child_logs(launch_options) {
+        cmd.stdout(Stdio::null()).stderr(Stdio::null());
+    }
+
+    cmd.spawn().map_err(|e| format!("启动 Chrome 失败: {e}"))
+}
+
+fn should_silence_chrome_child_logs(launch_options: &ChromeProfileLaunchOptions) -> bool {
+    launch_options.headless
+}
+
+fn build_chrome_launch_args(
+    profile_dir: &Path,
+    remote_debugging_port: u16,
+    url: &str,
+    new_window: bool,
+    extension_dir: Option<&Path>,
+    launch_options: &ChromeProfileLaunchOptions,
+) -> Vec<OsString> {
+    let mut args = vec![
+        OsString::from(format!("--user-data-dir={}", profile_dir.to_string_lossy())),
+        OsString::from(format!("--remote-debugging-port={remote_debugging_port}")),
+        OsString::from("--remote-allow-origins=*"),
+        OsString::from("--no-first-run"),
+        OsString::from("--no-default-browser-check"),
+        // 托管浏览器不需要参与 Chrome 自身的后台更新 / 崩溃上报 / 同步链路。
+        OsString::from("--disable-background-networking"),
+        OsString::from("--disable-component-update"),
+        OsString::from("--disable-breakpad"),
+        OsString::from("--disable-sync"),
+        OsString::from("--disable-default-apps"),
+        OsString::from("--metrics-recording-only"),
+        OsString::from("--no-service-autorun"),
+    ];
 
     if let Some(proxy_server) = launch_options.proxy_server.as_deref() {
-        cmd.arg(format!("--proxy-server={proxy_server}"));
+        args.push(OsString::from(format!("--proxy-server={proxy_server}")));
     }
     if let Some(language) = launch_options.language.as_deref() {
-        cmd.arg(format!("--lang={language}"));
+        args.push(OsString::from(format!("--lang={language}")));
     }
 
     if launch_options.headless {
-        cmd.arg("--headless=new").arg("--disable-gpu");
+        args.push(OsString::from("--headless=new"));
+        args.push(OsString::from("--disable-gpu"));
     }
 
     if !launch_options.headless {
         if let Some(ext_dir) = extension_dir {
-            cmd.arg(format!("--load-extension={}", ext_dir.to_string_lossy()));
+            args.push(OsString::from(format!(
+                "--load-extension={}",
+                ext_dir.to_string_lossy()
+            )));
         }
     }
 
     if new_window && !launch_options.headless {
-        cmd.arg("--new-window");
+        args.push(OsString::from("--new-window"));
     }
-    cmd.arg(url);
-    cmd.spawn().map_err(|e| format!("启动 Chrome 失败: {e}"))
+
+    args.push(OsString::from(url));
+    args
 }
 
 fn chrome_process_uses_profile_dir(args: &[OsString], profile_dir: &Path) -> bool {
@@ -3830,6 +3872,69 @@ mod tests {
     #[test]
     fn cdp_backend_capabilities_should_include_find() {
         assert!(cdp_backend_capabilities().contains(&"find".to_string()));
+    }
+
+    #[test]
+    fn build_chrome_launch_args_should_include_background_noise_reduction_flags() {
+        let args = build_chrome_launch_args(
+            Path::new("/tmp/lime-profile"),
+            9222,
+            "about:blank",
+            false,
+            None,
+            &ChromeProfileLaunchOptions::default(),
+        );
+        let args = args
+            .iter()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(args.contains(&"--disable-background-networking".to_string()));
+        assert!(args.contains(&"--disable-component-update".to_string()));
+        assert!(args.contains(&"--disable-breakpad".to_string()));
+        assert!(args.contains(&"--disable-sync".to_string()));
+        assert!(args.contains(&"--disable-default-apps".to_string()));
+        assert!(args.contains(&"--metrics-recording-only".to_string()));
+        assert!(args.contains(&"--no-service-autorun".to_string()));
+    }
+
+    #[test]
+    fn build_chrome_launch_args_should_skip_extension_and_force_headless_flags() {
+        let args = build_chrome_launch_args(
+            Path::new("/tmp/lime-profile"),
+            9222,
+            "https://example.com",
+            true,
+            Some(Path::new("/tmp/lime-extension")),
+            &ChromeProfileLaunchOptions {
+                headless: true,
+                ..ChromeProfileLaunchOptions::default()
+            },
+        );
+        let args = args
+            .iter()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(args.contains(&"--headless=new".to_string()));
+        assert!(args.contains(&"--disable-gpu".to_string()));
+        assert!(!args
+            .iter()
+            .any(|value| value.starts_with("--load-extension=")));
+        assert!(!args.contains(&"--new-window".to_string()));
+    }
+
+    #[test]
+    fn should_silence_chrome_child_logs_should_only_enable_for_headless() {
+        assert!(should_silence_chrome_child_logs(
+            &ChromeProfileLaunchOptions {
+                headless: true,
+                ..ChromeProfileLaunchOptions::default()
+            }
+        ));
+        assert!(!should_silence_chrome_child_logs(
+            &ChromeProfileLaunchOptions::default()
+        ));
     }
 
     #[test]

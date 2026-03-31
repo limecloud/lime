@@ -178,14 +178,6 @@ function renderPanel(
     setPlatform: vi.fn(),
     depth: "deep",
     setDepth: vi.fn(),
-    ratio: "3:4",
-    setRatio: vi.fn(),
-    style: "minimal",
-    setStyle: vi.fn(),
-    ratioPopoverOpen: false,
-    setRatioPopoverOpen: vi.fn(),
-    stylePopoverOpen: false,
-    setStylePopoverOpen: vi.fn(),
     thinkingEnabled: false,
     onThinkingEnabledChange: vi.fn(),
     subagentEnabled: false,
@@ -262,14 +254,6 @@ function renderStatefulPanel(
         setPlatform={vi.fn()}
         depth="deep"
         setDepth={vi.fn()}
-        ratio="3:4"
-        setRatio={vi.fn()}
-        style="minimal"
-        setStyle={vi.fn()}
-        ratioPopoverOpen={false}
-        setRatioPopoverOpen={vi.fn()}
-        stylePopoverOpen={false}
-        setStylePopoverOpen={vi.fn()}
         thinkingEnabled={false}
         onThinkingEnabledChange={vi.fn()}
         subagentEnabled={subagentEnabled}

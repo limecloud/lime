@@ -38,7 +38,7 @@
 - 工具目录完整性
 - source / lifecycle / capability / permission_plane
 - 默认 allowlist 子集
-- Creator / Browser Assist surface 裁剪
+- Workbench / Browser Assist surface 裁剪
 - MCP extension surface 聚合
 
 ### 2.3 执行权限事实源

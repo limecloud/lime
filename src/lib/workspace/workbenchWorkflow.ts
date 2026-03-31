@@ -4,4 +4,4 @@
  * @module lib/workspace/workbenchWorkflow
  */
 
-export { useWorkflow } from "@/components/content-creator/hooks/useWorkflow";
+export { useWorkflow } from "@/components/workspace/hooks/useWorkflow";

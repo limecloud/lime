@@ -16,9 +16,6 @@ import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { getThemeModule } from "@/features/themes";
 import { videoThemeModule } from "@/features/themes/video";
 import type {
-  NovelQuickCreateOptions,
-  NovelQuickCreateResult,
-  OpenProjectWritingOptions,
   ThemeWorkspaceView,
 } from "@/features/themes/types";
 import type { CreationMode } from "@/lib/workspace/workbenchContract";
@@ -364,8 +361,8 @@ export function useWorkbenchController({
     currentIntentLength,
     pendingInitialPromptsByContentId,
     pendingCreateConfirmationByProjectId,
-    contentCreationModes,
-    contentCreationTypes,
+    creationModes,
+    creationTypes,
     resolvedProjectPath,
     pathChecking,
     pathConflictMessage,
@@ -378,8 +375,6 @@ export function useWorkbenchController({
     handleCreationIntentValueChange,
     handleGoToIntentStep,
     handleCreateContent,
-    handleQuickCreateProjectAndContent,
-    handleOpenProjectForWriting,
     submitCreateConfirmation,
     consumePendingInitialPrompt,
     consumePendingCreateConfirmation,
@@ -403,33 +398,6 @@ export function useWorkbenchController({
       creationMode: DEFAULT_CREATION_MODE,
     },
   });
-
-  const handleQuickCreateNovelEntry = useCallback(
-    async (options: NovelQuickCreateOptions): Promise<NovelQuickCreateResult> => {
-      return handleQuickCreateProjectAndContent({
-        projectName: options.projectName,
-        workspaceType: "novel",
-        contentTitle: options.contentTitle,
-        initialUserPrompt: options.initialUserPrompt,
-        creationMode: options.creationMode ?? DEFAULT_CREATION_MODE,
-      });
-    },
-    [handleQuickCreateProjectAndContent],
-  );
-
-  const handleOpenProjectWriting = useCallback(
-    async (
-      projectId: string,
-      options?: OpenProjectWritingOptions,
-    ): Promise<string> => {
-      return handleOpenProjectForWriting(projectId, {
-        fallbackContentTitle: options?.fallbackContentTitle,
-        initialUserPrompt: options?.initialUserPrompt,
-        creationMode: options?.creationMode ?? DEFAULT_CREATION_MODE,
-      });
-    },
-    [handleOpenProjectForWriting],
-  );
 
   const handleQuickSaveCurrent = useCallback(async () => {
     if (!selectedContentId || !selectedProjectId) {
@@ -626,8 +594,8 @@ export function useWorkbenchController({
     currentIntentLength,
     pendingInitialPromptsByContentId,
     pendingCreateConfirmation,
-    contentCreationModes,
-    contentCreationTypes,
+    creationModes,
+    creationTypes,
     resolvedProjectPath,
     pathChecking,
     pathConflictMessage,
@@ -657,8 +625,6 @@ export function useWorkbenchController({
     handleCreationIntentValueChange,
     handleGoToIntentStep,
     handleCreateContent,
-    handleQuickCreateNovelEntry,
-    handleOpenProjectWriting,
     handleSubmitCreateConfirmation,
     handleCancelCreateConfirmation,
     consumePendingInitialPrompt,

@@ -50,41 +50,25 @@ export interface ImageSearchTabProps {
 const CANVAS_DISPLAY_NAME: Record<CanvasImageTargetType, string> = {
   auto: "当前画布",
   document: "文档",
-  novel: "小说",
-  script: "剧本",
-  music: "音乐",
-  poster: "海报",
   video: "视频",
 };
 
 function normalizeCanvasType(
   value: string | null | undefined,
 ): CanvasImageTargetType {
-  if (
-    value === "document" ||
-    value === "novel" ||
-    value === "script" ||
-    value === "music" ||
-    value === "poster" ||
-    value === "video"
-  ) {
+  if (value === "document" || value === "video") {
     return value;
+  }
+  if (value === "script") {
+    return "video";
   }
   return "document";
 }
 
 function mapCanvasTypeToTheme(canvasType: CanvasImageTargetType): string {
   switch (canvasType) {
-    case "poster":
-      return "poster";
-    case "music":
-      return "music";
-    case "novel":
-      return "novel";
     case "video":
       return "video";
-    case "script":
-      return "social-media";
     case "document":
     case "auto":
     default:
@@ -870,9 +854,7 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
       anchorHint:
         targetCanvasType === "video"
           ? "video_start_frame"
-          : targetCanvasType === "poster"
-            ? "poster_center"
-            : "section_end",
+          : "section_end",
       source: image.provider === "pexels" ? "pexels" : "pixabay",
       image: {
         id: image.id,

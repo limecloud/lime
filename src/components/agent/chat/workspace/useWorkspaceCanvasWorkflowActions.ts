@@ -16,14 +16,18 @@ import {
   buildDefaultCanvasImageApplyTarget,
   buildDocumentImageWorkbenchPrompt,
   buildImageWorkbenchCommandText,
-  buildPosterImageWorkbenchPrompt,
-  resolveClosestImageAspectRatio,
   type ImageWorkbenchApplyTarget,
 } from "./imageWorkbenchHelpers";
 import {
   parseImageWorkbenchCommand,
   type ParsedImageWorkbenchCommand,
 } from "../utils/imageWorkbenchCommand";
+import {
+  buildArtifactBlockRewriteRequest,
+  resolveArtifactBlockRewriteCompletion,
+  type ArtifactBlockRewriteCompletion,
+  type ArtifactBlockRewriteRunPayload,
+} from "./artifactWorkbenchRewrite";
 
 type WorkspaceSendHandler = (
   images?: MessageImage[],
@@ -49,6 +53,7 @@ interface RunImageWorkbenchCommandParams {
 interface UseWorkspaceCanvasWorkflowActionsParams<
   TToolPreferences extends ThinkingPreferenceState,
 > {
+  thinkingEnabled: boolean;
   setChatToolPreferences: Dispatch<SetStateAction<TToolPreferences>>;
   sendRef: MutableRefObject<WorkspaceSendHandler>;
   webSearchPreferenceRef: MutableRefObject<boolean>;
@@ -68,6 +73,9 @@ interface WorkspaceCanvasWorkflowActionsResult {
   handleDocumentAutoContinueRun: (
     payload: AutoContinueRunPayload,
   ) => Promise<void>;
+  handleArtifactBlockRewriteRun: (
+    payload: ArtifactBlockRewriteRunPayload,
+  ) => Promise<ArtifactBlockRewriteCompletion>;
   handleDocumentContentReviewRun: (
     payload: ContentReviewRunPayload,
   ) => Promise<string>;
@@ -87,6 +95,7 @@ interface WorkspaceCanvasWorkflowActionsResult {
 export function useWorkspaceCanvasWorkflowActions<
   TToolPreferences extends ThinkingPreferenceState,
 >({
+  thinkingEnabled,
   setChatToolPreferences,
   sendRef,
   webSearchPreferenceRef,
@@ -157,6 +166,55 @@ export function useWorkspaceCanvasWorkflowActions<
           });
       }),
     [sendRef, webSearchPreferenceRef],
+  );
+
+  const handleArtifactBlockRewriteRun = useCallback(
+    async (payload: ArtifactBlockRewriteRunPayload) => {
+      try {
+        const request = buildArtifactBlockRewriteRequest(payload);
+        return await new Promise<ArtifactBlockRewriteCompletion>((resolve, reject) => {
+          void sendRef
+            .current(
+              [],
+              webSearchPreferenceRef.current,
+              thinkingEnabled,
+              request.prompt,
+              undefined,
+              undefined,
+              {
+                skipThemeSkillPrefix: true,
+                purpose: "style_rewrite",
+                requestMetadata: request.requestMetadata,
+                observer: {
+                  onComplete: (content) => {
+                    try {
+                      resolve(
+                        resolveArtifactBlockRewriteCompletion(payload, content),
+                      );
+                    } catch (error) {
+                      reject(
+                        error instanceof Error
+                          ? error
+                          : new Error(String(error)),
+                      );
+                    }
+                  },
+                  onError: (message) => reject(new Error(message)),
+                },
+              },
+            )
+            .catch((error) => {
+              reject(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "发起当前块 AI 改写失败";
+        toast.error(message);
+        throw error instanceof Error ? error : new Error(message);
+      }
+    },
+    [sendRef, thinkingEnabled, webSearchPreferenceRef],
   );
 
   const handleDocumentTextStylizeRun = useCallback(
@@ -279,31 +337,6 @@ export function useWorkspaceCanvasWorkflowActions<
         projectId,
         contentId: contentId ?? null,
       });
-    } else if (canvasState.type === "poster") {
-      const currentPage =
-        canvasState.pages[canvasState.currentPageIndex] || canvasState.pages[0];
-      if (!currentPage) {
-        toast.error("海报画布缺少有效页面");
-        return;
-      }
-      rawText = buildImageWorkbenchCommandText(
-        buildPosterImageWorkbenchPrompt({
-          projectName,
-          width: currentPage.width,
-          height: currentPage.height,
-        }),
-        {
-          aspectRatio: resolveClosestImageAspectRatio(
-            currentPage.width,
-            currentPage.height,
-          ),
-        },
-      );
-      applyTarget = buildDefaultCanvasImageApplyTarget({
-        canvasState,
-        projectId,
-        contentId: contentId ?? null,
-      });
     } else {
       toast.info("当前画布暂未接入配图工作台");
       return;
@@ -377,6 +410,7 @@ export function useWorkspaceCanvasWorkflowActions<
   return {
     handleDocumentThinkingEnabledChange,
     handleDocumentAutoContinueRun,
+    handleArtifactBlockRewriteRun,
     handleDocumentContentReviewRun,
     handleDocumentTextStylizeRun,
     handleSwitchBranchVersion,

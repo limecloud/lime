@@ -17,11 +17,12 @@ fn build_agent_status(
 pub async fn aster_agent_init(
     state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
+    mcp_manager: State<'_, McpManagerState>,
 ) -> Result<AsterAgentStatus, String> {
     tracing::info!("[AsterAgent] 初始化 Agent");
 
     state.init_agent_with_db(&db).await?;
-    ensure_tool_search_tool_registered(state.inner()).await?;
+    ensure_runtime_support_tools_registered(state.inner(), mcp_manager.inner()).await?;
 
     let provider_config = state.get_provider_config().await;
 

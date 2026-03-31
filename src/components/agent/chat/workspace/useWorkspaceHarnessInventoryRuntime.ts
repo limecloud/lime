@@ -12,7 +12,7 @@ import type {
 
 interface UseWorkspaceHarnessInventoryRuntimeParams {
   enabled: boolean;
-  chatMode: "agent" | "general" | "creator";
+  chatMode: "agent" | "general" | "workbench";
   mappedTheme: string;
   harnessPanelVisible: boolean;
   harnessRequestMetadata: Record<string, unknown>;
@@ -64,7 +64,7 @@ export function useWorkspaceHarnessInventoryRuntime({
     try {
       const nextInventory = await getAgentRuntimeToolInventory({
         caller: "assistant",
-        creator: chatMode === "creator",
+        workbench: chatMode === "workbench",
         browserAssist: mappedTheme === "general",
         metadata: {
           harness: harnessRequestMetadata,

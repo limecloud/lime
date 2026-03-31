@@ -22,10 +22,11 @@ const STREAMING_STANDARD_RENDER_DEBOUNCE_MS = 24;
 // 收紧正文与代码块表面，让消息正文更接近单列执行流的阅读节奏。
 const MarkdownContainer = styled.div`
   font-size: 14px;
-  line-height: 1.68;
+  line-height: 1.76;
   color: hsl(var(--foreground));
   overflow-wrap: break-word;
   word-break: break-word;
+  text-wrap: pretty;
 
   > :first-child {
     margin-top: 0;
@@ -36,7 +37,16 @@ const MarkdownContainer = styled.div`
   }
 
   p {
-    margin: 0 0 0.82em;
+    margin: 0 0 0.95em;
+    color: hsl(var(--foreground));
+  }
+
+  h1 + p,
+  h2 + p,
+  h3 + p {
+    color: hsl(var(--muted-foreground));
+    font-size: 1.02em;
+    line-height: 1.8;
   }
 
   h1,
@@ -45,23 +55,30 @@ const MarkdownContainer = styled.div`
   h4,
   h5,
   h6 {
-    font-weight: 600;
-    margin: 1.15em 0 0.48em;
-    line-height: 1.35;
+    font-weight: 700;
+    margin: 1.34em 0 0.58em;
+    line-height: 1.32;
+    letter-spacing: -0.01em;
     color: hsl(var(--foreground));
   }
 
+  h1:first-child,
+  h2:first-child,
+  h3:first-child {
+    margin-top: 0;
+  }
+
   h1 {
-    font-size: 1.24em;
+    font-size: 1.54em;
   }
   h2 {
-    font-size: 1.14em;
+    font-size: 1.28em;
   }
   h3 {
-    font-size: 1.06em;
+    font-size: 1.12em;
   }
   h4 {
-    font-size: 1em;
+    font-size: 1.03em;
   }
   h5,
   h6 {
@@ -71,8 +88,8 @@ const MarkdownContainer = styled.div`
 
   ul,
   ol {
-    padding-left: 1.15rem;
-    margin: 0 0 0.82em;
+    padding-left: 1.28rem;
+    margin: 0 0 0.95em;
   }
 
   ul {
@@ -84,15 +101,29 @@ const MarkdownContainer = styled.div`
   }
 
   li {
-    margin: 0.18em 0;
+    margin: 0.26em 0;
+    padding-left: 0.08rem;
   }
 
   li > p {
-    margin-bottom: 0.32em;
+    margin-bottom: 0.42em;
+  }
+
+  li::marker {
+    color: hsl(var(--muted-foreground));
+  }
+
+  ul ul,
+  ul ol,
+  ol ul,
+  ol ol {
+    margin-top: 0.35em;
+    margin-bottom: 0.45em;
   }
 
   strong {
-    font-weight: 600;
+    font-weight: 700;
+    color: hsl(var(--foreground));
   }
 
   em {
@@ -100,7 +131,7 @@ const MarkdownContainer = styled.div`
   }
 
   hr {
-    margin: 16px 0;
+    margin: 18px 0;
     border: none;
     border-top: 1px solid hsl(var(--border));
     opacity: 0.9;
@@ -120,7 +151,7 @@ const MarkdownContainer = styled.div`
   }
 
   pre {
-    margin: 12px 0;
+    margin: 14px 0;
     padding: 10px 12px 12px;
     border-radius: 10px;
     overflow: auto;
@@ -136,19 +167,10 @@ const MarkdownContainer = styled.div`
     }
   }
 
-  blockquote {
-    margin: 0 0 0.82em;
-    padding: 0.12rem 0 0.12rem 0.9rem;
-    border-left: 2px solid hsl(var(--border));
-    margin-left: 0;
-    color: hsl(var(--muted-foreground));
-    font-style: normal;
-  }
-
   table {
     border-collapse: separate;
     border-spacing: 0;
-    width: max-content;
+    width: 100%;
     min-width: 100%;
     margin: 0;
     font-size: 0.94em;
@@ -166,7 +188,12 @@ const MarkdownContainer = styled.div`
 
   th {
     font-weight: 600;
-    background-color: hsl(var(--muted));
+    background: linear-gradient(
+      180deg,
+      hsl(var(--muted) / 0.78) 0%,
+      hsl(var(--muted) / 0.96) 100%
+    );
+    color: hsl(var(--foreground));
     white-space: nowrap;
   }
 
@@ -176,6 +203,10 @@ const MarkdownContainer = styled.div`
 
   tbody tr:last-child td {
     border-bottom: none;
+  }
+
+  tbody tr:nth-child(even) td {
+    background: hsl(var(--muted) / 0.22);
   }
 
   a {
@@ -195,6 +226,66 @@ const MarkdownContainer = styled.div`
     object-fit: contain;
     cursor: pointer;
     border: 1px solid hsl(var(--border));
+  }
+`;
+
+const MarkdownDivider = styled.hr`
+  height: 1px;
+  margin: 22px 0;
+  border: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--border)) 16%,
+    hsl(var(--border)) 84%,
+    transparent 100%
+  );
+`;
+
+const MarkdownQuoteCard = styled.blockquote`
+  margin: 0 0 0.95em;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 20px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--muted) / 0.58) 100%
+  );
+  box-shadow: 0 14px 34px -30px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+`;
+
+const MarkdownQuoteInner = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+`;
+
+const MarkdownQuoteIconShell = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+`;
+
+const MarkdownQuoteBody = styled.div`
+  min-width: 0;
+  color: hsl(var(--foreground));
+
+  p {
+    margin-bottom: 0.55em;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
   }
 `;
 
@@ -999,6 +1090,42 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                       {...props}
                     />
                   );
+                },
+                h1({ children, ...props }: any) {
+                  return (
+                    <h1 data-markdown-heading-level="1" {...props}>
+                      {children}
+                    </h1>
+                  );
+                },
+                h2({ children, ...props }: any) {
+                  return (
+                    <h2 data-markdown-heading-level="2" {...props}>
+                      {children}
+                    </h2>
+                  );
+                },
+                h3({ children, ...props }: any) {
+                  return (
+                    <h3 data-markdown-heading-level="3" {...props}>
+                      {children}
+                    </h3>
+                  );
+                },
+                blockquote({ children }: any) {
+                  return (
+                    <MarkdownQuoteCard data-testid="markdown-blockquote-card">
+                      <MarkdownQuoteInner>
+                        <MarkdownQuoteIconShell aria-hidden="true">
+                          <Quote size={15} />
+                        </MarkdownQuoteIconShell>
+                        <MarkdownQuoteBody>{children}</MarkdownQuoteBody>
+                      </MarkdownQuoteInner>
+                    </MarkdownQuoteCard>
+                  );
+                },
+                hr() {
+                  return <MarkdownDivider data-testid="markdown-divider" />;
                 },
                 table({ children, ...props }: any) {
                   return (

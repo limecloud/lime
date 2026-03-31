@@ -1,27 +1,76 @@
 import { useCallback, useState } from "react";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
+import { saveExportedDocument } from "@/lib/api/document-export";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { Artifact } from "@/lib/artifact/types";
 import {
+  resolveArtifactWorkbenchHtmlFilename,
   resolveArtifactWorkbenchJsonFilename,
   resolveArtifactWorkbenchMarkdownFilename,
+  serializeArtifactDocumentToHtml,
   serializeArtifactDocumentToMarkdown,
   updateArtifactDocumentStatus,
 } from "./artifactWorkbenchActions";
 import { ArtifactWorkbenchToolbarActions } from "./ArtifactWorkbenchToolbarActions";
 import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 
-function downloadText(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+function ensureFileExtension(filePath: string, extension: string) {
+  const normalizedExtension = extension.startsWith(".")
+    ? extension.toLowerCase()
+    : `.${extension.toLowerCase()}`;
+
+  if (filePath.toLowerCase().endsWith(normalizedExtension)) {
+    return filePath;
+  }
+
+  return `${filePath}${normalizedExtension}`;
+}
+
+async function exportArtifactWorkbenchFile(params: {
+  defaultFilename: string;
+  extension: string;
+  dialogTitle: string;
+  content: string;
+  successMessage: string;
+  filterName: string;
+  filterExtensions: string[];
+}) {
+  let selectedPath: string | null;
+  try {
+    selectedPath = await saveDialog({
+      title: params.dialogTitle,
+      defaultPath: params.defaultFilename,
+      filters: [
+        {
+          name: params.filterName,
+          extensions: params.filterExtensions,
+        },
+      ],
+    });
+  } catch (error) {
+    toast.error(
+      error instanceof Error ? error.message : "无法打开文件保存对话框",
+    );
+    return false;
+  }
+
+  if (!selectedPath) {
+    return false;
+  }
+
+  try {
+    await saveExportedDocument(
+      ensureFileExtension(selectedPath, params.extension),
+      params.content,
+    );
+    toast.success(params.successMessage);
+    return true;
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "保存导出文件失败");
+    return false;
+  }
 }
 
 function resolveResourceSyncFeedback(result: GeneralArtifactSyncResult): {
@@ -74,6 +123,7 @@ export interface ArtifactWorkbenchToolbarActionState {
   isSavingToProject: boolean;
   onSaveToProject: () => Promise<void>;
   onExportJson: () => Promise<void>;
+  onExportHtml: () => Promise<void>;
   onExportMarkdown: () => Promise<void>;
   showArchiveToggle: boolean;
   isUpdatingArchive: boolean;
@@ -109,24 +159,54 @@ export function useWorkspaceArtifactWorkbenchActions({
 
   const handleExportJson = useCallback(
     async (artifact: Artifact, document: ArtifactDocumentV1) => {
-      downloadText(
-        JSON.stringify(document, null, 2),
-        resolveArtifactWorkbenchJsonFilename(artifact, document),
-        "application/json;charset=utf-8",
-      );
-      toast.success("已导出 Artifact JSON");
+      await exportArtifactWorkbenchFile({
+        defaultFilename: resolveArtifactWorkbenchJsonFilename(
+          artifact,
+          document,
+        ),
+        extension: "artifact.json",
+        dialogTitle: "导出 Artifact JSON",
+        content: JSON.stringify(document, null, 2),
+        successMessage: "已导出 Artifact JSON",
+        filterName: "Artifact JSON",
+        filterExtensions: ["json"],
+      });
+    },
+    [],
+  );
+
+  const handleExportHtml = useCallback(
+    async (artifact: Artifact, document: ArtifactDocumentV1) => {
+      await exportArtifactWorkbenchFile({
+        defaultFilename: resolveArtifactWorkbenchHtmlFilename(
+          artifact,
+          document,
+        ),
+        extension: "html",
+        dialogTitle: "导出 HTML",
+        content: serializeArtifactDocumentToHtml(document),
+        successMessage: "已导出 HTML",
+        filterName: "HTML",
+        filterExtensions: ["html"],
+      });
     },
     [],
   );
 
   const handleExportMarkdown = useCallback(
     async (artifact: Artifact, document: ArtifactDocumentV1) => {
-      downloadText(
-        serializeArtifactDocumentToMarkdown(document),
-        resolveArtifactWorkbenchMarkdownFilename(artifact, document),
-        "text/markdown;charset=utf-8",
-      );
-      toast.success("已导出 Markdown");
+      await exportArtifactWorkbenchFile({
+        defaultFilename: resolveArtifactWorkbenchMarkdownFilename(
+          artifact,
+          document,
+        ),
+        extension: "md",
+        dialogTitle: "导出 Markdown",
+        content: serializeArtifactDocumentToMarkdown(document),
+        successMessage: "已导出 Markdown",
+        filterName: "Markdown",
+        filterExtensions: ["md"],
+      });
     },
     [],
   );
@@ -206,6 +286,7 @@ export function useWorkspaceArtifactWorkbenchActions({
         isSavingToProject: savingResourceArtifactId === artifact.id,
         onSaveToProject: () => handleSaveToProject(artifact, document),
         onExportJson: () => handleExportJson(artifact, document),
+        onExportHtml: () => handleExportHtml(artifact, document),
         onExportMarkdown: () => handleExportMarkdown(artifact, document),
         showArchiveToggle: Boolean(onSaveArtifactDocument),
         isUpdatingArchive: updatingArchiveArtifactId === artifact.id,
@@ -215,6 +296,7 @@ export function useWorkspaceArtifactWorkbenchActions({
     },
     [
       activeTheme,
+      handleExportHtml,
       handleExportJson,
       handleExportMarkdown,
       handleSaveToProject,

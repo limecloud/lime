@@ -60,7 +60,7 @@ const AUTO_IMAGE_MODEL_VALUE = "__auto_image_model__";
  *
  * 管理项目基本信息、默认人设、归档。
  */
-export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
+export function SettingsTab({ projectId, workspaceType: _workspaceType }: SettingsTabProps) {
   const { project, loading, update, archive } = useProject(projectId);
   const { providers, loading: providersLoading } = useApiKeyProvider();
   const { personas } = usePersonas(projectId);
@@ -424,7 +424,6 @@ export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
   }
 
   const isDefault = project.isDefault;
-  const isNovelProject = workspaceType === "novel";
 
   return (
     <div className="p-4 space-y-6 max-w-2xl">
@@ -471,30 +470,28 @@ export function SettingsTab({ projectId, workspaceType }: SettingsTabProps) {
           默认配置与项目覆盖
         </h3>
 
-        {!isNovelProject && (
-          <div className="space-y-2">
-            <Label>默认人设</Label>
-            <Select
-              value={defaultPersonaId}
-              onValueChange={setDefaultPersonaId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择默认人设" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">无</SelectItem>
-                {personas.map((persona) => (
-                  <SelectItem key={persona.id} value={persona.id}>
-                    {persona.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              新建话题时自动使用的人设
-            </p>
-          </div>
-        )}
+        <div className="space-y-2">
+          <Label>默认人设</Label>
+          <Select
+            value={defaultPersonaId}
+            onValueChange={setDefaultPersonaId}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="选择默认人设" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">无</SelectItem>
+              {personas.map((persona) => (
+                <SelectItem key={persona.id} value={persona.id}>
+                  {persona.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            新建话题时自动使用的人设
+          </p>
+        </div>
 
         <div className="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground">
           图片 / 视频 /

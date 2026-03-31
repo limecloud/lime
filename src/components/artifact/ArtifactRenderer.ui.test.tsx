@@ -2,10 +2,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ArtifactRenderer } from "./ArtifactRenderer";
+import { ArtifactDocumentRenderer } from "./renderers/ArtifactDocumentRenderer";
 import {
   areLightweightRenderersRegistered,
   registerLightweightRenderers,
 } from "./renderers";
+import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
 
 interface MountedRenderer {
@@ -42,6 +44,21 @@ function renderArtifact(artifact: Artifact) {
 
   act(() => {
     root.render(<ArtifactRenderer artifact={artifact} tone="light" />);
+  });
+
+  mountedRenderers.push({ container, root });
+  return container;
+}
+
+function renderArtifactDocument(artifactDocument: ArtifactDocumentV1) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  act(() => {
+    root.render(
+      <ArtifactDocumentRenderer document={artifactDocument} tone="light" />,
+    );
   });
 
   mountedRenderers.push({ container, root });
@@ -139,7 +156,8 @@ describe("ArtifactRenderer 空内容态", () => {
             {
               id: "body-1",
               type: "rich_text",
-              markdown: "正文段落",
+              contentFormat: "markdown",
+              content: "正文段落",
             },
           ],
           sources: [],
@@ -165,6 +183,7 @@ describe("ArtifactRenderer 空内容态", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("结构化报告标题");
     expect(container.textContent).toContain("正文段落");
+    expect(container.textContent).toContain("主题 知识探索");
     expect(
       container
         .querySelector('[data-testid="artifact-document-renderer"] article')
@@ -198,7 +217,8 @@ describe("ArtifactRenderer 空内容态", () => {
               {
                 id: "body-1",
                 type: "rich_text",
-                markdown: "落盘后的正文内容",
+                contentFormat: "markdown",
+                content: "落盘后的正文内容",
               },
             ],
             sources: [],
@@ -220,5 +240,160 @@ describe("ArtifactRenderer 空内容态", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("落盘结构化周报");
     expect(container.textContent).toContain("落盘后的正文内容");
+    expect(container.textContent).toContain("主题 知识探索");
+  });
+
+  it("结构化阅读面应渲染摘要卡、统计卡与来源附录", async () => {
+    const container = renderArtifact(
+      createArtifact({
+        content: JSON.stringify({
+          schemaVersion: "artifact_document.v1",
+          artifactId: "artifact-doc-3",
+          kind: "comparison",
+          title: "Hermes Engine 评估",
+          status: "ready",
+          language: "zh-CN",
+          summary: "对比不同引擎的交付稳定性与编排成本。",
+          blocks: [
+            {
+              id: "hero-1",
+              type: "hero_summary",
+              eyebrow: "执行摘要",
+              title: "优先选择稳定交付链路",
+              summary: "先收口主链，再决定是否引入更激进的并发策略。",
+              highlights: ["稳定性优先", "治理成本更低"],
+            },
+            {
+              id: "section-1",
+              type: "section_header",
+              title: "核心判断",
+              description: "按交付可预测性与维护成本排序。",
+            },
+            {
+              id: "body-1",
+              type: "rich_text",
+              contentFormat: "markdown",
+              content: "正文段落",
+            },
+          ],
+          sources: [
+            {
+              id: "source-1",
+              type: "web",
+              label: "OpenAI Blog",
+              snippet: "作为模型能力背景参考",
+              locator: {
+                url: "https://openai.com",
+              },
+            },
+          ],
+          metadata: {
+            theme: "knowledge",
+            audience: "产品与工程负责人",
+            intent: "技术选型",
+          },
+        }),
+        status: "complete",
+        meta: {
+          filePath: "workspace/hermes-report.json",
+          filename: "hermes-report.json",
+          language: "json",
+        },
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("执行摘要");
+    expect(container.textContent).toContain("要点 01");
+    expect(container.textContent).toContain("结构块");
+    expect(container.textContent).toContain("亮点");
+    expect(container.textContent).toContain("来源附录");
+    expect(container.textContent).toContain("OpenAI Blog");
+    expect(container.textContent).toContain("主题 知识探索");
+    expect(container.textContent).not.toContain("主题 knowledge");
+    expect(container.querySelector("#artifact-block-hero-1")).not.toBeNull();
+  });
+
+  it("结构化阅读面应复用 CodeRenderer 并在图片缺失时显示占位图", async () => {
+    const container = renderArtifactDocument({
+      schemaVersion: "artifact_document.v1",
+      artifactId: "artifact-doc-4",
+      kind: "analysis",
+      title: "协议映射回归",
+      status: "ready",
+      language: "zh-CN",
+      blocks: [
+        {
+          id: "code-1",
+          type: "code_block",
+          title: "示例代码",
+          language: "typescript",
+          code: "const answer = 42;",
+        },
+        {
+          id: "image-1",
+          type: "image",
+          title: "架构图",
+          url: "",
+          caption: "等待上传正式图片",
+        },
+      ],
+      sources: [],
+      metadata: {
+        theme: "knowledge",
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector(".code-renderer")).not.toBeNull();
+    expect(container.textContent).toContain("示例代码");
+    expect(container.textContent).toContain("typescript");
+    expect(container.textContent).toContain("复制");
+    expect(container.textContent).toContain("图片占位图");
+    expect(container.textContent).toContain("等待上传正式图片");
+  });
+
+  it("结构块缺少结构数据时应回退为 rich_text，并删除 citation_list 空块", async () => {
+    const container = renderArtifactDocument({
+      schemaVersion: "artifact_document.v1",
+      artifactId: "artifact-doc-5",
+      kind: "report",
+      title: "回退行为回归",
+      status: "ready",
+      language: "zh-CN",
+      blocks: [
+        {
+          id: "table-fallback-1",
+          type: "table",
+          title: "对比表",
+          columns: [],
+          rows: [],
+          content: "备用表格文本",
+        },
+        {
+          id: "citation-drop-1",
+          type: "citation_list",
+          title: "不应出现的参考来源",
+          items: [],
+        },
+      ],
+      sources: [],
+      metadata: {
+        theme: "document",
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("备用表格文本");
+    expect(container.textContent).not.toContain("不应出现的参考来源");
   });
 });

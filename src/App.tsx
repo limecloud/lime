@@ -126,11 +126,8 @@ function AppContent() {
     (shortLabel: string, fullPrompt: string, currentTheme: string) => {
       const themeLabels: Record<string, string> = {
         "social-media": "社媒",
-        poster: "海报",
-        music: "音乐",
         knowledge: "知识",
         planning: "计划",
-        novel: "小说",
         document: "文档",
         video: "视频",
         general: "对话",

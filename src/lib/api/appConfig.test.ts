@@ -51,6 +51,62 @@ describe("appConfig API", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("应返回 workspace_preferences 配置", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce({
+      default_provider: "claude",
+      workspace_preferences: {
+        schema_version: 1,
+        media_defaults: {
+          image: {
+            preferredProviderId: "fal",
+          },
+        },
+      },
+    });
+
+    await expect(getConfig()).resolves.toEqual(
+      expect.objectContaining({
+        default_provider: "claude",
+        workspace_preferences: expect.objectContaining({
+          media_defaults: expect.objectContaining({
+            image: expect.objectContaining({
+              preferredProviderId: "fal",
+            }),
+          }),
+        }),
+      }),
+    );
+    const config = await getConfig();
+    expect(config.workspace_preferences).toEqual(
+      expect.objectContaining({
+        media_defaults: expect.objectContaining({
+          image: expect.objectContaining({
+            preferredProviderId: "fal",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("saveConfig 应写入 workspace_preferences", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce(undefined);
+
+    const config = {
+      default_provider: "claude",
+      workspace_preferences: {
+        media_defaults: {
+          voice: { preferredProviderId: "openai" },
+        },
+      },
+    } as never;
+
+    await expect(saveConfig(config)).resolves.toBeUndefined();
+
+    expect(vi.mocked(safeInvoke)).toHaveBeenCalledWith("save_config", {
+      config,
+    });
+  });
+
   it("getConfig 应缓存并复用同一轮读取结果", async () => {
     vi.mocked(safeInvoke).mockResolvedValueOnce({
       default_provider: "claude",

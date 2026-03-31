@@ -1,13 +1,26 @@
 import type {
+  ArtifactBeginEnvelope,
   ArtifactAttachSourceOperation,
+  ArtifactBlockRemoveEnvelope,
+  ArtifactBlockUpsertEnvelope,
   ArtifactCreateOperation,
+  ArtifactCompleteEnvelope,
+  ArtifactDocumentIncrementalEnvelope,
+  ArtifactDocumentIncrementalEnvelopeType,
   ArtifactDocumentOperation,
   ArtifactDocumentOperationName,
+  ArtifactDocumentSource,
+  ArtifactDocumentStatus,
   ArtifactFailOperation,
   ArtifactFinalizeVersionOperation,
+  ArtifactIncrementalFailEnvelope,
+  ArtifactMetaPatchEnvelope,
+  ArtifactOperationCandidateEnvelope,
   ArtifactOpsEnvelope,
   ArtifactRemoveBlockOperation,
   ArtifactReorderBlocksOperation,
+  ArtifactRewritePatchEnvelope,
+  ArtifactSourceUpsertEnvelope,
   ArtifactSetMetaOperation,
   ArtifactUpsertBlockOperation,
 } from "./types";
@@ -23,6 +36,16 @@ const ARTIFACT_OPERATION_NAMES = new Set<ArtifactDocumentOperationName>([
   "artifact.remove_block",
   "artifact.attach_source",
   "artifact.finalize_version",
+  "artifact.fail",
+]);
+
+const ARTIFACT_INCREMENTAL_ENVELOPE_TYPES = new Set<ArtifactDocumentIncrementalEnvelopeType>([
+  "artifact.begin",
+  "artifact.meta.patch",
+  "artifact.source.upsert",
+  "artifact.block.upsert",
+  "artifact.block.remove",
+  "artifact.complete",
   "artifact.fail",
 ]);
 
@@ -47,6 +70,38 @@ function normalizeStringArray(value: unknown): string[] | undefined {
     .filter((item): item is string => Boolean(item));
 
   return items.length > 0 ? items : undefined;
+}
+
+function normalizeSourceValue(value: unknown): ArtifactDocumentSource | null {
+  const source = asRecord(value);
+  if (!source || !normalizeText(source.id) || !normalizeText(source.label)) {
+    return null;
+  }
+
+  return source as ArtifactDocumentSource;
+}
+
+function normalizeSourceArray(value: unknown): ArtifactDocumentSource[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const sources = value
+    .map((item) => normalizeSourceValue(item))
+    .filter((item): item is ArtifactDocumentSource => Boolean(item));
+
+  return sources.length > 0 ? sources : undefined;
+}
+
+function normalizeBlockValue(
+  value: unknown,
+): ArtifactBlockUpsertEnvelope["block"] | null {
+  const block = asRecord(value);
+  if (!block || !normalizeText(block.id) || !normalizeText(block.type)) {
+    return null;
+  }
+
+  return block as ArtifactBlockUpsertEnvelope["block"];
 }
 
 function stripOptionalJsonFence(raw: string): string {
@@ -192,6 +247,150 @@ function normalizeOperation(
   }
 }
 
+function normalizeIncrementalEnvelope(
+  value: unknown,
+): ArtifactDocumentIncrementalEnvelope | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const type = normalizeText(record.type) as
+    | ArtifactDocumentIncrementalEnvelopeType
+    | undefined;
+  if (!type || !ARTIFACT_INCREMENTAL_ENVELOPE_TYPES.has(type)) {
+    return null;
+  }
+
+  const artifactId = normalizeText(record.artifactId);
+  if (!artifactId) {
+    return null;
+  }
+
+  switch (type) {
+    case "artifact.begin": {
+      const kind = normalizeText(record.kind);
+      const title = normalizeText(record.title);
+      if (!kind || !title) {
+        return null;
+      }
+      return {
+        type,
+        artifactId,
+        kind: kind as ArtifactBeginEnvelope["kind"],
+        title,
+      };
+    }
+    case "artifact.meta.patch": {
+      const patch = asRecord(record.patch);
+      if (!patch) {
+        return null;
+      }
+      return {
+        type,
+        artifactId,
+        patch,
+      } satisfies ArtifactMetaPatchEnvelope;
+    }
+    case "artifact.source.upsert": {
+      const source = normalizeSourceValue(record.source);
+      if (!source) {
+        return null;
+      }
+      return {
+        type,
+        artifactId,
+        source,
+      } satisfies ArtifactSourceUpsertEnvelope;
+    }
+    case "artifact.block.upsert": {
+      const block = normalizeBlockValue(record.block);
+      if (!block) {
+        return null;
+      }
+      return {
+        type,
+        artifactId,
+        block,
+      };
+    }
+    case "artifact.block.remove": {
+      const blockId = normalizeText(record.blockId);
+      if (!blockId) {
+        return null;
+      }
+      return {
+        type,
+        artifactId,
+        blockId,
+      } satisfies ArtifactBlockRemoveEnvelope;
+    }
+    case "artifact.complete":
+      return {
+        type,
+        artifactId,
+        ...(normalizeText(record.summary) ? { summary: normalizeText(record.summary) } : {}),
+      } satisfies ArtifactCompleteEnvelope;
+    case "artifact.fail": {
+      const reason = normalizeText(record.reason);
+      if (!reason) {
+        return null;
+      }
+      return {
+        type,
+        artifactId,
+        reason,
+      } satisfies ArtifactIncrementalFailEnvelope;
+    }
+    default:
+      return null;
+  }
+}
+
+export function parseArtifactRewritePatchValue(
+  value: unknown,
+): ArtifactRewritePatchEnvelope | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const type = normalizeText(record.type);
+  const targetBlockId =
+    normalizeText(record.targetBlockId) ||
+    normalizeText(record.target_block_id);
+  if (type && type !== "artifact_rewrite_patch") {
+    return null;
+  }
+  if (!type && !targetBlockId) {
+    return null;
+  }
+
+  const artifactId =
+    normalizeText(record.artifactId) || normalizeText(record.artifact_id);
+  const block = normalizeBlockValue(record.block);
+  if (!artifactId || !block) {
+    return null;
+  }
+
+  const source = normalizeSourceValue(record.source);
+  const sources = normalizeSourceArray(record.sources);
+  const status = normalizeText(record.status) as
+    | ArtifactDocumentStatus
+    | undefined;
+
+  return {
+    type: "artifact_rewrite_patch",
+    artifactId,
+    targetBlockId: targetBlockId || block.id,
+    block,
+    ...(source ? { source } : {}),
+    ...(sources ? { sources } : {}),
+    ...(normalizeText(record.summary) ? { summary: normalizeText(record.summary) } : {}),
+    ...(status ? { status } : {}),
+  };
+}
+
 export function parseArtifactOpsValue(value: unknown): ArtifactOpsEnvelope | null {
   const record = asRecord(value);
   if (!record) {
@@ -221,6 +420,22 @@ export function parseArtifactOpsValue(value: unknown): ArtifactOpsEnvelope | nul
   };
 }
 
+export function parseArtifactIncrementalValue(
+  value: unknown,
+): ArtifactDocumentIncrementalEnvelope | null {
+  return normalizeIncrementalEnvelope(value);
+}
+
+export function parseArtifactOperationCandidateValue(
+  value: unknown,
+): ArtifactOperationCandidateEnvelope | null {
+  return (
+    parseArtifactIncrementalValue(value) ||
+    parseArtifactRewritePatchValue(value) ||
+    parseArtifactOpsValue(value)
+  );
+}
+
 export function parseArtifactOpsString(raw: string): ArtifactOpsEnvelope | null {
   const normalized = stripOptionalJsonFence(raw);
   if (!normalized) {
@@ -229,6 +444,51 @@ export function parseArtifactOpsString(raw: string): ArtifactOpsEnvelope | null 
 
   try {
     return parseArtifactOpsValue(JSON.parse(normalized));
+  } catch {
+    return null;
+  }
+}
+
+export function parseArtifactIncrementalString(
+  raw: string,
+): ArtifactDocumentIncrementalEnvelope | null {
+  const normalized = stripOptionalJsonFence(raw);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    return parseArtifactIncrementalValue(JSON.parse(normalized));
+  } catch {
+    return null;
+  }
+}
+
+export function parseArtifactRewritePatchString(
+  raw: string,
+): ArtifactRewritePatchEnvelope | null {
+  const normalized = stripOptionalJsonFence(raw);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    return parseArtifactRewritePatchValue(JSON.parse(normalized));
+  } catch {
+    return null;
+  }
+}
+
+export function parseArtifactOperationCandidateString(
+  raw: string,
+): ArtifactOperationCandidateEnvelope | null {
+  const normalized = stripOptionalJsonFence(raw);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    return parseArtifactOperationCandidateValue(JSON.parse(normalized));
   } catch {
     return null;
   }

@@ -10,8 +10,7 @@ export type HotkeyScene =
   | "workspace"
   | "terminal"
   | "document-editor"
-  | "document-canvas"
-  | "poster-canvas";
+  | "document-canvas";
 
 export interface AuditedHotkeyDefinition {
   id: string;

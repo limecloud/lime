@@ -304,6 +304,7 @@ mod tests {
     fn should_embed_social_image_tool_contract_in_default_skill() {
         assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT
             .contains("allowed-tools: social_generate_cover_image, search_query"));
+        assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("**配图说明**"));
         assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("状态：{成功/失败}"));
         assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("lime_workflow_ref"));
@@ -324,6 +325,16 @@ mod tests {
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`github/search`"));
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`zhihu/hot`"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("name: typesetting"));
+        assert!(VIDEO_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(BROADCAST_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(COVER_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(MODAL_RESOURCE_SEARCH_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(TYPESETTING_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(LIBRARY_SKILL_CONTENT.contains("lime_surface: chat"));
+        assert!(URL_PARSE_SKILL_CONTENT.contains("lime_surface: chat"));
+        assert!(RESEARCH_SKILL_CONTENT.contains("lime_surface: chat"));
+        assert!(SITE_SEARCH_SKILL_CONTENT.contains("lime_surface: chat"));
     }
 
     #[test]

@@ -80,6 +80,9 @@ interface WorkspaceCanvasPreviewArtifactParams {
   onSaveArtifactDocument?: ComponentProps<
     typeof ArtifactWorkbenchPreview
   >["onSaveArtifactDocument"];
+  onArtifactBlockRewriteRun?: ComponentProps<
+    typeof ArtifactWorkbenchPreview
+  >["onArtifactBlockRewriteRun"];
   threadItems?: AgentThreadItem[];
   focusedBlockId?: string | null;
   blockFocusRequestKey?: number;
@@ -169,8 +172,6 @@ interface WorkspaceCanvasPreviewFactoryParams {
     ComponentProps<typeof CanvasFactory>["onTextStylizeRun"]
   >;
   preferContentReviewInRightRail: boolean;
-  novelChapterListCollapsed: boolean;
-  onNovelChapterListCollapsedChange: (collapsed: boolean) => void;
 }
 
 interface WorkspaceCanvasPreviewTeamWorkbenchParams extends Omit<
@@ -178,6 +179,7 @@ interface WorkspaceCanvasPreviewTeamWorkbenchParams extends Omit<
   "surfaceProps"
 > {
   surfaceProps: TeamWorkbenchSurfaceProps;
+  teamMemorySnapshot?: UseTeamWorkbenchPresentationParams["teamMemorySnapshot"];
 }
 
 interface UseWorkspaceCanvasPreviewPresentationParams {
@@ -261,6 +263,7 @@ export function useWorkspaceCanvasPreviewPresentation({
       artifactPreviewSize: artifactPreview.artifactPreviewSize,
       onArtifactPreviewSizeChange: artifactPreview.onArtifactPreviewSizeChange,
       onSaveArtifactDocument: artifactPreview.onSaveArtifactDocument,
+      onArtifactBlockRewriteRun: artifactPreview.onArtifactBlockRewriteRun,
       threadItems: artifactPreview.threadItems,
       focusedBlockId: artifactPreview.focusedBlockId,
       blockFocusRequestKey: artifactPreview.blockFocusRequestKey,
@@ -278,6 +281,7 @@ export function useWorkspaceCanvasPreviewPresentation({
       artifactPreview.focusedBlockId,
       artifactPreview.onArtifactPreviewSizeChange,
       artifactPreview.onSaveArtifactDocument,
+      artifactPreview.onArtifactBlockRewriteRun,
       artifactPreview.onArtifactViewModeChange,
       artifactPreview.onJumpToTimelineItem,
       artifactPreview.onCloseCanvas,
@@ -397,16 +401,6 @@ export function useWorkspaceCanvasPreviewPresentation({
               canvasFactory.preferContentReviewInRightRail
                 ? ("external-rail" as const)
                 : ("inline" as const),
-            novelControls:
-              canvasFactory.resolvedCanvasState.type === "novel"
-                ? {
-                    useExternalToolbar: true,
-                    chapterListCollapsed:
-                      canvasFactory.novelChapterListCollapsed,
-                    onChapterListCollapsedChange:
-                      canvasFactory.onNovelChapterListCollapsedChange,
-                  }
-                : null,
           }
         : null,
     [
@@ -417,7 +411,6 @@ export function useWorkspaceCanvasPreviewPresentation({
       canvasFactory.canvasRenderTheme,
       canvasFactory.contentId,
       canvasFactory.isStreaming,
-      canvasFactory.novelChapterListCollapsed,
       canvasFactory.onAddImage,
       canvasFactory.onAutoContinueModelChange,
       canvasFactory.onAutoContinueProviderTypeChange,
@@ -427,7 +420,6 @@ export function useWorkspaceCanvasPreviewPresentation({
       canvasFactory.onCloseCanvas,
       canvasFactory.onContentReviewRun,
       canvasFactory.onImportDocument,
-      canvasFactory.onNovelChapterListCollapsedChange,
       canvasFactory.onSelectionTextChange,
       canvasFactory.onStateChange,
       canvasFactory.onTextStylizeRun,

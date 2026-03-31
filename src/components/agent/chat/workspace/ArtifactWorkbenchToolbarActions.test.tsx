@@ -21,6 +21,7 @@ function renderActions(
     isSavingToProject: false,
     onSaveToProject: vi.fn(),
     onExportJson: vi.fn(),
+    onExportHtml: vi.fn(),
     onExportMarkdown: vi.fn(),
     showArchiveToggle: true,
     isUpdatingArchive: false,
@@ -72,6 +73,9 @@ describe("ArtifactWorkbenchToolbarActions", () => {
       ),
     ).not.toBeNull();
     expect(
+      container.querySelector('[data-testid="artifact-workbench-export-html"]'),
+    ).not.toBeNull();
+    expect(
       container.querySelector(
         '[data-testid="artifact-workbench-export-markdown"]',
       ),
@@ -89,11 +93,13 @@ describe("ArtifactWorkbenchToolbarActions", () => {
   it("点击按钮时应回调对应动作", async () => {
     const onSaveToProject = vi.fn().mockResolvedValue(undefined);
     const onExportJson = vi.fn().mockResolvedValue(undefined);
+    const onExportHtml = vi.fn().mockResolvedValue(undefined);
     const onExportMarkdown = vi.fn().mockResolvedValue(undefined);
     const onToggleArchive = vi.fn().mockResolvedValue(undefined);
     const { container } = renderActions({
       onSaveToProject,
       onExportJson,
+      onExportHtml,
       onExportMarkdown,
       onToggleArchive,
     });
@@ -110,11 +116,13 @@ describe("ArtifactWorkbenchToolbarActions", () => {
     };
 
     await click("artifact-workbench-save-to-project");
+    await click("artifact-workbench-export-html");
     await click("artifact-workbench-export-markdown");
     await click("artifact-workbench-export-json");
     await click("artifact-workbench-archive-toggle");
 
     expect(onSaveToProject).toHaveBeenCalledTimes(1);
+    expect(onExportHtml).toHaveBeenCalledTimes(1);
     expect(onExportMarkdown).toHaveBeenCalledTimes(1);
     expect(onExportJson).toHaveBeenCalledTimes(1);
     expect(onToggleArchive).toHaveBeenCalledTimes(1);

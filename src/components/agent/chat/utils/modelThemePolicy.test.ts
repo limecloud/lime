@@ -40,59 +40,6 @@ function createModel(
 }
 
 describe("modelThemePolicy", () => {
-  it("poster 主题应过滤掉非图像模型", () => {
-    const models = [
-      createModel("gemini-3-pro-image-preview"),
-      createModel("gemini-3-pro-preview"),
-      createModel("gemini-2.5-computer-use-preview-10-2025"),
-    ];
-
-    const result = filterModelsByTheme("poster", models);
-
-    expect(result.usedFallback).toBe(false);
-    expect(result.models.map((model) => model.id)).toEqual([
-      "gemini-3-pro-image-preview",
-    ]);
-    expect(result.filteredOutCount).toBe(2);
-    expect(result.policyName).toBe("image-only");
-  });
-
-  it("poster 主题在无匹配模型时应回退到原列表", () => {
-    const models = [
-      createModel("gemini-3-pro-preview"),
-      createModel("gpt-4o"),
-    ];
-
-    const result = filterModelsByTheme("poster", models);
-
-    expect(result.usedFallback).toBe(true);
-    expect(result.models).toEqual(models);
-    expect(result.policyName).toBe("fallback-all");
-  });
-
-  it("poster 主题应支持能力推断识别图像模型", () => {
-    const models = [
-      createModel("vendor-creative-v1", {
-        capabilities: {
-          vision: true,
-          tools: false,
-          streaming: true,
-          json_mode: false,
-          function_calling: false,
-          reasoning: false,
-        },
-      }),
-      createModel("generic-chat-v1"),
-    ];
-
-    const result = filterModelsByTheme("poster", models);
-
-    expect(result.usedFallback).toBe(false);
-    expect(result.models.map((model) => model.id)).toEqual([
-      "vendor-creative-v1",
-    ]);
-  });
-
   it("knowledge 主题应优先保留推理聊天模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),

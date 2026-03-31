@@ -13,9 +13,7 @@ import {
   GitBranch,
   Component,
   FileText,
-  Music,
   Film,
-  BookOpen,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,14 +58,8 @@ function getTypeIcon(type: ArtifactType): React.ReactNode {
       return <Globe className={iconClass} />;
     case "canvas:document":
       return <FileText className={iconClass} />;
-    case "canvas:poster":
-      return <Image className={iconClass} />;
-    case "canvas:music":
-      return <Music className={iconClass} />;
-    case "canvas:script":
+    case "canvas:video":
       return <Film className={iconClass} />;
-    case "canvas:novel":
-      return <BookOpen className={iconClass} />;
     default:
       return <FileText className={iconClass} />;
   }
@@ -88,10 +80,7 @@ function getTypeDisplayName(type: ArtifactType): string {
     react: "React",
     browser_assist: "浏览器协助",
     "canvas:document": "文档",
-    "canvas:poster": "海报",
-    "canvas:music": "音乐",
-    "canvas:script": "剧本",
-    "canvas:novel": "小说",
+    "canvas:video": "视频",
   };
 
   return displayNames[type] || type;

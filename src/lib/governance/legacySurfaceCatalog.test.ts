@@ -30,6 +30,30 @@ describe("legacySurfaceCatalog", () => {
     expect("legacyHelperSurfaceMonitors" in agentCommandCatalog).toBe(false);
   });
 
+  it("应将旧海报素材命令与 helper 收敛到图库主链", () => {
+    expect(agentCommandCatalog.deprecatedCommandReplacements).toMatchObject({
+      create_poster_metadata: "create_gallery_material_metadata",
+      get_poster_metadata: "get_gallery_material_metadata",
+      get_poster_material: "get_gallery_material",
+      update_poster_metadata: "update_gallery_material_metadata",
+      delete_poster_metadata: "delete_gallery_material_metadata",
+      list_by_image_category: "list_gallery_materials_by_image_category",
+      list_by_layout_category: "list_gallery_materials_by_layout_category",
+      list_by_mood: "list_gallery_materials_by_mood",
+    });
+    expect(agentCommandCatalog.deprecatedHelperReplacements).toMatchObject({
+      getPosterMaterial: "getGalleryMaterial",
+      createPosterMetadata: "createGalleryMetadata",
+      updatePosterMetadata: "updateGalleryMetadata",
+      deletePosterMetadata: "deleteGalleryMetadata",
+      listPosterMaterialsByImageCategory: "listGalleryMaterialsByImageCategory",
+      listPosterMaterialsByLayoutCategory:
+        "listGalleryMaterialsByLayoutCategory",
+      listPosterMaterialsByMood: "listGalleryMaterialsByMood",
+      usePosterMaterial: "useGalleryMaterial",
+    });
+  });
+
   it("应禁止 SkillSelectorPanel 旧面板路径重新回流", () => {
     const legacyPanelPath = `./${"SkillSelectorPanel"}`;
     const monitor = legacySurfaceCatalogJson.frontendText.find(
@@ -118,6 +142,50 @@ describe("legacySurfaceCatalog", () => {
         "为当前任务挂载额外能力",
         "按需挂载能力",
         "项技能可用",
+      ]),
+    );
+  });
+
+  it("应禁止旧海报素材入口与 Rust 符号重新回流", () => {
+    const importMonitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "gallery-material-legacy-frontend-module",
+    );
+    const frontendMonitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "gallery-material-legacy-helper-usage",
+    );
+    const rustMonitor = legacySurfaceCatalogJson.rustText.find(
+      (entry) => entry.id === "rust-gallery-material-legacy-symbols",
+    );
+
+    expect(importMonitor).toBeTruthy();
+    expect(importMonitor?.allowedPaths).toEqual([]);
+    expect(importMonitor?.targets).toEqual(
+      expect.arrayContaining([
+        "src/lib/api/posterMaterials.ts",
+        "src/hooks/usePosterMaterial.ts",
+        "src/types/poster-material.ts",
+      ]),
+    );
+
+    expect(frontendMonitor).toBeTruthy();
+    expect(frontendMonitor?.classification).toBe("dead-candidate");
+    expect(frontendMonitor?.patterns).toEqual(
+      expect.arrayContaining([
+        "getPosterMaterial(",
+        "createPosterMetadata(",
+        "usePosterMaterial(",
+      ]),
+    );
+
+    expect(rustMonitor).toBeTruthy();
+    expect(rustMonitor?.allowedPaths).toEqual([
+      "src-tauri/crates/core/src/database/schema.rs",
+    ]);
+    expect(rustMonitor?.patterns).toEqual(
+      expect.arrayContaining([
+        "PosterMaterialDao",
+        "poster_material_metadata",
+        "idx_poster_material_metadata_",
       ]),
     );
   });

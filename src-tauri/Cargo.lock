@@ -378,7 +378,7 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "aster-core"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "aster-models"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2417,7 +2417,7 @@ dependencies = [
  "dtoa-short",
  "itoa",
  "matches",
- "phf 0.8.0",
+ "phf 0.10.1",
  "proc-macro2",
  "quote",
  "smallvec",
@@ -2433,7 +2433,7 @@ dependencies = [
  "cssparser-macros",
  "dtoa-short",
  "itoa",
- "phf 0.8.0",
+ "phf 0.11.3",
  "smallvec",
 ]
 
@@ -4374,7 +4374,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.56.0",
+ "windows-core 0.57.0",
 ]
 
 [[package]]
@@ -5101,7 +5101,7 @@ dependencies = [
 
 [[package]]
 name = "lime"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "arboard",
@@ -5205,7 +5205,7 @@ dependencies = [
 
 [[package]]
 name = "lime-agent"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "aster-core",
@@ -5234,7 +5234,7 @@ dependencies = [
 
 [[package]]
 name = "lime-browser-runtime"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "futures",
@@ -5251,7 +5251,7 @@ dependencies = [
 
 [[package]]
 name = "lime-config"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -5267,7 +5267,7 @@ dependencies = [
 
 [[package]]
 name = "lime-core"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "aster-models",
  "async-trait",
@@ -5307,7 +5307,7 @@ dependencies = [
 
 [[package]]
 name = "lime-credential"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "axum 0.7.9",
  "base64 0.22.1",
@@ -5342,7 +5342,7 @@ dependencies = [
 
 [[package]]
 name = "lime-gateway"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -5372,7 +5372,7 @@ dependencies = [
 
 [[package]]
 name = "lime-infra"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "dashmap 5.5.3",
@@ -5392,7 +5392,7 @@ dependencies = [
 
 [[package]]
 name = "lime-mcp"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -5424,7 +5424,7 @@ dependencies = [
 
 [[package]]
 name = "lime-processor"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -5443,7 +5443,7 @@ dependencies = [
 
 [[package]]
 name = "lime-providers"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5498,7 +5498,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "aster-core",
  "async-stream",
@@ -5543,7 +5543,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server-utils"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "axum 0.7.9",
  "futures",
@@ -5558,7 +5558,7 @@ dependencies = [
 
 [[package]]
 name = "lime-services"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "aster-core",
@@ -5600,7 +5600,7 @@ dependencies = [
 
 [[package]]
 name = "lime-skills"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -5618,7 +5618,7 @@ dependencies = [
 
 [[package]]
 name = "lime-terminal"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -5645,7 +5645,7 @@ dependencies = [
 
 [[package]]
 name = "lime-websocket"
-version = "1.0.0-beta"
+version = "1.0.1"
 dependencies = [
  "axum 0.7.9",
  "chrono",
@@ -6324,7 +6324,7 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff32365de1b6743cb203b710788263c44a03de03802daf96092f2da4fe6ba4d7"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -7077,9 +7077,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3dfb61232e34fcb633f43d12c58f83c1df82962dcdfa565a4e866ffc17dafe12"
 dependencies = [
- "phf_macros 0.8.0",
  "phf_shared 0.8.0",
- "proc-macro-hack",
 ]
 
 [[package]]
@@ -7088,7 +7086,9 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fabbf1ead8a5bcbc20f5f8b939ee3f5b0f6f281b6ad3468b84656b658b455259"
 dependencies = [
+ "phf_macros 0.10.0",
  "phf_shared 0.10.0",
+ "proc-macro-hack",
 ]
 
 [[package]]
@@ -7192,12 +7192,12 @@ dependencies = [
 
 [[package]]
 name = "phf_macros"
-version = "0.8.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f6fde18ff429ffc8fe78e2bf7f8b7a5a5a6e2a8b58bc5a9ac69198bbda9189c"
+checksum = "58fdf3184dd560f160dd73922bea2d5cd6e8f064bf4b13110abd81b03697b4e0"
 dependencies = [
- "phf_generator 0.8.0",
- "phf_shared 0.8.0",
+ "phf_generator 0.10.0",
+ "phf_shared 0.10.0",
  "proc-macro-hack",
  "proc-macro2",
  "quote",
@@ -7609,7 +7609,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -9108,7 +9108,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b1fdf65dd6331831494dd616b30351c38e96e45921a27745cf98490458b90bb"
 dependencies = [
- "dirs 4.0.0",
+ "dirs 6.0.0",
 ]
 
 [[package]]

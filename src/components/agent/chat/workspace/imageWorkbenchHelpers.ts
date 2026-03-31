@@ -275,18 +275,6 @@ export function buildDefaultCanvasImageApplyTarget(params: {
     };
   }
 
-  if (params.canvasState.type === "poster") {
-    return {
-      kind: "canvas-insert",
-      canvasType: "poster",
-      anchorHint: "poster_center",
-      projectId: params.projectId ?? null,
-      contentId: params.contentId ?? null,
-      actionLabel: "插入海报",
-      dispatchLabel: "已切回海报，正在插入图片",
-    };
-  }
-
   return null;
 }
 

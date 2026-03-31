@@ -3,6 +3,7 @@ import type { ActionRequired, ActionRequestGovernanceMeta } from "../types";
 type SchemaRecord = Record<string, unknown>;
 
 const SINGLE_TURN_SINGLE_QUESTION_STRATEGY = "single_turn_single_question";
+const ASK_USER_QUESTIONS_SCHEMA_KEY = "x-lime-ask-user-questions";
 
 function buildGovernanceMeta(
   source: ActionRequestGovernanceMeta["source"],
@@ -47,6 +48,7 @@ function governAskUserRequest(request: ActionRequired): ActionRequired {
 }
 
 function governElicitationRequest(request: ActionRequired): ActionRequired {
+  const questions = request.questions || [];
   const schema =
     request.requestedSchema &&
     typeof request.requestedSchema === "object" &&
@@ -61,7 +63,19 @@ function governElicitationRequest(request: ActionRequired): ActionRequired {
       : null;
 
   if (!schema || !properties) {
-    return request;
+    if (questions.length <= 1) {
+      return request;
+    }
+
+    return {
+      ...request,
+      questions: [questions[0]],
+      governance: buildGovernanceMeta("runtime_action_required", {
+        originalQuestionCount: questions.length,
+        retainedQuestionIndex: 0,
+        deferredQuestionCount: questions.length - 1,
+      }),
+    };
   }
 
   const propertyKeys = Object.keys(properties);
@@ -69,7 +83,10 @@ function governElicitationRequest(request: ActionRequired): ActionRequired {
     return request;
   }
 
-  const normalizedRequired = normalizeRequiredKeys(schema.required, propertyKeys);
+  const normalizedRequired = normalizeRequiredKeys(
+    schema.required,
+    propertyKeys,
+  );
   const retainedFieldKey = normalizedRequired[0] || propertyKeys[0];
   const retainedProperty = properties[retainedFieldKey];
   const nextSchema: SchemaRecord = {
@@ -85,10 +102,25 @@ function governElicitationRequest(request: ActionRequired): ActionRequired {
     delete nextSchema.required;
   }
 
+  const nextQuestions =
+    questions.length > 1 ? [questions[0]] : request.questions;
+
+  if (nextQuestions && nextQuestions.length > 0) {
+    nextSchema[ASK_USER_QUESTIONS_SCHEMA_KEY] = nextQuestions;
+  }
+
   return {
     ...request,
+    questions: nextQuestions,
     requestedSchema: nextSchema,
     governance: buildGovernanceMeta("runtime_action_required", {
+      ...(questions.length > 1
+        ? {
+            originalQuestionCount: questions.length,
+            retainedQuestionIndex: 0,
+            deferredQuestionCount: questions.length - 1,
+          }
+        : {}),
       originalFieldCount: propertyKeys.length,
       retainedFieldKey,
       deferredFieldCount: propertyKeys.length - 1,
@@ -96,9 +128,7 @@ function governElicitationRequest(request: ActionRequired): ActionRequired {
   };
 }
 
-export function governActionRequest(
-  request: ActionRequired,
-): ActionRequired {
+export function governActionRequest(request: ActionRequired): ActionRequired {
   if (request.actionType === "ask_user") {
     return governAskUserRequest(request);
   }

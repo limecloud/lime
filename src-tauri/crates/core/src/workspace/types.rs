@@ -21,21 +21,18 @@ pub enum WorkspaceType {
     /// 通用对话
     General,
     /// 社媒内容
+    #[serde(alias = "social")]
     SocialMedia,
-    /// 图文海报
-    Poster,
-    /// 歌词曲谱
-    Music,
     /// 知识探索
     Knowledge,
     /// 计划规划
     Planning,
-    /// 办公文档
+    /// 办公文档（兼容旧 poster/music/novel 类型）
+    #[serde(alias = "poster", alias = "music", alias = "novel")]
     Document,
-    /// 短视频
+    /// 短视频（兼容旧 drama 类型）
+    #[serde(alias = "drama")]
     Video,
-    /// 小说创作
-    Novel,
 }
 
 impl WorkspaceType {
@@ -45,13 +42,10 @@ impl WorkspaceType {
             WorkspaceType::Temporary => "temporary",
             WorkspaceType::General => "general",
             WorkspaceType::SocialMedia => "social-media",
-            WorkspaceType::Poster => "poster",
-            WorkspaceType::Music => "music",
             WorkspaceType::Knowledge => "knowledge",
             WorkspaceType::Planning => "planning",
             WorkspaceType::Document => "document",
             WorkspaceType::Video => "video",
-            WorkspaceType::Novel => "novel",
         }
     }
 
@@ -59,17 +53,12 @@ impl WorkspaceType {
         match s {
             "temporary" => WorkspaceType::Temporary,
             "general" => WorkspaceType::General,
-            "social-media" => WorkspaceType::SocialMedia,
-            "poster" => WorkspaceType::Poster,
-            "music" => WorkspaceType::Music,
+            "social-media" | "social" => WorkspaceType::SocialMedia,
             "knowledge" => WorkspaceType::Knowledge,
             "planning" => WorkspaceType::Planning,
+            "poster" | "music" | "novel" => WorkspaceType::Document,
             "document" => WorkspaceType::Document,
-            "video" => WorkspaceType::Video,
-            "novel" => WorkspaceType::Novel,
-            // 旧类型兼容映射
-            "drama" => WorkspaceType::Video,
-            "social" => WorkspaceType::SocialMedia,
+            "video" | "drama" => WorkspaceType::Video,
             _ => WorkspaceType::Persistent,
         }
     }
@@ -80,13 +69,10 @@ impl WorkspaceType {
             self,
             WorkspaceType::General
                 | WorkspaceType::SocialMedia
-                | WorkspaceType::Poster
-                | WorkspaceType::Music
                 | WorkspaceType::Knowledge
                 | WorkspaceType::Planning
                 | WorkspaceType::Document
                 | WorkspaceType::Video
-                | WorkspaceType::Novel
         )
     }
 }
@@ -375,13 +361,10 @@ mod tests {
         assert_eq!(WorkspaceType::Temporary.as_str(), "temporary");
         assert_eq!(WorkspaceType::General.as_str(), "general");
         assert_eq!(WorkspaceType::SocialMedia.as_str(), "social-media");
-        assert_eq!(WorkspaceType::Poster.as_str(), "poster");
-        assert_eq!(WorkspaceType::Music.as_str(), "music");
         assert_eq!(WorkspaceType::Knowledge.as_str(), "knowledge");
         assert_eq!(WorkspaceType::Planning.as_str(), "planning");
         assert_eq!(WorkspaceType::Document.as_str(), "document");
         assert_eq!(WorkspaceType::Video.as_str(), "video");
-        assert_eq!(WorkspaceType::Novel.as_str(), "novel");
     }
 
     #[test]
@@ -396,18 +379,18 @@ mod tests {
             WorkspaceType::parse("social-media"),
             WorkspaceType::SocialMedia
         );
-        assert_eq!(WorkspaceType::parse("poster"), WorkspaceType::Poster);
-        assert_eq!(WorkspaceType::parse("music"), WorkspaceType::Music);
         assert_eq!(WorkspaceType::parse("knowledge"), WorkspaceType::Knowledge);
         assert_eq!(WorkspaceType::parse("planning"), WorkspaceType::Planning);
         assert_eq!(WorkspaceType::parse("document"), WorkspaceType::Document);
         assert_eq!(WorkspaceType::parse("video"), WorkspaceType::Video);
-        assert_eq!(WorkspaceType::parse("novel"), WorkspaceType::Novel);
     }
 
     #[test]
     fn test_legacy_type_migration() {
         // 旧类型应该正确映射到新类型
+        assert_eq!(WorkspaceType::parse("poster"), WorkspaceType::Document);
+        assert_eq!(WorkspaceType::parse("music"), WorkspaceType::Document);
+        assert_eq!(WorkspaceType::parse("novel"), WorkspaceType::Document);
         assert_eq!(WorkspaceType::parse("drama"), WorkspaceType::Video);
         assert_eq!(WorkspaceType::parse("social"), WorkspaceType::SocialMedia);
     }
@@ -424,13 +407,10 @@ mod tests {
         // 用户级类型应该返回 true
         assert!(WorkspaceType::General.is_project_type());
         assert!(WorkspaceType::SocialMedia.is_project_type());
-        assert!(WorkspaceType::Poster.is_project_type());
-        assert!(WorkspaceType::Music.is_project_type());
         assert!(WorkspaceType::Knowledge.is_project_type());
         assert!(WorkspaceType::Planning.is_project_type());
         assert!(WorkspaceType::Document.is_project_type());
         assert!(WorkspaceType::Video.is_project_type());
-        assert!(WorkspaceType::Novel.is_project_type());
 
         // 系统级类型应该返回 false
         assert!(!WorkspaceType::Persistent.is_project_type());
@@ -455,9 +435,22 @@ mod tests {
         // 测试从 kebab-case 反序列化
         let wt: WorkspaceType = serde_json::from_str("\"social-media\"").unwrap();
         assert_eq!(wt, WorkspaceType::SocialMedia);
+        let wt: WorkspaceType = serde_json::from_str("\"social\"").unwrap();
+        assert_eq!(wt, WorkspaceType::SocialMedia);
 
         let wt: WorkspaceType = serde_json::from_str("\"video\"").unwrap();
         assert_eq!(wt, WorkspaceType::Video);
+        let wt: WorkspaceType = serde_json::from_str("\"drama\"").unwrap();
+        assert_eq!(wt, WorkspaceType::Video);
+
+        let wt: WorkspaceType = serde_json::from_str("\"document\"").unwrap();
+        assert_eq!(wt, WorkspaceType::Document);
+        let wt: WorkspaceType = serde_json::from_str("\"poster\"").unwrap();
+        assert_eq!(wt, WorkspaceType::Document);
+        let wt: WorkspaceType = serde_json::from_str("\"music\"").unwrap();
+        assert_eq!(wt, WorkspaceType::Document);
+        let wt: WorkspaceType = serde_json::from_str("\"novel\"").unwrap();
+        assert_eq!(wt, WorkspaceType::Document);
 
         let wt: WorkspaceType = serde_json::from_str("\"persistent\"").unwrap();
         assert_eq!(wt, WorkspaceType::Persistent);
@@ -470,13 +463,10 @@ mod tests {
             WorkspaceType::Temporary,
             WorkspaceType::General,
             WorkspaceType::SocialMedia,
-            WorkspaceType::Poster,
-            WorkspaceType::Music,
             WorkspaceType::Knowledge,
             WorkspaceType::Planning,
             WorkspaceType::Document,
             WorkspaceType::Video,
-            WorkspaceType::Novel,
         ];
 
         for wt in types {

@@ -13,24 +13,18 @@ import type { SettingsTabs } from "./settings";
 export type WorkspaceTheme =
   | "general"
   | "social-media"
-  | "poster"
-  | "music"
   | "knowledge"
   | "planning"
   | "document"
-  | "video"
-  | "novel";
+  | "video";
 
 export type ThemeWorkspacePage =
   | "workspace-general"
   | "workspace-social-media"
-  | "workspace-poster"
-  | "workspace-music"
   | "workspace-knowledge"
   | "workspace-planning"
   | "workspace-document"
-  | "workspace-video"
-  | "workspace-novel";
+  | "workspace-video";
 
 export const LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY =
   "lime:last-theme-workspace-page";
@@ -41,13 +35,10 @@ export const THEME_WORKSPACE_PAGE_MAP: Record<
 > = {
   general: "workspace-general",
   "social-media": "workspace-social-media",
-  poster: "workspace-poster",
-  music: "workspace-music",
   knowledge: "workspace-knowledge",
   planning: "workspace-planning",
   document: "workspace-document",
   video: "workspace-video",
-  novel: "workspace-novel",
 };
 
 export const WORKSPACE_PAGE_THEME_MAP: Record<
@@ -56,13 +47,10 @@ export const WORKSPACE_PAGE_THEME_MAP: Record<
 > = {
   "workspace-general": "general",
   "workspace-social-media": "social-media",
-  "workspace-poster": "poster",
-  "workspace-music": "music",
   "workspace-knowledge": "knowledge",
   "workspace-planning": "planning",
   "workspace-document": "document",
   "workspace-video": "video",
-  "workspace-novel": "novel",
 };
 
 export type Page =

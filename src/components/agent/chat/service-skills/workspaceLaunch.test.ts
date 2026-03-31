@@ -54,6 +54,43 @@ describe("service skill workspace launch", () => {
     });
   });
 
+  it("站点型技能即使带有 defaultArtifactKind 也不应默认注入 artifact draft", () => {
+    const seed = buildServiceSkillWorkspaceSeed(
+      createSkill({
+        title: "GitHub 仓库线索检索",
+        category: "情报研究",
+        outputHint: "仓库列表 + 关键线索",
+        runnerType: "instant",
+        defaultExecutorBinding: "browser_assist",
+        defaultArtifactKind: "analysis",
+        themeTarget: "knowledge",
+        siteCapabilityBinding: {
+          adapterName: "github/search",
+          autoRun: true,
+          requireAttachedSession: true,
+          saveMode: "current_content",
+        },
+      }),
+    );
+
+    expect(seed).toEqual({
+      title: "GitHub 仓库线索检索",
+      contentType: "document",
+      requestMetadata: undefined,
+      metadata: {
+        source: "service_skill",
+        serviceSkill: {
+          id: "daily-trend-briefing",
+          title: "GitHub 仓库线索检索",
+          runnerType: "instant",
+          executionLocation: "client_default",
+          themeTarget: "knowledge",
+          artifactKind: "analysis",
+        },
+      },
+    });
+  });
+
   it("非内容工作区主题不应强制生成内容种子", () => {
     expect(
       buildServiceSkillWorkspaceSeed(

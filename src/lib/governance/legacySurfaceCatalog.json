@@ -115,7 +115,7 @@
     {
       "id": "poster-workflow-root-hook-entry",
       "classification": "dead-candidate",
-      "description": "已删除的根级海报工作流 Hook 入口，现役实现已回迁到 content-creator 内部",
+      "description": "已删除的根级海报工作流 Hook 入口，现役主链已收口到 workspace 工作台实现",
       "targets": ["src/hooks/usePosterWorkflow.ts"],
       "allowedPaths": []
     },
@@ -316,10 +316,226 @@
     {
       "id": "content-creator-legacy-canvas-container-module",
       "classification": "dead-candidate",
-      "description": "已删除的旧画布容器与骨架屏实现，仅保留画布注册中心",
+      "description": "已删除的旧 CanvasContainer 插件式容器与骨架屏实现",
       "targets": [
         "src/components/content-creator/core/CanvasContainer/CanvasContainer.tsx",
         "src/components/content-creator/core/CanvasContainer/CanvasSkeleton.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-canvas-barrel-entries",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator 画布顶层 barrel 入口，现役主链改为直连底层文件并经 workbenchCanvas 收口",
+      "targets": [
+        "src/components/content-creator/canvas/document/index.tsx",
+        "src/components/content-creator/canvas/music/index.ts",
+        "src/components/content-creator/canvas/novel/index.ts",
+        "src/components/content-creator/canvas/poster/index.tsx",
+        "src/components/content-creator/canvas/script/index.ts",
+        "src/components/content-creator/canvas/video/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-ui-barrel-entries",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator UI barrel 入口，现役主链改为直连具体组件文件",
+      "targets": [
+        "src/components/content-creator/material/index.ts",
+        "src/components/content-creator/core/LayoutTransition/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-music-legacy-sub-barrels",
+      "classification": "dead-candidate",
+      "description": "已删除的 music 子模块零引用 barrel 入口",
+      "targets": [
+        "src/components/content-creator/canvas/music/analysis/index.ts",
+        "src/components/content-creator/canvas/music/api/index.ts",
+        "src/components/content-creator/canvas/music/editors/index.ts",
+        "src/components/content-creator/canvas/music/export/index.ts",
+        "src/components/content-creator/canvas/music/hooks/index.ts",
+        "src/components/content-creator/canvas/music/player/index.ts",
+        "src/components/content-creator/canvas/music/utils/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-internal-barrels",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator 内部聚合 barrel，现役主链改为直连具体实现文件",
+      "targets": [
+        "src/components/content-creator/canvas/document/editor/index.ts",
+        "src/components/content-creator/canvas/document/platforms/index.ts",
+        "src/components/content-creator/canvas/music/renderers/index.ts",
+        "src/components/content-creator/canvas/poster/elements/index.ts",
+        "src/components/content-creator/canvas/poster/hooks/index.ts",
+        "src/components/content-creator/canvas/poster/utils/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-canvas-registry-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧画布注册中心与 register*Canvas 插件式入口，现役主链统一走 CanvasFactory/workbenchCanvas",
+      "targets": [
+        "src/components/content-creator/core/CanvasContainer/index.ts",
+        "src/components/content-creator/core/CanvasContainer/CanvasRegistry.ts",
+        "src/components/content-creator/canvas/document/registerDocumentCanvas.ts",
+        "src/components/content-creator/canvas/music/registerMusicCanvas.ts",
+        "src/components/content-creator/canvas/poster/registerPosterCanvas.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-module-readmes",
+      "classification": "dead-candidate",
+      "description": "已删除的 content-creator 本地模块 README，内容仍指向旧 barrel 与旧插件式画布架构",
+      "targets": [
+        "src/components/content-creator/canvas/README.md",
+        "src/components/content-creator/canvas/document/README.md",
+        "src/components/content-creator/canvas/poster/README.md",
+        "src/components/content-creator/canvas/poster/elements/README.md",
+        "src/components/content-creator/canvas/poster/hooks/README.md",
+        "src/components/content-creator/canvas/poster/utils/README.md"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-document-legacy-editor-widgets",
+      "classification": "dead-candidate",
+      "description": "已删除的 document 旧 textarea 编辑器与版本下拉组件，现役主链统一走 NotionEditor + DocumentToolbar",
+      "targets": [
+        "src/components/content-creator/canvas/document/DocumentEditor.tsx",
+        "src/components/content-creator/canvas/document/VersionSelector.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-poster-unused-platform-specs",
+      "classification": "dead-candidate",
+      "description": "已删除的 poster 孤立平台规范文件，未接入现役平台 registry 与导出链路",
+      "targets": [
+        "src/components/content-creator/canvas/poster/platforms/juejin.ts",
+        "src/components/content-creator/canvas/poster/platforms/zhihu.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-a2ui-legacy-shell-helpers",
+      "classification": "dead-candidate",
+      "description": "已删除的 A2UI 孤立壳组件与未接入的组件适配辅助，现役主链统一走 parser + A2UIRenderer",
+      "targets": [
+        "src/components/content-creator/a2ui/A2uiSurface.tsx",
+        "src/components/content-creator/a2ui/adapter.tsx",
+        "src/components/content-creator/a2ui/catalog/basic/utils.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-document-legacy-state-hooks",
+      "classification": "dead-candidate",
+      "description": "已删除的 document 孤立状态 Hook，现役主链直接由 DocumentCanvas 与工作台 runtime 管理状态",
+      "targets": [
+        "src/components/content-creator/canvas/document/hooks/useDocumentCanvas.ts",
+        "src/components/content-creator/canvas/document/hooks/useVersions.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-document-module-migrated-to-workspace",
+      "classification": "dead-candidate",
+      "description": "已迁出的 document 现役模块旧路径，当前统一收口到 components/workspace/document",
+      "targets": [
+        "src/components/content-creator/canvas/document/ContentReviewPanel.tsx",
+        "src/components/content-creator/canvas/document/DocumentCanvas.tsx",
+        "src/components/content-creator/canvas/document/DocumentRenderer.tsx",
+        "src/components/content-creator/canvas/document/DocumentToolbar.tsx",
+        "src/components/content-creator/canvas/document/PlatformTabs.tsx",
+        "src/components/content-creator/canvas/document/contentReviewExperts.ts",
+        "src/components/content-creator/canvas/document/documentCanvasHotkeys.ts",
+        "src/components/content-creator/canvas/document/documentEditorHotkeys.ts",
+        "src/components/content-creator/canvas/document/editor/BubbleToolbar.tsx",
+        "src/components/content-creator/canvas/document/editor/NotionEditor.tsx",
+        "src/components/content-creator/canvas/document/editor/SlashCommand.tsx",
+        "src/components/content-creator/canvas/document/editor/extensions.ts",
+        "src/components/content-creator/canvas/document/editor/editor-styles.css",
+        "src/components/content-creator/canvas/document/editor/utils/markdown.ts",
+        "src/components/content-creator/canvas/document/platforms/CoverImagePlaceholder.tsx",
+        "src/components/content-creator/canvas/document/platforms/MarkdownRenderer.tsx",
+        "src/components/content-creator/canvas/document/platforms/WechatRenderer.tsx",
+        "src/components/content-creator/canvas/document/platforms/XiaohongshuRenderer.tsx",
+        "src/components/content-creator/canvas/document/platforms/ZhihuRenderer.tsx",
+        "src/components/content-creator/canvas/document/types.ts",
+        "src/components/content-creator/canvas/document/utils/autoContinueSettings.ts",
+        "src/components/content-creator/canvas/document/utils/autoImageInsert.ts",
+        "src/components/content-creator/canvas/document/utils/exportDocument.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-current-workbench-module-migrated-to-workspace",
+      "classification": "dead-candidate",
+      "description": "已迁出的 content-creator 现役工作台模块旧路径，当前统一收口到 components/workspace 与 lib/workspace",
+      "targets": [
+        "src/components/content-creator/a2ui/index.ts",
+        "src/components/content-creator/a2ui/parser.ts",
+        "src/components/content-creator/a2ui/types.ts",
+        "src/components/content-creator/a2ui/components/index.tsx",
+        "src/components/content-creator/canvas/CanvasFactory.tsx",
+        "src/components/content-creator/canvas/canvasUtils.ts",
+        "src/components/content-creator/canvas/shared/CanvasBreadcrumbHeader.tsx",
+        "src/components/content-creator/canvas/video/PromptInput.tsx",
+        "src/components/content-creator/canvas/video/VideoCanvas.tsx",
+        "src/components/content-creator/canvas/video/VideoSidebar.tsx",
+        "src/components/content-creator/canvas/video/VideoWorkspace.tsx",
+        "src/components/content-creator/canvas/video/types.ts",
+        "src/components/content-creator/core/LayoutTransition/LayoutTransition.tsx",
+        "src/components/content-creator/core/LayoutTransition/useLayoutTransition.ts",
+        "src/components/content-creator/core/StepGuide/StepProgress.tsx",
+        "src/components/content-creator/hooks/useWorkflow.ts",
+        "src/components/content-creator/material/ImageGallery.tsx",
+        "src/components/content-creator/types.ts",
+        "src/components/content-creator/utils/activityLogger.ts",
+        "src/components/content-creator/utils/projectPrompt.ts",
+        "src/components/content-creator/utils/socialMediaHarness.ts",
+        "src/components/content-creator/utils/systemPrompt.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-music-unused-analysis-export-widgets",
+      "classification": "dead-candidate",
+      "description": "已删除的 music 孤立分析、导出、借鉴、押韵与播放器组件链路，未接入现役 MusicCanvas",
+      "targets": [
+        "src/components/content-creator/canvas/music/analysis/MelodyAnalysisReport.tsx",
+        "src/components/content-creator/canvas/music/analysis/TrackSelector.tsx",
+        "src/components/content-creator/canvas/music/editors/LyricsEditor.tsx",
+        "src/components/content-creator/canvas/music/export/ExportDialog.tsx",
+        "src/components/content-creator/canvas/music/hooks/useLyricsEditor.ts",
+        "src/components/content-creator/canvas/music/hooks/useMelodyMimic.ts",
+        "src/components/content-creator/canvas/music/hooks/useMidiPlayback.ts",
+        "src/components/content-creator/canvas/music/hooks/useMusicExport.ts",
+        "src/components/content-creator/canvas/music/hooks/useRhyme.ts",
+        "src/components/content-creator/canvas/music/player/PlaybackControls.tsx",
+        "src/components/content-creator/canvas/music/player/ProgressBar.tsx",
+        "src/components/content-creator/canvas/music/player/TempoControl.tsx",
+        "src/components/content-creator/canvas/music/player/VolumeControl.tsx",
+        "src/components/content-creator/canvas/music/player/MidiPlayer.tsx",
+        "src/components/content-creator/canvas/music/utils/numberedNotationParser.ts",
+        "src/components/content-creator/canvas/music/utils/rhymeDetector.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-poster-unused-export-widgets",
+      "classification": "dead-candidate",
+      "description": "已删除的 poster 孤立导出弹窗与旧图层纯函数工具，现役主链分别走 PosterToolbar/useExport 与 useLayerManager",
+      "targets": [
+        "src/components/content-creator/canvas/poster/ExportDialog.tsx",
+        "src/components/content-creator/canvas/poster/utils/layerUtils.ts"
       ],
       "allowedPaths": []
     },
@@ -369,6 +585,47 @@
       "classification": "dead-candidate",
       "description": "已退出 Tauri 主命令注册的旧 content workflow 命令模块",
       "targets": ["src-tauri/src/commands/content_workflow_cmd.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "gallery-material-legacy-frontend-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧海报素材前端网关、Hook 与类型入口",
+      "targets": [
+        "src/lib/api/posterMaterials.ts",
+        "src/hooks/usePosterMaterial.ts",
+        "src/types/poster-material.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "gallery-material-legacy-rust-module",
+      "classification": "dead-candidate",
+      "description": "已删除的旧海报素材 Rust 命令与 DAO 模块",
+      "targets": [
+        "src-tauri/src/commands/poster_material_cmd.rs",
+        "src-tauri/crates/core/src/database/dao/poster_material_dao.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-legacy-rust-command-modules",
+      "classification": "dead-candidate",
+      "description": "已退出 Tauri 主命令注册的旧 music/novel 命令与服务模块",
+      "targets": [
+        "src-tauri/src/commands/music_cmd.rs",
+        "src-tauri/src/commands/novel_cmd.rs",
+        "src-tauri/src/services/novel_service.rs",
+        "src-tauri/src/theme/novel/command.rs",
+        "src-tauri/src/theme/novel/mod.rs",
+        "src-tauri/resources/scripts/audio_to_midi.py",
+        "src-tauri/resources/scripts/midi_analyzer.py",
+        "src-tauri/resources/music/chord-progressions.json",
+        "src-tauri/resources/music/guofeng-patterns.json",
+        "src-tauri/resources/music/midi-parser-rules.json",
+        "src-tauri/resources/music/pentatonic-rules.json",
+        "src-tauri/resources/music/rhyme-patterns.json"
+      ],
       "allowedPaths": []
     },
     {
@@ -494,6 +751,39 @@
         "content_workflow_advance",
         "content_workflow_retry",
         "content_workflow_cancel"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-music-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已退出主链的旧 music 命令边界",
+      "commands": [
+        "check_python_env",
+        "analyze_midi",
+        "convert_mp3_to_midi",
+        "load_music_resource",
+        "install_python_dependencies"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "content-creator-novel-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已退出主链的旧 novel 命令边界",
+      "commands": [
+        "novel_create_project",
+        "novel_update_settings",
+        "novel_generate_outline",
+        "novel_generate_characters",
+        "novel_generate_chapter",
+        "novel_continue_chapter",
+        "novel_rewrite_chapter",
+        "novel_polish_chapter",
+        "novel_check_consistency",
+        "novel_get_project_snapshot",
+        "novel_list_runs",
+        "novel_delete_character"
       ],
       "allowedPaths": []
     },
@@ -654,6 +944,22 @@
         "update_brand_extension",
         "delete_brand_extension",
         "list_brand_persona_templates"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "gallery-material-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已退出前端主链的旧海报素材命令边界",
+      "commands": [
+        "create_poster_metadata",
+        "get_poster_metadata",
+        "get_poster_material",
+        "update_poster_metadata",
+        "delete_poster_metadata",
+        "list_by_image_category",
+        "list_by_layout_category",
+        "list_by_mood"
       ],
       "allowedPaths": []
     },
@@ -892,6 +1198,26 @@
         "src/components/agent/chat/components/Inputbar/components/SkillSelector.tsx"
       ],
       "allowedPaths": []
+    },
+    {
+      "id": "gallery-material-legacy-helper-usage",
+      "classification": "dead-candidate",
+      "description": "旧海报素材网关、Hook 与 helper 命名不允许回流，当前统一收敛到 galleryMaterials/useGalleryMaterial",
+      "allowedPaths": [],
+      "patterns": [
+        "from \"@/lib/api/posterMaterials\"",
+        "from '@/lib/api/posterMaterials'",
+        "from \"./posterMaterials\"",
+        "from './posterMaterials'",
+        "getPosterMaterial(",
+        "createPosterMetadata(",
+        "updatePosterMetadata(",
+        "deletePosterMetadata(",
+        "listPosterMaterialsByImageCategory(",
+        "listPosterMaterialsByLayoutCategory(",
+        "listPosterMaterialsByMood(",
+        "usePosterMaterial("
+      ]
     }
   ],
   "rustText": [
@@ -1086,6 +1412,74 @@
       "patterns": ["pub mod tool_hooks;"],
       "includePathPrefixes": ["src-tauri/src/commands"],
       "allowedPaths": []
+    },
+    {
+      "id": "rust-content-creator-legacy-command-module-leak",
+      "classification": "dead-candidate",
+      "description": "旧 music/novel 命令模块重新回到 commands 编译图",
+      "patterns": ["pub mod music_cmd;", "pub mod novel_cmd;"],
+      "includePathPrefixes": ["src-tauri/src/commands"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-content-creator-legacy-service-module-leak",
+      "classification": "dead-candidate",
+      "description": "旧 novel_service 模块重新回到 services 编译图",
+      "patterns": ["pub mod novel_service;"],
+      "includePathPrefixes": ["src-tauri/src/services"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-content-creator-legacy-theme-module-leak",
+      "classification": "dead-candidate",
+      "description": "旧 novel 主题模块重新回到 theme 编译图",
+      "patterns": ["pub mod novel;"],
+      "includePathPrefixes": ["src-tauri/src/theme"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-content-creator-legacy-schema-leak",
+      "classification": "dead-candidate",
+      "description": "旧 novel_* 数据库建表重新回到 schema 主路径",
+      "patterns": [
+        "CREATE TABLE IF NOT EXISTS novel_projects (",
+        "CREATE TABLE IF NOT EXISTS novel_settings (",
+        "CREATE TABLE IF NOT EXISTS novel_outlines (",
+        "CREATE TABLE IF NOT EXISTS novel_characters (",
+        "CREATE TABLE IF NOT EXISTS novel_chapters (",
+        "CREATE TABLE IF NOT EXISTS novel_generation_runs (",
+        "CREATE TABLE IF NOT EXISTS novel_consistency_checks ("
+      ],
+      "includePathPrefixes": ["src-tauri/crates/core/src/database"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-workspace-legacy-type-enum-leak",
+      "classification": "dead-candidate",
+      "description": "旧 poster/music/novel workspace 类型枚举重新回到 Rust 运行时分支",
+      "patterns": [
+        "WorkspaceType::Poster",
+        "WorkspaceType::Music",
+        "WorkspaceType::Novel"
+      ],
+      "includePathPrefixes": ["src-tauri"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-gallery-material-legacy-symbols",
+      "classification": "dead-candidate",
+      "description": "旧海报素材 Rust 模块、类型与表名不允许回流；旧表名只允许保留在 schema 迁移中承接历史数据",
+      "patterns": [
+        "PosterMaterialDao",
+        "CreatePosterMetadataRequest",
+        "PosterMaterialMetadata",
+        "PosterMaterial",
+        "poster_material_cmd",
+        "poster_material_dao",
+        "poster_material_metadata",
+        "idx_poster_material_metadata_"
+      ],
+      "allowedPaths": ["src-tauri/crates/core/src/database/schema.rs"]
     },
     {
       "id": "rust-tool-hooks-service-module-leak",

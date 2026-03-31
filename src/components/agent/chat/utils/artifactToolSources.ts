@@ -63,16 +63,20 @@ function parseLooseJsonValue(raw?: string): unknown {
 }
 
 function sourceIdentity(source: ArtifactDocumentSource): string {
-  const url = normalizeText(source.url)?.toLowerCase();
-  if (url) {
-    return `url:${url}`;
+  const locatorUrl = normalizeText(source.locator?.url)?.toLowerCase();
+  if (locatorUrl) {
+    return `url:${locatorUrl}`;
+  }
+  const locatorPath = normalizeText(source.locator?.path)?.toLowerCase();
+  if (locatorPath) {
+    return `path:${locatorPath}`;
   }
 
   return [
     normalizeText(source.id)?.toLowerCase(),
-    normalizeText(source.title)?.toLowerCase(),
-    normalizeText(source.note)?.toLowerCase(),
-    normalizeText(source.kind)?.toLowerCase(),
+    normalizeText(source.type)?.toLowerCase(),
+    normalizeText(source.label)?.toLowerCase(),
+    normalizeText(source.snippet)?.toLowerCase(),
   ]
     .filter(Boolean)
     .join("::");
@@ -96,12 +100,18 @@ function mergeSource(
     ...current,
     ...incoming,
     id: current.id || incoming.id,
-    title: incoming.title || current.title,
-    url: incoming.url || current.url,
-    note: incoming.note || current.note,
-    kind: incoming.kind || current.kind,
-    quote: incoming.quote || current.quote,
-    publishedAt: incoming.publishedAt || current.publishedAt,
+    type: incoming.type || current.type,
+    label: incoming.label || current.label,
+    ...((current.locator || incoming.locator)
+      ? {
+          locator: {
+            ...(current.locator || {}),
+            ...(incoming.locator || {}),
+          },
+        }
+      : {}),
+    snippet: incoming.snippet || current.snippet,
+    reliability: incoming.reliability || current.reliability,
   };
 }
 
@@ -252,9 +262,12 @@ function buildFileSource(path: string): ArtifactDocumentSource {
   const normalizedPath = normalizePath(path);
   return {
     id: `file:${normalizedPath}`,
-    title: fileNameFromPath(normalizedPath),
-    note: normalizedPath,
-    kind: "file",
+    type: "file",
+    label: fileNameFromPath(normalizedPath),
+    locator: {
+      path: normalizedPath,
+    },
+    reliability: "primary",
   };
 }
 
@@ -283,13 +296,20 @@ export function extractArtifactDocumentSourcesFromToolCall(
   if (browserSession && (browserSession.url || browserSession.title)) {
     collected.push({
       id: `browser:${browserSession.url || browserSession.sessionId || browserSession.profileKey || toolCall.id}`,
-      title: browserSession.title || "浏览器页面",
-      ...(browserSession.url ? { url: browserSession.url } : {}),
-      note:
+      type: "web",
+      label: browserSession.title || browserSession.url || "浏览器页面",
+      ...(browserSession.url
+        ? {
+            locator: {
+              url: browserSession.url,
+            },
+          }
+        : {}),
+      snippet:
         [browserSession.lifecycleState, browserSession.profileKey]
           .filter(Boolean)
           .join(" · ") || undefined,
-      kind: "browser",
+      reliability: "secondary",
     });
   }
 
@@ -332,10 +352,13 @@ export function extractArtifactDocumentSourcesFromToolCall(
       for (const item of resolveSearchResultPreviewItemsFromText(rawText)) {
         collected.push({
           id: `web:${item.url}`,
-          title: item.title,
-          url: item.url,
-          note: item.snippet,
-          kind: browserSession ? "browser" : "web",
+          type: browserSession ? "web" : "search_result",
+          label: item.title,
+          locator: {
+            url: item.url,
+          },
+          snippet: item.snippet,
+          reliability: "secondary",
         });
       }
     }

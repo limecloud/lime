@@ -1042,26 +1042,8 @@ export function isCanvasStateEmpty(state: CanvasStateUnion | null): boolean {
   switch (state.type) {
     case "document":
       return !state.content || state.content.trim() === "";
-    case "novel":
-      return (
-        state.chapters.length === 0 ||
-        !state.chapters[0].content ||
-        state.chapters[0].content.trim() === ""
-      );
-    case "script":
-      return (
-        state.scenes.length === 0 ||
-        (state.scenes.length === 1 &&
-          state.scenes[0].dialogues.length === 0 &&
-          !state.scenes[0].description)
-      );
-    case "music":
-      return !state.sections || state.sections.length === 0;
-    case "poster":
-      return (
-        state.pages.length === 0 ||
-        (state.pages.length === 1 && state.pages[0].layers.length === 0)
-      );
+    case "video":
+      return !state.prompt || state.prompt.trim() === "";
     default:
       return true;
   }
@@ -1071,14 +1053,8 @@ export function serializeCanvasStateForSync(state: CanvasStateUnion): string {
   switch (state.type) {
     case "document":
       return state.content || "";
-    case "novel":
-      return JSON.stringify(state.chapters);
-    case "script":
-      return JSON.stringify(state.scenes);
-    case "music":
-      return JSON.stringify(state.sections);
-    case "poster":
-      return JSON.stringify(state.pages);
+    case "video":
+      return state.prompt || "";
     default:
       return JSON.stringify(state);
   }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AsterSessionExecutionRuntimeRecentTeamSelection } from "@/lib/api/agentExecutionRuntime";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { WorkspaceSettings } from "@/types/workspace";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import {
@@ -10,6 +11,7 @@ import {
 import {
   createTeamDefinitionFromExecutionRuntimeRecentTeamSelection,
 } from "../utils/sessionExecutionRuntime";
+import { resolveSelectedTeamFromShadowSnapshot } from "./useTeamMemoryShadowSync";
 import {
   loadCustomTeams,
   persistSelectedTeam,
@@ -45,6 +47,13 @@ function serializeSelectedTeam(team?: TeamDefinition | null): string {
   });
 }
 
+function areSameSelectedTeam(
+  left?: TeamDefinition | null,
+  right?: TeamDefinition | null,
+): boolean {
+  return serializeSelectedTeam(left) === serializeSelectedTeam(right);
+}
+
 function serializeRuntimeSelection(
   selection?: AsterSessionExecutionRuntimeRecentTeamSelection | null,
 ): string {
@@ -67,7 +76,10 @@ function serializeRuntimeSelection(
 
 function persistSelectedTeamShadowCache(
   team: TeamDefinition | null,
-  theme?: string | null,
+  options?: {
+    theme?: string | null;
+    allowPersistedThemeFallback?: boolean;
+  },
 ) {
   if (team?.source === "custom") {
     const nextCustomTeams = [
@@ -77,7 +89,9 @@ function persistSelectedTeamShadowCache(
     saveCustomTeams(nextCustomTeams);
   }
 
-  persistSelectedTeam(team, theme);
+  if (options?.allowPersistedThemeFallback ?? true) {
+    persistSelectedTeam(team, options?.theme);
+  }
 }
 
 interface SelectedTeamPreferenceSessionSyncOptions {
@@ -94,6 +108,8 @@ interface UseSelectedTeamPreferenceOptions {
   onPersistSelectedTeam?: (team: TeamDefinition | null) => void | Promise<void>;
   runtimeSelection?: AsterSessionExecutionRuntimeRecentTeamSelection | null;
   sessionSync?: SelectedTeamPreferenceSessionSyncOptions;
+  shadowSnapshot?: TeamMemorySnapshot | null;
+  allowPersistedThemeFallback?: boolean;
 }
 
 export function useSelectedTeamPreference(
@@ -105,6 +121,8 @@ export function useSelectedTeamPreference(
     onPersistSelectedTeam,
     runtimeSelection = null,
     sessionSync,
+    shadowSnapshot = null,
+    allowPersistedThemeFallback = true,
   } = options;
   const currentSessionId = sessionSync?.getSessionId()?.trim() || null;
   const scopeKey = `${currentSessionId ?? "__no_session__"}:${normalizeThemeScope(theme)}`;
@@ -117,8 +135,9 @@ export function useSelectedTeamPreference(
       resolveSelectedTeamPreference({
         theme,
         workspaceSettings: projectSettings,
+        allowPersistedThemeFallback,
       }),
-    [projectSettings, theme],
+    [allowPersistedThemeFallback, projectSettings, theme],
   );
   const runtimeSelectionMatchesTheme = useMemo(() => {
     const runtimeTheme = runtimeSelection?.theme?.trim().toLowerCase();
@@ -135,6 +154,10 @@ export function useSelectedTeamPreference(
           )
         : null,
     [runtimeSelection, runtimeSelectionMatchesTheme],
+  );
+  const shadowSelectedTeam = useMemo(
+    () => resolveSelectedTeamFromShadowSnapshot(shadowSnapshot, theme),
+    [shadowSnapshot, theme],
   );
   const hasRuntimeSelection = Boolean(
     runtimeSelectionMatchesTheme &&
@@ -188,16 +211,18 @@ export function useSelectedTeamPreference(
   );
 
   useEffect(() => {
-    const fallbackTeam = resolveCurrentSelection();
+    const fallbackTeam = shadowSelectedTeam ?? resolveCurrentSelection();
     const fallbackSourceKey = `${scopeKey}:fallback:${serializeSelectedTeam(
       fallbackTeam,
     )}`;
 
-    if (workspacePreferenceState.kind !== "unset") {
-      if (lastHydratedSourceRef.current !== fallbackSourceKey) {
-        setSelectedTeamState(fallbackTeam);
-        lastHydratedSourceRef.current = fallbackSourceKey;
-      }
+      if (workspacePreferenceState.kind !== "unset") {
+        if (lastHydratedSourceRef.current !== fallbackSourceKey) {
+          setSelectedTeamState((current) =>
+            areSameSelectedTeam(current, fallbackTeam) ? current : fallbackTeam,
+          );
+          lastHydratedSourceRef.current = fallbackSourceKey;
+        }
 
       if (lastBackfilledSourceRef.current !== fallbackSourceKey) {
         scheduleSessionRecentTeamSelectionSync(fallbackTeam);
@@ -218,14 +243,23 @@ export function useSelectedTeamPreference(
         return;
       }
 
-      setSelectedTeamState(runtimeSelectedTeam);
-      persistSelectedTeamShadowCache(runtimeSelectedTeam, theme);
+      setSelectedTeamState((current) =>
+        areSameSelectedTeam(current, runtimeSelectedTeam)
+          ? current
+          : runtimeSelectedTeam,
+      );
+      persistSelectedTeamShadowCache(runtimeSelectedTeam, {
+        theme,
+        allowPersistedThemeFallback,
+      });
       lastHydratedSourceRef.current = runtimeSourceKey;
       return;
     }
 
     if (lastHydratedSourceRef.current !== fallbackSourceKey) {
-      setSelectedTeamState(fallbackTeam);
+      setSelectedTeamState((current) =>
+        areSameSelectedTeam(current, fallbackTeam) ? current : fallbackTeam,
+      );
       lastHydratedSourceRef.current = fallbackSourceKey;
     }
 
@@ -235,10 +269,12 @@ export function useSelectedTeamPreference(
     }
   }, [
     hasRuntimeSelection,
+    allowPersistedThemeFallback,
     resolveCurrentSelection,
     runtimeSelectedTeam,
     runtimeSelection,
     scheduleSessionRecentTeamSelectionSync,
+    shadowSelectedTeam,
     scopeKey,
     theme,
     workspacePreferenceState.kind,
@@ -247,7 +283,9 @@ export function useSelectedTeamPreference(
   const setSelectedTeam = useCallback(
     (team: TeamDefinition | null) => {
       manualMutationVersionRef.current += 1;
-      setSelectedTeamState(team);
+      setSelectedTeamState((current) =>
+        areSameSelectedTeam(current, team) ? current : team,
+      );
       lastBackfilledSourceRef.current = `${scopeKey}:manual:${serializeSelectedTeam(
         team,
       )}`;
@@ -260,7 +298,11 @@ export function useSelectedTeamPreference(
           })
           .catch((error) => {
             console.warn("[Team] 持久化项目级 Team 偏好失败:", error);
-            setSelectedTeamState(fallbackTeam);
+            setSelectedTeamState((current) =>
+              areSameSelectedTeam(current, fallbackTeam)
+                ? current
+                : fallbackTeam,
+            );
             scheduleSessionRecentTeamSelectionSync(fallbackTeam);
           });
         return;
@@ -271,7 +313,10 @@ export function useSelectedTeamPreference(
         return;
       }
 
-      persistSelectedTeamShadowCache(team, theme);
+      persistSelectedTeamShadowCache(team, {
+        theme,
+        allowPersistedThemeFallback,
+      });
       scheduleSessionRecentTeamSelectionSync(team);
     },
     [
@@ -279,6 +324,7 @@ export function useSelectedTeamPreference(
       resolveCurrentSelection,
       scheduleSessionRecentTeamSelectionSync,
       scopeKey,
+      allowPersistedThemeFallback,
       theme,
     ],
   );

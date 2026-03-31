@@ -5,6 +5,7 @@
  */
 
 import { safeInvoke } from "@/lib/dev-bridge";
+import { normalizeThemeType } from "@/lib/workspace/workbenchContract";
 import type { WorkspaceSettings } from "@/types/workspace";
 
 // ==================== 类型定义 ====================
@@ -16,13 +17,10 @@ export type SystemType = "persistent" | "temporary";
 export type UserType =
   | "general" // 通用对话 💬
   | "social-media" // 社媒内容 📱
-  | "poster" // 图文海报 🖼️
-  | "music" // 歌词曲谱 🎵
   | "knowledge" // 知识探索 🔍
   | "planning" // 计划规划 📅
   | "document" // 办公文档 📄
-  | "video" // 短视频 🎬
-  | "novel"; // 小说创作 📖
+  | "video"; // 短视频 🎬
 
 /** 项目类型（系统级 + 用户级） */
 export type ProjectType = SystemType | UserType;
@@ -31,13 +29,10 @@ export type ProjectType = SystemType | UserType;
 export const USER_PROJECT_TYPES: UserType[] = [
   "general",
   "social-media",
-  "poster",
-  "music",
   "knowledge",
   "planning",
   "document",
   "video",
-  "novel",
 ];
 
 /** 项目类型配置 */
@@ -76,18 +71,6 @@ export const TYPE_CONFIGS: Record<ProjectType, ProjectTypeConfig> = {
     defaultContentType: "post",
     canvasType: "document",
   },
-  poster: {
-    label: "图文海报",
-    icon: "🖼️",
-    defaultContentType: "document",
-    canvasType: "poster",
-  },
-  music: {
-    label: "歌词曲谱",
-    icon: "🎵",
-    defaultContentType: "document",
-    canvasType: "music",
-  },
   knowledge: {
     label: "知识探索",
     icon: "🔍",
@@ -110,13 +93,7 @@ export const TYPE_CONFIGS: Record<ProjectType, ProjectTypeConfig> = {
     label: "短视频",
     icon: "🎬",
     defaultContentType: "episode",
-    canvasType: "script",
-  },
-  novel: {
-    label: "小说创作",
-    icon: "📖",
-    defaultContentType: "chapter",
-    canvasType: "novel",
+    canvasType: "video",
   },
 };
 
@@ -459,11 +436,20 @@ export async function getContentStats(
 
 /** 规范化项目对象字段 */
 export function normalizeProject(project: RawProject): Project {
+  const rawWorkspaceType = String(
+    project.workspaceType ?? project.workspace_type ?? "persistent",
+  )
+    .trim()
+    .toLowerCase();
+  const workspaceType: ProjectType =
+    rawWorkspaceType === "persistent" || rawWorkspaceType === "temporary"
+      ? rawWorkspaceType
+      : normalizeThemeType(rawWorkspaceType);
+
   return {
     id: project.id,
     name: project.name,
-    workspaceType:
-      project.workspaceType ?? project.workspace_type ?? "persistent",
+    workspaceType,
     rootPath: project.rootPath ?? project.root_path ?? "",
     isDefault: project.isDefault ?? project.is_default ?? false,
     settings: project.settings,

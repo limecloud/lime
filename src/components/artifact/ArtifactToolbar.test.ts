@@ -301,10 +301,7 @@ const VALID_EXTENSIONS: Record<ArtifactType, string[]> = {
   react: ["jsx"],
   browser_assist: ["txt"],
   "canvas:document": ["md"],
-  "canvas:poster": ["json"],
-  "canvas:music": ["json"],
-  "canvas:script": ["json"],
-  "canvas:novel": ["json"],
+  "canvas:video": ["txt"],
 };
 
 /** 语言到扩展名的映射 */

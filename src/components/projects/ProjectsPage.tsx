@@ -136,12 +136,6 @@ export function ProjectsPage({ onNavigate }: ProjectsPageProps) {
       "social-media": projects.filter(
         (p) => p.workspaceType === "social-media" && !p.isArchived,
       ).length,
-      poster: projects.filter(
-        (p) => p.workspaceType === "poster" && !p.isArchived,
-      ).length,
-      music: projects.filter(
-        (p) => p.workspaceType === "music" && !p.isArchived,
-      ).length,
       knowledge: projects.filter(
         (p) => p.workspaceType === "knowledge" && !p.isArchived,
       ).length,
@@ -153,9 +147,6 @@ export function ProjectsPage({ onNavigate }: ProjectsPageProps) {
       ).length,
       video: projects.filter(
         (p) => p.workspaceType === "video" && !p.isArchived,
-      ).length,
-      novel: projects.filter(
-        (p) => p.workspaceType === "novel" && !p.isArchived,
       ).length,
       favorites: projects.filter((p) => p.isFavorite && !p.isArchived).length,
       archived: projects.filter((p) => p.isArchived).length,

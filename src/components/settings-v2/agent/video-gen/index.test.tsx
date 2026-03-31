@@ -74,7 +74,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   mockGetConfig.mockResolvedValue({
-    content_creator: {
+    workspace_preferences: {
       media_defaults: {
         video: {
           preferredProviderId: "doubao-video",
@@ -122,7 +122,7 @@ describe("VideoGenSettings", () => {
 
     expect(mockSaveConfig).toHaveBeenCalledTimes(1);
     const savedConfig = mockSaveConfig.mock.calls[0][0];
-    expect(savedConfig.content_creator.media_defaults.video).toBeUndefined();
+    expect(savedConfig.workspace_preferences.media_defaults.video).toBeUndefined();
     expect(container.textContent).toContain("设置已保存");
   });
 });

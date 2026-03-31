@@ -42,6 +42,7 @@ interface UseWorkspaceThemeWorkbenchShellRuntimeParams {
   selectedTeamLabel: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["selectedTeamLabel"];
   selectedTeamSummary: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["selectedTeamSummary"];
   selectedTeamRoles: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["selectedTeamRoles"];
+  teamMemorySnapshot: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["teamMemorySnapshot"];
   handleOpenSubagentSession: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["onOpenSubagentSession"];
   handleHarnessLoadFilePreview: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["onLoadFilePreview"];
   handleFileClick: ThemeWorkbenchSidebarPresentationParams["harnessDialog"]["onOpenFile"];
@@ -68,6 +69,7 @@ export function useWorkspaceThemeWorkbenchShellRuntime({
   selectedTeamLabel,
   selectedTeamSummary,
   selectedTeamRoles,
+  teamMemorySnapshot,
   handleOpenSubagentSession,
   handleHarnessLoadFilePreview,
   handleFileClick,
@@ -130,6 +132,7 @@ export function useWorkspaceThemeWorkbenchShellRuntime({
       selectedTeamLabel,
       selectedTeamSummary,
       selectedTeamRoles,
+      teamMemorySnapshot,
       toolInventory: harnessInventoryRuntime.toolInventory,
       toolInventoryLoading: harnessInventoryRuntime.toolInventoryLoading,
       toolInventoryError: harnessInventoryRuntime.toolInventoryError,

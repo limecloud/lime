@@ -7,7 +7,7 @@ metadata:
   lime_when_to_use: 用户需要普通配图、插图或概念图时使用；封面需求优先交给 cover_generate。
   lime_version: 1.1.0
   lime_execution_mode: prompt
-  lime_surface: creator
+  lime_surface: workbench
   lime_category: media
 ---
 

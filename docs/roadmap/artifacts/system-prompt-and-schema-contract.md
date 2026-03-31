@@ -1,7 +1,7 @@
 # Artifact Workbench 的 System Prompt 与 Schema 合同
 
-> 状态：进行中，核心合同已落地，P3 产品闭环已落地，rewrite typed patch 合同已落地  
-> 更新时间：2026-03-25  
+> 状态：进行中，核心合同已落地，P3 产品闭环已落地，rewrite typed patch 与 current incremental 合同已落地  
+> 更新时间：2026-03-31  
 > 运行时边界：prompt 组装入口、turn metadata 主合同、runtime output schema 注入链以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只细化 Artifact 相关合同  
 > 关联文档：
 > - `docs/roadmap/artifacts/architecture-blueprint.md`
@@ -16,16 +16,16 @@
 1. 后端已按 turn metadata 组装 Artifact 专属 prompt 段落。
 2. Artifact 回合已在 `runtime_turn` 中绑定 turn-level output schema。
 3. 结构化输出已经接入 validator / repair / fallback，并可落盘为 `ArtifactDocument v1`。
-4. `stage2` 已允许输出 `artifact_document_draft | artifact_ops`，`rewrite` 已收紧到增量 `artifact_ops`。
-5. 后端已支持最小 `artifact_ops` 应用链，可在已有 Artifact 上执行 block / source / version 级增量更新。
+4. `stage2` 已允许输出 `artifact_document_draft | current 单条 incremental op | artifact_ops`，`rewrite` 已允许输出 `artifact_rewrite_patch | current 单条 incremental op | artifact_ops`。
+5. 后端已支持最小 current-first 增量应用链，可在已有 Artifact 上执行 block / source / version 级增量更新；`artifact_ops` 只保留 compat 输入壳。
 6. 当前版本已回灌 `currentVersionDiff / artifactVersionDiff`，Workbench 也已接入来源抽屉、差异面以及来源项 / 差异项到 block 的定位。
 7. 当前版本已支持 `timeline item <-> artifact block` 双向跳转：timeline 可精确打开目标 block，Workbench 也可回跳对应过程项。
-8. `rewrite` 已把 `artifact_target_block_id` 下沉到 prompt hint、turn-level output schema、`artifact_ops` runtime apply 与 persist validator context；非目标 block 的改写 / 绑定 / 删除会被忽略并记录 issue。
-9. `rewrite` 已支持专用 `artifact_rewrite_patch` 输出 envelope，并在后端兼容转换为 `artifact_ops` 应用链，便于逐步把改写合同从“通用 ops”收紧到“目标 block patch”。
+8. `rewrite` 已把 `artifact_target_block_id` 下沉到 prompt hint、turn-level output schema、runtime apply 与 persist validator context；非目标 block 的改写 / 绑定 / 删除会被忽略并记录 issue。
+9. `rewrite` 已支持专用 `artifact_rewrite_patch` 输出 envelope，同时接受正式单条 incremental op；后端会直接把它们归一化到内部 action 列表，`artifact_ops` 只作为 compat 回退输入，便于逐步把改写合同从“通用 ops”收紧到“目标 block patch”。
 
 仍未完全落地的部分：
 
-1. rewrite 已具备 typed patch 主合同，但当前仍保留 `artifact_ops` 兼容分支；待模型稳定后可进一步收紧到单一 rewrite envelope
+1. rewrite 已具备 typed patch + current 单条 op 主合同，但当前仍保留 `artifact_ops` 兼容分支；待模型稳定后可进一步收紧到单一 rewrite envelope
 
 ## 1. 核心观点
 
@@ -259,7 +259,8 @@ interface ArtifactStage1Result {
 职责：
 
 - 输出正式 `artifact_document_draft`
-- 或输出增量 `artifact ops`
+- 或输出正式单条 incremental op
+- `artifact_ops` 只作为兼容回退
 
 必须：
 
@@ -275,10 +276,11 @@ type ArtifactStage2Result =
       type: "artifact_document_draft";
       document: ArtifactDocumentV1;
     }
+  | ArtifactOpEnvelope
   | {
       type: "artifact_ops";
       artifactId: string;
-      ops: ArtifactOpEnvelope[];
+      ops: Array<Record<string, unknown>>;
     };
 ```
 
@@ -292,11 +294,32 @@ type ArtifactStage2Result =
 建议 schema 形态：
 
 ```ts
-interface ArtifactRewriteResult {
-  artifactId: string;
-  targetBlockId: string;
-  block: ArtifactBlockV1;
-}
+type ArtifactRewriteResult =
+  | {
+      type: "artifact_rewrite_patch";
+      artifactId: string;
+      targetBlockId: string;
+      block: ArtifactBlockV1;
+      source?: ArtifactSourceV1;
+      sources?: ArtifactSourceV1[];
+      summary?: string;
+      status?: ArtifactStatus;
+    }
+  | Extract<
+      ArtifactOpEnvelope,
+      {
+        type:
+          | "artifact.source.upsert"
+          | "artifact.block.upsert"
+          | "artifact.complete"
+          | "artifact.fail";
+      }
+    >
+  | {
+      type: "artifact_ops";
+      artifactId: string;
+      ops: Array<Record<string, unknown>>;
+    };
 ```
 
 ## 8. Output Schema 策略

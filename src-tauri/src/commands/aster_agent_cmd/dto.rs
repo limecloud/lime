@@ -39,7 +39,7 @@ pub struct ConfigureFromPoolRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuntimeToolInventoryRequest {
     #[serde(default)]
-    pub creator: bool,
+    pub workbench: bool,
     #[serde(default)]
     pub browser_assist: bool,
     #[serde(default)]

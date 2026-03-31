@@ -3,7 +3,7 @@ import { createInitialCanvasState, type CanvasStateUnion } from "@/lib/workspace
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
 import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
-import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
+import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 import type { CanvasWorkbenchLayoutMode } from "../components/CanvasWorkbenchLayout";
 import { hasRenderableGeneralCanvasPreview } from "./generalCanvasPreviewState";
 
@@ -41,7 +41,6 @@ interface UseWorkspaceCanvasLayoutRuntimeParams {
   setCanvasWorkbenchLayoutMode: Dispatch<
     SetStateAction<CanvasWorkbenchLayoutMode>
   >;
-  setNovelChapterListCollapsed: Dispatch<SetStateAction<boolean>>;
 }
 
 export function useWorkspaceCanvasLayoutRuntime({
@@ -74,14 +73,7 @@ export function useWorkspaceCanvasLayoutRuntime({
   setGeneralCanvasState,
   setCanvasState,
   setCanvasWorkbenchLayoutMode,
-  setNovelChapterListCollapsed,
 }: UseWorkspaceCanvasLayoutRuntimeParams) {
-  useEffect(() => {
-    if (!canvasState || canvasState.type !== "novel") {
-      setNovelChapterListCollapsed(false);
-    }
-  }, [canvasState, setNovelChapterListCollapsed]);
-
   useEffect(() => {
     autoCollapsedTopicSidebarRef.current = false;
     setShowSidebar(defaultTopicSidebarVisible);
@@ -293,39 +285,6 @@ export function useWorkspaceCanvasLayoutRuntime({
     setShowSidebar((previous) => !previous);
   }, [setShowSidebar, showChatPanel]);
 
-  const handleToggleNovelChapterList = useCallback(() => {
-    setNovelChapterListCollapsed((previous) => !previous);
-  }, [setNovelChapterListCollapsed]);
-
-  const handleAddNovelChapter = useCallback(() => {
-    setCanvasState((previous) => {
-      if (!previous || previous.type !== "novel") {
-        return previous;
-      }
-
-      const now = Date.now();
-      const chapterNumber = previous.chapters.length + 1;
-      const title = `第${chapterNumber}章`;
-      const newChapter = {
-        id: crypto.randomUUID(),
-        number: chapterNumber,
-        title,
-        content: `# ${title}\n\n`,
-        wordCount: 0,
-        status: "draft" as const,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      return {
-        ...previous,
-        chapters: [...previous.chapters, newChapter],
-        currentChapterId: newChapter.id,
-      };
-    });
-    setNovelChapterListCollapsed(false);
-  }, [setCanvasState, setNovelChapterListCollapsed]);
-
   const handleToggleCanvas = useCallback(() => {
     if (activeTheme === "general") {
       const shouldManageStandaloneGeneralCanvas =
@@ -398,7 +357,6 @@ export function useWorkspaceCanvasLayoutRuntime({
       }
     }
     setLayoutMode("chat");
-    setNovelChapterListCollapsed(false);
     if (activeTheme === "general") {
       setGeneralCanvasState((previous) => ({ ...previous, isOpen: false }));
     }
@@ -408,7 +366,6 @@ export function useWorkspaceCanvasLayoutRuntime({
     dismissActiveTeamWorkbenchAutoOpen,
     setGeneralCanvasState,
     setLayoutMode,
-    setNovelChapterListCollapsed,
     suppressBrowserAssistCanvasAutoOpen,
     suppressGeneralCanvasArtifactAutoOpen,
   ]);
@@ -425,7 +382,7 @@ export function useWorkspaceCanvasLayoutRuntime({
       );
     }
 
-    if (isThemeWorkbench && isContentCreationTheme(activeTheme)) {
+    if (isThemeWorkbench && isSpecializedWorkbenchTheme(activeTheme)) {
       return (
         createInitialCanvasState(mappedTheme, "") ||
         createInitialDocumentState("")
@@ -442,16 +399,10 @@ export function useWorkspaceCanvasLayoutRuntime({
     shouldBootstrapCanvasOnEntry,
   ]);
 
-  const showNovelNavbarControls =
-    layoutMode !== "chat" && resolvedCanvasState?.type === "novel";
-
   return {
     handleToggleSidebar,
-    handleToggleNovelChapterList,
-    handleAddNovelChapter,
     handleToggleCanvas,
     handleCloseCanvas,
     resolvedCanvasState,
-    showNovelNavbarControls,
   };
 }

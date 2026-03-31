@@ -32,7 +32,7 @@ pub(crate) enum BrowserTaskRequirement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RuntimeChatMode {
     Agent,
-    Creator,
+    Workbench,
     General,
 }
 
@@ -216,7 +216,7 @@ pub(crate) fn resolve_runtime_chat_mode(
     if let Some(chat_mode) = extract_harness_string(request_metadata, &["chat_mode", "chatMode"]) {
         match chat_mode.as_str() {
             "general" => return RuntimeChatMode::General,
-            "creator" => return RuntimeChatMode::Creator,
+            "workbench" => return RuntimeChatMode::Workbench,
             _ => {}
         }
     }
@@ -230,7 +230,7 @@ pub(crate) fn resolve_runtime_chat_mode(
 pub(crate) fn runtime_chat_mode_label(mode: RuntimeChatMode) -> &'static str {
     match mode {
         RuntimeChatMode::Agent => "agent",
-        RuntimeChatMode::Creator => "creator",
+        RuntimeChatMode::Workbench => "workbench",
         RuntimeChatMode::General => "general",
     }
 }

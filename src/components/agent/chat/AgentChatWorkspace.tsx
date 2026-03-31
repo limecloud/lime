@@ -48,7 +48,7 @@ import {
 } from "@/lib/artifact/store";
 import type { Artifact } from "@/lib/artifact/types";
 import { useAtomValue, useSetAtom } from "jotai";
-import { generateContentCreationPrompt } from "@/lib/workspace/workbenchPrompt";
+import { generateThemeWorkbenchPrompt } from "@/lib/workspace/workbenchPrompt";
 import { generateProjectMemoryPrompt } from "@/lib/workspace/workbenchPrompt";
 import {
   getProject,
@@ -68,6 +68,10 @@ import { setActiveContentTarget } from "@/lib/activeContentTarget";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { useImageGen } from "@/components/image-gen/useImageGen";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
+import {
+  buildTeamMemoryShadowRequestMetadata,
+  readTeamMemorySnapshot,
+} from "@/lib/teamMemorySync";
 
 import type {
   Message,
@@ -75,7 +79,7 @@ import type {
   WriteArtifactContext,
 } from "./types";
 import {
-  isContentCreationTheme,
+  isSpecializedWorkbenchTheme,
   type LayoutMode,
   type ThemeType,
 } from "@/lib/workspace/workbenchContract";
@@ -103,6 +107,7 @@ import {
 import { loadPersistedProjectId } from "./hooks/agentProjectStorage";
 import { loadPersistedSessionWorkspaceId } from "./hooks/agentProjectStorage";
 import { useSelectedTeamPreference } from "./hooks/useSelectedTeamPreference";
+import { useTeamMemoryShadowSync } from "./hooks/useTeamMemoryShadowSync";
 import { useThemeScopedChatToolPreferences } from "./hooks/useThemeScopedChatToolPreferences";
 import { useLimeSkills } from "./hooks/useLimeSkills";
 import { useServiceSkills } from "./service-skills/useServiceSkills";
@@ -262,7 +267,7 @@ export function AgentChatWorkspace({
     Boolean(entryBannerMessage),
   );
   const shouldBootstrapCanvasOnEntry =
-    Boolean(contentId) && isContentCreationTheme(normalizedEntryTheme);
+    Boolean(contentId) && isSpecializedWorkbenchTheme(normalizedEntryTheme);
 
   // 内容创作相关状态
   const [activeTheme, setActiveTheme] = useState<string>(normalizedEntryTheme);
@@ -302,16 +307,20 @@ export function AgentChatWorkspace({
     },
     [],
   );
+  const chatToolPreferenceSessionSync = useMemo(
+    () => ({
+      getSessionId: () => activeSessionIdRef.current,
+      setSessionRecentPreferences: syncSessionRecentPreferences,
+    }),
+    [syncSessionRecentPreferences],
+  );
   const {
     chatToolPreferences,
     setChatToolPreferences,
     syncChatToolPreferencesSource,
     getSyncedSessionRecentPreferences,
   } = useThemeScopedChatToolPreferences(activeTheme, {
-    sessionSync: {
-      getSessionId: () => activeSessionIdRef.current,
-      setSessionRecentPreferences: syncSessionRecentPreferences,
-    },
+    sessionSync: chatToolPreferenceSessionSync,
   });
   const {
     projectId,
@@ -411,8 +420,6 @@ export function AgentChatWorkspace({
     contentId: string;
     body: string;
   } | null>(null);
-  const [novelChapterListCollapsed, setNovelChapterListCollapsed] =
-    useState(false);
 
   useEffect(() => {
     setActiveContentTarget(projectId, contentId, canvasState?.type ?? null);
@@ -595,7 +602,7 @@ export function AgentChatWorkspace({
   });
 
   // 判断是否为内容创作模式
-  const isContentCreationMode = isContentCreationTheme(activeTheme);
+  const isSpecializedThemeMode = isSpecializedWorkbenchTheme(activeTheme);
 
   // Artifact 状态 - 用于在画布中显示
   const artifacts = useAtomValue(artifactsAtom);
@@ -1004,8 +1011,8 @@ export function AgentChatWorkspace({
   }, [project, projectId, rememberProjectId]);
 
   const chatMode = useMemo(
-    () => resolveAgentChatMode(mappedTheme, isContentCreationMode),
-    [isContentCreationMode, mappedTheme],
+    () => resolveAgentChatMode(mappedTheme, isSpecializedThemeMode),
+    [isSpecializedThemeMode, mappedTheme],
   );
 
   // 生成系统提示词（包含项目 Memory）
@@ -1021,8 +1028,8 @@ export function AgentChatWorkspace({
           contentId: contentId || null,
         },
       });
-    } else if (isContentCreationMode) {
-      prompt = generateContentCreationPrompt(mappedTheme, creationMode);
+    } else if (isSpecializedThemeMode) {
+      prompt = generateThemeWorkbenchPrompt(mappedTheme, creationMode);
     }
 
     // 注入项目 Memory
@@ -1039,7 +1046,7 @@ export function AgentChatWorkspace({
     chatToolPreferences,
     contentId,
     creationMode,
-    isContentCreationMode,
+    isSpecializedThemeMode,
     mappedTheme,
     projectMemory,
   ]);
@@ -1120,6 +1127,21 @@ export function AgentChatWorkspace({
     autoCollapsedTopicSidebarRef.current = false;
     setShowSidebar(false);
   }, [clawSidebarEntryResetKey, shouldAutoCollapseClassicClawSidebar]);
+  const persistedTeamMemoryShadowSnapshot = useMemo(() => {
+    const repoScope = project?.rootPath?.trim();
+    if (!repoScope || typeof localStorage === "undefined") {
+      return null;
+    }
+
+    return readTeamMemorySnapshot(localStorage, repoScope);
+  }, [project?.rootPath]);
+  const selectedTeamSessionSync = useMemo(
+    () => ({
+      getSessionId: () => activeSessionIdRef.current,
+      setSessionRecentTeamSelection: syncSessionRecentTeamSelection,
+    }),
+    [syncSessionRecentTeamSelection],
+  );
 
   const {
     selectedTeam,
@@ -1130,11 +1152,20 @@ export function AgentChatWorkspace({
     selectedTeamSummary,
   } = useSelectedTeamPreference(activeTheme, {
     runtimeSelection: executionRuntime?.recent_team_selection ?? null,
-    sessionSync: {
-      getSessionId: () => activeSessionIdRef.current,
-      setSessionRecentTeamSelection: syncSessionRecentTeamSelection,
-    },
+    shadowSnapshot: persistedTeamMemoryShadowSnapshot,
+    sessionSync: selectedTeamSessionSync,
+    allowPersistedThemeFallback: !projectId,
   });
+  const teamMemoryShadowSnapshot = useTeamMemoryShadowSync({
+    repoScope: project?.rootPath || null,
+    activeTheme,
+    sessionId,
+    selectedTeam,
+    childSubagentSessions,
+    subagentParentContext,
+  });
+  const resolvedTeamMemoryShadowSnapshot =
+    teamMemoryShadowSnapshot ?? persistedTeamMemoryShadowSnapshot;
   const handleOpenSubagentSession = useCallback(
     (subagentSessionId: string) => {
       void originalSwitchTopic(subagentSessionId);
@@ -1803,6 +1834,8 @@ export function AgentChatWorkspace({
         selectedTeamDescription: selectedTeam?.description,
         selectedTeamSummary,
         selectedTeamRoles: selectedTeam?.roles,
+        teamMemoryShadow:
+          buildTeamMemoryShadowRequestMetadata(resolvedTeamMemoryShadowSnapshot),
       }),
     [
       effectiveChatToolPreferences.subagent,
@@ -1823,6 +1856,7 @@ export function AgentChatWorkspace({
       selectedTeam?.source,
       selectedTeamLabel,
       selectedTeamSummary,
+      resolvedTeamMemoryShadowSnapshot,
       themeWorkbenchActiveQueueItem?.title,
     ],
   );
@@ -2048,9 +2082,9 @@ export function AgentChatWorkspace({
     deferInitialSync: false,
   });
 
-  const { upsertNovelCanvasState } = useWorkspaceCanvasMessageSyncRuntime({
+  useWorkspaceCanvasMessageSyncRuntime({
     canvasState,
-    isContentCreationMode,
+    isSpecializedThemeMode,
     isThemeWorkbench,
     mappedTheme,
     messages,
@@ -2083,6 +2117,10 @@ export function AgentChatWorkspace({
       contentId,
       input,
       chatToolPreferences: effectiveChatToolPreferences,
+      preferredTeamPresetId,
+      selectedTeam,
+      selectedTeamLabel,
+      selectedTeamSummary,
       onNavigate: _onNavigate,
       recordServiceSkillUsage,
     });
@@ -2115,6 +2153,7 @@ export function AgentChatWorkspace({
     selectedTeam,
     selectedTeamLabel,
     selectedTeamSummary,
+    teamMemoryShadowSnapshot: resolvedTeamMemoryShadowSnapshot,
     currentGateKey: currentGate.key,
     themeWorkbenchActiveQueueTitle: themeWorkbenchActiveQueueItem?.title,
     contentId,
@@ -2176,6 +2215,7 @@ export function AgentChatWorkspace({
   const {
     handleDocumentThinkingEnabledChange,
     handleDocumentAutoContinueRun,
+    handleArtifactBlockRewriteRun,
     handleDocumentContentReviewRun,
     handleDocumentTextStylizeRun,
     handleSwitchBranchVersion,
@@ -2184,6 +2224,7 @@ export function AgentChatWorkspace({
     handleAddImage,
     handleImportDocument,
   } = useWorkspaceCanvasWorkflowActions({
+    thinkingEnabled: effectiveChatToolPreferences.thinking,
     setChatToolPreferences,
     sendRef: handleSendRef,
     webSearchPreferenceRef,
@@ -2268,12 +2309,9 @@ export function AgentChatWorkspace({
 
   const {
     handleToggleSidebar,
-    handleToggleNovelChapterList,
-    handleAddNovelChapter,
     handleToggleCanvas,
     handleCloseCanvas,
     resolvedCanvasState,
-    showNovelNavbarControls,
   } = useWorkspaceCanvasLayoutRuntime({
     activeTheme,
     isThemeWorkbench,
@@ -2304,7 +2342,6 @@ export function AgentChatWorkspace({
     setGeneralCanvasState,
     setCanvasState,
     setCanvasWorkbenchLayoutMode,
-    setNovelChapterListCollapsed,
   });
 
   useWorkspaceCanvasTaskFileSync({
@@ -2316,7 +2353,6 @@ export function AgentChatWorkspace({
     documentEditorFocusedRef,
     setSelectedFileId,
     setCanvasState,
-    upsertNovelCanvasState,
   });
 
   useEffect(() => {
@@ -2350,7 +2386,7 @@ export function AgentChatWorkspace({
     contentId,
     currentGateKey: currentGate.key,
     currentStepIndex,
-    isContentCreationMode,
+    isSpecializedThemeMode,
     isThemeWorkbench,
     mappedTheme,
     projectId,
@@ -2372,7 +2408,6 @@ export function AgentChatWorkspace({
     setTaskFiles,
     setSelectedFileId,
     setCanvasState,
-    upsertNovelCanvasState,
   });
 
   // 更新 ref，供统一聊天主链 Hook 使用
@@ -2457,7 +2492,6 @@ export function AgentChatWorkspace({
     setTaskFiles,
     setSelectedFileId,
     setCanvasState,
-    upsertNovelCanvasState,
   });
   const handleWorkspaceFileClick = useCallback(
     (fileName: string, content: string) => {
@@ -2549,7 +2583,7 @@ export function AgentChatWorkspace({
     hasDisplayMessages,
     hideTopBar,
     isBootstrapDispatchPending,
-    isContentCreationMode,
+    isSpecializedThemeMode,
     isSending,
     isThemeWorkbench,
     layoutMode,
@@ -2583,13 +2617,14 @@ export function AgentChatWorkspace({
     selectedTeamLabel,
     selectedTeamSummary,
     selectedTeamRoles: selectedTeam?.roles,
+    teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
     handleOpenSubagentSession,
     handleHarnessLoadFilePreview,
     handleFileClick: handleWorkspaceFileClick,
   });
 
   useWorkspaceWorkflowProgressSync({
-    enabled: isContentCreationMode && hasMessages && steps.length > 0,
+    enabled: isSpecializedThemeMode && hasMessages && steps.length > 0,
     currentStepIndex,
     steps,
     onWorkflowProgressChange,
@@ -2619,6 +2654,7 @@ export function AgentChatWorkspace({
     selectedTeamLabel,
     selectedTeamSummary,
     teamDispatchPreviewState,
+    teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
     teamSessionRuntime,
     teamSessionControlRuntime,
     handleOpenSubagentSession,
@@ -2716,6 +2752,7 @@ export function AgentChatWorkspace({
     artifactPreviewSize,
     setArtifactPreviewSize,
     onSaveArtifactDocument: handleSaveArtifactDocument,
+    onArtifactBlockRewriteRun: handleArtifactBlockRewriteRun,
     renderArtifactWorkbenchToolbarActions,
     threadItems: effectiveThreadItems,
     focusedBlockId: focusedArtifactBlockId,
@@ -2744,12 +2781,11 @@ export function AgentChatWorkspace({
     handleDocumentContentReviewRun,
     handleDocumentTextStylizeRun,
     preferContentReviewInRightRail,
-    novelChapterListCollapsed,
-    setNovelChapterListCollapsed,
     teamSessionRuntime,
     teamSessionControlRuntime,
     teamWorkbenchAutoFocusToken,
     teamDispatchPreviewState,
+    teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
   });
 
   const workspaceShellSceneRuntime = useWorkspaceConversationShellSceneRuntime({
@@ -2833,7 +2869,7 @@ export function AgentChatWorkspace({
     handlePendingA2UISubmit: handleInputbarA2UISubmit,
     handleToggleCanvas,
     hideInlineStepProgress,
-    isContentCreationMode,
+    isSpecializedThemeMode,
     hasMessages,
     steps,
     currentStepIndex,
@@ -2868,11 +2904,6 @@ export function AgentChatWorkspace({
     layoutMode,
     handleActivateTeamWorkbench,
     isThemeWorkbench,
-    showNovelNavbarControls,
-    novelChapterListCollapsed,
-    handleToggleNovelChapterList,
-    handleAddNovelChapter,
-    handleCloseCanvas,
     settledWorkbenchArtifacts,
     taskFiles,
     selectedFileId,

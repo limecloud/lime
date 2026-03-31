@@ -148,6 +148,8 @@ describe("messageArtifacts.buildArtifactFromWrite", () => {
           {
             id: "body-1",
             type: "rich_text",
+            contentFormat: "markdown",
+            content: "正文内容",
             markdown: "正文内容",
           },
         ],
@@ -172,14 +174,19 @@ describe("messageArtifacts.buildArtifactFromWrite", () => {
               {
                 id: "body-1",
                 type: "rich_text",
+                contentFormat: "markdown",
+                content: "正文内容",
                 markdown: "正文内容",
               },
             ],
             sources: [
               {
                 id: "source-1",
-                title: "官方来源",
-                url: "https://example.com/source",
+                type: "web",
+                label: "官方来源",
+                locator: {
+                  url: "https://example.com/source",
+                },
               },
             ],
             metadata: {},
@@ -193,7 +200,9 @@ describe("messageArtifacts.buildArtifactFromWrite", () => {
       sources: [
         expect.objectContaining({
           id: "source-1",
-          url: "https://example.com/source",
+          locator: expect.objectContaining({
+            url: "https://example.com/source",
+          }),
         }),
       ],
     });

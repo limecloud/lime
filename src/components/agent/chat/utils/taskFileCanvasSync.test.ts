@@ -59,7 +59,7 @@ describe("taskFileCanvasSync", () => {
 
     expect(
       shouldDeferCanvasSyncWhileEditing({
-        canvasType: "music",
+        canvasType: "video",
         editorFocused: true,
       }),
     ).toBe(false);

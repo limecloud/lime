@@ -105,24 +105,6 @@ vi.mock("@/lib/workspace/workbenchCanvas", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/content-creator/canvas/video", () => ({
-  VideoCanvas: ({ projectId }: { projectId?: string | null }) => (
-    <div data-testid="video-canvas">video:{projectId ?? "none"}</div>
-  ),
-  createInitialVideoState: () => ({
-    type: "video",
-    prompt: "",
-    providerId: "",
-    model: "",
-    duration: 5,
-    generateAudio: false,
-    cameraFixed: false,
-    aspectRatio: "adaptive",
-    resolution: "720p",
-    status: "idle",
-  }),
-}));
-
 vi.mock("@/features/themes/video", () => ({
   videoThemeModule: {
     theme: "video",
@@ -1335,28 +1317,6 @@ describe("WorkbenchPage 左侧栏模式行为", () => {
       theme: "video",
       viewMode: "workspace",
       projectId: "video-project-2",
-    });
-    await flushEffects();
-
-    expect(
-      container.querySelector("[data-testid='workbench-right-rail-expanded']"),
-    ).toBeNull();
-  });
-
-  it("海报主题在作业模式不应渲染工作台右侧能力栏", async () => {
-    mockListProjects.mockResolvedValueOnce([
-      createWorkspaceProjectFixture({
-        id: "poster-project-1",
-        name: "海报项目A",
-        workspaceType: "poster",
-        rootPath: "/tmp/workspace/poster-project-1",
-      }),
-    ]);
-
-    const { container } = renderPage({
-      theme: "poster",
-      viewMode: "workspace",
-      projectId: "poster-project-1",
     });
     await flushEffects();
 

@@ -16,8 +16,8 @@ export * from "./persona";
 // 素材类型
 export * from "./material";
 
-// 海报素材类型
-export * from "./poster-material";
+// 素材库类型
+export * from "./gallery-material";
 
 // 平台类型
 export * from "./platform";

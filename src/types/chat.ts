@@ -6,7 +6,7 @@
  * 定义了统一对话系统的核心类型，支持多种对话模式：
  * - Agent: AI Agent 模式，支持工具调用
  * - General: 通用对话模式，纯文本
- * - Creator: 内容创作模式，支持画布输出
+ * - Workbench: 工作台模式，支持画布输出
  */
 
 // ============================================================================
@@ -14,7 +14,7 @@
 // ============================================================================
 
 /** 对话模式 */
-export type ChatMode = "agent" | "general" | "creator";
+export type ChatMode = "agent" | "general" | "workbench";
 
 /** 消息角色 */
 export type MessageRole = "user" | "assistant" | "system" | "tool";

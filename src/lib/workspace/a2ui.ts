@@ -34,7 +34,7 @@ export type {
   DynamicBoolean,
   DynamicNumber,
   DynamicStringList,
-} from "@/components/content-creator/a2ui/types";
+} from "@/components/workspace/a2ui/types";
 
 export {
   parseAIResponse,
@@ -42,9 +42,9 @@ export {
   getComponentById,
   resolveDynamicValue,
   collectFormData,
-} from "@/components/content-creator/a2ui/parser";
+} from "@/components/workspace/a2ui/parser";
 
-export { A2UIRenderer } from "@/components/content-creator/a2ui";
+export { A2UIRenderer } from "@/components/workspace/a2ui";
 
 export {
   DEFAULT_A2UI_TASK_CARD_PRESET,
@@ -54,7 +54,7 @@ export {
   TIMELINE_A2UI_TASK_CARD_PRESET,
   WORKSPACE_CREATE_CONFIRMATION_TASK_PRESET,
   type A2UITaskCardPreset,
-} from "@/components/content-creator/a2ui/taskCardPresets";
+} from "@/components/workspace/a2ui/taskCardPresets";
 
 export {
   A2UITaskCardShell,
@@ -66,4 +66,4 @@ export {
   type A2UITaskCardShellProps,
   type A2UITaskCardHeaderProps,
   type A2UITaskCardBodyProps,
-} from "@/components/content-creator/a2ui/taskCardPrimitives";
+} from "@/components/workspace/a2ui/taskCardPrimitives";

@@ -34,7 +34,7 @@
 - [x] 引入 `ToolSourceKind`
 - [x] 引入 `ToolPermissionPlane`
 - [x] 引入 `ToolLifecycle`
-- [x] 补全 core / creator / browser assist tools
+- [x] 补全 core / workbench / browser assist tools
 - [x] 形成默认 allowlist 子集
 
 ### 验收标准

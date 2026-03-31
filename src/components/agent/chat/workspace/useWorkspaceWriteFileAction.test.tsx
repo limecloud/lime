@@ -20,7 +20,7 @@ function renderHook(props?: Partial<HookProps>) {
     contentId: null,
     currentGateKey: "idle",
     currentStepIndex: 0,
-    isContentCreationMode: false,
+    isSpecializedThemeMode: false,
     isThemeWorkbench: false,
     mappedTheme: "general",
     projectId: null,
@@ -42,7 +42,6 @@ function renderHook(props?: Partial<HookProps>) {
     setTaskFiles: vi.fn(),
     setSelectedFileId: vi.fn(),
     setCanvasState: vi.fn(),
-    upsertNovelCanvasState: vi.fn((previous) => previous),
   };
 
   function Probe(currentProps: HookProps) {

@@ -16,6 +16,7 @@ import {
   type TeamWorkspaceWaitSummary,
 } from "../teamWorkspaceRuntime";
 import { TeamWorkbenchPreview } from "./workbenchPreview";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 
 export type TeamWorkbenchSurfaceProps = Omit<
   ComponentProps<typeof TeamWorkspaceBoard>,
@@ -31,6 +32,7 @@ export interface UseTeamWorkbenchPresentationParams {
   liveActivityBySessionId?: Record<string, TeamWorkspaceActivityEntry[]>;
   teamWaitSummary?: TeamWorkspaceWaitSummary | null;
   teamControlSummary?: TeamWorkspaceControlSummary | null;
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
 }
 
 function resolveTeamWorkbenchTriggerState(params: {
@@ -101,6 +103,7 @@ export function useTeamWorkbenchPresentation({
   liveActivityBySessionId = {},
   teamWaitSummary = null,
   teamControlSummary = null,
+  teamMemorySnapshot = null,
 }: UseTeamWorkbenchPresentationParams) {
   const dispatchPreviewState = teamDispatchPreviewState;
   const boardProps = useMemo<ComponentProps<typeof TeamWorkspaceBoard>>(
@@ -138,8 +141,15 @@ export function useTeamWorkbenchPresentation({
       selectedTeamSummary: surfaceProps.selectedTeamSummary,
       selectedTeamRoles: surfaceProps.selectedTeamRoles,
       teamDispatchPreviewState: surfaceProps.teamDispatchPreviewState,
+      teamMemorySnapshot,
     }),
-    [liveActivityBySessionId, surfaceProps, teamControlSummary, teamWaitSummary],
+    [
+      liveActivityBySessionId,
+      surfaceProps,
+      teamControlSummary,
+      teamMemorySnapshot,
+      teamWaitSummary,
+    ],
   );
 
   const teamWorkbenchSummaryPanel = useMemo(

@@ -52,6 +52,12 @@ interface McpToolsUpdatedPayload {
 // Hook 返回类型
 // ============================================================================
 
+export interface McpServerConnectionState {
+  phase: "idle" | "starting" | "stopping" | "reconnecting";
+  error: string | null;
+  updatedAt: number | null;
+}
+
 export interface UseMcpReturn {
   // 状态
   servers: McpServerInfo[];
@@ -60,10 +66,12 @@ export interface UseMcpReturn {
   resources: McpResourceDefinition[];
   loading: boolean;
   error: string | null;
+  serverConnectionStates: Record<string, McpServerConnectionState>;
 
   // 服务器操作
   startServer: (name: string) => Promise<void>;
   stopServer: (name: string) => Promise<void>;
+  reconnectServer: (name: string) => Promise<void>;
   refreshServers: () => Promise<void>;
 
   // 工具操作
@@ -97,6 +105,28 @@ export function useMcp(): UseMcpReturn {
   const [resources, setResources] = useState<McpResourceDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [serverConnectionStates, setServerConnectionStates] = useState<
+    Record<string, McpServerConnectionState>
+  >({});
+
+  const updateServerConnectionState = useCallback(
+    (
+      serverName: string,
+      nextState: Partial<McpServerConnectionState> & {
+        phase: McpServerConnectionState["phase"];
+      },
+    ) => {
+      setServerConnectionStates((prev) => ({
+        ...prev,
+        [serverName]: {
+          phase: nextState.phase,
+          error: nextState.error ?? null,
+          updatedAt: Date.now(),
+        },
+      }));
+    },
+    [],
+  );
 
   // --------------------------------------------------------------------------
   // 数据获取方法
@@ -148,34 +178,83 @@ export function useMcp(): UseMcpReturn {
     async (name: string) => {
       try {
         setError(null);
+        updateServerConnectionState(name, {
+          phase: "starting",
+        });
         await mcpApi.startServer(name);
         // 启动后刷新服务器列表和工具列表
         await refreshServers();
         await refreshTools();
+        updateServerConnectionState(name, {
+          phase: "idle",
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
+        updateServerConnectionState(name, {
+          phase: "idle",
+          error: msg,
+        });
         throw e;
       }
     },
-    [refreshServers, refreshTools],
+    [refreshServers, refreshTools, updateServerConnectionState],
   );
 
   const stopServer = useCallback(
     async (name: string) => {
       try {
         setError(null);
+        updateServerConnectionState(name, {
+          phase: "stopping",
+        });
         await mcpApi.stopServer(name);
         // 停止后刷新服务器列表和工具列表
         await refreshServers();
         await refreshTools();
+        updateServerConnectionState(name, {
+          phase: "idle",
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
+        updateServerConnectionState(name, {
+          phase: "idle",
+          error: msg,
+        });
         throw e;
       }
     },
-    [refreshServers, refreshTools],
+    [refreshServers, refreshTools, updateServerConnectionState],
+  );
+
+  const reconnectServer = useCallback(
+    async (name: string) => {
+      updateServerConnectionState(name, {
+        phase: "reconnecting",
+      });
+      try {
+        const target = servers.find((server) => server.name === name);
+        if (target?.is_running) {
+          await mcpApi.stopServer(name);
+        }
+        await mcpApi.startServer(name);
+        await refreshServers();
+        await refreshTools();
+        updateServerConnectionState(name, {
+          phase: "idle",
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        updateServerConnectionState(name, {
+          phase: "idle",
+          error: msg,
+        });
+        throw e;
+      }
+    },
+    [refreshServers, refreshTools, servers, updateServerConnectionState],
   );
 
   // --------------------------------------------------------------------------
@@ -260,6 +339,9 @@ export function useMcp(): UseMcpReturn {
           "mcp:server_started",
           (event) => {
             console.log("[useMcp] 服务器已启动:", event.payload.server_name);
+            updateServerConnectionState(event.payload.server_name, {
+              phase: "idle",
+            });
             refreshServers();
             refreshTools();
           },
@@ -270,6 +352,9 @@ export function useMcp(): UseMcpReturn {
           "mcp:server_stopped",
           (event) => {
             console.log("[useMcp] 服务器已停止:", event.payload.server_name);
+            updateServerConnectionState(event.payload.server_name, {
+              phase: "idle",
+            });
             refreshServers();
             refreshTools();
           },
@@ -287,6 +372,10 @@ export function useMcp(): UseMcpReturn {
             if (mounted) {
               setError(`${event.payload.server_name}: ${event.payload.error}`);
             }
+            updateServerConnectionState(event.payload.server_name, {
+              phase: "idle",
+              error: event.payload.error,
+            });
           },
         );
         unlisteners.push(unlistenError);
@@ -313,7 +402,13 @@ export function useMcp(): UseMcpReturn {
       mounted = false;
       unlisteners.forEach((unlisten) => unlisten());
     };
-  }, [refreshServers, refreshTools, refreshPrompts, refreshResources]);
+  }, [
+    refreshServers,
+    refreshTools,
+    refreshPrompts,
+    refreshResources,
+    updateServerConnectionState,
+  ]);
 
   return {
     servers,
@@ -322,8 +417,10 @@ export function useMcp(): UseMcpReturn {
     resources,
     loading,
     error,
+    serverConnectionStates,
     startServer,
     stopServer,
+    reconnectServer,
     refreshServers,
     refreshTools,
     callTool,

@@ -46,7 +46,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/components/content-creator/material/ImageGallery", () => ({
+vi.mock("@/components/workspace/media/ImageGallery", () => ({
   ImageGallery: ({
     onSelect,
     onDoubleClick,

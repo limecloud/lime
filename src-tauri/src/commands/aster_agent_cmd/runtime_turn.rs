@@ -9,6 +9,8 @@ const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE: &str = "artifact_document_p
 const AUTO_CONTEXT_COMPACTION_EVENT_PREFIX: &str = "agent_context_compaction_auto_internal";
 const AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE: &str = "context_compaction_auto_failed";
 const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not_needed";
+const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
+const LIME_RUNTIME_AUTO_COMPACT_KEY: &str = "auto_compact";
 
 fn emit_runtime_side_event(
     app: &AppHandle,
@@ -70,6 +72,32 @@ fn merge_turn_context_with_artifact_output_schema(
         turn_context,
         request_metadata,
     )
+}
+
+pub(crate) fn merge_turn_context_with_workspace_auto_compaction(
+    turn_context: Option<TurnContextOverride>,
+    workspace_settings: &WorkspaceSettings,
+) -> Option<TurnContextOverride> {
+    if workspace_settings.auto_compact {
+        return turn_context;
+    }
+
+    let mut turn_context = turn_context.unwrap_or_default();
+    let runtime_metadata = turn_context
+        .metadata
+        .entry(LIME_RUNTIME_METADATA_KEY.to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !runtime_metadata.is_object() {
+        *runtime_metadata = serde_json::Value::Object(serde_json::Map::new());
+    }
+    if let serde_json::Value::Object(runtime_metadata_map) = runtime_metadata {
+        runtime_metadata_map.insert(
+            LIME_RUNTIME_AUTO_COMPACT_KEY.to_string(),
+            serde_json::Value::Bool(false),
+        );
+    }
+
+    Some(turn_context)
 }
 
 fn normalize_runtime_turn_request_metadata(
@@ -330,7 +358,7 @@ async fn execute_aster_chat_request(
             tracing::warn!("[AsterAgent] session_store 存在: {}", has_store);
         }
     }
-    ensure_tool_search_tool_registered(state).await?;
+    ensure_runtime_support_tools_registered(state, mcp_manager).await?;
     let request_session_id = request.session_id.clone();
     let mcp_runtime_prepare_future = async {
         let (_start_ok, start_fail) = ensure_lime_mcp_servers_running(db, mcp_manager).await;
@@ -1017,14 +1045,19 @@ async fn execute_aster_chat_request(
         turn_state.turn_id.clone(),
         request.message.clone(),
     )?));
+    let workspace_settings = workspace.settings.clone();
     let runtime_status_session_config = {
         let mut session_config_builder = SessionConfigBuilder::new(session_id)
             .thread_id(turn_state.thread_id.clone())
             .turn_id(turn_state.turn_id.clone());
-        if let Some(turn_context) = merge_turn_context_with_artifact_output_schema(
-            turn_input_envelope.turn_context_override(),
-            request_metadata.as_ref(),
-        ) {
+        let turn_context = merge_turn_context_with_workspace_auto_compaction(
+            merge_turn_context_with_artifact_output_schema(
+                turn_input_envelope.turn_context_override(),
+                request_metadata.as_ref(),
+            ),
+            &workspace_settings,
+        );
+        if let Some(turn_context) = turn_context {
             session_config_builder = session_config_builder.turn_context(turn_context);
         }
         session_config_builder.build()
@@ -1086,10 +1119,14 @@ async fn execute_aster_chat_request(
         if let Some(prompt) = turn_input_envelope_for_session.system_prompt() {
             session_config_builder = session_config_builder.system_prompt(prompt.to_string());
         }
-        if let Some(turn_context) = merge_turn_context_with_artifact_output_schema(
-            turn_input_envelope_for_session.turn_context_override(),
-            request_metadata_for_session.as_ref(),
-        ) {
+        let turn_context = merge_turn_context_with_workspace_auto_compaction(
+            merge_turn_context_with_artifact_output_schema(
+                turn_input_envelope_for_session.turn_context_override(),
+                request_metadata_for_session.as_ref(),
+            ),
+            &workspace_settings,
+        );
+        if let Some(turn_context) = turn_context {
             session_config_builder = session_config_builder.turn_context(turn_context);
         }
         session_config_builder = session_config_builder
@@ -2918,6 +2955,36 @@ mod tests {
         )
         .await
         .expect("检查自动压缩阈值失败"));
+    }
+
+    #[test]
+    fn should_inject_turn_context_metadata_when_workspace_auto_compaction_disabled() {
+        let merged = merge_turn_context_with_workspace_auto_compaction(
+            Some(TurnContextOverride::default()),
+            &WorkspaceSettings {
+                auto_compact: false,
+                ..WorkspaceSettings::default()
+            },
+        )
+        .expect("应返回 turn context");
+
+        assert_eq!(
+            merged
+                .metadata
+                .get(LIME_RUNTIME_METADATA_KEY)
+                .and_then(|value| value.get(LIME_RUNTIME_AUTO_COMPACT_KEY))
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn should_keep_turn_context_unchanged_when_workspace_auto_compaction_enabled() {
+        assert!(merge_turn_context_with_workspace_auto_compaction(
+            None,
+            &WorkspaceSettings::default()
+        )
+        .is_none());
     }
 
     #[test]

@@ -13,6 +13,7 @@ export interface CompatSubagentRuntimeState {
   events: CompatSubagentEvent[];
   result: SchedulerExecutionResult | null;
   error: string | null;
+  summary: string | null;
 }
 
 export interface CompatSubagentRuntimeActivity {
@@ -29,6 +30,7 @@ export interface CompatSubagentRuntimeDisplaySnapshot
   extends CompatSubagentRuntimeStatus {
   error: string | null;
   result: SchedulerExecutionResult | null;
+  summary: string | null;
   recentActivity: CompatSubagentRuntimeActivity[];
   hasSignals: boolean;
 }
@@ -81,6 +83,7 @@ export function buildCompatSubagentRuntimeSnapshot(
 
   return {
     ...state,
+    summary: state.summary,
     recentActivity,
     hasSignals:
       state.isRunning ||

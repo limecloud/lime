@@ -8,8 +8,6 @@ import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import { resolveSocialMediaArtifactDescriptor } from "@/lib/workspace/workbenchRuntime";
-import { createInitialMusicState } from "@/lib/workspace/workbenchCanvas";
-import { parseLyrics } from "@/lib/workspace/workbenchCanvas";
 import type { ThemeType, LayoutMode } from "@/lib/workspace/workbenchContract";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
@@ -62,7 +60,7 @@ interface UseWorkspaceWriteFileActionParams {
   contentId?: string | null;
   currentGateKey: string;
   currentStepIndex: number;
-  isContentCreationMode: boolean;
+  isSpecializedThemeMode: boolean;
   isThemeWorkbench: boolean;
   mappedTheme: ThemeType;
   projectId?: string | null;
@@ -89,10 +87,6 @@ interface UseWorkspaceWriteFileActionParams {
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
   setSelectedFileId: (fileId: string) => void;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
-  upsertNovelCanvasState: (
-    previous: CanvasStateUnion | null,
-    content: string,
-  ) => CanvasStateUnion;
 }
 
 export function useWorkspaceWriteFileAction({
@@ -101,7 +95,7 @@ export function useWorkspaceWriteFileAction({
   contentId,
   currentGateKey,
   currentStepIndex,
-  isContentCreationMode,
+  isSpecializedThemeMode,
   isThemeWorkbench,
   mappedTheme,
   projectId,
@@ -121,7 +115,6 @@ export function useWorkspaceWriteFileAction({
   setTaskFiles,
   setSelectedFileId,
   setCanvasState,
-  upsertNovelCanvasState,
 }: UseWorkspaceWriteFileActionParams) {
   return useCallback(
     (content: string, fileName: string, context?: WriteArtifactContext) => {
@@ -334,7 +327,7 @@ export function useWorkspaceWriteFileAction({
       if (
         stepIndex !== undefined &&
         stepIndex === currentStepIndex &&
-        isContentCreationMode
+        isSpecializedThemeMode
       ) {
         logWorkspaceWriteInfo(
           "[AgentChatPage] 推进工作流步骤:",
@@ -460,32 +453,6 @@ export function useWorkspaceWriteFileAction({
           contentLength: content.length,
         });
 
-        if (mappedTheme === "poster") {
-          return previous;
-        }
-
-        if (mappedTheme === "music") {
-          const sections = parseLyrics(content);
-          if (!previous || previous.type !== "music") {
-            const musicState = createInitialMusicState();
-            musicState.sections = sections;
-            const titleMatch = content.match(/^#\s*(.+)$/m);
-            if (titleMatch) {
-              musicState.spec.title = titleMatch[1].trim();
-            }
-            logWorkspaceWriteInfo("[AgentChatPage] 创建新音乐状态");
-            return musicState;
-          }
-          return {
-            ...previous,
-            sections,
-          };
-        }
-
-        if (mappedTheme === "novel") {
-          return upsertNovelCanvasState(previous, content);
-        }
-
         if (!previous || previous.type !== "document") {
           logWorkspaceWriteInfo("[AgentChatPage] 创建新文档状态");
           const initialDocumentState = createInitialDocumentState(content);
@@ -602,7 +569,7 @@ export function useWorkspaceWriteFileAction({
       contentId,
       currentGateKey,
       currentStepIndex,
-      isContentCreationMode,
+      isSpecializedThemeMode,
       isThemeWorkbench,
       mappedTheme,
       projectId,
@@ -621,7 +588,6 @@ export function useWorkspaceWriteFileAction({
       taskFilesRef,
       themeWorkbenchActiveQueueItem,
       upsertGeneralArtifact,
-      upsertNovelCanvasState,
     ],
   );
 }

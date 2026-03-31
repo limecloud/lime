@@ -60,7 +60,7 @@ lime/
 |------|------|
 | `workspace/` | 工作区与项目边界，承载文件、会话与配置上下文 |
 | `components/agent/` | Agent 对话主入口，负责会话、流式事件与交互 |
-| `components/content-creator/` | 主题化创作工作台与画布联动 |
+| `components/workspace/` + `lib/workspace/` | 主题工作台、画布联动与共享工作区能力 |
 | `skills/` | 技能加载、标准校验与经验编排能力；统一遵循 `skill-standard.md` |
 | `lib/artifact/` | Artifact 解析、状态与轻量渲染器 |
 | `memory / personas` | 项目记忆与人设沉淀 |
@@ -222,7 +222,6 @@ lime/
 
 ### 产品与工作台
 - [workspace.md](workspace.md) - Workspace 边界与工作区设计
-- [content-creator.md](content-creator.md) - 主题化创作工作台
 - [skill-standard.md](skill-standard.md) - 统一技能标准、目录与运行边界
 - [../../src-tauri/src/skills/README.md](../../src-tauri/src/skills/README.md) - Skills 标准与集成
 - [terminal.md](terminal.md) - 终端能力

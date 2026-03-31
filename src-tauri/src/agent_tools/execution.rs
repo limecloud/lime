@@ -126,11 +126,6 @@ pub fn tool_execution_policy(tool_name: &str) -> ToolExecutionPolicy {
             restriction_profile: ToolExecutionRestrictionProfile::WorkspaceShellCommand,
             sandbox_profile: ToolExecutionSandboxProfile::WorkspaceCommand,
         },
-        "Task" => ToolExecutionPolicy {
-            warning_policy: ToolExecutionWarningPolicy::ShellCommandRisk,
-            restriction_profile: ToolExecutionRestrictionProfile::WorkspaceShellCommand,
-            sandbox_profile: ToolExecutionSandboxProfile::None,
-        },
         "NotebookEdit" => ToolExecutionPolicy {
             restriction_profile: ToolExecutionRestrictionProfile::WorkspaceAbsolutePathRequired,
             ..ToolExecutionPolicy::default()
@@ -779,7 +774,6 @@ mod tests {
         let input = ToolExecutionResolverInput::default();
 
         assert!(should_auto_approve_tool_warnings("bash", true, input));
-        assert!(should_auto_approve_tool_warnings("Task", true, input));
         assert!(!should_auto_approve_tool_warnings("read", true, input));
         assert!(!should_auto_approve_tool_warnings("bash", false, input));
     }

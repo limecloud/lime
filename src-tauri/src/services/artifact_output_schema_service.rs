@@ -55,6 +55,21 @@ const ARTIFACT_STAGE2_OP_VALUES: &[&str] = &[
     "artifact.finalize_version",
     "artifact.fail",
 ];
+const ARTIFACT_STAGE2_INCREMENTAL_OP_TYPES: &[&str] = &[
+    "artifact.begin",
+    "artifact.meta.patch",
+    "artifact.source.upsert",
+    "artifact.block.upsert",
+    "artifact.block.remove",
+    "artifact.complete",
+    "artifact.fail",
+];
+const ARTIFACT_REWRITE_INCREMENTAL_OP_TYPES: &[&str] = &[
+    "artifact.source.upsert",
+    "artifact.block.upsert",
+    "artifact.complete",
+    "artifact.fail",
+];
 const ARTIFACT_REWRITE_OP_VALUES: &[&str] = &[
     "artifact.set_meta",
     "artifact.upsert_block",
@@ -349,37 +364,38 @@ fn build_stage2_document_schema(context: &ArtifactOutputSchemaContext) -> Value 
                 "items": {
                     "type": "object",
                     "additionalProperties": true,
-                    "required": ["id"],
+                    "required": ["id", "type", "label"],
                     "properties": {
                         "id": {
                             "type": "string",
                             "minLength": 1
                         },
-                        "title": {
+                        "type": {
+                            "type": "string",
+                            "enum": ["web", "file", "tool", "message", "search_result"]
+                        },
+                        "label": {
                             "type": "string"
                         },
-                        "url": {
+                        "snippet": {
                             "type": "string"
                         },
-                        "note": {
+                        "reliability": {
                             "type": "string"
                         },
-                        "quote": {
-                            "type": "string"
-                        },
-                        "kind": {
-                            "type": "string"
-                        },
-                        "publishedAt": {
-                            "type": "string"
+                        "locator": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "properties": {
+                                "url": { "type": "string" },
+                                "path": { "type": "string" },
+                                "lineStart": { "type": "number" },
+                                "lineEnd": { "type": "number" },
+                                "toolCallId": { "type": "string" },
+                                "messageId": { "type": "string" }
+                            }
                         }
-                    },
-                    "anyOf": [
-                        { "required": ["title"] },
-                        { "required": ["url"] },
-                        { "required": ["note"] },
-                        { "required": ["quote"] }
-                    ]
+                    }
                 }
             },
             "metadata": {
@@ -425,38 +441,39 @@ fn build_artifact_source_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": true,
+        "required": ["id", "type", "label"],
         "properties": {
             "id": {
                 "type": "string",
                 "minLength": 1
             },
-            "title": {
+            "type": {
+                "type": "string",
+                "enum": ["web", "file", "tool", "message", "search_result"]
+            },
+            "label": {
                 "type": "string"
             },
-            "url": {
+            "snippet": {
                 "type": "string"
             },
-            "note": {
-                "type": "string"
+            "reliability": {
+                "type": "string",
+                "enum": ["primary", "secondary", "derived"]
             },
-            "quote": {
-                "type": "string"
+            "locator": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                    "url": { "type": "string" },
+                    "path": { "type": "string" },
+                    "lineStart": { "type": "number" },
+                    "lineEnd": { "type": "number" },
+                    "toolCallId": { "type": "string" },
+                    "messageId": { "type": "string" }
+                }
             },
-            "kind": {
-                "type": "string"
-            },
-            "publishedAt": {
-                "type": "string"
-            },
-            "locator": {}
-        },
-        "anyOf": [
-            { "required": ["id"] },
-            { "required": ["title"] },
-            { "required": ["url"] },
-            { "required": ["note"] },
-            { "required": ["quote"] }
-        ]
+        }
     })
 }
 
@@ -691,6 +708,144 @@ fn build_artifact_ops_item_schema(op_values: &[&str], target_block_id: Option<&s
     })
 }
 
+fn build_artifact_incremental_output_schema(
+    op_types: &[&str],
+    target_block_id: Option<&str>,
+) -> Value {
+    let mut item_schemas = Vec::new();
+
+    if op_types.contains(&"artifact.begin") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId", "kind", "title"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.begin"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": ARTIFACT_KIND_VALUES
+                },
+                "title": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        }));
+    }
+
+    if op_types.contains(&"artifact.meta.patch") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId", "patch"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.meta.patch"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "patch": {
+                    "type": "object"
+                }
+            }
+        }));
+    }
+
+    if op_types.contains(&"artifact.source.upsert") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId", "source"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.source.upsert"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "source": build_artifact_source_schema()
+            }
+        }));
+    }
+
+    if op_types.contains(&"artifact.block.upsert") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId", "block"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.block.upsert"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "block": build_artifact_block_schema_with_target_id(target_block_id)
+            }
+        }));
+    }
+
+    if op_types.contains(&"artifact.block.remove") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId", "blockId"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.block.remove"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "blockId": build_block_id_constraint_schema(target_block_id)
+            }
+        }));
+    }
+
+    if op_types.contains(&"artifact.complete") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.complete"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "summary": {
+                    "type": "string"
+                }
+            }
+        }));
+    }
+
+    if op_types.contains(&"artifact.fail") {
+        item_schemas.push(json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "artifactId", "reason"],
+            "properties": {
+                "type": build_string_schema(op_types, Some("artifact.fail"), None),
+                "artifactId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        }));
+    }
+
+    json!({
+        "title": "lime_artifact_incremental",
+        "oneOf": item_schemas
+    })
+}
+
 fn build_artifact_ops_output_schema(op_values: &[&str], target_block_id: Option<&str>) -> Value {
     json!({
         "title": "lime_artifact_ops",
@@ -755,6 +910,7 @@ fn build_stage2_output_schema(context: &ArtifactOutputSchemaContext) -> Value {
         "title": "lime_artifact_stage2_result",
         "oneOf": [
             build_stage2_document_envelope_schema(context),
+            build_artifact_incremental_output_schema(ARTIFACT_STAGE2_INCREMENTAL_OP_TYPES, None),
             build_artifact_ops_output_schema(ARTIFACT_STAGE2_OP_VALUES, None)
         ]
     })
@@ -766,6 +922,10 @@ fn build_rewrite_output_schema(context: &ArtifactOutputSchemaContext) -> Value {
         "title": "lime_artifact_rewrite_result",
         "oneOf": [
             build_artifact_rewrite_patch_output_schema(context),
+            build_artifact_incremental_output_schema(
+                ARTIFACT_REWRITE_INCREMENTAL_OP_TYPES,
+                context.target_block_id.as_deref()
+            ),
             build_artifact_ops_output_schema(
                 ARTIFACT_REWRITE_OP_VALUES,
                 context.target_block_id.as_deref()
@@ -894,10 +1054,30 @@ mod tests {
                 .and_then(Value::as_u64),
             Some(1)
         );
+        assert!(schema
+            .get("oneOf")
+            .and_then(Value::as_array)
+            .is_some_and(|items| items.iter().any(|item| {
+                item.get("oneOf")
+                    .and_then(Value::as_array)
+                    .is_some_and(|variants| {
+                        variants.iter().any(|variant| {
+                            variant
+                                .get("properties")
+                                .and_then(Value::as_object)
+                                .and_then(|properties| properties.get("type"))
+                                .and_then(|value| value.get("enum"))
+                                .and_then(Value::as_array)
+                                .and_then(|values| values.first())
+                                .and_then(Value::as_str)
+                                == Some("artifact.block.upsert")
+                        })
+                    })
+            })));
     }
 
     #[test]
-    fn rewrite_should_build_artifact_ops_schema() {
+    fn rewrite_should_build_patch_incremental_and_ops_schema() {
         let metadata = json!({
             "artifact": {
                 "artifact_mode": "rewrite",
@@ -913,7 +1093,7 @@ mod tests {
                 .get("oneOf")
                 .and_then(Value::as_array)
                 .map(|items| items.len()),
-            Some(2)
+            Some(3)
         );
         let rewrite_patch_schema = schema
             .get("oneOf")
@@ -961,6 +1141,69 @@ mod tests {
                 .and_then(Value::as_str),
             Some("body-1")
         );
+        let incremental_schema = schema
+            .get("oneOf")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("title").and_then(Value::as_str) == Some("lime_artifact_incremental")
+                })
+            })
+            .expect("incremental schema");
+        let incremental_upsert_schema = incremental_schema
+            .get("oneOf")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("properties")
+                        .and_then(Value::as_object)
+                        .and_then(|properties| properties.get("type"))
+                        .and_then(|op| op.get("enum"))
+                        .and_then(Value::as_array)
+                        .and_then(|values| values.first())
+                        .and_then(Value::as_str)
+                        == Some("artifact.block.upsert")
+                })
+            })
+            .expect("incremental upsert schema");
+        assert_eq!(
+            incremental_upsert_schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .and_then(|properties| properties.get("block"))
+                .and_then(|block| block.get("properties"))
+                .and_then(Value::as_object)
+                .and_then(|properties| properties.get("id"))
+                .and_then(|id| id.get("enum"))
+                .and_then(Value::as_array)
+                .and_then(|values| values.first())
+                .and_then(Value::as_str),
+            Some("body-1")
+        );
+        let rewrite_incremental_has_type = |expected: &str| {
+            incremental_schema
+                .get("oneOf")
+                .and_then(Value::as_array)
+                .is_some_and(|items| {
+                    items.iter().any(|item| {
+                        item.get("properties")
+                            .and_then(Value::as_object)
+                            .and_then(|properties| properties.get("type"))
+                            .and_then(|op| op.get("enum"))
+                            .and_then(Value::as_array)
+                            .and_then(|values| values.first())
+                            .and_then(Value::as_str)
+                            == Some(expected)
+                    })
+                })
+        };
+        assert!(rewrite_incremental_has_type("artifact.source.upsert"));
+        assert!(rewrite_incremental_has_type("artifact.block.upsert"));
+        assert!(rewrite_incremental_has_type("artifact.complete"));
+        assert!(rewrite_incremental_has_type("artifact.fail"));
+        assert!(!rewrite_incremental_has_type("artifact.begin"));
+        assert!(!rewrite_incremental_has_type("artifact.meta.patch"));
+        assert!(!rewrite_incremental_has_type("artifact.block.remove"));
         let ops_schema = schema
             .get("oneOf")
             .and_then(Value::as_array)

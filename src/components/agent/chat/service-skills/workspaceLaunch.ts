@@ -4,13 +4,29 @@ import type {
   ServiceSkillArtifactKind,
   ServiceSkillItem,
 } from "@/lib/api/serviceSkills";
-import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
+import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 
 export interface ServiceSkillWorkspaceSeed {
   title: string;
   contentType: ContentType;
   requestMetadata?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+}
+
+function shouldSeedArtifactDraft(
+  skill: Pick<
+    ServiceSkillItem,
+    "defaultArtifactKind" | "defaultExecutorBinding" | "siteCapabilityBinding"
+  >,
+): boolean {
+  if (!skill.defaultArtifactKind) {
+    return false;
+  }
+
+  return (
+    skill.defaultExecutorBinding !== "browser_assist" &&
+    !skill.siteCapabilityBinding
+  );
 }
 
 function resolveServiceSkillArtifactRequestMetadata(
@@ -34,16 +50,16 @@ export function buildServiceSkillWorkspaceSeed(
   fallbackTheme?: string | null,
 ): ServiceSkillWorkspaceSeed | null {
   const targetTheme = skill.themeTarget ?? fallbackTheme ?? null;
-  if (!targetTheme || !isContentCreationTheme(targetTheme)) {
+  if (!targetTheme || !isSpecializedWorkbenchTheme(targetTheme)) {
     return null;
   }
 
   return {
     title: skill.title.trim() || "技能工作稿",
     contentType: getDefaultContentTypeForProject(targetTheme as ProjectType),
-    requestMetadata: resolveServiceSkillArtifactRequestMetadata(
-      skill.defaultArtifactKind,
-    ),
+    requestMetadata: shouldSeedArtifactDraft(skill)
+      ? resolveServiceSkillArtifactRequestMetadata(skill.defaultArtifactKind)
+      : undefined,
     metadata: {
       source: "service_skill",
       serviceSkill: {

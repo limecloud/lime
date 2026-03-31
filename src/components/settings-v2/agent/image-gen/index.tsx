@@ -141,7 +141,8 @@ export function ImageGenSettings() {
       setConfig(c);
       setImageConfig(c.image_gen || DEFAULT_IMAGE_GEN_CONFIG);
       setGlobalImagePreference(
-        c.content_creator?.media_defaults?.image ?? DEFAULT_MEDIA_PREFERENCE,
+        c.workspace_preferences?.media_defaults?.image ??
+          DEFAULT_MEDIA_PREFERENCE,
       );
     } catch (e) {
       console.error("加载绘画服务配置失败:", e);
@@ -187,10 +188,10 @@ export function ImageGenSettings() {
         buildPersistedMediaGenerationPreference(nextPreference);
       const updatedFullConfig: Config = {
         ...config,
-        content_creator: {
-          ...config.content_creator,
+        workspace_preferences: {
+          ...config.workspace_preferences,
           media_defaults: {
-            ...config.content_creator?.media_defaults,
+            ...config.workspace_preferences?.media_defaults,
             image: persistedPreference,
           },
         },

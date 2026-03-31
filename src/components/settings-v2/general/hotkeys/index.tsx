@@ -18,7 +18,6 @@ import {
   PanelsTopLeft,
   ScrollText,
   Sparkles,
-  SquareStack,
   TerminalSquare,
   type LucideIcon,
 } from "lucide-react";
@@ -156,7 +155,6 @@ const SECTION_ICON_MAP: Record<AuditedHotkeySection["scene"], LucideIcon> = {
   terminal: TerminalSquare,
   "document-editor": FileText,
   "document-canvas": ScrollText,
-  "poster-canvas": SquareStack,
 };
 
 function HotkeySectionCard({ section }: { section: AuditedHotkeySection }) {

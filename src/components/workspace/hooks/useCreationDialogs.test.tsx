@@ -98,7 +98,7 @@ function CreationDialogsHarness(props: HarnessProps) {
       data-pending-create-confirmations={JSON.stringify(
         dialogs.pendingCreateConfirmationByProjectId,
       )}
-      data-content-modes={JSON.stringify(dialogs.contentCreationModes)}
+      data-content-modes={JSON.stringify(dialogs.creationModes)}
     >
       <button
         data-testid="open-project-dialog"

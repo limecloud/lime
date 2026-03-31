@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Save,
   ScrollText,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,8 +26,6 @@ import {
   resolveArtifactDocumentCurrentVersionDiff,
   resolveArtifactDocumentSourceLinks,
   resolveArtifactDocumentVersionHistory,
-  extractPortableText,
-  type ArtifactDocumentBlock,
   type ArtifactDocumentSource,
   type ArtifactDocumentVersionDiff,
   type ArtifactDocumentSourceLink,
@@ -36,13 +35,32 @@ import {
 import { resolveArtifactProtocolDocumentPayload } from "@/lib/artifact-protocol";
 import type { Artifact } from "@/lib/artifact/types";
 import { buildCanvasWorkbenchDiff } from "@/components/agent/chat/utils/canvasWorkbenchDiff";
-import { updateArtifactDocumentStatus } from "./artifactWorkbenchActions";
+import {
+  createArtifactDocumentNextVersion,
+  updateArtifactDocumentStatus,
+} from "./artifactWorkbenchActions";
 import type { AgentThreadItem } from "../types";
 import {
   buildArtifactTimelineLinkIndex,
   type ArtifactTimelineLink,
 } from "../utils/artifactTimelineNavigation";
 import { cn } from "@/lib/utils";
+import {
+  normalizeHighlightsDraft,
+  normalizeStringArray,
+  normalizeText,
+  parseChecklistDraftItems,
+  parseMetricDraftItems,
+  parseTableDraftColumns,
+  parseTableDraftRows,
+  resolveCodeBlockContent,
+  resolveEditableArtifactDraft,
+  resolveEditableCalloutTone,
+  type EditableArtifactBlockDraft,
+  type EditableArtifactBlockEntry,
+} from "./artifactWorkbenchEditableDraft";
+import { DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION } from "./artifactWorkbenchRewriteConfig";
+import type { ArtifactBlockRewriteCompletion } from "./artifactWorkbenchRewrite";
 import {
   NotionEditor,
   type NotionEditorHandle,
@@ -54,38 +72,10 @@ export type ArtifactWorkbenchInspectorTab =
   | "versions"
   | "diff"
   | "edit";
-
-export interface EditableArtifactBlockEntry {
-  blockId: string;
-  label: string;
-  detail?: string;
-  editorKind: EditableArtifactBlockDraft["editorKind"];
-  draft: EditableArtifactBlockDraft;
-}
-
-export type EditableArtifactBlockDraft =
-  | {
-      editorKind: "rich_text";
-      markdown: string;
-    }
-  | {
-      editorKind: "section_header";
-      title: string;
-      description: string;
-    }
-  | {
-      editorKind: "hero_summary";
-      eyebrow: string;
-      title: string;
-      summary: string;
-      highlights: string;
-    }
-  | {
-      editorKind: "callout";
-      title: string;
-      body: string;
-      tone: string;
-    };
+export type {
+  EditableArtifactBlockDraft,
+  EditableArtifactBlockEntry,
+} from "./artifactWorkbenchEditableDraft";
 
 export interface ArtifactRecoveryPresentation {
   kind: "recovered_draft" | "recovered_failed" | "repaired_structure";
@@ -140,20 +130,6 @@ interface UseArtifactWorkbenchDocumentControllerParams {
   blockFocusRequestKey?: number;
   onJumpToTimelineItem?: (itemId: string) => void;
   rendererViewportRef?: React.RefObject<HTMLDivElement | null>;
-}
-
-function normalizeText(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => normalizeText(item))
-    .filter((item): item is string => Boolean(item));
 }
 
 function normalizeBoolean(value: unknown): boolean {
@@ -230,6 +206,18 @@ function getEditableBlockKindLabel(
       return "编辑摘要卡";
     case "callout":
       return "编辑提示块";
+    case "key_points":
+      return "编辑要点";
+    case "table":
+      return "编辑表格";
+    case "checklist":
+      return "编辑清单";
+    case "metric_grid":
+      return "编辑指标卡";
+    case "quote":
+      return "编辑引述";
+    case "code_block":
+      return "编辑代码块";
     default:
       return "编辑 block";
   }
@@ -247,8 +235,9 @@ function resolveSourceDisplayLabel(
 ): string {
   return (
     normalizeText(link.label) ||
-    normalizeText(source?.title) ||
-    normalizeText(source?.url) ||
+    normalizeText(source?.label) ||
+    normalizeText(source?.locator?.url) ||
+    normalizeText(source?.locator?.path) ||
     link.sourceRef
   );
 }
@@ -258,9 +247,7 @@ function resolveSourceMeta(
   source?: ArtifactDocumentSource,
 ): string | undefined {
   return (
-    normalizeText(source?.note) ||
-    normalizeText(source?.quote) ||
-    normalizeText(source?.publishedAt) ||
+    normalizeText(source?.snippet) ||
     normalizeText(typeof link.locator === "string" ? link.locator : undefined)
   );
 }
@@ -344,35 +331,6 @@ function resolveArtifactRecoveryPresentation(
   return null;
 }
 
-function resolveRichTextContent(block: ArtifactDocumentBlock): string {
-  return (
-    normalizeText(block.markdown) ||
-    normalizeText(block.text) ||
-    normalizeText(block.content) ||
-    extractPortableText(block.content) ||
-    extractPortableText(block.tiptap) ||
-    extractPortableText(block.proseMirror) ||
-    ""
-  );
-}
-
-function resolveCalloutContent(block: ArtifactDocumentBlock): string {
-  return (
-    normalizeText(block.content) ||
-    normalizeText(block.text) ||
-    extractPortableText(block.content) ||
-    ""
-  );
-}
-
-function normalizeHighlightsDraft(value: string): string {
-  return value
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .join("\n");
-}
-
 function serializeEditableArtifactDraft(draft: EditableArtifactBlockDraft): string {
   switch (draft.editorKind) {
     case "rich_text":
@@ -401,6 +359,50 @@ function serializeEditableArtifactDraft(draft: EditableArtifactBlockDraft): stri
         body: draft.body.trim(),
         tone: draft.tone.trim(),
       });
+    case "key_points":
+      return JSON.stringify({
+        editorKind: draft.editorKind,
+        title: draft.title.trim(),
+        items: draft.items
+          .split(/\r?\n/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+    case "table":
+      return JSON.stringify({
+        editorKind: draft.editorKind,
+        title: draft.title.trim(),
+        columns: parseTableDraftColumns(draft.columns),
+        rows: parseTableDraftRows(
+          draft.rows,
+          parseTableDraftColumns(draft.columns).length,
+        ),
+      });
+    case "checklist":
+      return JSON.stringify({
+        editorKind: draft.editorKind,
+        title: draft.title.trim(),
+        items: parseChecklistDraftItems(draft.items, "preview"),
+      });
+    case "metric_grid":
+      return JSON.stringify({
+        editorKind: draft.editorKind,
+        title: draft.title.trim(),
+        metrics: parseMetricDraftItems(draft.metrics, "preview"),
+      });
+    case "quote":
+      return JSON.stringify({
+        editorKind: draft.editorKind,
+        text: draft.text.trim(),
+        attribution: draft.attribution.trim(),
+      });
+    case "code_block":
+      return JSON.stringify({
+        editorKind: draft.editorKind,
+        title: draft.title.trim(),
+        language: draft.language.trim(),
+        code: draft.code,
+      });
     default:
       return JSON.stringify(draft);
   }
@@ -414,10 +416,20 @@ function resolveEditableArtifactBlocks(
   let sectionHeaderIndex = 0;
   let heroSummaryIndex = 0;
   let calloutIndex = 0;
+  let keyPointsIndex = 0;
+  let tableIndex = 0;
+  let checklistIndex = 0;
+  let metricGridIndex = 0;
+  let quoteIndex = 0;
+  let codeBlockIndex = 0;
   const entries: EditableArtifactBlockEntry[] = [];
 
   for (const block of document.blocks) {
     if (block.type === "section_header") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "section_header") {
+        continue;
+      }
       sectionHeaderIndex += 1;
       currentSectionLabel = normalizeText(block.title) || currentSectionLabel;
       entries.push({
@@ -425,51 +437,48 @@ function resolveEditableArtifactBlocks(
         label: normalizeText(block.title) || `章节 ${sectionHeaderIndex}`,
         detail: "章节标题",
         editorKind: "section_header",
-        draft: {
-          editorKind: "section_header",
-          title: normalizeText(block.title) || "",
-          description: normalizeText(block.description) || "",
-        },
+        draft,
       });
       continue;
     }
 
     if (block.type === "hero_summary") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "hero_summary") {
+        continue;
+      }
       heroSummaryIndex += 1;
       entries.push({
         blockId: block.id,
         label: normalizeText(block.title) || `摘要卡 ${heroSummaryIndex}`,
         detail: currentSectionLabel || "摘要卡",
         editorKind: "hero_summary",
-        draft: {
-          editorKind: "hero_summary",
-          eyebrow: normalizeText(block.eyebrow) || "",
-          title: normalizeText(block.title) || "",
-          summary: normalizeText(block.summary) || "",
-          highlights: normalizeStringArray(block.highlights).join("\n"),
-        },
+        draft,
       });
       continue;
     }
 
     if (block.type === "callout") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "callout") {
+        continue;
+      }
       calloutIndex += 1;
       entries.push({
         blockId: block.id,
         label: normalizeText(block.title) || `提示块 ${calloutIndex}`,
         detail: currentSectionLabel || "提示信息",
         editorKind: "callout",
-        draft: {
-          editorKind: "callout",
-          title: normalizeText(block.title) || "",
-          body: resolveCalloutContent(block),
-          tone: normalizeText(block.tone) || normalizeText(block.variant) || "",
-        },
+        draft,
       });
       continue;
     }
 
     if (block.type === "rich_text") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "rich_text") {
+        continue;
+      }
       richTextIndex += 1;
       entries.push({
         blockId: block.id,
@@ -479,10 +488,109 @@ function resolveEditableArtifactBlocks(
           `正文块 ${richTextIndex}`,
         detail: currentSectionLabel,
         editorKind: "rich_text",
-        draft: {
-          editorKind: "rich_text",
-          markdown: resolveRichTextContent(block),
-        },
+        draft,
+      });
+      continue;
+    }
+
+    if (block.type === "key_points") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "key_points") {
+        continue;
+      }
+      keyPointsIndex += 1;
+      entries.push({
+        blockId: block.id,
+        label: normalizeText(block.title) || `要点块 ${keyPointsIndex}`,
+        detail: currentSectionLabel || "关键结论",
+        editorKind: "key_points",
+        draft,
+      });
+      continue;
+    }
+
+    if (block.type === "table") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "table") {
+        continue;
+      }
+      tableIndex += 1;
+      entries.push({
+        blockId: block.id,
+        label: normalizeText(block.title) || `表格 ${tableIndex}`,
+        detail: currentSectionLabel || "结构化表格",
+        editorKind: "table",
+        draft,
+      });
+      continue;
+    }
+
+    if (block.type === "checklist") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "checklist") {
+        continue;
+      }
+      checklistIndex += 1;
+      entries.push({
+        blockId: block.id,
+        label: normalizeText(block.title) || `清单 ${checklistIndex}`,
+        detail: currentSectionLabel || "执行清单",
+        editorKind: "checklist",
+        draft,
+      });
+      continue;
+    }
+
+    if (block.type === "metric_grid") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "metric_grid") {
+        continue;
+      }
+      metricGridIndex += 1;
+      entries.push({
+        blockId: block.id,
+        label: normalizeText(block.title) || `指标块 ${metricGridIndex}`,
+        detail: currentSectionLabel || "关键指标",
+        editorKind: "metric_grid",
+        draft,
+      });
+      continue;
+    }
+
+    if (block.type === "quote") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "quote") {
+        continue;
+      }
+      quoteIndex += 1;
+      entries.push({
+        blockId: block.id,
+        label:
+          normalizeText(block.attribution) ||
+          normalizeText(block.text) ||
+          `引述 ${quoteIndex}`,
+        detail: currentSectionLabel || "引用语句",
+        editorKind: "quote",
+        draft,
+      });
+      continue;
+    }
+
+    if (block.type === "code_block") {
+      const draft = resolveEditableArtifactDraft(block);
+      if (!draft || draft.editorKind !== "code_block") {
+        continue;
+      }
+      codeBlockIndex += 1;
+      entries.push({
+        blockId: block.id,
+        label: normalizeText(block.title) || `代码块 ${codeBlockIndex}`,
+        detail:
+          currentSectionLabel ||
+          normalizeText(block.language) ||
+          "代码片段",
+        editorKind: "code_block",
+        draft,
       });
     }
   }
@@ -505,6 +613,8 @@ function replaceEditableArtifactBlockContent(
       if (block.type === "rich_text" && draft.editorKind === "rich_text") {
         return {
           ...block,
+          contentFormat: "markdown",
+          content: draft.markdown,
           markdown: draft.markdown,
         };
       }
@@ -531,7 +641,7 @@ function replaceEditableArtifactBlockContent(
           ...block,
           eyebrow: eyebrow || undefined,
           title: title || undefined,
-          summary: summary || undefined,
+          summary: summary || normalizeText(block.summary) || "",
           highlights: highlights.length > 0 ? highlights : undefined,
         };
       }
@@ -540,13 +650,108 @@ function replaceEditableArtifactBlockContent(
         const title = draft.title.trim();
         const body = draft.body.trim();
         const tone = draft.tone.trim();
+        const nextBody =
+          body ||
+          normalizeText(block.body) ||
+          normalizeText(block.content) ||
+          normalizeText(block.text) ||
+          "";
         return {
           ...block,
           title: title || undefined,
-          content: body || undefined,
-          text: body || undefined,
-          tone: tone || undefined,
-          variant: tone || undefined,
+          body: nextBody,
+          content: nextBody,
+          text: nextBody,
+          tone: resolveEditableCalloutTone(tone),
+          variant: tone || normalizeText(block.variant) || normalizeText(block.tone),
+        };
+      }
+
+      if (block.type === "key_points" && draft.editorKind === "key_points") {
+        const title = draft.title.trim();
+        const items = draft.items
+          .split(/\r?\n/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+        return {
+          ...block,
+          title: title || undefined,
+          items:
+            items.length > 0
+              ? items
+              : normalizeStringArray(block.items),
+        };
+      }
+
+      if (block.type === "table" && draft.editorKind === "table") {
+        const title = draft.title.trim();
+        const currentColumns = Array.isArray(block.columns) ? block.columns : [];
+        const currentRows = Array.isArray(block.rows) ? block.rows : [];
+        const columns = parseTableDraftColumns(draft.columns);
+        const effectiveColumns = columns.length > 0 ? columns : currentColumns;
+        const rows = parseTableDraftRows(draft.rows, effectiveColumns.length);
+        return {
+          ...block,
+          title: title || undefined,
+          columns: effectiveColumns,
+          rows: rows.length > 0 ? rows : currentRows,
+        };
+      }
+
+      if (block.type === "checklist" && draft.editorKind === "checklist") {
+        const title = draft.title.trim();
+        const currentItems = Array.isArray(block.items) ? block.items : [];
+        const items = parseChecklistDraftItems(draft.items, block.id, currentItems);
+        return {
+          ...block,
+          title: title || undefined,
+          items: items.length > 0 ? items : currentItems,
+        };
+      }
+
+      if (block.type === "metric_grid" && draft.editorKind === "metric_grid") {
+        const title = draft.title.trim();
+        const currentMetrics = Array.isArray(block.metrics) ? block.metrics : [];
+        const metrics = parseMetricDraftItems(
+          draft.metrics,
+          block.id,
+          currentMetrics,
+        );
+        return {
+          ...block,
+          title: title || undefined,
+          metrics: metrics.length > 0 ? metrics : currentMetrics,
+        };
+      }
+
+      if (block.type === "quote" && draft.editorKind === "quote") {
+        const text =
+          draft.text.trim() ||
+          normalizeText(block.text) ||
+          normalizeText(block.quote) ||
+          "";
+        const attribution = draft.attribution.trim();
+        return {
+          ...block,
+          text,
+          quote: text,
+          attribution: attribution || undefined,
+          author:
+            attribution || normalizeText(block.author) || undefined,
+          source:
+            attribution || normalizeText(block.source) || undefined,
+        };
+      }
+
+      if (block.type === "code_block" && draft.editorKind === "code_block") {
+        const title = draft.title.trim();
+        const language = draft.language.trim();
+        const code = draft.code || resolveCodeBlockContent(block);
+        return {
+          ...block,
+          title: title || undefined,
+          language: language || undefined,
+          code,
         };
       }
 
@@ -569,6 +774,50 @@ const EmptyInspectorState: React.FC<{
   </div>
 ));
 EmptyInspectorState.displayName = "EmptyInspectorState";
+
+function resolveEditableDraftPreviewText(
+  draft: EditableArtifactBlockDraft,
+): string {
+  switch (draft.editorKind) {
+    case "rich_text":
+      return draft.markdown.trim();
+    case "section_header":
+      return [draft.title.trim(), draft.description.trim()]
+        .filter(Boolean)
+        .join("\n");
+    case "hero_summary":
+      return [
+        draft.eyebrow.trim(),
+        draft.title.trim(),
+        draft.summary.trim(),
+        normalizeHighlightsDraft(draft.highlights),
+      ]
+        .filter(Boolean)
+        .join("\n");
+    case "callout":
+      return [draft.title.trim(), draft.tone.trim(), draft.body.trim()]
+        .filter(Boolean)
+        .join("\n");
+    case "key_points":
+      return [draft.title.trim(), draft.items.trim()].filter(Boolean).join("\n");
+    case "table":
+      return [draft.title.trim(), draft.columns.trim(), draft.rows.trim()]
+        .filter(Boolean)
+        .join("\n");
+    case "checklist":
+      return [draft.title.trim(), draft.items.trim()].filter(Boolean).join("\n");
+    case "metric_grid":
+      return [draft.title.trim(), draft.metrics.trim()].filter(Boolean).join("\n");
+    case "quote":
+      return [draft.text.trim(), draft.attribution.trim()].filter(Boolean).join("\n");
+    case "code_block":
+      return [draft.title.trim(), draft.language.trim(), draft.code.trim()]
+        .filter(Boolean)
+        .join("\n");
+    default:
+      return "";
+  }
+}
 
 const OverviewPanel: React.FC<{
   document: ArtifactDocumentV1;
@@ -763,9 +1012,14 @@ const SourcesPanel: React.FC<{
           artifactId: "artifact-document",
           blockId: "document",
           sourceId: source.id,
-          sourceType: normalizeText(source.kind) || "unknown",
-          sourceRef: source.url || source.id,
-          label: source.title,
+          sourceType: source.type,
+          sourceRef:
+            source.locator?.url ||
+            source.locator?.path ||
+            source.locator?.toolCallId ||
+            source.locator?.messageId ||
+            source.id,
+          label: source.label,
         }));
 
     return (
@@ -1155,6 +1409,10 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
   isStreaming: boolean;
   onChange: (draft: EditableArtifactBlockDraft) => void;
   onSave: (draft?: EditableArtifactBlockDraft) => Promise<void> | void;
+  onRewrite?: (payload: {
+    draft: EditableArtifactBlockDraft;
+    instruction: string;
+  }) => Promise<ArtifactBlockRewriteCompletion | void> | void;
   onCancel: () => void;
   onJumpToTimelineItem?: (itemId: string) => void;
 }> = memo(
@@ -1166,10 +1424,38 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
     isStreaming,
     onChange,
     onSave,
+    onRewrite,
     onCancel,
     onJumpToTimelineItem,
   }) => {
     const editorRef = useRef<NotionEditorHandle | null>(null);
+    const [isRewriting, setIsRewriting] = useState(false);
+    const [rewriteInstruction, setRewriteInstruction] = useState(
+      DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION,
+    );
+    const [rewriteFeedback, setRewriteFeedback] = useState<{
+      tone: "success" | "error" | "info";
+      message: string;
+    } | null>(null);
+    const [rewriteSuggestion, setRewriteSuggestion] = useState<{
+      draft: EditableArtifactBlockDraft;
+      summary?: string;
+    } | null>(null);
+
+    useEffect(() => {
+      setIsRewriting(false);
+      setRewriteInstruction(DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION);
+      setRewriteFeedback(null);
+      setRewriteSuggestion(null);
+    }, [entry?.blockId]);
+
+    const runSave = useCallback(
+      (nextDraft: EditableArtifactBlockDraft) => {
+        onChange(nextDraft);
+        return Promise.resolve(onSave(nextDraft));
+      },
+      [onChange, onSave],
+    );
 
     const handleSave = useCallback(() => {
       if (!entry || !draft) {
@@ -1181,13 +1467,131 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
           ...draft,
           markdown: editorRef.current?.flushContent() ?? draft.markdown,
         };
-        onChange(latestDraft);
-        void onSave(latestDraft);
+        void runSave(latestDraft).catch(() => undefined);
         return;
       }
 
-      void onSave(draft);
-    }, [draft, entry, onChange, onSave]);
+      void runSave(draft).catch(() => undefined);
+    }, [draft, entry, runSave]);
+
+    const handleRewrite = useCallback(async () => {
+      if (!entry || !draft || !onRewrite || isRewriting) {
+        return;
+      }
+
+      const instruction =
+        rewriteInstruction.trim() || DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION;
+
+      setRewriteFeedback(null);
+      setRewriteSuggestion(null);
+      setIsRewriting(true);
+      try {
+        if (entry.editorKind === "rich_text" && draft.editorKind === "rich_text") {
+          const latestDraft: EditableArtifactBlockDraft = {
+            ...draft,
+            markdown: editorRef.current?.flushContent() ?? draft.markdown,
+          };
+          onChange(latestDraft);
+          const result = await onRewrite({
+            draft: latestDraft,
+            instruction,
+          });
+          if (result?.suggestion) {
+            setRewriteSuggestion({
+              draft: result.suggestion.draft,
+              summary: result.suggestion.summary,
+            });
+            setRewriteFeedback({
+              tone: "success",
+              message: "已收到当前块改写建议，可先回填到草稿，再决定是否保存。",
+            });
+          } else {
+            setRewriteFeedback({
+              tone: "info",
+              message:
+                result?.warning ||
+                "改写已完成，但当前没有可直接回填的结构化结果，请在对话流查看返回内容。",
+            });
+          }
+          return;
+        }
+
+        const result = await onRewrite({
+          draft,
+          instruction,
+        });
+        if (result?.suggestion) {
+          setRewriteSuggestion({
+            draft: result.suggestion.draft,
+            summary: result.suggestion.summary,
+          });
+          setRewriteFeedback({
+            tone: "success",
+            message: "已收到当前块改写建议，可先回填到草稿，再决定是否保存。",
+          });
+        } else {
+          setRewriteFeedback({
+            tone: "info",
+            message:
+              result?.warning ||
+              "改写已完成，但当前没有可直接回填的结构化结果，请在对话流查看返回内容。",
+          });
+        }
+      } catch (error) {
+        setRewriteSuggestion(null);
+        setRewriteFeedback({
+          tone: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "发起当前块 AI 改写失败，请稍后重试。",
+        });
+        throw error;
+      } finally {
+        setIsRewriting(false);
+      }
+    }, [draft, entry, isRewriting, onChange, onRewrite, rewriteInstruction]);
+
+    const handleApplyRewriteSuggestion = useCallback(() => {
+      if (!rewriteSuggestion) {
+        return;
+      }
+
+      onChange(rewriteSuggestion.draft);
+      setRewriteSuggestion(null);
+      setRewriteFeedback({
+        tone: "success",
+        message: "已回填到当前草稿，确认无误后点击保存即可写回文稿。",
+      });
+    }, [onChange, rewriteSuggestion]);
+
+    const handleApplyRewriteSuggestionAndSave = useCallback(async () => {
+      if (!rewriteSuggestion) {
+        return;
+      }
+
+      setRewriteFeedback({
+        tone: "info",
+        message: "正在把改写建议保存为当前文稿的新版本…",
+      });
+
+      try {
+        await runSave(rewriteSuggestion.draft);
+        setRewriteSuggestion(null);
+        setRewriteFeedback({
+          tone: "success",
+          message: "已把改写建议保存为当前文稿的新版本。",
+        });
+      } catch (error) {
+        setRewriteFeedback({
+          tone: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "保存改写建议失败，请稍后重试。",
+        });
+      }
+    }, [rewriteSuggestion, runSave]);
 
     if (!entry || !draft) {
       return (
@@ -1228,6 +1632,20 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                   跳到过程
                 </button>
               ) : null}
+              {onRewrite ? (
+                <button
+                  data-testid="artifact-edit-ai-rewrite"
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    void handleRewrite().catch(() => undefined);
+                  }}
+                  disabled={isSaving || isStreaming || isRewriting}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {isRewriting ? "AI 改写中" : "AI 改写当前块"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1248,6 +1666,106 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
               </button>
             </div>
           </div>
+          {onRewrite ? (
+            <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-sm font-medium text-slate-800">
+                    AI 改写说明
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    只作用于当前 block；发送时会带上当前未保存草稿、相邻结构和来源绑定。
+                  </p>
+                </div>
+                <textarea
+                  data-testid="artifact-edit-rewrite-instruction"
+                  value={rewriteInstruction}
+                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  onChange={(event) => {
+                    setRewriteInstruction(event.target.value);
+                    setRewriteFeedback(null);
+                  }}
+                  disabled={isSaving || isStreaming || isRewriting}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span>不会自动覆盖当前草稿；改写结果会先回到对话流。</span>
+                  <span>
+                    {isRewriting ? "正在发起改写请求..." : "可按当前 block 单独改写"}
+                  </span>
+                </div>
+                {rewriteFeedback ? (
+                  <div
+                    data-testid="artifact-edit-rewrite-feedback"
+                    className={cn(
+                      "rounded-2xl border px-4 py-3 text-sm leading-6",
+                      rewriteFeedback.tone === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : rewriteFeedback.tone === "info"
+                          ? "border-sky-200 bg-sky-50 text-sky-700"
+                        : "border-rose-200 bg-rose-50 text-rose-700",
+                    )}
+                  >
+                    {rewriteFeedback.message}
+                  </div>
+                ) : null}
+                {rewriteSuggestion ? (
+                  <div
+                    data-testid="artifact-edit-rewrite-suggestion"
+                    className="rounded-[24px] border border-emerald-200 bg-white px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-slate-800">
+                          本次改写建议
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          {rewriteSuggestion.summary ||
+                            "当前建议尚未写回文稿，你可以先回填到草稿，再决定是否保存。"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          data-testid="artifact-edit-rewrite-dismiss"
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                          onClick={() => {
+                            setRewriteSuggestion(null);
+                            setRewriteFeedback(null);
+                          }}
+                        >
+                          先不采纳
+                        </button>
+                        <button
+                          data-testid="artifact-edit-rewrite-apply"
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                          onClick={handleApplyRewriteSuggestion}
+                          disabled={isSaving || isStreaming}
+                        >
+                          回填到当前草稿
+                        </button>
+                        <button
+                          data-testid="artifact-edit-rewrite-save"
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                          onClick={() => {
+                            void handleApplyRewriteSuggestionAndSave();
+                          }}
+                          disabled={isSaving || isStreaming}
+                        >
+                          <Save className="h-4 w-4" />
+                          保存为新版本
+                        </button>
+                      </div>
+                    </div>
+                    <pre className="mt-3 whitespace-pre-wrap rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                      {resolveEditableDraftPreviewText(rewriteSuggestion.draft)}
+                    </pre>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
@@ -1272,8 +1790,7 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                         ? latestContent
                         : draft.markdown,
                   };
-                  onChange(nextDraft);
-                  void onSave(nextDraft);
+                  void runSave(nextDraft).catch(() => undefined);
                 }}
                 onCancel={onCancel}
               />
@@ -1434,6 +1951,274 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                           onChange({
                             ...draft,
                             body: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                  </>
+                ) : null}
+
+                {entry.editorKind === "key_points" &&
+                draft.editorKind === "key_points" ? (
+                  <>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">块标题</span>
+                      <input
+                        data-testid="artifact-structured-edit-title"
+                        type="text"
+                        value={draft.title}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            title: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">要点列表</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-items"
+                        value={draft.items}
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            items: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                      <p className="text-xs text-slate-500">
+                        每行一条，会回写为 `items[]`。
+                      </p>
+                    </label>
+                  </>
+                ) : null}
+
+                {entry.editorKind === "table" &&
+                draft.editorKind === "table" ? (
+                  <>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">表格标题</span>
+                      <input
+                        data-testid="artifact-structured-edit-title"
+                        type="text"
+                        value={draft.title}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            title: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">表头</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-columns"
+                        value={draft.columns}
+                        className="min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            columns: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                      <p className="text-xs text-slate-500">
+                        单行用 `|` 分隔；多行时每行视为一列名。
+                      </p>
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">表格行</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-rows"
+                        value={draft.rows}
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            rows: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                      <p className="text-xs text-slate-500">
+                        每行一条数据，用 `|` 分隔单元格。
+                      </p>
+                    </label>
+                  </>
+                ) : null}
+
+                {entry.editorKind === "checklist" &&
+                draft.editorKind === "checklist" ? (
+                  <>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">清单标题</span>
+                      <input
+                        data-testid="artifact-structured-edit-title"
+                        type="text"
+                        value={draft.title}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            title: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">清单项</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-checklist"
+                        value={draft.items}
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            items: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                      <p className="text-xs text-slate-500">
+                        每行使用 `todo | 内容`、`doing | 内容` 或 `done | 内容`。
+                      </p>
+                    </label>
+                  </>
+                ) : null}
+
+                {entry.editorKind === "metric_grid" &&
+                draft.editorKind === "metric_grid" ? (
+                  <>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">指标标题</span>
+                      <input
+                        data-testid="artifact-structured-edit-title"
+                        type="text"
+                        value={draft.title}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            title: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">指标项</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-metrics"
+                        value={draft.metrics}
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            metrics: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                      <p className="text-xs text-slate-500">
+                        每行格式：`标签 | 数值 | 说明 | tone`，后两段可选。
+                      </p>
+                    </label>
+                  </>
+                ) : null}
+
+                {entry.editorKind === "quote" &&
+                draft.editorKind === "quote" ? (
+                  <>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">引述正文</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-quote"
+                        value={draft.text}
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            text: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">署名 / 来源</span>
+                      <input
+                        data-testid="artifact-structured-edit-attribution"
+                        type="text"
+                        value={draft.attribution}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            attribution: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                  </>
+                ) : null}
+
+                {entry.editorKind === "code_block" &&
+                draft.editorKind === "code_block" ? (
+                  <>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">代码块标题</span>
+                      <input
+                        data-testid="artifact-structured-edit-title"
+                        type="text"
+                        value={draft.title}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            title: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">语言</span>
+                      <input
+                        data-testid="artifact-structured-edit-language"
+                        type="text"
+                        value={draft.language}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            language: event.target.value,
+                          })
+                        }
+                        disabled={isSaving || isStreaming}
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">代码内容</span>
+                      <textarea
+                        data-testid="artifact-structured-edit-code"
+                        value={draft.code}
+                        className="min-h-56 w-full rounded-2xl border border-slate-200 px-4 py-3 font-mono text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        onChange={(event) =>
+                          onChange({
+                            ...draft,
+                            code: event.target.value,
                           })
                         }
                         disabled={isSaving || isStreaming}
@@ -1669,17 +2454,26 @@ export function useArtifactWorkbenchDocumentController({
         selectedEditableBlock.blockId,
         nextDraft,
       );
+      const versionedDocument = createArtifactDocumentNextVersion(
+        document,
+        nextDocument,
+        {
+          summary: `更新 ${selectedEditableBlock.label}`,
+          createdBy: "user",
+        },
+      );
 
       setEditSaveError(null);
       setIsSavingEdit(true);
 
       try {
-        await onSaveArtifactDocument(artifact, nextDocument);
+        await onSaveArtifactDocument(artifact, versionedDocument);
         setLastSavedAt(new Date().toISOString());
       } catch (error) {
-        setEditSaveError(
-          error instanceof Error ? error.message : "保存编辑结果失败",
-        );
+        const message =
+          error instanceof Error ? error.message : "保存编辑结果失败";
+        setEditSaveError(message);
+        throw error instanceof Error ? error : new Error(message);
       } finally {
         setIsSavingEdit(false);
       }

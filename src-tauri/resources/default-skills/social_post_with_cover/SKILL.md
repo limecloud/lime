@@ -8,7 +8,7 @@ metadata:
   lime_version: 1.4.0
   lime_execution_mode: workflow
   lime_workflow_ref: references/workflow.json
-  lime_surface: creator
+  lime_surface: workbench
   lime_category: social
 ---
 

@@ -3,7 +3,7 @@
 //! 提供统一的会话和消息存储功能，支持多种对话模式：
 //! - Agent: AI Agent 模式，支持工具调用
 //! - General: 通用对话模式，纯文本
-//! - Creator: 内容创作模式，支持画布输出
+//! - Workbench: 工作台模式，支持画布输出
 //!
 //! ## 设计原则
 //! - 单一数据源：所有对话数据统一存储
@@ -26,8 +26,9 @@ pub enum ChatMode {
     /// 通用对话模式，纯文本
     #[default]
     General,
-    /// 内容创作模式，支持画布输出
-    Creator,
+    /// 工作台模式，支持画布输出
+    #[serde(rename = "workbench")]
+    Workbench,
 }
 
 impl std::fmt::Display for ChatMode {
@@ -35,7 +36,7 @@ impl std::fmt::Display for ChatMode {
         match self {
             ChatMode::Agent => write!(f, "agent"),
             ChatMode::General => write!(f, "general"),
-            ChatMode::Creator => write!(f, "creator"),
+            ChatMode::Workbench => write!(f, "workbench"),
         }
     }
 }
@@ -47,7 +48,7 @@ impl std::str::FromStr for ChatMode {
         match s.to_lowercase().as_str() {
             "agent" => Ok(ChatMode::Agent),
             "general" => Ok(ChatMode::General),
-            "creator" => Ok(ChatMode::Creator),
+            "workbench" => Ok(ChatMode::Workbench),
             _ => Err(format!("未知的对话模式: {s}")),
         }
     }

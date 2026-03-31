@@ -35,17 +35,17 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/api/project", () => ({
-  USER_PROJECT_TYPES: ["general", "document", "novel"],
+  USER_PROJECT_TYPES: ["general", "document", "video"],
   extractErrorMessage: mockExtractErrorMessage,
   getCreateProjectErrorMessage: mockGetCreateProjectErrorMessage,
   getProjectTypeLabel: vi.fn((type: string) => {
     if (type === "document") return "文档";
-    if (type === "novel") return "小说";
+    if (type === "video") return "视频";
     return "通用";
   }),
   getProjectTypeIcon: vi.fn((type: string) => {
     if (type === "document") return "📄";
-    if (type === "novel") return "📚";
+    if (type === "video") return "🎬";
     return "📁";
   }),
   getProjectByRootPath: mockGetProjectByRootPath,

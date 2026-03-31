@@ -28,16 +28,6 @@ const allFilterItems: { id: ProjectFilter; label: string; icon?: string }[] = [
     icon: TYPE_CONFIGS["social-media"].icon,
   },
   {
-    id: "poster",
-    label: TYPE_CONFIGS.poster.label,
-    icon: TYPE_CONFIGS.poster.icon,
-  },
-  {
-    id: "music",
-    label: TYPE_CONFIGS.music.label,
-    icon: TYPE_CONFIGS.music.icon,
-  },
-  {
     id: "knowledge",
     label: TYPE_CONFIGS.knowledge.label,
     icon: TYPE_CONFIGS.knowledge.icon,
@@ -56,11 +46,6 @@ const allFilterItems: { id: ProjectFilter; label: string; icon?: string }[] = [
     id: "video",
     label: TYPE_CONFIGS.video.label,
     icon: TYPE_CONFIGS.video.icon,
-  },
-  {
-    id: "novel",
-    label: TYPE_CONFIGS.novel.label,
-    icon: TYPE_CONFIGS.novel.icon,
   },
   { id: "favorites", label: "收藏", icon: "⭐" },
   { id: "archived", label: "归档", icon: "📦" },

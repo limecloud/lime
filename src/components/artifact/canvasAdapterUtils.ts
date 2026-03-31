@@ -5,24 +5,20 @@
  * @requirements 12.1, 12.2, 12.3, 12.5
  */
 
-import type { Artifact, ArtifactType } from "@/lib/artifact/types";
+import {
+  normalizeArtifactType,
+  type Artifact,
+  type ArtifactType,
+} from "@/lib/artifact/types";
 
 // Canvas 系统导入
 import type {
   CanvasStateUnion,
   CanvasType,
   DocumentCanvasState,
-  MusicCanvasState,
-  NovelCanvasState,
-  PosterCanvasState,
-  ScriptCanvasState,
 } from "@/lib/workspace/workbenchCanvas";
 import {
   createInitialDocumentState,
-  createInitialMusicState,
-  createInitialNovelState,
-  createInitialPosterState,
-  createInitialScriptState,
   createInitialVideoState,
 } from "@/lib/workspace/workbenchCanvas";
 
@@ -50,13 +46,13 @@ export interface CanvasMetadata {
 
 /**
  * Artifact Canvas 类型到 Canvas 系统类型的映射
+ * 旧类型仅在这里做一次归一化，不再作为主链合法类型继续传播。
  */
-export const ARTIFACT_TO_CANVAS_TYPE: Record<string, CanvasType> = {
+export const ARTIFACT_TO_CANVAS_TYPE: Record<
+  Extract<ArtifactType, "canvas:document" | "canvas:video">,
+  CanvasType
+> = {
   "canvas:document": "document",
-  "canvas:poster": "poster",
-  "canvas:music": "music",
-  "canvas:script": "script",
-  "canvas:novel": "novel",
   "canvas:video": "video",
 };
 
@@ -65,10 +61,6 @@ export const ARTIFACT_TO_CANVAS_TYPE: Record<string, CanvasType> = {
  */
 export const CANVAS_TYPE_LABELS: Record<CanvasType, string> = {
   document: "文档",
-  poster: "海报",
-  music: "音乐",
-  script: "剧本",
-  novel: "小说",
   video: "视频",
 };
 
@@ -77,10 +69,6 @@ export const CANVAS_TYPE_LABELS: Record<CanvasType, string> = {
  */
 export const CANVAS_TYPE_ICONS: Record<CanvasType, string> = {
   document: "📄",
-  poster: "🎨",
-  music: "🎵",
-  script: "🎬",
-  novel: "📚",
   video: "🎞️",
 };
 
@@ -95,9 +83,19 @@ export const CANVAS_TYPE_ICONS: Record<CanvasType, string> = {
  * @requirements 12.1
  */
 export function getCanvasTypeFromArtifact(
-  artifactType: ArtifactType,
+  artifactType: ArtifactType | string,
 ): CanvasType | null {
-  return ARTIFACT_TO_CANVAS_TYPE[artifactType] || null;
+  const normalizedType =
+    typeof artifactType === "string"
+      ? normalizeArtifactType(artifactType)
+      : artifactType;
+  if (
+    normalizedType !== "canvas:document" &&
+    normalizedType !== "canvas:video"
+  ) {
+    return null;
+  }
+  return ARTIFACT_TO_CANVAS_TYPE[normalizedType] || null;
 }
 
 /**
@@ -106,7 +104,7 @@ export function getCanvasTypeFromArtifact(
  * @returns 是否为 Canvas 类型
  * @requirements 12.1
  */
-export function isCanvasArtifact(artifactType: ArtifactType): boolean {
+export function isCanvasArtifact(artifactType: ArtifactType | string): boolean {
   return artifactType.startsWith("canvas:");
 }
 
@@ -143,51 +141,11 @@ export function createCanvasStateFromArtifact(
       }
       return state;
     }
-    case "poster":
-      return createInitialPosterState();
-    case "music":
-      return createInitialMusicState();
-    case "script":
-      return createInitialScriptState(content);
-    case "novel":
-      return createInitialNovelState(content);
     case "video":
       return createInitialVideoState(content);
     default:
       return null;
   }
-}
-
-/**
- * 剧本状态转文本（简化版）
- */
-function scriptStateToText(state: ScriptCanvasState): string {
-  let text = "";
-  if (state.title) text += `# ${state.title}\n\n`;
-  if (state.synopsis) text += `${state.synopsis}\n\n`;
-  for (const scene of state.scenes) {
-    text += `## 第${scene.number}场：${scene.location}（${scene.time}）\n\n`;
-    if (scene.description) text += `*${scene.description}*\n\n`;
-    for (const dialogue of scene.dialogues) {
-      if (dialogue.direction) text += `（${dialogue.direction}）\n`;
-      text += `${dialogue.characterName}：${dialogue.content}\n`;
-    }
-    text += "\n";
-  }
-  return text;
-}
-
-/**
- * 小说状态转文本（简化版）
- */
-function novelStateToText(state: NovelCanvasState): string {
-  let text = "";
-  if (state.title) text += `# ${state.title}\n\n`;
-  if (state.synopsis) text += `> ${state.synopsis}\n\n`;
-  for (const chapter of state.chapters) {
-    text += `## ${chapter.title}\n\n${chapter.content}\n\n`;
-  }
-  return text;
 }
 
 /**
@@ -200,22 +158,8 @@ export function extractContentFromCanvasState(state: CanvasStateUnion): string {
   switch (state.type) {
     case "document":
       return (state as DocumentCanvasState).content;
-    case "poster":
-      // 海报状态序列化为 JSON
-      return JSON.stringify(state, null, 2);
-    case "music":
-      // 音乐状态序列化为 JSON
-      return JSON.stringify(state, null, 2);
-    case "script": {
-      // 剧本状态转换为文本
-      const scriptState = state as ScriptCanvasState;
-      return scriptStateToText(scriptState);
-    }
-    case "novel": {
-      // 小说状态转换为文本
-      const novelState = state as NovelCanvasState;
-      return novelStateToText(novelState);
-    }
+    case "video":
+      return state.prompt;
     default:
       return "";
   }
@@ -235,19 +179,6 @@ export function extractCanvasMetadata(state: CanvasStateUnion): CanvasMetadata {
   switch (state.type) {
     case "document":
       metadata.platform = (state as DocumentCanvasState).platform;
-      break;
-    case "poster":
-      metadata.pageCount = (state as PosterCanvasState).pages.length;
-      break;
-    case "music":
-      metadata.songType = (state as MusicCanvasState).spec.songType;
-      metadata.viewMode = (state as MusicCanvasState).viewMode;
-      break;
-    case "script":
-      metadata.sceneCount = (state as ScriptCanvasState).scenes.length;
-      break;
-    case "novel":
-      metadata.chapterCount = (state as NovelCanvasState).chapters.length;
       break;
   }
 

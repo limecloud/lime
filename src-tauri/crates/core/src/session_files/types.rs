@@ -10,7 +10,7 @@ pub struct SessionMeta {
     pub session_id: String,
     /// 会话标题（第一条用户消息摘要）
     pub title: Option<String>,
-    /// 主题类型（document, music, poster 等）
+    /// 主题类型（document、video、social-media 等）
     pub theme: Option<String>,
     /// 创建模式（guided, fast）
     pub creation_mode: Option<String>,

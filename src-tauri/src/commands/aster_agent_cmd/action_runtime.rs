@@ -1,5 +1,6 @@
 use super::*;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
+use lime_core::workspace::WorkspaceSettings;
 
 /// 统一运行时：删除会话。
 #[tauri::command]
@@ -111,6 +112,76 @@ fn emit_action_resume_runtime_status(app: &AppHandle, event_name: &str) {
     }
 }
 
+async fn load_runtime_workspace_settings_or_default(
+    db: &DbConnection,
+    session_id: &str,
+) -> WorkspaceSettings {
+    let detail = match AsterAgentWrapper::get_runtime_session_detail(db, session_id).await {
+        Ok(detail) => detail,
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 读取 elicitation 所属 workspace 失败，已降级使用默认设置: session_id={}, error={}",
+                session_id,
+                error
+            );
+            return WorkspaceSettings::default();
+        }
+    };
+
+    let Some(workspace_id) = detail
+        .workspace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return WorkspaceSettings::default();
+    };
+
+    let manager = WorkspaceManager::new(db.clone());
+    let workspace_id = workspace_id.to_string();
+    match manager.get(&workspace_id) {
+        Ok(Some(workspace)) => workspace.settings,
+        Ok(None) => {
+            tracing::warn!(
+                "[AsterAgent] elicitation 所属 workspace 不存在，已降级使用默认设置: session_id={}, workspace_id={}",
+                session_id,
+                workspace_id
+            );
+            WorkspaceSettings::default()
+        }
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 读取 elicitation 所属 workspace 设置失败，已降级使用默认设置: session_id={}, workspace_id={}, error={}",
+                session_id,
+                workspace_id,
+                error
+            );
+            WorkspaceSettings::default()
+        }
+    }
+}
+
+pub(crate) fn build_runtime_action_session_config(
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+    workspace_settings: &WorkspaceSettings,
+) -> aster::agents::SessionConfig {
+    let mut session_config_builder =
+        SessionConfigBuilder::new(session_id).include_context_trace(true);
+    if let Some(prompt) = merge_system_prompt_with_elicitation_context(None, request_metadata) {
+        session_config_builder = session_config_builder.system_prompt(prompt);
+    }
+    if let Some(turn_context) =
+        super::runtime_turn::merge_turn_context_with_workspace_auto_compaction(
+            None,
+            workspace_settings,
+        )
+    {
+        session_config_builder = session_config_builder.turn_context(turn_context);
+    }
+    session_config_builder.build()
+}
+
 pub(crate) fn build_runtime_action_user_data(
     request: &AgentRuntimeRespondActionRequest,
 ) -> serde_json::Value {
@@ -160,6 +231,7 @@ pub(crate) fn build_runtime_action_scope(
 pub async fn agent_runtime_respond_action(
     app: AppHandle,
     state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
     request: AgentRuntimeRespondActionRequest,
 ) -> Result<(), String> {
     match request.action_type {
@@ -180,6 +252,7 @@ pub async fn agent_runtime_respond_action(
             let resume_event_name = normalize_optional_text(request.event_name.clone());
             submit_runtime_elicitation_response_internal(
                 state.inner(),
+                db.inner(),
                 request.session_id.clone(),
                 SubmitElicitationResponseRequest {
                     request_id: request.request_id.clone(),
@@ -200,6 +273,7 @@ pub async fn agent_runtime_respond_action(
 
 async fn submit_runtime_elicitation_response_internal(
     state: &AsterAgentState,
+    db: &DbConnection,
     session_id: String,
     request: SubmitElicitationResponseRequest,
 ) -> Result<(), String> {
@@ -220,14 +294,12 @@ async fn submit_runtime_elicitation_response_internal(
         scope: request.action_scope,
     }));
 
-    let mut session_config_builder =
-        SessionConfigBuilder::new(&session_id).include_context_trace(true);
-    if let Some(prompt) =
-        merge_system_prompt_with_elicitation_context(None, request.metadata.as_ref())
-    {
-        session_config_builder = session_config_builder.system_prompt(prompt);
-    }
-    let session_config = session_config_builder.build();
+    let workspace_settings = load_runtime_workspace_settings_or_default(db, &session_id).await;
+    let session_config = build_runtime_action_session_config(
+        &session_id,
+        request.metadata.as_ref(),
+        &workspace_settings,
+    );
 
     let agent_arc = state.get_agent_arc();
     let guard = agent_arc.read().await;

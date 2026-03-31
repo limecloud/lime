@@ -1,6 +1,5 @@
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
-import { scriptStateToText } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
 import type { TaskFile } from "../components/TaskFiles";
 import { getSupportedFilenames } from "./workflowMapping";
@@ -41,25 +40,6 @@ export function extractStyleActionContent(context: StyleActionContext): string {
   switch (resolvedCanvasState.type) {
     case "document":
       return resolvedCanvasState.content.trim();
-    case "novel": {
-      const currentChapter =
-        resolvedCanvasState.chapters.find(
-          (chapter) => chapter.id === resolvedCanvasState.currentChapterId,
-        ) || resolvedCanvasState.chapters[0];
-      return currentChapter?.content.trim() || "";
-    }
-    case "script":
-      return scriptStateToText(resolvedCanvasState).trim();
-    case "music":
-      return resolvedCanvasState.sections
-        .map((section) => {
-          const title = section.name || section.type;
-          const content = section.lyricsLines.join("\n").trim();
-          return content ? `[${title}]\n${content}` : "";
-        })
-        .filter(Boolean)
-        .join("\n\n")
-        .trim();
     case "video":
       return resolvedCanvasState.prompt.trim();
     default:
@@ -89,12 +69,6 @@ export function resolveStyleActionFileName(
   switch (context.resolvedCanvasState?.type) {
     case "document":
       return "article.md";
-    case "novel":
-      return "chapter-final.md";
-    case "script":
-      return "script-final.md";
-    case "music":
-      return "lyrics-final.txt";
     case "video":
       return "script-final.md";
     default:

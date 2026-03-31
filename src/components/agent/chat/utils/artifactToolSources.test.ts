@@ -29,10 +29,12 @@ describe("artifactToolSources", () => {
     expect(sources).toEqual([
       expect.objectContaining({
         id: "web:https://example.com/workbench",
-        title: "Artifact Workbench",
-        url: "https://example.com/workbench",
-        note: "统一交付层与版本来源面板。",
-        kind: "web",
+        type: "search_result",
+        label: "Artifact Workbench",
+        locator: expect.objectContaining({
+          url: "https://example.com/workbench",
+        }),
+        snippet: "统一交付层与版本来源面板。",
       }),
     ]);
   });
@@ -64,9 +66,11 @@ describe("artifactToolSources", () => {
     expect(sources).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "发布页",
-          url: "https://example.com/publish",
-          kind: "browser",
+          type: "web",
+          label: "发布页",
+          locator: expect.objectContaining({
+            url: "https://example.com/publish",
+          }),
         }),
       ]),
     );
@@ -90,9 +94,11 @@ describe("artifactToolSources", () => {
     expect(sources).toEqual([
       expect.objectContaining({
         id: "file:research/market-notes.md",
-        title: "market-notes.md",
-        note: "research/market-notes.md",
-        kind: "file",
+        type: "file",
+        label: "market-notes.md",
+        locator: expect.objectContaining({
+          path: "research/market-notes.md",
+        }),
       }),
     ]);
   });
@@ -118,8 +124,11 @@ describe("artifactToolSources", () => {
         sources: [
           {
             id: "source-1",
-            title: "OpenAI Blog",
-            url: "https://openai.com/blog",
+            type: "web",
+            label: "OpenAI Blog",
+            locator: {
+              url: "https://openai.com/blog",
+            },
           },
         ],
         metadata: {
@@ -152,8 +161,11 @@ describe("artifactToolSources", () => {
         sources: [
           {
             id: "source-2",
-            title: "产品文档",
-            url: "https://example.com/docs",
+            type: "web",
+            label: "产品文档",
+            locator: {
+              url: "https://example.com/docs",
+            },
           },
         ],
         metadata: {},

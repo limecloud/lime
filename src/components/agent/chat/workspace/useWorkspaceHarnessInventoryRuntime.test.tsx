@@ -16,7 +16,7 @@ vi.mock("@/lib/api/agentRuntime", () => ({
 
 interface HookProps {
   enabled: boolean;
-  chatMode: "agent" | "general" | "creator";
+  chatMode: "agent" | "general" | "workbench";
   mappedTheme: string;
   harnessPanelVisible: boolean;
   harnessRequestMetadata: Record<string, unknown>;

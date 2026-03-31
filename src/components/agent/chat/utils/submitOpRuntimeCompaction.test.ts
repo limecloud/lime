@@ -169,4 +169,94 @@ describe("submitOpRuntimeCompaction", () => {
       },
     });
   });
+
+  it("不应裁掉仅存在于请求侧的 team_memory_shadow", () => {
+    const result = buildSubmitOpRuntimeCompaction({
+      requestMetadata: {
+        harness: {
+          preferred_team_preset_id: "code-triage-team",
+          selected_team_id: "team-code-1",
+          selected_team_source: "builtin",
+          selected_team_label: "代码排障团队",
+          selected_team_summary: "分析、实现、验证三段推进。",
+          selected_team_roles: [
+            {
+              id: "explorer",
+              label: "分析",
+              summary: "负责定位问题。",
+            },
+          ],
+          team_memory_shadow: {
+            repo_scope: "/tmp/repo",
+            entries: [
+              {
+                key: "team.selection",
+                content: "Team：代码排障团队",
+                updated_at: 1,
+              },
+            ],
+          },
+        },
+      },
+      executionRuntime: {
+        session_id: "session-code-1",
+        source: "runtime_snapshot",
+        provider_selector: "openai",
+        model_name: "gpt-4.1",
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: false,
+          subagent: true,
+        },
+        recent_team_selection: {
+          disabled: false,
+          preferredTeamPresetId: "code-triage-team",
+          selectedTeamId: "team-code-1",
+          selectedTeamSource: "builtin",
+          selectedTeamLabel: "代码排障团队",
+          selectedTeamSummary: "分析、实现、验证三段推进。",
+          selectedTeamRoles: [
+            {
+              id: "explorer",
+              label: "分析",
+              summary: "负责定位问题。",
+            },
+          ],
+        },
+      },
+      syncedRecentPreferences: {
+        webSearch: false,
+        thinking: false,
+        task: false,
+        subagent: true,
+      },
+      syncedSessionModelPreference: {
+        providerType: "openai",
+        model: "gpt-4.1",
+      },
+      syncedExecutionStrategy: "react",
+      effectiveExecutionStrategy: "react",
+      effectiveProviderType: "openai",
+      effectiveModel: "gpt-4.1",
+      webSearch: false,
+      thinking: false,
+    });
+
+    expect(result.metadata).toEqual({
+      harness: {
+        team_memory_shadow: {
+          repo_scope: "/tmp/repo",
+          entries: [
+            {
+              key: "team.selection",
+              content: "Team：代码排障团队",
+              updated_at: 1,
+            },
+          ],
+        },
+      },
+    });
+  });
 });

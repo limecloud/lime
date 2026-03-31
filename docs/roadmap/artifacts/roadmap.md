@@ -1,7 +1,7 @@
 # Lime 高配版 Artifacts 路线图
 
-> 状态：进行中，P1 / P2 已落地，P3 已闭环，rewrite typed patch 合同已落地  
-> 更新时间：2026-03-25  
+> 状态：进行中，P1 / P2 已落地，P3 已闭环，rewrite typed patch 与 current incremental 合同已落地  
+> 更新时间：2026-03-31  
 > 运行时边界：发送边界、runtime metadata、Team 委派、协议瘦身以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只定义 Artifact 产品层与 Workbench 主线  
 > 目标：把 Lime 从“能显示文件/画布的聊天工作台”升级为“交付物优先的 Artifact Workbench”，让回复不再只是普通 Markdown，而是可扫描、可编辑、可版本化、可复用的正式产物
 >
@@ -29,8 +29,8 @@
 - `src/components/agent/chat/workspace/workbenchPreview.tsx`
 - `src/components/agent/chat/workspace/WorkspaceCanvasContent.tsx`
 - `src/lib/workspace/workbenchCanvas.ts`
-- `src/components/content-creator/canvas/document/DocumentRenderer.tsx`
-- `src/components/content-creator/canvas/document/editor/NotionEditor.tsx`
+- `src/components/workspace/document/DocumentRenderer.tsx`
+- `src/components/workspace/document/editor/NotionEditor.tsx`
 - `src-tauri/src/services/agent_timeline_service.rs`
 
 从这些事实源可以确认：
@@ -49,13 +49,16 @@
 3. 后端已具备 `ArtifactDocument v1` 的 validator / repair / fallback / workspace 落盘能力。
 4. Timeline snapshot metadata 已可回灌 `artifactDocument`，前端在 `content` 为空时也能直接渲染结构化文档。
 5. 前端已落地最小 `artifact-protocol` 壳层，用于统一 runtime metadata 中的 `artifactDocument` 与 `artifact_path(s)` 读取合同。
-6. 后端已支持最小 `artifact_ops` 增量协议，可把 `artifact.upsert_block / attach_source / finalize_version` 等操作应用到已有 `ArtifactDocument` 并生成新版本。
+6. 后端已支持最小 current-first 增量应用链，并兼容 ingest `artifact_ops`；可把 `artifact.upsert_block / attach_source / finalize_version` 等操作应用到已有 `ArtifactDocument` 并生成新版本。
 7. 右侧已接入最小 `ArtifactWorkbenchShell`，包含阅读面与 `概览 / 来源 / 版本 / 差异` inspector。
 8. 当前版本已支持最小 block diff 摘要，以及来源项 / 差异项到文档 block 的 Workbench 内跳转。
 9. `rewrite` 已把 `artifact_target_block_id` 贯通到 prompt / output schema / ops apply / persist 链路，非目标 block 的 op 会在运行时被忽略并记录 issue。
-10. `rewrite` 现已支持专用 `artifact_rewrite_patch` envelope，并保留 `artifact_ops` 兼容回退，用于逐步收紧模型输出合同。
+10. `rewrite` 现已支持专用 `artifact_rewrite_patch` envelope，并接受正式单条 incremental op；`artifact_ops` 只保留兼容回退，用于逐步收紧模型输出合同。
+11. 前端 `src/lib/artifact-document/*` 已补齐 current-first operation candidate 读取边界，可统一识别正式单条 incremental op、`artifact_rewrite_patch` 与 `artifact_ops` compat 回退。
+12. Rust `artifact_ops_service` 内部 apply 已切到 normalized action 列表；`current incremental` 与 `artifact_rewrite_patch` 不再先包成 `artifact_ops`，后者只保留 compat 输入壳。
+13. Artifact Workbench 的 Markdown / HTML / Artifact JSON 导出已接入统一桌面导出链，复用保存对话框与 `save_exported_document` 主路径，不再走浏览器下载旁路。
 
-这意味着当前主线已经从“只有路线图”推进到“结构合同 + 版本快照 + Workbench inspector 闭环”。当前仍然属于后续阶段的，主要是更细粒度的 typed rewrite patch 合同，以及编辑态 / 展示态 / 导出态的进一步同源。
+这意味着当前主线已经从“只有路线图”推进到“结构合同 + 版本快照 + Workbench inspector 闭环”。当前仍然属于后续阶段的，主要是编辑态 / 展示态 / 导出态的进一步同源、更完整的导出格式与分享链，以及在模型稳定后进一步收紧 rewrite 的 `artifact_ops` compat 分支。
 
 ## 2. 现状判断
 

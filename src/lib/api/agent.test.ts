@@ -1112,14 +1112,14 @@ describe("Agent API 治理护栏", () => {
       request: {
         caller: "assistant",
         surface: {
-          creator: true,
+          workbench: true,
           browser_assist: true,
         },
       },
       agent_initialized: true,
       warnings: [],
       mcp_servers: ["docs"],
-      default_allowed_tools: ["tool_search"],
+      default_allowed_tools: ["ToolSearch"],
       counts: {
         catalog_total: 1,
         catalog_current_total: 1,
@@ -1186,7 +1186,7 @@ describe("Agent API 治理护栏", () => {
 
     await expect(
       getAgentRuntimeToolInventory({
-        creator: true,
+        workbench: true,
         browserAssist: true,
         caller: "assistant",
       }),
@@ -1194,7 +1194,7 @@ describe("Agent API 治理护栏", () => {
       request: {
         caller: "assistant",
         surface: {
-          creator: true,
+          workbench: true,
           browser_assist: true,
         },
       },
@@ -1214,7 +1214,7 @@ describe("Agent API 治理护栏", () => {
       "agent_runtime_get_tool_inventory",
       {
         request: {
-          creator: true,
+          workbench: true,
           browserAssist: true,
           caller: "assistant",
         },
@@ -1227,7 +1227,7 @@ describe("Agent API 治理护栏", () => {
       request: {
         caller: "assistant",
         surface: {
-          creator: false,
+          workbench: false,
           browser_assist: false,
         },
       },
@@ -1301,7 +1301,7 @@ describe("Agent API 治理护栏", () => {
       request: {
         caller: "assistant",
         surface: {
-          creator: false,
+          workbench: false,
           browser_assist: false,
         },
       },

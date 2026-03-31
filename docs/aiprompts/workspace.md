@@ -100,7 +100,7 @@ pub struct Workspace {
 pub struct WorkspaceSettings {
     pub mcp_config: Option<serde_json::Value>,  // workspace 级 MCP 配置
     pub default_provider: Option<String>,        // 默认 provider
-    pub auto_compact: bool,                      // 自动压缩 context
+    pub auto_compact: bool,                      // 是否允许运行时自动压缩上下文；关闭后只保留手动压缩
 }
 ```
 

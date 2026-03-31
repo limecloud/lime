@@ -208,6 +208,52 @@ describe("useWorkspaceA2UIRuntime", () => {
     expect(getValue().a2uiSubmissionNotice).toBeNull();
   });
 
+  it("action_required 提交后应清理旧输入区表单且不再显示确认提示", async () => {
+    const pendingMessage: Message = {
+      id: "assistant-action-submitted",
+      role: "assistant",
+      content: "请补充执行偏好。",
+      timestamp: new Date("2026-03-27T10:01:00.000Z"),
+      actionRequests: [
+        {
+          requestId: "req-a2ui-submitted",
+          actionType: "ask_user",
+          prompt: "请选择执行模式",
+          questions: [
+            {
+              question: "你希望如何执行？",
+              header: "执行模式",
+              options: [{ label: "自动执行" }, { label: "手动确认" }],
+            },
+          ],
+          status: "pending",
+        },
+      ],
+    };
+    const submittedMessage: Message = {
+      ...pendingMessage,
+      actionRequests: [
+        {
+          ...pendingMessage.actionRequests![0],
+          status: "submitted",
+        },
+      ],
+    };
+    const { render, getValue } = renderHook({
+      messages: [pendingMessage],
+    });
+
+    await render({ messages: [pendingMessage] });
+    expect(getValue().pendingA2UIForm?.id).toBe(
+      "action-request-req-a2ui-submitted",
+    );
+
+    await render({ messages: [submittedMessage] });
+    expect(getValue().pendingA2UIForm).toBeNull();
+    expect(getValue().pendingA2UISource).toBeNull();
+    expect(getValue().a2uiSubmissionNotice).toBeNull();
+  });
+
   it("线程已切走且源消息消失时，应清理保留中的旧 A2UI", async () => {
     const validA2UIMessage = createAssistantMessage(
       "assistant-old",

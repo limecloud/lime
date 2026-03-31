@@ -90,7 +90,7 @@ CanvasUnsupportedMessage.displayName = "CanvasUnsupportedMessage";
  * Canvas 适配器组件
  *
  * 功能特性：
- * - 检测 Canvas 类型 (canvas:document, canvas:poster 等) (Requirement 12.1)
+ * - 检测 Canvas 类型 (canvas:document, canvas:video；旧类型仅在边界归一) (Requirement 12.1)
  * - 将 Artifact 内容作为初始状态传递给 Canvas (Requirement 12.2)
  * - 同步 Canvas 状态变更回 Artifact (Requirement 12.3)
  * - 支持在完整 Canvas 编辑器模式中打开 (Requirement 12.4)

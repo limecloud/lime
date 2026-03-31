@@ -6,6 +6,7 @@ mod migration_support;
 pub mod migration_v2;
 pub mod migration_v3;
 pub mod migration_v4;
+pub mod migration_v5;
 pub mod schema;
 mod startup_migrations;
 pub mod system_providers;

@@ -8,12 +8,23 @@ import { useWorkspaceArtifactWorkbenchActions } from "./useWorkspaceArtifactWork
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const mockSaveDialog = vi.fn();
+const mockSaveExportedDocument = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccess(...args),
     error: (...args: unknown[]) => toastError(...args),
   },
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  save: (...args: unknown[]) => mockSaveDialog(...args),
+}));
+
+vi.mock("@/lib/api/document-export", () => ({
+  saveExportedDocument: (...args: unknown[]) =>
+    mockSaveExportedDocument(...args),
 }));
 
 type HookProps = Parameters<typeof useWorkspaceArtifactWorkbenchActions>[0];
@@ -52,6 +63,8 @@ function createDocument(
       {
         id: "body-1",
         type: "rich_text",
+        contentFormat: "markdown",
+        content: "正文内容",
         markdown: "正文内容",
       },
     ],
@@ -130,6 +143,8 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
   toastSuccess.mockReset();
   toastError.mockReset();
+  mockSaveDialog.mockReset();
+  mockSaveExportedDocument.mockReset();
 });
 
 afterEach(() => {
@@ -204,5 +219,98 @@ describe("useWorkspaceArtifactWorkbenchActions", () => {
       }),
     );
     expect(toastSuccess).toHaveBeenCalledWith("已归档当前交付物");
+  });
+
+  it("导出 Markdown 应走统一桌面导出主链", async () => {
+    mockSaveDialog.mockResolvedValue("/tmp/board-review");
+    mockSaveExportedDocument.mockResolvedValue(undefined);
+    const { render, getValue } = renderHook();
+    await render();
+
+    const state = getValue().getToolbarActionState(
+      createArtifact(),
+      createDocument(),
+    );
+
+    await act(async () => {
+      await state?.onExportMarkdown();
+    });
+
+    expect(mockSaveDialog).toHaveBeenCalledWith({
+      title: "导出 Markdown",
+      defaultPath: "board-review.md",
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    expect(mockSaveExportedDocument).toHaveBeenCalledWith(
+      "/tmp/board-review.md",
+      "# 董事会季度复盘\n\n正文内容",
+    );
+    expect(toastSuccess).toHaveBeenCalledWith("已导出 Markdown");
+  });
+
+  it("导出 HTML 应走统一桌面导出主链", async () => {
+    mockSaveDialog.mockResolvedValue("/tmp/board-review");
+    mockSaveExportedDocument.mockResolvedValue(undefined);
+    const { render, getValue } = renderHook();
+    await render();
+
+    const state = getValue().getToolbarActionState(
+      createArtifact(),
+      createDocument(),
+    );
+
+    await act(async () => {
+      await state?.onExportHtml();
+    });
+
+    expect(mockSaveDialog).toHaveBeenCalledWith({
+      title: "导出 HTML",
+      defaultPath: "board-review.html",
+      filters: [{ name: "HTML", extensions: ["html"] }],
+    });
+    expect(mockSaveExportedDocument).toHaveBeenCalledWith(
+      "/tmp/board-review.html",
+      expect.stringContaining("<!doctype html>"),
+    );
+    expect(mockSaveExportedDocument).toHaveBeenCalledWith(
+      "/tmp/board-review.html",
+      expect.stringContaining("<title>董事会季度复盘</title>"),
+    );
+    expect(mockSaveExportedDocument).toHaveBeenCalledWith(
+      "/tmp/board-review.html",
+      expect.stringContaining("<h1>董事会季度复盘</h1>"),
+    );
+    expect(mockSaveExportedDocument).toHaveBeenCalledWith(
+      "/tmp/board-review.html",
+      expect.stringContaining("<p>正文内容</p>"),
+    );
+    expect(toastSuccess).toHaveBeenCalledWith("已导出 HTML");
+  });
+
+  it("导出 Artifact JSON 应保留 .artifact.json 后缀", async () => {
+    mockSaveDialog.mockResolvedValue("/tmp/board-review");
+    mockSaveExportedDocument.mockResolvedValue(undefined);
+    const { render, getValue } = renderHook();
+    await render();
+
+    const state = getValue().getToolbarActionState(
+      createArtifact(),
+      createDocument(),
+    );
+
+    await act(async () => {
+      await state?.onExportJson();
+    });
+
+    expect(mockSaveDialog).toHaveBeenCalledWith({
+      title: "导出 Artifact JSON",
+      defaultPath: "board-review.artifact.json",
+      filters: [{ name: "Artifact JSON", extensions: ["json"] }],
+    });
+    expect(mockSaveExportedDocument).toHaveBeenCalledWith(
+      "/tmp/board-review.artifact.json",
+      JSON.stringify(createDocument(), null, 2),
+    );
+    expect(toastSuccess).toHaveBeenCalledWith("已导出 Artifact JSON");
   });
 });

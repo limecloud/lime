@@ -216,8 +216,8 @@ impl std::str::FromStr for MaterialType {
 
 #[allow(dead_code)]
 impl MaterialType {
-    /// 判断是否为海报素材类型
-    pub fn is_poster_material(&self) -> bool {
+    /// 判断是否为图库素材类型
+    pub fn is_gallery_material(&self) -> bool {
         matches!(
             self,
             MaterialType::Image | MaterialType::Icon | MaterialType::Color | MaterialType::Layout
@@ -344,12 +344,12 @@ impl std::str::FromStr for LayoutCategory {
     }
 }
 
-/// 海报素材元数据
+/// 图库素材元数据
 ///
-/// 存储海报素材的扩展信息，与 materials 表关联。
+/// 存储图库素材的扩展信息，与 materials 表关联。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PosterMaterialMetadata {
+pub struct GalleryMaterialMetadata {
     /// 关联的素材 ID
     pub material_id: String,
     /// 图片分类（仅 image 类型）
@@ -397,10 +397,10 @@ pub struct PosterMaterialMetadata {
     pub updated_at: i64,
 }
 
-/// 创建海报素材元数据请求
+/// 创建图库素材元数据请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreatePosterMetadataRequest {
+pub struct CreateGalleryMaterialMetadataRequest {
     /// 关联的素材 ID
     pub material_id: String,
     /// 图片分类
@@ -444,18 +444,18 @@ pub struct CreatePosterMetadataRequest {
     pub fabric_json: Option<String>,
 }
 
-/// 海报素材（完整视图）
+/// 图库素材（完整视图）
 ///
-/// 包含基础素材和海报扩展元数据的完整数据。
+/// 包含基础素材和图库扩展元数据的完整数据。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PosterMaterial {
+pub struct GalleryMaterial {
     /// 基础素材
     #[serde(flatten)]
     pub base: Material,
     /// 海报元数据
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<PosterMaterialMetadata>,
+    pub metadata: Option<GalleryMaterialMetadata>,
 }
 
 /// 素材
@@ -717,17 +717,17 @@ mod tests {
     }
 
     #[test]
-    fn test_material_type_is_poster_material() {
-        assert!(MaterialType::Image.is_poster_material());
-        assert!(MaterialType::Icon.is_poster_material());
-        assert!(MaterialType::Color.is_poster_material());
-        assert!(MaterialType::Layout.is_poster_material());
-        assert!(!MaterialType::Document.is_poster_material());
-        assert!(!MaterialType::Audio.is_poster_material());
-        assert!(!MaterialType::Video.is_poster_material());
-        assert!(!MaterialType::Text.is_poster_material());
-        assert!(!MaterialType::Data.is_poster_material());
-        assert!(!MaterialType::Link.is_poster_material());
+    fn test_material_type_is_gallery_material() {
+        assert!(MaterialType::Image.is_gallery_material());
+        assert!(MaterialType::Icon.is_gallery_material());
+        assert!(MaterialType::Color.is_gallery_material());
+        assert!(MaterialType::Layout.is_gallery_material());
+        assert!(!MaterialType::Document.is_gallery_material());
+        assert!(!MaterialType::Audio.is_gallery_material());
+        assert!(!MaterialType::Video.is_gallery_material());
+        assert!(!MaterialType::Text.is_gallery_material());
+        assert!(!MaterialType::Data.is_gallery_material());
+        assert!(!MaterialType::Link.is_gallery_material());
     }
 
     #[test]

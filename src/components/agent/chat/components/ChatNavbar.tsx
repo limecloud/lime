@@ -7,12 +7,8 @@ import {
   Home,
   PanelRightClose,
   PanelRightOpen,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
   Settings2,
   Sparkles,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
@@ -44,12 +40,6 @@ interface ChatNavbarProps {
   showContextCompactionAction?: boolean;
   contextCompactionRunning?: boolean;
   onCompactContext?: () => void;
-  novelCanvasControls?: {
-    chapterListCollapsed: boolean;
-    onToggleChapterList: () => void;
-    onAddChapter: () => void;
-    onCloseCanvas: () => void;
-  } | null;
   showBrowserAssistEntry?: boolean;
   browserAssistActive?: boolean;
   browserAssistLoading?: boolean;
@@ -112,7 +102,6 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   showContextCompactionAction = false,
   contextCompactionRunning = false,
   onCompactContext,
-  novelCanvasControls = null,
   showBrowserAssistEntry = false,
   browserAssistActive = false,
   browserAssistLoading = false,
@@ -154,7 +143,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
     (Boolean(onBackHome) ||
       Boolean(onBackToResources) ||
       Boolean(onBackToProjectManagement));
-  const showWorkspaceTools = showHistoryToggle || showCanvasToggle || Boolean(novelCanvasControls);
+  const showWorkspaceTools = showHistoryToggle || showCanvasToggle;
   const showProjectSelector = !isWorkspaceCompact;
   const showCompactSettingsButton = isWorkspaceCompact && Boolean(onToggleSettings);
   const compactProjectSelectorClassName = isWorkspaceCompact
@@ -222,7 +211,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 <Box size={18} />
               </Button>
             )}
-            {showHistoryToggle && (showCanvasToggle || novelCanvasControls) ? (
+            {showHistoryToggle && showCanvasToggle ? (
               <div className={dividerClassName} aria-hidden="true" />
             ) : null}
             {showCanvasToggle ? (
@@ -240,48 +229,6 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                   <PanelRightOpen size={18} />
                 )}
               </Button>
-            ) : null}
-            {showCanvasToggle && novelCanvasControls ? (
-              <div className={dividerClassName} aria-hidden="true" />
-            ) : null}
-            {novelCanvasControls ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={ghostIconButtonClassName}
-                  onClick={novelCanvasControls.onToggleChapterList}
-                  title={
-                    novelCanvasControls.chapterListCollapsed
-                      ? "展开章节栏"
-                      : "收起章节栏"
-                  }
-                >
-                  {novelCanvasControls.chapterListCollapsed ? (
-                    <PanelLeftOpen size={18} />
-                  ) : (
-                    <PanelLeftClose size={18} />
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={ghostIconButtonClassName}
-                  onClick={novelCanvasControls.onAddChapter}
-                  title="新建章节"
-                >
-                  <Plus size={18} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={ghostIconButtonClassName}
-                  onClick={novelCanvasControls.onCloseCanvas}
-                  title="关闭画布"
-                >
-                  <X size={18} />
-                </Button>
-              </>
             ) : null}
           </div>
         ) : null}

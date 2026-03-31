@@ -6,8 +6,6 @@ import {
 } from "react";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
-import { createInitialMusicState } from "@/lib/workspace/workbenchCanvas";
-import { parseLyrics } from "@/lib/workspace/workbenchCanvas";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { TaskFile } from "../components/TaskFiles";
 import {
@@ -25,10 +23,6 @@ interface UseWorkspaceCanvasTaskFileSyncParams {
   documentEditorFocusedRef: MutableRefObject<boolean>;
   setSelectedFileId: Dispatch<SetStateAction<string | undefined>>;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
-  upsertNovelCanvasState: (
-    previous: CanvasStateUnion | null,
-    content: string,
-  ) => CanvasStateUnion | null;
 }
 
 export function useWorkspaceCanvasTaskFileSync({
@@ -40,7 +34,6 @@ export function useWorkspaceCanvasTaskFileSync({
   documentEditorFocusedRef,
   setSelectedFileId,
   setCanvasState,
-  upsertNovelCanvasState,
 }: UseWorkspaceCanvasTaskFileSyncParams) {
   useEffect(() => {
     const renderableFiles = taskFiles.filter((file) =>
@@ -75,24 +68,6 @@ export function useWorkspaceCanvasTaskFileSync({
 
     const targetContent = targetFile.content;
     setCanvasState((previous) => {
-      if (mappedTheme === "music") {
-        const sections = parseLyrics(targetContent);
-        if (!previous || previous.type !== "music") {
-          const musicState = createInitialMusicState();
-          musicState.sections = sections;
-          const titleMatch = targetContent.match(/^#\s*(.+)$/m);
-          if (titleMatch) {
-            musicState.spec.title = titleMatch[1].trim();
-          }
-          return musicState;
-        }
-        return { ...previous, sections };
-      }
-
-      if (mappedTheme === "novel") {
-        return upsertNovelCanvasState(previous, targetContent);
-      }
-
       if (!previous || previous.type !== "document") {
         return createInitialDocumentState(targetContent);
       }
@@ -110,6 +85,5 @@ export function useWorkspaceCanvasTaskFileSync({
     setCanvasState,
     setSelectedFileId,
     taskFiles,
-    upsertNovelCanvasState,
   ]);
 }

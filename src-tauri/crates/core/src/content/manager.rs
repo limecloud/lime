@@ -115,13 +115,10 @@ impl ContentManager {
 
         match workspace_type {
             WorkspaceType::Video => ContentType::Episode,
-            WorkspaceType::Novel => ContentType::Chapter,
             WorkspaceType::SocialMedia => ContentType::Post,
             WorkspaceType::General => ContentType::Content,
             WorkspaceType::Document => ContentType::Document,
-            WorkspaceType::Poster
-            | WorkspaceType::Music
-            | WorkspaceType::Knowledge
+            WorkspaceType::Knowledge
             | WorkspaceType::Planning
             | WorkspaceType::Persistent
             | WorkspaceType::Temporary => ContentType::Document,

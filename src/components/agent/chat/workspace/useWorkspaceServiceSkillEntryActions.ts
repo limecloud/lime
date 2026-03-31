@@ -13,6 +13,7 @@ import {
   listProjects,
   type Project,
 } from "@/lib/api/project";
+import { normalizeThemeType } from "@/lib/workspace/workbenchContract";
 import {
   type AutomationJobDialogInitialValues,
   type AutomationJobDialogSubmit,
@@ -49,6 +50,8 @@ import type {
   ServiceSkillHomeItem,
   ServiceSkillSlotValues,
 } from "../service-skills/types";
+import type { TeamDefinition } from "../utils/teamDefinitions";
+import { attachSelectedTeamToRequestMetadata } from "../utils/teamRequestMetadata";
 
 const SERVICE_SKILL_RUN_STATUS_LABELS: Record<string, string> = {
   queued: "排队中",
@@ -129,20 +132,7 @@ function buildServiceSkillCloudResultMetadata(
 }
 
 function resolveFallbackProjectType(theme?: string): Project["workspaceType"] {
-  switch (theme) {
-    case "social-media":
-    case "poster":
-    case "music":
-    case "knowledge":
-    case "planning":
-    case "document":
-    case "video":
-    case "novel":
-    case "general":
-      return theme;
-    default:
-      return "general";
-  }
+  return normalizeThemeType(theme);
 }
 
 function buildFallbackAutomationWorkspace(
@@ -219,6 +209,10 @@ interface UseWorkspaceServiceSkillEntryActionsParams {
   contentId?: string | null;
   input: string;
   chatToolPreferences: ChatToolPreferences;
+  preferredTeamPresetId?: string | null;
+  selectedTeam?: TeamDefinition | null;
+  selectedTeamLabel?: string | null;
+  selectedTeamSummary?: string | null;
   onNavigate?: (page: Page, params?: PageParams) => void;
   recordServiceSkillUsage: (input: {
     skillId: string;
@@ -233,6 +227,10 @@ export function useWorkspaceServiceSkillEntryActions({
   contentId,
   input,
   chatToolPreferences,
+  preferredTeamPresetId,
+  selectedTeam,
+  selectedTeamLabel,
+  selectedTeamSummary,
   onNavigate,
   recordServiceSkillUsage,
 }: UseWorkspaceServiceSkillEntryActionsParams) {
@@ -254,12 +252,33 @@ export function useWorkspaceServiceSkillEntryActions({
 
   const navigateToServiceSkillWorkspace = useCallback(
     (payload: HomeShellEnterWorkspacePayload): boolean => {
+      const payloadWithSelectedTeamMetadata: HomeShellEnterWorkspacePayload = {
+        ...payload,
+        initialRequestMetadata: attachSelectedTeamToRequestMetadata(
+          payload.initialRequestMetadata,
+          {
+            preferredTeamPresetId,
+            selectedTeam,
+            selectedTeamLabel,
+            selectedTeamSummary,
+          },
+        ),
+        initialAutoSendRequestMetadata: attachSelectedTeamToRequestMetadata(
+          payload.initialAutoSendRequestMetadata,
+          {
+            preferredTeamPresetId,
+            selectedTeam,
+            selectedTeamLabel,
+            selectedTeamSummary,
+          },
+        ),
+      };
       const resolved = resolveHomeShellWorkspaceEntry({
         projectId: currentProjectId,
         activeTheme,
         creationMode,
         defaultToolPreferences: chatToolPreferences,
-        payload,
+        payload: payloadWithSelectedTeamMetadata,
       });
 
       if (!resolved.ok) {
@@ -284,6 +303,10 @@ export function useWorkspaceServiceSkillEntryActions({
       chatToolPreferences,
       creationMode,
       currentProjectId,
+      preferredTeamPresetId,
+      selectedTeam,
+      selectedTeamLabel,
+      selectedTeamSummary,
       onNavigate,
     ],
   );

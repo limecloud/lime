@@ -39,6 +39,25 @@
 
 这些命令属于当前设置主路径，不应再在页面组件里散落裸 `invoke`。
 
+图库素材链路也遵循同一原则。当前主入口为 `src/lib/api/galleryMaterials.ts`，统一承接：
+
+- `create_gallery_material_metadata`
+- `get_gallery_material_metadata`
+- `get_gallery_material`
+- `list_gallery_materials_by_image_category`
+- `list_gallery_materials_by_layout_category`
+- `list_gallery_materials_by_mood`
+- `update_gallery_material_metadata`
+- `delete_gallery_material_metadata`
+
+旧 `poster_material_*` 命名只允许停留在 schema 迁移与治理守卫中，不应重新出现在前端网关、Rust 命令模块或运行时代码里。
+
+文档导出链路同样遵循这条路径。当前主入口为 `src/lib/api/document-export.ts`，统一承接：
+
+- `save_exported_document`
+
+`Artifact Workbench`、文档工作台与其他导出入口如需把内容落到用户选择的本地路径，应继续复用这条主链，不要在业务组件里重新扩散 `Blob + a.download` 式浏览器旁路。
+
 ## 命令契约的五个事实源
 
 命令边界不是单文件事实，至少要同时看下面五处：
@@ -163,6 +182,7 @@ npm run verify:local
 如果命令边界改动影响会话运行时恢复语义，例如：
 
 - `agent_runtime_submit_turn.turn_config` 新增或调整 `approval_policy / sandbox_policy`
+- `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow` 新增或调整 repo-scoped Team 协作记忆注入
 - `agent_runtime_update_session` 新增或调整 `provider_name / model_name / execution_strategy / recent_access_mode / recent_preferences / recent_team_selection`
 - `getSession/listSessions` 的 `execution_runtime` 新增或调整 `recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id`
 - 话题切换时的 provider/model、权限 accessMode、工具偏好、Team 选择，或 `theme / session_mode / gate_key / run_title / content_id` 恢复从本地 fallback 向 `execution_runtime` 收敛
@@ -218,18 +238,23 @@ npm run verify:local
 - **会话运行阶段上下文主链**：`getSession` 返回的 `execution_runtime.recent_gate_key / recent_run_title` 负责承接最近一次 Theme Workbench 运行阶段上下文；当前端已命中同一 steady-state gate/run 时，不应继续每回合重复携带 `harness.gate_key / harness.run_title`
 - **会话内容上下文主链**：`getSession` 返回的 `execution_runtime.recent_content_id` 负责承接最近一次运行态 `content_id`；当前端已命中同一 steady-state 内容时，不应继续每回合重复携带 `harness.content_id`
 - **运行态摘要主链**：Aster `runtime_status` item -> timeline `turn_summary`
+- **上下文压缩策略主链**：`workspace.settings.auto_compact` 是运行时自动压缩的唯一 workspace 级开关；`agent_runtime_submit_turn` 与 `agent_runtime_respond_action` 都会把该设置注入 turn context。值为 `false` 时，Lime 不会做发起前自动压缩，并会显式告诉 Aster 关闭当前回合的内部自动压缩 / overflow recovery 自动压缩；此时只允许用户通过 `agent_runtime_compact_session` 手动压缩。
 - **旧 `chat_*` 命令**：已停止注册，不应重新回到 `commands::mod` 或 `generate_handler!`
 - **旧 `general_chat_*` 边界**：前端 compat 网关与 Rust 命令都已移除，不应重新接入
 - **记忆系统**：统一沉淀优先走 `unified_memory_*`，runtime / 上下文视图优先走 `memory_runtime_*`
 - **旧项目风格命令**：`style_guide_get` / `style_guide_update` 已下线，不应再从前端网关、Rust 注册或 mock 中接回
 - **旧项目模板命令**：`create_template` / `list_templates` / `get_template` / `update_template` / `delete_template` / `set_default_template` / `get_default_template` 已下线，不应再从前端网关、Rust 注册或 mock 中接回
 - **旧品牌人设扩展命令**：`get_brand_persona` / `get_brand_extension` / `save_brand_extension` / `update_brand_extension` / `delete_brand_extension` / `list_brand_persona_templates` 已下线，不应再从前端网关、Rust 注册或 mock 中接回
+- **图库素材主链**：继续收敛到 `gallery_material_*` 命令族与 `src/lib/api/galleryMaterials.ts`；旧 `create_poster_metadata` / `get_poster_material` / `list_by_*` 命名已下线，不应重新接回
 
 这些示例的意义不是列清单，而是提醒：
 
 **不要再造第三套入口，优先继续把能力收敛到已存在的主链。**
 
-补充约定：
+补充说明：
+
+- `execution_runtime.recent_team_selection` 继续承接 steady-state 的 Team 选择恢复
+- `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow` 只承接当前请求的 repo-scoped Team 协作记忆，例如最近一次 Team 选择、子代理状态与父会话上下文；它是低优先级协作参考，不替代显式 `selected_team_*` 或 session runtime
 
 - **站点能力主链**：继续收敛到 `site_list_adapters / site_recommend_adapters / site_search_adapters / site_get_adapter_info / site_get_adapter_launch_readiness / site_get_adapter_catalog_status / site_import_adapter_yaml_bundle / site_run_adapter`
 - **站点适配器导入主链**：`site_import_adapter_yaml_bundle` 只负责把外部 YAML 来源编译为 Lime 标准并写入 `imported` 目录，不允许带入第二套 runtime、daemon 或自动唤醒浏览器链路

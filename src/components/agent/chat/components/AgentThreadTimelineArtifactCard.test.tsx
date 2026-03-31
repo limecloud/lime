@@ -67,10 +67,12 @@ function createFileArtifactItem(
         {
           id: "body-1",
           type: "rich_text",
+          contentFormat: "markdown",
+          content: "这里是详细展开。",
           markdown: "这里是详细展开。",
         },
       ],
-      sources: [{ id: "source-1", title: "内部周报" }],
+      sources: [{ id: "source-1", type: "file", label: "内部周报" }],
       metadata: {
         currentVersionId: "artifact-document:demo:v2",
         currentVersionNo: 2,

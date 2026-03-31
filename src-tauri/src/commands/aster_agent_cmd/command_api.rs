@@ -9,7 +9,7 @@ use crate::commands::aster_agent_cmd::subagent_runtime::{
     agent_runtime_send_subagent_input_internal, agent_runtime_spawn_subagent_internal,
     agent_runtime_wait_subagents_internal, SubagentControlRuntime,
 };
-use crate::commands::aster_agent_cmd::tool_runtime::ensure_tool_search_tool_registered;
+use crate::commands::aster_agent_cmd::tool_runtime::ensure_runtime_support_tools_registered;
 
 #[path = "command_api/provider_api.rs"]
 pub(crate) mod provider_api;

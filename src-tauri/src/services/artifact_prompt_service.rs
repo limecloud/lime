@@ -224,8 +224,7 @@ fn build_artifact_stage_prompt(context: &ArtifactPromptContext) -> Option<String
             }
             lines.push("执行要求：".to_string());
             lines.push(
-                "1. 默认输出 `artifact_rewrite_patch`；只有兼容旧链路时才回退到 `artifact_ops`。"
-                    .to_string(),
+                "1. 优先输出 `artifact_rewrite_patch`；如果更适合 current 主链，也只允许输出 rewrite 专用单条 incremental op：`artifact.source.upsert / artifact.block.upsert / artifact.complete / artifact.fail`；只有兼容旧链路时才回退到 `artifact_ops`。".to_string(),
             );
             lines.push(
                 "2. 如果提供了目标 block，则不要改写其他 block，也不要借机重排整个文档结构。"
@@ -239,7 +238,7 @@ fn build_artifact_stage_prompt(context: &ArtifactPromptContext) -> Option<String
             "{ARTIFACT_STAGE2_PROMPT_MARKER}\n\
 执行目标：\n\
 1. 输出正式结构化交付物草稿。\n\
-2. 初次生成可输出 `artifact_document_draft`；对已有文档做增量补充时优先输出 `artifact_ops`。\n\
+2. 初次生成可输出 `artifact_document_draft`；对已有文档做增量补充时优先输出正式单条 op：`artifact.begin / artifact.meta.patch / artifact.source.upsert / artifact.block.upsert / artifact.block.remove / artifact.complete / artifact.fail`；仅兼容旧链路时才回退到 `artifact_ops`。\n\
 3. 交付物必须满足 ArtifactDocument v1。\n\
 4. block 类型只能来自白名单，不要自由发明新 block。\n\
 5. 若已知 sources，应挂到 sources[] 并让 block.sourceIds 指向已有来源。"
@@ -259,25 +258,30 @@ fn build_artifact_schema_hint_prompt(context: &ArtifactPromptContext) -> Option<
         Some("rewrite")
     );
     let output_contract = if is_rewrite {
-        "本轮优先输出 `artifact_rewrite_patch`；兼容情况下也可输出 `artifact_ops`，不要返回整篇 `artifact_document_draft`。"
+        "本轮优先输出 `artifact_rewrite_patch`；也允许输出 rewrite 专用正式单条 op envelope（仅 `artifact.source.upsert / artifact.block.upsert / artifact.complete / artifact.fail`）；仅兼容情况下才回退到 `artifact_ops`，不要返回整篇 `artifact_document_draft`。"
     } else {
-        "本轮可以输出 `artifact_document_draft`，也可以在已有文档上输出 `artifact_ops`。"
+        "本轮可以输出 `artifact_document_draft`；若做增量补充，优先输出正式单条 op envelope，兼容情况下也可回退到 `artifact_ops`。"
     };
     let shape_hint = if is_rewrite {
-        "`artifact_rewrite_patch` 顶层字段优先包含：type、artifactId、targetBlockId、block\n- 可选补充 `source / sources / summary / status`\n- 若需兼容旧链路，也可回退到 `artifact_ops`\n- 若存在 target block，schema 与运行时都会限制改写范围，只允许命中该 block"
+        "`artifact_rewrite_patch` 顶层字段优先包含：type、artifactId、targetBlockId、block\n- 可选补充 `source / sources / summary / status`\n- 若使用正式单条 op，仅允许 `artifact.source.upsert / artifact.block.upsert / artifact.complete / artifact.fail`，顶层字段包含：type、artifactId，以及 source / block / summary / reason 中对应字段\n- 只有兼容旧链路时才回退到 `artifact_ops`\n- 若存在 target block，schema 与运行时都会限制改写范围，只允许命中该 block"
     } else {
-        "顶层字段优先包含：artifactId、kind、title、status、language、summary、blocks、sources、metadata\n- 若使用 `artifact_ops`，顶层字段包含：type、artifactId、ops"
+        "顶层字段优先包含：artifactId、kind、title、status、language、summary、blocks、sources、metadata\n- 若使用正式单条 op，顶层字段包含：type、artifactId，以及 block / source / patch / blockId / summary / reason 中对应字段\n- 若需兼容旧链路，也可回退到 `artifact_ops`，其顶层字段包含：type、artifactId、ops"
     };
     let example = if is_rewrite {
-        "{\n  \
+        "Patch 示例：\n{\n  \
 \"type\": \"artifact_rewrite_patch\",\n  \
 \"artifactId\": \"artifact-demo\",\n  \
 \"targetBlockId\": \"body-1\",\n  \
-\"block\": { \"id\": \"body-1\", \"type\": \"rich_text\", \"markdown\": \"改写后的正文\" },\n  \
+\"block\": { \"id\": \"body-1\", \"type\": \"rich_text\", \"contentFormat\": \"markdown\", \"content\": \"改写后的正文\" },\n  \
 \"summary\": \"把正文改成更适合董事会的措辞\"\n\
+}\n\n\
+单条 op 示例：\n{\n  \
+\"type\": \"artifact.block.upsert\",\n  \
+\"artifactId\": \"artifact-demo\",\n  \
+\"block\": { \"id\": \"body-1\", \"type\": \"rich_text\", \"contentFormat\": \"markdown\", \"content\": \"改写后的正文\" }\n\
 }"
     } else {
-        "{\n  \
+        "草稿示例：\n{\n  \
 \"type\": \"artifact_document_draft\",\n  \
 \"document\": {\n    \
 \"schemaVersion\": \"artifact_document.v1\",\n    \
@@ -288,11 +292,18 @@ fn build_artifact_schema_hint_prompt(context: &ArtifactPromptContext) -> Option<
 \"summary\": \"一句话摘要\",\n    \
 \"blocks\": [\n      \
 { \"id\": \"hero-1\", \"type\": \"hero_summary\", \"summary\": \"核心结论\" },\n      \
-{ \"id\": \"body-1\", \"type\": \"rich_text\", \"markdown\": \"正文内容\" }\n    \
+{ \"id\": \"body-1\", \"type\": \"rich_text\", \"contentFormat\": \"markdown\", \"content\": \"正文内容\" }\n    \
 ],\n    \
-\"sources\": [],\n    \
+\"sources\": [\n      \
+{ \"id\": \"source-1\", \"type\": \"web\", \"label\": \"OpenAI Blog\", \"locator\": { \"url\": \"https://openai.com\" }, \"snippet\": \"来源摘录\" }\n    \
+],\n    \
 \"metadata\": {}\n  \
 }\n\
+}\n\n\
+增量示例：\n{\n  \
+\"type\": \"artifact.block.upsert\",\n  \
+\"artifactId\": \"artifact-demo\",\n  \
+\"block\": { \"id\": \"body-1\", \"type\": \"rich_text\", \"contentFormat\": \"markdown\", \"content\": \"补充后的正文\" }\n\
 }"
     };
 
@@ -380,6 +391,7 @@ mod tests {
         assert!(merged.contains(ARTIFACT_STAGE2_PROMPT_MARKER));
         assert!(merged.contains(ARTIFACT_SCHEMA_HINT_PROMPT_MARKER));
         assert!(merged.contains("ArtifactDocument v1"));
+        assert!(merged.contains("artifact.block.upsert"));
         assert!(merged.contains("artifact_ops"));
     }
 
@@ -401,7 +413,12 @@ mod tests {
         assert!(merged.contains("block-3"));
         assert!(merged.contains("更适合董事会"));
         assert!(merged.contains("artifact_rewrite_patch"));
+        assert!(merged.contains("artifact.source.upsert"));
+        assert!(merged.contains("artifact.block.upsert"));
         assert!(merged.contains("artifact_ops"));
+        assert!(!merged.contains("artifact.begin"));
+        assert!(!merged.contains("artifact.meta.patch"));
+        assert!(!merged.contains("artifact.block.remove"));
     }
 
     #[test]

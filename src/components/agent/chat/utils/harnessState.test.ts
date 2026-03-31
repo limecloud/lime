@@ -147,8 +147,12 @@ describe("deriveHarnessSessionState", () => {
       title: "联网检索摘要",
       summary: "3月13日国际新闻",
     });
-    expect(state.outputSignals[0]?.preview).toContain("Xinhua world news summary");
-    expect(state.outputSignals[0]?.content).toContain("https://example.com/xinhua");
+    expect(state.outputSignals[0]?.preview).toContain(
+      "Xinhua world news summary",
+    );
+    expect(state.outputSignals[0]?.content).toContain(
+      "https://example.com/xinhua",
+    );
   });
 
   it("应通过 artifact protocol 提取工具输出中的嵌套产物路径", () => {
@@ -267,7 +271,7 @@ describe("deriveHarnessSessionState", () => {
     expect(state.outputSignals[7]?.summary).toBe("query-2");
   });
 
-  it("没有历史 TodoWrite 时应回退到持久化 todo 快照", () => {
+  it("没有历史任务板轨迹时应回退到持久化任务快照", () => {
     const messages = [createMessage({ content: "已恢复会话" })];
 
     const state = deriveHarnessSessionState(messages, [], undefined, [

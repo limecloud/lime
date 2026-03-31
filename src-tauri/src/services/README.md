@@ -10,7 +10,6 @@
 ## 文件索引
 
 - `mod.rs` - 模块入口
-- `novel_service.rs` - 小说编排服务（项目/设定/章节生成/一致性检查）
 - `site_adapter_import_service.rs` - 外部适配器来源导入与 Lime 标准编译层
 - `provider_pool_service.rs` - Provider 凭证池服务（多凭证轮询）
 - `token_cache_service.rs` - Token 缓存服务

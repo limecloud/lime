@@ -303,7 +303,9 @@ impl Tool for ToolSearchBridgeTool {
             "count": result.len(),
             "tools": result
         }))
-        .map_err(|e| ToolError::execution_failed(format!("tool_search 序列化失败: {e}")))?;
+        .map_err(|e| {
+            ToolError::execution_failed(format!("{TOOL_SEARCH_TOOL_NAME} 序列化失败: {e}"))
+        })?;
 
         Ok(ToolResult::success(text))
     }

@@ -63,7 +63,15 @@
     "aster_session_get": "agent_runtime_get_session",
     "aster_session_rename": "agent_runtime_update_session",
     "aster_session_set_execution_strategy": "agent_runtime_update_session",
-    "aster_session_delete": "agent_runtime_delete_session"
+    "aster_session_delete": "agent_runtime_delete_session",
+    "create_poster_metadata": "create_gallery_material_metadata",
+    "get_poster_metadata": "get_gallery_material_metadata",
+    "get_poster_material": "get_gallery_material",
+    "update_poster_metadata": "update_gallery_material_metadata",
+    "delete_poster_metadata": "delete_gallery_material_metadata",
+    "list_by_image_category": "list_gallery_materials_by_image_category",
+    "list_by_layout_category": "list_gallery_materials_by_layout_category",
+    "list_by_mood": "list_gallery_materials_by_mood"
   },
   "deprecatedHelperReplacements": {
     "createAgentSession": "createAgentRuntimeSession",
@@ -81,6 +89,14 @@
     "listAsterSessions": "listAgentRuntimeSessions",
     "getAsterSession": "getAgentRuntimeSession",
     "deleteAsterSession": "deleteAgentRuntimeSession",
-    "renameAsterSession": "updateAgentRuntimeSession"
+    "renameAsterSession": "updateAgentRuntimeSession",
+    "getPosterMaterial": "getGalleryMaterial",
+    "createPosterMetadata": "createGalleryMetadata",
+    "updatePosterMetadata": "updateGalleryMetadata",
+    "deletePosterMetadata": "deleteGalleryMetadata",
+    "listPosterMaterialsByImageCategory": "listGalleryMaterialsByImageCategory",
+    "listPosterMaterialsByLayoutCategory": "listGalleryMaterialsByLayoutCategory",
+    "listPosterMaterialsByMood": "listGalleryMaterialsByMood",
+    "usePosterMaterial": "useGalleryMaterial"
   }
 }

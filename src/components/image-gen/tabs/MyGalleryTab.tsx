@@ -5,7 +5,7 @@
  */
 
 import { convertLocalFileSrc } from "@/lib/api/fileSystem";
-import type { PosterMaterial } from "@/types/poster-material";
+import type { GalleryMaterial } from "@/types/gallery-material";
 import { toast } from "sonner";
 import { Images } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -252,31 +252,19 @@ const EmptyHint = styled.p`
 function normalizeCanvasType(
   value: string | null | undefined,
 ): CanvasImageTargetType {
-  if (
-    value === "document" ||
-    value === "novel" ||
-    value === "script" ||
-    value === "music" ||
-    value === "poster" ||
-    value === "video"
-  ) {
+  if (value === "document" || value === "video") {
     return value;
+  }
+  if (value === "script") {
+    return "video";
   }
   return "document";
 }
 
 function mapCanvasTypeToTheme(canvasType: CanvasImageTargetType): string {
   switch (canvasType) {
-    case "poster":
-      return "poster";
-    case "music":
-      return "music";
-    case "novel":
-      return "novel";
     case "video":
       return "video";
-    case "script":
-      return "social-media";
     case "document":
     case "auto":
     default:
@@ -296,7 +284,7 @@ function getVisibleInsertHistory(
 
 export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
   const [selectedMaterial, setSelectedMaterial] =
-    useState<PosterMaterial | null>(null);
+    useState<GalleryMaterial | null>(null);
   const [recentInsertHistory, setRecentInsertHistory] = useState<
     CanvasImageInsertHistoryEntry[]
   >(() => getVisibleInsertHistory(projectId));
@@ -352,7 +340,7 @@ export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
     return unsubscribe;
   }, [projectId]);
 
-  const handleInsertFromGallery = (material: PosterMaterial) => {
+  const handleInsertFromGallery = (material: GalleryMaterial) => {
     if (!projectId) {
       toast.error("请先选择项目");
       return;
@@ -379,9 +367,7 @@ export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
       anchorHint:
         targetCanvasType === "video"
           ? "video_start_frame"
-          : targetCanvasType === "poster"
-            ? "poster_center"
-            : "section_end",
+          : "section_end",
       source: "gallery",
       image: {
         id: material.id,

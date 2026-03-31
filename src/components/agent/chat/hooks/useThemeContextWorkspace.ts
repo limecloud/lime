@@ -3,7 +3,7 @@ import { getContent, listContents, type ContentListItem } from "@/lib/api/projec
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 import { useMaterials } from "@/hooks/useMaterials";
-import { isContentCreationTheme } from "@/lib/workspace/workbenchContract";
+import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
 import {
   searchThemeContextWithWebSearch,
@@ -309,8 +309,7 @@ function resolveApplyTarget(toolName: string): string {
   if (
     normalized.includes("cover") ||
     normalized.includes("image") ||
-    normalized.includes("illustration") ||
-    normalized.includes("poster")
+    normalized.includes("illustration")
   ) {
     return "封面/插图";
   }
@@ -416,7 +415,7 @@ export function useThemeContextWorkspace({
   providerType,
   model,
 }: UseThemeContextWorkspaceOptions): ThemeContextWorkspaceState {
-  const enabled = isContentCreationTheme(activeTheme);
+  const enabled = isSpecializedWorkbenchTheme(activeTheme);
   const normalizedProjectId = normalizeProjectId(projectId);
   const contextProjectId = enabled ? normalizedProjectId : null;
 

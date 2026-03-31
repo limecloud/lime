@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
+import type { TeamDefinition } from "../utils/teamDefinitions";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 import { useWorkspaceServiceSkillEntryActions } from "./useWorkspaceServiceSkillEntryActions";
 
@@ -74,6 +75,26 @@ const DEFAULT_CHAT_TOOL_PREFERENCES: ChatToolPreferences = {
   thinking: false,
   task: false,
   subagent: false,
+};
+const DEFAULT_SELECTED_TEAM: TeamDefinition = {
+  id: "team-research-duo",
+  source: "builtin",
+  label: "研究双人组",
+  description: "负责检索和整理结果。",
+  roles: [
+    {
+      id: "researcher",
+      label: "研究员",
+      summary: "负责检索线索。",
+      skillIds: ["web-search"],
+    },
+    {
+      id: "analyst",
+      label: "分析员",
+      summary: "负责整理结论。",
+      roleKey: "analyst",
+    },
+  ],
 };
 
 function createProject(id = "project-1") {
@@ -404,6 +425,55 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     });
   });
 
+  it("站点型技能进入工作区时应把当前 Team 注入自动发送 metadata", async () => {
+    const onNavigate = vi.fn();
+    const { render, getValue } = renderHook({
+      onNavigate,
+      recordServiceSkillUsage: vi.fn(),
+      preferredTeamPresetId: "research-duo",
+      selectedTeam: DEFAULT_SELECTED_TEAM,
+      selectedTeamLabel: "研究双人组",
+      selectedTeamSummary: "研究员负责检索，分析员负责整理。",
+    });
+    await render();
+
+    await act(async () => {
+      await getValue().handleServiceSkillLaunch(createBrowserServiceSkill(), {
+        repository_query: "browser assist mcp",
+      });
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialAutoSendRequestMetadata: {
+          harness: expect.objectContaining({
+            service_skill_launch: expect.objectContaining({
+              adapter_name: "github/search",
+            }),
+            preferred_team_preset_id: "research-duo",
+            selected_team_id: "team-research-duo",
+            selected_team_source: "builtin",
+            selected_team_label: "研究双人组",
+            selected_team_description: "负责检索和整理结果。",
+            selected_team_summary: "研究员负责检索，分析员负责整理。",
+            selected_team_roles: [
+              expect.objectContaining({
+                id: "researcher",
+                label: "研究员",
+              }),
+              expect.objectContaining({
+                id: "analyst",
+                label: "分析员",
+                role_key: "analyst",
+              }),
+            ],
+          }),
+        },
+      }),
+    );
+  });
+
   it("站点型技能次级动作才应跳到浏览器工作台", async () => {
     const onNavigate = vi.fn();
     const recordServiceSkillUsage = vi.fn();
@@ -555,6 +625,60 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       {
         id: "toast-loading",
       },
+    );
+  });
+
+  it("普通技能进入工作区时应在保留 seed metadata 的同时注入当前 Team", async () => {
+    const onNavigate = vi.fn();
+    const { render, getValue } = renderHook({
+      onNavigate,
+      recordServiceSkillUsage: vi.fn(),
+      preferredTeamPresetId: "research-duo",
+      selectedTeam: DEFAULT_SELECTED_TEAM,
+      selectedTeamLabel: "研究双人组",
+      selectedTeamSummary: "研究员负责检索，分析员负责整理。",
+    });
+    await render();
+
+    await act(async () => {
+      await getValue().handleServiceSkillLaunch(createScheduledServiceSkill(), {
+        platform: "x",
+        industry_keywords: "AI Agent",
+        schedule_time: "每天 09:00",
+      });
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        theme: "social-media",
+        initialRequestMetadata: {
+          artifact: {
+            artifact_mode: "draft",
+            artifact_kind: "analysis",
+            workbench_surface: "right_panel",
+          },
+          harness: expect.objectContaining({
+            preferred_team_preset_id: "research-duo",
+            selected_team_id: "team-research-duo",
+            selected_team_source: "builtin",
+            selected_team_label: "研究双人组",
+            selected_team_description: "负责检索和整理结果。",
+            selected_team_summary: "研究员负责检索，分析员负责整理。",
+            selected_team_roles: [
+              expect.objectContaining({
+                id: "researcher",
+                label: "研究员",
+              }),
+              expect.objectContaining({
+                id: "analyst",
+                label: "分析员",
+                role_key: "analyst",
+              }),
+            ],
+          }),
+        },
+      }),
     );
   });
 

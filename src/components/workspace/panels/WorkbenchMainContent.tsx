@@ -12,9 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import type { Page, PageParams, WorkspaceTheme, WorkspaceViewMode } from "@/types/page";
 import type {
-  NovelQuickCreateOptions,
-  NovelQuickCreateResult,
-  OpenProjectWritingOptions,
   ThemeWorkspaceNotice,
   ThemeWorkspaceNavigationItem,
   ThemeWorkspaceRendererProps,
@@ -94,13 +91,6 @@ export interface WorkbenchMainContentProps {
   onOpenCreateProjectDialog: () => void;
   onOpenCreateContentDialog: () => void;
   onEnterWorkspaceView: (view: ThemeWorkspaceView) => void;
-  onQuickCreateNovelEntry?: (
-    options: NovelQuickCreateOptions,
-  ) => Promise<NovelQuickCreateResult>;
-  onOpenProjectWriting?: (
-    projectId: string,
-    options?: OpenProjectWritingOptions,
-  ) => Promise<string>;
   activeWorkspaceView: ThemeWorkspaceView;
   primaryWorkspaceRenderer?: ThemeWorkspaceRenderer;
   selectedContentId: string | null;
@@ -114,7 +104,7 @@ export interface WorkbenchMainContentProps {
   onSubmitCreateConfirmation?: (formData: A2UIFormData) => Promise<void> | void;
   onCancelCreateConfirmation?: () => void;
   onConsumePendingInitialPrompt: (contentId: string) => void;
-  contentCreationModes: Record<string, CreationMode>;
+  creationModes: Record<string, CreationMode>;
   showChatPanel: boolean;
   showCreateContentEntryHome: boolean;
   onWorkflowProgressChange: (progress: WorkflowProgressSnapshot | null) => void;
@@ -131,8 +121,6 @@ export function WorkbenchMainContent({
   onOpenCreateProjectDialog,
   onOpenCreateContentDialog,
   onEnterWorkspaceView,
-  onQuickCreateNovelEntry,
-  onOpenProjectWriting,
   activeWorkspaceView,
   primaryWorkspaceRenderer: PrimaryWorkspaceRenderer,
   selectedContentId,
@@ -146,7 +134,7 @@ export function WorkbenchMainContent({
   onSubmitCreateConfirmation,
   onCancelCreateConfirmation,
   onConsumePendingInitialPrompt,
-  contentCreationModes,
+  creationModes,
   showChatPanel,
   showCreateContentEntryHome,
   onWorkflowProgressChange,
@@ -296,13 +284,10 @@ export function WorkbenchMainContent({
     );
   }
 
-  // 如果有 PrimaryWorkspaceRenderer 且在 create 视图，优先渲染自定义首页
-  const isNovelHomeRenderer =
-    Boolean(onQuickCreateNovelEntry) || Boolean(onOpenProjectWriting);
+  // 如果有 PrimaryWorkspaceRenderer 且在 create 视图，优先渲染主题自定义首页
   const shouldRenderPrimaryWorkspace =
     activeWorkspaceView === "create" &&
-    PrimaryWorkspaceRenderer &&
-    (!isNovelHomeRenderer || !selectedContentId);
+    PrimaryWorkspaceRenderer;
 
   if (shouldRenderPrimaryWorkspace) {
     return (
@@ -321,8 +306,6 @@ export function WorkbenchMainContent({
             onNavigate(theme as any, Object.fromEntries(url.searchParams));
           }
         }}
-        onQuickCreateNovelEntry={onQuickCreateNovelEntry}
-        onOpenProjectWriting={onOpenProjectWriting}
       />
     );
   }
@@ -393,7 +376,7 @@ export function WorkbenchMainContent({
               onConsumePendingInitialPrompt(selectedContentId);
             }}
             initialCreationMode={
-              (selectedContentId && contentCreationModes[selectedContentId]) || undefined
+              (selectedContentId && creationModes[selectedContentId]) || undefined
             }
             lockTheme={true}
             topBarChrome="workspace-compact"

@@ -51,6 +51,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   selectedTeamLabel: TeamWorkbenchParams["selectedTeamLabel"];
   selectedTeamSummary: TeamWorkbenchParams["selectedTeamSummary"];
   teamDispatchPreviewState: TeamWorkbenchParams["teamDispatchPreviewState"];
+  teamMemorySnapshot: GeneralWorkbenchDialogParams["teamMemorySnapshot"];
   teamSessionRuntime: TeamSessionRuntime;
   teamSessionControlRuntime: TeamSessionControlRuntime;
   handleOpenSubagentSession: TeamWorkbenchParams["onOpenSubagentSession"];
@@ -141,6 +142,7 @@ export function useWorkspaceInputbarSceneRuntime({
   selectedTeamLabel,
   selectedTeamSummary,
   teamDispatchPreviewState,
+  teamMemorySnapshot,
   teamSessionRuntime,
   teamSessionControlRuntime,
   handleOpenSubagentSession,
@@ -338,6 +340,7 @@ export function useWorkspaceInputbarSceneRuntime({
         selectedTeamLabel,
         selectedTeamSummary,
         selectedTeamRoles: selectedTeam?.roles,
+        teamMemorySnapshot,
         threadRead,
         turns,
         threadItems,

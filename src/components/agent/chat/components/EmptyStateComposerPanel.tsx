@@ -2,10 +2,8 @@ import React, { useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   BrainCircuit,
-  ChevronDown,
   Globe,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -14,11 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { TeamSuggestionBar } from "./TeamSuggestionBar";
 import { CharacterMention } from "./Inputbar/components/CharacterMention";
@@ -60,40 +53,6 @@ import {
   type SkillSelectionProps,
 } from "./Inputbar/components/skillSelectionBindings";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
-
-const ColorDot = styled.div<{ $color: string }>`
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background-color: ${(props) => props.$color};
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) inset;
-`;
-
-const GridSelect = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  padding: 8px;
-`;
-
-const GridItem = styled.div<{ $active?: boolean }>`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid
-    ${(props) => (props.$active ? "rgba(148, 163, 184, 0.82)" : "transparent")};
-  background-color: ${(props) =>
-    props.$active ? "rgba(241, 245, 249, 0.96)" : "rgba(248, 250, 252, 0.92)"};
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.96);
-  }
-`;
 
 const EntryTaskContainer = styled.div`
   display: flex;
@@ -211,14 +170,6 @@ interface EmptyStateComposerPanelProps {
   setPlatform: (value: string) => void;
   depth: string;
   setDepth: (value: string) => void;
-  ratio: string;
-  setRatio: (value: string) => void;
-  style: string;
-  setStyle: (value: string) => void;
-  ratioPopoverOpen: boolean;
-  setRatioPopoverOpen: (open: boolean) => void;
-  stylePopoverOpen: boolean;
-  setStylePopoverOpen: (open: boolean) => void;
   thinkingEnabled: boolean;
   onThinkingEnabledChange?: (enabled: boolean) => void;
   subagentEnabled: boolean;
@@ -272,14 +223,6 @@ export function EmptyStateComposerPanel({
   setPlatform,
   depth,
   setDepth,
-  ratio,
-  setRatio,
-  style,
-  setStyle,
-  ratioPopoverOpen,
-  setRatioPopoverOpen,
-  stylePopoverOpen,
-  setStylePopoverOpen,
   thinkingEnabled,
   onThinkingEnabledChange,
   subagentEnabled,
@@ -460,8 +403,7 @@ export function EmptyStateComposerPanel({
     activeTheme === "social-media" ||
     showCreationModeSelector ||
     activeTheme === "knowledge" ||
-    activeTheme === "planning" ||
-    activeTheme === "poster";
+    activeTheme === "planning";
   const shouldShowModelExtra = Boolean(providerType?.trim() && model?.trim());
   const shouldShowLeftExtra =
     isGeneralTheme ||
@@ -605,107 +547,6 @@ export function EmptyStateComposerPanel({
           <Globe className="mr-1 h-3.5 w-3.5" />
           旅行/职业/活动
         </Badge>
-      ) : null}
-
-      {activeTheme === "poster" ? (
-        <>
-          <Popover
-            open={ratioPopoverOpen}
-            onOpenChange={(open) => {
-              setRatioPopoverOpen(open);
-              if (open) setStylePopoverOpen(false);
-            }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`${EMPTY_STATE_SELECT_TRIGGER_CLASSNAME} text-xs font-normal`}
-              >
-                <div className="mr-2 flex h-3.5 w-3.5 items-center justify-center rounded-[2px] border border-current text-[6px]">
-                  3:4
-                </div>
-                {ratio}
-                <ChevronDown className="ml-1 h-3 w-3 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-64 rounded-[20px] border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-950/10"
-              align="start"
-              side="top"
-            >
-              <div className="mb-2 px-2 text-xs font-medium text-slate-500">
-                宽高比
-              </div>
-              <GridSelect>
-                {["1:1", "3:4", "4:3", "9:16", "16:9", "21:9"].map((item) => (
-                  <GridItem
-                    key={item}
-                    $active={ratio === item}
-                    onClick={() => {
-                      setRatio(item);
-                      setRatioPopoverOpen(false);
-                    }}
-                  >
-                    <div className="mb-1 h-5 w-5 rounded-sm border-2 border-current opacity-50"></div>
-                    <span className="text-xs">{item}</span>
-                  </GridItem>
-                ))}
-              </GridSelect>
-            </PopoverContent>
-          </Popover>
-
-          <Popover
-            open={stylePopoverOpen}
-            onOpenChange={(open) => {
-              setStylePopoverOpen(open);
-              if (open) setRatioPopoverOpen(false);
-            }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={`${EMPTY_STATE_SELECT_TRIGGER_CLASSNAME} text-xs font-normal`}
-              >
-                <ColorDot $color="#3b82f6" className="mr-2" />
-                {style === "minimal"
-                  ? "极简风格"
-                  : style === "tech"
-                    ? "科技质感"
-                    : "温暖治愈"}
-                <ChevronDown className="ml-1 h-3 w-3 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-48 rounded-[18px] border border-slate-200/80 bg-white p-1 shadow-lg shadow-slate-950/10"
-              align="start"
-              side="top"
-            >
-              <div className="p-1">
-                {[
-                  ["minimal", "#e2e8f0", "极简风格"],
-                  ["tech", "#3b82f6", "科技质感"],
-                  ["warm", "#f59e0b", "温暖治愈"],
-                ].map(([value, color, label]) => (
-                  <Button
-                    key={value}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-full justify-start"
-                    onClick={() => {
-                      setStyle(value);
-                      setStylePopoverOpen(false);
-                    }}
-                  >
-                    <ColorDot $color={color} className="mr-2" />
-                    {label}
-                  </Button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </>
       ) : null}
     </>
   ) : undefined;

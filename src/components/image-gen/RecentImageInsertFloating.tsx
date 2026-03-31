@@ -156,10 +156,6 @@ const LocateButton = styled.button`
 const CANVAS_LABEL_MAP: Record<CanvasImageTargetType, string> = {
   auto: "当前画布",
   document: "文档",
-  novel: "小说",
-  script: "剧本",
-  music: "音乐",
-  poster: "海报",
   video: "视频",
 };
 

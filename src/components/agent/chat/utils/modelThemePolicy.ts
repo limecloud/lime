@@ -100,8 +100,6 @@ const CHAT_THEME_IDS = new Set([
   "social-media",
   "document",
   "video",
-  "music",
-  "novel",
 ]);
 
 export function filterModelsByTheme(
@@ -118,80 +116,61 @@ export function filterModelsByTheme(
     };
   }
 
-  if (normalizedTheme !== "poster") {
-    if (normalizedTheme === "knowledge" || normalizedTheme === "planning") {
-      const reasoningModels = models.filter(
-        (model) => looksLikeChatModel(model) && model.capabilities.reasoning,
-      );
+  if (normalizedTheme === "knowledge" || normalizedTheme === "planning") {
+    const reasoningModels = models.filter(
+      (model) => looksLikeChatModel(model) && model.capabilities.reasoning,
+    );
 
-      if (reasoningModels.length > 0) {
-        return {
-          models: reasoningModels,
-          usedFallback: false,
-          filteredOutCount: models.length - reasoningModels.length,
-          policyName: "reasoning-priority",
-        };
-      }
-
-      const chatModels = models.filter(looksLikeChatModel);
-      if (chatModels.length > 0) {
-        return {
-          models: chatModels,
-          usedFallback: false,
-          filteredOutCount: models.length - chatModels.length,
-          policyName: "chat-fallback",
-        };
-      }
-
+    if (reasoningModels.length > 0) {
       return {
-        models,
-        usedFallback: true,
-        filteredOutCount: 0,
-        policyName: "fallback-all",
+        models: reasoningModels,
+        usedFallback: false,
+        filteredOutCount: models.length - reasoningModels.length,
+        policyName: "reasoning-priority",
       };
     }
 
-    if (CHAT_THEME_IDS.has(normalizedTheme)) {
-      const chatModels = models.filter(looksLikeChatModel);
-      if (chatModels.length > 0) {
-        return {
-          models: chatModels,
-          usedFallback: false,
-          filteredOutCount: models.length - chatModels.length,
-          policyName: "chat-only",
-        };
-      }
-
+    const chatModels = models.filter(looksLikeChatModel);
+    if (chatModels.length > 0) {
       return {
-        models,
-        usedFallback: true,
-        filteredOutCount: 0,
-        policyName: "fallback-all",
+        models: chatModels,
+        usedFallback: false,
+        filteredOutCount: models.length - chatModels.length,
+        policyName: "chat-fallback",
       };
     }
 
     return {
       models,
-      usedFallback: false,
+      usedFallback: true,
       filteredOutCount: 0,
-      policyName: "none",
+      policyName: "fallback-all",
     };
   }
 
-  const filteredModels = models.filter(looksLikeImageGenerationModel);
-  if (filteredModels.length === 0) {
+  if (CHAT_THEME_IDS.has(normalizedTheme)) {
+    const chatModels = models.filter(looksLikeChatModel);
+    if (chatModels.length > 0) {
+      return {
+        models: chatModels,
+        usedFallback: false,
+        filteredOutCount: models.length - chatModels.length,
+        policyName: "chat-only",
+      };
+    }
+
     return {
       models,
-      usedFallback: models.length > 0,
+      usedFallback: true,
       filteredOutCount: 0,
       policyName: "fallback-all",
     };
   }
 
   return {
-    models: filteredModels,
+    models,
     usedFallback: false,
-    filteredOutCount: models.length - filteredModels.length,
-    policyName: "image-only",
+    filteredOutCount: 0,
+    policyName: "none",
   };
 }

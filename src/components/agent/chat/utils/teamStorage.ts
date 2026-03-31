@@ -19,6 +19,7 @@ type TeamSelectionLike = Pick<TeamSelectionReference, "id" | "source">;
 interface ResolveSelectedTeamPreferenceOptions {
   theme?: string | null;
   workspaceSettings?: WorkspaceSettings | null;
+  allowPersistedThemeFallback?: boolean;
 }
 
 type WorkspaceTeamPreferenceState =
@@ -298,6 +299,7 @@ export function resolvePersistedSelectedTeam(
 export function resolveSelectedTeamPreference({
   theme,
   workspaceSettings,
+  allowPersistedThemeFallback = true,
 }: ResolveSelectedTeamPreferenceOptions): TeamDefinition | null {
   const workspaceState = resolveWorkspaceTeamPreferenceState(workspaceSettings);
   const workspaceCustomTeams = loadCustomTeamsFromWorkspaceSettings(workspaceSettings);
@@ -310,6 +312,10 @@ export function resolveSelectedTeamPreference({
       workspaceState.selection,
       workspaceCustomTeams || undefined,
     );
+  }
+
+  if (!allowPersistedThemeFallback) {
+    return null;
   }
 
   return resolvePersistedSelectedTeam(theme);

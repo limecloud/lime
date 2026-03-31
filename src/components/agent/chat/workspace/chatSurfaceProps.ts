@@ -18,7 +18,7 @@ type ChatToolPreferenceKey = keyof ChatToolPreferences;
 
 interface BuildStepProgressPropsParams {
   hidden: boolean;
-  isContentCreationMode: boolean;
+  isSpecializedThemeMode: boolean;
   hasMessages: boolean;
   steps: ComponentProps<typeof StepProgress>["steps"];
   currentIndex: ComponentProps<typeof StepProgress>["currentIndex"];
@@ -27,13 +27,13 @@ interface BuildStepProgressPropsParams {
 
 export function buildStepProgressProps({
   hidden,
-  isContentCreationMode,
+  isSpecializedThemeMode,
   hasMessages,
   steps,
   currentIndex,
   onStepClick,
 }: BuildStepProgressPropsParams): ComponentProps<typeof StepProgress> | null {
-  if (hidden || !isContentCreationMode || !hasMessages || steps.length === 0) {
+  if (hidden || !isSpecializedThemeMode || !hasMessages || steps.length === 0) {
     return null;
   }
 
@@ -266,7 +266,6 @@ interface BuildWorkspaceNavbarPropsParams {
   >["contextCompactionRunning"];
   onCompactContext?: ComponentProps<typeof ChatNavbar>["onCompactContext"];
   onOpenSettings?: () => void;
-  novelCanvasControls?: ComponentProps<typeof ChatNavbar>["novelCanvasControls"];
 }
 
 export function buildWorkspaceNavbarProps({
@@ -300,7 +299,6 @@ export function buildWorkspaceNavbarProps({
   contextCompactionRunning,
   onCompactContext,
   onOpenSettings,
-  novelCanvasControls,
 }: BuildWorkspaceNavbarPropsParams): ComponentProps<typeof ChatNavbar> | null {
   if (!visible) {
     return null;
@@ -341,7 +339,6 @@ export function buildWorkspaceNavbarProps({
     contextCompactionRunning,
     onCompactContext,
     onToggleSettings: onOpenSettings,
-    novelCanvasControls,
   };
 }
 

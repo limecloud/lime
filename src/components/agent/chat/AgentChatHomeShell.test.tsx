@@ -6,6 +6,10 @@ import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import { AgentChatHomeShell } from "./AgentChatHomeShell";
 import { SettingsTabs } from "@/types/settings";
+import {
+  readTeamMemorySnapshot,
+  writeTeamMemorySnapshot,
+} from "@/lib/teamMemorySync";
 
 const {
   mockBuildClawAgentParams,
@@ -15,6 +19,7 @@ const {
   mockHomeShellModel,
   mockHomeShellProviderType,
   mockHomeShellRecentExecutionRuntime,
+  mockGetProject,
   mockListProjects,
   mockSetExecutionStrategy,
   mockSetModel,
@@ -255,6 +260,18 @@ const {
     mockHomeShellModel: { current: "mock-model" },
     mockHomeShellExecutionStrategy: { current: "react" },
     mockHomeShellRecentExecutionRuntime: { current: null as unknown },
+    mockGetProject: vi.fn(async (projectId: string) => ({
+      id: projectId,
+      name: `项目 ${projectId}`,
+      workspaceType: "general",
+      rootPath: `/tmp/${projectId}`,
+      isDefault: false,
+      createdAt: 0,
+      updatedAt: 0,
+      isFavorite: false,
+      isArchived: false,
+      tags: [],
+    })),
     mockListProjects: vi.fn(async () => [
       {
         id: "project-1",
@@ -334,6 +351,8 @@ vi.mock("./components/EmptyState", () => ({
     supportingSlotOverride,
     serviceSkills,
     onSelectServiceSkill,
+    onSelectTeam,
+    selectedTeam,
   }: {
     onSend: (
       value: string,
@@ -345,8 +364,23 @@ vi.mock("./components/EmptyState", () => ({
     supportingSlotOverride?: React.ReactNode;
     serviceSkills?: Array<{ id: string; title: string }>;
     onSelectServiceSkill?: (skill: { id: string; title: string }) => void;
+    onSelectTeam?: (team: {
+      id: string;
+      source: string;
+      label: string;
+      description?: string;
+      roles?: Array<{
+        id: string;
+        label: string;
+        summary?: string;
+      }>;
+    }) => void;
+    selectedTeam?: { label?: string | null } | null;
   }) => (
     <>
+      <div data-testid="home-shell-selected-team">
+        {selectedTeam?.label || "none"}
+      </div>
       <button
         type="button"
         data-testid="home-shell-send"
@@ -375,6 +409,29 @@ vi.mock("./components/EmptyState", () => ({
       >
         Team 推荐
       </button>
+      {onSelectTeam ? (
+        <button
+          type="button"
+          data-testid="home-shell-select-team"
+          onClick={() =>
+            onSelectTeam({
+              id: "home-shell-custom-team",
+              source: "custom",
+              label: "首页协作团队",
+              description: "负责首页入口阶段的调研、执行与验证。",
+              roles: [
+                {
+                  id: "researcher",
+                  label: "研究",
+                  summary: "负责调研与线索整理。",
+                },
+              ],
+            })
+          }
+        >
+          选择 Team
+        </button>
+      ) : null}
       {onLaunchBrowserAssist ? (
         <button
           type="button"
@@ -492,6 +549,7 @@ vi.mock("@/lib/api/project", () => ({
         return "document";
     }
   }),
+  getProject: mockGetProject,
   listProjects: mockListProjects,
 }));
 
@@ -754,6 +812,7 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  localStorage.clear();
   mockHomeShellProviderType.current = "mock-provider";
   mockHomeShellModel.current = "mock-model";
   mockHomeShellExecutionStrategy.current = "react";
@@ -831,6 +890,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  localStorage.clear();
   while (mountedRoots.length > 0) {
     const mounted = mountedRoots.pop();
     if (!mounted) {
@@ -1093,6 +1153,140 @@ describe("AgentChatHomeShell", () => {
       expect.objectContaining({
         projectId: "project-1",
         theme: "general",
+      }),
+    );
+  });
+
+  it("首页壳应优先按当前项目的 shadow snapshot 恢复 Team", async () => {
+    localStorage.clear();
+    writeTeamMemorySnapshot(localStorage, {
+      repoScope: "/tmp/project-1",
+      entries: {
+        "team.selection": {
+          key: "team.selection",
+          content: [
+            "主题：general",
+            "会话：session-shadow",
+            "Team：研究协作团队",
+            "来源：custom",
+            "说明：负责调研、归纳与验证。",
+            "角色：",
+            "- 研究：负责调研与信息归纳。",
+          ].join("\n"),
+          updatedAt: Date.now(),
+        },
+      },
+    });
+
+    const { container } = renderShell();
+
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="home-shell-selected-team"]')
+        ?.textContent,
+    ).toBe("研究协作团队");
+  });
+
+  it("首页壳首次进入新项目时不应回退到全局 theme localStorage Team", async () => {
+    localStorage.clear();
+    localStorage.setItem(
+      "lime.chat.team_selection.v1.general",
+      JSON.stringify({
+        id: "research-team",
+        source: "builtin",
+      }),
+    );
+
+    const { container } = renderShell();
+
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="home-shell-selected-team"]')
+        ?.textContent,
+    ).toBe("none");
+  });
+
+  it("首页手动切换 Team 后应写回当前项目的 shadow snapshot", async () => {
+    localStorage.clear();
+    const { container } = renderShell();
+
+    await flushEffects();
+
+    const selectTeamButton = container.querySelector(
+      '[data-testid="home-shell-select-team"]',
+    ) as HTMLButtonElement | null;
+
+    expect(selectTeamButton).toBeTruthy();
+
+    act(() => {
+      selectTeamButton?.click();
+    });
+
+    await flushEffects();
+
+    const snapshot = readTeamMemorySnapshot(localStorage, "/tmp/project-1");
+    expect(
+      snapshot?.entries["team.selection"]?.content.includes("Team：首页协作团队"),
+    ).toBe(true);
+    expect(
+      container.querySelector('[data-testid="home-shell-selected-team"]')
+        ?.textContent,
+    ).toBe("首页协作团队");
+  });
+
+  it("首页进入自动执行链路时应把当前 Team 注入初始 metadata", async () => {
+    localStorage.clear();
+    writeTeamMemorySnapshot(localStorage, {
+      repoScope: "/tmp/project-1",
+      entries: {
+        "team.selection": {
+          key: "team.selection",
+          content: [
+            "主题：general",
+            "会话：session-shadow",
+            "Team：研究协作团队",
+            "来源：custom",
+            "说明：负责调研、归纳与验证。",
+            "角色：",
+            "- 研究：负责调研与信息归纳。",
+          ].join("\n"),
+          updatedAt: Date.now(),
+        },
+      },
+    });
+    const onNavigate = vi.fn();
+    const { container } = renderShell({
+      onNavigate,
+      onEnterWorkspace: vi.fn(),
+    });
+
+    await flushEffects();
+
+    const sendButton = container.querySelector(
+      '[data-testid="home-shell-send-github-site-skill"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialAutoSendRequestMetadata: {
+          harness: expect.objectContaining({
+            selected_team_label: "研究协作团队",
+            selected_team_source: "custom",
+            selected_team_summary: expect.stringContaining(
+              "负责调研、归纳与验证。",
+            ),
+          }),
+        },
       }),
     );
   });

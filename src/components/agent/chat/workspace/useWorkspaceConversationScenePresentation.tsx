@@ -16,16 +16,12 @@ type WorkspaceConversationSceneProps = ComponentProps<
 type CanvasWorkbenchLayoutProps = NonNullable<
   WorkspaceConversationSceneProps["canvasWorkbenchLayoutProps"]
 >;
-type NovelCanvasControls = NonNullable<
-  WorkspaceConversationSceneProps["novelCanvasControls"]
->;
 
 interface UseWorkspaceConversationScenePresentationParams {
   scene: Omit<
     WorkspaceConversationSceneProps,
     | "workspaceAlertVisible"
     | "projectId"
-    | "novelCanvasControls"
     | "canvasWorkbenchLayoutProps"
     | "stepProgressProps"
     | "messageListProps"
@@ -35,7 +31,7 @@ interface UseWorkspaceConversationScenePresentationParams {
   };
   stepProgress: {
     hidden: boolean;
-    isContentCreationMode: boolean;
+    isSpecializedThemeMode: boolean;
     hasMessages: boolean;
     steps: ComponentProps<typeof StepProgress>["steps"];
     currentIndex: ComponentProps<typeof StepProgress>["currentIndex"];
@@ -56,13 +52,6 @@ interface UseWorkspaceConversationScenePresentationParams {
     workspacePathMissing: boolean;
     workspaceHealthError: boolean;
   };
-  novelCanvas: {
-    visible: boolean;
-    chapterListCollapsed: NovelCanvasControls["chapterListCollapsed"];
-    onToggleChapterList: NovelCanvasControls["onToggleChapterList"];
-    onAddChapter: NovelCanvasControls["onAddChapter"];
-    onCloseCanvas: NovelCanvasControls["onCloseCanvas"];
-  };
   canvasWorkbenchLayout: Omit<CanvasWorkbenchLayoutProps, "workspaceUnavailable">;
 }
 
@@ -77,7 +66,6 @@ export function useWorkspaceConversationScenePresentation({
   messageList,
   teamWorkspaceDock,
   workspaceAlert,
-  novelCanvas,
   canvasWorkbenchLayout,
 }: UseWorkspaceConversationScenePresentationParams): WorkspaceConversationScenePresentationResult {
   const stepProgressProps = buildStepProgressProps(stepProgress);
@@ -86,15 +74,6 @@ export function useWorkspaceConversationScenePresentation({
   const workspaceAlertVisible = Boolean(
     workspaceAlert.workspacePathMissing || workspaceAlert.workspaceHealthError,
   );
-
-  const novelCanvasControls = novelCanvas.visible
-    ? {
-        chapterListCollapsed: novelCanvas.chapterListCollapsed,
-        onToggleChapterList: novelCanvas.onToggleChapterList,
-        onAddChapter: novelCanvas.onAddChapter,
-        onCloseCanvas: novelCanvas.onCloseCanvas,
-      }
-    : null;
 
   const canvasWorkbenchLayoutProps: CanvasWorkbenchLayoutProps = {
     ...canvasWorkbenchLayout,
@@ -111,7 +90,6 @@ export function useWorkspaceConversationScenePresentation({
         teamWorkspaceDockProps={teamWorkspaceDockProps}
         workspaceAlertVisible={workspaceAlertVisible}
         projectId={scene.projectId ?? null}
-        novelCanvasControls={novelCanvasControls}
         canvasWorkbenchLayoutProps={canvasWorkbenchLayoutProps}
       />
     ),

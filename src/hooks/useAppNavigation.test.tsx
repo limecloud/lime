@@ -68,7 +68,7 @@ describe("useAppNavigation", () => {
   it("projects 跳转应复用保存的主题工作台页", async () => {
     window.localStorage.setItem(
       LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
-      "workspace-poster",
+      "workspace-document",
     );
     await renderProbe();
 
@@ -78,7 +78,7 @@ describe("useAppNavigation", () => {
       });
     });
 
-    expect(latestNavigation?.currentPage).toBe("workspace-poster");
+    expect(latestNavigation?.currentPage).toBe("workspace-document");
     expect(latestNavigation?.pageParams).toEqual({
       projectId: "project-1",
       workspaceViewMode: "project-management",
@@ -91,11 +91,11 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation?.handleNavigate("project-detail", {
         projectId: "project-2",
-        workspaceTheme: "music",
+        workspaceTheme: "video",
       });
     });
 
-    expect(latestNavigation?.currentPage).toBe("workspace-music");
+    expect(latestNavigation?.currentPage).toBe("workspace-video");
     expect(latestNavigation?.pageParams).toEqual({
       projectId: "project-2",
       workspaceViewMode: "workspace",

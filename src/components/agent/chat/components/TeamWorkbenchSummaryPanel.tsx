@@ -3,6 +3,7 @@ import type {
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,
 } from "@/lib/api/agentRuntime";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import { cn } from "@/lib/utils";
 import type {
   TeamWorkspaceActivityEntry,
@@ -17,6 +18,7 @@ import {
   summarizeTeamWorkspaceExecution,
 } from "../teamWorkspaceRuntime";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
+import { TeamMemoryShadowCard } from "./TeamMemoryShadowCard";
 
 interface TeamWorkbenchSummaryPanelProps {
   currentSessionId?: string | null;
@@ -33,6 +35,7 @@ interface TeamWorkbenchSummaryPanelProps {
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
   teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
 }
 
 function buildOperationSummary(params: {
@@ -76,6 +79,7 @@ export function TeamWorkbenchSummaryPanel({
   selectedTeamSummary,
   selectedTeamRoles = [],
   teamDispatchPreviewState = null,
+  teamMemorySnapshot = null,
 }: TeamWorkbenchSummaryPanelProps) {
   const dispatchPreviewState = teamDispatchPreviewState;
   const executionSummary = summarizeTeamWorkspaceExecution({
@@ -221,6 +225,10 @@ export function TeamWorkbenchSummaryPanel({
           </div>
         ) : null}
       </section>
+
+      {teamMemorySnapshot ? (
+        <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2">
         {summaryCards.map((card) => (

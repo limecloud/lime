@@ -94,11 +94,6 @@ const PROJECT_TAB_CONFIG: Record<ProjectType, TabConfig[]> = {
     { value: "contents", label: "帖子", icon: MessageSquare },
     { value: "assets", label: "素材", icon: Image },
   ],
-  poster: [
-    { value: "contents", label: "设计", icon: Image },
-    { value: "assets", label: "素材", icon: Image },
-  ],
-  music: [{ value: "contents", label: "歌曲", icon: FileEdit }],
   knowledge: [{ value: "contents", label: "笔记", icon: FileText }],
   planning: [
     { value: "contents", label: "计划", icon: FileEdit },
@@ -112,12 +107,6 @@ const PROJECT_TAB_CONFIG: Record<ProjectType, TabConfig[]> = {
     { value: "characters", label: "角色", icon: Users },
     { value: "scenes", label: "场景", icon: MapPin },
     { value: "storyboard", label: "分镜", icon: LayoutGrid },
-    { value: "outline", label: "大纲", icon: List },
-  ],
-  novel: [
-    { value: "contents", label: "章节", icon: FileEdit },
-    { value: "characters", label: "角色", icon: Users },
-    { value: "world", label: "世界观", icon: Globe },
     { value: "outline", label: "大纲", icon: List },
   ],
 };

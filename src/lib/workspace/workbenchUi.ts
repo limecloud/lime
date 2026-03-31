@@ -7,13 +7,13 @@
 export {
   CanvasBreadcrumbHeader,
   type CanvasBreadcrumbHeaderProps,
-} from "@/components/content-creator/canvas/shared/CanvasBreadcrumbHeader";
+} from "@/components/workspace/canvas/shared/CanvasBreadcrumbHeader";
 
 export {
   ImageGallery,
   type ImageGalleryProps,
-} from "@/components/content-creator/material/ImageGallery";
+} from "@/components/workspace/media/ImageGallery";
 
-export { LayoutTransition } from "@/components/content-creator/core/LayoutTransition/LayoutTransition";
+export { LayoutTransition } from "@/components/workspace/layout/LayoutTransition";
 
-export { StepProgress } from "@/components/content-creator/core/StepGuide/StepProgress";
+export { StepProgress } from "@/components/workspace/layout/StepProgress";

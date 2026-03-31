@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::aster_agent_cmd::action_runtime::build_runtime_action_scope;
+    use crate::commands::aster_agent_cmd::action_runtime::{
+        build_runtime_action_scope, build_runtime_action_session_config,
+    };
     use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
     use crate::services::site_capability_service::{
         RunSiteAdapterRequest, SiteAdapterDefinition, SiteAdapterRunResult,
@@ -317,7 +319,7 @@ mod tests {
             RuntimeChatMode::Agent
         ));
         assert!(!default_web_search_enabled_for_chat_mode(
-            RuntimeChatMode::Creator
+            RuntimeChatMode::Workbench
         ));
         assert!(!default_web_search_enabled_for_chat_mode(
             RuntimeChatMode::General
@@ -970,6 +972,39 @@ mod tests {
     }
 
     #[test]
+    fn test_build_runtime_action_session_config_injects_auto_compact_override() {
+        let session_config = build_runtime_action_session_config(
+            "session-1",
+            None,
+            &lime_core::workspace::WorkspaceSettings {
+                auto_compact: false,
+                ..lime_core::workspace::WorkspaceSettings::default()
+            },
+        );
+
+        assert_eq!(
+            session_config
+                .turn_context
+                .as_ref()
+                .and_then(|context| context.metadata.get("lime_runtime"))
+                .and_then(|value| value.get("auto_compact"))
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_build_runtime_action_session_config_keeps_auto_compact_enabled_default() {
+        let session_config = build_runtime_action_session_config(
+            "session-1",
+            None,
+            &lime_core::workspace::WorkspaceSettings::default(),
+        );
+
+        assert!(session_config.turn_context.is_none());
+    }
+
+    #[test]
     fn test_build_runtime_action_scope_ignores_blank_values() {
         let request = AgentRuntimeRespondActionRequest {
             session_id: "session-1".to_string(),
@@ -1457,6 +1492,74 @@ mod tests {
     }
 
     #[test]
+    fn test_build_chat_run_metadata_base_flattens_team_memory_shadow() {
+        let metadata = build_chat_run_metadata_base(
+            &AsterChatRequest {
+                message: "hello".to_string(),
+                session_id: "session-team-shadow".to_string(),
+                event_name: "event-team-shadow".to_string(),
+                images: None,
+                provider_config: None,
+                provider_preference: None,
+                model_preference: None,
+                thinking_enabled: None,
+                approval_policy: None,
+                sandbox_policy: None,
+                project_id: Some("project-1".to_string()),
+                workspace_id: "workspace-1".to_string(),
+                web_search: Some(false),
+                search_mode: None,
+                execution_strategy: Some(AsterExecutionStrategy::React),
+                auto_continue: None,
+                system_prompt: None,
+                metadata: Some(serde_json::json!({
+                    "harness": {
+                        "team_memory_shadow": {
+                            "repo_scope": "/tmp/repo",
+                            "entries": [
+                                {
+                                    "key": "team.selection",
+                                    "content": "Team：前端联调团队",
+                                    "updated_at": 1
+                                }
+                            ]
+                        }
+                    }
+                })),
+                turn_id: None,
+                queue_if_busy: None,
+                queued_turn_id: None,
+            },
+            "workspace-1",
+            AsterExecutionStrategy::React,
+            &RequestToolPolicy {
+                search_mode: RequestToolPolicyMode::Disabled,
+                effective_web_search: false,
+                required_tools: vec![],
+                allowed_tools: vec![],
+                disallowed_tools: vec![],
+            },
+            false,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            metadata.get("team_memory_shadow"),
+            Some(&serde_json::json!({
+                "repo_scope": "/tmp/repo",
+                "entries": [
+                    {
+                        "key": "team.selection",
+                        "content": "Team：前端联调团队",
+                        "updated_at": 1
+                    }
+                ]
+            }))
+        );
+    }
+
+    #[test]
     fn test_build_chat_run_metadata_base_derives_access_mode_from_formal_turn_context() {
         let metadata = build_chat_run_metadata_base(
             &AsterChatRequest {
@@ -1751,7 +1854,7 @@ mod tests {
     #[test]
     fn test_aster_execution_strategy_auto_prefers_react_when_tool_search_explicit() {
         let strategy =
-            AsterExecutionStrategy::Auto.effective_for_message("请先调用 tool_search 再继续");
+            AsterExecutionStrategy::Auto.effective_for_message("请先调用 ToolSearch 再继续");
         assert_eq!(strategy, AsterExecutionStrategy::React);
     }
 
@@ -2367,6 +2470,45 @@ mod tests {
         assert!(prompt.contains("blueprintRoleId"));
         assert!(prompt.contains("主对话需要承担协调职责"));
         assert!(prompt.contains("主动汇总关键进展、风险和下一步"));
+    }
+
+    #[test]
+    fn test_build_team_preference_system_prompt_renders_repo_scoped_team_memory_shadow() {
+        let prompt = build_team_preference_system_prompt(
+            Some(&serde_json::json!({
+                "harness": {
+                    "subagent_mode_enabled": true,
+                    "team_memory_shadow": {
+                        "repo_scope": "/tmp/repo",
+                        "entries": [
+                            {
+                                "key": "team.selection",
+                                "content": "主题：general\nTeam：前端联调团队\n角色：\n- 分析：负责定位问题。",
+                                "updated_at": 1
+                            },
+                            {
+                                "key": "team.subagents",
+                                "content": "会话：session-1\n子代理：\n- 分析 [running] 负责定位问题",
+                                "updated_at": 2
+                            }
+                        ]
+                    }
+                }
+            })),
+            None,
+            true,
+        )
+        .expect("team prompt should exist");
+
+        assert!(prompt.contains("repo-scoped Team 协作记忆"));
+        assert!(prompt.contains("repoScope: /tmp/repo"));
+        assert!(prompt.contains("team.selection / updatedAt: 1"));
+        assert!(
+            prompt.contains("主题：general | Team：前端联调团队 | 角色： | - 分析：负责定位问题。")
+        );
+        assert!(prompt.contains("team.subagents / updatedAt: 2"));
+        assert!(prompt.contains("会话：session-1 | 子代理： | - 分析 [running] 负责定位问题"));
+        assert!(prompt.contains("如与本次显式 selected Team"));
     }
 
     #[test]
@@ -3124,10 +3266,10 @@ mod tests {
                 &context,
             )
             .await
-            .expect("tool_search should succeed");
-        let hidden_output = hidden_result.output.expect("tool_search output");
+            .expect("ToolSearch should succeed");
+        let hidden_output = hidden_result.output.expect("ToolSearch output");
         let hidden_json: serde_json::Value =
-            serde_json::from_str(&hidden_output).expect("parse tool_search output");
+            serde_json::from_str(&hidden_output).expect("parse ToolSearch output");
         assert_eq!(hidden_json["count"], serde_json::json!(0));
 
         let visible_result = tool
@@ -3141,10 +3283,10 @@ mod tests {
                 &context,
             )
             .await
-            .expect("tool_search should succeed");
-        let visible_output = visible_result.output.expect("tool_search output");
+            .expect("ToolSearch should succeed");
+        let visible_output = visible_result.output.expect("ToolSearch output");
         let visible_json: serde_json::Value =
-            serde_json::from_str(&visible_output).expect("parse tool_search output");
+            serde_json::from_str(&visible_output).expect("parse ToolSearch output");
         let tools = visible_json["tools"]
             .as_array()
             .expect("tools should be array");

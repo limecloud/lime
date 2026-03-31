@@ -4,6 +4,8 @@ use super::*;
 mod browser_tools;
 #[path = "tool_runtime/creation_tools.rs"]
 mod creation_tools;
+#[path = "tool_runtime/mcp_resource_tools.rs"]
+mod mcp_resource_tools;
 #[path = "tool_runtime/search_bridge.rs"]
 mod search_bridge;
 #[path = "tool_runtime/site_tools.rs"]
@@ -19,6 +21,9 @@ pub(crate) use browser_tools::ensure_browser_mcp_tools_registered;
 #[allow(unused_imports)]
 pub(crate) use browser_tools::LimeBrowserMcpTool;
 pub(crate) use creation_tools::ensure_creation_task_tools_registered;
+pub(crate) use mcp_resource_tools::ensure_mcp_resource_tools_registered;
+#[allow(unused_imports)]
+pub(crate) use mcp_resource_tools::{ListMcpResourcesBridgeTool, ReadMcpResourceBridgeTool};
 pub(crate) use search_bridge::ensure_tool_search_tool_registered;
 #[allow(unused_imports)]
 pub(crate) use search_bridge::ToolSearchBridgeTool;
@@ -81,7 +86,7 @@ fn sync_workspace_mode_native_tool_surface(
         site_tools::unregister_site_tools_from_registry(registry);
     }
 
-    if surface.creator {
+    if surface.workbench {
         social_tools::register_social_image_tool_to_registry(registry, config_manager);
         creation_tools::register_creation_task_tools_to_registry(
             registry,
@@ -90,8 +95,8 @@ fn sync_workspace_mode_native_tool_surface(
             app_handle,
         );
     } else {
-        let creator_tools = creator_tool_names();
-        unregister_named_tools(registry, &creator_tools);
+        let workbench_tools = workbench_tool_names();
+        unregister_named_tools(registry, &workbench_tools);
     }
 }
 
@@ -126,7 +131,7 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     let lock_service_skill_launch_to_site_tools =
         should_lock_service_skill_launch_to_site_tools(request_metadata);
     let tool_surface = WorkspaceToolSurface {
-        creator: runtime_chat_mode == RuntimeChatMode::Creator,
+        workbench: runtime_chat_mode == RuntimeChatMode::Workbench,
         browser_assist: is_browser_assist_enabled(request_metadata),
     };
     let mut sandboxed_bash_tool: Option<WorkspaceSandboxedBashTool> = None;
@@ -195,7 +200,7 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     workspace_tools::register_workspace_runtime_tools(
         &mut registry,
         task_manager,
-        should_auto_approve_tool_warnings("Task", auto_mode, execution_policy_input),
+        should_auto_approve_tool_warnings("bash", auto_mode, execution_policy_input),
         sandboxed_bash_tool,
     );
 
@@ -222,6 +227,15 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     workspace_tools::wrap_registry_native_tools_for_workspace_runtime(&mut registry);
 
     Ok(apply_outcome)
+}
+
+pub(crate) async fn ensure_runtime_support_tools_registered(
+    state: &AsterAgentState,
+    mcp_manager: &McpManagerState,
+) -> Result<(), String> {
+    ensure_tool_search_tool_registered(state).await?;
+    ensure_mcp_resource_tools_registered(state, mcp_manager).await?;
+    Ok(())
 }
 
 /// 图片输入

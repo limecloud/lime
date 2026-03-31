@@ -26,6 +26,13 @@ function serializePreferenceSource(
   ]);
 }
 
+function areSameChatToolPreferences(
+  left?: ChatToolPreferences | null,
+  right?: ChatToolPreferences | null,
+): boolean {
+  return serializePreferenceSource(left) === serializePreferenceSource(right);
+}
+
 function normalizeThemeScope(theme?: string | null): string {
   return theme?.trim().toLowerCase() || "general";
 }
@@ -140,6 +147,10 @@ export function useThemeScopedChatToolPreferences(
       if (runtimePreferences && currentSessionId) {
         syncedSessionPreferenceRef.current.set(currentSessionId, nextPreferences);
       }
+      if (areSameChatToolPreferences(chatToolPreferencesRef.current, nextPreferences)) {
+        lastHydratedSourceRef.current = nextSourceKey;
+        return;
+      }
       chatToolPreferencesRef.current = nextPreferences;
       setChatToolPreferences(nextPreferences);
       lastHydratedSourceRef.current = nextSourceKey;
@@ -154,6 +165,10 @@ export function useThemeScopedChatToolPreferences(
         typeof nextPreferencesAction === "function"
           ? nextPreferencesAction(previousPreferences)
           : nextPreferencesAction;
+
+      if (areSameChatToolPreferences(previousPreferences, nextPreferences)) {
+        return;
+      }
 
       manualMutationVersionRef.current += 1;
       chatToolPreferencesRef.current = nextPreferences;

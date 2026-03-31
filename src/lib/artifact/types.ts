@@ -12,7 +12,7 @@ import type React from "react";
  * 定义系统支持的所有 Artifact 类型
  *
  * 轻量类型：code, html, svg, mermaid, react
- * Canvas 类型：canvas:document, canvas:poster, canvas:music, canvas:script, canvas:novel
+ * Canvas 类型：canvas:document, canvas:video
  *
  * @requirements 1.1, 1.2
  */
@@ -27,10 +27,7 @@ export type ArtifactType =
   | "browser_assist"
   // Canvas 类型
   | "canvas:document"
-  | "canvas:poster"
-  | "canvas:music"
-  | "canvas:script"
-  | "canvas:novel";
+  | "canvas:video";
 
 /**
  * Artifact 状态枚举
@@ -157,10 +154,7 @@ export const LIGHTWEIGHT_ARTIFACT_TYPES: ArtifactType[] = [
  */
 export const CANVAS_ARTIFACT_TYPES: ArtifactType[] = [
   "canvas:document",
-  "canvas:poster",
-  "canvas:music",
-  "canvas:script",
-  "canvas:novel",
+  "canvas:video",
 ];
 
 /**
@@ -170,6 +164,29 @@ export const ALL_ARTIFACT_TYPES: ArtifactType[] = [
   ...LIGHTWEIGHT_ARTIFACT_TYPES,
   ...CANVAS_ARTIFACT_TYPES,
 ];
+
+const LEGACY_ARTIFACT_TYPE_ALIASES: Record<string, ArtifactType> = {
+  "canvas:poster": "canvas:document",
+  "canvas:music": "canvas:document",
+  "canvas:novel": "canvas:document",
+  "canvas:script": "canvas:video",
+};
+
+export function normalizeArtifactType(type: string): ArtifactType | null {
+  const normalized = type.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const aliased = LEGACY_ARTIFACT_TYPE_ALIASES[normalized];
+  if (aliased) {
+    return aliased;
+  }
+
+  return ALL_ARTIFACT_TYPES.includes(normalized as ArtifactType)
+    ? (normalized as ArtifactType)
+    : null;
+}
 
 /**
  * 检查是否为 Canvas 类型
@@ -201,8 +218,5 @@ export const DEFAULT_FILE_EXTENSIONS: Record<ArtifactType, string> = {
   react: "jsx",
   browser_assist: "txt",
   "canvas:document": "md",
-  "canvas:poster": "json",
-  "canvas:music": "json",
-  "canvas:script": "json",
-  "canvas:novel": "json",
+  "canvas:video": "txt",
 };

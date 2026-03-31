@@ -16,6 +16,11 @@ import {
   type SchedulerProgress,
   type SubAgentTask,
 } from "@/lib/api/subAgentScheduler";
+import {
+  summarizeSubAgentProgress,
+  summarizeSubAgentResult,
+  summarizeSubAgentTaskBatch,
+} from "./subAgentSummary";
 
 export type {
   SchedulerConfig,
@@ -40,6 +45,7 @@ interface UseSubAgentSchedulerState {
   events: SchedulerEvent[];
   result: SchedulerExecutionResult | null;
   error: string | null;
+  summary: string | null;
 }
 
 /**
@@ -60,6 +66,7 @@ const INITIAL_STATE: UseSubAgentSchedulerState = {
   events: [],
   result: null,
   error: null,
+  summary: null,
 };
 
 export function resolveSchedulerEventSessionId(
@@ -95,6 +102,7 @@ export function useSubAgentScheduler(
 ): UseSubAgentSchedulerReturn {
   const [state, setState] = useState<UseSubAgentSchedulerState>(INITIAL_STATE);
   const sessionIdRef = useRef<string | null>(sessionId ?? null);
+  const lastSubmittedTasksRef = useRef<SubAgentTask[]>([]);
 
   useEffect(() => {
     sessionIdRef.current = sessionId ?? null;
@@ -127,6 +135,9 @@ export function useSubAgentScheduler(
                     events: [nextEvent],
                     result: null,
                     error: null,
+                    summary:
+                      prev.summary ||
+                      `已启动 ${nextEvent.totalTasks} 个子任务`,
                   }
                 : {
                     ...prev,
@@ -135,6 +146,8 @@ export function useSubAgentScheduler(
 
             if (nextEvent.type === "progress") {
               nextState.progress = nextEvent.progress;
+              nextState.summary =
+                summarizeSubAgentProgress(nextEvent.progress) || prev.summary;
             }
 
             if (
@@ -142,6 +155,17 @@ export function useSubAgentScheduler(
               nextEvent.type === "cancelled"
             ) {
               nextState.isRunning = false;
+              if (nextEvent.type === "cancelled") {
+                nextState.summary = "子任务执行已取消";
+              }
+            }
+
+            if (nextEvent.type === "taskFailed") {
+              nextState.summary = `任务 ${nextEvent.taskId} 失败`;
+            }
+
+            if (nextEvent.type === "taskCompleted") {
+              nextState.summary = `任务 ${nextEvent.taskId} 已完成`;
             }
 
             return nextState;
@@ -172,7 +196,9 @@ export function useSubAgentScheduler(
         events: [],
         progress: null,
         result: null,
+        summary: summarizeSubAgentTaskBatch(tasks),
       }));
+      lastSubmittedTasksRef.current = tasks;
 
       try {
         const result = await executeSubAgentTasks(tasks, config, sessionId);
@@ -181,6 +207,9 @@ export function useSubAgentScheduler(
           ...prev,
           isRunning: false,
           result,
+          summary:
+            summarizeSubAgentResult(result, lastSubmittedTasksRef.current) ||
+            prev.summary,
         }));
 
         return result;
@@ -190,6 +219,7 @@ export function useSubAgentScheduler(
           ...prev,
           isRunning: false,
           error: errorMessage,
+          summary: errorMessage,
         }));
         throw err;
       }

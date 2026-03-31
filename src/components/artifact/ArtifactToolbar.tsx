@@ -667,10 +667,7 @@ function getMimeType(type: Artifact["type"]): string {
     mermaid: "text/plain",
     react: "text/javascript",
     "canvas:document": "text/markdown",
-    "canvas:poster": "application/json",
-    "canvas:music": "application/json",
-    "canvas:script": "application/json",
-    "canvas:novel": "application/json",
+    "canvas:video": "text/plain",
   };
 
   return mimeTypes[type] || "text/plain";

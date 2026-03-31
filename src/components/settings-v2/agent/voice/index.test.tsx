@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   mockGetConfig.mockResolvedValue({
-    content_creator: {
+    workspace_preferences: {
       media_defaults: {
         voice: {
           preferredProviderId: "openai-tts",
@@ -136,7 +136,7 @@ describe("VoiceSettings", () => {
 
     expect(mockSaveConfig).toHaveBeenCalledTimes(1);
     const savedConfig = mockSaveConfig.mock.calls[0][0];
-    expect(savedConfig.content_creator.media_defaults.voice).toBeUndefined();
+    expect(savedConfig.workspace_preferences.media_defaults.voice).toBeUndefined();
     expect(container.textContent).toContain("设置已保存");
   });
 });

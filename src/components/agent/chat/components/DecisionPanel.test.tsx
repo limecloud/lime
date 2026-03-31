@@ -84,6 +84,39 @@ function createElicitationRequest(requestId: string): ActionRequired {
   };
 }
 
+function createRichElicitationRequest(requestId: string): ActionRequired {
+  return {
+    requestId,
+    actionType: "elicitation",
+    prompt: "继续前请确认执行模式",
+    questions: [
+      {
+        question: "请选择执行模式",
+        header: "mode",
+        options: [
+          {
+            label: "自动执行",
+            description: "直接继续推进",
+          },
+          {
+            label: "确认后执行",
+            description: "每一步都等我确认",
+          },
+        ],
+      },
+    ],
+    requestedSchema: {
+      type: "object",
+      properties: {
+        mode: {
+          type: "string",
+          enum: ["自动执行", "确认后执行"],
+        },
+      },
+    },
+  };
+}
+
 function createAskUserRequest(requestId: string): ActionRequired {
   return {
     requestId,
@@ -92,6 +125,29 @@ function createAskUserRequest(requestId: string): ActionRequired {
       {
         question:
           '请选择执行模式："自动执行（Auto）"、"确认后执行（Ask）"、"只读模式"',
+      },
+    ],
+  };
+}
+
+function createAskUserMultiSelectRequest(requestId: string): ActionRequired {
+  return {
+    requestId,
+    actionType: "ask_user",
+    questions: [
+      {
+        question: "请选择希望启用的能力",
+        multiSelect: true,
+        options: [
+          {
+            label: "分析",
+            description: "先收集上下文",
+          },
+          {
+            label: "编码",
+            description: "直接修改实现",
+          },
+        ],
       },
     ],
   };
@@ -188,6 +244,30 @@ describe("DecisionPanel elicitation", () => {
     expect(payload.response).toBe("用户拒绝了请求");
     expect(payload.userData).toBe("");
   });
+
+  it("带 questions 的 elicitation 应走问题卡片 UI 并提交结构化答案", () => {
+    const request = createRichElicitationRequest("req-elicitation-rich");
+    const { container, onSubmit } = renderDecisionPanel(request);
+
+    expect(container.textContent).toContain("需要你提供信息");
+    expect(container.textContent).toContain("请选择执行模式");
+    expect(container.textContent).toContain("每一步都等我确认");
+    expect(
+      container.querySelector('input[placeholder="请输入回答..."]'),
+    ).toBeNull();
+
+    clickButton(findButtonByText(container, "确认后执行"));
+    clickButton(findButtonByText(container, "提交答案"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({
+      requestId: "req-elicitation-rich",
+      confirmed: true,
+      response: JSON.stringify({ answer: "确认后执行" }),
+      actionType: "elicitation",
+      userData: { answer: "确认后执行" },
+    });
+  });
 });
 
 describe("DecisionPanel ask_user", () => {
@@ -258,6 +338,24 @@ describe("DecisionPanel ask_user", () => {
       response: JSON.stringify({ answer: "确认后执行（Ask）" }),
       actionType: "ask_user",
       userData: { answer: "确认后执行（Ask）" },
+    });
+  });
+
+  it("multiSelect 问题应提交结构化数组，避免选项值映射丢失", () => {
+    const request = createAskUserMultiSelectRequest("req-ask-user-multi");
+    const { container, onSubmit } = renderDecisionPanel(request);
+
+    clickButton(findButtonByText(container, "分析"));
+    clickButton(findButtonByText(container, "编码"));
+    clickButton(findButtonByText(container, "提交答案"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith({
+      requestId: "req-ask-user-multi",
+      confirmed: true,
+      response: JSON.stringify({ answer: ["分析", "编码"] }),
+      actionType: "ask_user",
+      userData: { answer: ["分析", "编码"] },
     });
   });
 
@@ -376,7 +474,7 @@ describe("DecisionPanel copywriting", () => {
     const denyButton = findButtonByText(container, "拒绝");
 
     await act(async () => {
-      allowButton.click();
+      allowButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 

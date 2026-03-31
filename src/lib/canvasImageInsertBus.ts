@@ -1,3 +1,5 @@
+import { normalizeThemeCanvasType } from "@/lib/workspace/workbenchContract";
+
 const CANVAS_IMAGE_INSERT_EVENT = "lime:canvas-image-insert-request";
 const CANVAS_IMAGE_INSERT_ACK_EVENT = "lime:canvas-image-insert-ack";
 const CANVAS_IMAGE_INSERT_QUEUE_KEY = "lime:canvas-image-insert-queue";
@@ -12,18 +14,12 @@ export type CanvasImageInsertSource =
 export type CanvasImageTargetType =
   | "auto"
   | "document"
-  | "novel"
-  | "script"
-  | "music"
-  | "poster"
   | "video";
 
 export type CanvasImageInsertAnchorHint =
   | "cursor"
   | "section_end"
   | "scene_end"
-  | "lyrics_end"
-  | "poster_center"
   | "video_start_frame";
 
 export interface InsertableImage {
@@ -78,10 +74,6 @@ const normalizeId = (value: string | null | undefined): string | null => {
 const VALID_CANVAS_TYPES = new Set<CanvasImageTargetType>([
   "auto",
   "document",
-  "novel",
-  "script",
-  "music",
-  "poster",
   "video",
 ]);
 
@@ -89,8 +81,11 @@ const normalizeCanvasType = (
   value: CanvasImageTargetType | string | null | undefined,
 ): CanvasImageTargetType => {
   if (!value) return "auto";
-  const normalized = value.trim().toLowerCase() as CanvasImageTargetType;
-  return VALID_CANVAS_TYPES.has(normalized) ? normalized : "auto";
+  const normalized = value.trim().toLowerCase();
+  if (VALID_CANVAS_TYPES.has(normalized as CanvasImageTargetType)) {
+    return normalized as CanvasImageTargetType;
+  }
+  return normalizeThemeCanvasType(normalized) ?? "auto";
 };
 
 const createRequest = (

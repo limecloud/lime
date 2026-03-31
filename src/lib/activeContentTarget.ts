@@ -1,11 +1,9 @@
+import { normalizeThemeCanvasType } from "@/lib/workspace/workbenchContract";
+
 const ACTIVE_CONTENT_TARGET_KEY = "lime-active-content-target";
 
 export type ActiveCanvasType =
   | "document"
-  | "novel"
-  | "script"
-  | "music"
-  | "poster"
   | "video"
   | null;
 
@@ -27,19 +25,7 @@ const normalizeId = (value: string | null | undefined): string | null => {
 const normalizeCanvasType = (
   value: string | null | undefined,
 ): ActiveCanvasType => {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  if (
-    normalized === "document" ||
-    normalized === "novel" ||
-    normalized === "script" ||
-    normalized === "music" ||
-    normalized === "poster" ||
-    normalized === "video"
-  ) {
-    return normalized;
-  }
-  return null;
+  return normalizeThemeCanvasType(value);
 };
 
 export const getActiveContentTarget = (): ActiveContentTarget | null => {

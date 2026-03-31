@@ -1,6 +1,7 @@
 import type { BrowserTaskRequirement, Message } from "../types";
 import type { TeamRoleDefinition, TeamDefinitionSource } from "./teamDefinitions";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
+import type { TeamMemoryShadowRequestMetadata } from "@/lib/teamMemorySync";
 
 export interface BuildHarnessRequestMetadataOptions {
   base?: Record<string, unknown>;
@@ -34,6 +35,7 @@ export interface BuildHarnessRequestMetadataOptions {
   selectedTeamDescription?: string | null;
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
+  teamMemoryShadow?: TeamMemoryShadowRequestMetadata | null;
 }
 
 export function extractExistingHarnessMetadata(
@@ -104,6 +106,7 @@ export function buildHarnessRequestMetadata(
     selectedTeamDescription,
     selectedTeamSummary,
     selectedTeamRoles,
+    teamMemoryShadow,
   } = options;
 
   const serializeTeamRoles = (roles?: TeamRoleDefinition[] | null) =>
@@ -144,6 +147,7 @@ export function buildHarnessRequestMetadata(
     selected_team_description: selectedTeamDescription || undefined,
     selected_team_summary: selectedTeamSummary || undefined,
     selected_team_roles: serializeTeamRoles(selectedTeamRoles),
+    team_memory_shadow: teamMemoryShadow || undefined,
     browser_requirement: browserRequirement || undefined,
     browser_requirement_reason: browserRequirementReason || undefined,
     browser_launch_url: browserLaunchUrl || undefined,

@@ -170,7 +170,7 @@ describe("HotkeysSettings", () => {
     expect(text).toContain("终端页面");
     expect(text).toContain("共 10 项");
     expect(text).toContain("滚动到终端底部（macOS）");
-    expect(text).toContain("海报画布");
+    expect(text).toContain("文档画布");
   });
 
   it("运行时状态读取失败时应回退到配置判断", async () => {

@@ -119,6 +119,7 @@ describe("useSubAgentScheduler", () => {
 
     expect(latestScheduler?.events).toHaveLength(1);
     expect(latestScheduler?.isRunning).toBe(true);
+    expect(latestScheduler?.summary).toBe("已启动 2 个子任务");
   });
 
   it("切换会话后应重置状态，并在执行时透传 sessionId", async () => {
@@ -162,6 +163,7 @@ describe("useSubAgentScheduler", () => {
           id: "task-1",
           taskType: "code",
           prompt: "检查 harness",
+          description: "检查 harness 主入口",
         },
       ]);
     });
@@ -172,11 +174,13 @@ describe("useSubAgentScheduler", () => {
           id: "task-1",
           taskType: "code",
           prompt: "检查 harness",
+          description: "检查 harness 主入口",
         },
       ],
       config: undefined,
       sessionId: "session-b",
     });
+    expect(latestScheduler?.summary).toBe("已完成：检查 harness 主入口");
   });
 });
 

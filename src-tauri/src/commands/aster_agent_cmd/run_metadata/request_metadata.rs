@@ -133,6 +133,8 @@ pub(in crate::commands::aster_agent_cmd) fn extend_map_with_harness_fields(
         ("selectedTeamSummary", "selected_team_summary"),
         ("selected_team_roles", "selected_team_roles"),
         ("selectedTeamRoles", "selected_team_roles"),
+        ("team_memory_shadow", "team_memory_shadow"),
+        ("teamMemoryShadow", "team_memory_shadow"),
         ("browser_requirement", "browser_requirement"),
         ("browserRequirement", "browser_requirement"),
         ("browser_requirement_reason", "browser_requirement_reason"),

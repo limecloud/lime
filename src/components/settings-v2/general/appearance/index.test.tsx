@@ -46,7 +46,7 @@ const mounted: RenderResult[] = [];
 function createMockConfig() {
   return {
     language: "zh",
-    content_creator: {
+    workspace_preferences: {
       media_defaults: {
         voice: {
           preferredProviderId: "openai",
@@ -154,7 +154,7 @@ describe("AppearanceSettings", () => {
     expect(buttonTexts).not.toContain("设置");
   });
 
-  it("切换底部入口时应保留 content_creator 的其他配置", async () => {
+  it("切换底部入口时应保留 workspace_preferences 的其他配置", async () => {
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
       (item) => item.textContent?.includes("资料库"),
@@ -173,7 +173,7 @@ describe("AppearanceSettings", () => {
       "terminal",
     ]);
     expect(
-      savedConfig.content_creator.media_defaults.voice.preferredProviderId,
+      savedConfig.workspace_preferences.media_defaults.voice.preferredProviderId,
     ).toBe("openai");
   });
 

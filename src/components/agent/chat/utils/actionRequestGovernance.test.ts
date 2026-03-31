@@ -35,6 +35,16 @@ describe("actionRequestGovernance", () => {
       requestId: "req-elicitation-govern",
       actionType: "elicitation",
       prompt: "补充创作约束",
+      questions: [
+        {
+          question: "主题是什么？",
+          header: "topic",
+        },
+        {
+          question: "风格是什么？",
+          header: "style",
+        },
+      ],
       requestedSchema: {
         type: "object",
         required: ["topic", "style"],
@@ -52,12 +62,28 @@ describe("actionRequestGovernance", () => {
             title: "是否加入 CTA",
           },
         },
+        "x-lime-ask-user-questions": [
+          {
+            question: "主题是什么？",
+            header: "topic",
+          },
+          {
+            question: "风格是什么？",
+            header: "style",
+          },
+        ],
       },
       status: "pending",
     };
 
     const governed = governActionRequest(request);
 
+    expect(governed.questions).toEqual([
+      {
+        question: "主题是什么？",
+        header: "topic",
+      },
+    ]);
     expect(governed.requestedSchema).toEqual({
       type: "object",
       required: ["topic"],
@@ -67,8 +93,17 @@ describe("actionRequestGovernance", () => {
           title: "主题",
         },
       },
+      "x-lime-ask-user-questions": [
+        {
+          question: "主题是什么？",
+          header: "topic",
+        },
+      ],
     });
     expect(governed.governance).toMatchObject({
+      originalQuestionCount: 2,
+      retainedQuestionIndex: 0,
+      deferredQuestionCount: 1,
       strategy: "single_turn_single_question",
       source: "runtime_action_required",
       originalFieldCount: 3,

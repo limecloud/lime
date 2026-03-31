@@ -423,13 +423,10 @@ describe("项目管理 API", () => {
     it("应该正确识别用户级项目类型", () => {
       expect(isUserProjectType("general")).toBe(true);
       expect(isUserProjectType("social-media")).toBe(true);
-      expect(isUserProjectType("poster")).toBe(true);
-      expect(isUserProjectType("music")).toBe(true);
       expect(isUserProjectType("knowledge")).toBe(true);
       expect(isUserProjectType("planning")).toBe(true);
       expect(isUserProjectType("document")).toBe(true);
       expect(isUserProjectType("video")).toBe(true);
-      expect(isUserProjectType("novel")).toBe(true);
     });
 
     it("应该正确排除系统级类型", () => {
@@ -445,13 +442,10 @@ describe("项目管理 API", () => {
         ["temporary", "临时"],
         ["general", "通用对话"],
         ["social-media", "社媒内容"],
-        ["poster", "图文海报"],
-        ["music", "歌词曲谱"],
         ["knowledge", "知识探索"],
         ["planning", "计划规划"],
         ["document", "办公文档"],
         ["video", "短视频"],
-        ["novel", "小说创作"],
       ];
 
       testCases.forEach(([type, expected]) => {
@@ -467,13 +461,10 @@ describe("项目管理 API", () => {
         ["temporary", "📂"],
         ["general", "💬"],
         ["social-media", "📱"],
-        ["poster", "🖼️"],
-        ["music", "🎵"],
         ["knowledge", "🔍"],
         ["planning", "📅"],
         ["document", "📄"],
         ["video", "🎬"],
-        ["novel", "📖"],
       ];
 
       testCases.forEach(([type, expected]) => {
@@ -516,14 +507,11 @@ describe("项目管理 API", () => {
     it("应该返回正确的默认内容类型映射", () => {
       const testCases: Array<[ProjectType, ContentType]> = [
         ["video", "episode"],
-        ["novel", "chapter"],
         ["social-media", "post"],
         ["document", "document"],
         ["general", "content"],
         ["persistent", "document"],
         ["temporary", "document"],
-        ["poster", "document"],
-        ["music", "document"],
         ["knowledge", "document"],
         ["planning", "document"],
       ];
@@ -616,15 +604,39 @@ describe("项目管理 API", () => {
       const raw = {
         id: "1",
         name: "测试项目",
-        workspaceType: "novel" as ProjectType,
+        workspaceType: "document" as ProjectType,
         workspace_type: "video" as ProjectType,
-        rootPath: "/tmp/novel",
+        rootPath: "/tmp/document",
         root_path: "/tmp/video",
       };
 
       const result = normalizeProject(raw);
-      expect(result.workspaceType).toBe("novel");
-      expect(result.rootPath).toBe("/tmp/novel");
+      expect(result.workspaceType).toBe("document");
+      expect(result.rootPath).toBe("/tmp/document");
+    });
+
+    it("应该将旧主题类型归一到现役类型", () => {
+      expect(
+        normalizeProject({
+          id: "legacy-poster",
+          name: "旧海报项目",
+          workspace_type: "poster",
+        } as any).workspaceType,
+      ).toBe("document");
+      expect(
+        normalizeProject({
+          id: "legacy-music",
+          name: "旧音乐项目",
+          workspace_type: "music",
+        } as any).workspaceType,
+      ).toBe("document");
+      expect(
+        normalizeProject({
+          id: "legacy-novel",
+          name: "旧小说项目",
+          workspace_type: "novel",
+        } as any).workspaceType,
+      ).toBe("document");
     });
   });
 
@@ -855,19 +867,16 @@ describe("ListContentQuery 验证", () => {
 // ============================================================================
 
 describe("TYPE_CONFIGS", () => {
-  it("应该包含所有 11 种类型的配置", () => {
+  it("应该包含所有 8 种类型的配置", () => {
     const allTypes: ProjectType[] = [
       "persistent",
       "temporary",
       "general",
       "social-media",
-      "poster",
-      "music",
       "knowledge",
       "planning",
       "document",
       "video",
-      "novel",
     ];
     allTypes.forEach((type) => {
       expect(TYPE_CONFIGS[type]).toBeDefined();
@@ -878,10 +887,7 @@ describe("TYPE_CONFIGS", () => {
   });
 
   it("每种类型的画布配置应该正确", () => {
-    expect(TYPE_CONFIGS["video"].canvasType).toBe("script");
-    expect(TYPE_CONFIGS["novel"].canvasType).toBe("novel");
-    expect(TYPE_CONFIGS["poster"].canvasType).toBe("poster");
-    expect(TYPE_CONFIGS["music"].canvasType).toBe("music");
+    expect(TYPE_CONFIGS["video"].canvasType).toBe("video");
     expect(TYPE_CONFIGS["general"].canvasType).toBeNull();
   });
 
@@ -901,17 +907,14 @@ describe("TYPE_CONFIGS", () => {
 // ============================================================================
 
 describe("USER_PROJECT_TYPES", () => {
-  it("应该包含 9 种用户级类型", () => {
-    expect(USER_PROJECT_TYPES).toHaveLength(9);
+  it("应该包含 6 种用户级类型", () => {
+    expect(USER_PROJECT_TYPES).toHaveLength(6);
     expect(USER_PROJECT_TYPES).toContain("general");
     expect(USER_PROJECT_TYPES).toContain("social-media");
-    expect(USER_PROJECT_TYPES).toContain("poster");
-    expect(USER_PROJECT_TYPES).toContain("music");
     expect(USER_PROJECT_TYPES).toContain("knowledge");
     expect(USER_PROJECT_TYPES).toContain("planning");
     expect(USER_PROJECT_TYPES).toContain("document");
     expect(USER_PROJECT_TYPES).toContain("video");
-    expect(USER_PROJECT_TYPES).toContain("novel");
   });
 
   it("不应该包含系统级类型", () => {
@@ -926,10 +929,7 @@ describe("USER_PROJECT_TYPES", () => {
 
 describe("getCanvasTypeForProjectType", () => {
   it("应该返回正确的画布类型", () => {
-    expect(getCanvasTypeForProjectType("video")).toBe("script");
-    expect(getCanvasTypeForProjectType("novel")).toBe("novel");
-    expect(getCanvasTypeForProjectType("poster")).toBe("poster");
-    expect(getCanvasTypeForProjectType("music")).toBe("music");
+    expect(getCanvasTypeForProjectType("video")).toBe("video");
     expect(getCanvasTypeForProjectType("social-media")).toBe("document");
     expect(getCanvasTypeForProjectType("document")).toBe("document");
   });

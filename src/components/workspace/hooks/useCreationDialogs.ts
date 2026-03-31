@@ -317,23 +317,21 @@ function useProjectPathConflictChecker({
   ]);
 }
 
-interface UseContentCreationMetadataLoaderParams {
+interface UseCreationMetadataLoaderParams {
   selectedContentId: string | null;
-  contentCreationModes: Record<string, CreationMode>;
-  setContentCreationModes: Dispatch<
-    SetStateAction<Record<string, CreationMode>>
-  >;
-  contentCreationTypes: Record<string, string>;
-  setContentCreationTypes: Dispatch<SetStateAction<Record<string, string>>>;
+  creationModes: Record<string, CreationMode>;
+  setCreationModes: Dispatch<SetStateAction<Record<string, CreationMode>>>;
+  creationTypes: Record<string, string>;
+  setCreationTypes: Dispatch<SetStateAction<Record<string, string>>>;
 }
 
-function useContentCreationMetadataLoader({
+function useCreationMetadataLoader({
   selectedContentId,
-  contentCreationModes,
-  setContentCreationModes,
-  contentCreationTypes,
-  setContentCreationTypes,
-}: UseContentCreationMetadataLoaderParams): void {
+  creationModes,
+  setCreationModes,
+  creationTypes,
+  setCreationTypes,
+}: UseCreationMetadataLoaderParams): void {
   const attemptedContentIdsRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -342,8 +340,8 @@ function useContentCreationMetadataLoader({
     }
 
     if (
-      contentCreationModes[selectedContentId] &&
-      contentCreationTypes[selectedContentId]
+      creationModes[selectedContentId] &&
+      creationTypes[selectedContentId]
     ) {
       attemptedContentIdsRef.current[selectedContentId] = true;
       return;
@@ -363,7 +361,7 @@ function useContentCreationMetadataLoader({
         const contentType = parseContentTypeFromMetadata(content?.metadata);
 
         if (mounted && mode) {
-          setContentCreationModes((previous) =>
+          setCreationModes((previous) =>
             previous[selectedContentId] === mode
               ? previous
               : {
@@ -374,7 +372,7 @@ function useContentCreationMetadataLoader({
         }
 
         if (mounted && contentType) {
-          setContentCreationTypes((previous) =>
+          setCreationTypes((previous) =>
             previous[selectedContentId] === contentType
               ? previous
               : {
@@ -394,11 +392,11 @@ function useContentCreationMetadataLoader({
       mounted = false;
     };
   }, [
-    contentCreationModes,
-    contentCreationTypes,
+    creationModes,
+    creationTypes,
     selectedContentId,
-    setContentCreationModes,
-    setContentCreationTypes,
+    setCreationModes,
+    setCreationTypes,
   ]);
 }
 
@@ -474,12 +472,12 @@ export function useCreationDialogs({
     pendingCreateConfirmationByProjectId,
     setPendingCreateConfirmationByProjectId,
   ] = useState<Record<string, PendingCreateConfirmation>>({});
-  const [contentCreationModes, setContentCreationModes] = useState<
-    Record<string, CreationMode>
-  >({});
-  const [contentCreationTypes, setContentCreationTypes] = useState<
-    Record<string, string>
-  >({});
+  const [creationModes, setCreationModes] = useState<Record<string, CreationMode>>(
+    {},
+  );
+  const [creationTypes, setCreationTypes] = useState<Record<string, string>>(
+    {},
+  );
   const createConfirmationSubmittingProjectsRef = useRef<
     Record<string, boolean>
   >({});
@@ -731,7 +729,7 @@ export function useCreationDialogs({
             ...previous,
             [targetContentId]: initialPrompt,
           }));
-          setContentCreationModes((previous) => ({
+          setCreationModes((previous) => ({
             ...previous,
             [targetContentId]: creationMode,
           }));
@@ -890,7 +888,7 @@ export function useCreationDialogs({
             }));
           }
 
-          setContentCreationModes((previous) => ({
+          setCreationModes((previous) => ({
             ...previous,
             [latestContent.id]: decision.creationMode,
           }));
@@ -921,7 +919,7 @@ export function useCreationDialogs({
           metadata: decision.metadata,
         });
 
-        setContentCreationModes((previous) => ({
+        setCreationModes((previous) => ({
           ...previous,
           [created.id]: decision.creationMode,
         }));
@@ -929,7 +927,7 @@ export function useCreationDialogs({
           decision.metadata,
         );
         if (decisionContentType) {
-          setContentCreationTypes((previous) => ({
+          setCreationTypes((previous) => ({
             ...previous,
             [created.id]: decisionContentType,
           }));
@@ -1038,7 +1036,7 @@ export function useCreationDialogs({
         },
       });
 
-      setContentCreationModes((previous) => ({
+      setCreationModes((previous) => ({
         ...previous,
         [created.id]: createContentDialogState.selectedCreationMode,
       }));
@@ -1046,7 +1044,7 @@ export function useCreationDialogs({
         creationIntentMetadata,
       );
       if (createdContentType) {
-        setContentCreationTypes((previous) => ({
+        setCreationTypes((previous) => ({
           ...previous,
           [created.id]: createdContentType,
         }));
@@ -1107,12 +1105,12 @@ export function useCreationDialogs({
     setPathChecking,
     setPathConflictMessage,
   });
-  useContentCreationMetadataLoader({
+  useCreationMetadataLoader({
     selectedContentId,
-    contentCreationModes,
-    setContentCreationModes,
-    contentCreationTypes,
-    setContentCreationTypes,
+    creationModes,
+    setCreationModes,
+    creationTypes,
+    setCreationTypes,
   });
 
   useEffect(() => {
@@ -1169,8 +1167,8 @@ export function useCreationDialogs({
     currentIntentLength,
     pendingInitialPromptsByContentId,
     pendingCreateConfirmationByProjectId,
-    contentCreationModes,
-    contentCreationTypes,
+    creationModes,
+    creationTypes,
     resolvedProjectPath,
     pathChecking,
     pathConflictMessage,

@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Code, FileClock, Save, ScrollText } from "lucide-react";
+import { Code, FileClock, FileCode2, Save, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ActionButtonProps {
@@ -49,6 +49,7 @@ export interface ArtifactWorkbenchToolbarActionsProps {
   isSavingToProject: boolean;
   onSaveToProject: () => void;
   onExportJson: () => void;
+  onExportHtml: () => void;
   onExportMarkdown: () => void;
   showArchiveToggle: boolean;
   isUpdatingArchive: boolean;
@@ -64,6 +65,7 @@ export const ArtifactWorkbenchToolbarActions: React.FC<ArtifactWorkbenchToolbarA
       isSavingToProject,
       onSaveToProject,
       onExportJson,
+      onExportHtml,
       onExportMarkdown,
       showArchiveToggle,
       isUpdatingArchive,
@@ -83,6 +85,14 @@ export const ArtifactWorkbenchToolbarActions: React.FC<ArtifactWorkbenchToolbarA
             tone="accent"
           />
         ) : null}
+        <ActionButton
+          testId="artifact-workbench-export-html"
+          icon={<FileCode2 className="h-3.5 w-3.5" />}
+          label="导出 HTML"
+          onClick={() => {
+            void onExportHtml();
+          }}
+        />
         <ActionButton
           testId="artifact-workbench-export-markdown"
           icon={<ScrollText className="h-3.5 w-3.5" />}

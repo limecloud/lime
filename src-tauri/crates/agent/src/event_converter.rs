@@ -9,7 +9,8 @@ use aster::conversation::message::{
 };
 use aster::session::{ItemRuntime, ItemRuntimePayload, ItemStatus, TurnRuntime, TurnStatus};
 use lime_core::database::dao::agent_timeline::{
-    AgentThreadItem, AgentThreadItemPayload, AgentThreadTurn,
+    AgentRequestOption, AgentRequestQuestion, AgentThreadItem, AgentThreadItemPayload,
+    AgentThreadTurn,
 };
 use regex::Regex;
 
@@ -35,6 +36,7 @@ const TOOL_RESULT_TRUNCATED_NOTICE: &str = "\n\n[event_converter] 工具输出�
 const TOOL_RESULT_DIAG_WARN_JSON_BYTES: usize = 64 * 1024;
 const TOOL_RESULT_DIAG_WARN_OUTPUT_CHARS: usize = 8_000;
 const TOOL_RESULT_DIAG_WARN_IMAGE_COUNT: usize = 4;
+const ASK_USER_QUESTIONS_SCHEMA_KEY: &str = "x-lime-ask-user-questions";
 
 fn enhance_execution_error_text(raw: &str) -> String {
     if !raw.contains("Execution error: No such file or directory (os error 2)") {
@@ -702,6 +704,98 @@ fn format_runtime_status_text(title: &str, detail: &str, checkpoints: &[String])
     normalize_legacy_turn_summary_text(&lines.join("\n"))
 }
 
+fn extract_request_options(value: &serde_json::Value) -> Option<Vec<AgentRequestOption>> {
+    let options = value.as_array()?;
+    let normalized = options
+        .iter()
+        .filter_map(|item| match item {
+            serde_json::Value::String(label) => {
+                let trimmed = label.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(AgentRequestOption {
+                        label: trimmed.to_string(),
+                        description: None,
+                    })
+                }
+            }
+            serde_json::Value::Object(map) => {
+                let label = map
+                    .get("label")
+                    .and_then(serde_json::Value::as_str)
+                    .or_else(|| map.get("value").and_then(serde_json::Value::as_str))
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())?;
+                let description = map
+                    .get("description")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(ToString::to_string);
+
+                Some(AgentRequestOption {
+                    label: label.to_string(),
+                    description,
+                })
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+fn extract_request_questions_from_schema(
+    requested_schema: Option<&serde_json::Value>,
+) -> Option<Vec<AgentRequestQuestion>> {
+    let schema = requested_schema?.as_object()?;
+    let raw_questions = schema.get(ASK_USER_QUESTIONS_SCHEMA_KEY)?.as_array()?;
+    let normalized = raw_questions
+        .iter()
+        .filter_map(|item| {
+            let record = item.as_object()?;
+            let question = record
+                .get("question")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?
+                .to_string();
+            let header = record
+                .get("header")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string);
+            let options = record.get("options").and_then(extract_request_options);
+            let multi_select = match record
+                .get("multiSelect")
+                .or_else(|| record.get("multi_select"))
+            {
+                Some(serde_json::Value::Bool(value)) => Some(*value),
+                _ => None,
+            };
+
+            Some(AgentRequestQuestion {
+                question,
+                header,
+                options,
+                multi_select,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
 fn convert_item_payload(payload: ItemRuntimePayload) -> AgentThreadItemPayload {
     match payload {
         ItemRuntimePayload::UserMessage { content } => {
@@ -773,13 +867,13 @@ fn convert_item_payload(payload: ItemRuntimePayload) -> AgentThreadItemPayload {
             request_id,
             action_type,
             prompt,
-            requested_schema: _,
+            requested_schema,
             response,
         } => AgentThreadItemPayload::RequestUserInput {
             request_id,
             action_type,
             prompt,
-            questions: None,
+            questions: extract_request_questions_from_schema(requested_schema.as_ref()),
             response,
         },
     }
@@ -1583,6 +1677,23 @@ mod tests {
                 action_type: "elicitation".to_string(),
                 prompt: Some("请补充发布渠道".to_string()),
                 requested_schema: Some(serde_json::json!({
+                    ASK_USER_QUESTIONS_SCHEMA_KEY: [
+                        {
+                            "question": "请补充发布渠道",
+                            "header": "channel",
+                            "options": [
+                                {
+                                    "label": "小红书",
+                                    "description": "适合图文种草"
+                                },
+                                {
+                                    "value": "wechat-video",
+                                    "label": "视频号"
+                                }
+                            ],
+                            "multiSelect": false
+                        }
+                    ],
                     "type": "object",
                     "properties": {
                         "channel": { "type": "string" }
@@ -1612,7 +1723,24 @@ mod tests {
                         assert_eq!(request_id, "request-1");
                         assert_eq!(action_type, "elicitation");
                         assert_eq!(prompt.as_deref(), Some("请补充发布渠道"));
-                        assert_eq!(questions, &None);
+                        assert_eq!(
+                            questions,
+                            &Some(vec![AgentRequestQuestion {
+                                question: "请补充发布渠道".to_string(),
+                                header: Some("channel".to_string()),
+                                options: Some(vec![
+                                    AgentRequestOption {
+                                        label: "小红书".to_string(),
+                                        description: Some("适合图文种草".to_string()),
+                                    },
+                                    AgentRequestOption {
+                                        label: "视频号".to_string(),
+                                        description: None,
+                                    },
+                                ]),
+                                multi_select: Some(false),
+                            }])
+                        );
                         assert_eq!(response, &None);
                     }
                     other => panic!("Unexpected payload: {other:?}"),

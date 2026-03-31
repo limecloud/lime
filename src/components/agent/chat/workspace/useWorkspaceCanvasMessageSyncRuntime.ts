@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   type Dispatch,
   type MutableRefObject,
@@ -7,17 +6,13 @@ import {
 } from "react";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
-import {
-  createInitialNovelState,
-  countWords as countNovelWords,
-} from "@/lib/workspace/workbenchCanvas";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
 import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
 
 interface UseWorkspaceCanvasMessageSyncRuntimeParams {
   canvasState: CanvasStateUnion | null;
-  isContentCreationMode: boolean;
+  isSpecializedThemeMode: boolean;
   isThemeWorkbench: boolean;
   mappedTheme: ThemeType;
   messages: Message[];
@@ -49,78 +44,17 @@ function extractDocumentContent(
 
   return null;
 }
-
-function looksLikeSerializedNovelState(content: string): boolean {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    return false;
-  }
-
-  const jsonCandidate =
-    trimmed.match(/^```json\s*([\s\S]*?)```$/i)?.[1] || trimmed;
-
-  if (!(jsonCandidate.startsWith("[") || jsonCandidate.startsWith("{"))) {
-    return false;
-  }
-
-  return (
-    jsonCandidate.includes('"title"') &&
-    (jsonCandidate.includes('"number"') || jsonCandidate.includes('"chapters"'))
-  );
-}
-
 export function useWorkspaceCanvasMessageSyncRuntime({
   canvasState,
-  isContentCreationMode,
+  isSpecializedThemeMode,
   isThemeWorkbench,
   mappedTheme,
   messages,
   processedMessageIdsRef,
   setCanvasState,
 }: UseWorkspaceCanvasMessageSyncRuntimeParams) {
-  const upsertNovelCanvasState = useCallback(
-    (previous: CanvasStateUnion | null, content: string): CanvasStateUnion => {
-      if (!previous || previous.type !== "novel") {
-        return createInitialNovelState(content);
-      }
-
-      if (looksLikeSerializedNovelState(content)) {
-        return createInitialNovelState(content);
-      }
-
-      const targetChapterId =
-        previous.currentChapterId ||
-        previous.chapters[0]?.id ||
-        crypto.randomUUID();
-      const now = Date.now();
-
-      if (previous.chapters.length === 0) {
-        const initialized = createInitialNovelState(content);
-        return {
-          ...initialized,
-          currentChapterId: initialized.chapters[0]?.id || targetChapterId,
-        };
-      }
-
-      return {
-        ...previous,
-        chapters: previous.chapters.map((chapter) =>
-          chapter.id === targetChapterId
-            ? {
-                ...chapter,
-                content,
-                wordCount: countNovelWords(content),
-                updatedAt: now,
-              }
-            : chapter,
-        ),
-      };
-    },
-    [],
-  );
-
   useEffect(() => {
-    if (!isContentCreationMode) {
+    if (!isSpecializedThemeMode) {
       return;
     }
 
@@ -132,6 +66,7 @@ export function useWorkspaceCanvasMessageSyncRuntime({
           !message.isThinking &&
           message.content &&
           message.purpose !== "content_review" &&
+          message.purpose !== "style_rewrite" &&
           message.purpose !== "style_audit",
       );
 
@@ -168,14 +103,6 @@ export function useWorkspaceCanvasMessageSyncRuntime({
 
     processedMessageIdsRef.current.add(lastAssistantMessage.id);
     setCanvasState((previous) => {
-      if (mappedTheme === "poster") {
-        return previous;
-      }
-
-      if (mappedTheme === "novel") {
-        return upsertNovelCanvasState(previous, documentContent);
-      }
-
       if (!previous || previous.type !== "document") {
         return createInitialDocumentState(documentContent);
       }
@@ -195,16 +122,11 @@ export function useWorkspaceCanvasMessageSyncRuntime({
     });
   }, [
     canvasState,
-    isContentCreationMode,
+    isSpecializedThemeMode,
     isThemeWorkbench,
     mappedTheme,
     messages,
     processedMessageIdsRef,
     setCanvasState,
-    upsertNovelCanvasState,
   ]);
-
-  return {
-    upsertNovelCanvasState,
-  };
 }

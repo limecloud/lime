@@ -10,7 +10,13 @@ import {
   isTerminalServiceSkillRunStatus,
   type ServiceSkillRun,
 } from "@/lib/api/serviceSkillRuns";
-import { createContent, listProjects, type Project } from "@/lib/api/project";
+import {
+  createContent,
+  getProject,
+  listProjects,
+  type Project,
+} from "@/lib/api/project";
+import { readTeamMemorySnapshot } from "@/lib/teamMemorySync";
 import {
   AutomationJobDialog,
   type AutomationJobDialogInitialValues,
@@ -38,6 +44,8 @@ import { useHomeShellProjectMemory } from "./hooks/useHomeShellProjectMemory";
 import { useHomeShellSkills } from "./hooks/useHomeShellSkills";
 import { useThemeScopedChatToolPreferences } from "./hooks/useThemeScopedChatToolPreferences";
 import { useSelectedTeamPreference } from "./hooks/useSelectedTeamPreference";
+import { syncTeamMemoryShadowSnapshot } from "./hooks/useTeamMemoryShadowSync";
+import { attachSelectedTeamToRequestMetadata } from "./utils/teamRequestMetadata";
 import {
   enableSubagentPreference,
   resolveClawSolutionLaunch,
@@ -47,6 +55,7 @@ import { useClawSolutions } from "./claw-solutions/useClawSolutions";
 import { ClawHomeSolutionsPanel } from "./claw-solutions/ClawHomeSolutionsPanel";
 import type { ClawSolutionHomeItem } from "./claw-solutions/types";
 import { normalizeInitialTheme } from "./agentChatWorkspaceShared";
+import { normalizeThemeType } from "@/lib/workspace/workbenchContract";
 import {
   type AgentChatWorkspaceBootstrap,
   resolveHomeShellWorkspaceEntry,
@@ -238,20 +247,7 @@ function buildServiceSkillCloudResultMetadata(
 }
 
 function resolveFallbackProjectType(theme?: string): Project["workspaceType"] {
-  switch (theme) {
-    case "social-media":
-    case "poster":
-    case "music":
-    case "knowledge":
-    case "planning":
-    case "document":
-    case "video":
-    case "novel":
-    case "general":
-      return theme;
-    default:
-      return "general";
-  }
+  return normalizeThemeType(theme);
 }
 
 function buildFallbackAutomationWorkspace(
@@ -385,13 +381,99 @@ export function AgentChatHomeShell({
   const projectMemory = useHomeShellProjectMemory(currentProjectId);
   const { skills, skillsLoading, refreshSkills } = useHomeShellSkills();
   const [browserAssistLoading, setBrowserAssistLoading] = useState(false);
+  const [currentProjectRootPath, setCurrentProjectRootPath] = useState<
+    string | null
+  >(null);
+  const [manualTeamShadowSyncState, setManualTeamShadowSyncState] = useState<{
+    projectId: string | null;
+    version: number;
+  }>({
+    projectId: null,
+    version: 0,
+  });
+
+  useEffect(() => {
+    const normalizedProjectId = normalizeProjectId(currentProjectId);
+    if (!normalizedProjectId) {
+      setCurrentProjectRootPath(null);
+      return;
+    }
+
+    let cancelled = false;
+    void getProject(normalizedProjectId)
+      .then((project) => {
+        if (cancelled) {
+          return;
+        }
+        setCurrentProjectRootPath(project?.rootPath?.trim() || null);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setCurrentProjectRootPath(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProjectId]);
+
+  const persistedTeamMemoryShadowSnapshot = useMemo(() => {
+    if (!currentProjectRootPath || typeof localStorage === "undefined") {
+      return null;
+    }
+
+    return readTeamMemorySnapshot(localStorage, currentProjectRootPath);
+  }, [currentProjectRootPath]);
   const {
     selectedTeam,
     setSelectedTeam: handleSelectTeam,
     enableSuggestedTeam: handleEnableSuggestedTeam,
+    preferredTeamPresetId,
+    selectedTeamLabel,
+    selectedTeamSummary,
   } = useSelectedTeamPreference(activeTheme, {
     runtimeSelection: recentExecutionRuntime?.recent_team_selection ?? null,
+    shadowSnapshot: persistedTeamMemoryShadowSnapshot,
+    allowPersistedThemeFallback: !currentProjectId,
   });
+
+  useEffect(() => {
+    const normalizedProjectId = normalizeProjectId(currentProjectId);
+    if (
+      manualTeamShadowSyncState.version <= 0 ||
+      manualTeamShadowSyncState.projectId !== normalizedProjectId ||
+      !currentProjectRootPath ||
+      typeof localStorage === "undefined"
+    ) {
+      return;
+    }
+
+    syncTeamMemoryShadowSnapshot({
+      repoScope: currentProjectRootPath,
+      activeTheme,
+      selectedTeam,
+      storage: localStorage,
+    });
+  }, [
+    activeTheme,
+    currentProjectRootPath,
+    currentProjectId,
+    manualTeamShadowSyncState,
+    selectedTeam,
+  ]);
+
+  const handleManualSelectTeam = useCallback(
+    (team: Parameters<typeof handleSelectTeam>[0]) => {
+      handleSelectTeam(team);
+      setManualTeamShadowSyncState((previous) => ({
+        projectId: normalizeProjectId(currentProjectId),
+        version: previous.version + 1,
+      }));
+    },
+    [currentProjectId, handleSelectTeam],
+  );
   const runtimeChatToolPreferences = useMemo(
     () => createChatToolPreferencesFromExecutionRuntime(recentExecutionRuntime),
     [recentExecutionRuntime],
@@ -517,12 +599,33 @@ export function AgentChatHomeShell({
   const handleEnterWorkspace = useCallback(
     (payload: HomeShellEnterWorkspacePayload) => {
       const normalizedProjectId = normalizeProjectId(currentProjectId);
+      const payloadWithSelectedTeamMetadata: HomeShellEnterWorkspacePayload = {
+        ...payload,
+        initialRequestMetadata: attachSelectedTeamToRequestMetadata(
+          payload.initialRequestMetadata,
+          {
+            preferredTeamPresetId,
+            selectedTeam,
+            selectedTeamLabel,
+            selectedTeamSummary,
+          },
+        ),
+        initialAutoSendRequestMetadata: attachSelectedTeamToRequestMetadata(
+          payload.initialAutoSendRequestMetadata,
+          {
+            preferredTeamPresetId,
+            selectedTeam,
+            selectedTeamLabel,
+            selectedTeamSummary,
+          },
+        ),
+      };
       const resolved = resolveHomeShellWorkspaceEntry({
         projectId: normalizedProjectId,
         activeTheme,
         creationMode,
         defaultToolPreferences: effectiveChatToolPreferences,
-        payload,
+        payload: payloadWithSelectedTeamMetadata,
       });
 
       if (!resolved.ok) {
@@ -553,6 +656,10 @@ export function AgentChatHomeShell({
       rememberProjectId,
       onEnterWorkspace,
       onNavigate,
+      preferredTeamPresetId,
+      selectedTeam,
+      selectedTeamLabel,
+      selectedTeamSummary,
     ],
   );
 
@@ -1438,7 +1545,7 @@ export function AgentChatHomeShell({
                   }))
                 }
                 selectedTeam={selectedTeam}
-                onSelectTeam={handleSelectTeam}
+                onSelectTeam={handleManualSelectTeam}
                 onEnableSuggestedTeam={handleEnableSuggestedTeam}
                 creationMode={creationMode}
                 onCreationModeChange={setCreationMode}

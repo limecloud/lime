@@ -21,6 +21,10 @@ import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
 import { resolveArtifactProtocolDocumentPayload } from "@/lib/artifact-protocol";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { AgentThreadItem } from "../types";
+import type {
+  ArtifactBlockRewriteCompletion,
+  ArtifactBlockRewriteRunPayload,
+} from "./artifactWorkbenchRewrite";
 import {
   type ArtifactWorkbenchDocumentController,
   useArtifactWorkbenchDocumentController,
@@ -46,6 +50,9 @@ interface ArtifactWorkbenchPreviewProps {
     artifact: Artifact,
     document: ArtifactDocumentV1,
   ) => Promise<void> | void;
+  onArtifactBlockRewriteRun?: (
+    payload: ArtifactBlockRewriteRunPayload,
+  ) => Promise<ArtifactBlockRewriteCompletion> | ArtifactBlockRewriteCompletion | void;
   threadItems?: AgentThreadItem[];
   focusedBlockId?: string | null;
   blockFocusRequestKey?: number;
@@ -72,6 +79,7 @@ export function ArtifactWorkbenchPreview({
   artifactPreviewSize,
   onArtifactPreviewSizeChange,
   onSaveArtifactDocument,
+  onArtifactBlockRewriteRun,
   threadItems,
   focusedBlockId,
   blockFocusRequestKey,
@@ -172,6 +180,7 @@ export function ArtifactWorkbenchPreview({
         previewSize={artifactPreviewSize}
         onPreviewSizeChange={onArtifactPreviewSizeChange}
         onSaveArtifactDocument={onSaveArtifactDocument}
+        onArtifactBlockRewriteRun={onArtifactBlockRewriteRun}
         threadItems={threadItems}
         focusedBlockId={focusedBlockId}
         blockFocusRequestKey={blockFocusRequestKey}

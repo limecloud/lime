@@ -1,7 +1,7 @@
 # ArtifactDocument v1 协议草案
 
-> 状态：提案  
-> 更新时间：2026-03-24  
+> 状态：进行中，block renderer 映射、current-first 协议读取、Markdown / HTML / JSON 桌面导出主链已落地，完整导出态仍未完成  
+> 更新时间：2026-03-31  
 > 运行时边界：turn metadata、prompt 组装入口、runtime output schema 注入链以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只定义 `ArtifactDocument v1` 的产品层协议与校验映射  
 > 依赖文档：`docs/roadmap/artifacts/roadmap.md`  
 > 架构蓝图：`docs/roadmap/artifacts/architecture-blueprint.md`  
@@ -555,8 +555,9 @@ export type ArtifactOpEnvelope =
    - 判断是否需要 Artifact
    - 判断文档 kind
    - 判断是否需要 sources
-2. `artifact_document_draft` 或 `artifact ops`
+2. `artifact_document_draft`、正式单条 incremental op，或兼容态 `artifact_ops`
    - 正式生成结构化内容
+   - 运行时内部按 current-first action apply；`artifact_ops` 只保留 compat 输入回退
 
 这样比“一次自然语言长回复”更稳定。
 

@@ -104,16 +104,14 @@ function resolveSkillGroup(skill: Skill): SkillGroupKey {
   if (
     feature.includes("cover") ||
     feature.includes("image") ||
-    feature.includes("illustration") ||
-    feature.includes("poster")
+    feature.includes("illustration")
   ) {
     return "visual";
   }
   if (
     feature.includes("broadcast") ||
     feature.includes("audio") ||
-    feature.includes("podcast") ||
-    feature.includes("music")
+    feature.includes("podcast")
   ) {
     return "audio";
   }

@@ -57,6 +57,7 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   artifactPreviewSize: ArtifactPreviewParams["artifactPreviewSize"];
   setArtifactPreviewSize: ArtifactPreviewParams["onArtifactPreviewSizeChange"];
   onSaveArtifactDocument: ArtifactPreviewParams["onSaveArtifactDocument"];
+  onArtifactBlockRewriteRun: ArtifactPreviewParams["onArtifactBlockRewriteRun"];
   renderArtifactWorkbenchToolbarActions: ArtifactPreviewParams["renderToolbarActions"];
   threadItems: AgentThreadItem[];
   focusedBlockId: string | null;
@@ -85,12 +86,11 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   handleDocumentContentReviewRun: CanvasFactoryParams["onContentReviewRun"];
   handleDocumentTextStylizeRun: CanvasFactoryParams["onTextStylizeRun"];
   preferContentReviewInRightRail: CanvasFactoryParams["preferContentReviewInRightRail"];
-  novelChapterListCollapsed: CanvasFactoryParams["novelChapterListCollapsed"];
-  setNovelChapterListCollapsed: CanvasFactoryParams["onNovelChapterListCollapsedChange"];
   teamSessionRuntime: TeamSessionRuntime;
   teamSessionControlRuntime: TeamSessionControlRuntime;
   teamWorkbenchAutoFocusToken: TeamWorkbenchParams["autoFocusToken"];
   teamDispatchPreviewState: TeamWorkbenchParams["teamDispatchPreviewState"];
+  teamMemorySnapshot: TeamWorkbenchParams["teamMemorySnapshot"];
 }
 
 export function useWorkspaceCanvasSceneRuntime({
@@ -115,6 +115,7 @@ export function useWorkspaceCanvasSceneRuntime({
   artifactPreviewSize,
   setArtifactPreviewSize,
   onSaveArtifactDocument,
+  onArtifactBlockRewriteRun,
   renderArtifactWorkbenchToolbarActions,
   threadItems,
   focusedBlockId,
@@ -143,12 +144,11 @@ export function useWorkspaceCanvasSceneRuntime({
   handleDocumentContentReviewRun,
   handleDocumentTextStylizeRun,
   preferContentReviewInRightRail,
-  novelChapterListCollapsed,
-  setNovelChapterListCollapsed,
   teamSessionRuntime,
   teamSessionControlRuntime,
   teamWorkbenchAutoFocusToken,
   teamDispatchPreviewState,
+  teamMemorySnapshot,
 }: UseWorkspaceCanvasSceneRuntimeParams) {
   return useWorkspaceCanvasScenePresentation({
     shouldBootstrapCanvasOnEntry,
@@ -179,6 +179,7 @@ export function useWorkspaceCanvasSceneRuntime({
         artifactPreviewSize,
         onArtifactPreviewSizeChange: setArtifactPreviewSize,
         onSaveArtifactDocument,
+        onArtifactBlockRewriteRun,
         renderToolbarActions: renderArtifactWorkbenchToolbarActions,
         threadItems,
         focusedBlockId,
@@ -253,8 +254,6 @@ export function useWorkspaceCanvasSceneRuntime({
         onContentReviewRun: handleDocumentContentReviewRun,
         onTextStylizeRun: handleDocumentTextStylizeRun,
         preferContentReviewInRightRail,
-        novelChapterListCollapsed,
-        onNovelChapterListCollapsedChange: setNovelChapterListCollapsed,
       },
       teamWorkbench: {
         enabled: teamSessionRuntime.showTeamWorkspaceBoard,
@@ -265,6 +264,7 @@ export function useWorkspaceCanvasSceneRuntime({
         liveActivityBySessionId: teamSessionRuntime.liveActivityBySessionId,
         teamWaitSummary: teamSessionControlRuntime.teamWaitSummary,
         teamControlSummary: teamSessionControlRuntime.teamControlSummary,
+        teamMemorySnapshot,
       },
     },
   });

@@ -10,6 +10,61 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+fn default_project_icon(workspace_type: &WorkspaceType) -> Option<String> {
+    if !workspace_type.is_project_type() {
+        return None;
+    }
+
+    Some(
+        match workspace_type {
+            WorkspaceType::General => "💬",
+            WorkspaceType::SocialMedia => "📱",
+            WorkspaceType::Knowledge => "🔍",
+            WorkspaceType::Planning => "📅",
+            WorkspaceType::Document => "📄",
+            WorkspaceType::Video => "🎬",
+            WorkspaceType::Persistent | WorkspaceType::Temporary => "📁",
+        }
+        .to_string(),
+    )
+}
+
+fn workspace_type_query_values(workspace_type: &WorkspaceType) -> &'static [&'static str] {
+    match workspace_type {
+        WorkspaceType::SocialMedia => &["social-media", "social"],
+        WorkspaceType::Document => &["document", "poster", "music", "novel"],
+        WorkspaceType::Video => &["video", "drama"],
+        WorkspaceType::Persistent => &["persistent"],
+        WorkspaceType::Temporary => &["temporary"],
+        WorkspaceType::General => &["general"],
+        WorkspaceType::Knowledge => &["knowledge"],
+        WorkspaceType::Planning => &["planning"],
+    }
+}
+
+fn normalize_workspace_icon(
+    workspace_type_str: &str,
+    workspace_type: &WorkspaceType,
+    icon: Option<String>,
+) -> Option<String> {
+    let legacy_default_icon = match workspace_type_str {
+        "poster" => Some("🖼️"),
+        "music" => Some("🎵"),
+        "novel" => Some("📖"),
+        "drama" => Some("🎬"),
+        "social" => Some("📱"),
+        _ => None,
+    };
+
+    match (legacy_default_icon, icon) {
+        (_, None) => default_project_icon(workspace_type),
+        (Some(legacy_icon), Some(icon)) if icon == legacy_icon => {
+            default_project_icon(workspace_type)
+        }
+        (_, Some(icon)) => Some(icon),
+    }
+}
+
 /// Workspace 管理器
 #[derive(Clone)]
 pub struct WorkspaceManager {
@@ -39,22 +94,7 @@ impl WorkspaceManager {
         let root_path_str = root_path.to_str().ok_or("无效的路径")?.to_string();
 
         // 根据项目类型设置默认图标
-        let icon = if workspace_type.is_project_type() {
-            Some(match &workspace_type {
-                WorkspaceType::General => "💬".to_string(),
-                WorkspaceType::SocialMedia => "📱".to_string(),
-                WorkspaceType::Poster => "🖼️".to_string(),
-                WorkspaceType::Music => "🎵".to_string(),
-                WorkspaceType::Knowledge => "🔍".to_string(),
-                WorkspaceType::Planning => "📅".to_string(),
-                WorkspaceType::Document => "📄".to_string(),
-                WorkspaceType::Video => "🎬".to_string(),
-                WorkspaceType::Novel => "📖".to_string(),
-                _ => "📁".to_string(),
-            })
-        } else {
-            None
-        };
+        let icon = default_project_icon(&workspace_type);
 
         let workspace = Workspace {
             id: id.clone(),
@@ -235,7 +275,7 @@ impl WorkspaceManager {
             .prepare(
                 "SELECT id, name, workspace_type, root_path, is_default, settings_json, created_at, updated_at, icon, color, is_favorite, is_archived, tags_json
                  FROM workspaces
-                 WHERE workspace_type IN ('drama', 'novel', 'social', 'document', 'general')
+                 WHERE workspace_type IN ('general', 'social', 'social-media', 'poster', 'music', 'novel', 'document', 'drama', 'video', 'knowledge', 'planning')
                  ORDER BY updated_at DESC",
             )
             .map_err(|e| format!("准备查询失败: {e}"))?;
@@ -252,20 +292,26 @@ impl WorkspaceManager {
     /// 列出指定类型的项目
     pub fn list_by_type(&self, workspace_type: &WorkspaceType) -> Result<Vec<Workspace>, String> {
         let conn = self.db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+        let query_values = workspace_type_query_values(workspace_type);
+        let placeholders = std::iter::repeat_n("?", query_values.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT id, name, workspace_type, root_path, is_default, settings_json, created_at, updated_at, icon, color, is_favorite, is_archived, tags_json
+             FROM workspaces
+             WHERE workspace_type IN ({placeholders})
+             ORDER BY updated_at DESC"
+        );
 
         let mut stmt = conn
-            .prepare(
-                "SELECT id, name, workspace_type, root_path, is_default, settings_json, created_at, updated_at, icon, color, is_favorite, is_archived, tags_json
-                 FROM workspaces
-                 WHERE workspace_type = ?
-                 ORDER BY updated_at DESC",
-            )
+            .prepare(&sql)
             .map_err(|e| format!("准备查询失败: {e}"))?;
 
         let workspaces = stmt
-            .query_map(params![workspace_type.as_str()], |row| {
-                Self::row_to_workspace(row)
-            })
+            .query_map(
+                rusqlite::params_from_iter(query_values.iter().copied()),
+                Self::row_to_workspace,
+            )
             .map_err(|e| format!("查询失败: {e}"))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| format!("解析结果失败: {e}"))?;
@@ -475,11 +521,13 @@ impl WorkspaceManager {
         let tags: Vec<String> = tags_json
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
+        let workspace_type = WorkspaceType::parse(&workspace_type_str);
+        let icon = normalize_workspace_icon(&workspace_type_str, &workspace_type, icon);
 
         Ok(Workspace {
             id,
             name,
-            workspace_type: WorkspaceType::parse(&workspace_type_str),
+            workspace_type,
             root_path: PathBuf::from(root_path_str),
             is_default,
             created_at: chrono::DateTime::from_timestamp_millis(created_at_ms)
@@ -494,5 +542,50 @@ impl WorkspaceManager {
             tags,
             stats: None, // 统计信息需要单独查询
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_workspace_type_query_values_should_include_compat_aliases() {
+        assert_eq!(
+            workspace_type_query_values(&WorkspaceType::Document),
+            &["document", "poster", "music", "novel"]
+        );
+        assert_eq!(
+            workspace_type_query_values(&WorkspaceType::Video),
+            &["video", "drama"]
+        );
+        assert_eq!(
+            workspace_type_query_values(&WorkspaceType::SocialMedia),
+            &["social-media", "social"]
+        );
+    }
+
+    #[test]
+    fn normalize_workspace_icon_should_map_legacy_defaults_to_current_surface() {
+        assert_eq!(
+            normalize_workspace_icon("poster", &WorkspaceType::Document, Some("🖼️".to_string())),
+            Some("📄".to_string())
+        );
+        assert_eq!(
+            normalize_workspace_icon("music", &WorkspaceType::Document, None),
+            Some("📄".to_string())
+        );
+        assert_eq!(
+            normalize_workspace_icon("novel", &WorkspaceType::Document, Some("📖".to_string())),
+            Some("📄".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_workspace_icon_should_preserve_custom_icon() {
+        assert_eq!(
+            normalize_workspace_icon("poster", &WorkspaceType::Document, Some("⭐".to_string())),
+            Some("⭐".to_string())
+        );
     }
 }

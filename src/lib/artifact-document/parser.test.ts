@@ -69,8 +69,11 @@ describe("artifact-document parser", () => {
       sources: [
         {
           id: "source-1",
-          title: "OpenAI Blog",
-          url: "https://openai.com/index/introducing",
+          type: "web",
+          label: "OpenAI Blog",
+          locator: {
+            url: "https://openai.com/index/introducing",
+          },
         },
       ],
       metadata: {},
@@ -82,9 +85,9 @@ describe("artifact-document parser", () => {
         artifactId: "artifact-document:demo",
         blockId: "summary-1",
         sourceId: "source-1",
-        sourceType: "web",
-        sourceRef: "https://openai.com/index/introducing",
-        label: "OpenAI Blog",
+              sourceType: "web",
+              sourceRef: "https://openai.com/index/introducing",
+              label: "OpenAI Blog",
       }),
     ]);
   });

@@ -1,6 +1,6 @@
 /**
  * @file workbenchRuntime.ts
- * @description 工作台运行时共享网关，避免外层主链直接依赖 content-creator 工具目录
+ * @description 工作台运行时共享网关，承接外层主链对工作台运行时工具的依赖
  * @module lib/workspace/workbenchRuntime
  */
 
@@ -10,11 +10,11 @@ export {
   type ActivityEventType,
   type ActivityLog,
   type ActivityLogScope,
-} from "@/components/content-creator/utils/activityLogger";
+} from "@/lib/workspace/activityLogger";
 
 export {
   resolveSocialMediaArtifactDescriptor,
   type SocialMediaArtifactDescriptor,
   type SocialMediaArtifactType,
   type SocialMediaHarnessStage,
-} from "@/components/content-creator/utils/socialMediaHarness";
+} from "@/lib/workspace/socialMediaHarness";

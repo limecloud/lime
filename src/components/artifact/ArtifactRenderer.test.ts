@@ -314,13 +314,7 @@ describe("Property 7: Canvas 类型委托正确性", () => {
         expect(delegated.canvasType).toBe(expectedCanvasType);
 
         // 验证子类型是有效的 Canvas 子类型
-        const validCanvasSubtypes = [
-          "document",
-          "poster",
-          "music",
-          "script",
-          "novel",
-        ];
+        const validCanvasSubtypes = ["document", "video"];
         expect(validCanvasSubtypes).toContain(delegated.canvasType);
       }),
       { numRuns: 100 },

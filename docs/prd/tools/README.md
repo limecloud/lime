@@ -8,7 +8,7 @@
 
 - Aster 默认内置工具
 - Lime 注入工具
-- Creator 专属工具
+- Workbench 专属工具
 - Browser Assist 兼容工具面
 - Lime MCP runtime tools
 - Aster ExtensionManager 注入后的 prefixed tools
@@ -111,7 +111,7 @@ Lime 实际已经具备这些能力：
 
 - Aster built-ins
 - Lime 注入工具
-- Creator 工具面
+- Workbench 工具面
 - Browser Assist 兼容前缀
 
 并明确了：
@@ -236,7 +236,7 @@ Lime 实际已经具备这些能力：
 
 - **Core surface catalog total**：26 个
 
-### 4.2 Creator surface
+### 4.2 Workbench surface
 
 在 Core 之上额外增加 8 个：
 
@@ -249,7 +249,7 @@ Lime 实际已经具备这些能力：
 - `lime_create_url_parse_task`
 - `lime_create_typesetting_task`
 
-- **Creator surface catalog total**：34 个
+- **Workbench surface catalog total**：34 个
 
 ### 4.3 Browser Assist surface
 
@@ -261,7 +261,7 @@ Lime 实际已经具备这些能力：
 参考 Aster 的 `chrome_mcp/tools.rs`，当前浏览器工具定义为 **17 个**。
 
 - **Browser Assist surface catalog total**：27 个
-- **Creator + Browser Assist 全量 surface**：35 个
+- **Workbench + Browser Assist 全量 surface**：35 个
 
 ---
 

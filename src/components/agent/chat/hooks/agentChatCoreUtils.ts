@@ -5,6 +5,7 @@ export const WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE =
   "workspace_path_auto_created";
 export const LIME_TOOL_METADATA_BEGIN = "[Lime 工具元数据开始]";
 export const LIME_TOOL_METADATA_END = "[Lime 工具元数据结束]";
+export const ASK_USER_QUESTIONS_SCHEMA_KEY = "x-lime-ask-user-questions";
 
 export const normalizeExecutionStrategy = (
   value?: string | null,
@@ -172,6 +173,17 @@ export const normalizeActionQuestions = (
   }
 
   return undefined;
+};
+
+export const extractQuestionsFromRequestedSchema = (
+  value: unknown,
+): ActionRequired["questions"] | undefined => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const schema = value as Record<string, unknown>;
+  return normalizeActionQuestions(schema[ASK_USER_QUESTIONS_SCHEMA_KEY]);
 };
 
 export const resolveAskQuestionText = (

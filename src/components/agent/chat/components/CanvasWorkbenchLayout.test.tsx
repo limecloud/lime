@@ -161,14 +161,19 @@ function createMockArtifactDocumentController(
       {
         id: "body-1",
         type: "rich_text" as const,
+        contentFormat: "markdown" as const,
+        content: "正文内容",
         markdown: "正文内容",
       },
     ],
     sources: [
       {
         id: "source-1",
-        title: "OpenAI Blog",
-        url: "https://openai.com",
+        type: "web" as const,
+        label: "OpenAI Blog",
+        locator: {
+          url: "https://openai.com",
+        },
       },
     ],
     metadata: {

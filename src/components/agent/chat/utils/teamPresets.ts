@@ -260,10 +260,7 @@ export function resolveDefaultTeamPresetId(theme?: string | null): string {
     case "document":
       return "research-team";
     case "social-media":
-    case "poster":
-    case "music":
     case "video":
-    case "novel":
       return "content-creation-team";
     case "general":
     default:

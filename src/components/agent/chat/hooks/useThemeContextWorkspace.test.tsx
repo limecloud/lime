@@ -12,7 +12,7 @@ const mockListContents = vi.hoisted(() => vi.fn());
 const mockGetContent = vi.hoisted(() => vi.fn());
 const mockSearchThemeContextWithWebSearch = vi.hoisted(() => vi.fn());
 const mockUseMaterials = vi.hoisted(() => vi.fn());
-const mockIsContentCreationTheme = vi.hoisted(() => vi.fn());
+const mockIsSpecializedWorkbenchTheme = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/project", () => ({
   listContents: mockListContents,
@@ -28,7 +28,7 @@ vi.mock("@/lib/workspace/workbenchContract", async (importOriginal) => {
     await importOriginal<typeof import("@/lib/workspace/workbenchContract")>();
   return {
     ...actual,
-    isContentCreationTheme: mockIsContentCreationTheme,
+    isSpecializedWorkbenchTheme: mockIsSpecializedWorkbenchTheme,
   };
 });
 
@@ -117,7 +117,7 @@ function mountProbe(props: ProbeProps) {
 
 describe("useThemeContextWorkspace", () => {
   it("非主题模式应禁用工作台上下文", async () => {
-    mockIsContentCreationTheme.mockReturnValue(false);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(false);
     let snapshot: ThemeContextWorkspaceState | null = null;
 
     mountProbe({
@@ -136,7 +136,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("主题模式应自动加载 Top3 上下文并生成日志快照", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseMaterials.mockReturnValue({
       materials: [
         { id: "m1", name: "素材1", description: "desc", tags: ["a"] },
@@ -191,7 +191,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("历史内容同标题应仅保留最新一条", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockListContents.mockResolvedValue([
       {
         id: "content-old",
@@ -252,7 +252,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("应支持联网搜索生成上下文并自动激活", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockSearchThemeContextWithWebSearch.mockResolvedValue({
       title: "智能体泡沫观察",
       summary: "2026 年市场对智能体基建和应用进入分化阶段，讨论聚焦落地成本、场景ROI与平台生态。",
@@ -302,7 +302,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("prepareActiveContextPrompt 应加载本地正文并拼入提示词", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     const mockMaterialGetContent = vi.fn().mockResolvedValue("品牌手册正文，包含品牌定位、目标人群和传播语气。");
     mockUseMaterials.mockReturnValue({
       materials: [{ id: "m1", name: "品牌手册", description: "品牌资产", tags: [] }],
@@ -328,7 +328,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("应兼容序列化后的时间字符串并正确格式化耗时", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseMaterials.mockReturnValue({
       materials: [{ id: "m1", name: "素材1", description: "desc", tags: [] }],
       getContent: vi.fn().mockResolvedValue("素材正文"),
@@ -369,7 +369,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("应从工具参数与输出提取修改产物路径", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
 
     const messages = [
       {
@@ -419,7 +419,7 @@ describe("useThemeContextWorkspace", () => {
   });
 
   it("应递归提取嵌套协议对象中的产物路径", async () => {
-    mockIsContentCreationTheme.mockReturnValue(true);
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
 
     const messages = [
       {

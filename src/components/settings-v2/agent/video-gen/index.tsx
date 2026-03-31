@@ -35,7 +35,7 @@ export function VideoGenSettings() {
         const nextConfig = await getConfig();
         setConfig(nextConfig);
         setVideoPreference(
-          nextConfig.content_creator?.media_defaults?.video ??
+          nextConfig.workspace_preferences?.media_defaults?.video ??
             DEFAULT_PREFERENCE,
         );
       } catch (error) {
@@ -94,10 +94,10 @@ export function VideoGenSettings() {
         buildPersistedMediaGenerationPreference(nextPreference);
       const updatedConfig: Config = {
         ...config,
-        content_creator: {
-          ...config.content_creator,
+        workspace_preferences: {
+          ...config.workspace_preferences,
           media_defaults: {
-            ...config.content_creator?.media_defaults,
+            ...config.workspace_preferences?.media_defaults,
             video: persistedPreference,
           },
         },

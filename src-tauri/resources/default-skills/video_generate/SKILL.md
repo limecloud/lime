@@ -7,7 +7,7 @@ metadata:
   lime_when_to_use: 用户要求生成视频，或将现有文稿改编为短视频。
   lime_version: 1.1.0
   lime_execution_mode: prompt
-  lime_surface: creator
+  lime_surface: workbench
   lime_category: media
 ---
 

@@ -60,7 +60,7 @@ export interface MediaGenerationDefaultsConfig {
   voice?: MediaGenerationPreferenceConfig;
 }
 
-export interface ContentCreatorConfig {
+export interface WorkspacePreferencesConfig {
   schema_version?: number;
   media_defaults?: MediaGenerationDefaultsConfig;
 }
@@ -211,7 +211,7 @@ export interface Config {
   language: string;
   experimental?: ExperimentalFeatures;
   tool_calling?: ToolCallingConfig;
-  content_creator?: ContentCreatorConfig;
+  workspace_preferences?: WorkspacePreferencesConfig;
   navigation?: NavigationConfig;
   chat_appearance?: ChatAppearanceConfig;
   environment?: EnvironmentConfig;

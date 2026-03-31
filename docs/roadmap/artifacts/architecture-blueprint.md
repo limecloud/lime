@@ -56,7 +56,7 @@
 - `src/components/agent/chat/workspace/workbenchPreview.tsx`
 - `src/components/agent/chat/workspace/WorkspaceCanvasContent.tsx`
 - `src/components/artifact/ArtifactRenderer.tsx`
-- `src/components/content-creator/canvas/document/editor/NotionEditor.tsx`
+- `src/components/workspace/document/editor/NotionEditor.tsx`
 - `src-tauri/src/services/agent_timeline_service.rs`
 
 从这些事实源可以确认：
@@ -531,7 +531,8 @@ Stage 2 的职责是生成正式结构化交付物。
 必须输出：
 
 - `artifact_document_draft`
-- 或增量 `artifact ops`
+- 或正式单条 incremental op
+- `artifact_ops` 只作为兼容回退
 
 必须遵守：
 

@@ -2188,14 +2188,22 @@ describe("useAsterAgentChat thread timeline", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("帮我整理成结构化文稿", [], false, false, false, "react");
+          .sendMessage(
+            "帮我整理成结构化文稿",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       act(() => {
         stream.emit({
           type: "warning",
           code: "artifact_document_repaired",
-          message: "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
+          message:
+            "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
         });
         stream.emit({
           type: "final_done",
@@ -3136,6 +3144,132 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
               title: "主题",
             },
           },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("elicitation 缺少 questions 时应从 requested_schema 扩展恢复 rich question，并在治理后只保留当前一问", async () => {
+    const workspaceId = "ws-action-required-rich-elicitation";
+    seedSession(workspaceId, "session-action-required-rich-elicitation");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请继续", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "action_required",
+          request_id: "req-ar-rich-elicitation-1",
+          action_type: "elicitation",
+          prompt: "继续前请确认执行模式和范围",
+          requested_schema: {
+            type: "object",
+            required: ["mode", "scope"],
+            properties: {
+              mode: {
+                type: "string",
+                title: "执行模式",
+              },
+              scope: {
+                type: "string",
+                title: "执行范围",
+              },
+            },
+            "x-lime-ask-user-questions": [
+              {
+                question: "请选择执行模式",
+                header: "mode",
+                options: [
+                  {
+                    label: "自动执行",
+                    description: "直接继续推进",
+                  },
+                  {
+                    value: "confirm",
+                    label: "确认后执行",
+                    description: "每一步都等我确认",
+                  },
+                ],
+                multiSelect: false,
+              },
+              {
+                question: "请选择执行范围",
+                header: "scope",
+                options: ["仅修改 ask", "顺手整理上下游"],
+                multiSelect: false,
+              },
+            ],
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.actionRequests?.[0]).toMatchObject({
+        requestId: "req-ar-rich-elicitation-1",
+        actionType: "elicitation",
+        questions: [
+          {
+            question: "请选择执行模式",
+            header: "mode",
+            options: [
+              {
+                label: "自动执行",
+                description: "直接继续推进",
+              },
+              {
+                label: "确认后执行",
+                description: "每一步都等我确认",
+              },
+            ],
+            multiSelect: false,
+          },
+        ],
+        governance: {
+          originalQuestionCount: 2,
+          deferredQuestionCount: 1,
+          originalFieldCount: 2,
+          retainedFieldKey: "mode",
+          deferredFieldCount: 1,
+        },
+        requestedSchema: {
+          type: "object",
+          required: ["mode"],
+          properties: {
+            mode: {
+              type: "string",
+              title: "执行模式",
+            },
+          },
+          "x-lime-ask-user-questions": [
+            {
+              question: "请选择执行模式",
+              header: "mode",
+              options: [
+                {
+                  label: "自动执行",
+                  description: "直接继续推进",
+                },
+                {
+                  label: "确认后执行",
+                  description: "每一步都等我确认",
+                },
+              ],
+              multiSelect: false,
+            },
+          ],
         },
       });
     } finally {
@@ -4099,6 +4233,8 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
                 {
                   id: "body-1",
                   type: "rich_text",
+                  contentFormat: "markdown",
+                  content: "正文内容",
                   markdown: "正文内容",
                 },
               ],
@@ -4118,13 +4254,15 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
       const artifactDocument = JSON.parse(
         assistantMessage?.artifacts?.[0]?.content || "{}",
       ) as {
-        sources?: Array<{ url?: string }>;
+        sources?: Array<{ locator?: { url?: string } }>;
       };
 
       expect(artifactDocument.sources).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            url: "https://example.com/artifact-sources",
+            locator: expect.objectContaining({
+              url: "https://example.com/artifact-sources",
+            }),
           }),
         ]),
       );
@@ -4166,6 +4304,8 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
                 {
                   id: "body-1",
                   type: "rich_text",
+                  contentFormat: "markdown",
+                  content: "正文内容",
                   markdown: "正文内容",
                 },
               ],
@@ -4215,13 +4355,15 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
       const artifactDocument = JSON.parse(
         assistantMessage?.artifacts?.[0]?.content || "{}",
       ) as {
-        sources?: Array<{ url?: string }>;
+        sources?: Array<{ locator?: { url?: string } }>;
       };
 
       expect(artifactDocument.sources).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            url: "https://example.com/browser-assist",
+            locator: expect.objectContaining({
+              url: "https://example.com/browser-assist",
+            }),
           }),
         ]),
       );
@@ -4438,7 +4580,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
   });
 
   it("会话已绑定其他工作区时不应覆盖 agent_session_workspace 映射", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
     const workspaceId = "ws-current";
     const sessionId = "session-conflict";
     seedSession(workspaceId, sessionId);
@@ -4497,7 +4641,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
   });
 
   it("恢复候选会话时应先由 runtime 确认工作区归属", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
     const workspaceId = "ws-restore-runtime-guard";
     const sessionId = "session-restore-runtime-guard";
     seedSession(workspaceId, sessionId);
@@ -5280,8 +5426,8 @@ describe("useAsterAgentChat 偏好持久化", () => {
             {
               type: "tool_request",
               id: "call_dup_1",
-              tool_name: "Task",
-              arguments: { command: "echo hi" },
+              tool_name: "bash",
+              arguments: { command: "echo hi", background: true },
             },
           ],
         },
@@ -5572,7 +5718,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续沿用当前会话工作区", [], false, false, false, "react");
+          .sendMessage(
+            "继续沿用当前会话工作区",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -5594,7 +5747,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("首条消息需要绑定工作区", [], false, false, false, "react");
+          .sendMessage(
+            "首条消息需要绑定工作区",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -5635,23 +5795,25 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "继续写当前主稿",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                content_id: "content-current-1",
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续写当前主稿",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  content_id: "content-current-1",
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -5692,29 +5854,32 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "切到新主稿后立即发送",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                content_id: "content-new-1",
+        await harness
+          .getValue()
+          .sendMessage(
+            "切到新主稿后立即发送",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  content_id: "content-new-1",
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { content_id?: string };
           } | null
         )?.harness?.content_id,
@@ -5754,24 +5919,26 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "继续沿用当前主题会话",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                theme: "general",
-                session_mode: "default",
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续沿用当前主题会话",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  theme: "general",
+                  session_mode: "default",
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -5813,30 +5980,33 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "切到工作台后立即发送",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                theme: "document",
-                session_mode: "theme_workbench",
+        await harness
+          .getValue()
+          .sendMessage(
+            "切到工作台后立即发送",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  theme: "document",
+                  session_mode: "theme_workbench",
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { theme?: string; session_mode?: string };
           } | null
         )?.harness,
@@ -5879,24 +6049,26 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "继续当前社媒运行",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                gate_key: "write_mode",
-                run_title: "社媒初稿",
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续当前社媒运行",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  gate_key: "write_mode",
+                  run_title: "社媒初稿",
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -5938,30 +6110,33 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "切到新 gate 后立即发送",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                gate_key: "publish_confirm",
-                run_title: "发布确认",
+        await harness
+          .getValue()
+          .sendMessage(
+            "切到新 gate 后立即发送",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  gate_key: "publish_confirm",
+                  run_title: "发布确认",
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { gate_key?: string; run_title?: string };
           } | null
         )?.harness,
@@ -6022,38 +6197,40 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "继续沿用当前 Team 选择",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                preferred_team_preset_id: "code-triage-team",
-                selected_team_id: "custom-team-1",
-                selected_team_source: "custom",
-                selected_team_label: "前端联调团队",
-                selected_team_description: "分析、实现、验证三段式推进。",
-                selected_team_summary: "分析、实现、验证三段式推进。",
-                selected_team_roles: [
-                  {
-                    id: "explorer",
-                    label: "分析",
-                    summary: "负责定位问题与影响范围。",
-                    profile_id: "code-explorer",
-                    role_key: "explorer",
-                    skill_ids: ["repo-exploration"],
-                  },
-                ],
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续沿用当前 Team 选择",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  preferred_team_preset_id: "code-triage-team",
+                  selected_team_id: "custom-team-1",
+                  selected_team_source: "custom",
+                  selected_team_label: "前端联调团队",
+                  selected_team_description: "分析、实现、验证三段式推进。",
+                  selected_team_summary: "分析、实现、验证三段式推进。",
+                  selected_team_roles: [
+                    {
+                      id: "explorer",
+                      label: "分析",
+                      summary: "负责定位问题与影响范围。",
+                      profile_id: "code-explorer",
+                      role_key: "explorer",
+                      skill_ids: ["repo-exploration"],
+                    },
+                  ],
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -6113,44 +6290,47 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "切换 Team 后立即发送",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                preferred_team_preset_id: "code-triage-team",
-                selected_team_id: "custom-team-1",
-                selected_team_source: "custom",
-                selected_team_label: "前端联调团队",
-                selected_team_description: "分析、实现、验证三段式推进。",
-                selected_team_summary: "分析、实现、验证三段式推进。",
-                selected_team_roles: [
-                  {
-                    id: "explorer",
-                    label: "分析",
-                    summary: "负责定位问题与影响范围。",
-                    profile_id: "code-explorer",
-                    role_key: "explorer",
-                    skill_ids: ["repo-exploration"],
-                  },
-                ],
+        await harness
+          .getValue()
+          .sendMessage(
+            "切换 Team 后立即发送",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  preferred_team_preset_id: "code-triage-team",
+                  selected_team_id: "custom-team-1",
+                  selected_team_source: "custom",
+                  selected_team_label: "前端联调团队",
+                  selected_team_description: "分析、实现、验证三段式推进。",
+                  selected_team_summary: "分析、实现、验证三段式推进。",
+                  selected_team_roles: [
+                    {
+                      id: "explorer",
+                      label: "分析",
+                      summary: "负责定位问题与影响范围。",
+                      profile_id: "code-explorer",
+                      role_key: "explorer",
+                      skill_ids: ["repo-exploration"],
+                    },
+                  ],
+                },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: {
               selected_team_label?: string;
               selected_team_roles?: Array<{ profile_id?: string }>;
@@ -6160,7 +6340,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBe("前端联调团队");
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: {
               selected_team_roles?: Array<{ profile_id?: string }>;
             };
@@ -6490,7 +6671,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBeUndefined();
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { preferences?: { thinking?: boolean } };
           } | null
         )?.harness?.preferences?.thinking,
@@ -6535,7 +6717,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续沿用已同步的 thinking", [], false, true, false, "react");
+          .sendMessage(
+            "继续沿用已同步的 thinking",
+            [],
+            false,
+            true,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -6545,7 +6734,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBeUndefined();
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { preferences?: { thinking?: boolean } };
           } | null
         )?.harness?.preferences?.thinking,
@@ -6591,7 +6781,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("切换 thinking 后立即发送", [], false, true, false, "react");
+          .sendMessage(
+            "切换 thinking 后立即发送",
+            [],
+            false,
+            true,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -6638,31 +6835,34 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "继续沿用已保存的 thinking metadata 偏好",
-          [],
-          false,
-          true,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                preferences: {
-                  thinking: true,
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续沿用已保存的 thinking metadata 偏好",
+            [],
+            false,
+            true,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  preferences: {
+                    thinking: true,
+                  },
                 },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { preferences?: { thinking?: boolean } };
           } | null
         )?.harness?.preferences?.thinking,
@@ -6706,31 +6906,34 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "切换 thinking metadata 后立即发送",
-          [],
-          false,
-          true,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                preferences: {
-                  thinking: true,
+        await harness
+          .getValue()
+          .sendMessage(
+            "切换 thinking metadata 后立即发送",
+            [],
+            false,
+            true,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  preferences: {
+                    thinking: true,
+                  },
                 },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { preferences?: { thinking?: boolean } };
           } | null
         )?.harness?.preferences?.thinking,
@@ -6776,7 +6979,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续按已保存的联网偏好处理", [], true, false, false, "react");
+          .sendMessage(
+            "继续按已保存的联网偏好处理",
+            [],
+            true,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -6788,7 +6998,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBeUndefined();
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { preferences?: { web_search?: boolean } };
           } | null
         )?.harness?.preferences?.web_search,
@@ -6833,7 +7044,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续沿用已同步的联网偏好", [], true, false, false, "react");
+          .sendMessage(
+            "继续沿用已同步的联网偏好",
+            [],
+            true,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -6842,7 +7060,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBeUndefined();
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: { preferences?: { web_search?: boolean } };
           } | null
         )?.harness?.preferences?.web_search,
@@ -6888,7 +7107,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("切换联网偏好后立即发送", [], true, false, false, "react");
+          .sendMessage(
+            "切换联网偏好后立即发送",
+            [],
+            true,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -6934,32 +7160,35 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "继续沿用已保存的 task/subagent 偏好",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                preferences: {
-                  task: true,
-                  subagent: true,
+        await harness
+          .getValue()
+          .sendMessage(
+            "继续沿用已保存的 task/subagent 偏好",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  preferences: {
+                    task: true,
+                    subagent: true,
+                  },
                 },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: {
               preferences?: { task?: boolean; subagent?: boolean };
             };
@@ -6968,7 +7197,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBeUndefined();
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: {
               preferences?: { task?: boolean; subagent?: boolean };
             };
@@ -7014,32 +7244,35 @@ describe("useAsterAgentChat 兼容接口", () => {
       mockSubmitAgentRuntimeTurn.mockClear();
 
       await act(async () => {
-        await harness.getValue().sendMessage(
-          "切换 task/subagent 后立即发送",
-          [],
-          false,
-          false,
-          false,
-          "react",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                preferences: {
-                  task: true,
-                  subagent: true,
+        await harness
+          .getValue()
+          .sendMessage(
+            "切换 task/subagent 后立即发送",
+            [],
+            false,
+            false,
+            false,
+            "react",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  preferences: {
+                    task: true,
+                    subagent: true,
+                  },
                 },
               },
             },
-          },
-        );
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: {
               preferences?: { task?: boolean; subagent?: boolean };
             };
@@ -7048,7 +7281,8 @@ describe("useAsterAgentChat 兼容接口", () => {
       ).toBe(true);
       expect(
         (
-          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config?.metadata as {
+          mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
+            ?.metadata as {
             harness?: {
               preferences?: { task?: boolean; subagent?: boolean };
             };
@@ -7085,7 +7319,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续沿用当前执行策略", [], false, false, false, "react");
+          .sendMessage(
+            "继续沿用当前执行策略",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
@@ -7183,7 +7424,14 @@ describe("useAsterAgentChat 兼容接口", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("沿用只读权限继续分析", [], false, false, false, "react");
+          .sendMessage(
+            "沿用只读权限继续分析",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);

@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use super::{migration, migration_v2, migration_v3, migration_v4};
+use super::{migration, migration_v2, migration_v3, migration_v4, migration_v5};
 
 pub(super) fn run_startup_migrations(conn: &Connection) {
     run_provider_pool_startup_migrations(conn);
@@ -178,11 +178,26 @@ fn run_versioned_startup_migrations(conn: &Connection) {
             })
         },
     );
+
+    run_nonfatal_logged_startup_migration(
+        conn,
+        "workbench 会话模式迁移失败",
+        migration_v5::migrate_workbench_chat_mode_alias,
+        |_, result| {
+            result.executed.then(|| {
+                format!(
+                    "[数据库] workbench 会话模式旧别名迁移完成: sessions={}",
+                    result.migrated_sessions
+                )
+            })
+        },
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::schema;
     use rusqlite::params;
     use std::cell::Cell;
 
@@ -313,5 +328,28 @@ mod tests {
         );
 
         assert!(called.get());
+    }
+
+    #[test]
+    fn versioned_startup_migrations_rewrite_legacy_creator_chat_mode() {
+        let conn = Connection::open_in_memory().unwrap();
+        schema::create_tables(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params!["session-creator-prefixed", "creator:gpt-4.1", "1", "1"],
+        )
+        .unwrap();
+
+        run_versioned_startup_migrations(&conn);
+
+        let model: String = conn
+            .query_row(
+                "SELECT model FROM agent_sessions WHERE id = ?1",
+                ["session-creator-prefixed"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(model, "workbench:gpt-4.1");
     }
 }

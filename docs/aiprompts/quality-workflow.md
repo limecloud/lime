@@ -70,6 +70,8 @@
 
 如果本轮是在下线项目模板或品牌人设扩展旧链路，`create_template` / `list_templates` / `get_template` / `update_template` / `delete_template` / `set_default_template` / `get_default_template`，以及 `get_brand_persona` / `get_brand_extension` / `save_brand_extension` / `update_brand_extension` / `delete_brand_extension` / `list_brand_persona_templates` 也必须同步从前端 API、Rust 注册、services/core 模型、默认 mock 和 GUI 入口中撤掉。
 
+如果本轮是在清退旧图库素材命名，`create_poster_metadata` / `get_poster_metadata` / `get_poster_material` / `update_poster_metadata` / `delete_poster_metadata` / `list_by_*`，以及 `PosterMaterial*` / `poster_material_*` 表名与模块名也必须同步从前端网关、Rust 注册、DAO 与治理目录册中撤掉；如需保留历史数据，只允许在 schema 迁移中短暂停留旧表名。最低校验至少包含 `npm run test:contracts` 与 `npm run governance:legacy-report`。
+
 ### 3. 用户可见 UI 改动必须补稳定回归
 
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言
@@ -171,7 +173,9 @@ npm run bridge:health -- --timeout-ms 120000
 高频场景：
 
 - 修改 `safeInvoke` / `invoke`
+- 修改 `src/lib/api/document-export.ts`、`save_exported_document`，或把新的 GUI 导出入口接到本地文件保存主链
 - 修改 `agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy`
+- 修改 `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow`
 - 修改 `agent_runtime_update_session` 或会话 provider/model / recent_access_mode / recent_preferences / recent_team_selection 恢复语义
 - 修改 `execution_runtime.recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id` 恢复语义，或前端 `harness.access_mode / harness.theme / harness.session_mode / harness.gate_key / harness.run_title / harness.content_id` steady-state 去重逻辑
 - 修改首页 / 工作区进入 `Claw` 时的首条自动发送上下文，例如 `initialUserPrompt`、`initialAutoSendRequestMetadata`、`harness.service_skill_launch`
@@ -218,10 +222,17 @@ npm run bridge:health -- --timeout-ms 120000
 - 如果这次改动影响 `Claw` 与站点技能的直跑门禁，还应补回归证明：阻断停留在技能入口层，不再把浏览器准备态注入成对话里的继续执行确认。
 - 如果这次改动把 `content_id` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - session 已有 `execution_runtime.recent_content_id` 时，前端不会重复提交相同 `harness.content_id`
+- 如果这次改动涉及上下文压缩语义，至少要同时验证两条运行时链路：
+  - 普通 `agent_runtime_submit_turn` 发消息链路
+  - `agent_runtime_respond_action` 的 ask-user / elicitation 恢复链路
+  二者在 `workspace.settings.auto_compact=false` 时都不应再偷偷触发自动压缩，而应把“请手动压缩或新建会话”的错误显式投影到前端。
   - 切换到新 content 但 runtime 尚未同步时，前端仍会保留显式 `content_id`
 - 如果这次改动把 `theme / session_mode` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - session 已有 `execution_runtime.recent_theme / recent_session_mode` 时，前端不会重复提交相同 `harness.theme / harness.session_mode`
   - 切换到新 theme 或 `theme_workbench` 但 runtime 尚未同步时，前端仍会保留显式 `theme / session_mode`
+- 如果这次改动影响 `harness.team_memory_shadow` 这类 repo-scoped Team 协作上下文，除了契约检查之外，还应补：
+  - 前端发送边界回归，确认 `team_memory_shadow` 能随当前请求进入 `agent_runtime_submit_turn`
+  - Rust `prompt_context` 定向测试，确认 shadow 只作为低优先级协作参考，不覆盖显式 `selected_team_*` 或 `recent_team_selection`
 - 如果这次改动把 `accessMode` steady-state 从“只写 harness metadata”收敛到正式 turn context 与 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - turn 提交始终携带正式 `approval_policy / sandbox_policy`
   - session 已有 `execution_runtime.recent_access_mode` 时，切换话题会恢复对应 accessMode，而不是回退到工作区默认值

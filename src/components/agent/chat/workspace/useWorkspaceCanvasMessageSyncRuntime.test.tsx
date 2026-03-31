@@ -15,7 +15,7 @@ function renderHook(props?: Partial<HookProps>) {
 
   const defaultProps: HookProps = {
     canvasState: null,
-    isContentCreationMode: true,
+    isSpecializedThemeMode: true,
     isThemeWorkbench: false,
     mappedTheme: "general",
     messages: [

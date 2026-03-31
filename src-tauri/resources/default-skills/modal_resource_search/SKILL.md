@@ -7,7 +7,7 @@ metadata:
   lime_when_to_use: 用户需要为当前内容补充外部素材资源时使用。
   lime_version: 1.1.0
   lime_execution_mode: prompt
-  lime_surface: creator
+  lime_surface: workbench
   lime_category: media
 ---
 

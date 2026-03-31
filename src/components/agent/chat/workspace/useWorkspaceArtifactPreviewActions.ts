@@ -7,8 +7,6 @@ import {
 import { toast } from "sonner";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
-import { createInitialMusicState } from "@/lib/workspace/workbenchCanvas";
-import { parseLyrics } from "@/lib/workspace/workbenchCanvas";
 import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import { readFilePreview } from "@/lib/api/fileBrowser";
 import type { SessionFile } from "@/lib/api/session-files";
@@ -33,30 +31,8 @@ function buildCanvasStateFromContent(params: {
   previous: CanvasStateUnion | null;
   mappedTheme: ThemeType;
   content: string;
-  upsertNovelCanvasState: (
-    previous: CanvasStateUnion | null,
-    content: string,
-  ) => CanvasStateUnion;
 }): CanvasStateUnion {
-  const { previous, mappedTheme, content, upsertNovelCanvasState } = params;
-
-  if (mappedTheme === "music") {
-    const sections = parseLyrics(content);
-    if (!previous || previous.type !== "music") {
-      const musicState = createInitialMusicState();
-      musicState.sections = sections;
-      const titleMatch = content.match(/^#\s*(.+)$/m);
-      if (titleMatch) {
-        musicState.spec.title = titleMatch[1].trim();
-      }
-      return musicState;
-    }
-    return { ...previous, sections };
-  }
-
-  if (mappedTheme === "novel") {
-    return upsertNovelCanvasState(previous, content);
-  }
+  const { previous, mappedTheme: _mappedTheme, content } = params;
 
   if (!previous || previous.type !== "document") {
     return createInitialDocumentState(content);
@@ -88,10 +64,6 @@ interface UseWorkspaceArtifactPreviewActionsParams {
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
   setSelectedFileId: (fileId: string) => void;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
-  upsertNovelCanvasState: (
-    previous: CanvasStateUnion | null,
-    content: string,
-  ) => CanvasStateUnion;
 }
 
 interface WorkspaceArtifactPreviewActionsResult {
@@ -126,7 +98,6 @@ export function useWorkspaceArtifactPreviewActions({
   setTaskFiles,
   setSelectedFileId,
   setCanvasState,
-  upsertNovelCanvasState,
 }: UseWorkspaceArtifactPreviewActionsParams): WorkspaceArtifactPreviewActionsResult {
   const handleHarnessLoadFilePreview = useCallback(
     async (path: string): Promise<HarnessFilePreviewResult> => {
@@ -296,12 +267,11 @@ export function useWorkspaceArtifactPreviewActions({
           previous,
           mappedTheme,
           content,
-          upsertNovelCanvasState,
         }),
       );
       setLayoutMode("chat-canvas");
     },
-    [mappedTheme, setCanvasState, setLayoutMode, upsertNovelCanvasState],
+    [mappedTheme, setCanvasState, setLayoutMode],
   );
 
   const handleFileClick = useCallback(

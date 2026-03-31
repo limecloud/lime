@@ -7,7 +7,6 @@ import type {
 import {
   buildActionRequestA2UI,
   isActionRequestA2UICompatible,
-  summarizeActionRequestSubmission,
 } from "../utils/actionRequestA2UI";
 import { buildLegacyQuestionnaireA2UI } from "../utils/legacyQuestionnaireA2UI";
 import {
@@ -255,29 +254,22 @@ export function useWorkspaceA2UIRuntime({
     pendingPromotedA2UIActionRequest,
   ]);
 
-  const a2uiSubmissionNotice = useMemo<A2UISubmissionNotice | null>(() => {
+  const hasRecentA2UISubmission = useMemo(() => {
     if (resolvedPendingA2UI) {
-      return null;
+      return false;
     }
 
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const message = messages[i];
       if (message.role === "assistant") {
-        const submittedActionRequest = [...(message.actionRequests || [])]
-          .reverse()
-          .find(
-            (request) =>
-              request.status === "submitted" &&
-              isActionRequestA2UICompatible(request),
-          );
+        const hasSubmittedActionRequest = (message.actionRequests || []).some(
+          (request) =>
+            request.status === "submitted" &&
+            isActionRequestA2UICompatible(request),
+        );
 
-        if (submittedActionRequest) {
-          return {
-            title: "补充信息已确认",
-            summary:
-              summarizeActionRequestSubmission(submittedActionRequest) ||
-              "已收到你的补充信息，正在继续推进下一步。",
-          };
+        if (hasSubmittedActionRequest) {
+          return true;
         }
 
         continue;
@@ -289,25 +281,16 @@ export function useWorkspaceA2UIRuntime({
 
       const content = message.content.trim();
       if (!content.startsWith("我的选择：")) {
-        return null;
+        return false;
       }
 
-      const summary = content
-        .split("\n")
-        .slice(1)
-        .map((line) => line.replace(/^[-•]\s*/, "").trim())
-        .filter(Boolean)
-        .slice(0, 3)
-        .join(" · ");
-
-      return {
-        title: "需求已确认",
-        summary: summary || "已收到你的补充信息，正在继续推进下一步。",
-      };
+      return true;
     }
 
-    return null;
+    return false;
   }, [messages, resolvedPendingA2UI]);
+
+  const a2uiSubmissionNotice: A2UISubmissionNotice | null = null;
 
   const [retainedPendingA2UI, setRetainedPendingA2UI] =
     useState<PendingA2UIResolution | null>(resolvedPendingA2UI);
@@ -322,7 +305,7 @@ export function useWorkspaceA2UIRuntime({
       return;
     }
 
-    if (a2uiSubmissionNotice) {
+    if (hasRecentA2UISubmission) {
       setRetainedPendingA2UI(null);
       return;
     }
@@ -347,7 +330,7 @@ export function useWorkspaceA2UIRuntime({
       );
       return sourceMessageStillExists ? previous : null;
     });
-  }, [a2uiSubmissionNotice, messages, resolvedPendingA2UI]);
+  }, [hasRecentA2UISubmission, messages, resolvedPendingA2UI]);
 
   const visiblePendingA2UI =
     resolvedPendingA2UI ?? retainedPendingA2UI ?? null;
@@ -357,7 +340,7 @@ export function useWorkspaceA2UIRuntime({
   useEffect(() => {
     const sourceKey = getPendingA2UISourceKey(visiblePendingA2UI);
     if (!sourceKey) {
-      if (a2uiSubmissionNotice) {
+      if (hasRecentA2UISubmission) {
         setPendingA2UIProgressState(null);
       }
       return;
@@ -372,7 +355,7 @@ export function useWorkspaceA2UIRuntime({
             accumulatedFormData: {},
           },
     );
-  }, [a2uiSubmissionNotice, visiblePendingA2UI]);
+  }, [hasRecentA2UISubmission, visiblePendingA2UI]);
 
   const progressivePendingA2UI = useMemo<ProgressiveA2UIStepView | null>(() => {
     if (!visiblePendingA2UI) {

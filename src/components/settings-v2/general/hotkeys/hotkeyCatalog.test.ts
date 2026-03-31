@@ -35,8 +35,8 @@ describe("hotkey catalog", () => {
     });
 
     expect(catalog.summary).toEqual({
-      total: 24,
-      ready: 24,
+      total: 18,
+      ready: 18,
       attention: 0,
       globalReady: 3,
     });
@@ -105,6 +105,6 @@ describe("hotkey catalog", () => {
       }),
     );
     expect(catalog.summary.globalReady).toBe(0);
-    expect(catalog.summary.total).toBe(22);
+    expect(catalog.summary.total).toBe(16);
   });
 });

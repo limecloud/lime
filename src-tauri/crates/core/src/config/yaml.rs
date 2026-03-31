@@ -88,7 +88,7 @@ impl ConfigManager {
 
     /// 从 YAML 字符串解析配置
     pub fn parse_yaml(yaml: &str) -> Result<Config, ConfigError> {
-        serde_yaml::from_str(yaml).map_err(|e| ConfigError::ParseError(e.to_string()))
+        parse_yaml_config_with_legacy_tracking(yaml).map(|(config, _)| config)
     }
 
     /// 将配置序列化为 YAML 字符串
@@ -242,6 +242,65 @@ impl ConfigManager {
 }
 
 use super::types::{LoggingConfig, RetrySettings, ServerConfig};
+
+fn normalize_legacy_workspace_preferences_yaml_value(value: &mut serde_yaml::Value) -> bool {
+    let Some(mapping) = value.as_mapping_mut() else {
+        return false;
+    };
+
+    let workspace_key = serde_yaml::Value::String("workspace_preferences".to_string());
+    let legacy_key = serde_yaml::Value::String("content_creator".to_string());
+
+    if mapping.contains_key(&workspace_key) {
+        return mapping.remove(&legacy_key).is_some();
+    }
+
+    if let Some(legacy_value) = mapping.remove(&legacy_key) {
+        mapping.insert(workspace_key, legacy_value);
+        return true;
+    }
+
+    false
+}
+
+fn normalize_legacy_workspace_preferences_json_value(value: &mut serde_json::Value) -> bool {
+    let Some(object) = value.as_object_mut() else {
+        return false;
+    };
+
+    if object.contains_key("workspace_preferences") {
+        return object.remove("content_creator").is_some();
+    }
+
+    if let Some(legacy_value) = object.remove("content_creator") {
+        object.insert("workspace_preferences".to_string(), legacy_value);
+        return true;
+    }
+
+    false
+}
+
+fn parse_yaml_config_with_legacy_tracking(yaml: &str) -> Result<(Config, bool), ConfigError> {
+    let mut value: serde_yaml::Value =
+        serde_yaml::from_str(yaml).map_err(|e| ConfigError::ParseError(e.to_string()))?;
+    let migrated_legacy_key = normalize_legacy_workspace_preferences_yaml_value(&mut value);
+    let config =
+        serde_yaml::from_value(value).map_err(|e| ConfigError::ParseError(e.to_string()))?;
+    Ok((config, migrated_legacy_key))
+}
+
+fn parse_json_config_with_legacy_tracking(json: &str) -> Result<(Config, bool), ConfigError> {
+    let mut value: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| ConfigError::ParseError(e.to_string()))?;
+    let migrated_legacy_key = normalize_legacy_workspace_preferences_json_value(&mut value);
+    let config =
+        serde_json::from_value(value).map_err(|e| ConfigError::ParseError(e.to_string()))?;
+    Ok((config, migrated_legacy_key))
+}
+
+fn parse_json_config(json: &str) -> Result<Config, ConfigError> {
+    parse_json_config_with_legacy_tracking(json).map(|(config, _)| config)
+}
 
 fn normalized_config_for_persistence(config: &Config) -> Config {
     let mut normalized = config.clone();
@@ -674,8 +733,8 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     // 优先尝试 YAML 配置
     if yaml_path.exists() {
         let content = std::fs::read_to_string(&yaml_path)?;
-        let mut config: Config = serde_yaml::from_str(&content)?;
-        let mut should_save = config.normalize_workspace_preferences();
+        let (mut config, migrated_legacy_key) = parse_yaml_config_with_legacy_tracking(&content)?;
+        let mut should_save = migrated_legacy_key || config.normalize_workspace_preferences();
         if config.normalize_local_server_surface() {
             should_save = true;
         }
@@ -697,8 +756,8 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     // 回退到 JSON 配置
     if json_path.exists() {
         let content = std::fs::read_to_string(&json_path)?;
-        let mut config: Config = serde_json::from_str(&content)?;
-        let mut should_save = config.normalize_workspace_preferences();
+        let (mut config, migrated_legacy_key) = parse_json_config_with_legacy_tracking(&content)?;
+        let mut should_save = migrated_legacy_key || config.normalize_workspace_preferences();
         if config.normalize_local_server_surface() {
             should_save = true;
         }
@@ -824,6 +883,55 @@ logging:
         assert_eq!(
             config.routing.model_aliases.get("gpt-4"),
             Some(&"claude-sonnet-4-5-20250514".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_yaml_migrates_legacy_content_creator_key() {
+        let yaml = r#"
+content_creator:
+  schema_version: 0
+  media_defaults:
+    image:
+      preferred_provider_id: "fal"
+"#;
+
+        let config = ConfigManager::parse_yaml(yaml).unwrap();
+        assert_eq!(config.workspace_preferences.schema_version, 0);
+        assert_eq!(
+            config
+                .workspace_preferences
+                .media_defaults
+                .image
+                .preferred_provider_id
+                .as_deref(),
+            Some("fal")
+        );
+    }
+
+    #[test]
+    fn test_parse_json_config_migrates_legacy_content_creator_key() {
+        let json = r#"{
+            "content_creator": {
+                "schema_version": 0,
+                "media_defaults": {
+                    "image": {
+                        "preferred_provider_id": "fal"
+                    }
+                }
+            }
+        }"#;
+
+        let config = parse_json_config(json).unwrap();
+        assert_eq!(config.workspace_preferences.schema_version, 0);
+        assert_eq!(
+            config
+                .workspace_preferences
+                .media_defaults
+                .image
+                .preferred_provider_id
+                .as_deref(),
+            Some("fal")
         );
     }
 

@@ -1,13 +1,14 @@
-# 内容创作系统
+# 历史内容工作台与画布联动（归档）
 
 ## 概述
 
-内容创作系统支持多种主题（社媒内容、图文海报、歌词曲谱等），通过 `<write_file>` 标签与结构化 A2UI 产物实现 Agent 响应、版本链与右侧画布的联动。
+本说明仅作为历史治理记录保留，现役主入口已经迁到 `workspace.md` 与 `src/components/workspace/**` / `src/lib/workspace/**`。当前内容工作台通过 `<write_file>` 标签与结构化 A2UI 产物实现 Agent 响应、版本链与右侧画布联动。
 
 当前治理结论：
 
-- `src/components/content-creator/**` 仍是现役 `current` runtime，本轮不应直接拆除
-- 工作台外层主链应统一经 `src/lib/workspace/*` 网关访问共享能力
+- `src/components/workspace/**` 与 `src/lib/workspace/**` 是现役 `current` runtime，后续能力只允许继续向这里收敛
+- 文档导航、实现判断与后续扩展应优先参考 `workspace.md`，不要再把本文件当成现役入口
+- 不要再直接恢复 `src/components/content-creator/**` 旧路径；若需要共享能力，统一经 `src/lib/workspace/*` 网关访问
 - 已删除的根级旧入口如 `src/hooks/usePosterWorkflow.ts`、`src/hooks/useMultiPlatformExport.ts` 不应回流
 - 已删除的海报 workflow 孤岛 `src/components/content-creator/workflows/poster/**`、`src/lib/workspace/workbenchPoster.ts` 不应回流
 
@@ -36,11 +37,13 @@ useWorkspaceWriteFileAction → 映射为社媒 harness 产物 / 版本链
 ```
 src/
 ├── components/
-│   ├── content-creator/
+│   ├── workspace/
 │   │   ├── canvas/                  # 现役画布 runtime
 │   │   ├── a2ui/                    # A2UI 结构与解析实现
-│   │   ├── utils/                   # prompt / harness / activity 等内部实现
-│   │   └── hooks/                   # 模块内 Hook（仅保留现役实现）
+│   │   ├── document/                # 文档画布与编辑器
+│   │   ├── layout/                  # 布局过渡与工作台壳
+│   │   ├── media/                   # 素材库与媒体面板
+│   │   └── hooks/                   # 工作台 Hook
 │   └── agent/chat/
 │       ├── hooks/
 │       │   ├── index.ts             # useAgentChatUnified 统一入口
@@ -64,15 +67,14 @@ src/
 
 ### 1. workbenchPrompt.ts / systemPrompt.ts - 系统提示词生成
 
-根据主题和创作模式生成 AI 系统提示词。外层主链统一经 `src/lib/workspace/workbenchPrompt.ts` 访问，底层实现仍位于 `content-creator` 模块内部。
+根据主题和工作台模式生成 AI 系统提示词。外层主链统一经 `src/lib/workspace/workbenchPrompt.ts` 访问，不应再恢复 `content-creator` 内部旧实现路径。
 
 ```typescript
-// src/lib/workspace/workbenchPrompt.ts
-
-export {
+// 运行时代码统一从 workspace 网关进入
+import {
   generateSystemPrompt,
   generateProjectMemoryPrompt,
-} from "@/components/content-creator/utils/*";
+} from "@/lib/workspace/workbenchPrompt";
 ```
 
 **关键指令**：系统提示词要求 AI 使用 `<write_file>` 标签输出内容：
@@ -211,7 +213,7 @@ const handleWriteFile = useWorkspaceWriteFileAction(...);
 - 社媒主题已不再把 `write_file` 仅视为“文件覆盖”，而是映射为带阶段语义的版本链产物
 - `brief / draft / polished / platform variant / publish package` 应分别作为不同产物语义处理
 - 日志、运行轨迹、正文产物三层分离：`harness` 产生命名事件，日志只做投影，正文仍由画布/产物承载
-- 外层主链不要再直接 import `@/components/content-creator/**`，统一走 `src/lib/workspace/*`
+- 外层主链不要再直接 import `@/components/content-creator/**`，统一走 `src/lib/workspace/*` 与 `@/components/workspace/**`
 - 根级旧 Hook `src/hooks/usePosterWorkflow.ts`、`src/hooks/useMultiPlatformExport.ts` 已删除，不应回流
 - 海报 workflow 孤岛 `src/components/content-creator/workflows/poster/**` 与 `src/lib/workspace/workbenchPoster.ts` 已删除，不应回流
 

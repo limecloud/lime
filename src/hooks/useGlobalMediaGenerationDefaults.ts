@@ -23,7 +23,7 @@ export function useGlobalMediaGenerationDefaults(): UseGlobalMediaGenerationDefa
         if (!active) {
           return;
         }
-        setMediaDefaults(config.content_creator?.media_defaults ?? {});
+        setMediaDefaults(config.workspace_preferences?.media_defaults ?? {});
       } catch (error) {
         console.error("加载全局媒体默认设置失败:", error);
         if (active) {

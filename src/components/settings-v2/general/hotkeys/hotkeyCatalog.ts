@@ -16,7 +16,6 @@ import type {
 } from "@/lib/hotkeys/types";
 import { DOCUMENT_CANVAS_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
 import { DOCUMENT_EDITOR_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
-import { POSTER_CANVAS_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
 import { getTerminalPageHotkeys } from "@/components/terminal/terminalPageHotkeys";
 import { WORKBENCH_SIDEBAR_TOGGLE_HOTKEY } from "@/components/workspace/hooks/workbenchHotkeys";
 
@@ -116,10 +115,6 @@ const SCENE_META: Record<
   "document-canvas": {
     title: "文档画布",
     description: "用于文档画布层级的撤销与重做。",
-  },
-  "poster-canvas": {
-    title: "海报画布",
-    description: "用于海报画布编辑、撤销和元素组合。",
   },
 };
 
@@ -363,13 +358,6 @@ export function buildAuditedHotkeyCatalog({
       scene: "document-canvas",
       ...SCENE_META["document-canvas"],
       hotkeys: DOCUMENT_CANVAS_HOTKEYS.map((item) =>
-        createStaticHotkeyItem(item, platform),
-      ),
-    },
-    {
-      scene: "poster-canvas",
-      ...SCENE_META["poster-canvas"],
-      hotkeys: POSTER_CANVAS_HOTKEYS.map((item) =>
         createStaticHotkeyItem(item, platform),
       ),
     },

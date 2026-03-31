@@ -55,9 +55,11 @@ describe("compatSubagentRuntime", () => {
         },
       },
       error: null,
+      summary: "已完成 1 项子任务",
     });
 
     expect(snapshot.hasSignals).toBe(true);
+    expect(snapshot.summary).toBe("已完成 1 项子任务");
     expect(snapshot.recentActivity).toHaveLength(4);
     expect(snapshot.recentActivity[0]?.summary).toBe("调度完成，耗时 4 秒");
     expect(snapshot.recentActivity[3]?.summary).toBe("任务 task-a 开始执行");

@@ -301,10 +301,12 @@ pub(super) async fn try_handle(
                 crate::commands::aster_agent_cmd::AgentRuntimeRespondActionRequest,
             >(args)?;
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let db = app_handle.state::<crate::database::DbConnection>();
 
             crate::commands::aster_agent_cmd::action_runtime::agent_runtime_respond_action(
                 app_handle.clone(),
                 aster_state,
+                db,
                 request,
             )
             .await?;

@@ -101,6 +101,7 @@ function renderPanel(
           progress: null,
           result: null,
           error: null,
+          summary: null,
           recentActivity: [],
           hasSignals: false,
         }}
@@ -151,14 +152,14 @@ function createToolInventory(): AgentRuntimeToolInventory {
     request: {
       caller: "assistant",
       surface: {
-        creator: false,
+        workbench: false,
         browser_assist: true,
       },
     },
     agent_initialized: true,
     warnings: ["extension 搜索工具面存在延迟加载项"],
     mcp_servers: ["lime-browser"],
-    default_allowed_tools: ["tool_search", "WebSearch"],
+    default_allowed_tools: ["ToolSearch", "WebSearch"],
     counts: {
       catalog_total: 3,
       catalog_current_total: 3,
@@ -209,7 +210,7 @@ function createToolInventory(): AgentRuntimeToolInventory {
         execution_sandbox_profile_source: "default",
       },
       {
-        name: "tool_search",
+        name: "ToolSearch",
         profiles: ["core"],
         capabilities: ["web_search"],
         lifecycle: "current",
@@ -248,9 +249,9 @@ function createToolInventory(): AgentRuntimeToolInventory {
         visible_in_context: true,
       },
       {
-        name: "tool_search",
+        name: "ToolSearch",
         description: "搜索工具目录",
-        catalog_entry_name: "tool_search",
+        catalog_entry_name: "ToolSearch",
         catalog_source: "lime_injected",
         catalog_lifecycle: "current",
         catalog_permission_plane: "session_allowlist",
@@ -1362,6 +1363,7 @@ describe("HarnessStatusPanel", () => {
         },
         result: null,
         error: null,
+        summary: "正在执行：legacy-task-1",
         recentActivity: [
           {
             id: "compat:1:started",

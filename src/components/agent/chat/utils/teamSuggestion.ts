@@ -288,7 +288,7 @@ export function getTeamSuggestion({
   }
 
   if (
-    ["social-media", "poster", "music", "novel", "video"].includes(
+    ["social-media", "video"].includes(
       activeTheme?.trim().toLowerCase() ?? "",
     ) &&
     !explicitTeamIntent

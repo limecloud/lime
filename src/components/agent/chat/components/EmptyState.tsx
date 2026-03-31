@@ -2,14 +2,12 @@ import React, { useState, useEffect, useMemo } from "react";
 import styled, { keyframes } from "styled-components";
 import {
   Lightbulb,
-  ImageIcon,
   Video,
   FileText,
   PenTool,
   BrainCircuit,
   CalendarRange,
   Globe,
-  Music,
   ListChecks,
   Settings2,
   Workflow,
@@ -209,8 +207,6 @@ const ALL_CATEGORIES = [
     label: "社媒内容",
     icon: <PenTool className="w-4 h-4" />,
   },
-  { id: "poster", label: "图文海报", icon: <ImageIcon className="w-4 h-4" /> },
-  { id: "music", label: "歌词曲谱", icon: <Music className="w-4 h-4" /> },
   {
     id: "knowledge",
     label: "知识探索",
@@ -223,27 +219,16 @@ const ALL_CATEGORIES = [
   },
   { id: "document", label: "办公文档", icon: <FileText className="w-4 h-4" /> },
   { id: "video", label: "短视频", icon: <Video className="w-4 h-4" /> },
-  { id: "novel", label: "小说创作", icon: <PenTool className="w-4 h-4" /> },
 ];
 
 // 需要显示创作模式选择器的主题
-const CREATION_THEMES = [
-  "social-media",
-  "poster",
-  "document",
-  "video",
-  "music",
-  "novel",
-];
+const CREATION_THEMES = ["social-media", "document", "video"];
 
 // 主题对应的图标
 const THEME_ICONS: Record<string, string> = {
   "social-media": "✨",
-  poster: "🎨",
   knowledge: "🔍",
   planning: "📅",
-  music: "🎵",
-  novel: "📖",
 };
 
 const THEME_WORKBENCH_COPY: Record<
@@ -265,25 +250,10 @@ const THEME_WORKBENCH_COPY: Record<
     description:
       "把选题、平台适配、正文生成和后续改写放在同一条会话里，减少来回切页和重复输入。",
   },
-  poster: {
-    title: "视觉海报工作台",
-    description:
-      "在同一个创作面板里统一管理构图要求、风格偏好和素材补充，适合持续迭代视觉方向。",
-  },
   video: {
     title: "短视频脚本工作台",
     description:
       "围绕一个视频目标持续生成钩子、分镜、口播和封面文案，让脚本迭代留在上下文里。",
-  },
-  music: {
-    title: "音乐创作工作台",
-    description:
-      "将主题、情绪、旋律方向与歌词草案组织在同一个空间里，更适合反复推敲表达。",
-  },
-  novel: {
-    title: "小说创作工作台",
-    description:
-      "让世界观、人物设定、章节推进和重写请求持续留在一个会话内，适合长线创作。",
   },
   document: {
     title: "办公文档工作台",
@@ -454,17 +424,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   // Local state for parameters (Mocking visual state)
   const [platform, setPlatform] = useState("xiaohongshu");
-  const [ratio, setRatio] = useState("3:4");
-  const [style, setStyle] = useState("minimal");
   const [depth, setDepth] = useState("deep");
   const [pendingImages, setPendingImages] = useState<MessageImage[]>([]);
   const [entryTaskType, setEntryTaskType] = useState<EntryTaskType>("direct");
   const [entrySlotValues, setEntrySlotValues] = useState<EntryTaskSlotValues>(
     () => createDefaultEntrySlotValues("direct"),
   );
-  // Popover 打开状态
-  const [ratioPopoverOpen, setRatioPopoverOpen] = useState(false);
-  const [stylePopoverOpen, setStylePopoverOpen] = useState(false);
   const isGeneralTheme = isGeneralResearchTheme(activeTheme);
 
   const wrapTextWithDefaultSkill = (text: string) => {
@@ -619,9 +584,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         creationMode,
         context: {
           platform: getPlatformLabel(platform),
-          ratio,
-          style,
-          depth,
         },
       });
 
@@ -637,11 +599,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     let prefix = "";
     if (activeTheme === "social-media") prefix = `[社媒创作: ${platform}] `;
-    if (activeTheme === "poster") prefix = `[图文生成: ${ratio}, ${style}] `;
     if (activeTheme === "video") prefix = `[视频脚本] `;
     if (activeTheme === "document") prefix = `[办公文档] `;
-    if (activeTheme === "music") prefix = `[歌词曲谱] `;
-    if (activeTheme === "novel") prefix = `[小说创作] `;
     if (activeTheme === "knowledge")
       prefix = `[知识探索: ${depth === "deep" ? "深度" : "快速"}] `;
     if (activeTheme === "planning") prefix = `[计划规划] `;
@@ -673,16 +632,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         return "告诉我你的目标，无论是旅行计划、职业规划还是活动筹备...";
       case "social-media":
         return "输入主题，帮你创作小红书爆款文案、公众号文章...";
-      case "poster":
-        return "描述画面主体、风格、构图，生成精美海报或插画...";
       case "video":
         return "输入视频主题，生成分镜脚本和口播文案...";
       case "document":
         return "输入需求，生成周报、汇报PPT大纲或商务邮件...";
-      case "music":
-        return "输入歌曲主题或情感，帮你创作歌词、设计旋律...";
-      case "novel":
-        return "输入小说主题或情节，帮你创作章节内容...";
       case "general":
         return hasAutoLaunchSiteSkill
           ? `直接说一句话，例如：${siteSkillAutoLaunchExample}`
@@ -944,13 +897,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         title: "研究深度可调",
         description: `当前为${depth === "deep" ? "深度解析" : "快速概览"}模式，可按任务成本调节研究粒度。`,
       });
-    } else if (activeTheme === "poster") {
-      features.push({
-        key: "visual-params",
-        title: "视觉参数集中管理",
-        description:
-          "尺寸、风格和素材补充都集中在同一输入区，减少视觉任务切换成本。",
-      });
     } else {
       features.push({
         key: "quick-start",
@@ -1076,14 +1022,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       setPlatform={setPlatform}
       depth={depth}
       setDepth={setDepth}
-      ratio={ratio}
-      setRatio={setRatio}
-      style={style}
-      setStyle={setStyle}
-      ratioPopoverOpen={ratioPopoverOpen}
-      setRatioPopoverOpen={setRatioPopoverOpen}
-      stylePopoverOpen={stylePopoverOpen}
-      setStylePopoverOpen={setStylePopoverOpen}
       thinkingEnabled={thinkingEnabled}
       onThinkingEnabledChange={onThinkingEnabledChange}
       subagentEnabled={subagentEnabled}

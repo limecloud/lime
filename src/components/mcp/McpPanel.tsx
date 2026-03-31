@@ -45,8 +45,10 @@ export function McpPanel({ hideHeader = false }: McpPanelProps) {
     resources,
     loading,
     error,
+    serverConnectionStates,
     startServer,
     stopServer,
+    reconnectServer,
     refreshServers,
     refreshTools,
     callTool,
@@ -130,8 +132,10 @@ export function McpPanel({ hideHeader = false }: McpPanelProps) {
               servers={servers}
               loading={loading}
               error={error}
+              serverConnectionStates={serverConnectionStates}
               onStartServer={startServer}
               onStopServer={stopServer}
+              onReconnectServer={reconnectServer}
               onRefresh={refreshServers}
             />
           </div>

@@ -7,7 +7,7 @@ metadata:
   lime_when_to_use: 用户希望提升文本可读性、结构清晰度、发布观感时使用。
   lime_version: 1.1.0
   lime_execution_mode: prompt
-  lime_surface: creator
+  lime_surface: workbench
   lime_category: writing
 ---
 

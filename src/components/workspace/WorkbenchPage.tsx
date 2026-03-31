@@ -70,8 +70,6 @@ export function WorkbenchPage({
     creatingProject,
     pendingInitialPromptsByContentId,
     pendingCreateConfirmation,
-    contentCreationModes,
-    contentCreationTypes,
     resolvedProjectPath,
     pathChecking,
     pathConflictMessage,
@@ -92,8 +90,6 @@ export function WorkbenchPage({
     handleCreateProject,
     handleOpenCreateContentDialog,
     handleCreateContentFromWorkspacePrompt,
-    handleQuickCreateNovelEntry,
-    handleOpenProjectWriting,
     handleSubmitCreateConfirmation,
     handleCancelCreateConfirmation,
     consumePendingInitialPrompt,
@@ -103,6 +99,8 @@ export function WorkbenchPage({
     handleEnterWorkspaceView,
     handleSwitchWorkspaceView,
     selectedProjectForContentActions,
+    creationModes,
+    creationTypes,
   } = useWorkbenchController({
     onNavigate,
     initialProjectId,
@@ -115,11 +113,11 @@ export function WorkbenchPage({
     initialCreateFallbackTitle,
   });
 
-  const selectedContentCreationMode = selectedContentId
-    ? contentCreationModes[selectedContentId]
+  const selectedCreationMode = selectedContentId
+    ? creationModes[selectedContentId]
     : undefined;
-  const selectedContentCreationType = selectedContentId
-    ? contentCreationTypes[selectedContentId]
+  const selectedCreationType = selectedContentId
+    ? creationTypes[selectedContentId]
     : undefined;
   const shouldHideVideoSidebarInWorkspace =
     themeModule.capabilities.workspaceKind === "video-canvas" &&
@@ -189,8 +187,6 @@ export function WorkbenchPage({
             onOpenCreateProjectDialog={handleOpenCreateProjectDialog}
             onOpenCreateContentDialog={handleOpenCreateContentDialog}
             onEnterWorkspaceView={handleEnterWorkspaceView}
-            onQuickCreateNovelEntry={handleQuickCreateNovelEntry}
-            onOpenProjectWriting={handleOpenProjectWriting}
             activeWorkspaceView={activeWorkspaceView}
             primaryWorkspaceRenderer={PrimaryWorkspaceRenderer}
             selectedContentId={selectedContentId}
@@ -206,7 +202,7 @@ export function WorkbenchPage({
             }}
             onCancelCreateConfirmation={handleCancelCreateConfirmation}
             onConsumePendingInitialPrompt={consumePendingInitialPrompt}
-            contentCreationModes={contentCreationModes}
+            creationModes={creationModes}
             showChatPanel={true}
             showCreateContentEntryHome={showCreateContentEntryHome}
             onWorkflowProgressChange={setWorkflowProgress}
@@ -225,8 +221,8 @@ export function WorkbenchPage({
               projectId={selectedProjectId}
               contentId={selectedContentId}
               theme={theme}
-              creationMode={selectedContentCreationMode}
-              creationType={selectedContentCreationType}
+              creationMode={selectedCreationMode}
+              creationType={selectedCreationType}
               onBackToCreateView={() => handleSwitchWorkspaceView("create")}
               onCreateContentFromPrompt={handleCreateContentFromWorkspacePrompt}
             />

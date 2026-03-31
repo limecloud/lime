@@ -74,7 +74,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   mockGetConfig.mockResolvedValue({
-    content_creator: {
+    workspace_preferences: {
       media_defaults: {
         image: {
           preferredProviderId: "fal",
@@ -153,7 +153,7 @@ describe("ImageGenSettings", () => {
 
     expect(mockSaveConfig).toHaveBeenCalledTimes(1);
     const savedConfig = mockSaveConfig.mock.calls[0][0];
-    expect(savedConfig.content_creator.media_defaults.image).toBeUndefined();
+    expect(savedConfig.workspace_preferences.media_defaults.image).toBeUndefined();
     expect(container.textContent).toContain("设置已保存");
   });
 });

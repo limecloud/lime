@@ -155,12 +155,18 @@ function extractLatestRuntimeStatus(
 }
 
 const PLANNING_TOOL_NAMES = new Set([
-  "todowrite",
-  "writetodos",
+  "taskcreate",
+  "tasklist",
+  "taskget",
+  "taskupdate",
   "enterplanmode",
   "exitplanmode",
 ]);
-const TODO_SNAPSHOT_TOOL_NAMES = new Set(["todowrite", "writetodos"]);
+const TODO_SNAPSHOT_TOOL_NAMES = new Set([
+  "taskcreate",
+  "tasklist",
+  "taskupdate",
+]);
 
 const FILESYSTEM_TOOL_NAMES = new Set([
   "read",
@@ -185,10 +191,20 @@ const LIME_TOOL_METADATA_BEGIN = "[Lime 工具元数据开始]";
 const LIME_TOOL_METADATA_END = "[Lime 工具元数据结束]";
 
 function normalizeToolName(value: string): string {
-  return value
+  const normalized = value
     .replace(/[\s_-]+/g, "")
     .trim()
     .toLowerCase();
+  if (normalized === "task") {
+    return "bash";
+  }
+  if (normalized === "killshell") {
+    return "taskstop";
+  }
+  if (normalized === "todowrite" || normalized === "writetodos") {
+    return "taskupdate";
+  }
+  return normalized;
 }
 
 function parseJsonValue(raw?: string): unknown {
@@ -334,6 +350,13 @@ function normalizePersistedTodoItems(
 }
 
 function extractTodoSnapshot(toolCall: ToolCallState): HarnessTodoItem[] {
+  const fromMetadata = extractTodoCandidates(extractMetadata(toolCall))
+    .map(normalizeTodoItem)
+    .filter((item): item is HarnessTodoItem => item !== null);
+  if (fromMetadata.length > 0) {
+    return fromMetadata;
+  }
+
   const fromArguments = extractTodoCandidates(
     parseJsonValue(toolCall.arguments),
   )
@@ -710,7 +733,8 @@ function extractOutputSignal(
       output,
     );
   const artifactPath =
-    extractArtifactProtocolPathsFromValue(metadata)[0] || extractArtifactPath(toolCall);
+    extractArtifactProtocolPathsFromValue(metadata)[0] ||
+    extractArtifactPath(toolCall);
   const exitCode =
     normalizeNumber(metadata?.exit_code) ||
     parseNumberFromText(/^退出码:\s*(-?\d+)$/m, output) ||
@@ -1020,12 +1044,7 @@ function classifyToolActivity(
     return;
   }
 
-  if (
-    name === "task" ||
-    name === "taskoutput" ||
-    name === "killshell" ||
-    name === "bash"
-  ) {
+  if (name === "taskoutput" || name === "taskstop" || name === "bash") {
     activity.execution += 1;
     return;
   }
@@ -1188,8 +1207,10 @@ function deriveHarnessSessionStateFromItems(
   const recentFileEvents: HarnessFileEvent[] = [];
   const derivedApprovalMap = new Map<string, ActionRequired>();
   let latestPlanItem: AgentThreadItem | null = null;
-  let latestTurnSummaryItem: Extract<AgentThreadItem, { type: "turn_summary" }> | null =
-    null;
+  let latestTurnSummaryItem: Extract<
+    AgentThreadItem,
+    { type: "turn_summary" }
+  > | null = null;
 
   for (const item of sortedItems) {
     switch (item.type) {
@@ -1535,10 +1556,10 @@ function deriveHarnessSessionStateFromMessages(
           latestExitPlanTimestamp === 0 &&
           latestDecisionSummaryText
         ? "ready"
-      : latestExitPlanTimestamp > 0 &&
-          latestExitPlanTimestamp >= latestPlanningTimestamp
-        ? "ready"
-        : "planning";
+        : latestExitPlanTimestamp > 0 &&
+            latestExitPlanTimestamp >= latestPlanningTimestamp
+          ? "ready"
+          : "planning";
 
   const hasSignals =
     runtimeStatus !== null ||

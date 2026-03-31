@@ -7,7 +7,7 @@ export { useProjects } from "./useProjects";
 export { useProject } from "./useProject";
 export { usePersonas } from "./usePersonas";
 export { useMaterials } from "./useMaterials";
-export { usePosterMaterial } from "./usePosterMaterial";
+export { useGalleryMaterial } from "./useGalleryMaterial";
 export { useProjectContext } from "./useProjectContext";
 export { useSkillExecution } from "./useSkillExecution";
 export { useMcp } from "./useMcp";
@@ -23,7 +23,7 @@ export type { UseProjectsReturn } from "./useProjects";
 export type { UseProjectReturn } from "./useProject";
 export type { UsePersonasReturn } from "./usePersonas";
 export type { UseMaterialsReturn } from "./useMaterials";
-export type { UsePosterMaterialReturn } from "./usePosterMaterial";
+export type { UseGalleryMaterialReturn } from "./useGalleryMaterial";
 export type { UseProjectContextReturn } from "./useProjectContext";
 export type {
   ConnectPayload,

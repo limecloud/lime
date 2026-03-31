@@ -30,6 +30,7 @@ import {
   type EnsureBrowserAssistCanvasOptions,
 } from "./workspaceSendHelpers";
 import type { Character } from "@/lib/api/memory";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 
@@ -58,6 +59,7 @@ interface UseWorkspaceSendActionsParams {
   selectedTeam?: TeamDefinition | null;
   selectedTeamLabel?: string;
   selectedTeamSummary?: string;
+  teamMemoryShadowSnapshot?: TeamMemorySnapshot | null;
   currentGateKey: string;
   themeWorkbenchActiveQueueTitle?: string;
   contentId?: string | null;
@@ -159,6 +161,7 @@ export function useWorkspaceSendActions({
   selectedTeam,
   selectedTeamLabel,
   selectedTeamSummary,
+  teamMemoryShadowSnapshot,
   currentGateKey,
   themeWorkbenchActiveQueueTitle,
   contentId,
@@ -378,6 +381,7 @@ export function useWorkspaceSendActions({
           selectedTeam,
           selectedTeamLabel,
           selectedTeamSummary,
+          teamMemoryShadowSnapshot,
         });
         const nextSendOptions: HandleSendOptions = {
           ...(sendOptions || {}),
@@ -435,6 +439,7 @@ export function useWorkspaceSendActions({
       selectedTeam,
       selectedTeamLabel,
       selectedTeamSummary,
+      teamMemoryShadowSnapshot,
       sendMessage,
       setInput,
       setMentionedCharacters,

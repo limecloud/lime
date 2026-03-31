@@ -85,10 +85,9 @@ export function useWorkspaceThemeWorkbenchScaffoldRuntime({
   ] = useState<ThemeWorkbenchCreationTaskEvent[]>([]);
 
   const shouldUseCompactThemeWorkbench =
-    isThemeWorkbench && (mappedTheme === "video" || mappedTheme === "poster");
+    isThemeWorkbench && mappedTheme === "video";
   const shouldSkipThemeWorkbenchAutoGuideWithoutPrompt =
-    isThemeWorkbench &&
-    (shouldUseCompactThemeWorkbench || mappedTheme === "novel");
+    isThemeWorkbench && shouldUseCompactThemeWorkbench;
   const enableThemeWorkbenchPanelCollapse =
     isThemeWorkbench && mappedTheme === "social-media";
 

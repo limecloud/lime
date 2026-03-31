@@ -6,7 +6,7 @@
  */
 
 import type { Artifact, ArtifactMeta, ArtifactType } from "./types";
-import { ALL_ARTIFACT_TYPES } from "./types";
+import { normalizeArtifactType } from "./types";
 
 /**
  * 解析结果接口
@@ -121,9 +121,8 @@ function parseArtifactAttributes(line: string): {
 
     switch (normalizedKey) {
       case "type": {
-        // 验证类型是否有效
-        const normalizedType = value.toLowerCase() as ArtifactType;
-        if (ALL_ARTIFACT_TYPES.includes(normalizedType)) {
+        const normalizedType = normalizeArtifactType(value);
+        if (normalizedType) {
           type = normalizedType;
         }
         break;
@@ -362,10 +361,7 @@ export class ArtifactParser {
       react: "React Component",
       browser_assist: "Browser Assist",
       "canvas:document": "Document",
-      "canvas:poster": "Poster",
-      "canvas:music": "Music",
-      "canvas:script": "Script",
-      "canvas:novel": "Novel",
+      "canvas:video": "Video",
     };
 
     return typeNames[type] || "Artifact";

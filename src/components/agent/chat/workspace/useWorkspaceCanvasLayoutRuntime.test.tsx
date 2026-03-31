@@ -51,7 +51,6 @@ function renderHook(props?: Partial<HookProps>) {
     setGeneralCanvasState: vi.fn(),
     setCanvasState: vi.fn(),
     setCanvasWorkbenchLayoutMode: vi.fn(),
-    setNovelChapterListCollapsed: vi.fn(),
   };
 
   function Probe(currentProps: HookProps) {

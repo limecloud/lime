@@ -1325,7 +1325,7 @@ const defaultMocks: Record<string, any> = {
       image_search_pexels_api_key: "",
       image_search_pixabay_api_key: "",
     },
-    content_creator: {
+    workspace_preferences: {
       schema_version: 1,
       media_defaults: {},
     },
@@ -2798,12 +2798,12 @@ const defaultMocks: Record<string, any> = {
   agent_runtime_get_tool_inventory: () => ({
     request: {
       caller: "assistant",
-      surface: { creator: false, browser_assist: false },
+      surface: { workbench: false, browser_assist: false },
     },
     agent_initialized: false,
     warnings: [],
     mcp_servers: [],
-    default_allowed_tools: ["tool_search"],
+    default_allowed_tools: ["ToolSearch"],
     counts: {
       catalog_total: 0,
       catalog_current_total: 0,
@@ -3175,6 +3175,7 @@ const defaultMocks: Record<string, any> = {
   }),
   session_files_read_file: () => "",
   session_files_delete_file: () => undefined,
+  save_exported_document: () => undefined,
 
   // OAuth 凭证相关
   add_kiro_oauth_credential: () => ({ success: true }),

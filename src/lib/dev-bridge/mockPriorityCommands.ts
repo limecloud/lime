@@ -30,6 +30,7 @@ const mockPriorityCommands = new Set<string>([
   "session_files_save_file",
   "session_files_read_file",
   "session_files_delete_file",
+  "save_exported_document",
   "execution_run_get_theme_workbench_state",
   "get_hint_routes",
   "openclaw_check_installed",

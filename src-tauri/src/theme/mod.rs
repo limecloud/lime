@@ -2,5 +2,4 @@
 //!
 //! 按主题组织前后端能力，支持渐进式迁移。
 
-pub mod novel;
 pub mod video;

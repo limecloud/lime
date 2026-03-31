@@ -1468,7 +1468,8 @@ function CompatSubagentFallbackCard({
           ? ` · 当前任务 ${snapshot.progress.currentTasks.join("、")}`
           : ""
       }`
-    : snapshot.recentActivity[0]?.summary ||
+    : snapshot.summary ||
+      snapshot.recentActivity[0]?.summary ||
       snapshot.error ||
       snapshot.result?.mergedSummary ||
       "检测到兼容调度信号";
@@ -4570,8 +4571,8 @@ export function HarnessStatusPanel({
                               caller：{toolInventory.request?.caller || "未知"}
                             </Badge>
                             <Badge variant="outline">
-                              Creator：
-                              {toolInventory.request?.surface?.creator
+                              工作台：
+                              {toolInventory.request?.surface?.workbench
                                 ? "开启"
                                 : "关闭"}
                             </Badge>

@@ -1,11 +1,10 @@
 /**
  * @file ContentTab.tsx
- * @description 内容 Tab 组件，小说项目显示流水线工作台，其他项目显示话题列表
+ * @description 内容 Tab 组件，统一展示项目话题入口
  * @module components/projects/tabs/ContentTab
  */
 
 import { Button } from "@/components/ui/button";
-import NovelFlowWorkbench from "@/components/projects/tabs/novel-flow/NovelFlowWorkbench";
 import { MessageSquareIcon, PlusIcon } from "lucide-react";
 
 export interface ContentTabProps {
@@ -24,20 +23,16 @@ export interface ContentTabProps {
 /**
  * 内容 Tab 组件
  *
- * 小说项目展示流水线工作台，非小说项目保持话题入口。
+ * 当前所有项目类型统一使用话题入口。
  */
 export function ContentTab({
-  projectId,
-  projectName,
-  workspaceType,
+  projectId: _projectId,
+  projectName: _projectName,
+  workspaceType: _workspaceType,
   onNewTopic,
   onTopicClick,
 }: ContentTabProps) {
-  if (workspaceType === "novel") {
-    return <NovelFlowWorkbench projectId={projectId} projectName={projectName} />;
-  }
-
-  // TODO: 从后端获取非小说项目的话题列表
+  // TODO: 从后端获取项目话题列表
   const topics: Array<{
     id: string;
     title: string;

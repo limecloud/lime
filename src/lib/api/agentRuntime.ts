@@ -1085,7 +1085,7 @@ export interface AgentRuntimeCloseSubagentResponse {
   changed_session_ids: string[];
 }
 
-export type AgentToolSurfaceProfile = "core" | "creator" | "browser_assist";
+export type AgentToolSurfaceProfile = "core" | "workbench" | "browser_assist";
 
 export type AgentToolCapability =
   | "planning"
@@ -1134,13 +1134,13 @@ export type AgentRuntimeExtensionSourceKind =
 
 export interface AgentRuntimeToolInventoryRequest {
   caller?: string;
-  creator?: boolean;
+  workbench?: boolean;
   browserAssist?: boolean;
   metadata?: Record<string, unknown>;
 }
 
 export interface AgentRuntimeToolInventorySurface {
-  creator: boolean;
+  workbench: boolean;
   browser_assist: boolean;
 }
 

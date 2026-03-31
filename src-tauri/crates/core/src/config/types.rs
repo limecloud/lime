@@ -392,9 +392,9 @@ pub struct Config {
     /// Tool Calling 2.0 配置
     #[serde(default)]
     pub tool_calling: ToolCallingConfig,
-    /// 内容创作配置
-    #[serde(default)]
-    pub content_creator: ContentCreatorConfig,
+    /// 工作区偏好配置
+    #[serde(default, rename = "workspace_preferences")]
+    pub workspace_preferences: WorkspacePreferencesConfig,
     /// 导航栏配置
     #[serde(default)]
     pub navigation: NavigationConfig,
@@ -632,11 +632,11 @@ impl Default for NativeAgentConfig {
     }
 }
 
-// ============ 内容创作配置类型 ============
+// ============ 工作区偏好配置类型 ============
 
-/// 内容创作配置
+/// 工作区偏好配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ContentCreatorConfig {
+pub struct WorkspacePreferencesConfig {
     /// 工作区偏好配置版本
     #[serde(default)]
     pub schema_version: u8,
@@ -649,7 +649,7 @@ fn current_workspace_preferences_schema_version() -> u8 {
     1
 }
 
-impl Default for ContentCreatorConfig {
+impl Default for WorkspacePreferencesConfig {
     fn default() -> Self {
         Self {
             schema_version: current_workspace_preferences_schema_version(),
@@ -2138,7 +2138,7 @@ impl Default for Config {
             agent: NativeAgentConfig::default(),
             experimental: ExperimentalFeatures::default(),
             tool_calling: ToolCallingConfig::default(),
-            content_creator: ContentCreatorConfig::default(),
+            workspace_preferences: WorkspacePreferencesConfig::default(),
             navigation: NavigationConfig::default(),
             chat_appearance: ChatAppearanceConfig::default(),
             environment: EnvironmentConfig::default(),
@@ -2189,8 +2189,8 @@ impl Config {
             changed = true;
         }
 
-        if self.content_creator.schema_version < current_version {
-            self.content_creator.schema_version = current_version;
+        if self.workspace_preferences.schema_version < current_version {
+            self.workspace_preferences.schema_version = current_version;
             changed = true;
         }
 
@@ -2734,7 +2734,7 @@ mod unit_tests {
         assert_eq!(config.crash_reporting.environment, "production");
         assert_eq!(config.crash_reporting.sample_rate, 1.0);
         assert!(!config.crash_reporting.send_pii);
-        assert_eq!(config.content_creator.schema_version, 1);
+        assert_eq!(config.workspace_preferences.schema_version, 1);
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
@@ -2818,7 +2818,7 @@ mod unit_tests {
     #[test]
     fn test_normalize_workspace_preferences_upgrades_legacy_defaults() {
         let mut config = Config::default();
-        config.content_creator.schema_version = 0;
+        config.workspace_preferences.schema_version = 0;
         config.navigation.schema_version = 0;
         config.navigation.enabled_items = vec![
             "home-general".to_string(),
@@ -2830,7 +2830,7 @@ mod unit_tests {
         let changed = config.normalize_workspace_preferences();
 
         assert!(changed);
-        assert_eq!(config.content_creator.schema_version, 1);
+        assert_eq!(config.workspace_preferences.schema_version, 1);
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
@@ -2850,7 +2850,7 @@ mod unit_tests {
     #[test]
     fn test_normalize_workspace_preferences_preserves_current_custom_values() {
         let mut config = Config::default();
-        config.content_creator.schema_version = 0;
+        config.workspace_preferences.schema_version = 0;
         config.navigation.schema_version = 0;
         config.navigation.enabled_items = vec![
             "home-general".to_string(),
@@ -2862,7 +2862,7 @@ mod unit_tests {
         let changed = config.normalize_workspace_preferences();
 
         assert!(changed);
-        assert_eq!(config.content_creator.schema_version, 1);
+        assert_eq!(config.workspace_preferences.schema_version, 1);
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,

@@ -12,7 +12,6 @@ export type {
   Config,
   CrashReportingConfig,
   ChatAppearanceConfig,
-  ContentCreatorConfig,
   DeveloperConfig,
   EnvironmentConfig,
   EnvironmentPreview,
@@ -30,6 +29,7 @@ export type {
   ToolCallingConfig,
   UserProfile,
   VoiceConfig,
+  WorkspacePreferencesConfig,
 } from "./appConfigTypes";
 
 interface GetConfigOptions {

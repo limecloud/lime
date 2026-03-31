@@ -77,6 +77,14 @@ function isTestEnvironment(): boolean {
   return Boolean(import.meta.env?.MODE === "test" || import.meta.env?.VITEST);
 }
 
+function isJsdomEnvironment(): boolean {
+  return Boolean(
+    typeof navigator !== "undefined" &&
+      typeof navigator.userAgent === "string" &&
+      navigator.userAgent.toLowerCase().includes("jsdom"),
+  );
+}
+
 export function normalizeDevBridgeError(cmd: string, error: unknown): Error {
   const message = toErrorMessage(error);
 
@@ -118,9 +126,17 @@ export function isDevBridgeAvailable(): boolean {
   return isBrowser;
 }
 
+function hasTestEventBridgeCapabilityOverride(): boolean {
+  return (
+    (isTestEnvironment() || isJsdomEnvironment()) &&
+    typeof window !== "undefined" &&
+    resolveEventSourceConstructor() !== null
+  );
+}
+
 export function hasDevBridgeEventListenerCapability(): boolean {
   return (
-    isDevBridgeAvailable() &&
+    (isDevBridgeAvailable() || hasTestEventBridgeCapabilityOverride()) &&
     typeof window !== "undefined" &&
     resolveEventSourceConstructor() !== null
   );

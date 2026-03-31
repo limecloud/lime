@@ -76,14 +76,14 @@ pub enum RuntimeExtensionSourceKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ToolInventorySurfaceSnapshot {
-    pub creator: bool,
+    pub workbench: bool,
     pub browser_assist: bool,
 }
 
 impl From<WorkspaceToolSurface> for ToolInventorySurfaceSnapshot {
     fn from(value: WorkspaceToolSurface) -> Self {
         Self {
-            creator: value.creator,
+            workbench: value.workbench,
             browser_assist: value.browser_assist,
         }
     }
@@ -793,7 +793,7 @@ mod tests {
                 vec!["assistant"],
             )],
             registry_definitions: vec![
-                definition("tool_search", "search tools", json!({ "type": "object" })),
+                definition("ToolSearch", "search tools", json!({ "type": "object" })),
                 definition(
                     "read",
                     "read file",
@@ -837,7 +837,9 @@ mod tests {
             ],
         });
 
-        assert_eq!(inventory.counts.catalog_total, 26);
+        assert_eq!(inventory.counts.catalog_total, 30);
+        assert_eq!(inventory.counts.catalog_current_total, 29);
+        assert_eq!(inventory.counts.catalog_compat_total, 1);
         assert_eq!(inventory.counts.registry_total, 3);
         assert_eq!(inventory.counts.registry_visible_total, 2);
         assert_eq!(inventory.counts.registry_catalog_unmapped_total, 1);
@@ -849,7 +851,7 @@ mod tests {
         assert_eq!(inventory.counts.mcp_tool_visible_total, 0);
         assert!(inventory
             .default_allowed_tools
-            .contains(&"tool_search".to_string()));
+            .contains(&"ToolSearch".to_string()));
         let bash_catalog = inventory
             .catalog_tools
             .iter()
@@ -951,9 +953,9 @@ mod tests {
     }
 
     #[test]
-    fn test_build_tool_inventory_creator_with_browser_surface_keeps_small_default_allowlist() {
+    fn test_build_tool_inventory_workbench_with_browser_surface_keeps_small_default_allowlist() {
         let inventory = build_tool_inventory(AgentToolInventoryBuildInput {
-            surface: WorkspaceToolSurface::creator_with_browser_assist(),
+            surface: WorkspaceToolSurface::workbench_with_browser_assist(),
             caller: "assistant".to_string(),
             agent_initialized: true,
             warnings: Vec::new(),
@@ -967,14 +969,14 @@ mod tests {
             searchable_extension_tools: Vec::new(),
         });
         let expected_default_allowed = workspace_default_allowed_tool_names(
-            WorkspaceToolSurface::creator_with_browser_assist(),
+            WorkspaceToolSurface::workbench_with_browser_assist(),
         )
         .into_iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>();
 
-        assert_eq!(inventory.counts.catalog_total, 40);
-        assert_eq!(inventory.counts.catalog_current_total, 39);
+        assert_eq!(inventory.counts.catalog_total, 44);
+        assert_eq!(inventory.counts.catalog_current_total, 43);
         assert_eq!(inventory.counts.catalog_compat_total, 1);
         assert_eq!(inventory.default_allowed_tools, expected_default_allowed);
         assert_eq!(
@@ -983,7 +985,13 @@ mod tests {
         );
         assert!(inventory
             .default_allowed_tools
-            .contains(&"tool_search".to_string()));
+            .contains(&"ToolSearch".to_string()));
+        assert!(inventory
+            .default_allowed_tools
+            .contains(&"ListMcpResourcesTool".to_string()));
+        assert!(inventory
+            .default_allowed_tools
+            .contains(&"ReadMcpResourceTool".to_string()));
         assert!(inventory
             .default_allowed_tools
             .contains(&"social_generate_cover_image".to_string()));

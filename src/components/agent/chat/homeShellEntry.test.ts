@@ -265,8 +265,8 @@ describe("homeShellEntry", () => {
   it("站点技能 metadata 启动时也应自动锁定 general 主题", () => {
     expect(
       resolveHomeShellWorkspaceEntry({
-        projectId: "project-music-1",
-        activeTheme: "music",
+        projectId: "project-document-1",
+        activeTheme: "document",
         creationMode: "guided",
         defaultToolPreferences,
         payload: {
@@ -296,7 +296,7 @@ describe("homeShellEntry", () => {
       navigationParams: {
         agentEntry: "claw",
         immersiveHome: false,
-        projectId: "project-music-1",
+        projectId: "project-document-1",
         contentId: "content-site-skill-1",
         theme: "general",
         lockTheme: true,
@@ -319,7 +319,7 @@ describe("homeShellEntry", () => {
         newChatAt: 111,
       },
       workspaceBootstrap: {
-        projectId: "project-music-1",
+        projectId: "project-document-1",
         contentId: "content-site-skill-1",
         initialUserPrompt: "你帮我在 GitHub 找一下和“AI Agent”相关的项目。",
         initialUserImages: undefined,

@@ -31,13 +31,15 @@ pub const TOOL_GUIDELINES: &str = r#"# 工具使用策略
 ### 搜索工具
 - **glob**: 使用 glob 模式搜索文件路径
 - **grep**: 使用正则表达式搜索文件内容
+- **ToolSearch**: 搜索当前会话可用工具，尤其是 extension / MCP / 延迟加载工具
+- **ListMcpResourcesTool / ReadMcpResourceTool**: 浏览和读取 MCP 资源
 
 ### 系统工具
-- **bash**: 执行 shell 命令
-- **Task** / **TaskOutput** / **KillShell**: 管理长时终端任务
+- **bash**: 执行 shell 命令；需要后台运行时使用 `background=true`
+- **TaskOutput** / **TaskStop**: 读取或终止后台任务
 
 ### 任务管理工具
-- **TodoWrite**: 创建和管理任务列表
+- **TaskCreate / TaskList / TaskGet / TaskUpdate**: 创建和管理任务板
 - **EnterPlanMode** / **ExitPlanMode**: 显式进入或结束规划阶段
 
 ### 委派工具
@@ -61,7 +63,7 @@ pub const CODING_GUIDELINES: &str = r#"# 代码编写指南
 ## 基本原则
 
 1. **先理解再修改**：在修改代码之前，先阅读相关文件理解现有模式和架构
-2. **使用 TodoWrite 规划**：对于复杂任务，先用 TodoWrite 工具规划步骤
+2. **使用 Task* 规划**：对于复杂任务，先用 `TaskCreate / TaskList / TaskGet / TaskUpdate` 维护任务板
 3. **需要隔离上下文时委派**：对于可以独立完成的研究、规划或执行子问题，使用 `spawn_agent` 创建真实子代理；对强依赖既有上下文的延续任务，优先 `send_input`
 4. **安全第一**：避免引入安全漏洞（命令注入、XSS、SQL 注入等）
 5. **避免过度工程**：只做必要的修改，保持解决方案简单
@@ -82,7 +84,7 @@ pub const CODING_GUIDELINES: &str = r#"# 代码编写指南
 /// 任务管理指南
 pub const TASK_MANAGEMENT: &str = r#"# 任务管理
 
-你可以使用 TodoWrite 工具来管理和规划任务。频繁使用这个工具来：
+你可以使用 `TaskCreate / TaskList / TaskGet / TaskUpdate` 来管理和规划任务。频繁使用这些工具来：
 - 跟踪你的任务进度
 - 让用户了解你的工作状态
 - 将复杂任务分解为小步骤
@@ -90,10 +92,13 @@ pub const TASK_MANAGEMENT: &str = r#"# 任务管理
 ## 使用示例
 
 当用户请求一个复杂任务时：
-1. 先用 TodoWrite 创建任务列表
-2. 开始执行第一个任务
-3. 完成后立即标记为已完成
-4. 继续下一个任务
+1. 先用 TaskCreate 创建任务
+2. 需要查看全量计划时用 TaskList
+3. 需要查看单个任务时用 TaskGet
+4. 推进执行时用 TaskUpdate 更新状态与依赖
+5. 开始执行第一个任务
+6. 完成后立即标记为已完成
+7. 继续下一个任务
 
 不要批量完成多个任务后再标记，应该完成一个标记一个。
 

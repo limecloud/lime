@@ -16,10 +16,7 @@ export type WorkspaceType =
   | "temporary" // 临时项目
   | "social-media" // 社交媒体
   | "blog" // 博客
-  | "novel" // 小说
   | "general" // 通用
-  | "poster" // 图文海报
-  | "music" // 歌词曲谱
   | "knowledge" // 知识探索
   | "planning" // 计划规划
   | "document" // 办公文档
@@ -33,10 +30,7 @@ export const WorkspaceTypeLabels: Record<WorkspaceType, string> = {
   temporary: "临时",
   "social-media": "社交媒体",
   blog: "博客",
-  novel: "小说",
   general: "通用",
-  poster: "图文海报",
-  music: "歌词曲谱",
   knowledge: "知识探索",
   planning: "计划规划",
   document: "办公文档",

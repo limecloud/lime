@@ -99,7 +99,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleToggleCanvas: ConversationScenePresentationParams["scene"]["onToggleCanvas"];
   currentImageWorkbenchActive: ConversationScenePresentationParams["scene"]["currentImageWorkbenchActive"];
   hideInlineStepProgress: ConversationScenePresentationParams["stepProgress"]["hidden"];
-  isContentCreationMode: ConversationScenePresentationParams["stepProgress"]["isContentCreationMode"];
+  isSpecializedThemeMode: ConversationScenePresentationParams["stepProgress"]["isSpecializedThemeMode"];
   hasMessages: ConversationScenePresentationParams["stepProgress"]["hasMessages"];
   steps: ConversationScenePresentationParams["stepProgress"]["steps"];
   currentStepIndex: ConversationScenePresentationParams["stepProgress"]["currentIndex"];
@@ -141,11 +141,6 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   layoutMode: LayoutMode;
   handleActivateTeamWorkbench: ConversationScenePresentationParams["teamWorkspaceDock"]["onActivateWorkbench"];
   isThemeWorkbench: boolean;
-  showNovelNavbarControls: ConversationScenePresentationParams["novelCanvas"]["visible"];
-  novelChapterListCollapsed: ConversationScenePresentationParams["novelCanvas"]["chapterListCollapsed"];
-  handleToggleNovelChapterList: ConversationScenePresentationParams["novelCanvas"]["onToggleChapterList"];
-  handleAddNovelChapter: ConversationScenePresentationParams["novelCanvas"]["onAddChapter"];
-  handleCloseCanvas: ConversationScenePresentationParams["novelCanvas"]["onCloseCanvas"];
   settledWorkbenchArtifacts: ConversationScenePresentationParams["canvasWorkbenchLayout"]["artifacts"];
   taskFiles: TaskFile[];
   selectedFileId: string | undefined;
@@ -228,7 +223,7 @@ export function useWorkspaceConversationSceneRuntime({
   handleToggleCanvas,
   currentImageWorkbenchActive,
   hideInlineStepProgress,
-  isContentCreationMode,
+  isSpecializedThemeMode,
   hasMessages,
   steps,
   currentStepIndex,
@@ -264,11 +259,6 @@ export function useWorkspaceConversationSceneRuntime({
   layoutMode,
   handleActivateTeamWorkbench,
   isThemeWorkbench,
-  showNovelNavbarControls,
-  novelChapterListCollapsed,
-  handleToggleNovelChapterList,
-  handleAddNovelChapter,
-  handleCloseCanvas,
   settledWorkbenchArtifacts,
   taskFiles,
   selectedFileId,
@@ -408,7 +398,7 @@ export function useWorkspaceConversationSceneRuntime({
     },
     stepProgress: {
       hidden: hideInlineStepProgress,
-      isContentCreationMode,
+      isSpecializedThemeMode,
       hasMessages,
       steps,
       currentIndex: currentStepIndex,
@@ -463,13 +453,6 @@ export function useWorkspaceConversationSceneRuntime({
     workspaceAlert: {
       workspacePathMissing: Boolean(workspacePathMissing),
       workspaceHealthError,
-    },
-    novelCanvas: {
-      visible: showNovelNavbarControls,
-      chapterListCollapsed: novelChapterListCollapsed,
-      onToggleChapterList: handleToggleNovelChapterList,
-      onAddChapter: handleAddNovelChapter,
-      onCloseCanvas: handleCloseCanvas,
     },
     canvasWorkbenchLayout: {
       artifacts: settledWorkbenchArtifacts,

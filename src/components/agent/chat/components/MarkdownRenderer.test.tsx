@@ -270,6 +270,44 @@ describe("MarkdownRenderer", () => {
     expect(container.textContent).toContain("Browser Runtime");
   });
 
+  it("长文报告块应渲染标题层级、引用卡与分隔线", () => {
+    const content = [
+      "# Hermes Engine 选型建议",
+      "",
+      "这是导语段，用来概括结论与适用范围。",
+      "",
+      "## 为什么优先考虑它",
+      "",
+      "> 结论先行：优先保证稳定交付，再谈极限性能。",
+      "",
+      "---",
+      "",
+      "### 对比表",
+      "",
+      "| 方案 | 优势 |",
+      "| --- | --- |",
+      "| A | 稳定 |",
+    ].join("\n");
+
+    const container = render(content);
+
+    expect(
+      container.querySelector('h1[data-markdown-heading-level="1"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('h2[data-markdown-heading-level="2"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-blockquote-card"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-divider"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-table-scroll"]'),
+    ).not.toBeNull();
+  });
+
   it("非流式时应保留 raw html 渲染能力", () => {
     const content = [
       "前置文本",

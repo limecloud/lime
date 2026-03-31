@@ -32,7 +32,6 @@ function renderHook(props?: Partial<HookProps>) {
     documentEditorFocusedRef: { current: false },
     setSelectedFileId: vi.fn(),
     setCanvasState: vi.fn(),
-    upsertNovelCanvasState: vi.fn((previous) => previous),
   };
 
   function Probe(currentProps: HookProps) {

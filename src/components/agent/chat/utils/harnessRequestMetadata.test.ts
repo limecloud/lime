@@ -89,7 +89,7 @@ describe("harnessRequestMetadata", () => {
         task_mode_enabled: false,
         subagent_mode_enabled: false,
         creationMode: "hybrid",
-        chatMode: "creator",
+        chatMode: "workbench",
         webSearchEnabled: true,
         thinkingEnabled: true,
         taskModeEnabled: true,
@@ -208,6 +208,40 @@ describe("harnessRequestMetadata", () => {
         skill_ids: ["repo-exploration", "source-grounding"],
       },
     ]);
+  });
+
+  it("应透传 repo-scoped team memory shadow", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: true,
+      },
+      sessionMode: "default",
+      teamMemoryShadow: {
+        repo_scope: "/tmp/repo",
+        entries: [
+          {
+            key: "team.selection",
+            content: "Team：前端联调团队",
+            updated_at: 1,
+          },
+        ],
+      },
+    });
+
+    expect(metadata.team_memory_shadow).toEqual({
+      repo_scope: "/tmp/repo",
+      entries: [
+        {
+          key: "team.selection",
+          content: "Team：前端联调团队",
+          updated_at: 1,
+        },
+      ],
+    });
   });
 
   it("不应再写入旧 turn_team compat 字段", () => {

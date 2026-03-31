@@ -68,7 +68,6 @@ function renderHook(props?: Partial<HookProps>) {
     setTaskFiles: vi.fn(),
     setSelectedFileId: vi.fn(),
     setCanvasState: vi.fn(),
-    upsertNovelCanvasState: vi.fn((previous) => previous),
   };
 
   function Probe(currentProps: HookProps) {

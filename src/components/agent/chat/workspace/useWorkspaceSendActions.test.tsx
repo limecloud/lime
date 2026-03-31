@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 import { useWorkspaceSendActions } from "./useWorkspaceSendActions";
 import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
@@ -106,6 +107,24 @@ function createPreparedRuntimeTeamState(): TeamWorkspaceRuntimeFormationState {
     },
     errorMessage: null,
     updatedAt: 1_710_000_000_000,
+  };
+}
+
+function createTeamMemoryShadowSnapshot(): TeamMemorySnapshot {
+  return {
+    repoScope: "/tmp/project-1",
+    entries: {
+      "team.selection": {
+        key: "team.selection",
+        content: "Team：前端联调团队",
+        updatedAt: 1,
+      },
+      "team.subagents": {
+        key: "team.subagents",
+        content: "子代理：\n- 分析 [running] 负责定位问题",
+        updatedAt: 2,
+      },
+    },
   };
 }
 
@@ -476,6 +495,95 @@ describe("useWorkspaceSendActions", () => {
             session_mode: "theme_workbench",
             content_id: "content-service-skill-1",
           }),
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("当前 selectedTeam 还未 hydrate 时应保留 base request metadata 里的 Team 字段", async () => {
+    const harness = mountHook({
+      workspaceRequestMetadataBase: {
+        harness: {
+          selected_team_id: "home-shell-custom-team",
+          selected_team_source: "custom",
+          selected_team_label: "首页协作团队",
+          selected_team_description: "负责首页入口阶段的调研、执行与验证。",
+          selected_team_summary: "研究负责调研与线索整理。",
+          selected_team_roles: [
+            {
+              id: "researcher",
+              label: "研究",
+              summary: "负责调研与线索整理。",
+            },
+          ],
+        },
+      },
+      selectedTeam: null,
+      selectedTeamLabel: "",
+      selectedTeamSummary: "",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: expect.objectContaining({
+            selected_team_id: "home-shell-custom-team",
+            selected_team_source: "custom",
+            selected_team_label: "首页协作团队",
+            selected_team_summary: "研究负责调研与线索整理。",
+          }),
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("应把 repo-scoped team memory shadow 写入 request metadata", async () => {
+    const harness = mountHook({
+      teamMemoryShadowSnapshot: createTeamMemoryShadowSnapshot(),
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            team_memory_shadow: {
+              repo_scope: "/tmp/project-1",
+              entries: [
+                {
+                  key: "team.selection",
+                  content: "Team：前端联调团队",
+                  updated_at: 1,
+                },
+                {
+                  key: "team.subagents",
+                  content: "子代理：\n- 分析 [running] 负责定位问题",
+                  updated_at: 2,
+                },
+              ],
+            },
+          },
         },
       });
     } finally {

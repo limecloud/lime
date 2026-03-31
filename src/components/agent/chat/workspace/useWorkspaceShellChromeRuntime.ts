@@ -13,7 +13,7 @@ interface UseWorkspaceShellChromeRuntimeParams {
   hasDisplayMessages: boolean;
   hideTopBar: boolean;
   isBootstrapDispatchPending: boolean;
-  isContentCreationMode: boolean;
+  isSpecializedThemeMode: boolean;
   isSending: boolean;
   isThemeWorkbench: boolean;
   layoutMode: string;
@@ -34,7 +34,7 @@ export function useWorkspaceShellChromeRuntime({
   hasDisplayMessages,
   hideTopBar,
   isBootstrapDispatchPending,
-  isContentCreationMode,
+  isSpecializedThemeMode,
   isSending,
   isThemeWorkbench,
   layoutMode,
@@ -68,7 +68,7 @@ export function useWorkspaceShellChromeRuntime({
   const isWorkspaceCompactChrome = topBarChrome === "workspace-compact";
   const shouldRenderBrandedEmptyState = !showChatLayout;
   const shouldRenderTopBar = !hideTopBar && !shouldRenderBrandedEmptyState;
-  const shouldRenderInlineA2UI = isContentCreationMode;
+  const shouldRenderInlineA2UI = isSpecializedThemeMode;
 
   const shouldUseTeamPrimaryChatPanelWidth =
     layoutMode === "chat-canvas" &&

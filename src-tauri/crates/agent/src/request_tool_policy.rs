@@ -54,6 +54,7 @@ const ASTER_AUTO_COMPACTION_START_PREFIX: &str = "Exceeded auto-compact threshol
 const ASTER_AUTO_COMPACTION_COMPLETE_TEXT: &str = "Compaction complete";
 const ASTER_AUTO_COMPACTION_THINKING_TEXT: &str = "aster is compacting the conversation...";
 const ASTER_AUTO_COMPACTION_ERROR_PREFIX: &str = "Ran into this error trying to compact:";
+const ASTER_AUTO_COMPACTION_DISABLED_TEXT: &str = "Automatic compaction is disabled for this turn. The conversation reached the context limit. Compact the session manually or start a new session before retrying.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -384,6 +385,15 @@ impl AutoCompactionProjectionState {
                 if notification_text == ASTER_AUTO_COMPACTION_COMPLETE_TEXT =>
             {
                 Some(vec![])
+            }
+            SystemNotificationType::InlineMessage
+                if notification_text == ASTER_AUTO_COMPACTION_DISABLED_TEXT =>
+            {
+                Some(vec![RuntimeAgentEvent::Error {
+                    message:
+                        "当前会话已达到上下文上限，但当前工作区已关闭自动压缩。请先手动压缩上下文或新建会话后重试。"
+                            .to_string(),
+                }])
             }
             _ => None,
         }
@@ -1651,6 +1661,59 @@ fn derive_preflight_query(message_text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage};
+    use aster::providers::errors::ProviderError;
+    use aster::session::{SessionManager, SessionType, TurnContextOverride};
+    use async_trait::async_trait;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    struct ContextLengthExceededProvider;
+
+    #[async_trait]
+    impl Provider for ContextLengthExceededProvider {
+        fn metadata() -> ProviderMetadata
+        where
+            Self: Sized,
+        {
+            ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "context-length-exceeded-provider"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &aster::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Err(ProviderError::ContextLengthExceeded(
+                "mock context overflow".to_string(),
+            ))
+        }
+
+        fn get_model_config(&self) -> aster::model::ModelConfig {
+            aster::model::ModelConfig::new("gpt-5.3-codex").expect("test model config")
+        }
+    }
+
+    fn build_auto_compaction_disabled_turn_context() -> TurnContextOverride {
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "lime_runtime".to_string(),
+            serde_json::json!({
+                "auto_compact": false,
+            }),
+        );
+        TurnContextOverride {
+            metadata,
+            ..TurnContextOverride::default()
+        }
+    }
 
     #[test]
     fn resolves_effective_web_search_with_request_override() {
@@ -1881,5 +1944,99 @@ mod tests {
             }
             other => panic!("Expected compaction error event, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn auto_compaction_projection_surfaces_disabled_auto_compaction_limit_as_error() {
+        let mut state = AutoCompactionProjectionState::default();
+
+        let events = state
+            .project_event(&AsterAgentEvent::Message(
+                Message::assistant().with_system_notification(
+                    SystemNotificationType::InlineMessage,
+                    ASTER_AUTO_COMPACTION_DISABLED_TEXT,
+                ),
+            ))
+            .expect("应识别自动压缩禁用后的上下文上限提示");
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            RuntimeAgentEvent::Error { message } => {
+                assert_eq!(
+                    message,
+                    "当前会话已达到上下文上限，但当前工作区已关闭自动压缩。请先手动压缩上下文或新建会话后重试。"
+                );
+            }
+            other => panic!("Expected compaction disabled error event, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn stream_message_reply_with_policy_should_surface_disabled_auto_compaction_limit_from_aster(
+    ) {
+        let session = SessionManager::create_session(
+            PathBuf::default(),
+            "lime-auto-compact-disabled".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("应创建测试 session");
+        let agent = Agent::new();
+        agent
+            .update_provider(Arc::new(ContextLengthExceededProvider), &session.id)
+            .await
+            .expect("应配置测试 provider");
+
+        let session_config = aster::agents::SessionConfig {
+            id: session.id.clone(),
+            thread_id: None,
+            turn_id: Some("turn-auto-compact-disabled".to_string()),
+            schedule_id: None,
+            max_turns: None,
+            retry_config: None,
+            system_prompt: None,
+            include_context_trace: None,
+            turn_context: Some(build_auto_compaction_disabled_turn_context()),
+        };
+        let policy = resolve_request_tool_policy(Some(false), false);
+        let mut runtime_events = Vec::new();
+
+        let error = stream_message_reply_with_policy(
+            &agent,
+            Message::user().with_text("继续处理"),
+            None,
+            session_config,
+            None,
+            &policy,
+            |event| runtime_events.push(event.clone()),
+        )
+        .await
+        .expect_err("禁用自动压缩时应透出上下文上限错误");
+
+        assert_eq!(
+            error.message,
+            "当前会话已达到上下文上限，但当前工作区已关闭自动压缩。请先手动压缩上下文或新建会话后重试。"
+        );
+        assert!(
+            runtime_events.iter().any(|event| matches!(
+                event,
+                RuntimeAgentEvent::Error { message }
+                    if message
+                        == "当前会话已达到上下文上限，但当前工作区已关闭自动压缩。请先手动压缩上下文或新建会话后重试。"
+            )),
+            "应向前端投影显式错误"
+        );
+        assert!(
+            !runtime_events
+                .iter()
+                .any(|event| matches!(event, RuntimeAgentEvent::ContextCompactionStarted { .. })),
+            "禁用自动压缩后，不应再投影 compaction started"
+        );
+        assert!(
+            !runtime_events
+                .iter()
+                .any(|event| matches!(event, RuntimeAgentEvent::ContextCompactionCompleted { .. })),
+            "禁用自动压缩后，不应再投影 compaction completed"
+        );
     }
 }

@@ -28,7 +28,6 @@ pub mod memory_import_parser_service;
 pub mod memory_profile_prompt_service;
 pub mod memory_rules_loader_service;
 pub mod memory_source_resolver_service;
-pub mod novel_service;
 pub mod openclaw_service;
 pub mod runtime_agents_template_service;
 pub mod runtime_analysis_handoff_service;

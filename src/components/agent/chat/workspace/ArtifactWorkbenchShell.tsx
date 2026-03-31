@@ -8,8 +8,13 @@ import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
 import { cn } from "@/lib/utils";
 import type { AgentThreadItem } from "../types";
+import type {
+  ArtifactBlockRewriteCompletion,
+  ArtifactBlockRewriteRunPayload,
+} from "./artifactWorkbenchRewrite";
 import {
   ArtifactWorkbenchEditSurface,
+  type EditableArtifactBlockDraft,
   type ArtifactWorkbenchDocumentController,
   useArtifactWorkbenchDocumentController,
 } from "./artifactWorkbenchDocument";
@@ -31,6 +36,9 @@ interface ArtifactWorkbenchShellProps {
     artifact: Artifact,
     document: ArtifactDocumentV1,
   ) => Promise<void> | void;
+  onArtifactBlockRewriteRun?: (
+    payload: ArtifactBlockRewriteRunPayload,
+  ) => Promise<ArtifactBlockRewriteCompletion> | ArtifactBlockRewriteCompletion | void;
   threadItems?: AgentThreadItem[];
   focusedBlockId?: string | null;
   blockFocusRequestKey?: number;
@@ -52,6 +60,7 @@ function ArtifactWorkbenchShellLayout({
   onCloseCanvas,
   actionsSlot,
   controller,
+  onArtifactBlockRewriteRun,
 }: Omit<
   ArtifactWorkbenchShellProps,
   | "onSaveArtifactDocument"
@@ -63,6 +72,40 @@ function ArtifactWorkbenchShellLayout({
 > & {
   controller: ArtifactWorkbenchDocumentController;
 }) {
+  const handleBlockRewriteRun = React.useCallback(
+    async ({
+      draft,
+      instruction,
+    }: {
+      draft: EditableArtifactBlockDraft;
+      instruction: string;
+    }) => {
+      if (
+        !onArtifactBlockRewriteRun ||
+        !controller.document ||
+        !controller.selectedEditableBlock
+      ) {
+        return;
+      }
+
+      return await onArtifactBlockRewriteRun({
+        artifact,
+        document: controller.document,
+        entry: controller.selectedEditableBlock,
+        draft,
+        timelineLink: controller.selectedTimelineLink,
+        instruction,
+      });
+    },
+    [
+      artifact,
+      controller.document,
+      controller.selectedEditableBlock,
+      controller.selectedTimelineLink,
+      onArtifactBlockRewriteRun,
+    ],
+  );
+
   return (
     <div
       data-testid="artifact-workbench-shell"
@@ -100,6 +143,9 @@ function ArtifactWorkbenchShellLayout({
               isStreaming={isStreaming}
               onChange={controller.handleEditDraftChange}
               onSave={controller.handleEditSave}
+              onRewrite={
+                onArtifactBlockRewriteRun ? handleBlockRewriteRun : undefined
+              }
               onCancel={controller.handleEditCancel}
               onJumpToTimelineItem={controller.onJumpToTimelineItem}
             />
@@ -132,6 +178,7 @@ const LocalArtifactWorkbenchShell = ({
   previewSize,
   onPreviewSizeChange,
   onSaveArtifactDocument,
+  onArtifactBlockRewriteRun,
   threadItems = [],
   focusedBlockId = null,
   blockFocusRequestKey = 0,
@@ -161,6 +208,7 @@ const LocalArtifactWorkbenchShell = ({
       onCloseCanvas={onCloseCanvas}
       actionsSlot={actionsSlot}
       controller={controller}
+      onArtifactBlockRewriteRun={onArtifactBlockRewriteRun}
     />
   );
 };

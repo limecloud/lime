@@ -174,7 +174,8 @@ export function VoiceSettings() {
       setConfig(c);
       setVoiceConfig(c.voice || DEFAULT_VOICE_CONFIG);
       setGlobalVoicePreference(
-        c.content_creator?.media_defaults?.voice ?? DEFAULT_MEDIA_PREFERENCE,
+        c.workspace_preferences?.media_defaults?.voice ??
+          DEFAULT_MEDIA_PREFERENCE,
       );
     } catch (e) {
       console.error("加载语音配置失败:", e);
@@ -239,10 +240,10 @@ export function VoiceSettings() {
         buildPersistedMediaGenerationPreference(nextPreference);
       const updatedFullConfig: Config = {
         ...config,
-        content_creator: {
-          ...config.content_creator,
+        workspace_preferences: {
+          ...config.workspace_preferences,
           media_defaults: {
-            ...config.content_creator?.media_defaults,
+            ...config.workspace_preferences?.media_defaults,
             voice: persistedPreference,
           },
         },

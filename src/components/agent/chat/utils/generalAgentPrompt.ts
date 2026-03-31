@@ -20,10 +20,10 @@ export function isGeneralResearchTheme(theme?: string | null): boolean {
 
 export function resolveAgentChatMode(
   theme: ThemeType | string | undefined,
-  isContentCreationMode: boolean,
-): "agent" | "general" | "creator" {
-  if (isContentCreationMode) {
-    return "creator";
+  isSpecializedThemeMode: boolean,
+): "agent" | "general" | "workbench" {
+  if (isSpecializedThemeMode) {
+    return "workbench";
   }
 
   if (isGeneralResearchTheme(theme)) {
@@ -151,7 +151,7 @@ ${toolPreferenceLines}
 
 工具使用原则：
 1. 不要为了显得像 agent 而强行调用工具；直接回答更合适时，就直接回答。
-2. 只有在以下场景才主动联网核实：用户明确要求搜索；问题涉及今天、最新、价格、政策、法律、版本、新闻、实时数据；或者高风险信息需要校验。联网时统一使用 WebSearch，不要混用 search/search_query/tool_search 之类别名。
+2. 只有在以下场景才主动联网核实：用户明确要求搜索；问题涉及今天、最新、价格、政策、法律、版本、新闻、实时数据；或者高风险信息需要校验。联网时统一使用 WebSearch，不要混用 search/search_query/ToolSearch 之类别名。
 3. 深度思考默认只用于复杂推理、多方案比较、严格规划或高风险判断；简单问答、轻量改写、普通说明不要默认进入长链路推理。
 4. 只有当任务需要先整理执行计划、分阶段推进、长链路处理，或用户明确要求 Plan 模式时，再升级为计划执行；否则优先在当前对话里直接完成。
 5. 只有当问题天然可拆分、需要并行探索/规划/执行、或主线程上下文会显著过载时，再使用 subagent；否则优先单 agent 完成。

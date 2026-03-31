@@ -526,6 +526,10 @@ Invalid content
                 "search_query".to_string(),
             ])
         );
+        assert_eq!(
+            skill.metadata.get("lime_surface").map(String::as_str),
+            Some("workbench")
+        );
         assert!(content.contains("<write_file") && content.contains("social-posts/"));
         assert!(!skill.disable_model_invocation);
         assert!(skill.standard_compliance.is_standard);

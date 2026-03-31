@@ -14,8 +14,8 @@ describe("generalAgentPrompt", () => {
     expect(isGeneralResearchTheme("social-media")).toBe(false);
   });
 
-  it("内容创作模式应优先返回 creator", () => {
-    expect(resolveAgentChatMode("general", true)).toBe("creator");
+  it("工作台模式应优先返回 workbench", () => {
+    expect(resolveAgentChatMode("general", true)).toBe("workbench");
     expect(resolveAgentChatMode("general", false)).toBe("general");
     expect(resolveAgentChatMode("social-media", false)).toBe("agent");
   });
@@ -42,7 +42,7 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("计划执行：已开启");
     expect(prompt).toContain("多代理：已开启");
     expect(prompt).toContain("统一使用 WebSearch");
-    expect(prompt).toContain("不要混用 search/search_query/tool_search");
+    expect(prompt).toContain("不要混用 search/search_query/ToolSearch");
     expect(prompt).toContain("1 个当前最关键的问题");
     expect(prompt).toContain("合理假设补齐");
     expect(prompt).toContain("每轮最多只保留 1 个最关键问题");

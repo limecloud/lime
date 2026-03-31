@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
 import {
+  createArtifactDocumentNextVersion,
   resolveArtifactWorkbenchJsonFilename,
   resolveArtifactWorkbenchMarkdownFilename,
   serializeArtifactDocumentToMarkdown,
@@ -53,12 +54,16 @@ function createDocument(): ArtifactDocumentV1 {
       {
         id: "body-1",
         type: "rich_text",
+        contentFormat: "markdown",
+        content: "这里是正文分析。",
         markdown: "这里是正文分析。",
       },
       {
         id: "callout-1",
         type: "callout",
+        tone: "warning",
         title: "风险提示",
+        body: "第二季度需重点压缩项目交付周期。",
         content: "第二季度需重点压缩项目交付周期。",
       },
       {
@@ -66,8 +71,8 @@ function createDocument(): ArtifactDocumentV1 {
         type: "checklist",
         title: "后续动作",
         items: [
-          { label: "重排项目节奏", checked: true },
-          { label: "补齐交付监控", checked: false },
+          { id: "todo-1", text: "重排项目节奏", state: "done" },
+          { id: "todo-2", text: "补齐交付监控", state: "todo" },
         ],
       },
       {
@@ -80,9 +85,12 @@ function createDocument(): ArtifactDocumentV1 {
     sources: [
       {
         id: "source-1",
-        title: "季度经营看板",
-        url: "https://lime.example.com/q1",
-        note: "内部经营分析来源",
+        type: "web",
+        label: "季度经营看板",
+        locator: {
+          url: "https://lime.example.com/q1",
+        },
+        snippet: "内部经营分析来源",
       },
     ],
     metadata: {
@@ -143,5 +151,64 @@ describe("artifactWorkbenchActions", () => {
     expect(nextDocument.status).toBe("archived");
     expect(nextDocument.metadata.versionHistory?.[1]?.status).toBe("archived");
     expect(nextDocument.metadata.versionHistory?.[0]?.status).toBe("ready");
+  });
+
+  it("保存编辑结果时应生成下一版本与 block diff", () => {
+    const previousDocument = createDocument();
+    const nextDocument: ArtifactDocumentV1 = {
+      ...previousDocument,
+      blocks: previousDocument.blocks.map((block) =>
+        block.id === "body-1"
+          ? {
+              ...block,
+              content: "更新后的正文分析。",
+              markdown: "更新后的正文分析。",
+            }
+          : block,
+      ),
+    };
+
+    const versionedDocument = createArtifactDocumentNextVersion(
+      previousDocument,
+      nextDocument,
+      {
+        summary: "更新正文块 1",
+        createdBy: "user",
+      },
+    );
+
+    expect(versionedDocument.metadata.currentVersionId).toBe(
+      "artifact-document:q1-review:v3",
+    );
+    expect(versionedDocument.metadata.currentVersionNo).toBe(3);
+    expect(versionedDocument.metadata.currentVersionDiff).toMatchObject({
+      baseVersionId: "artifact-document:q1-review:v2",
+      baseVersionNo: 2,
+      targetVersionId: "artifact-document:q1-review:v3",
+      targetVersionNo: 3,
+      updatedCount: 1,
+      changedBlocks: [
+        expect.objectContaining({
+          blockId: "body-1",
+          changeType: "updated",
+          beforeText: "这里是正文分析。",
+          afterText: "更新后的正文分析。",
+        }),
+      ],
+    });
+    expect(versionedDocument.metadata.versionHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "artifact-document:q1-review:v3",
+          artifactId: "artifact-document:q1-review",
+          versionNo: 3,
+          title: "董事会季度复盘",
+          summary: "更新正文块 1",
+          status: "ready",
+          kind: "report",
+          createdBy: "user",
+        }),
+      ]),
+    );
   });
 });

@@ -565,12 +565,16 @@ pub async fn agent_runtime_get_tool_inventory(
     mcp_manager: State<'_, McpManagerState>,
     request: Option<AgentRuntimeToolInventoryRequest>,
 ) -> Result<crate::agent_tools::inventory::AgentToolInventorySnapshot, String> {
+    if state.is_initialized().await {
+        ensure_runtime_support_tools_registered(state.inner(), mcp_manager.inner()).await?;
+    }
+
     let request = request.unwrap_or_default();
     let caller = lime_core::tool_calling::normalize_tool_caller(request.caller.as_deref())
         .unwrap_or_else(|| "assistant".to_string());
-    let surface = match (request.creator, request.browser_assist) {
-        (true, true) => WorkspaceToolSurface::creator_with_browser_assist(),
-        (true, false) => WorkspaceToolSurface::creator(),
+    let surface = match (request.workbench, request.browser_assist) {
+        (true, true) => WorkspaceToolSurface::workbench_with_browser_assist(),
+        (true, false) => WorkspaceToolSurface::workbench(),
         (false, true) => WorkspaceToolSurface::browser_assist(),
         (false, false) => WorkspaceToolSurface::core(),
     };

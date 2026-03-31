@@ -1,7 +1,9 @@
 import type { ComponentProps } from "react";
 import { AgentRuntimeStrip } from "../components/AgentRuntimeStrip";
 import { HarnessStatusPanel } from "../components/HarnessStatusPanel";
+import { TeamMemoryShadowCard } from "../components/TeamMemoryShadowCard";
 import { WorkspaceHarnessDialog } from "./WorkspaceHarnessDialog";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 
 type HarnessPanelBaseProps = Pick<
   ComponentProps<typeof HarnessStatusPanel>,
@@ -39,12 +41,14 @@ interface ThemeWorkbenchHarnessDialogSectionProps extends HarnessPanelBaseProps 
   enabled: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
 }
 
 export function ThemeWorkbenchHarnessDialogSection({
   enabled,
   open,
   onOpenChange,
+  teamMemorySnapshot = null,
   ...panelBaseProps
 }: ThemeWorkbenchHarnessDialogSectionProps) {
   if (!enabled) {
@@ -59,6 +63,9 @@ export function ThemeWorkbenchHarnessDialogSection({
       panelProps={{
         ...panelBaseProps,
         layout: "dialog",
+        leadContent: teamMemorySnapshot ? (
+          <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
+        ) : undefined,
       }}
     />
   );
@@ -79,6 +86,7 @@ interface GeneralWorkbenchDialogSectionProps extends HarnessPanelBaseProps {
   selectedTeamRoleCount: ComponentProps<
     typeof AgentRuntimeStrip
   >["selectedTeamRoleCount"];
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
 }
 
 export function GeneralWorkbenchDialogSection({
@@ -92,6 +100,7 @@ export function GeneralWorkbenchDialogSection({
   isExecutionRuntimeActive,
   runtimeStatusTitle,
   selectedTeamRoleCount,
+  teamMemorySnapshot = null,
   ...panelBaseProps
 }: GeneralWorkbenchDialogSectionProps) {
   if (!enabled) {
@@ -110,21 +119,26 @@ export function GeneralWorkbenchDialogSection({
         description: "集中查看计划、待确认事项、协作成员、文件活动和处理结果。",
         toggleLabel: "工作台详情",
         leadContent: (
-          <AgentRuntimeStrip
-            activeTheme={activeTheme}
-            toolPreferences={toolPreferences}
-            harnessState={panelBaseProps.harnessState}
-            childSubagentSessions={panelBaseProps.childSubagentSessions}
-            compatSubagentRuntime={panelBaseProps.compatSubagentRuntime}
-            variant="embedded"
-            isSending={isSending}
-            executionRuntime={executionRuntime}
-            isExecutionRuntimeActive={isExecutionRuntimeActive}
-            runtimeStatusTitle={runtimeStatusTitle}
-            selectedTeamLabel={panelBaseProps.selectedTeamLabel}
-            selectedTeamSummary={panelBaseProps.selectedTeamSummary}
-            selectedTeamRoleCount={selectedTeamRoleCount}
-          />
+          <div className="space-y-3">
+            <AgentRuntimeStrip
+              activeTheme={activeTheme}
+              toolPreferences={toolPreferences}
+              harnessState={panelBaseProps.harnessState}
+              childSubagentSessions={panelBaseProps.childSubagentSessions}
+              compatSubagentRuntime={panelBaseProps.compatSubagentRuntime}
+              variant="embedded"
+              isSending={isSending}
+              executionRuntime={executionRuntime}
+              isExecutionRuntimeActive={isExecutionRuntimeActive}
+              runtimeStatusTitle={runtimeStatusTitle}
+              selectedTeamLabel={panelBaseProps.selectedTeamLabel}
+              selectedTeamSummary={panelBaseProps.selectedTeamSummary}
+              selectedTeamRoleCount={selectedTeamRoleCount}
+            />
+            {teamMemorySnapshot ? (
+              <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
+            ) : null}
+          </div>
         ),
       }}
     />

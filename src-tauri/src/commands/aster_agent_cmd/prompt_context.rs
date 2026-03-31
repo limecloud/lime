@@ -554,6 +554,62 @@ fn render_team_roles(role_items: &[serde_json::Value]) -> Vec<String> {
         .collect()
 }
 
+fn render_team_memory_shadow_content(content: &str) -> Option<String> {
+    let normalized_lines = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .take(6)
+        .collect::<Vec<_>>();
+    if normalized_lines.is_empty() {
+        return None;
+    }
+
+    let joined = normalized_lines.join(" | ");
+    let rendered = if joined.chars().count() > 320 {
+        let truncated = joined.chars().take(320).collect::<String>();
+        format!("{truncated}...")
+    } else {
+        joined
+    };
+
+    Some(rendered)
+}
+
+fn render_team_memory_shadow_entries(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<(Option<String>, Vec<String>)> {
+    let shadow = extract_harness_nested_object(
+        request_metadata,
+        &["team_memory_shadow", "teamMemoryShadow"],
+    )?;
+    let repo_scope = extract_object_string(shadow, &["repo_scope", "repoScope"]);
+    let entries = shadow.get("entries")?.as_array()?;
+
+    let rendered_entries = entries
+        .iter()
+        .filter_map(|value| {
+            let object = value.as_object()?;
+            let key = extract_object_string(object, &["key"])?;
+            let content = extract_object_string(object, &["content"])?;
+            let updated_at_suffix = object
+                .get("updated_at")
+                .or_else(|| object.get("updatedAt"))
+                .and_then(serde_json::Value::as_i64)
+                .map(|value| format!(" / updatedAt: {value}"))
+                .unwrap_or_default();
+            let rendered_content = render_team_memory_shadow_content(&content)?;
+            Some(format!("  - {key}{updated_at_suffix}: {rendered_content}"))
+        })
+        .collect::<Vec<_>>();
+
+    if rendered_entries.is_empty() {
+        return None;
+    }
+
+    Some((repo_scope, rendered_entries))
+}
+
 pub(crate) fn build_team_preference_system_prompt(
     request_metadata: Option<&serde_json::Value>,
     session_recent_team_selection: Option<&lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
@@ -696,6 +752,20 @@ pub(crate) fn build_team_preference_system_prompt(
                     .to_string(),
             );
         }
+    }
+
+    if let Some((repo_scope, rendered_shadow_entries)) =
+        render_team_memory_shadow_entries(request_metadata)
+    {
+        lines.push("- 当前项目的 repo-scoped Team 协作记忆（低优先级参考）：".to_string());
+        if let Some(repo_scope) = repo_scope.as_deref() {
+            lines.push(format!("  - repoScope: {repo_scope}"));
+        }
+        lines.extend(rendered_shadow_entries);
+        lines.push(
+            "- 上述 shadow 只代表当前仓库最近一次 Team 协作痕迹；如与本次显式 selected Team、Team Preset 或当前任务意图冲突，以本次请求为准。"
+                .to_string(),
+        );
     }
 
     lines.push(

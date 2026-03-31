@@ -33,7 +33,11 @@ const ARTIFACT_BLOCK_TYPE_VALUES: &[&str] = &[
     "code_block",
     "divider",
 ];
+const ARTIFACT_SOURCE_TYPE_VALUES: &[&str] = &["web", "file", "tool", "message", "search_result"];
+const ARTIFACT_SOURCE_RELIABILITY_VALUES: &[&str] = &["primary", "secondary", "derived"];
 const MAX_BLOCK_COUNT: usize = 40;
+const MAX_METRIC_COUNT: usize = 8;
+const MAX_SOURCE_SNIPPET_CHARS: usize = 280;
 const MARKDOWN_RECOVERY_REASON: &str =
     "模型未返回合法的 ArtifactDocument JSON，已按 Markdown 正文自动恢复为可渲染文档。";
 const TRUNCATED_JSON_RECOVERY_REASON: &str =
@@ -266,6 +270,7 @@ fn build_failed_fallback_document(
     merge_string_field(&mut metadata, "theme", context.theme.as_deref());
     merge_string_field(&mut metadata, "generatedBy", Some("agent"));
     merge_source_run_binding(&mut metadata, context);
+    ensure_renderer_density(&mut metadata, "comfortable");
     if let Some(request_id) = context.request_id.as_deref() {
         metadata.insert(
             "artifactRequestId".to_string(),
@@ -304,11 +309,11 @@ fn build_failed_fallback_document(
         ),
         (
             "blocks".to_string(),
-            Value::Array(vec![Value::Object(Map::from_iter([
-                ("id".to_string(), Value::String("fallback-1".to_string())),
-                ("type".to_string(), Value::String("rich_text".to_string())),
-                ("markdown".to_string(), Value::String(fallback_markdown)),
-            ]))]),
+            Value::Array(vec![Value::Object(build_fallback_rich_text_block(
+                "fallback-1",
+                fallback_markdown.as_str(),
+                Some("failed_fallback"),
+            ))]),
         ),
         ("sources".to_string(), Value::Array(Vec::new())),
         ("metadata".to_string(), Value::Object(metadata)),
@@ -575,27 +580,43 @@ fn normalize_sources(
             continue;
         }
 
-        let title = find_string(record, &["title", "label"]);
-        let url = find_string(record, &["url", "href", "link"]);
-        let note = find_string(record, &["note", "summary", "description"]);
-        let kind = find_string(record, &["kind", "type"]);
-        let quote = find_string(record, &["quote"]);
-        let published_at = find_string(record, &["publishedAt", "published_at"]);
-
-        if title.is_none() && url.is_none() && note.is_none() && quote.is_none() {
+        let locator = normalize_source_locator(record);
+        let raw_label = find_string(record, &["label", "title"]);
+        let snippet = find_string(
+            record,
+            &["snippet", "note", "summary", "description", "quote"],
+        )
+        .map(|text| truncate_text(text.as_str(), MAX_SOURCE_SNIPPET_CHARS));
+        if raw_label.is_none() && locator.is_none() && snippet.is_none() {
             *repaired = true;
             issues.push(format!("sources[{}] 缺少可展示字段，已忽略。", index));
             continue;
         }
 
-        let mut normalized = record.clone();
+        let label = raw_label
+            .or_else(|| resolve_source_locator_hint(locator.as_ref()))
+            .unwrap_or_else(|| id.clone());
+        let source_type = normalize_source_type(
+            find_string(record, &["type", "kind"]).as_deref(),
+            locator.as_ref(),
+            id.as_str(),
+        );
+        let reliability =
+            normalize_source_reliability(find_string(record, &["reliability"]).as_deref());
+
+        let mut normalized = Map::new();
         normalized.insert("id".to_string(), Value::String(id));
-        upsert_optional_string(&mut normalized, "title", title.as_deref());
-        upsert_optional_string(&mut normalized, "url", url.as_deref());
-        upsert_optional_string(&mut normalized, "note", note.as_deref());
-        upsert_optional_string(&mut normalized, "kind", kind.as_deref());
-        upsert_optional_string(&mut normalized, "quote", quote.as_deref());
-        upsert_optional_string(&mut normalized, "publishedAt", published_at.as_deref());
+        normalized.insert("type".to_string(), Value::String(source_type));
+        normalized.insert("label".to_string(), Value::String(label));
+        if let Some(locator) = locator {
+            normalized.insert("locator".to_string(), Value::Object(locator));
+        }
+        if let Some(snippet) = snippet {
+            normalized.insert("snippet".to_string(), Value::String(snippet));
+        }
+        if let Some(reliability) = reliability {
+            normalized.insert("reliability".to_string(), Value::String(reliability));
+        }
         sources.push(normalized);
     }
 
@@ -689,7 +710,7 @@ fn normalize_block(
         ));
     }
 
-    let mut normalized = record.clone();
+    let mut normalized = Map::new();
     normalized.insert(
         "id".to_string(),
         Value::String(
@@ -701,8 +722,10 @@ fn normalize_block(
 
     if let Some(section_id) = find_string(record, &["sectionId", "section_id"]) {
         normalized.insert("sectionId".to_string(), Value::String(section_id));
-    } else {
-        normalized.remove("sectionId");
+    }
+
+    if record.get("hidden").and_then(Value::as_bool) == Some(true) {
+        normalized.insert("hidden".to_string(), Value::Bool(true));
     }
 
     if let Some(source_ids) = normalize_string_array(record, &["sourceIds", "source_ids"]) {
@@ -720,7 +743,7 @@ fn normalize_block(
 
     match block_type.as_str() {
         "section_header" => {
-            if find_string(record, &["title"]).is_none() {
+            let Some(title) = find_string(record, &["title"]) else {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -729,17 +752,49 @@ fn normalize_block(
                     ),
                     true,
                 ));
-            }
+            };
+            normalized.insert("title".to_string(), Value::String(title));
+            upsert_optional_string(
+                &mut normalized,
+                "description",
+                find_string(record, &["description"]).as_deref(),
+            );
         }
         "hero_summary" => {
-            if find_string(record, &["summary"]).is_none() {
-                let fallback = extract_portable_text(value)?;
-                normalized.insert("summary".to_string(), Value::String(fallback));
-                repaired = true;
+            let summary =
+                find_string(record, &["summary", "text"]).or_else(|| extract_portable_text(value));
+            let Some(summary) = summary else {
+                return Some((
+                    build_fallback_rich_text_block(
+                        &format!("block-{}", index + 1),
+                        extract_portable_text(value).as_deref().unwrap_or(""),
+                        Some("hero_summary"),
+                    ),
+                    true,
+                ));
+            };
+            normalized.insert("summary".to_string(), Value::String(summary));
+            upsert_optional_string(
+                &mut normalized,
+                "eyebrow",
+                find_string(record, &["eyebrow"]).as_deref(),
+            );
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
+            let highlights = normalize_string_array_value(record.get("highlights"));
+            if !highlights.is_empty() {
+                normalized.insert(
+                    "highlights".to_string(),
+                    Value::Array(highlights.into_iter().map(Value::String).collect()),
+                );
             }
         }
         "key_points" => {
-            if !has_non_empty_string_array(record.get("items")) {
+            let items = normalize_string_array_value(record.get("items"));
+            if items.is_empty() {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -749,9 +804,20 @@ fn normalize_block(
                     true,
                 ));
             }
+            normalized.insert(
+                "items".to_string(),
+                Value::Array(items.into_iter().map(Value::String).collect()),
+            );
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
         "rich_text" => {
-            if extract_rich_text_body(record).is_none() {
+            let Some((content_format, content, markdown_compat)) =
+                normalize_rich_text_content(record)
+            else {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -760,12 +826,23 @@ fn normalize_block(
                     ),
                     true,
                 ));
+            };
+            normalized.insert("contentFormat".to_string(), Value::String(content_format));
+            normalized.insert("content".to_string(), content);
+            if let Some(markdown) = markdown_compat {
+                normalized.insert("markdown".to_string(), Value::String(markdown));
             }
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
         "callout" => {
-            let content =
-                find_string(record, &["content", "text"]).or_else(|| extract_portable_text(value));
-            if find_string(record, &["title"]).is_none() && content.is_none() {
+            let body = find_string(record, &["body", "content", "text"])
+                .or_else(|| record.get("content").and_then(extract_portable_text))
+                .or_else(|| extract_portable_text(value));
+            let Some(body) = body else {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -774,26 +851,26 @@ fn normalize_block(
                     ),
                     true,
                 ));
-            }
-            if find_string(record, &["content", "text"]).is_none() {
-                if let Some(text) = content {
-                    normalized.insert("content".to_string(), Value::String(text));
-                    repaired = true;
-                }
-            }
+            };
+            normalized.insert(
+                "tone".to_string(),
+                Value::String(normalize_callout_tone(
+                    find_string(record, &["tone", "variant"]).as_deref(),
+                )),
+            );
+            normalized.insert("body".to_string(), Value::String(body.clone()));
+            normalized.insert("content".to_string(), Value::String(body.clone()));
+            normalized.insert("text".to_string(), Value::String(body));
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
         "table" => {
-            let has_columns = record
-                .get("columns")
-                .and_then(Value::as_array)
-                .map(|items| !items.is_empty())
-                .unwrap_or(false);
-            let has_rows = record
-                .get("rows")
-                .and_then(Value::as_array)
-                .map(|items| !items.is_empty())
-                .unwrap_or(false);
-            if !has_columns && !has_rows {
+            let columns = normalize_table_columns(record);
+            let rows = normalize_table_rows(record, &columns);
+            if columns.is_empty() && rows.is_empty() {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -803,60 +880,100 @@ fn normalize_block(
                     true,
                 ));
             }
+            normalized.insert(
+                "columns".to_string(),
+                Value::Array(columns.into_iter().map(Value::String).collect()),
+            );
+            normalized.insert("rows".to_string(), Value::Array(rows));
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
-        "checklist" | "metric_grid" => {
-            let has_items = record
-                .get("items")
-                .and_then(Value::as_array)
-                .map(|items| !items.is_empty())
-                .unwrap_or(false);
-            let has_metrics = record
-                .get("metrics")
-                .and_then(Value::as_array)
-                .map(|items| !items.is_empty())
-                .unwrap_or(false);
-            if !has_items && !has_metrics {
+        "checklist" => {
+            let items = normalize_checklist_items(record);
+            if items.is_empty() {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
                         extract_portable_text(value).as_deref().unwrap_or(""),
-                        Some(block_type.as_str()),
+                        Some("checklist"),
                     ),
                     true,
                 ));
             }
+            normalized.insert("items".to_string(), Value::Array(items));
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
+        }
+        "metric_grid" => {
+            let mut metrics = normalize_metric_items(record);
+            if metrics.is_empty() {
+                return Some((
+                    build_fallback_rich_text_block(
+                        &format!("block-{}", index + 1),
+                        extract_portable_text(value).as_deref().unwrap_or(""),
+                        Some("metric_grid"),
+                    ),
+                    true,
+                ));
+            }
+            if metrics.len() > MAX_METRIC_COUNT {
+                metrics.truncate(MAX_METRIC_COUNT);
+                repaired = true;
+            }
+            normalized.insert("metrics".to_string(), Value::Array(metrics));
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
         "quote" => {
-            if find_string(record, &["quote", "text"]).is_none() {
-                let fallback = extract_portable_text(value)?;
-                normalized.insert("quote".to_string(), Value::String(fallback));
-                repaired = true;
-            }
+            let text =
+                find_string(record, &["text", "quote"]).or_else(|| extract_portable_text(value));
+            let Some(text) = text else {
+                return Some((
+                    build_fallback_rich_text_block(
+                        &format!("block-{}", index + 1),
+                        extract_portable_text(value).as_deref().unwrap_or(""),
+                        Some("quote"),
+                    ),
+                    true,
+                ));
+            };
+            normalized.insert("text".to_string(), Value::String(text));
+            upsert_optional_string(
+                &mut normalized,
+                "attribution",
+                find_string(record, &["attribution", "author", "source"]).as_deref(),
+            );
         }
         "citation_list" => {
-            let has_items = record
-                .get("items")
-                .and_then(Value::as_array)
-                .map(|items| !items.is_empty())
-                .unwrap_or(false);
-            if !has_items {
-                let items = normalize_citation_items_for_block(&normalized, sources);
-                if items.is_empty() {
-                    return Some((
-                        build_fallback_rich_text_block(
-                            &format!("block-{}", index + 1),
-                            extract_portable_text(value).as_deref().unwrap_or(""),
-                            Some("citation_list"),
-                        ),
-                        true,
-                    ));
-                }
-                normalized.insert("items".to_string(), Value::Array(items));
-                repaired = true;
+            let items = normalize_citation_items_for_block(record, source_id_set, sources);
+            if items.is_empty() {
+                return Some((
+                    build_fallback_rich_text_block(
+                        &format!("block-{}", index + 1),
+                        extract_portable_text(value).as_deref().unwrap_or(""),
+                        Some("citation_list"),
+                    ),
+                    true,
+                ));
             }
+            normalized.insert("items".to_string(), Value::Array(items));
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
         "image" => {
-            if find_string(record, &["url", "src", "imageUrl"]).is_none() {
+            let Some(url) = find_string(record, &["url", "src", "imageUrl"]) else {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -865,12 +982,24 @@ fn normalize_block(
                     ),
                     true,
                 ));
-            }
+            };
+            normalized.insert("url".to_string(), Value::String(url));
+            upsert_optional_string(
+                &mut normalized,
+                "alt",
+                find_string(record, &["alt"]).as_deref(),
+            );
+            upsert_optional_string(
+                &mut normalized,
+                "caption",
+                find_string(record, &["caption"]).as_deref(),
+            );
         }
         "code_block" => {
-            if find_string(record, &["code", "content"]).is_none()
-                && extract_portable_text(value).is_none()
-            {
+            let code = find_string(record, &["code", "content"])
+                .or_else(|| record.get("content").and_then(extract_portable_text))
+                .or_else(|| extract_portable_text(value));
+            let Some(code) = code else {
                 return Some((
                     build_fallback_rich_text_block(
                         &format!("block-{}", index + 1),
@@ -882,7 +1011,18 @@ fn normalize_block(
                     ),
                     true,
                 ));
-            }
+            };
+            normalized.insert("code".to_string(), Value::String(code));
+            upsert_optional_string(
+                &mut normalized,
+                "language",
+                find_string(record, &["language"]).as_deref(),
+            );
+            upsert_optional_string(
+                &mut normalized,
+                "title",
+                find_string(record, &["title"]).as_deref(),
+            );
         }
         "divider" => {}
         _ => {}
@@ -893,11 +1033,46 @@ fn normalize_block(
 
 fn normalize_citation_items_for_block(
     block: &Map<String, Value>,
+    source_id_set: &HashSet<String>,
     sources: &[Map<String, Value>],
 ) -> Vec<Value> {
-    let source_ids =
-        normalize_string_array(block, &["sourceIds", "source_ids"]).unwrap_or_default();
-    let preferred_ids = source_ids.into_iter().collect::<HashSet<_>>();
+    let mut has_explicit_items = false;
+    let explicit_items = block
+        .get("items")
+        .and_then(Value::as_array)
+        .map(|items| {
+            has_explicit_items = true;
+            items
+                .iter()
+                .filter_map(|item| {
+                    let record = item.as_object()?;
+                    let source_id = resolve_citation_source_id(record, sources)?;
+                    if !source_id_set.contains(source_id.as_str()) {
+                        return None;
+                    }
+
+                    let mut normalized = Map::new();
+                    normalized.insert("sourceId".to_string(), Value::String(source_id));
+                    upsert_optional_string(
+                        &mut normalized,
+                        "note",
+                        find_string(record, &["note", "summary", "description"]).as_deref(),
+                    );
+                    Some(Value::Object(normalized))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if has_explicit_items {
+        return explicit_items;
+    }
+
+    let preferred_ids = normalize_string_array(block, &["sourceIds", "source_ids"])
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|source_id| source_id_set.contains(source_id))
+        .collect::<HashSet<_>>();
     let selected_sources = if preferred_ids.is_empty() {
         sources.iter().collect::<Vec<_>>()
     } else {
@@ -915,14 +1090,16 @@ fn normalize_citation_items_for_block(
 
     selected_sources
         .into_iter()
-        .map(|source| {
-            let mut item = Map::new();
-            for key in ["title", "url", "note", "quote", "kind", "publishedAt"] {
-                if let Some(value) = source.get(key).cloned() {
-                    item.insert(key.to_string(), value);
-                }
-            }
-            Value::Object(item)
+        .filter_map(|source| {
+            let source_id = source.get("id").and_then(Value::as_str)?;
+            let mut normalized = Map::new();
+            normalized.insert("sourceId".to_string(), Value::String(source_id.to_string()));
+            upsert_optional_string(
+                &mut normalized,
+                "note",
+                source.get("snippet").and_then(Value::as_str),
+            );
+            Some(Value::Object(normalized))
         })
         .collect()
 }
@@ -940,6 +1117,11 @@ fn build_fallback_rich_text_block(
     let mut block = Map::from_iter([
         ("id".to_string(), Value::String(id.to_string())),
         ("type".to_string(), Value::String("rich_text".to_string())),
+        (
+            "contentFormat".to_string(),
+            Value::String("markdown".to_string()),
+        ),
+        ("content".to_string(), Value::String(markdown.clone())),
         ("markdown".to_string(), Value::String(markdown)),
     ]);
     if let Some(value) = original_type
@@ -952,10 +1134,449 @@ fn build_fallback_rich_text_block(
 }
 
 fn extract_rich_text_body(record: &Map<String, Value>) -> Option<String> {
-    find_string(record, &["markdown", "text", "content"])
+    if find_string(record, &["contentFormat"]).as_deref() == Some("markdown") {
+        if let Some(content) = record
+            .get("content")
+            .and_then(stringify_value)
+            .or_else(|| record.get("content").and_then(extract_portable_text))
+        {
+            return Some(content);
+        }
+    }
+
+    find_string(record, &["markdown", "text"])
+        .or_else(|| record.get("content").and_then(stringify_value))
         .or_else(|| record.get("content").and_then(extract_portable_text))
         .or_else(|| record.get("tiptap").and_then(extract_portable_text))
         .or_else(|| record.get("proseMirror").and_then(extract_portable_text))
+}
+
+fn normalize_source_locator(record: &Map<String, Value>) -> Option<Map<String, Value>> {
+    let existing = record
+        .get("locator")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let url =
+        find_string(&existing, &["url"]).or_else(|| find_string(record, &["url", "href", "link"]));
+    let path = find_string(&existing, &["path"]).or_else(|| find_string(record, &["path"]));
+    let line_start = existing
+        .get("lineStart")
+        .and_then(normalize_number_value)
+        .or_else(|| record.get("lineStart").and_then(normalize_number_value))
+        .or_else(|| record.get("line_start").and_then(normalize_number_value));
+    let line_end = existing
+        .get("lineEnd")
+        .and_then(normalize_number_value)
+        .or_else(|| record.get("lineEnd").and_then(normalize_number_value))
+        .or_else(|| record.get("line_end").and_then(normalize_number_value));
+    let tool_call_id = find_string(&existing, &["toolCallId"])
+        .or_else(|| find_string(record, &["toolCallId", "tool_call_id"]));
+    let message_id = find_string(&existing, &["messageId"])
+        .or_else(|| find_string(record, &["messageId", "message_id"]));
+
+    if url.is_none()
+        && path.is_none()
+        && line_start.is_none()
+        && line_end.is_none()
+        && tool_call_id.is_none()
+        && message_id.is_none()
+    {
+        return None;
+    }
+
+    let mut locator = existing;
+    upsert_optional_string(&mut locator, "url", url.as_deref());
+    upsert_optional_string(&mut locator, "path", path.as_deref());
+    upsert_optional_number(&mut locator, "lineStart", line_start);
+    upsert_optional_number(&mut locator, "lineEnd", line_end);
+    upsert_optional_string(&mut locator, "toolCallId", tool_call_id.as_deref());
+    upsert_optional_string(&mut locator, "messageId", message_id.as_deref());
+    Some(locator)
+}
+
+fn resolve_source_locator_hint(locator: Option<&Map<String, Value>>) -> Option<String> {
+    locator.and_then(|value| find_string(value, &["url"]).or_else(|| find_string(value, &["path"])))
+}
+
+fn normalize_source_type(
+    value: Option<&str>,
+    locator: Option<&Map<String, Value>>,
+    id: &str,
+) -> String {
+    let normalized =
+        normalize_text(value).map(|text| text.to_ascii_lowercase().replace([' ', '-'], "_"));
+
+    match normalized.as_deref() {
+        Some("browser") => return "web".to_string(),
+        Some("search") | Some("searchresult") => return "search_result".to_string(),
+        Some(value) if ARTIFACT_SOURCE_TYPE_VALUES.contains(&value) => return value.to_string(),
+        _ => {}
+    }
+
+    let normalized_id = id.to_ascii_lowercase();
+    if normalized_id.starts_with("file:") {
+        return "file".to_string();
+    }
+    if normalized_id.starts_with("tool:") {
+        return "tool".to_string();
+    }
+    if normalized_id.starts_with("message:") {
+        return "message".to_string();
+    }
+    if normalized_id.starts_with("search:") {
+        return "search_result".to_string();
+    }
+    if locator
+        .and_then(|value| find_string(value, &["toolCallId"]))
+        .is_some()
+    {
+        return "tool".to_string();
+    }
+    if locator
+        .and_then(|value| find_string(value, &["messageId"]))
+        .is_some()
+    {
+        return "message".to_string();
+    }
+    if locator
+        .and_then(|value| find_string(value, &["path"]))
+        .is_some()
+    {
+        return "file".to_string();
+    }
+    if locator
+        .and_then(|value| find_string(value, &["url"]))
+        .is_some()
+    {
+        return "web".to_string();
+    }
+    "message".to_string()
+}
+
+fn normalize_source_reliability(value: Option<&str>) -> Option<String> {
+    let normalized = normalize_text(value).map(|text| text.to_ascii_lowercase())?;
+    if ARTIFACT_SOURCE_RELIABILITY_VALUES.contains(&normalized.as_str()) {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
+fn normalize_string_array_value(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .filter_map(|item| normalize_text(Some(item)))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_rich_text_content(
+    record: &Map<String, Value>,
+) -> Option<(String, Value, Option<String>)> {
+    let declared_format =
+        find_string(record, &["contentFormat"]).map(|text| text.to_ascii_lowercase());
+    if declared_format.as_deref() == Some("prosemirror_json") {
+        if let Some(content) = record.get("content").cloned() {
+            return Some(("prosemirror_json".to_string(), content, None));
+        }
+    }
+
+    if let Some(content) = record
+        .get("proseMirror")
+        .cloned()
+        .or_else(|| record.get("tiptap").cloned())
+    {
+        return Some(("prosemirror_json".to_string(), content, None));
+    }
+
+    let markdown = find_string(record, &["markdown", "text"])
+        .or_else(|| record.get("content").and_then(stringify_value))
+        .or_else(|| record.get("content").and_then(extract_portable_text));
+    markdown.map(|text| {
+        (
+            "markdown".to_string(),
+            Value::String(text.clone()),
+            Some(text),
+        )
+    })
+}
+
+fn normalize_callout_tone(value: Option<&str>) -> String {
+    match normalize_text(value)
+        .map(|text| text.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("success") => "success".to_string(),
+        Some("warning") => "warning".to_string(),
+        Some("danger") | Some("error") | Some("critical") => "danger".to_string(),
+        Some("neutral") => "neutral".to_string(),
+        _ => "info".to_string(),
+    }
+}
+
+fn normalize_table_columns(record: &Map<String, Value>) -> Vec<String> {
+    let columns = record
+        .get("columns")
+        .and_then(Value::as_array)
+        .or_else(|| record.get("headers").and_then(Value::as_array));
+
+    columns
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|column| match column {
+                    Value::String(text) => normalize_text(Some(text)),
+                    Value::Object(entry) => find_string(entry, &["label", "title", "key"]),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_table_rows(record: &Map<String, Value>, columns: &[String]) -> Vec<Value> {
+    let target_len = columns.len();
+    let Some(rows) = record.get("rows").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+
+    rows.iter()
+        .filter_map(|row| {
+            let mut cells = match row {
+                Value::Array(items) => items
+                    .iter()
+                    .map(|cell| stringify_value(cell).unwrap_or_default())
+                    .collect::<Vec<_>>(),
+                Value::Object(entry) => {
+                    if let Some(items) = entry.get("cells").and_then(Value::as_array) {
+                        items
+                            .iter()
+                            .map(|cell| stringify_value(cell).unwrap_or_default())
+                            .collect::<Vec<_>>()
+                    } else if let Some(items) = entry.get("values").and_then(Value::as_array) {
+                        items
+                            .iter()
+                            .map(|cell| stringify_value(cell).unwrap_or_default())
+                            .collect::<Vec<_>>()
+                    } else if !columns.is_empty() {
+                        columns
+                            .iter()
+                            .map(|column| {
+                                entry
+                                    .get(column.as_str())
+                                    .and_then(stringify_value)
+                                    .unwrap_or_default()
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        entry
+                            .values()
+                            .map(|cell| stringify_value(cell).unwrap_or_default())
+                            .collect::<Vec<_>>()
+                    }
+                }
+                _ => return None,
+            };
+
+            if cells.iter().all(|cell| cell.trim().is_empty()) {
+                return None;
+            }
+
+            if target_len > 0 {
+                cells.truncate(target_len);
+                while cells.len() < target_len {
+                    cells.push(String::new());
+                }
+            }
+
+            Some(Value::Array(cells.into_iter().map(Value::String).collect()))
+        })
+        .collect()
+}
+
+fn normalize_checklist_items(record: &Map<String, Value>) -> Vec<Value> {
+    let Some(items) = record.get("items").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+
+    items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| match item {
+            Value::String(text) => normalize_text(Some(text)).map(|text| {
+                Value::Object(Map::from_iter([
+                    (
+                        "id".to_string(),
+                        Value::String(format!("check-{}", index + 1)),
+                    ),
+                    ("text".to_string(), Value::String(text)),
+                    ("state".to_string(), Value::String("todo".to_string())),
+                ]))
+            }),
+            Value::Object(entry) => {
+                let text = find_string(entry, &["text", "label", "title", "content"])?;
+                let explicit_state =
+                    find_string(entry, &["state"]).map(|value| value.to_ascii_lowercase());
+                let state = match explicit_state.as_deref() {
+                    Some("todo") | Some("doing") | Some("done") => {
+                        explicit_state.unwrap_or_else(|| "todo".to_string())
+                    }
+                    _ if entry.get("checked").and_then(Value::as_bool) == Some(true)
+                        || entry.get("done").and_then(Value::as_bool) == Some(true)
+                        || entry.get("completed").and_then(Value::as_bool) == Some(true) =>
+                    {
+                        "done".to_string()
+                    }
+                    _ => "todo".to_string(),
+                };
+                Some(Value::Object(Map::from_iter([
+                    (
+                        "id".to_string(),
+                        Value::String(
+                            find_string(entry, &["id"])
+                                .unwrap_or_else(|| format!("check-{}", index + 1)),
+                        ),
+                    ),
+                    ("text".to_string(), Value::String(text)),
+                    ("state".to_string(), Value::String(state)),
+                ])))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn normalize_metric_items(record: &Map<String, Value>) -> Vec<Value> {
+    let items = record
+        .get("metrics")
+        .and_then(Value::as_array)
+        .or_else(|| record.get("items").and_then(Value::as_array));
+    let Some(items) = items else {
+        return Vec::new();
+    };
+
+    items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let entry = item.as_object()?;
+            let label = find_string(entry, &["label", "title"])
+                .unwrap_or_else(|| format!("指标 {}", index + 1));
+            let value = entry
+                .get("value")
+                .and_then(stringify_value)
+                .or_else(|| entry.get("metric").and_then(stringify_value))
+                .or_else(|| entry.get("score").and_then(stringify_value))?;
+
+            let mut normalized = Map::new();
+            normalized.insert(
+                "id".to_string(),
+                Value::String(
+                    find_string(entry, &["id"]).unwrap_or_else(|| format!("metric-{}", index + 1)),
+                ),
+            );
+            normalized.insert("label".to_string(), Value::String(label));
+            normalized.insert("value".to_string(), Value::String(value));
+            upsert_optional_string(
+                &mut normalized,
+                "note",
+                find_string(entry, &["note", "detail", "description", "trend"]).as_deref(),
+            );
+            if let Some(tone) = normalize_metric_tone(find_string(entry, &["tone"]).as_deref()) {
+                normalized.insert("tone".to_string(), Value::String(tone));
+            }
+            Some(Value::Object(normalized))
+        })
+        .collect()
+}
+
+fn normalize_metric_tone(value: Option<&str>) -> Option<String> {
+    match normalize_text(value)
+        .map(|text| text.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("neutral") => Some("neutral".to_string()),
+        Some("success") => Some("success".to_string()),
+        Some("warning") => Some("warning".to_string()),
+        Some("danger") | Some("error") | Some("critical") => Some("danger".to_string()),
+        _ => None,
+    }
+}
+
+fn resolve_citation_source_id(
+    item_record: &Map<String, Value>,
+    sources: &[Map<String, Value>],
+) -> Option<String> {
+    let direct_id = find_string(item_record, &["sourceId", "source_id"]);
+    if let Some(source_id) = direct_id {
+        if sources
+            .iter()
+            .any(|source| source.get("id").and_then(Value::as_str) == Some(source_id.as_str()))
+        {
+            return Some(source_id);
+        }
+    }
+
+    if let Some(url) = find_string(item_record, &["url", "href", "link"]) {
+        if let Some(source) = sources.iter().find(|source| {
+            source
+                .get("locator")
+                .and_then(Value::as_object)
+                .and_then(|locator| locator.get("url"))
+                .and_then(Value::as_str)
+                == Some(url.as_str())
+        }) {
+            return source
+                .get("id")
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
+        }
+    }
+
+    if let Some(label) = find_string(item_record, &["label", "title"]) {
+        if let Some(source) = sources
+            .iter()
+            .find(|source| source.get("label").and_then(Value::as_str) == Some(label.as_str()))
+        {
+            return source
+                .get("id")
+                .and_then(Value::as_str)
+                .map(ToString::to_string);
+        }
+    }
+
+    None
+}
+
+fn normalize_number_value(value: &Value) -> Option<u64> {
+    match value {
+        Value::Number(number) => number.as_u64().or_else(|| {
+            number
+                .as_i64()
+                .filter(|candidate| *candidate >= 0)
+                .map(|candidate| candidate as u64)
+        }),
+        Value::String(text) => text.trim().parse::<u64>().ok(),
+        _ => None,
+    }
+}
+
+fn stringify_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => normalize_text(Some(text)),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(flag) => Some(flag.to_string()),
+        Value::Null => None,
+        Value::Array(_) | Value::Object(_) => extract_portable_text(value)
+            .or_else(|| serde_json::to_string(value).ok())
+            .and_then(|text| normalize_text(Some(text.as_str()))),
+    }
 }
 
 fn derive_summary_from_blocks(blocks: &[Map<String, Value>]) -> Option<String> {
@@ -1130,20 +1751,6 @@ fn normalize_string_array(record: &Map<String, Value>, keys: &[&str]) -> Option<
     }
 }
 
-fn has_non_empty_string_array(value: Option<&Value>) -> bool {
-    value
-        .and_then(Value::as_array)
-        .map(|items| {
-            items.iter().any(|item| {
-                item.as_str()
-                    .map(str::trim)
-                    .map(|text| !text.is_empty())
-                    .unwrap_or(false)
-            })
-        })
-        .unwrap_or(false)
-}
-
 fn normalize_text(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
@@ -1177,12 +1784,30 @@ fn merge_string_field(target: &mut Map<String, Value>, key: &str, value: Option<
     }
 }
 
+fn upsert_optional_number(target: &mut Map<String, Value>, key: &str, value: Option<u64>) {
+    if let Some(value) = value {
+        target.insert(key.to_string(), Value::from(value));
+    } else {
+        target.remove(key);
+    }
+}
+
 fn upsert_optional_string(target: &mut Map<String, Value>, key: &str, value: Option<&str>) {
     if let Some(value) = value.map(str::trim).filter(|text| !text.is_empty()) {
         target.insert(key.to_string(), Value::String(value.to_string()));
     } else {
         target.remove(key);
     }
+}
+
+fn ensure_renderer_density(metadata: &mut Map<String, Value>, density: &str) {
+    let mut hints = metadata
+        .get("rendererHints")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    hints.insert("density".to_string(), Value::String(density.to_string()));
+    metadata.insert("rendererHints".to_string(), Value::Object(hints));
 }
 
 fn merge_source_run_binding(

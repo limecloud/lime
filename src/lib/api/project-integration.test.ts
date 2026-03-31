@@ -5,8 +5,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { TYPE_CONFIGS, USER_PROJECT_TYPES, type ProjectType } from "./project";
-import type { ThemeType } from "@/components/content-creator/types";
+import {
+  TYPE_CONFIGS,
+  USER_PROJECT_TYPES,
+  normalizeProject,
+  type ProjectType,
+} from "./project";
+import type { ThemeType } from "@/lib/workspace/workflowTypes";
 
 // ============================================================================
 // 类型一致性测试
@@ -15,55 +20,45 @@ import type { ThemeType } from "@/components/content-creator/types";
 describe("Project API 集成测试", () => {
   describe("类型一致性", () => {
     it("前端 ProjectType 应该与后端 WorkspaceType 一一对应", () => {
-      // 验证所有类型都能正确序列化/反序列化
       const allTypes: ProjectType[] = [
         "persistent",
         "temporary",
         "general",
         "social-media",
-        "poster",
-        "music",
         "knowledge",
         "planning",
         "document",
         "video",
-        "novel",
       ];
 
-      // 验证所有类型都有配置
       allTypes.forEach((type) => {
         expect(TYPE_CONFIGS[type]).toBeDefined();
         expect(TYPE_CONFIGS[type].label).toBeTruthy();
         expect(TYPE_CONFIGS[type].icon).toBeTruthy();
       });
 
-      // 验证类型数量
-      expect(Object.keys(TYPE_CONFIGS)).toHaveLength(11);
+      expect(Object.keys(TYPE_CONFIGS)).toHaveLength(8);
     });
 
     it("ThemeType 应该是 UserType 的子集", () => {
       const themes: ThemeType[] = [
         "general",
         "social-media",
-        "poster",
-        "music",
         "knowledge",
         "planning",
         "document",
         "video",
-        "novel",
       ];
 
       themes.forEach((theme) => {
         expect(USER_PROJECT_TYPES).toContain(theme);
       });
 
-      // ThemeType 和 UserType 应该完全一致
       expect(themes).toHaveLength(USER_PROJECT_TYPES.length);
     });
 
-    it("UserType 应该正好有 9 种类型", () => {
-      expect(USER_PROJECT_TYPES).toHaveLength(9);
+    it("UserType 应该正好有 6 种类型", () => {
+      expect(USER_PROJECT_TYPES).toHaveLength(6);
     });
 
     it("SystemType 应该正好有 2 种类型", () => {
@@ -78,10 +73,7 @@ describe("Project API 集成测试", () => {
   describe("画布类型映射一致性", () => {
     it("支持画布的类型应该有正确的 canvasType", () => {
       const canvasMapping: Record<string, string> = {
-        video: "script",
-        novel: "novel",
-        poster: "poster",
-        music: "music",
+        video: "video",
         "social-media": "document",
         document: "document",
       };
@@ -115,13 +107,10 @@ describe("Project API 集成测试", () => {
         temporary: "document",
         general: "content",
         "social-media": "post",
-        poster: "document",
-        music: "document",
         knowledge: "document",
         planning: "document",
         document: "document",
         video: "episode",
-        novel: "chapter",
       };
 
       Object.entries(contentTypeMapping).forEach(
@@ -149,13 +138,10 @@ describe("Project API 集成测试", () => {
         "temporary",
         "general",
         "social-media",
-        "poster",
-        "music",
         "knowledge",
         "planning",
         "document",
         "video",
-        "novel",
       ];
 
       allTypes.forEach((type) => {
@@ -173,13 +159,10 @@ describe("Project API 集成测试", () => {
         "temporary",
         "general",
         "social-media",
-        "poster",
-        "music",
         "knowledge",
         "planning",
         "document",
         "video",
-        "novel",
       ];
 
       allTypes.forEach((type) => {
@@ -188,6 +171,32 @@ describe("Project API 集成测试", () => {
         // 验证是中文（包含至少一个中文字符）
         expect(/[\u4e00-\u9fa5]/.test(label)).toBe(true);
       });
+    });
+  });
+
+  describe("旧类型兼容归一", () => {
+    it("poster / music / novel 应统一归一到 document", () => {
+      expect(
+        normalizeProject({
+          id: "legacy-poster",
+          name: "旧海报项目",
+          workspace_type: "poster",
+        } as any).workspaceType,
+      ).toBe("document");
+      expect(
+        normalizeProject({
+          id: "legacy-music",
+          name: "旧音乐项目",
+          workspace_type: "music",
+        } as any).workspaceType,
+      ).toBe("document");
+      expect(
+        normalizeProject({
+          id: "legacy-novel",
+          name: "旧小说项目",
+          workspace_type: "novel",
+        } as any).workspaceType,
+      ).toBe("document");
     });
   });
 });

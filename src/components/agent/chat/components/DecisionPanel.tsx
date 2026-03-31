@@ -25,11 +25,7 @@ import {
   Globe,
   Loader2,
 } from "lucide-react";
-import type {
-  ActionRequired,
-  ConfirmResponse,
-  QuestionOption,
-} from "../types";
+import type { ActionRequired, ConfirmResponse, QuestionOption } from "../types";
 
 interface DecisionPanelProps {
   request: ActionRequired;
@@ -217,7 +213,8 @@ function extractAskUserOptionsFromText(text?: string): QuestionOption[] {
 
   if (options.length > 0) return options;
 
-  const optionLinePattern = /(options?|choices?|可选项?|选项)\s*[:：]\s*([^\n]+)/i;
+  const optionLinePattern =
+    /(options?|choices?|可选项?|选项)\s*[:：]\s*([^\n]+)/i;
   const lineMatch = normalizedText.match(optionLinePattern);
   if (lineMatch?.[2]) {
     const fragments = splitFragments(lineMatch[2]);
@@ -270,7 +267,29 @@ function normalizeQuestionOptions(rawOptions: unknown): QuestionOption[] {
   return normalized;
 }
 
-function resolveSubmittedAnswerText(request: ActionRequired): string | undefined {
+function summarizeSubmittedValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized || undefined;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((item) => summarizeSubmittedValue(item))
+      .filter((item): item is string => Boolean(item));
+    return normalized.length > 0 ? normalized.join("、") : undefined;
+  }
+
+  return undefined;
+}
+
+function resolveSubmittedAnswerText(
+  request: ActionRequired,
+): string | undefined {
   const userData = request.submittedUserData;
   if (typeof userData === "string") {
     const value = userData.trim();
@@ -280,17 +299,17 @@ function resolveSubmittedAnswerText(request: ActionRequired): string | undefined
 
   if (userData && typeof userData === "object") {
     const record = userData as Record<string, unknown>;
-    if (typeof record.answer === "string" && record.answer.trim()) {
-      return record.answer.trim();
+    const directAnswer = summarizeSubmittedValue(record.answer);
+    if (directAnswer) {
+      return directAnswer;
     }
     if (request.questions && request.questions.length > 0) {
       const firstQuestion = request.questions[0]?.question;
       if (
         typeof firstQuestion === "string" &&
-        typeof record[firstQuestion] === "string" &&
-        (record[firstQuestion] as string).trim()
+        summarizeSubmittedValue(record[firstQuestion])
       ) {
-        return (record[firstQuestion] as string).trim();
+        return summarizeSubmittedValue(record[firstQuestion]);
       }
     }
     try {
@@ -310,8 +329,9 @@ function resolveSubmittedAnswerText(request: ActionRequired): string | undefined
       }
       if (parsed && typeof parsed === "object") {
         const record = parsed as Record<string, unknown>;
-        if (typeof record.answer === "string" && record.answer.trim()) {
-          return record.answer.trim();
+        const directAnswer = summarizeSubmittedValue(record.answer);
+        if (directAnswer) {
+          return directAnswer;
         }
       }
     } catch {
@@ -337,7 +357,10 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
     }
 
     const fallbackText = [question.question, question.header, request.prompt]
-      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .filter(
+        (item): item is string =>
+          typeof item === "string" && item.trim().length > 0,
+      )
       .join("\n");
     return extractAskUserOptionsFromText(fallbackText);
   });
@@ -359,6 +382,9 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
   const submittedAnswer = resolveSubmittedAnswerText(request);
   const isFallbackAskPending =
     request.actionType === "ask_user" && request.isFallback;
+  const usesQuestionnaireUi =
+    questions.length > 0 &&
+    (request.actionType === "ask_user" || request.actionType === "elicitation");
 
   // 重置状态当请求变化时
   useEffect(() => {
@@ -418,37 +444,63 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
 
   // 构建答案
   const buildAnswers = () => {
-    const answers: Record<string, string> = {};
+    const answers: Record<string, string | string[]> = {};
     questions.forEach((q, qIndex) => {
       const selected = selectedOptions[qIndex] ?? [];
       const otherText = otherInputs[qIndex]?.trim() ?? "";
-      let value = "";
       if (q.multiSelect) {
         const combined = [...selected];
         if (otherText) combined.push(otherText);
-        value = combined.join(", ");
-      } else {
-        value = otherText || selected[0] || "";
+        if (combined.length > 0) {
+          answers[q.question] = combined;
+        }
+        return;
       }
-      if (value) answers[q.question] = value;
+
+      const value = otherText || selected[0] || "";
+      if (value) {
+        answers[q.question] = value;
+      }
     });
     return answers;
   };
 
   // 检查是否���以提交
-  const canSubmit =
-    request.actionType === "elicitation"
+  const canSubmit = usesQuestionnaireUi
+    ? questions.every((_, qIndex) => {
+        const selected = selectedOptions[qIndex] ?? [];
+        const otherText = otherInputs[qIndex]?.trim() ?? "";
+        return selected.length > 0 || otherText.length > 0;
+      })
+    : request.actionType === "elicitation"
       ? elicitationAnswer.trim().length > 0 ||
         elicitationOther.trim().length > 0
-      : questions.length === 0 ||
-        questions.every((_, qIndex) => {
-          const selected = selectedOptions[qIndex] ?? [];
-          const otherText = otherInputs[qIndex]?.trim() ?? "";
-          return selected.length > 0 || otherText.length > 0;
-        });
+      : questions.length === 0;
 
   // 处理允许
   const handleAllow = () => {
+    if (usesQuestionnaireUi) {
+      const answers = buildAnswers();
+      const firstAnswer = Object.values(answers)[0];
+      const normalizedAnswers =
+        questions.length === 1 && firstAnswer !== undefined
+          ? { answer: firstAnswer }
+          : answers;
+      const response =
+        questions.length > 0 ? JSON.stringify(normalizedAnswers) : undefined;
+      void submitResponse(
+        {
+          requestId: request.requestId,
+          confirmed: true,
+          response,
+          actionType: request.actionType,
+          userData: questions.length > 0 ? normalizedAnswers : undefined,
+        },
+        { key: "allow", kind: "allow" },
+      );
+      return;
+    }
+
     if (request.actionType === "elicitation") {
       const answer = elicitationAnswer.trim();
       const other = elicitationOther.trim();
@@ -477,20 +529,12 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
       return;
     }
 
-    const answers = buildAnswers();
-    const normalizedAnswers =
-      questions.length === 1 && typeof Object.values(answers)[0] === "string"
-        ? { answer: Object.values(answers)[0] as string }
-        : answers;
-    const response =
-      questions.length > 0 ? JSON.stringify(normalizedAnswers) : undefined;
     void submitResponse(
       {
         requestId: request.requestId,
         confirmed: true,
-        response,
+        response: "允许",
         actionType: request.actionType,
-        userData: questions.length > 0 ? normalizedAnswers : undefined,
       },
       { key: "allow", kind: "allow" },
     );
@@ -513,16 +557,14 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
   };
 
   if (isSubmitted || isQueued) {
-    const submittedTitle =
-      isQueued
-        ? "已记录你的回答"
-        : request.actionType === "tool_confirmation"
+    const submittedTitle = isQueued
+      ? "已记录你的回答"
+      : request.actionType === "tool_confirmation"
         ? "已处理权限请求"
         : "已提交你的回答";
-    const submittedClassName =
-      isQueued
-        ? "border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/20"
-        : request.actionType === "tool_confirmation"
+    const submittedClassName = isQueued
+      ? "border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/20"
+      : request.actionType === "tool_confirmation"
         ? "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
         : request.actionType === "elicitation"
           ? "border-indigo-200 bg-indigo-50/50 dark:border-indigo-800 dark:bg-indigo-950/20"
@@ -648,7 +690,11 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
 
           <div className="flex flex-wrap gap-2 pt-1">
             {isLaunching ? (
-              <Button size="sm" disabled className="bg-amber-600 hover:bg-amber-600">
+              <Button
+                size="sm"
+                disabled
+                className="bg-amber-600 hover:bg-amber-600"
+              >
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 启动中...
               </Button>
@@ -701,10 +747,13 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleBrowserAction("fallback", "改为仅做网页检索")}
+                onClick={() =>
+                  handleBrowserAction("fallback", "改为仅做网页检索")
+                }
                 disabled={isSubmitting}
               >
-                {submissionState?.key === "browser:fallback:改为仅做网页检索" ? (
+                {submissionState?.key ===
+                "browser:fallback:改为仅做网页检索" ? (
                   <>
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                     处理中...
@@ -721,7 +770,7 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
   }
 
   // 渲染 elicitation 面板
-  if (request.actionType === "elicitation") {
+  if (request.actionType === "elicitation" && !usesQuestionnaireUi) {
     return (
       <Card
         className="border-indigo-200 bg-indigo-50/50 dark:border-indigo-800 dark:bg-indigo-950/20"
@@ -826,25 +875,47 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
     );
   }
 
-  // 渲染用户问题面板
+  // 渲染结构化问题面板（ask_user 或带问题元数据的 elicitation）
   if (
-    request.actionType === "ask_user" &&
+    usesQuestionnaireUi &&
     request.questions &&
     request.questions.length > 0
   ) {
     const questions = request.questions;
+    const isQuestionElicitation = request.actionType === "elicitation";
+    const cardClassName = isQuestionElicitation
+      ? "border-indigo-200 bg-indigo-50/50 dark:border-indigo-800 dark:bg-indigo-950/20"
+      : "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20";
+    const titleClassName = isQuestionElicitation
+      ? "text-indigo-700 dark:text-indigo-300"
+      : "text-blue-700 dark:text-blue-300";
+    const primaryButtonClassName = isQuestionElicitation
+      ? "bg-indigo-600 hover:bg-indigo-700"
+      : "bg-blue-600 hover:bg-blue-700";
+    const selectedOptionClassName = isQuestionElicitation
+      ? "border-indigo-500 bg-indigo-100 dark:border-indigo-400 dark:bg-indigo-900/30"
+      : "border-blue-500 bg-blue-100 dark:border-blue-400 dark:bg-blue-900/30";
+    const unselectedOptionClassName = isQuestionElicitation
+      ? "border-border bg-background hover:border-indigo-300 hover:bg-muted"
+      : "border-border bg-background hover:border-blue-300 hover:bg-muted";
+
     return (
-      <Card
-        className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20"
-        {...requestAnchorProps}
-      >
+      <Card className={cardClassName} {...requestAnchorProps}>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
+          <CardTitle
+            className={cn(
+              "flex items-center gap-2 text-sm font-medium",
+              titleClassName,
+            )}
+          >
             <HelpCircle className="h-4 w-4" />
-            助手的问题
+            {isQuestionElicitation ? "需要你提供信息" : "助手的问题"}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isQuestionElicitation && request.prompt && (
+            <p className="text-sm text-foreground">{request.prompt}</p>
+          )}
           {questions.map((q, qIndex) => (
             <div key={qIndex} className="space-y-3">
               <p className="text-sm text-foreground">{q.question}</p>
@@ -856,42 +927,43 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
               )}
 
               {/* 选项列表 */}
-              {questionOptions[qIndex] && questionOptions[qIndex].length > 0 && (
-                <div className="grid gap-2">
-                  {questionOptions[qIndex].map((option, optIndex) => {
-                    const isSelected = (selectedOptions[qIndex] ?? []).includes(
-                      option.label,
-                    );
+              {questionOptions[qIndex] &&
+                questionOptions[qIndex].length > 0 && (
+                  <div className="grid gap-2">
+                    {questionOptions[qIndex].map((option, optIndex) => {
+                      const isSelected = (
+                        selectedOptions[qIndex] ?? []
+                      ).includes(option.label);
 
-                    return (
-                      <button
-                        key={optIndex}
-                        type="button"
-                        className={cn(
-                          "rounded-lg border px-4 py-3 text-left text-sm transition-colors",
-                          isSelected
-                            ? "border-blue-500 bg-blue-100 dark:border-blue-400 dark:bg-blue-900/30"
-                            : "border-border bg-background hover:border-blue-300 hover:bg-muted",
-                          isSubmitting && "cursor-not-allowed opacity-70",
-                        )}
-                        disabled={isSubmitting}
-                        onClick={() =>
-                          toggleOption(qIndex, option.label, q.multiSelect)
-                        }
-                      >
-                        <div className="flex items-center gap-2 font-medium">
-                          <span>{option.label}</span>
-                        </div>
-                        {option.description && (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {option.description}
+                      return (
+                        <button
+                          key={optIndex}
+                          type="button"
+                          className={cn(
+                            "rounded-lg border px-4 py-3 text-left text-sm transition-colors",
+                            isSelected
+                              ? selectedOptionClassName
+                              : unselectedOptionClassName,
+                            isSubmitting && "cursor-not-allowed opacity-70",
+                          )}
+                          disabled={isSubmitting}
+                          onClick={() =>
+                            toggleOption(qIndex, option.label, q.multiSelect)
+                          }
+                        >
+                          <div className="flex items-center gap-2 font-medium">
+                            <span>{option.label}</span>
                           </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                          {option.description && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {option.description}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
               {/* 其他输入 */}
               <div className="space-y-1">
@@ -921,7 +993,8 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
 
           {isFallbackAskPending && (
             <p className="text-xs text-muted-foreground">
-              如果系统请求 ID 还没就绪，你现在提交的答案会先被记录，并在就绪后自动提交。
+              如果系统请求 ID
+              还没就绪，你现在提交的答案会先被记录，并在就绪后自动提交。
             </p>
           )}
 
@@ -931,7 +1004,7 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
               size="sm"
               onClick={handleAllow}
               disabled={!canSubmit || isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700"
+              className={primaryButtonClassName}
             >
               {submissionState?.key === "allow" ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />

@@ -10,6 +10,7 @@ import { useState, type MouseEvent } from "react";
 import { Play, Square, RefreshCw, Server, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { McpServerInfo } from "@/lib/api/mcp";
+import type { McpServerConnectionState } from "@/hooks/useMcp";
 
 interface McpServerListProps {
   servers: McpServerInfo[];
@@ -17,9 +18,11 @@ interface McpServerListProps {
   error: string | null;
   onStartServer: (name: string) => Promise<void>;
   onStopServer: (name: string) => Promise<void>;
+  onReconnectServer: (name: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   onSelectServer?: (server: McpServerInfo) => void;
   selectedServerName?: string;
+  serverConnectionStates: Record<string, McpServerConnectionState>;
 }
 
 export function McpServerList({
@@ -28,9 +31,11 @@ export function McpServerList({
   error,
   onStartServer,
   onStopServer,
+  onReconnectServer,
   onRefresh,
   onSelectServer,
   selectedServerName,
+  serverConnectionStates,
 }: McpServerListProps) {
   const [operatingServer, setOperatingServer] = useState<string | null>(null);
 
@@ -49,6 +54,16 @@ export function McpServerList({
     setOperatingServer(name);
     try {
       await onStopServer(name);
+    } finally {
+      setOperatingServer(null);
+    }
+  };
+
+  const handleReconnect = async (name: string, e: MouseEvent) => {
+    e.stopPropagation();
+    setOperatingServer(name);
+    try {
+      await onReconnectServer(name);
     } finally {
       setOperatingServer(null);
     }
@@ -106,8 +121,11 @@ export function McpServerList({
             <p>暂无 MCP 服务器配置</p>
           </div>
         ) : (
-          servers.map((server) => (
-            <div
+          servers.map((server) => {
+            const connectionState = serverConnectionStates[server.name];
+
+            return (
+              <div
               key={server.id}
               onClick={() => onSelectServer?.(server)}
               className={cn(
@@ -147,7 +165,21 @@ export function McpServerList({
                 </div>
 
                 {/* 启动/停止按钮 */}
-                <div className="flex-shrink-0 ml-2">
+                <div className="ml-2 flex flex-shrink-0 items-center gap-1">
+                  <button
+                    onClick={(e) => handleReconnect(server.name, e)}
+                    disabled={operatingServer === server.name}
+                    className="p-1.5 rounded hover:bg-blue-500/10 text-blue-600 disabled:opacity-50"
+                    title="重连服务器"
+                  >
+                    <RefreshCw
+                      className={cn(
+                        "h-4 w-4",
+                        operatingServer === server.name &&
+                          "animate-spin",
+                      )}
+                    />
+                  </button>
                   {server.is_running ? (
                     <button
                       onClick={(e) => handleStop(server.name, e)}
@@ -178,6 +210,12 @@ export function McpServerList({
                 </div>
               </div>
 
+              {connectionState?.error && (
+                <p className="mt-2 text-xs text-destructive">
+                  最近错误：{connectionState.error}
+                </p>
+              )}
+
               {/* 能力标签 */}
               {server.is_running && server.server_info && (
                 <div className="flex flex-wrap gap-1 mt-2">
@@ -198,8 +236,9 @@ export function McpServerList({
                   )}
                 </div>
               )}
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
       </div>
     </div>

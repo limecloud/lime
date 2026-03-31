@@ -104,6 +104,8 @@ function createArtifactDocumentArtifact(
       {
         id: "body-1",
         type: "rich_text",
+        contentFormat: "markdown",
+        content: "正文内容",
         markdown: "正文内容",
         sourceIds: ["source-1"],
       },
@@ -111,8 +113,11 @@ function createArtifactDocumentArtifact(
     sources: [
       {
         id: "source-1",
-        title: "OpenAI Blog",
-        url: "https://openai.com",
+        type: "web",
+        label: "OpenAI Blog",
+        locator: {
+          url: "https://openai.com",
+        },
       },
     ],
     metadata: {
@@ -200,12 +205,15 @@ function createStructuredEditableArtifact(): Artifact {
       {
         id: "body-structured",
         type: "rich_text",
+        contentFormat: "markdown",
+        content: "这里是详细分析。",
         markdown: "这里是详细分析。",
       },
       {
         id: "callout-1",
         type: "callout",
         title: "风险提示",
+        body: "第二季度需重点压缩项目交付周期。",
         content: "第二季度需重点压缩项目交付周期。",
         tone: "warning",
       },
@@ -223,6 +231,103 @@ function createStructuredEditableArtifact(): Artifact {
     meta: {
       filePath: ".lime/artifacts/thread-1/structured-edit.artifact.json",
       filename: "structured-edit.artifact.json",
+      language: "json",
+    },
+    position: { start: 0, end: content.length },
+    createdAt: 1,
+    updatedAt: 1,
+  };
+}
+
+function createAdvancedEditableArtifact(): Artifact {
+  const content = JSON.stringify({
+    schemaVersion: "artifact_document.v1",
+    artifactId: "artifact-document:advanced-editable",
+    kind: "analysis",
+    title: "更多结构化块编辑演示",
+    status: "ready",
+    language: "zh-CN",
+    summary: "用于验证更多结构化 block 的编辑回写。",
+    blocks: [
+      {
+        id: "section-advanced",
+        type: "section_header",
+        title: "重点跟进",
+        description: "围绕经营动作做块级编辑。",
+      },
+      {
+        id: "keypoints-1",
+        type: "key_points",
+        title: "关键结论",
+        items: ["收入保持增长", "交付效率需要治理"],
+      },
+      {
+        id: "table-1",
+        type: "table",
+        title: "经营对比表",
+        columns: ["维度", "现状", "动作"],
+        rows: [
+          ["收入", "稳定", "继续追踪"],
+          ["交付", "偏慢", "压缩周期"],
+        ],
+      },
+      {
+        id: "checklist-1",
+        type: "checklist",
+        title: "推进清单",
+        items: [
+          { id: "task-1", text: "梳理重点客户", state: "todo" },
+          { id: "task-2", text: "压缩交付周期", state: "doing" },
+        ],
+      },
+      {
+        id: "metric-1",
+        type: "metric_grid",
+        title: "经营指标",
+        metrics: [
+          {
+            id: "metric-1-a",
+            label: "ARR",
+            value: "18%",
+            note: "同比增长",
+            tone: "success",
+          },
+          {
+            id: "metric-1-b",
+            label: "交付时延",
+            value: "12 天",
+            note: "仍高于目标",
+            tone: "warning",
+          },
+        ],
+      },
+      {
+        id: "quote-1",
+        type: "quote",
+        text: "交付效率会直接影响下季度毛利。",
+        attribution: "COO 周会",
+      },
+      {
+        id: "code-1",
+        type: "code_block",
+        title: "执行脚本",
+        language: "bash",
+        code: "npm run verify:local",
+      },
+    ],
+    sources: [],
+    metadata: {},
+  });
+
+  return {
+    id: "artifact-advanced-structured",
+    type: "document",
+    title: "advanced-structured-edit.artifact.json",
+    content,
+    status: "complete",
+    meta: {
+      filePath: ".lime/artifacts/thread-1/advanced-structured-edit.artifact.json",
+      filename: "advanced-structured-edit.artifact.json",
       language: "json",
     },
     position: { start: 0, end: content.length },
@@ -698,9 +803,38 @@ describe("ArtifactWorkbenchShell", () => {
           expect.objectContaining({
             id: "body-1",
             type: "rich_text",
+            contentFormat: "markdown",
+            content: "更新后的正文",
             markdown: "更新后的正文",
           }),
         ]),
+        metadata: expect.objectContaining({
+          currentVersionId: "artifact-document:demo:v3",
+          currentVersionNo: 3,
+          currentVersionDiff: expect.objectContaining({
+            baseVersionId: "artifact-document:demo:v2",
+            baseVersionNo: 2,
+            targetVersionId: "artifact-document:demo:v3",
+            targetVersionNo: 3,
+            updatedCount: 1,
+            changedBlocks: expect.arrayContaining([
+              expect.objectContaining({
+                blockId: "body-1",
+                changeType: "updated",
+                beforeText: "正文内容",
+                afterText: "更新后的正文",
+              }),
+            ]),
+          }),
+          versionHistory: expect.arrayContaining([
+            expect.objectContaining({
+              id: "artifact-document:demo:v3",
+              versionNo: 3,
+              summary: "更新 正文块 1",
+              createdBy: "user",
+            }),
+          ]),
+        }),
       }),
     );
   });
@@ -863,6 +997,239 @@ describe("ArtifactWorkbenchShell", () => {
     expect(onJumpToTimelineItem).toHaveBeenCalledWith("thread-item-body");
   });
 
+  it("编辑态应支持触发 AI 改写当前块", async () => {
+    const onArtifactBlockRewriteRun = vi.fn().mockResolvedValue({
+      rawContent: "{\"type\":\"artifact_rewrite_patch\"}",
+      suggestion: {
+        summary: "压缩冗余表达，保留事实信息",
+        block: {
+          id: "body-1",
+          type: "rich_text",
+          contentFormat: "markdown",
+          content: "AI 改写后的正文",
+        },
+        draft: {
+          editorKind: "rich_text",
+          markdown: "AI 改写后的正文",
+        },
+      },
+    });
+    const container = renderWorkbench(createArtifactDocumentArtifact(), {
+      onSaveArtifactDocument: vi.fn().mockResolvedValue(undefined),
+      threadItems: createArtifactTimelineItems(),
+      onArtifactBlockRewriteRun,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("编辑"),
+    );
+    expect(editTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      editTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const bodyBlockTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("正文块 1"));
+    expect(bodyBlockTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      bodyBlockTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const rewriteButton = container.querySelector(
+      '[data-testid="artifact-edit-ai-rewrite"]',
+    ) as HTMLButtonElement | null;
+    const rewriteInstructionInput = container.querySelector(
+      '[data-testid="artifact-edit-rewrite-instruction"]',
+    ) as HTMLTextAreaElement | null;
+    expect(rewriteButton).not.toBeNull();
+    expect(rewriteInstructionInput).not.toBeNull();
+
+    await act(async () => {
+      if (rewriteInstructionInput) {
+        setTextControlValue(
+          rewriteInstructionInput,
+          "请保留事实，只压缩冗余表达，适合董事会 30 秒内扫读。",
+        );
+      }
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      rewriteButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onArtifactBlockRewriteRun).toHaveBeenCalledTimes(1);
+    expect(onArtifactBlockRewriteRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifact: expect.objectContaining({ id: "artifact-1" }),
+        entry: expect.objectContaining({
+          blockId: "body-1",
+          editorKind: "rich_text",
+        }),
+        draft: expect.objectContaining({
+          editorKind: "rich_text",
+          markdown: "正文内容",
+        }),
+        instruction: "请保留事实，只压缩冗余表达，适合董事会 30 秒内扫读。",
+        timelineLink: expect.objectContaining({
+          itemId: "thread-item-body",
+          blockId: "body-1",
+        }),
+      }),
+    );
+    expect(container.textContent).toContain("本次改写建议");
+    expect(container.textContent).toContain("压缩冗余表达，保留事实信息");
+
+    const applyRewriteButton = container.querySelector(
+      '[data-testid="artifact-edit-rewrite-apply"]',
+    ) as HTMLButtonElement | null;
+    expect(applyRewriteButton).not.toBeNull();
+
+    await act(async () => {
+      applyRewriteButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const editorInput = container.querySelector(
+      '[data-testid="mock-notion-editor-input"]',
+    ) as HTMLTextAreaElement | null;
+    expect(editorInput?.value).toBe("AI 改写后的正文");
+    expect(container.textContent).toContain(
+      "已回填到当前草稿，确认无误后点击保存即可写回文稿。",
+    );
+  });
+
+  it("AI 改写建议应支持直接保存为新版本", async () => {
+    const handleSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
+    const onArtifactBlockRewriteRun = vi.fn().mockResolvedValue({
+      rawContent: "{\"type\":\"artifact_rewrite_patch\"}",
+      suggestion: {
+        summary: "压缩冗余表达，保留事实信息",
+        block: {
+          id: "body-1",
+          type: "rich_text",
+          contentFormat: "markdown",
+          content: "AI 改写后的正文",
+        },
+        draft: {
+          editorKind: "rich_text",
+          markdown: "AI 改写后的正文",
+        },
+      },
+    });
+    const container = renderWorkbench(createArtifactDocumentArtifact(), {
+      onSaveArtifactDocument: handleSaveArtifactDocument,
+      threadItems: createArtifactTimelineItems(),
+      onArtifactBlockRewriteRun,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("编辑"),
+    );
+    expect(editTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      editTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const bodyBlockTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("正文块 1"));
+    expect(bodyBlockTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      bodyBlockTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const rewriteButton = container.querySelector(
+      '[data-testid="artifact-edit-ai-rewrite"]',
+    ) as HTMLButtonElement | null;
+    expect(rewriteButton).not.toBeNull();
+
+    await act(async () => {
+      rewriteButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const saveRewriteButton = container.querySelector(
+      '[data-testid="artifact-edit-rewrite-save"]',
+    ) as HTMLButtonElement | null;
+    expect(saveRewriteButton).not.toBeNull();
+
+    await act(async () => {
+      saveRewriteButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenCalledTimes(1);
+    expect(handleSaveArtifactDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "artifact-1" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "body-1",
+            type: "rich_text",
+            contentFormat: "markdown",
+            content: "AI 改写后的正文",
+            markdown: "AI 改写后的正文",
+          }),
+        ]),
+        metadata: expect.objectContaining({
+          currentVersionId: "artifact-document:demo:v3",
+          currentVersionNo: 3,
+          currentVersionDiff: expect.objectContaining({
+            baseVersionId: "artifact-document:demo:v2",
+            baseVersionNo: 2,
+            targetVersionId: "artifact-document:demo:v3",
+            targetVersionNo: 3,
+            updatedCount: 1,
+            changedBlocks: expect.arrayContaining([
+              expect.objectContaining({
+                blockId: "body-1",
+                changeType: "updated",
+                beforeText: "正文内容",
+                afterText: "AI 改写后的正文",
+              }),
+            ]),
+          }),
+          versionHistory: expect.arrayContaining([
+            expect.objectContaining({
+              id: "artifact-document:demo:v3",
+              versionNo: 3,
+              summary: "更新 正文块 1",
+              createdBy: "user",
+            }),
+          ]),
+        }),
+      }),
+    );
+    expect(container.textContent).toContain("已把改写建议保存为当前文稿的新版本。");
+  });
+
   it("应支持在 workbench 中编辑提示块并回写 tone 与正文", async () => {
     const handleSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
     const container = renderWorkbench(createStructuredEditableArtifact(), {
@@ -931,10 +1298,365 @@ describe("ArtifactWorkbenchShell", () => {
           expect.objectContaining({
             id: "callout-1",
             type: "callout",
-            tone: "critical",
+            tone: "danger",
             variant: "critical",
+            body: "交付周期偏长，需要立即治理。",
             content: "交付周期偏长，需要立即治理。",
             text: "交付周期偏长，需要立即治理。",
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("应支持在 workbench 中编辑 key points 与表格块", async () => {
+    const handleSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
+    const container = renderWorkbench(createAdvancedEditableArtifact(), {
+      onSaveArtifactDocument: handleSaveArtifactDocument,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("编辑"),
+    );
+    expect(editTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      editTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const keyPointsTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("关键结论"),
+    );
+    expect(keyPointsTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      keyPointsTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const keyPointsInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-items"]',
+    ) as HTMLTextAreaElement | null;
+    expect(keyPointsInput).not.toBeNull();
+
+    await act(async () => {
+      if (keyPointsInput) {
+        setTextControlValue(
+          keyPointsInput,
+          "聚焦高质量增长\n优先治理交付瓶颈\n补齐来源引用",
+        );
+      }
+      await Promise.resolve();
+    });
+
+    const saveButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "保存",
+    );
+    expect(saveButton).not.toBeUndefined();
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: "artifact-advanced-structured" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "keypoints-1",
+            type: "key_points",
+            items: ["聚焦高质量增长", "优先治理交付瓶颈", "补齐来源引用"],
+          }),
+        ]),
+      }),
+    );
+
+    const tableTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("经营对比表"),
+    );
+    expect(tableTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      tableTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const columnsInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-columns"]',
+    ) as HTMLTextAreaElement | null;
+    const rowsInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-rows"]',
+    ) as HTMLTextAreaElement | null;
+    expect(columnsInput).not.toBeNull();
+    expect(rowsInput).not.toBeNull();
+
+    await act(async () => {
+      if (columnsInput) {
+        setTextControlValue(columnsInput, "维度 | 当前 | 下一步");
+      }
+      if (rowsInput) {
+        setTextControlValue(
+          rowsInput,
+          "收入 | 稳定增长 | 继续看增量\n交付 | 偏慢 | 压缩周期",
+        );
+      }
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: "artifact-advanced-structured" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "table-1",
+            type: "table",
+            columns: ["维度", "当前", "下一步"],
+            rows: [
+              ["收入", "稳定增长", "继续看增量"],
+              ["交付", "偏慢", "压缩周期"],
+            ],
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("应支持在 workbench 中编辑 checklist、metric、quote 与 code block", async () => {
+    const handleSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
+    const container = renderWorkbench(createAdvancedEditableArtifact(), {
+      onSaveArtifactDocument: handleSaveArtifactDocument,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("编辑"),
+    );
+    expect(editTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      editTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const checklistTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("推进清单"),
+    );
+    expect(checklistTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      checklistTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const checklistInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-checklist"]',
+    ) as HTMLTextAreaElement | null;
+    expect(checklistInput).not.toBeNull();
+
+    await act(async () => {
+      if (checklistInput) {
+        setTextControlValue(
+          checklistInput,
+          "doing | 梳理重点客户\n done | 压缩交付周期",
+        );
+      }
+      await Promise.resolve();
+    });
+
+    const saveButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "保存",
+    );
+    expect(saveButton).not.toBeUndefined();
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: "artifact-advanced-structured" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "checklist-1",
+            type: "checklist",
+            items: [
+              expect.objectContaining({ text: "梳理重点客户", state: "doing" }),
+              expect.objectContaining({ text: "压缩交付周期", state: "done" }),
+            ],
+          }),
+        ]),
+      }),
+    );
+
+    const metricsTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("经营指标"),
+    );
+    expect(metricsTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      metricsTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const metricsInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-metrics"]',
+    ) as HTMLTextAreaElement | null;
+    expect(metricsInput).not.toBeNull();
+
+    await act(async () => {
+      if (metricsInput) {
+        setTextControlValue(
+          metricsInput,
+          "ARR | 21% | 保持健康增长 | success\n交付时延 | 9 天 | 已接近目标 | warning",
+        );
+      }
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: "artifact-advanced-structured" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "metric-1",
+            type: "metric_grid",
+            metrics: [
+              expect.objectContaining({
+                label: "ARR",
+                value: "21%",
+                note: "保持健康增长",
+                tone: "success",
+              }),
+              expect.objectContaining({
+                label: "交付时延",
+                value: "9 天",
+                note: "已接近目标",
+                tone: "warning",
+              }),
+            ],
+          }),
+        ]),
+      }),
+    );
+
+    const quoteTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("COO 周会"),
+    );
+    expect(quoteTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      quoteTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const quoteInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-quote"]',
+    ) as HTMLTextAreaElement | null;
+    const attributionInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-attribution"]',
+    ) as HTMLInputElement | null;
+    expect(quoteInput).not.toBeNull();
+    expect(attributionInput).not.toBeNull();
+
+    await act(async () => {
+      if (quoteInput) {
+        setTextControlValue(quoteInput, "季度交付效率必须进入经营复盘主线。");
+      }
+      if (attributionInput) {
+        setTextControlValue(attributionInput, "CEO 周报");
+      }
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ id: "artifact-advanced-structured" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "quote-1",
+            type: "quote",
+            text: "季度交付效率必须进入经营复盘主线。",
+            quote: "季度交付效率必须进入经营复盘主线。",
+            attribution: "CEO 周报",
+          }),
+        ]),
+      }),
+    );
+
+    const codeTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("执行脚本"),
+    );
+    expect(codeTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      codeTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const languageInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-language"]',
+    ) as HTMLInputElement | null;
+    const codeInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-code"]',
+    ) as HTMLTextAreaElement | null;
+    expect(languageInput).not.toBeNull();
+    expect(codeInput).not.toBeNull();
+
+    await act(async () => {
+      if (languageInput) {
+        setTextControlValue(languageInput, "ts");
+      }
+      if (codeInput) {
+        setTextControlValue(codeInput, "await runArtifactWorkflow();");
+      }
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({ id: "artifact-advanced-structured" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "code-1",
+            type: "code_block",
+            language: "ts",
+            code: "await runArtifactWorkflow();",
           }),
         ]),
       }),

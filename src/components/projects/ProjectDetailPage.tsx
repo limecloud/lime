@@ -5,7 +5,7 @@
  * @requirements 5.1, 5.2
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useProject } from "@/hooks/useProject";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,6 @@ import {
   PersonaTab,
   MaterialTab,
   PublishTab,
-  NovelPublishTab,
   SettingsTab,
 } from "./tabs";
 
@@ -47,13 +46,6 @@ export function ProjectDetailPage({
 }: ProjectDetailPageProps) {
   const { project, loading, error } = useProject(projectId);
   const [activeTab, setActiveTab] = useState<ProjectTab>("content");
-  const isNovelProject = project?.workspaceType === "novel";
-
-  useEffect(() => {
-    if (isNovelProject && activeTab === "persona") {
-      setActiveTab("content");
-    }
-  }, [activeTab, isNovelProject]);
 
   if (loading) {
     return (
@@ -99,7 +91,7 @@ export function ProjectDetailPage({
       >
         <TabsList className="mx-4 mt-4 justify-start">
           <TabsTrigger value="content">内容</TabsTrigger>
-          {!isNovelProject && <TabsTrigger value="persona">人设</TabsTrigger>}
+          <TabsTrigger value="persona">人设</TabsTrigger>
           <TabsTrigger value="material">素材</TabsTrigger>
           <TabsTrigger value="publish">发布</TabsTrigger>
           <TabsTrigger value="settings">设置</TabsTrigger>
@@ -114,20 +106,14 @@ export function ProjectDetailPage({
               onNewTopic={() => onNavigateToChat?.(projectId)}
             />
           </TabsContent>
-          {!isNovelProject && (
-            <TabsContent value="persona" className="h-full m-0 overflow-y-auto">
-              <PersonaTab projectId={projectId} />
-            </TabsContent>
-          )}
+          <TabsContent value="persona" className="h-full m-0 overflow-y-auto">
+            <PersonaTab projectId={projectId} />
+          </TabsContent>
           <TabsContent value="material" className="h-full m-0 overflow-y-auto">
             <MaterialTab projectId={projectId} />
           </TabsContent>
           <TabsContent value="publish" className="h-full m-0 overflow-y-auto">
-            {project.workspaceType === "novel" ? (
-              <NovelPublishTab projectId={projectId} />
-            ) : (
-              <PublishTab projectId={projectId} />
-            )}
+            <PublishTab projectId={projectId} />
           </TabsContent>
           <TabsContent value="settings" className="h-full m-0 overflow-y-auto">
             <SettingsTab projectId={projectId} workspaceType={project.workspaceType} />

@@ -19,6 +19,7 @@ import {
 import type { ActionRequired, Message, WriteArtifactContext } from "../types";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import {
+  extractQuestionsFromRequestedSchema,
   isAskToolName,
   normalizeAskOptions,
   normalizeActionQuestions,
@@ -789,7 +790,10 @@ export function handleActionRequiredEvent({
     toolName: data.tool_name,
     arguments: data.arguments,
     prompt: data.prompt,
-    questions: normalizeActionQuestions(data.questions, data.prompt),
+    questions:
+      normalizeActionQuestions(data.questions) ||
+      extractQuestionsFromRequestedSchema(data.requested_schema) ||
+      normalizeActionQuestions(undefined, data.prompt),
     requestedSchema: data.requested_schema,
     scope: data.scope
       ? {

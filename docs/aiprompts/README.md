@@ -30,7 +30,6 @@
 - `hooks.md` - 自定义 Hooks
 - `lib.md` - 前端工具库与运行时封装
 - `workspace.md` - Workspace 边界与工作区模型
-- `content-creator.md` - 内容创作工作台与画布联动
 - `playwright-e2e.md` - GUI 续测、Playwright MCP、交互验证
 - `performance-profiling.md` - 性能分析与剖析方法
 

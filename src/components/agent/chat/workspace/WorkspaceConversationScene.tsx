@@ -133,7 +133,6 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
     typeof ChatNavbar
   >["contextCompactionRunning"];
   onCompactContext?: ComponentProps<typeof ChatNavbar>["onCompactContext"];
-  novelCanvasControls?: ComponentProps<typeof ChatNavbar>["novelCanvasControls"];
 }
 
 export function WorkspaceConversationScene({
@@ -218,7 +217,6 @@ export function WorkspaceConversationScene({
   showContextCompactionAction,
   contextCompactionRunning,
   onCompactContext,
-  novelCanvasControls,
   syncStatus,
   hasLiveCanvasPreviewContent,
   liveCanvasPreview,
@@ -337,7 +335,6 @@ export function WorkspaceConversationScene({
     contextCompactionRunning,
     onCompactContext,
     onOpenSettings,
-    novelCanvasControls,
   });
 
   return (

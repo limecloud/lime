@@ -19,13 +19,14 @@ use crate::agent::{
     SessionInfo, SubAgentRole,
 };
 use crate::agent_tools::catalog::{
-    browser_runtime_tool_prefix, build_mcp_extension_surface, creator_tool_names,
+    browser_runtime_tool_prefix, build_mcp_extension_surface, workbench_tool_names,
     WorkspaceToolSurface, LIME_CREATE_BROADCAST_TASK_TOOL_NAME, LIME_CREATE_COVER_TASK_TOOL_NAME,
     LIME_CREATE_IMAGE_TASK_TOOL_NAME, LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME,
     LIME_CREATE_TYPESETTING_TASK_TOOL_NAME, LIME_CREATE_URL_PARSE_TASK_TOOL_NAME,
     LIME_CREATE_VIDEO_TASK_TOOL_NAME, LIME_SITE_INFO_TOOL_NAME, LIME_SITE_LIST_TOOL_NAME,
     LIME_SITE_RECOMMEND_TOOL_NAME, LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME,
-    SOCIAL_IMAGE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME,
+    LIST_MCP_RESOURCES_TOOL_NAME, READ_MCP_RESOURCE_TOOL_NAME, SOCIAL_IMAGE_TOOL_NAME,
+    TOOL_SEARCH_TOOL_NAME,
 };
 #[cfg(test)]
 use crate::agent_tools::execution::build_workspace_shell_allow_pattern;
@@ -76,9 +77,8 @@ use aster::session::extension_data::{ExtensionData, ExtensionState};
 use aster::session::{SessionType, SubagentSessionMetadata};
 use aster::tools::task_output_tool::TaskOutputInput;
 use aster::tools::{
-    BashTool, KillShellTool, PermissionBehavior, PermissionCheckResult, TaskManager,
-    TaskOutputTool, TaskTool, Tool, ToolContext, ToolError, ToolOptions, ToolResult,
-    MAX_OUTPUT_LENGTH,
+    BashTool, PermissionBehavior, PermissionCheckResult, TaskManager, TaskOutputTool, TaskStopTool,
+    Tool, ToolContext, ToolError, ToolOptions, ToolResult, MAX_OUTPUT_LENGTH,
 };
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
@@ -396,7 +396,7 @@ pub(crate) use tool_runtime::{
 };
 pub(crate) use tool_runtime::{
     ensure_browser_mcp_tools_registered, ensure_creation_task_tools_registered,
-    ensure_social_image_tool_registered, ensure_tool_search_tool_registered,
+    ensure_runtime_support_tools_registered, ensure_social_image_tool_registered,
 };
 
 pub async fn resume_persisted_runtime_queues_on_startup(
@@ -469,11 +469,12 @@ impl AsterExecutionStrategy {
 fn should_force_react_for_message(message: &str) -> bool {
     let lowered = message.to_lowercase();
     let default_hints = [
+        "toolsearch",
+        "调用 toolsearch",
+        "调用toolsearch",
+        "use toolsearch",
+        "call toolsearch",
         "tool_search",
-        "调用 tool_search",
-        "调用tool_search",
-        "use tool_search",
-        "call tool_search",
         "websearch",
         "web search",
         "web_search",

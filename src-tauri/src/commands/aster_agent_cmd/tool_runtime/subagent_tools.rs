@@ -513,473 +513,143 @@ impl Tool for SubAgentTaskTool {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SpawnAgentToolInput {
-    message: String,
-    agent_type: Option<String>,
-    model: Option<String>,
-    reasoning_effort: Option<String>,
-    fork_context: Option<bool>,
-    blueprint_role_id: Option<String>,
-    blueprint_role_label: Option<String>,
-    profile_id: Option<String>,
-    profile_name: Option<String>,
-    role_key: Option<String>,
-    #[serde(default)]
-    skill_ids: Vec<String>,
-    #[serde(default)]
-    skill_directories: Vec<String>,
-    team_preset_id: Option<String>,
-    theme: Option<String>,
-    system_overlay: Option<String>,
-    output_contract: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct SpawnAgentTool {
+fn build_agent_control_tool_config(
     runtime: SubagentControlRuntime,
-}
+) -> aster::tools::AgentControlToolConfig {
+    let spawn_runtime = runtime.clone();
+    let send_runtime = runtime.clone();
+    let wait_runtime = runtime.clone();
+    let resume_runtime = runtime.clone();
+    let close_runtime = runtime;
 
-impl SpawnAgentTool {
-    fn new(runtime: SubagentControlRuntime) -> Self {
-        Self { runtime }
-    }
-}
+    aster::tools::AgentControlToolConfig::new()
+        .with_spawn_agent_callback(Arc::new(move |request| {
+            let runtime = spawn_runtime.clone();
+            Box::pin(async move {
+                let response = agent_runtime_spawn_subagent_internal(
+                    &runtime,
+                    AgentRuntimeSpawnSubagentRequest {
+                        parent_session_id: request.parent_session_id,
+                        message: request.message,
+                        agent_type: request.agent_type,
+                        model: request.model,
+                        reasoning_effort: request.reasoning_effort,
+                        fork_context: request.fork_context,
+                        blueprint_role_id: request.blueprint_role_id,
+                        blueprint_role_label: request.blueprint_role_label,
+                        profile_id: request.profile_id,
+                        profile_name: request.profile_name,
+                        role_key: request.role_key,
+                        skill_ids: request.skill_ids,
+                        skill_directories: request.skill_directories,
+                        team_preset_id: request.team_preset_id,
+                        theme: request.theme,
+                        system_overlay: request.system_overlay,
+                        output_contract: request.output_contract,
+                    },
+                )
+                .await?;
 
-#[async_trait]
-impl Tool for SpawnAgentTool {
-    fn name(&self) -> &str {
-        "spawn_agent"
-    }
+                Ok(aster::tools::SpawnAgentResponse {
+                    agent_id: response.agent_id,
+                    nickname: response.nickname,
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+        }))
+        .with_send_input_callback(Arc::new(move |request| {
+            let runtime = send_runtime.clone();
+            Box::pin(async move {
+                let response = agent_runtime_send_subagent_input_internal(
+                    &runtime,
+                    AgentRuntimeSendSubagentInputRequest {
+                        id: request.id,
+                        message: request.message,
+                        interrupt: request.interrupt,
+                    },
+                )
+                .await?;
 
-    fn description(&self) -> &str {
-        "仅在任务需要拆成多个独立子范围、并行评审/验证，或用户明确要求多代理时使用。先判断当前关键路径：如果下一步立即依赖结果，不要把阻塞工作委派出去；优先把可并行推进的 sidecar 子任务交给子代理，同时主线程继续做不重叠的工作。创建真实子代理会话，并异步开始执行首条任务。不要对简单任务创建子代理；多个子代理必须分工明确，避免修改同一片文件；当前 team runtime 默认不允许子代理继续创建新的子代理。"
-    }
+                Ok(aster::tools::SendInputResponse {
+                    submission_id: response.submission_id,
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+        }))
+        .with_wait_agent_callback(Arc::new(move |request| {
+            let runtime = wait_runtime.clone();
+            Box::pin(async move {
+                let response = agent_runtime_wait_subagents_internal(
+                    &runtime,
+                    AgentRuntimeWaitSubagentsRequest {
+                        ids: request.ids,
+                        timeout_ms: request.timeout_ms,
+                    },
+                )
+                .await?;
+                let status = response
+                    .status
+                    .into_iter()
+                    .map(|(id, status)| {
+                        serde_json::to_value(status)
+                            .map(|value| (id, value))
+                            .map_err(|error| format!("wait_agent 状态序列化失败: {error}"))
+                    })
+                    .collect::<Result<std::collections::BTreeMap<_, _>, _>>()?;
 
-    fn input_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "发送给子代理的首条任务消息。应是边界清晰、可独立完成、不会与其他并发子代理写入范围重叠的子任务。"
-                },
-                "agentType": {
-                    "type": "string",
-                    "description": "子代理角色提示，例如 explorer/planner/executor，也可以是 Image #1 这类展示标签"
-                },
-                "model": {
-                    "type": "string",
-                    "description": "可选模型覆盖"
-                },
-                "reasoningEffort": {
-                    "type": "string",
-                    "description": "保留字段，当前仅记录到 metadata"
-                },
-                "forkContext": {
-                    "type": "boolean",
-                    "description": "保留字段，当前仅记录到 metadata"
-                },
-                "blueprintRoleId": {
-                    "type": "string",
-                    "description": "可选当前 Team 蓝图角色 id；当 GUI 已提前准备协作分工时，优先传入对应角色 id，便于真实成员接管画布泳道"
-                },
-                "blueprintRoleLabel": {
-                    "type": "string",
-                    "description": "可选当前 Team 蓝图角色标签，例如 分析 / 执行 / 验证"
-                },
-                "profileId": {
-                    "type": "string",
-                    "description": "可选内置 profile id，例如 code-explorer / code-executor / code-verifier"
-                },
-                "profileName": {
-                    "type": "string",
-                    "description": "可选 profile 展示名称，用于 Team Workspace 与子代理 prompt"
-                },
-                "roleKey": {
-                    "type": "string",
-                    "description": "可选角色键，例如 explorer / executor / verifier / researcher"
-                },
-                "skillIds": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "可选 builtin skill id 列表，用于附加子代理技能提示"
-                },
-                "skillDirectories": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "可选本地已安装 skill 目录名；会读取对应 SKILL.md 注入子代理 prompt"
-                },
-                "teamPresetId": {
-                    "type": "string",
-                    "description": "可选 team preset id，例如 code-triage-team / research-team / content-creation-team"
-                },
-                "theme": {
-                    "type": "string",
-                    "description": "可选子代理主题标签，用于 GUI 展示与 prompt 约束"
-                },
-                "systemOverlay": {
-                    "type": "string",
-                    "description": "附加给该子代理的额外系统约束"
-                },
-                "outputContract": {
-                    "type": "string",
-                    "description": "要求子代理遵循的输出契约"
-                }
-            },
-            "required": ["message"],
-            "additionalProperties": false
-        })
-    }
+                Ok(aster::tools::WaitAgentResponse {
+                    status,
+                    timed_out: response.timed_out,
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+        }))
+        .with_resume_agent_callback(Arc::new(move |request| {
+            let runtime = resume_runtime.clone();
+            Box::pin(async move {
+                let response = agent_runtime_resume_subagent_internal(
+                    &runtime,
+                    AgentRuntimeResumeSubagentRequest { id: request.id },
+                )
+                .await?;
+                let mut extra = std::collections::BTreeMap::new();
+                extra.insert(
+                    "cascade_session_ids".to_string(),
+                    serde_json::to_value(response.cascade_session_ids)
+                        .map_err(|error| format!("resume_agent 级联会话序列化失败: {error}"))?,
+                );
 
-    async fn execute(
-        &self,
-        params: serde_json::Value,
-        context: &ToolContext,
-    ) -> Result<ToolResult, ToolError> {
-        let input: SpawnAgentToolInput = serde_json::from_value(params)
-            .map_err(|error| ToolError::invalid_params(format!("spawn_agent 参数无效: {error}")))?;
-        let response = agent_runtime_spawn_subagent_internal(
-            &self.runtime,
-            AgentRuntimeSpawnSubagentRequest {
-                parent_session_id: context.session_id.clone(),
-                message: input.message,
-                agent_type: input.agent_type,
-                model: input.model,
-                reasoning_effort: input.reasoning_effort,
-                fork_context: input.fork_context.unwrap_or(false),
-                blueprint_role_id: input.blueprint_role_id,
-                blueprint_role_label: input.blueprint_role_label,
-                profile_id: input.profile_id,
-                profile_name: input.profile_name,
-                role_key: input.role_key,
-                skill_ids: input.skill_ids,
-                skill_directories: input.skill_directories,
-                team_preset_id: input.team_preset_id,
-                theme: input.theme,
-                system_overlay: input.system_overlay,
-                output_contract: input.output_contract,
-            },
-        )
-        .await
-        .map_err(ToolError::execution_failed)?;
+                Ok(aster::tools::ResumeAgentResponse {
+                    status: serde_json::to_value(response.status)
+                        .map_err(|error| format!("resume_agent 状态序列化失败: {error}"))?,
+                    changed_session_ids: response.changed_session_ids,
+                    extra,
+                })
+            })
+        }))
+        .with_close_agent_callback(Arc::new(move |request| {
+            let runtime = close_runtime.clone();
+            Box::pin(async move {
+                let response = agent_runtime_close_subagent_internal(
+                    &runtime,
+                    AgentRuntimeCloseSubagentRequest { id: request.id },
+                )
+                .await?;
+                let mut extra = std::collections::BTreeMap::new();
+                extra.insert(
+                    "cascade_session_ids".to_string(),
+                    serde_json::to_value(response.cascade_session_ids)
+                        .map_err(|error| format!("close_agent 级联会话序列化失败: {error}"))?,
+                );
 
-        Ok(
-            ToolResult::success(format!("子代理已创建: {}", response.agent_id)).with_metadata(
-                "spawn_agent",
-                serde_json::to_value(&response).unwrap_or_default(),
-            ),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct SendInputToolInput {
-    id: String,
-    message: String,
-    #[serde(default)]
-    interrupt: bool,
-}
-
-#[derive(Debug, Clone)]
-struct SendInputTool {
-    runtime: SubagentControlRuntime,
-}
-
-impl SendInputTool {
-    fn new(runtime: SubagentControlRuntime) -> Self {
-        Self { runtime }
-    }
-}
-
-#[async_trait]
-impl Tool for SendInputTool {
-    fn name(&self) -> &str {
-        "send_input"
-    }
-
-    fn description(&self) -> &str {
-        "向已存在的子代理追加输入。对强依赖既有上下文的后续任务，优先复用已有子代理而不是重复 spawn；interrupt=true 时会先中断当前执行并清空旧队列。"
-    }
-
-    fn input_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "子代理 session id"
-                },
-                "message": {
-                    "type": "string",
-                    "description": "要发送给子代理的输入"
-                },
-                "interrupt": {
-                    "type": "boolean",
-                    "description": "是否先中断当前执行"
-                }
-            },
-            "required": ["id", "message"],
-            "additionalProperties": false
-        })
-    }
-
-    async fn execute(
-        &self,
-        params: serde_json::Value,
-        _context: &ToolContext,
-    ) -> Result<ToolResult, ToolError> {
-        let input: SendInputToolInput = serde_json::from_value(params)
-            .map_err(|error| ToolError::invalid_params(format!("send_input 参数无效: {error}")))?;
-        let response = agent_runtime_send_subagent_input_internal(
-            &self.runtime,
-            AgentRuntimeSendSubagentInputRequest {
-                id: input.id,
-                message: input.message,
-                interrupt: input.interrupt,
-            },
-        )
-        .await
-        .map_err(ToolError::execution_failed)?;
-
-        Ok(
-            ToolResult::success(format!("子代理输入已提交: {}", response.submission_id))
-                .with_metadata(
-                    "send_input",
-                    serde_json::to_value(&response).unwrap_or_default(),
-                ),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct WaitAgentToolInput {
-    ids: Vec<String>,
-    #[serde(default, alias = "timeoutMs")]
-    timeout_ms: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-struct WaitAgentTool {
-    runtime: SubagentControlRuntime,
-}
-
-impl WaitAgentTool {
-    fn new(runtime: SubagentControlRuntime) -> Self {
-        Self { runtime }
-    }
-}
-
-#[async_trait]
-impl Tool for WaitAgentTool {
-    fn name(&self) -> &str {
-        "wait_agent"
-    }
-
-    fn description(&self) -> &str {
-        "等待一个或多个子代理进入最终状态。只有在主线程确实被结果阻塞、下一步必须依赖这些结果时才调用；可以同时等待多个 id，任一子代理先完成就会返回。不要反复机械 wait，优先在等待前继续做不重叠的本地工作；timeout_ms 应与任务规模匹配，避免过短轮询。"
-    }
-
-    fn input_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "ids": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "要等待的子代理 session id 列表"
-                },
-                "timeoutMs": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "最长等待时间（毫秒）"
-                }
-            },
-            "required": ["ids"],
-            "additionalProperties": false
-        })
-    }
-
-    fn options(&self) -> ToolOptions {
-        ToolOptions::new()
-            .with_max_retries(0)
-            .with_base_timeout(Duration::from_secs(310))
-            .with_dynamic_timeout(false)
-    }
-
-    async fn execute(
-        &self,
-        params: serde_json::Value,
-        _context: &ToolContext,
-    ) -> Result<ToolResult, ToolError> {
-        let input: WaitAgentToolInput = serde_json::from_value(params)
-            .map_err(|error| ToolError::invalid_params(format!("wait_agent 参数无效: {error}")))?;
-        let response = agent_runtime_wait_subagents_internal(
-            &self.runtime,
-            AgentRuntimeWaitSubagentsRequest {
-                ids: input.ids,
-                timeout_ms: input.timeout_ms,
-            },
-        )
-        .await
-        .map_err(ToolError::execution_failed)?;
-        let summary = if response.timed_out {
-            "wait_agent 超时，未观测到最终状态".to_string()
-        } else {
-            format!("已观测到 {} 个子代理进入最终状态", response.status.len())
-        };
-
-        Ok(ToolResult::success(summary).with_metadata(
-            "wait_agent",
-            serde_json::to_value(&response).unwrap_or_default(),
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct ResumeAgentToolInput {
-    id: String,
-}
-
-#[derive(Debug, Clone)]
-struct ResumeAgentTool {
-    runtime: SubagentControlRuntime,
-}
-
-impl ResumeAgentTool {
-    fn new(runtime: SubagentControlRuntime) -> Self {
-        Self { runtime }
-    }
-}
-
-#[async_trait]
-impl Tool for ResumeAgentTool {
-    fn name(&self) -> &str {
-        "resume_agent"
-    }
-
-    fn description(&self) -> &str {
-        "恢复之前关闭的子代理；若子代理未关闭则返回当前状态"
-    }
-
-    fn input_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "子代理 session id"
-                }
-            },
-            "required": ["id"],
-            "additionalProperties": false
-        })
-    }
-
-    async fn execute(
-        &self,
-        params: serde_json::Value,
-        _context: &ToolContext,
-    ) -> Result<ToolResult, ToolError> {
-        let input: ResumeAgentToolInput = serde_json::from_value(params).map_err(|error| {
-            ToolError::invalid_params(format!("resume_agent 参数无效: {error}"))
-        })?;
-        let response = agent_runtime_resume_subagent_internal(
-            &self.runtime,
-            AgentRuntimeResumeSubagentRequest { id: input.id },
-        )
-        .await
-        .map_err(ToolError::execution_failed)?;
-
-        let changed_count = response.changed_session_ids.len();
-        let success_message = if changed_count > 1 {
-            format!("子代理已恢复，并级联恢复 {changed_count} 个会话")
-        } else if changed_count == 1 {
-            "子代理已恢复".to_string()
-        } else {
-            format!("子代理当前状态: {:?}", response.status.kind)
-        };
-
-        Ok(ToolResult::success(success_message).with_metadata(
-            "resume_agent",
-            serde_json::to_value(&response).unwrap_or_default(),
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct CloseAgentToolInput {
-    id: String,
-}
-
-#[derive(Debug, Clone)]
-struct CloseAgentTool {
-    runtime: SubagentControlRuntime,
-}
-
-impl CloseAgentTool {
-    fn new(runtime: SubagentControlRuntime) -> Self {
-        Self { runtime }
-    }
-}
-
-#[async_trait]
-impl Tool for CloseAgentTool {
-    fn name(&self) -> &str {
-        "close_agent"
-    }
-
-    fn description(&self) -> &str {
-        "关闭子代理并级联关闭其子树；历史保留，可后续恢复"
-    }
-
-    fn input_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "子代理 session id"
-                }
-            },
-            "required": ["id"],
-            "additionalProperties": false
-        })
-    }
-
-    async fn execute(
-        &self,
-        params: serde_json::Value,
-        _context: &ToolContext,
-    ) -> Result<ToolResult, ToolError> {
-        let input: CloseAgentToolInput = serde_json::from_value(params)
-            .map_err(|error| ToolError::invalid_params(format!("close_agent 参数无效: {error}")))?;
-        let response = agent_runtime_close_subagent_internal(
-            &self.runtime,
-            AgentRuntimeCloseSubagentRequest { id: input.id },
-        )
-        .await
-        .map_err(ToolError::execution_failed)?;
-
-        let changed_count = response.changed_session_ids.len();
-        let success_message = if changed_count > 1 {
-            format!(
-                "子代理已关闭，并级联关闭 {changed_count} 个会话；关闭前状态: {:?}",
-                response.previous_status.kind
-            )
-        } else {
-            format!(
-                "子代理已关闭，关闭前状态: {:?}",
-                response.previous_status.kind
-            )
-        };
-
-        Ok(ToolResult::success(success_message).with_metadata(
-            "close_agent",
-            serde_json::to_value(&response).unwrap_or_default(),
-        ))
-    }
+                Ok(aster::tools::CloseAgentResponse {
+                    previous_status: serde_json::to_value(response.previous_status)
+                        .map_err(|error| format!("close_agent 状态序列化失败: {error}"))?,
+                    changed_session_ids: response.changed_session_ids,
+                    extra,
+                })
+            })
+        }))
 }
 
 pub(super) fn register_subagent_runtime_tools(
@@ -987,9 +657,5 @@ pub(super) fn register_subagent_runtime_tools(
     runtime: SubagentControlRuntime,
 ) {
     registry.register(Box::new(SubAgentTaskTool::new(runtime.clone())));
-    registry.register(Box::new(SpawnAgentTool::new(runtime.clone())));
-    registry.register(Box::new(SendInputTool::new(runtime.clone())));
-    registry.register(Box::new(WaitAgentTool::new(runtime.clone())));
-    registry.register(Box::new(ResumeAgentTool::new(runtime.clone())));
-    registry.register(Box::new(CloseAgentTool::new(runtime)));
+    aster::tools::register_agent_control_tools(registry, &build_agent_control_tool_config(runtime));
 }

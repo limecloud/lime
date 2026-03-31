@@ -1,7 +1,9 @@
 use crate::mcp::McpToolDefinition;
 use serde::{Deserialize, Serialize};
 
-pub const TOOL_SEARCH_TOOL_NAME: &str = "tool_search";
+pub const TOOL_SEARCH_TOOL_NAME: &str = "ToolSearch";
+pub const LIST_MCP_RESOURCES_TOOL_NAME: &str = "ListMcpResourcesTool";
+pub const READ_MCP_RESOURCE_TOOL_NAME: &str = "ReadMcpResourceTool";
 pub const SOCIAL_IMAGE_TOOL_NAME: &str = "social_generate_cover_image";
 pub const LIME_CREATE_VIDEO_TASK_TOOL_NAME: &str = "lime_create_video_generation_task";
 pub const LIME_CREATE_BROADCAST_TASK_TOOL_NAME: &str = "lime_create_broadcast_generation_task";
@@ -22,7 +24,8 @@ pub const BROWSER_RUNTIME_TOOL_PREFIX: &str = "mcp__lime-browser__";
 #[serde(rename_all = "snake_case")]
 pub enum ToolSurfaceProfile {
     Core,
-    Creator,
+    #[serde(rename = "workbench")]
+    Workbench,
     BrowserAssist,
 }
 
@@ -78,35 +81,35 @@ pub struct ToolCatalogEntry {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct WorkspaceToolSurface {
-    pub creator: bool,
+    pub workbench: bool,
     pub browser_assist: bool,
 }
 
 impl WorkspaceToolSurface {
     pub const fn core() -> Self {
         Self {
-            creator: false,
+            workbench: false,
             browser_assist: false,
         }
     }
 
-    pub const fn creator() -> Self {
+    pub const fn workbench() -> Self {
         Self {
-            creator: true,
+            workbench: true,
             browser_assist: false,
         }
     }
 
     pub const fn browser_assist() -> Self {
         Self {
-            creator: false,
+            workbench: false,
             browser_assist: true,
         }
     }
 
-    pub const fn creator_with_browser_assist() -> Self {
+    pub const fn workbench_with_browser_assist() -> Self {
         Self {
-            creator: true,
+            workbench: true,
             browser_assist: true,
         }
     }
@@ -114,14 +117,14 @@ impl WorkspaceToolSurface {
     pub const fn includes_profile(self, profile: ToolSurfaceProfile) -> bool {
         match profile {
             ToolSurfaceProfile::Core => true,
-            ToolSurfaceProfile::Creator => self.creator,
+            ToolSurfaceProfile::Workbench => self.workbench,
             ToolSurfaceProfile::BrowserAssist => self.browser_assist,
         }
     }
 }
 
 const CORE_PROFILES: &[ToolSurfaceProfile] = &[ToolSurfaceProfile::Core];
-const CREATOR_PROFILES: &[ToolSurfaceProfile] = &[ToolSurfaceProfile::Creator];
+const WORKBENCH_PROFILES: &[ToolSurfaceProfile] = &[ToolSurfaceProfile::Workbench];
 const BROWSER_PROFILES: &[ToolSurfaceProfile] = &[ToolSurfaceProfile::BrowserAssist];
 
 const PLAN_CAP: &[ToolCapability] = &[ToolCapability::Planning];
@@ -210,26 +213,44 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "Task",
+        name: "TaskCreate",
         profiles: CORE_PROFILES,
-        capabilities: EXECUTION_CAP,
+        capabilities: PLAN_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::AsterBuiltin,
-        permission_plane: ToolPermissionPlane::ParameterRestricted,
-        workspace_default_allow: false,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "TaskList",
+        profiles: CORE_PROFILES,
+        capabilities: PLAN_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "TaskGet",
+        profiles: CORE_PROFILES,
+        capabilities: PLAN_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "TaskUpdate",
+        profiles: CORE_PROFILES,
+        capabilities: PLAN_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
     },
     ToolCatalogEntry {
         name: "TaskOutput",
         profiles: CORE_PROFILES,
-        capabilities: PLAN_CAP,
-        lifecycle: ToolLifecycle::Current,
-        source: ToolSourceKind::AsterBuiltin,
-        permission_plane: ToolPermissionPlane::SessionAllowlist,
-        workspace_default_allow: true,
-    },
-    ToolCatalogEntry {
-        name: "KillShell",
-        profiles: CORE_PROFILES,
         capabilities: EXECUTION_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::AsterBuiltin,
@@ -237,9 +258,9 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "TodoWrite",
+        name: "TaskStop",
         profiles: CORE_PROFILES,
-        capabilities: PLAN_CAP,
+        capabilities: EXECUTION_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
@@ -318,6 +339,24 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
+        name: LIST_MCP_RESOURCES_TOOL_NAME,
+        profiles: CORE_PROFILES,
+        capabilities: SEARCH_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: READ_MCP_RESOURCE_TOOL_NAME,
+        profiles: CORE_PROFILES,
+        capabilities: SEARCH_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
         name: "spawn_agent",
         profiles: CORE_PROFILES,
         capabilities: DELEGATION_CAP,
@@ -373,7 +412,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: SOCIAL_IMAGE_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -382,7 +421,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_VIDEO_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -391,7 +430,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_BROADCAST_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -400,7 +439,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_COVER_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -409,7 +448,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -418,7 +457,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_IMAGE_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -427,7 +466,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_URL_PARSE_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -436,7 +475,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_TYPESETTING_TASK_TOOL_NAME,
-        profiles: CREATOR_PROFILES,
+        profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
@@ -548,10 +587,10 @@ pub fn workspace_allowed_tool_names(surface: WorkspaceToolSurface) -> Vec<&'stat
     workspace_default_allowed_tool_names(surface)
 }
 
-pub fn creator_tool_names() -> Vec<&'static str> {
-    tool_catalog_entries_for_surface(WorkspaceToolSurface::creator())
+pub fn workbench_tool_names() -> Vec<&'static str> {
+    tool_catalog_entries_for_surface(WorkspaceToolSurface::workbench())
         .into_iter()
-        .filter(|entry| entry.profiles.contains(&ToolSurfaceProfile::Creator))
+        .filter(|entry| entry.profiles.contains(&ToolSurfaceProfile::Workbench))
         .filter(|entry| entry.name != BROWSER_RUNTIME_TOOL_PREFIX)
         .map(|entry| entry.name)
         .collect()
@@ -685,8 +724,8 @@ mod tests {
     }
 
     #[test]
-    fn test_workspace_default_allowed_tool_names_includes_creator_surface() {
-        let names = workspace_default_allowed_tool_names(WorkspaceToolSurface::creator());
+    fn test_workspace_default_allowed_tool_names_includes_workbench_surface() {
+        let names = workspace_default_allowed_tool_names(WorkspaceToolSurface::workbench());
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&LIME_CREATE_VIDEO_TASK_TOOL_NAME));
     }
@@ -694,12 +733,20 @@ mod tests {
     #[test]
     fn test_tool_catalog_entries_for_surface_counts_and_lifecycle_boundaries() {
         let core = tool_catalog_entries_for_surface(WorkspaceToolSurface::core());
-        assert_eq!(core.len(), 26);
+        let workbench_increment = native_tool_catalog()
+            .iter()
+            .filter(|entry| entry.profiles.contains(&ToolSurfaceProfile::Workbench))
+            .count();
+        let browser_increment = native_tool_catalog()
+            .iter()
+            .filter(|entry| entry.profiles.contains(&ToolSurfaceProfile::BrowserAssist))
+            .count();
+        assert_eq!(core.len(), 30);
         assert_eq!(
             core.iter()
                 .filter(|entry| entry.lifecycle == ToolLifecycle::Current)
                 .count(),
-            25
+            29
         );
         assert_eq!(
             core.iter()
@@ -709,50 +756,55 @@ mod tests {
         );
         assert!(core
             .iter()
-            .all(|entry| !entry.profiles.contains(&ToolSurfaceProfile::Creator)));
+            .all(|entry| !entry.profiles.contains(&ToolSurfaceProfile::Workbench)));
         assert!(core
             .iter()
             .all(|entry| !entry.profiles.contains(&ToolSurfaceProfile::BrowserAssist)));
 
-        let creator = tool_catalog_entries_for_surface(WorkspaceToolSurface::creator());
-        assert_eq!(creator.len(), 34);
-        assert!(creator
+        let workbench = tool_catalog_entries_for_surface(WorkspaceToolSurface::workbench());
+        assert_eq!(workbench.len(), core.len() + workbench_increment);
+        assert!(workbench
             .iter()
             .any(|entry| entry.name == SOCIAL_IMAGE_TOOL_NAME));
-        assert!(!creator
+        assert!(!workbench
             .iter()
             .any(|entry| entry.name == BROWSER_RUNTIME_TOOL_PREFIX));
 
         let browser = tool_catalog_entries_for_surface(WorkspaceToolSurface::browser_assist());
-        assert_eq!(browser.len(), 32);
+        assert_eq!(browser.len(), core.len() + browser_increment);
         assert!(browser
             .iter()
             .any(|entry| entry.name == BROWSER_RUNTIME_TOOL_PREFIX));
 
         let combined =
-            tool_catalog_entries_for_surface(WorkspaceToolSurface::creator_with_browser_assist());
-        assert_eq!(combined.len(), 40);
+            tool_catalog_entries_for_surface(WorkspaceToolSurface::workbench_with_browser_assist());
+        assert_eq!(
+            combined.len(),
+            core.len() + workbench_increment + browser_increment
+        );
     }
 
     #[test]
-    fn test_creator_tool_names_only_returns_creator_increment() {
-        let names = creator_tool_names().into_iter().collect::<BTreeSet<_>>();
+    fn test_workbench_tool_names_only_returns_workbench_increment() {
+        let names = workbench_tool_names().into_iter().collect::<BTreeSet<_>>();
         assert_eq!(names.len(), 8);
         assert!(names.contains(SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(LIME_CREATE_VIDEO_TASK_TOOL_NAME));
-        assert!(!names.contains("tool_search"));
+        assert!(!names.contains(TOOL_SEARCH_TOOL_NAME));
         assert!(!names.contains(BROWSER_RUNTIME_TOOL_PREFIX));
     }
 
     #[test]
-    fn test_workspace_default_allowed_tool_names_creator_with_browser_assist_excludes_prefix_tool()
-    {
+    fn test_workspace_default_allowed_tool_names_workbench_with_browser_assist_excludes_prefix_tool(
+    ) {
         let names = workspace_default_allowed_tool_names(
-            WorkspaceToolSurface::creator_with_browser_assist(),
+            WorkspaceToolSurface::workbench_with_browser_assist(),
         );
-        assert_eq!(names.len(), 27);
+        assert_eq!(names.len(), 32);
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
-        assert!(names.contains(&"tool_search"));
+        assert!(names.contains(&TOOL_SEARCH_TOOL_NAME));
+        assert!(names.contains(&LIST_MCP_RESOURCES_TOOL_NAME));
+        assert!(names.contains(&READ_MCP_RESOURCE_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RECOMMEND_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));
         assert!(!names

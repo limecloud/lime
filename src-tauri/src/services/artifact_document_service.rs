@@ -160,14 +160,15 @@ pub fn persist_artifact_document_from_text(
         .and_then(|relative_path| {
             read_existing_artifact_document(&params.workspace_root, relative_path)
         });
-    let mut outcome = if let Some(ops_value) =
-        crate::services::artifact_ops_service::extract_artifact_ops_candidate(raw_text)
+    let mut outcome = if let Some(operation_value) =
+        crate::services::artifact_ops_service::extract_artifact_operation_candidate(raw_text)
     {
-        let applied = crate::services::artifact_ops_service::apply_artifact_ops_to_document(
-            existing_document.as_ref(),
-            &ops_value,
-            &validation_context,
-        );
+        let applied =
+            crate::services::artifact_ops_service::apply_artifact_operation_candidate_to_document(
+                existing_document.as_ref(),
+                &operation_value,
+                &validation_context,
+            );
         operation_issues = applied.issues;
         validate_or_repair_artifact_document_value(&applied.document, raw_text, &validation_context)
     } else {
@@ -483,30 +484,75 @@ fn normalize_text(value: Option<&str>) -> Option<String> {
         .map(ToString::to_string)
 }
 
-fn extract_block_text(block: &Map<String, Value>) -> Option<String> {
-    normalize_text(block.get("markdown").and_then(Value::as_str))
-        .or_else(|| normalize_text(block.get("text").and_then(Value::as_str)))
-        .or_else(|| normalize_text(block.get("content").and_then(Value::as_str)))
-        .or_else(|| normalize_text(block.get("summary").and_then(Value::as_str)))
-        .or_else(|| {
-            block.get("items").and_then(Value::as_array).map(|items| {
-                items
-                    .iter()
-                    .filter_map(|item| {
-                        if let Some(text) = item.as_str() {
-                            return normalize_text(Some(text));
-                        }
+fn extract_portable_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => normalize_text(Some(text)),
+        Value::Array(items) => {
+            let parts = items
+                .iter()
+                .filter_map(extract_portable_text)
+                .collect::<Vec<_>>();
+            if parts.is_empty() {
+                None
+            } else {
+                normalize_text(Some(parts.join("\n").as_str()))
+            }
+        }
+        Value::Object(record) => {
+            if let Some(text) = record.get("text").and_then(Value::as_str) {
+                return normalize_text(Some(text));
+            }
+            if let Some(content) = record.get("content").and_then(extract_portable_text) {
+                return Some(content);
+            }
+            None
+        }
+        _ => None,
+    }
+}
 
-                        let item = item.as_object()?;
-                        normalize_text(item.get("label").and_then(Value::as_str))
-                            .or_else(|| normalize_text(item.get("text").and_then(Value::as_str)))
-                            .or_else(|| normalize_text(item.get("title").and_then(Value::as_str)))
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
+fn extract_block_text(block: &Map<String, Value>) -> Option<String> {
+    (if block
+        .get("contentFormat")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        == Some("markdown")
+    {
+        block
+            .get("content")
+            .and_then(Value::as_str)
+            .and_then(|text| normalize_text(Some(text)))
+    } else {
+        None
+    })
+    .or_else(|| normalize_text(block.get("markdown").and_then(Value::as_str)))
+    .or_else(|| normalize_text(block.get("body").and_then(Value::as_str)))
+    .or_else(|| normalize_text(block.get("text").and_then(Value::as_str)))
+    .or_else(|| normalize_text(block.get("content").and_then(Value::as_str)))
+    .or_else(|| block.get("content").and_then(extract_portable_text))
+    .or_else(|| normalize_text(block.get("summary").and_then(Value::as_str)))
+    .or_else(|| normalize_text(block.get("attribution").and_then(Value::as_str)))
+    .or_else(|| {
+        block.get("items").and_then(Value::as_array).map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    if let Some(text) = item.as_str() {
+                        return normalize_text(Some(text));
+                    }
+
+                    let item = item.as_object()?;
+                    normalize_text(item.get("label").and_then(Value::as_str))
+                        .or_else(|| normalize_text(item.get("text").and_then(Value::as_str)))
+                        .or_else(|| normalize_text(item.get("title").and_then(Value::as_str)))
+                        .or_else(|| normalize_text(item.get("value").and_then(Value::as_str)))
+                        .or_else(|| normalize_text(item.get("note").and_then(Value::as_str)))
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
         })
-        .and_then(|value| normalize_text(Some(value.as_str())))
+    })
+    .and_then(|value| normalize_text(Some(value.as_str())))
 }
 
 fn build_content_body_from_document(document: &Value) -> String {
@@ -854,6 +900,15 @@ fn enrich_document_with_history(
 }
 
 fn infer_source_type(source: &Map<String, Value>) -> String {
+    if let Some(source_type) = source
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return source_type.to_string();
+    }
+
     if let Some(kind) = source
         .get("kind")
         .and_then(Value::as_str)
@@ -861,6 +916,45 @@ fn infer_source_type(source: &Map<String, Value>) -> String {
         .filter(|value| !value.is_empty())
     {
         return kind.to_string();
+    }
+
+    if let Some(locator) = source.get("locator").and_then(Value::as_object) {
+        if locator
+            .get("toolCallId")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_some()
+        {
+            return "tool".to_string();
+        }
+        if locator
+            .get("messageId")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_some()
+        {
+            return "message".to_string();
+        }
+        if locator
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_some()
+        {
+            return "file".to_string();
+        }
+        if locator
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_some()
+        {
+            return "web".to_string();
+        }
     }
 
     if let Some(url) = source
@@ -878,6 +972,58 @@ fn infer_source_type(source: &Map<String, Value>) -> String {
     }
 
     "unknown".to_string()
+}
+
+fn resolve_source_ref(source_id: &str, source: &Map<String, Value>) -> String {
+    if let Some(locator) = source.get("locator").and_then(Value::as_object) {
+        for key in ["url", "path", "toolCallId", "messageId"] {
+            if let Some(value) = locator
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                return value.to_string();
+            }
+        }
+    }
+
+    source
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(source_id)
+        .to_string()
+}
+
+fn resolve_source_link_locator(source: &Map<String, Value>) -> Option<Value> {
+    if let Some(locator) = source.get("locator").and_then(Value::as_object) {
+        if let Some(url) = locator
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return Some(Value::String(url.to_string()));
+        }
+        if let Some(path) = locator
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return Some(Value::String(path.to_string()));
+        }
+        return Some(Value::Object(locator.clone()));
+    }
+
+    source
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| Value::String(value.to_string()))
 }
 
 fn derive_source_links_from_document(document: &Value) -> Vec<Map<String, Value>> {
@@ -952,33 +1098,25 @@ fn derive_source_links_from_document(document: &Value) -> Vec<Map<String, Value>
             );
             link.insert(
                 "sourceRef".to_string(),
-                Value::String(
+                Value::String(resolve_source_ref(source_id, source)),
+            );
+            if let Some(label) = source
+                .get("label")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .or_else(|| {
                     source
-                        .get("url")
+                        .get("title")
                         .and_then(Value::as_str)
                         .map(str::trim)
                         .filter(|value| !value.is_empty())
-                        .unwrap_or(source_id)
-                        .to_string(),
-                ),
-            );
-            if let Some(label) = source
-                .get("title")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
+                })
             {
                 link.insert("label".to_string(), Value::String(label.to_string()));
             }
-            if let Some(locator) = source.get("locator") {
-                link.insert("locator".to_string(), locator.clone());
-            } else if let Some(url) = source
-                .get("url")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            {
-                link.insert("locator".to_string(), Value::String(url.to_string()));
+            if let Some(locator) = resolve_source_link_locator(source) {
+                link.insert("locator".to_string(), locator);
             }
             links.push(link);
         }
@@ -1500,6 +1638,164 @@ mod tests {
     }
 
     #[test]
+    fn persist_artifact_document_from_text_should_accept_current_incremental_block_upsert() {
+        let params = build_params();
+        let first = serde_json::json!({
+            "schemaVersion": ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+            "kind": "analysis",
+            "title": "结构化结论",
+            "status": "ready",
+            "summary": "第一版摘要",
+            "blocks": [
+                { "id": "hero-1", "type": "hero_summary", "summary": "第一版摘要" },
+                { "id": "body-1", "type": "rich_text", "contentFormat": "markdown", "content": "旧正文" }
+            ],
+            "sources": [],
+            "metadata": {}
+        })
+        .to_string();
+        let current_op = serde_json::json!({
+            "type": "artifact.block.upsert",
+            "artifactId": "artifact-document:artifact:analysis:demo",
+            "block": {
+                "id": "body-1",
+                "type": "rich_text",
+                "contentFormat": "markdown",
+                "content": "通过正式单条 op 更新后的正文"
+            }
+        })
+        .to_string();
+
+        let persisted_first =
+            persist_artifact_document_from_text(&first, &params).expect("first persist");
+        let persisted_second =
+            persist_artifact_document_from_text(&current_op, &params).expect("op persist");
+
+        assert_eq!(persisted_first.current_version_no, 1);
+        assert_eq!(persisted_second.current_version_no, 2);
+        assert!(persisted_second
+            .serialized_document
+            .contains("通过正式单条 op 更新后的正文"));
+    }
+
+    #[test]
+    fn persist_artifact_document_from_text_should_accept_current_incremental_block_upsert_in_rewrite_mode(
+    ) {
+        let mut params = build_params();
+        params.request_metadata = Some(serde_json::json!({
+            "artifact_mode": "rewrite",
+            "artifact_stage": "rewrite",
+            "artifact_kind": "analysis",
+            "source_policy": "required",
+            "artifact_request_id": "artifact:analysis:demo",
+            "artifact_target_block_id": "body-1",
+            "theme": "knowledge"
+        }));
+
+        let first = serde_json::json!({
+            "schemaVersion": ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+            "kind": "analysis",
+            "title": "结构化结论",
+            "status": "ready",
+            "summary": "第一版摘要",
+            "blocks": [
+                { "id": "hero-1", "type": "hero_summary", "summary": "第一版摘要" },
+                { "id": "body-1", "type": "rich_text", "contentFormat": "markdown", "content": "旧正文 1", "sourceIds": ["source-1"] },
+                { "id": "body-2", "type": "rich_text", "contentFormat": "markdown", "content": "旧正文 2" }
+            ],
+            "sources": [
+                { "id": "source-1", "type": "web", "label": "OpenAI", "locator": { "url": "https://openai.com" } }
+            ],
+            "metadata": {}
+        })
+        .to_string();
+        let current_op = serde_json::json!({
+            "type": "artifact.block.upsert",
+            "artifactId": "artifact-document:artifact:analysis:demo",
+            "block": {
+                "id": "body-1",
+                "type": "rich_text",
+                "contentFormat": "markdown",
+                "content": "rewrite current op 改写后的正文",
+                "sourceIds": ["source-1"]
+            }
+        })
+        .to_string();
+
+        let persisted_first =
+            persist_artifact_document_from_text(&first, &params).expect("first persist");
+        let persisted_second =
+            persist_artifact_document_from_text(&current_op, &params).expect("op persist");
+
+        assert_eq!(persisted_first.current_version_no, 1);
+        assert_eq!(persisted_second.current_version_no, 2);
+        assert!(persisted_second
+            .serialized_document
+            .contains("rewrite current op 改写后的正文"));
+        assert!(persisted_second.serialized_document.contains("source-1"));
+        assert!(!persisted_second
+            .issues
+            .iter()
+            .any(|issue| issue.contains("非目标 block")));
+    }
+
+    #[test]
+    fn persist_artifact_document_from_text_should_restrict_current_incremental_rewrite_to_target_block(
+    ) {
+        let mut params = build_params();
+        params.request_metadata = Some(serde_json::json!({
+            "artifact_mode": "rewrite",
+            "artifact_stage": "rewrite",
+            "artifact_kind": "analysis",
+            "source_policy": "required",
+            "artifact_request_id": "artifact:analysis:demo",
+            "artifact_target_block_id": "body-1",
+            "theme": "knowledge"
+        }));
+
+        let first = serde_json::json!({
+            "schemaVersion": ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+            "kind": "analysis",
+            "title": "结构化结论",
+            "status": "ready",
+            "summary": "第一版摘要",
+            "blocks": [
+                { "id": "hero-1", "type": "hero_summary", "summary": "第一版摘要" },
+                { "id": "body-1", "type": "rich_text", "contentFormat": "markdown", "content": "旧正文 1" },
+                { "id": "body-2", "type": "rich_text", "contentFormat": "markdown", "content": "旧正文 2" }
+            ],
+            "sources": [],
+            "metadata": {}
+        })
+        .to_string();
+        let current_op = serde_json::json!({
+            "type": "artifact.block.upsert",
+            "artifactId": "artifact-document:artifact:analysis:demo",
+            "block": {
+                "id": "body-2",
+                "type": "rich_text",
+                "contentFormat": "markdown",
+                "content": "不应被应用"
+            }
+        })
+        .to_string();
+
+        let persisted_first =
+            persist_artifact_document_from_text(&first, &params).expect("first persist");
+        let persisted_second =
+            persist_artifact_document_from_text(&current_op, &params).expect("op persist");
+
+        assert_eq!(persisted_first.current_version_no, 1);
+        assert_eq!(persisted_second.current_version_no, 2);
+        assert!(persisted_second.serialized_document.contains("旧正文 2"));
+        assert!(!persisted_second.serialized_document.contains("不应被应用"));
+        assert!(persisted_second
+            .issues
+            .iter()
+            .any(|issue| issue.contains("非目标 block `body-2`")));
+    }
+
+    #[test]
     fn persist_artifact_document_from_text_should_restrict_rewrite_to_target_block() {
         let mut params = build_params();
         params.request_metadata = Some(serde_json::json!({
@@ -1641,5 +1937,78 @@ mod tests {
             .and_then(|record| record.get("summary"))
             .and_then(Value::as_str)
             .is_some_and(|summary| summary.contains("typed patch")));
+    }
+
+    #[test]
+    fn persist_artifact_document_from_text_should_accept_current_shaped_typed_rewrite_patch() {
+        let mut params = build_params();
+        params.request_metadata = Some(serde_json::json!({
+            "artifact_mode": "rewrite",
+            "artifact_stage": "rewrite",
+            "artifact_kind": "analysis",
+            "source_policy": "required",
+            "artifact_request_id": "artifact:analysis:demo",
+            "artifact_target_block_id": "body-1",
+            "theme": "knowledge"
+        }));
+
+        let first = serde_json::json!({
+            "schemaVersion": ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+            "kind": "analysis",
+            "title": "结构化结论",
+            "status": "ready",
+            "summary": "第一版摘要",
+            "blocks": [
+                { "id": "hero-1", "type": "hero_summary", "summary": "第一版摘要" },
+                { "id": "body-1", "type": "rich_text", "contentFormat": "markdown", "content": "旧正文 1", "sourceIds": ["source-1"] }
+            ],
+            "sources": [
+                { "id": "source-1", "type": "web", "label": "OpenAI", "locator": { "url": "https://openai.com" } }
+            ],
+            "metadata": {}
+        })
+        .to_string();
+        let rewrite_patch = serde_json::json!({
+            "type": "artifact_rewrite_patch",
+            "artifactId": "artifact-document:artifact:analysis:demo",
+            "targetBlockId": "body-1",
+            "block": {
+                "id": "body-1",
+                "type": "rich_text",
+                "contentFormat": "markdown",
+                "content": "current shape typed patch 改写后的正文",
+                "sourceIds": ["source-2"]
+            },
+            "source": {
+                "id": "source-2",
+                "type": "web",
+                "label": "Anthropic",
+                "locator": {
+                    "url": "https://anthropic.com"
+                }
+            },
+            "summary": "通过 current shape typed patch 改写正文"
+        })
+        .to_string();
+
+        let persisted_first =
+            persist_artifact_document_from_text(&first, &params).expect("first persist");
+        let persisted_second =
+            persist_artifact_document_from_text(&rewrite_patch, &params).expect("rewrite persist");
+
+        assert_eq!(persisted_first.current_version_no, 1);
+        assert_eq!(persisted_second.current_version_no, 2);
+        assert!(persisted_second
+            .serialized_document
+            .contains("current shape typed patch 改写后的正文"));
+        assert!(persisted_second.serialized_document.contains("source-2"));
+        assert!(persisted_second.serialized_document.contains("Anthropic"));
+        assert!(persisted_second
+            .snapshot_metadata
+            .get("artifactVersion")
+            .and_then(Value::as_object)
+            .and_then(|record| record.get("summary"))
+            .and_then(Value::as_str)
+            .is_some_and(|summary| summary.contains("current shape typed patch")));
     }
 }

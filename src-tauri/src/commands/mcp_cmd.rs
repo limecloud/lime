@@ -44,8 +44,61 @@ use crate::mcp::{
 };
 use crate::models::mcp_model::McpServer;
 use lime_services::mcp_service::McpService;
-use tauri::State;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, State};
 use tracing::{debug, error, info, Instrument};
+
+#[derive(Debug, Serialize)]
+struct McpServerStartedPayload {
+    server_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    server_info: Option<McpServerCapabilitiesPayload>,
+}
+
+#[derive(Debug, Serialize)]
+struct McpServerStoppedPayload {
+    server_name: String,
+}
+
+#[derive(Debug, Serialize)]
+struct McpServerErrorPayload {
+    server_name: String,
+    error: String,
+}
+
+#[derive(Debug, Serialize)]
+struct McpServerCapabilitiesPayload {
+    name: String,
+    version: String,
+    supports_tools: bool,
+    supports_prompts: bool,
+    supports_resources: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct McpToolsUpdatedPayload {
+    tools: Vec<McpToolDefinition>,
+}
+
+fn emit_mcp_event<T>(app: &AppHandle, event_name: &str, payload: &T)
+where
+    T: Serialize,
+{
+    if let Err(error) = app.emit(event_name, payload) {
+        error!(event_name, error = %error, "发送 MCP 事件失败");
+    }
+}
+
+fn emit_mcp_server_error(app: &AppHandle, server_name: &str, message: &str) {
+    emit_mcp_event(
+        app,
+        "mcp:server_error",
+        &McpServerErrorPayload {
+            server_name: server_name.to_string(),
+            error: message.to_string(),
+        },
+    );
+}
 
 #[tauri::command]
 pub fn get_mcp_servers(db: State<'_, DbConnection>) -> Result<Vec<McpServer>, String> {
@@ -179,6 +232,7 @@ pub async fn mcp_list_servers_with_status(
 )]
 #[tauri::command]
 pub async fn mcp_start_server(
+    app: AppHandle,
     db: State<'_, DbConnection>,
     mcp_manager: State<'_, McpManagerState>,
     name: String,
@@ -200,11 +254,35 @@ pub async fn mcp_start_server(
         .instrument(tracing::debug_span!("mcp_start_server.acquire_manager"))
         .await;
     manager.start_server(&name, &config).await.map_err(|e| {
-        error!(server_name = %name, error = %e, "启动 MCP 服务器失败");
-        e.to_string()
+        let message = e.to_string();
+        error!(server_name = %name, error = %message, "启动 MCP 服务器失败");
+        emit_mcp_server_error(&app, &name, &message);
+        message
     })?;
 
+    let server_info =
+        manager
+            .get_client_capabilities(&name)
+            .await
+            .map(|info| McpServerCapabilitiesPayload {
+                name: info.name,
+                version: info.version,
+                supports_tools: info.supports_tools,
+                supports_prompts: info.supports_prompts,
+                supports_resources: info.supports_resources,
+            });
+    let tools = manager.list_tools().await.unwrap_or_default();
+
     info!(server_name = %name, "MCP 服务器启动成功");
+    emit_mcp_event(
+        &app,
+        "mcp:server_started",
+        &McpServerStartedPayload {
+            server_name: name.clone(),
+            server_info,
+        },
+    );
+    emit_mcp_event(&app, "mcp:tools_updated", &McpToolsUpdatedPayload { tools });
     Ok(())
 }
 
@@ -227,6 +305,7 @@ pub async fn mcp_start_server(
 /// - **9.3**: THE mcp_stop_server command SHALL stop a specified MCP server
 #[tauri::command]
 pub async fn mcp_stop_server(
+    app: AppHandle,
     mcp_manager: State<'_, McpManagerState>,
     name: String,
 ) -> Result<(), String> {
@@ -235,11 +314,20 @@ pub async fn mcp_stop_server(
     // 获取管理器锁并停止服务器
     let manager = mcp_manager.lock().await;
     manager.stop_server(&name).await.map_err(|e| {
-        error!(server_name = %name, error = %e, "停止 MCP 服务器失败");
-        e.to_string()
+        let message = e.to_string();
+        error!(server_name = %name, error = %message, "停止 MCP 服务器失败");
+        emit_mcp_server_error(&app, &name, &message);
+        message
     })?;
+    let tools = manager.list_tools().await.unwrap_or_default();
 
     info!(server_name = %name, "MCP 服务器已停止");
+    emit_mcp_event(
+        &app,
+        "mcp:server_stopped",
+        &McpServerStoppedPayload { server_name: name },
+    );
+    emit_mcp_event(&app, "mcp:tools_updated", &McpToolsUpdatedPayload { tools });
     Ok(())
 }
 

@@ -42,7 +42,7 @@
 
 ---
 
-## 1.2 Creator surface 增量（8）
+## 1.2 Workbench surface 增量（8）
 
 - `social_generate_cover_image`
 - `lime_create_video_generation_task`
@@ -53,7 +53,7 @@
 - `lime_create_url_parse_task`
 - `lime_create_typesetting_task`
 
-### Creator 总数
+### Workbench 总数
 
 - **34 个 catalog entries**
 
@@ -72,7 +72,7 @@
 
 - **27 个 catalog entries**
 
-### Creator + Browser Assist 总数
+### Workbench + Browser Assist 总数
 
 - **35 个 catalog entries**
 
@@ -130,7 +130,7 @@ import { getAgentRuntimeToolInventory } from "@/lib/api/agentRuntime";
 
 const snapshot = await getAgentRuntimeToolInventory({
   caller: "assistant",
-  creator: true,
+  workbench: true,
   browserAssist: true,
   metadata: {
     harness: {

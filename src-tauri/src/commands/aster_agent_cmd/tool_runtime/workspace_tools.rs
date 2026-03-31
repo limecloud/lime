@@ -663,23 +663,23 @@ impl Tool for WorkspaceSandboxedBashTool {
     }
 }
 
-/// 统一处理 Task 工具的 Ask 权限，避免缺少回调导致流程中断
-struct WorkspaceTaskTool {
-    delegate: TaskTool,
+/// 统一处理 bash 工具的风险提示与共享任务管理器
+struct WorkspaceBashTool {
+    delegate: BashTool,
     auto_approve_warnings: bool,
 }
 
-impl WorkspaceTaskTool {
+impl WorkspaceBashTool {
     fn new(auto_approve_warnings: bool, task_manager: Arc<TaskManager>) -> Self {
         Self {
-            delegate: TaskTool::with_manager(task_manager),
+            delegate: BashTool::with_task_manager(task_manager),
             auto_approve_warnings,
         }
     }
 }
 
 #[async_trait]
-impl Tool for WorkspaceTaskTool {
+impl Tool for WorkspaceBashTool {
     fn name(&self) -> &str {
         self.delegate.name()
     }
@@ -801,12 +801,12 @@ pub(super) fn register_workspace_runtime_tools(
     auto_approve_warnings: bool,
     sandboxed_bash_tool: Option<WorkspaceSandboxedBashTool>,
 ) {
-    registry.register(Box::new(WorkspaceTaskTool::new(
+    registry.register(Box::new(WorkspaceBashTool::new(
         auto_approve_warnings,
         task_manager.clone(),
     )));
     registry.register(Box::new(WorkspaceTaskOutputTool::new(task_manager.clone())));
-    registry.register(Box::new(KillShellTool::with_task_manager(task_manager)));
+    registry.register(Box::new(TaskStopTool::with_task_manager(task_manager)));
 
     if let Some(workspace_bash_tool) = sandboxed_bash_tool {
         registry.register(Box::new(workspace_bash_tool));

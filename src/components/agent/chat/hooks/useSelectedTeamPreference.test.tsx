@@ -350,6 +350,107 @@ describe("useSelectedTeamPreference", () => {
     }
   });
 
+  it("当前 repo 的 shadow snapshot 应优先于全局 localStorage Team", async () => {
+    const engineeringTeam = createTeamDefinitionFromPreset(
+      "code-triage-team",
+    ) as TeamDefinition;
+    const researchTeam = createTeamDefinitionFromPreset(
+      "research-team",
+    ) as TeamDefinition;
+
+    persistSelectedTeam(engineeringTeam, "general");
+
+    const harness = mountHook("general", {
+      runtimeSelection: null,
+      shadowSnapshot: {
+        repoScope: "/tmp/lime-shadow-repo",
+        entries: {
+          "team.selection": {
+            key: "team.selection",
+            content: [
+              "主题：general",
+              "会话：session-shadow",
+              `Team：${researchTeam.label}`,
+              "来源：builtin",
+              "预设：research-team",
+              `说明：${researchTeam.description}`,
+              "角色：",
+              ...researchTeam.roles.map(
+                (role) => `- ${role.label}：${role.summary}`,
+              ),
+            ].join("\n"),
+            updatedAt: Date.now(),
+          },
+        },
+      },
+    });
+
+    try {
+      await flushEffects();
+      expect(harness.getValue().selectedTeam?.id).toBe("research-team");
+      expect(loadSelectedTeamReference("general")).toEqual({
+        id: "code-triage-team",
+        source: "builtin",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("repo-scoped 模式首次进入时不应回退到全局 theme localStorage Team", async () => {
+    const engineeringTeam = createTeamDefinitionFromPreset(
+      "code-triage-team",
+    ) as TeamDefinition;
+    persistSelectedTeam(engineeringTeam, "general");
+
+    const harness = mountHook("general", {
+      runtimeSelection: null,
+      allowPersistedThemeFallback: false,
+    });
+
+    try {
+      await flushEffects();
+      expect(harness.getValue().selectedTeam).toBeNull();
+      expect(loadSelectedTeamReference("general")).toEqual({
+        id: "code-triage-team",
+        source: "builtin",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("repo-scoped 模式手动切 Team 时不应覆盖全局 theme localStorage 选择", async () => {
+    const engineeringTeam = createTeamDefinitionFromPreset(
+      "code-triage-team",
+    ) as TeamDefinition;
+    const researchTeam = createTeamDefinitionFromPreset(
+      "research-team",
+    ) as TeamDefinition;
+    persistSelectedTeam(engineeringTeam, "general");
+
+    const harness = mountHook("general", {
+      allowPersistedThemeFallback: false,
+    });
+
+    try {
+      await flushEffects();
+
+      act(() => {
+        harness.getValue().setSelectedTeam(researchTeam);
+      });
+      await flushEffects();
+
+      expect(harness.getValue().selectedTeam?.id).toBe("research-team");
+      expect(loadSelectedTeamReference("general")).toEqual({
+        id: "code-triage-team",
+        source: "builtin",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("runtime 明确 disabled 时应清空当前 Team 与本地影子缓存", async () => {
     const engineeringTeam = createTeamDefinitionFromPreset(
       "code-triage-team",
