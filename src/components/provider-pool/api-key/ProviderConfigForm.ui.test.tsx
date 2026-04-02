@@ -3,12 +3,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 
+const { mockUseProviderModels } = vi.hoisted(() => ({
+  mockUseProviderModels: vi.fn(),
+}));
+
 vi.mock("@/hooks/useProviderModels", () => ({
-  useProviderModels: () => ({
-    models: [],
-    loading: false,
-    error: null,
-  }),
+  useProviderModels: mockUseProviderModels,
 }));
 
 import { ProviderConfigForm } from "./ProviderConfigForm";
@@ -77,6 +77,11 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
+  mockUseProviderModels.mockReturnValue({
+    models: [],
+    loading: false,
+    error: null,
+  });
 });
 
 afterEach(() => {
@@ -94,8 +99,41 @@ afterEach(() => {
 });
 
 describe("ProviderConfigForm", () => {
-  it("系统 Provider 应显示协议选择并保存协议变更", async () => {
+  it("系统 Provider 应固定原生协议，不展示兼容协议切换", () => {
     const provider = createProvider();
+    const { container } = renderForm(provider);
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-type-select"]',
+    );
+    expect(trigger).toBeNull();
+    expect(container.textContent ?? "").toContain("OpenAI Responses API");
+    expect(
+      container.querySelector('[data-testid="provider-config-info-button"]'),
+    ).not.toBeNull();
+  });
+
+  it("实时拉模型渠道在未读取到真实目录时不应继续展示旧模型", () => {
+    const provider = createProvider({
+      custom_models: ["gpt-4.1"],
+      api_keys: [],
+    });
+    const { container } = renderForm(provider);
+
+    expect(container.textContent ?? "").toContain("先补一把可用 API Key");
+    expect(container.textContent ?? "").toContain("已保存 1 个模型配置");
+    expect(container.textContent ?? "").not.toContain("推荐最新模型：gpt-4.1");
+    expect(container.textContent ?? "").not.toContain(">gpt-4.1<");
+    expect(container.textContent ?? "").not.toContain("当前默认模型：gpt-4.1");
+  });
+
+  it("自定义 Provider 应允许切换兼容协议并保存", async () => {
+    const provider = createProvider({
+      id: "custom-openai",
+      name: "自定义 OpenAI",
+      is_system: false,
+      type: "openai-response",
+    });
     const { container, onUpdate } = renderForm(provider);
 
     const trigger = container.querySelector<HTMLButtonElement>(
@@ -119,7 +157,7 @@ describe("ProviderConfigForm", () => {
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenCalledWith(
-      "openai",
+      "custom-openai",
       expect.objectContaining({
         type: "openai",
       }),

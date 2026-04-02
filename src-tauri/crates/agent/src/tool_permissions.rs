@@ -17,7 +17,7 @@ pub enum ToolRiskLevel {
     Destructive,
 }
 
-/// 权限检查结果（对标 Claude Code 的 allow/deny/ask）
+/// 权限检查结果（统一到当前工具面的 allow/deny/ask 语义）
 #[derive(Debug, Clone, PartialEq)]
 pub enum PermissionBehavior {
     Allow,

@@ -70,6 +70,45 @@ describe("claw solution action dispatcher", () => {
     });
   });
 
+  it("网页研究简报应在进入工作区前开启联网研究偏好", () => {
+    const preparation: ClawSolutionPreparation = {
+      solutionId: "web-research-brief",
+      actionType: "fill_input",
+      prompt: "请围绕这个主题先给我做一版网页研究简报",
+      shouldLaunchBrowserAssist: false,
+      shouldEnableTeamMode: false,
+      readiness: "ready",
+      readinessMessage: "可直接开始",
+    };
+
+    expect(resolveClawSolutionLaunch(preparation, defaultPreferences)).toEqual({
+      nextToolPreferences: {
+        webSearch: true,
+        thinking: false,
+        task: false,
+        subagent: false,
+      },
+      preferencesChanged: true,
+      shouldStartBrowserAssistLoading: false,
+      enterWorkspacePayload: {
+        prompt: "请围绕这个主题先给我做一版网页研究简报",
+        openBrowserAssistOnMount: false,
+        toolPreferences: {
+          webSearch: true,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+        themeOverride: undefined,
+      },
+      usageRecord: {
+        solutionId: "web-research-brief",
+        actionType: "fill_input",
+        themeTarget: null,
+      },
+    });
+  });
+
   it("应把多代理方案转换为开启 team 模式的载荷", () => {
     const preparation: ClawSolutionPreparation = {
       solutionId: "team-breakdown",
@@ -110,9 +149,9 @@ describe("claw solution action dispatcher", () => {
   });
 
   it("应把未就绪方案映射到对应配置入口", () => {
-    expect(
-      resolveClawSolutionSetupTarget("needs_setup", "missing_model"),
-    ).toBe(SettingsTabs.Providers);
+    expect(resolveClawSolutionSetupTarget("needs_setup", "missing_model")).toBe(
+      SettingsTabs.Providers,
+    );
     expect(
       resolveClawSolutionSetupTarget(
         "needs_capability",

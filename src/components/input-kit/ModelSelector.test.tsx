@@ -76,6 +76,8 @@ beforeEach(() => {
         registryId: "custom-codex",
         fallbackRegistryId: "codex",
         type: "codex",
+        providerId: "custom-codex",
+        apiHost: "https://api.openai.com/v1",
       },
     ],
     loading: false,
@@ -144,6 +146,8 @@ describe("ModelSelector", () => {
       expect.objectContaining({
         returnFullMetadata: true,
         autoLoad: false,
+        liveFetchOnly: true,
+        hasApiKey: true,
       }),
     );
   });

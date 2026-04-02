@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   baseInvoke: vi.fn(),
   baseListen: vi.fn(),
   baseEmit: vi.fn(),
+  explicitMockInvoke: vi.fn(),
+  explicitMockListen: vi.fn(),
   listenViaHttpEvent: vi.fn(),
   hasDevBridgeEventListenerCapability: vi.fn(),
   invokeViaHttp: vi.fn(),
@@ -24,6 +26,11 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/api/event", () => ({
   listen: mocks.baseListen,
   emit: mocks.baseEmit,
+}));
+
+vi.mock("./explicitMockFallback", () => ({
+  invokeExplicitMock: mocks.explicitMockInvoke,
+  listenExplicitMock: mocks.explicitMockListen,
 }));
 
 vi.mock("./http-client", () => ({
@@ -121,9 +128,50 @@ describe("safeInvoke", () => {
   it("HTTP bridge 与 mock 都失败时抛出 bridge 错误", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
     mocks.baseInvoke.mockRejectedValueOnce(new Error("mock failed"));
+    mocks.explicitMockInvoke.mockRejectedValueOnce(new Error("mock failed"));
 
     await expect(safeInvoke("workspace_list")).rejects.toThrow(
       "[workspace_list] Failed to fetch",
+    );
+  });
+
+  it("浏览器直开 tauri dev 页面时会从真实 invoke 退回显式 mock", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
+    mocks.baseInvoke.mockRejectedValueOnce(
+      new TypeError("Cannot read properties of undefined (reading 'invoke')"),
+    );
+    mocks.explicitMockInvoke.mockResolvedValueOnce({ connected: false });
+
+    await expect(safeInvoke("companion_get_pet_status")).resolves.toEqual({
+      connected: false,
+    });
+
+    expect(mocks.baseInvoke).toHaveBeenCalledWith(
+      "companion_get_pet_status",
+      undefined,
+    );
+    expect(mocks.explicitMockInvoke).toHaveBeenCalledWith(
+      "companion_get_pet_status",
+      undefined,
+    );
+  });
+
+  it("HTTP bridge 失败且真实 invoke 缺失时会退回显式 mock", async () => {
+    mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
+    mocks.baseInvoke.mockRejectedValueOnce(
+      new TypeError("Cannot read properties of undefined (reading 'invoke')"),
+    );
+    mocks.explicitMockInvoke.mockResolvedValueOnce([]);
+
+    await expect(safeInvoke("get_provider_pool_overview")).resolves.toEqual([]);
+
+    expect(mocks.invokeViaHttp).toHaveBeenCalledWith(
+      "get_provider_pool_overview",
+      undefined,
+    );
+    expect(mocks.explicitMockInvoke).toHaveBeenCalledWith(
+      "get_provider_pool_overview",
+      undefined,
     );
   });
 
@@ -154,6 +202,22 @@ describe("safeInvoke", () => {
       expect.any(Function),
     );
     expect(mocks.baseListen).not.toHaveBeenCalled();
+  });
+
+  it("事件桥失败且没有 Tauri 标记时会退回显式 mock 监听", async () => {
+    const unlisten = vi.fn();
+    mocks.hasDevBridgeEventListenerCapability.mockReturnValue(true);
+    mocks.listenViaHttpEvent.mockRejectedValueOnce(new Error("connection failed"));
+    mocks.explicitMockListen.mockResolvedValueOnce(unlisten);
+
+    await expect(safeListen("companion-pet-status", vi.fn())).resolves.toBe(
+      unlisten,
+    );
+
+    expect(mocks.explicitMockListen).toHaveBeenCalledWith(
+      "companion-pet-status",
+      expect.any(Function),
+    );
   });
 
   it("Tauri 运行时存在但事件桥缺失时 safeListen 返回空清理函数", async () => {

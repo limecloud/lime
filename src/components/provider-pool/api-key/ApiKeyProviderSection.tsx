@@ -247,14 +247,11 @@ export const ApiKeyProviderSection = forwardRef<
   return (
     <div
       className={cn(
-        "relative flex h-full overflow-hidden rounded-[28px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.96)_0%,rgba(248,250,252,0.98)_42%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5",
+        "relative flex h-full overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5",
         className,
       )}
       data-testid="api-key-provider-section"
     >
-      <div className="pointer-events-none absolute left-[240px] top-[-84px] h-64 w-64 rounded-full bg-emerald-200/25 blur-3xl" />
-      <div className="pointer-events-none absolute right-[-72px] top-[-32px] h-72 w-72 rounded-full bg-sky-200/22 blur-3xl" />
-
       {/* 左侧：Provider 列表 */}
       <ProviderList
         providersByGroup={providersByGroup}
@@ -266,12 +263,11 @@ export const ApiKeyProviderSection = forwardRef<
         onToggleGroup={toggleGroup}
         onAddCustomProvider={onAddCustomProvider}
         onImportExport={() => setShowImportExportDialog(true)}
-        className="flex-shrink-0 bg-card"
+        className="flex-shrink-0 bg-slate-50/80"
       />
 
       {/* 右侧：Provider 设置面板 */}
-      <div className="relative flex-1 min-w-0 overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,0.78),rgba(241,245,249,0.42))]">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:26px_26px] opacity-70" />
+      <div className="relative flex-1 min-w-0 overflow-hidden bg-white">
         <ProviderSetting
           provider={selectedProvider}
           onUpdate={handleUpdateProvider}

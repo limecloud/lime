@@ -36,6 +36,8 @@ beforeEach(() => {
         label: "OpenAI",
         registryId: "openai",
         type: "openai",
+        providerId: "openai",
+        apiHost: "https://api.openai.com/v1",
       },
     ],
     loading: false,
@@ -87,6 +89,20 @@ function renderNotice(
 }
 
 describe("InputbarVisionCapabilityNotice", () => {
+  it("受管 API Key Provider 应按真实模型目录检查多模态能力", () => {
+    renderNotice();
+
+    expect(mockUseProviderModels).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "openai" }),
+      expect.objectContaining({
+        returnFullMetadata: true,
+        autoLoad: true,
+        liveFetchOnly: true,
+        hasApiKey: true,
+      }),
+    );
+  });
+
   it("当前模型支持多模态时不应展示提示", () => {
     const container = renderNotice();
 

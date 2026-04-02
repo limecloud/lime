@@ -1469,6 +1469,10 @@ pub struct AgentRuntimeSpawnSubagentRequest {
     #[serde(alias = "parentSessionId")]
     pub parent_session_id: String,
     pub message: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default, alias = "teamName")]
+    pub team_name: Option<String>,
     #[serde(default, alias = "agentType")]
     pub agent_type: Option<String>,
     #[serde(default)]
@@ -1499,6 +1503,8 @@ pub struct AgentRuntimeSpawnSubagentRequest {
     pub system_overlay: Option<String>,
     #[serde(default, alias = "outputContract")]
     pub output_contract: Option<String>,
+    #[serde(default)]
+    pub cwd: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1729,6 +1735,26 @@ mod tests {
 
     fn seconds_ago(seconds: i64) -> String {
         (Utc::now() - Duration::seconds(seconds)).to_rfc3339()
+    }
+
+    #[test]
+    fn spawn_subagent_request_should_parse_current_fields() {
+        let request: AgentRuntimeSpawnSubagentRequest = serde_json::from_value(serde_json::json!({
+            "parentSessionId": "parent-1",
+            "message": "检查当前工具面对齐情况",
+            "name": "verifier",
+            "teamName": "delivery-team",
+            "agentType": "explorer",
+            "cwd": "/tmp/workspace"
+        }))
+        .expect("spawn subagent request should deserialize");
+
+        assert_eq!(request.parent_session_id, "parent-1");
+        assert_eq!(request.message, "检查当前工具面对齐情况");
+        assert_eq!(request.name.as_deref(), Some("verifier"));
+        assert_eq!(request.team_name.as_deref(), Some("delivery-team"));
+        assert_eq!(request.agent_type.as_deref(), Some("explorer"));
+        assert_eq!(request.cwd.as_deref(), Some("/tmp/workspace"));
     }
 
     #[test]

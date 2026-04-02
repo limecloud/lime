@@ -108,25 +108,30 @@ export const ProviderList: React.FC<ProviderListProps> = ({
   return (
     <div
       className={cn(
-        "flex flex-col h-full w-60 border-r border-border bg-background",
+        "flex h-full w-[280px] flex-col border-r border-slate-200/80 bg-slate-50/80",
         className,
       )}
       data-testid="provider-list"
     >
       {/* 搜索框 */}
-      <div className="p-3 border-b border-border">
+      <div className="border-b border-slate-200/80 px-4 py-4">
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-slate-900">服务商列表</p>
+          <p className="text-xs text-slate-500">
+            已加载 {totalProviders} 个 Provider
+          </p>
+        </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="搜索 Provider..."
+            placeholder="搜索服务商或协议..."
             value={searchQuery}
             onChange={(e) => onSearchChange?.(e.target.value)}
             className={cn(
-              "w-full pl-9 pr-3 py-2 text-sm rounded-lg",
-              "bg-muted/50 border border-transparent",
-              "placeholder:text-muted-foreground/60",
-              "focus:outline-none focus:border-primary/30 focus:bg-background",
+              "w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm",
+              "placeholder:text-slate-400",
+              "focus:border-slate-300 focus:outline-none",
               "transition-colors",
             )}
             data-testid="provider-search-input"
@@ -136,11 +141,11 @@ export const ProviderList: React.FC<ProviderListProps> = ({
 
       {/* Provider 分组列表 */}
       <div
-        className="flex-1 overflow-y-auto p-2"
+        className="flex-1 overflow-y-auto px-3 py-3"
         data-testid="provider-groups-container"
       >
         {totalProviders === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
+          <div className="flex h-32 flex-col items-center justify-center text-sm text-slate-500">
             <p>未找到 Provider</p>
             {searchQuery && <p className="text-xs mt-1">尝试其他搜索词</p>}
           </div>
@@ -166,17 +171,17 @@ export const ProviderList: React.FC<ProviderListProps> = ({
 
       {/* 添加自定义 Provider 按钮 */}
       {(onAddCustomProvider || onImportExport) && (
-        <div className="p-3 border-t border-border space-y-2">
+        <div className="space-y-2 border-t border-slate-200/80 px-4 py-4">
           {onAddCustomProvider && (
             <button
               type="button"
               onClick={onAddCustomProvider}
               className={cn(
-                "flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg",
-                "text-sm font-medium text-primary",
-                "bg-primary/10 hover:bg-primary/20",
+                "flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2",
+                "text-sm font-medium text-slate-900",
+                "bg-white hover:bg-slate-100 border border-slate-200",
                 "transition-colors",
-                "focus:outline-none focus:ring-2 focus:ring-primary/20",
+                "focus:outline-none focus:ring-2 focus:ring-slate-200",
               )}
               data-testid="add-custom-provider-button"
             >
@@ -189,11 +194,11 @@ export const ProviderList: React.FC<ProviderListProps> = ({
               type="button"
               onClick={onImportExport}
               className={cn(
-                "flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg",
-                "text-sm font-medium text-muted-foreground",
-                "bg-muted/50 hover:bg-muted",
+                "flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2",
+                "text-sm font-medium text-slate-600",
+                "bg-slate-100 hover:bg-slate-200",
                 "transition-colors",
-                "focus:outline-none focus:ring-2 focus:ring-muted/20",
+                "focus:outline-none focus:ring-2 focus:ring-slate-200",
               )}
               data-testid="import-export-button"
             >

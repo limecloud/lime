@@ -7,6 +7,7 @@ import {
   Library,
   MessageSquare,
   Plus,
+  Send,
   Settings,
   Sparkles,
   Terminal,
@@ -101,7 +102,7 @@ const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
     id: "channels",
     label: "IM 配置",
-    icon: MessageSquare,
+    icon: Send,
     page: "channels",
     isActive: (currentPage) => currentPage === "channels",
     configurable: false,

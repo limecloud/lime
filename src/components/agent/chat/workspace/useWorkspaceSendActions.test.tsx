@@ -33,6 +33,16 @@ const mockEnsureBrowserAssistCanvas = vi.fn(async () => true);
 const mockHandleAutoLaunchMatchedSiteSkill = vi.fn(async () => undefined);
 const mockHandleImageWorkbenchCommand = vi.fn(async () => false);
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function createGithubSiteSkill(): ServiceSkillHomeItem {
   return {
     id: "github-repo-radar",
@@ -310,6 +320,83 @@ describe("useWorkspaceSendActions", () => {
           }),
         }),
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("发送准备阶段应立即暴露 submission preview，并在真实提交接管后清理", async () => {
+    const deferredSend = createDeferred<void>();
+    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
+    const harness = mountHook({
+      input: "帮我找一下今天的新闻",
+    });
+
+    let sendPromise: Promise<boolean> | null = null;
+
+    try {
+      await act(async () => {
+        sendPromise = harness.getValue().handleSend();
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().submissionPreview).toMatchObject({
+        prompt: "帮我找一下今天的新闻",
+        runtimeStatus: expect.objectContaining({
+          title: "正在启动处理流程",
+        }),
+      });
+
+      await act(async () => {
+        deferredSend.resolve();
+        await sendPromise;
+      });
+
+      expect(harness.getValue().submissionPreview).toBeNull();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("准备活动上下文较慢时，也应先展示 submission preview", async () => {
+    const deferredContext = createDeferred<string>();
+    const deferredSend = createDeferred<void>();
+    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
+    const harness = mountHook({
+      input: "帮我整理一下今天的重要新闻",
+      contextWorkspace: {
+        enabled: true,
+        activeContextPrompt: "",
+        prepareActiveContextPrompt: async () => deferredContext.promise,
+      },
+    });
+
+    let sendPromise: Promise<boolean> | null = null;
+
+    try {
+      await act(async () => {
+        sendPromise = harness.getValue().handleSend();
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().submissionPreview).toMatchObject({
+        prompt: "帮我整理一下今天的重要新闻",
+        runtimeStatus: expect.objectContaining({
+          title: "正在启动处理流程",
+        }),
+      });
+
+      await act(async () => {
+        deferredContext.resolve("[上下文]\n今天关注科技与国际新闻。");
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        deferredSend.resolve();
+        await sendPromise;
+      });
+
+      expect(harness.getValue().submissionPreview).toBeNull();
     } finally {
       harness.unmount();
     }

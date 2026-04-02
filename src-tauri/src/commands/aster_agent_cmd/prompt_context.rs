@@ -769,7 +769,7 @@ pub(crate) fn build_team_preference_system_prompt(
     }
 
     lines.push(
-        "- spawn_agent 支持这些结构化字段：blueprintRoleId、blueprintRoleLabel、teamPresetId、profileId、profileName、roleKey、skillIds、skillDirectories、theme、systemOverlay、outputContract。"
+        "- spawn_agent 支持这些结构化字段：name、teamName、cwd、blueprintRoleId、blueprintRoleLabel、teamPresetId、profileId、profileName、roleKey、skillIds、skillDirectories、theme、systemOverlay、outputContract。teamName 需要与 name 搭配，并依附现有 team 上下文。"
             .to_string(),
     );
     lines.push(

@@ -52,11 +52,46 @@
 
 旧 `poster_material_*` 命名只允许停留在 schema 迁移与治理守卫中，不应重新出现在前端网关、Rust 命令模块或运行时代码里。
 
+模型 Provider 真相集同样遵循单一事实源。当前前端入口为 `src/lib/api/modelRegistry.ts` 中的：
+
+- `get_model_registry_provider_ids`
+
+它只允许读取 `src-tauri/resources/models/index.json` 的 `providers` 列表。无论是正式 Tauri 命令还是 DevBridge 开发链路，都不应再回退数据库或其它运行态缓存去“猜” provider 集合；资源异常时必须直接暴露错误，避免把索引损坏伪装成“只是没有模型”。
+
 文档导出链路同样遵循这条路径。当前主入口为 `src/lib/api/document-export.ts`，统一承接：
 
 - `save_exported_document`
 
 `Artifact Workbench`、文档工作台与其他导出入口如需把内容落到用户选择的本地路径，应继续复用这条主链，不要在业务组件里重新扩散 `Blob + a.download` 式浏览器旁路。
+
+自动化设置链路同样遵循这条路径。当前主入口为 `src/lib/api/automation.ts`，统一承接：
+
+- `get_automation_scheduler_config`
+- `update_automation_scheduler_config`
+- `get_automation_status`
+- `get_automation_jobs`
+- `get_automation_job`
+- `create_automation_job`
+- `update_automation_job`
+- `delete_automation_job`
+- `run_automation_job_now`
+- `get_automation_health`
+- `get_automation_run_history`
+- `preview_automation_schedule`
+- `validate_automation_schedule`
+
+这些命令属于当前 `设置 -> 系统 -> 自动化` 主路径。浏览器模式下如已接通 DevBridge，应优先走真实后端；不要因为 dispatcher 漏接而长期依赖 mock 掩盖设置页报错。
+
+Companion 桌宠链路同样遵循这条路径。当前主入口为 `src/lib/api/companion.ts`，统一承接：
+
+- `companion_get_pet_status`
+- `companion_launch_pet`
+- `companion_send_pet_command`
+
+Lime 主应用会在本地维护 `ws://127.0.0.1:45554/companion/pet` 的桌宠 companion 入口。前端如需感知桌宠连接状态，应继续通过 `companion-pet-status` 事件监听统一状态，不要在页面或 Hook 里自行直连本地 `WebSocket`。
+
+如果 companion 协议继续扩展，也应优先延续“Lime 做宿主、桌宠只收脱敏派生状态”的边界。例如 provider 凭证池相关能力，允许 Lime 通过 `companion_send_pet_command` 下发诸如 `pet.provider_overview` 这类脱敏摘要，并允许桌宠通过 `pet.open_provider_settings` 之类事件请求 Lime 聚焦主窗口并跳到 `设置 -> AI 服务商`；但不允许桌宠直接读取凭证文件、数据库或内部 `/v1/credentials/*` 完整凭证接口。
+
 
 ## 命令契约的五个事实源
 
@@ -183,6 +218,7 @@ npm run verify:local
 
 - `agent_runtime_submit_turn.turn_config` 新增或调整 `approval_policy / sandbox_policy`
 - `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow` 新增或调整 repo-scoped Team 协作记忆注入
+- `agent_runtime_spawn_subagent` 的 current request 字段新增或调整 `name / teamName / cwd`，或修改 spawn 后的 Team 成员写回、child `working_dir` 与父子会话上下文投影
 - `agent_runtime_update_session` 新增或调整 `provider_name / model_name / execution_strategy / recent_access_mode / recent_preferences / recent_team_selection`
 - `getSession/listSessions` 的 `execution_runtime` 新增或调整 `recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id`
 - 话题切换时的 provider/model、权限 accessMode、工具偏好、Team 选择，或 `theme / session_mode / gate_key / run_title / content_id` 恢复从本地 fallback 向 `execution_runtime` 收敛
@@ -227,6 +263,7 @@ npm run verify:local
 以下是仓库当前已经明确收敛的几个方向：
 
 - **Agent / Codex 主命令**：继续收敛到 `agent_runtime_*`
+- **子代理运行时主链**：继续收敛到 `agent_runtime_spawn_subagent`；当前 request surface 使用 `name / teamName / cwd` 等字段，其中 `teamName` 需要与 `name` 搭配并依附现有 Team 上下文，`cwd` 必须是绝对目录，并稳定投影到 child session 的 `working_dir` 与 Team 成员展示
 - **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略、session provider/model、`recent_access_mode`、`recent_preferences` 以及 `recent_team_selection` 的轻量持久化回写
 - **会话权限主链**：`agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy` 是正式 turn context 权限协议；`getSession` 返回的 `execution_runtime.recent_access_mode` 负责承接会话最近一次 accessMode。当前端已命中同一 steady-state 权限时，不应继续依赖 `harness.access_mode` 作为唯一事实源
 - **运行时交接导出主链**：继续收敛到 `agent_runtime_export_handoff_bundle`；前端统一通过 `src/lib/api/agentRuntime.ts` 网关进入，当前 GUI 入口位于 `HarnessStatusPanel`

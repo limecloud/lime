@@ -41,12 +41,8 @@ describe("subAgentSummary", () => {
         total: 3,
         completed: 1,
         failed: 0,
-        running: 1,
-        pending: 1,
         skipped: 0,
-        cancelled: false,
         currentTasks: ["task-b"],
-        percentage: 33,
       }),
     ).toBe("正在执行：task-b");
   });
@@ -56,16 +52,9 @@ describe("subAgentSummary", () => {
       summarizeSubAgentResult(
         {
           success: true,
-          results: [],
-          totalDurationMs: 1200,
           successfulCount: 2,
           failedCount: 1,
           skippedCount: 0,
-          totalTokenUsage: {
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-          },
         },
         [
           {
@@ -83,16 +72,9 @@ describe("subAgentSummary", () => {
       summarizeSubAgentResult(
         {
           success: true,
-          results: [],
-          totalDurationMs: 1200,
           successfulCount: 0,
           failedCount: 0,
           skippedCount: 0,
-          totalTokenUsage: {
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-          },
         },
         [
           {

@@ -1,39 +1,48 @@
-## Lime v1.0.1
+## Lime v1.1.0
 
 ### ✨ 主要更新
 
-- **主工作台与 Agent Chat 持续收敛**：Home Shell、Workspace、Decision Panel、Markdown 渲染、Service Skill 入口与 Workbench 交互继续围绕当前主链统一，减少入口分叉与状态散落
-- **Artifact Document 与工作区运行时继续加固**：Artifact 文档渲染、校验、输出 schema、操作服务、Canvas / A2UI / Preview / Workflow 链路同步整理，让文档型产物、工作台画布和会话侧的连接更稳定
-- **Team / Subagent / MCP 协作链路补强**：Aster Agent 命令运行时、请求元数据、子代理工具、MCP 命令面板与相关测试继续补齐，围绕团队协作和工具编排做进一步收口
-- **历史创作分支继续清退**：`content-creator`、`novel`、`poster`、`music` 等旧主题、旧命令、旧资源与相关接口进一步删除或下沉，治理目录、命令文档与路线图同步更新，减少长期并行 surface
+- **Lime 版本切换到 `v1.1.0` 稳定版**：应用版本与发布说明统一升级，发布产物、Tauri 配置和前端包版本保持一致
+- **Aster Agent Framework 对齐 `aster-rust v0.25.0`**：Lime 声明的远端 `aster-core` / `aster-models` 依赖 tag 已同步提升，和当前本地联调的 `aster-rust` 版本保持一致
+- **设置页与 Provider Pool 体验收口**：设置页重复标题移除，背景氛围层与小屏 Provider 排版整理，让设置主路径更接近当前设计语言
+- **运行时与桥接稳定性补强**：补了浏览器运行时审计测试隔离、图片资源入库测试边界和相关工作台发送/模型列表回归，减少统一校验里的不稳定因素
 
 ### ⚠️ 发布与兼容性说明
 
-- 本次发布 tag 为 `v1.0.1`，应用内版本号保持为 `1.0.1`；`.github/workflows/release.yml` 会按稳定版语义创建 GitHub Release
+- 本次发布 tag 为 `v1.1.0`，应用内版本号保持为 `1.1.0`；`.github/workflows/release.yml` 会按稳定版语义创建 GitHub Release
 - Homebrew Tap 更新工作流不会再把本次发布视为 prerelease；Release 发布后会继续走稳定通道同步
-- 当前仓库声明的 `aster-rust` 依赖已提升到 `v0.24.0`
-- 本地如果启用了 `.cargo/config.toml` 的 Aster 覆盖，请确认它指向干净的 `v0.24.0` 仓库；GitHub Release runner 不会带本地绝对路径覆盖
+- 当前仓库声明的 `aster-rust` 依赖已提升到 `v0.25.0`
+- 本地如果启用了 `.cargo/config.toml` 的 Aster 覆盖，请确认它指向干净的 `v0.25.0` 仓库；GitHub Release runner 不会带本地绝对路径覆盖
 
 ### 🔗 依赖与版本同步
 
-- 应用版本已同步提升到 `1.0.1`，覆盖 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`
-- `src-tauri/Cargo.lock` 会随本次 Rust 校验刷新，确保工作区 crate 的版本快照与 `1.0.1` 对齐
-- `aster-core` / `aster-models` 的 git tag 已同步切换到 `v0.24.0`
+- 应用版本已同步提升到 `1.1.0`，覆盖 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`
+- `src-tauri/Cargo.lock` 会随本次 Rust 校验刷新，确保工作区 crate 的版本快照与 `1.1.0` 对齐
+- `aster-core` / `aster-models` 的 git tag 已同步切换到 `v0.25.0`
 
 ### 🧪 发布前校验
 
 - `cargo fmt --manifest-path src-tauri/Cargo.toml --all`
 - `cargo test --manifest-path src-tauri/Cargo.toml`
-- `cargo clippy --manifest-path src-tauri/Cargo.toml`
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`
 - `npm run lint`
 - `npm run verify:app-version`
-- 当前结果：`npm run verify:app-version` 与 `npm run lint` 已通过；`cargo test` 已通过（`739` 个单测通过，`2` 个集成测试通过，另有 `2` 个真实联网测试保持 `ignored`）；`cargo clippy` 已完成，但仍有若干既有 warning（如 `lime-browser-runtime` 的 `unnecessary_map_or`、`lime-agent` 的 `large_enum_variant` / `too_many_arguments`、主 crate 的未使用常量）
+- `npm run test:contracts`
+- `npm run verify:gui-smoke -- --reuse-running`
+- 当前结果：
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml --all`：通过
+  - `CARGO_TARGET_DIR=target-version-check cargo test --manifest-path src-tauri/Cargo.toml`：通过，`745 passed`，额外集成测试 `2 passed`，真实联网测试 `2 ignored`
+  - `CARGO_TARGET_DIR=target-version-check cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`：通过
+  - `npm run lint`：通过
+  - `npm run verify:app-version`：通过
+  - `npm run test:contracts`：通过
+  - `npm run verify:gui-smoke -- --reuse-running`：通过
 
 ### 📝 文档同步
 
-- 发布说明已切换到当前这次 `v1.0.1` 稳定版发布内容，供 GitHub Release 直接读取
+- 发布说明已切换到当前这次 `v1.1.0` 稳定版发布内容，供 GitHub Release 直接读取
 - 命令边界、质量流程、路线图与工作区相关文档会随当前主线收敛继续同步
 
 ---
 
-**完整变更**: `v1.0.0-beta` -> `v1.0.1`
+**完整变更**: `v1.0.1` -> `v1.1.0`

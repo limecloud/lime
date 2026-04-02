@@ -65,16 +65,56 @@ export function enableSubagentPreference(preferences: ChatToolPreferences): {
   };
 }
 
+function applyClawSolutionPreferencePreset(
+  preferences: ChatToolPreferences,
+  preset: Partial<ChatToolPreferences>,
+): {
+  nextToolPreferences: ChatToolPreferences;
+  changed: boolean;
+} {
+  let changed = false;
+  const nextPreferences = { ...preferences };
+
+  for (const [key, value] of Object.entries(preset) as Array<
+    [keyof ChatToolPreferences, boolean | undefined]
+  >) {
+    if (!value || nextPreferences[key]) {
+      continue;
+    }
+    nextPreferences[key] = true;
+    changed = true;
+  }
+
+  return {
+    nextToolPreferences: changed ? nextPreferences : preferences,
+    changed,
+  };
+}
+
+function resolveClawSolutionPreferencePreset(
+  preparation: ClawSolutionPreparation,
+): Partial<ChatToolPreferences> {
+  const preset: Partial<ChatToolPreferences> = {};
+
+  if (preparation.solutionId === "web-research-brief") {
+    preset.webSearch = true;
+  }
+
+  if (preparation.shouldEnableTeamMode) {
+    preset.subagent = true;
+  }
+
+  return preset;
+}
+
 export function resolveClawSolutionLaunch(
   preparation: ClawSolutionPreparation,
   currentToolPreferences: ChatToolPreferences,
 ): ResolvedClawSolutionLaunch {
-  const { nextToolPreferences, changed } = preparation.shouldEnableTeamMode
-    ? enableSubagentPreference(currentToolPreferences)
-    : {
-        nextToolPreferences: currentToolPreferences,
-        changed: false,
-      };
+  const { nextToolPreferences, changed } = applyClawSolutionPreferencePreset(
+    currentToolPreferences,
+    resolveClawSolutionPreferencePreset(preparation),
+  );
 
   return {
     nextToolPreferences,

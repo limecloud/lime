@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { useConfiguredProviders } from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
 import { resolveVisionModel } from "@/lib/model/visionModelResolver";
+import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
 
 interface InputbarVisionCapabilityNoticeProps {
   providerType?: string;
@@ -26,12 +27,22 @@ export const InputbarVisionCapabilityNotice: React.FC<
     () => providers.find((item) => item.key === providerType),
     [providerType, providers],
   );
+  const providerModelLoadOptions = useMemo(
+    () =>
+      resolveProviderModelLoadOptions({
+        providerId: selectedProvider?.providerId,
+        providerType: selectedProvider?.type,
+        apiHost: selectedProvider?.apiHost,
+      }),
+    [selectedProvider?.apiHost, selectedProvider?.providerId, selectedProvider?.type],
+  );
 
   const { models, loading: modelsLoading } = useProviderModels(
     selectedProvider,
     {
       returnFullMetadata: true,
       autoLoad: shouldInspectCapability && Boolean(selectedProvider),
+      ...providerModelLoadOptions,
     },
   );
 

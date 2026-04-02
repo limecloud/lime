@@ -1179,7 +1179,7 @@ async fn stream_agent_reply_once<F>(
 where
     F: FnMut(&RuntimeAgentEvent),
 {
-    let mut auto_compaction_projection = AutoCompactionProjectionState::default();
+    let mut auto_compaction_projection = AutoCompactionProjectionState;
     let mut stream = agent
         .reply(user_message, session_config, cancel_token)
         .await

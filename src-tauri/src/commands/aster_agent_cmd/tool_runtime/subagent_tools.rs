@@ -408,6 +408,8 @@ impl Tool for SubAgentTaskTool {
             AgentRuntimeSpawnSubagentRequest {
                 parent_session_id,
                 message: build_subagent_task_runtime_message(&input, &task, role),
+                name: None,
+                team_name: None,
                 agent_type: Some(role.to_string()),
                 model: input.model.clone(),
                 reasoning_effort: None,
@@ -423,6 +425,7 @@ impl Tool for SubAgentTaskTool {
                 theme: None,
                 system_overlay: None,
                 output_contract: None,
+                cwd: None,
             },
         )
         .await
@@ -517,10 +520,7 @@ fn build_agent_control_tool_config(
     runtime: SubagentControlRuntime,
 ) -> aster::tools::AgentControlToolConfig {
     let spawn_runtime = runtime.clone();
-    let send_runtime = runtime.clone();
-    let wait_runtime = runtime.clone();
-    let resume_runtime = runtime.clone();
-    let close_runtime = runtime;
+    let send_runtime = runtime;
 
     aster::tools::AgentControlToolConfig::new()
         .with_spawn_agent_callback(Arc::new(move |request| {
@@ -531,6 +531,8 @@ fn build_agent_control_tool_config(
                     AgentRuntimeSpawnSubagentRequest {
                         parent_session_id: request.parent_session_id,
                         message: request.message,
+                        name: request.name,
+                        team_name: request.team_name,
                         agent_type: request.agent_type,
                         model: request.model,
                         reasoning_effort: request.reasoning_effort,
@@ -546,6 +548,7 @@ fn build_agent_control_tool_config(
                         theme: request.theme,
                         system_overlay: request.system_overlay,
                         output_contract: request.output_contract,
+                        cwd: request.cwd,
                     },
                 )
                 .await?;
@@ -573,80 +576,6 @@ fn build_agent_control_tool_config(
                 Ok(aster::tools::SendInputResponse {
                     submission_id: response.submission_id,
                     extra: std::collections::BTreeMap::new(),
-                })
-            })
-        }))
-        .with_wait_agent_callback(Arc::new(move |request| {
-            let runtime = wait_runtime.clone();
-            Box::pin(async move {
-                let response = agent_runtime_wait_subagents_internal(
-                    &runtime,
-                    AgentRuntimeWaitSubagentsRequest {
-                        ids: request.ids,
-                        timeout_ms: request.timeout_ms,
-                    },
-                )
-                .await?;
-                let status = response
-                    .status
-                    .into_iter()
-                    .map(|(id, status)| {
-                        serde_json::to_value(status)
-                            .map(|value| (id, value))
-                            .map_err(|error| format!("wait_agent 状态序列化失败: {error}"))
-                    })
-                    .collect::<Result<std::collections::BTreeMap<_, _>, _>>()?;
-
-                Ok(aster::tools::WaitAgentResponse {
-                    status,
-                    timed_out: response.timed_out,
-                    extra: std::collections::BTreeMap::new(),
-                })
-            })
-        }))
-        .with_resume_agent_callback(Arc::new(move |request| {
-            let runtime = resume_runtime.clone();
-            Box::pin(async move {
-                let response = agent_runtime_resume_subagent_internal(
-                    &runtime,
-                    AgentRuntimeResumeSubagentRequest { id: request.id },
-                )
-                .await?;
-                let mut extra = std::collections::BTreeMap::new();
-                extra.insert(
-                    "cascade_session_ids".to_string(),
-                    serde_json::to_value(response.cascade_session_ids)
-                        .map_err(|error| format!("resume_agent 级联会话序列化失败: {error}"))?,
-                );
-
-                Ok(aster::tools::ResumeAgentResponse {
-                    status: serde_json::to_value(response.status)
-                        .map_err(|error| format!("resume_agent 状态序列化失败: {error}"))?,
-                    changed_session_ids: response.changed_session_ids,
-                    extra,
-                })
-            })
-        }))
-        .with_close_agent_callback(Arc::new(move |request| {
-            let runtime = close_runtime.clone();
-            Box::pin(async move {
-                let response = agent_runtime_close_subagent_internal(
-                    &runtime,
-                    AgentRuntimeCloseSubagentRequest { id: request.id },
-                )
-                .await?;
-                let mut extra = std::collections::BTreeMap::new();
-                extra.insert(
-                    "cascade_session_ids".to_string(),
-                    serde_json::to_value(response.cascade_session_ids)
-                        .map_err(|error| format!("close_agent 级联会话序列化失败: {error}"))?,
-                );
-
-                Ok(aster::tools::CloseAgentResponse {
-                    previous_status: serde_json::to_value(response.previous_status)
-                        .map_err(|error| format!("close_agent 状态序列化失败: {error}"))?,
-                    changed_session_ids: response.changed_session_ids,
-                    extra,
                 })
             })
         }))

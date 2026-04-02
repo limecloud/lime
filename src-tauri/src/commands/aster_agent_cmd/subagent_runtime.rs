@@ -9,6 +9,25 @@ const DEFAULT_WAIT_AGENT_TIMEOUT_MS: i64 = 30_000;
 const MIN_WAIT_AGENT_TIMEOUT_MS: i64 = 1_000;
 const MAX_WAIT_AGENT_TIMEOUT_MS: i64 = 300_000;
 
+fn resolve_spawn_working_dir(
+    parent_working_dir: &std::path::Path,
+    requested_cwd: Option<String>,
+) -> Result<std::path::PathBuf, String> {
+    let Some(cwd) = normalize_optional_text(requested_cwd) else {
+        return Ok(parent_working_dir.to_path_buf());
+    };
+
+    let path = std::path::PathBuf::from(&cwd);
+    if !path.is_absolute() {
+        return Err("cwd 必须是绝对路径".to_string());
+    }
+    if !path.is_dir() {
+        return Err(format!("cwd 不是有效目录: {cwd}"));
+    }
+
+    Ok(path)
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct SubagentStatusChangedEvent {
     #[serde(rename = "type")]
@@ -153,12 +172,14 @@ fn normalize_optional_vec(values: &[String]) -> Vec<String> {
 }
 
 fn build_subagent_session_name(
+    explicit_name: Option<&str>,
     message: &str,
     agent_type: Option<&str>,
     blueprint_role_label: Option<&str>,
     profile_name: Option<&str>,
 ) -> String {
-    normalize_optional_text(agent_type.map(ToString::to_string))
+    normalize_optional_text(explicit_name.map(ToString::to_string))
+        .or_else(|| normalize_optional_text(agent_type.map(ToString::to_string)))
         .or_else(|| normalize_optional_text(blueprint_role_label.map(ToString::to_string)))
         .or_else(|| normalize_optional_text(profile_name.map(ToString::to_string)))
         .or_else(|| build_subagent_task_summary(message))
@@ -169,10 +190,58 @@ fn resolve_subagent_role_hint(
     request: &AgentRuntimeSpawnSubagentRequest,
     customization: Option<&SubagentCustomizationState>,
 ) -> Option<String> {
-    normalize_optional_text(request.agent_type.clone())
+    normalize_optional_text(request.name.clone())
+        .or_else(|| normalize_optional_text(request.agent_type.clone()))
         .or_else(|| customization.and_then(|state| state.blueprint_role_label.clone()))
         .or_else(|| customization.and_then(|state| state.profile_name.clone()))
         .or_else(|| customization.and_then(|state| state.role_key.clone()))
+}
+
+async fn register_spawned_teammate(
+    parent_session_id: &str,
+    child_session_id: &str,
+    team_name: String,
+    teammate_name: String,
+    agent_type: Option<String>,
+) -> Result<(), String> {
+    let parent_session = read_session(parent_session_id, false, "读取父会话失败").await?;
+    let Some(mut team_state) = aster::session::TeamSessionState::from_session(&parent_session)
+    else {
+        return Err("当前 session 还没有 team 上下文，请先建立 team".to_string());
+    };
+
+    if team_state.team_name != team_name {
+        return Err(format!(
+            "team_name 不匹配：当前 team 为 {}，但请求的是 {}",
+            team_state.team_name, team_name
+        ));
+    }
+    if team_state.find_member_by_name(&teammate_name).is_some() {
+        return Err(format!("team 中已存在名为 {teammate_name} 的成员"));
+    }
+
+    team_state.add_or_update_member(aster::session::TeamMember::teammate(
+        child_session_id.to_string(),
+        teammate_name.clone(),
+        agent_type.clone(),
+    ));
+    aster::session::save_team_state(parent_session_id, Some(team_state))
+        .await
+        .map_err(|error| format!("更新 team 状态失败: {error}"))?;
+    aster::session::save_team_membership(
+        child_session_id,
+        Some(aster::session::TeamMembershipState {
+            team_name,
+            lead_session_id: parent_session_id.to_string(),
+            agent_id: child_session_id.to_string(),
+            name: teammate_name,
+            agent_type,
+        }),
+    )
+    .await
+    .map_err(|error| format!("保存 team 成员信息失败: {error}"))?;
+
+    Ok(())
 }
 
 fn build_local_subagent_skill_payload(
@@ -558,6 +627,11 @@ async fn create_runtime_subagent_session(
     let parent_session_id =
         normalize_required_text(&request.parent_session_id, "parent_session_id")?;
     let message = normalize_required_text(&request.message, "message")?;
+    let teammate_name = normalize_optional_text(request.name.clone());
+    let team_name = normalize_optional_text(request.team_name.clone());
+    if team_name.is_some() && teammate_name.is_none() {
+        return Err("team_name 需要同时提供 name".to_string());
+    }
     enforce_team_spawn_limits(&parent_session_id).await?;
     let parent_session = read_session(&parent_session_id, false, "读取父会话失败").await?;
     let customization = build_subagent_customization_state(request)?;
@@ -566,10 +640,13 @@ async fn create_runtime_subagent_session(
         .as_ref()
         .and_then(|state| state.profile_name.as_deref());
     let role_hint = resolve_subagent_role_hint(request, customization.as_ref());
+    let working_dir =
+        resolve_spawn_working_dir(parent_session.working_dir.as_path(), request.cwd.clone())?;
 
     let session = create_subagent_session(
-        parent_session.working_dir.clone(),
+        working_dir,
         build_subagent_session_name(
+            teammate_name.as_deref(),
             &message,
             request.agent_type.as_deref(),
             customization
@@ -614,6 +691,16 @@ async fn create_runtime_subagent_session(
         "写入 subagent session metadata",
     )
     .await?;
+    if let (Some(team_name), Some(teammate_name)) = (team_name, teammate_name.clone()) {
+        register_spawned_teammate(
+            &parent_session_id,
+            &session.id,
+            team_name,
+            teammate_name,
+            normalize_optional_text(request.agent_type.clone()),
+        )
+        .await?;
+    }
 
     inherit_subagent_provider(
         runtime,
@@ -694,9 +781,12 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
             metadata: Some(serde_json::json!({
                 "subagent": {
                     "parent_session_id": request.parent_session_id,
+                    "name": request.name,
+                    "team_name": request.team_name,
                     "agent_type": request.agent_type,
                     "reasoning_effort": request.reasoning_effort,
                     "fork_context": request.fork_context,
+                    "cwd": request.cwd,
                     "origin_tool": "spawn_agent",
                     "blueprint_role_id": customization.as_ref().and_then(|state| state.blueprint_role_id.clone()),
                     "blueprint_role_label": customization.as_ref().and_then(|state| state.blueprint_role_label.clone()),
@@ -957,4 +1047,65 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
         cascade_session_ids,
         changed_session_ids: changed_ids,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_subagent_session_name_prefers_explicit_name() {
+        let name = build_subagent_session_name(
+            Some("verifier"),
+            "检查当前 team runtime 差异",
+            Some("explorer"),
+            Some("分析"),
+            Some("代码分析员"),
+        );
+
+        assert_eq!(name, "verifier");
+    }
+
+    #[test]
+    fn test_resolve_subagent_role_hint_prefers_explicit_name() {
+        let request = AgentRuntimeSpawnSubagentRequest {
+            parent_session_id: "parent-1".to_string(),
+            message: "定位当前 team runtime 差异".to_string(),
+            name: Some("verifier".to_string()),
+            team_name: Some("delivery-team".to_string()),
+            agent_type: Some("explorer".to_string()),
+            model: None,
+            reasoning_effort: None,
+            fork_context: false,
+            blueprint_role_id: None,
+            blueprint_role_label: Some("分析".to_string()),
+            profile_id: None,
+            profile_name: Some("代码分析员".to_string()),
+            role_key: Some("explorer".to_string()),
+            skill_ids: Vec::new(),
+            skill_directories: Vec::new(),
+            team_preset_id: None,
+            theme: None,
+            system_overlay: None,
+            output_contract: None,
+            cwd: None,
+        };
+
+        assert_eq!(
+            resolve_subagent_role_hint(&request, None).as_deref(),
+            Some("verifier")
+        );
+    }
+
+    #[test]
+    fn test_resolve_spawn_working_dir_uses_requested_absolute_directory() {
+        let parent = tempfile::tempdir().expect("parent tempdir");
+        let child = tempfile::tempdir().expect("child tempdir");
+
+        let resolved =
+            resolve_spawn_working_dir(parent.path(), Some(child.path().display().to_string()))
+                .expect("cwd override should resolve");
+
+        assert_eq!(resolved, child.path());
+    }
 }

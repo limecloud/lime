@@ -1,8 +1,25 @@
-import type {
-  SchedulerExecutionResult,
-  SchedulerProgress,
-  SubAgentTask,
-} from "@/lib/api/subAgentScheduler";
+type SubAgentTaskSummary = {
+  id: string;
+  taskType?: string | null;
+  prompt?: string | null;
+  description?: string | null;
+};
+
+type SchedulerProgressSummary = {
+  total: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+  currentTasks: string[];
+};
+
+type SchedulerExecutionResultSummary = {
+  success?: boolean;
+  mergedSummary?: string | null;
+  successfulCount: number;
+  failedCount: number;
+  skippedCount: number;
+};
 
 function normalizeText(value?: string | null): string | null {
   if (typeof value !== "string") {
@@ -20,7 +37,7 @@ function truncateSummary(value: string, maxLength = 56): string {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-export function summarizeSubAgentTask(task: SubAgentTask): string {
+export function summarizeSubAgentTask(task: SubAgentTaskSummary): string {
   return truncateSummary(
     normalizeText(task.description) ||
       normalizeText(task.prompt) ||
@@ -29,7 +46,9 @@ export function summarizeSubAgentTask(task: SubAgentTask): string {
   );
 }
 
-export function summarizeSubAgentTaskBatch(tasks: SubAgentTask[]): string | null {
+export function summarizeSubAgentTaskBatch(
+  tasks: SubAgentTaskSummary[],
+): string | null {
   if (tasks.length === 0) {
     return null;
   }
@@ -48,7 +67,7 @@ export function summarizeSubAgentTaskBatch(tasks: SubAgentTask[]): string | null
 }
 
 export function summarizeSubAgentProgress(
-  progress: SchedulerProgress,
+  progress: SchedulerProgressSummary,
 ): string | null {
   if (progress.currentTasks.length > 0) {
     return `正在执行：${progress.currentTasks.join("、")}`;
@@ -59,8 +78,8 @@ export function summarizeSubAgentProgress(
 }
 
 export function summarizeSubAgentResult(
-  result: SchedulerExecutionResult,
-  tasks: SubAgentTask[],
+  result: SchedulerExecutionResultSummary,
+  tasks: SubAgentTaskSummary[],
 ): string | null {
   const mergedSummary = normalizeText(result.mergedSummary);
   if (mergedSummary) {

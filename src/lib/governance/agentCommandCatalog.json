@@ -44,6 +44,11 @@
     "site_debug_run_adapter",
     "site_save_adapter_result"
   ],
+  "desktopCompanionCommands": [
+    "companion_get_pet_status",
+    "companion_launch_pet",
+    "companion_send_pet_command"
+  ],
   "deprecatedCommandReplacements": {
     "get_agent_process_status": "agent_get_process_status",
     "list_agent_sessions": "agent_runtime_list_sessions",

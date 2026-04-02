@@ -19,12 +19,38 @@ import { providerTypeToIcon } from "./utils";
 import AwsIcon from "./aws.svg?react";
 import GeminiIcon from "./gemini.svg?react";
 import AnthropicIcon from "./anthropic.svg?react";
+import abacusIconUrl from "./abacus.ico?url";
+import Ai21Icon from "./ai21.svg?react";
 import ClaudeIcon from "./claude.svg?react";
+import basetenIconUrl from "./baseten.ico?url";
+import CloudflareIcon from "./cloudflare.svg?react";
+import chutesIconUrl from "./chutes.png?url";
+import ComfyuiIcon from "./comfyui.svg?react";
+import cortecsIconUrl from "./cortecs.ico?url";
 import QwenIcon from "./qwen.svg?react";
+import deepinfraIconUrl from "./deepinfra.png?url";
 import GoogleIcon from "./google.svg?react";
+import FalIcon from "./fal.svg?react";
+import FastrouterIcon from "./fastrouter.svg?react";
+import FriendliIcon from "./friendli.svg?react";
+import HigressIcon from "./higress.svg?react";
+import heliconeIconUrl from "./helicone.webp?url";
+import InferenceIcon from "./inference.svg?react";
+import inceptionIconUrl from "./inception.png?url";
+import ioNetIconUrl from "./io-net.png?url";
+import lucidqueryIconUrl from "./lucidquery.png?url";
+import NebiusIcon from "./nebius.svg?react";
+import nanoGptIconUrl from "./nano-gpt.png?url";
+import MorphIcon from "./morph.svg?react";
 import OpenaiIcon from "./openai.svg?react";
+import opencodeIconUrl from "./opencode.png?url";
+import OvhcloudIcon from "./ovhcloud.svg?react";
 import AlibabaIcon from "./alibaba.svg?react";
 import CopilotIcon from "./copilot.svg?react";
+import requestyIconUrl from "./requesty.ico?url";
+import SapAiCoreIcon from "./sap-ai-core.svg?react";
+import ScalewayIcon from "./scaleway.svg?react";
+import submodelIconUrl from "./submodel.ico?url";
 import AmpIcon from "./amp.svg?react";
 import KiroIcon from "./kiro.svg?react";
 import DeepseekIcon from "./deepseek.svg?react";
@@ -36,14 +62,18 @@ import AzureIcon from "./azure.svg?react";
 import antigravityIconUrl from "./antigravity.svg?url";
 import LimeIcon from "./lime.svg?react";
 import LimeHubIcon from "./lime-hub.svg?react";
+import MetaIcon from "./meta.svg?react";
+import UpstageIcon from "./upstage.svg?react";
+import V0Icon from "./v0.svg?react";
+import ZaiIcon from "./zai.svg?react";
 
 // 新增图标 - 主流 AI
 import PerplexityIcon from "./perplexity.svg?react";
 import MoonshotIcon from "./moonshot.svg?react";
 import GrokIcon from "./grok.svg?react";
-import GroqIcon from "./groq.svg?react";
 import MistralIcon from "./mistral.svg?react";
 import CohereIcon from "./cohere.svg?react";
+import groqIconUrl from "./groq.png?url";
 
 // 新增图标 - 国内 AI
 import BaiduIcon from "./baidu.svg?react";
@@ -57,7 +87,7 @@ import XirangIcon from "./xirang.svg?react";
 import MimoIcon from "./mimo.svg?react";
 import ModelscopeIcon from "./modelscope.svg?react";
 import ZhinaoIcon from "./zhinao.svg?react";
-import DashscopeIcon from "./dashscope.svg?react";
+import dashscopeIconUrl from "./dashscope.png?url";
 
 // 新增图标 - 云服务
 import VertexaiIcon from "./vertexai.svg?react";
@@ -86,17 +116,25 @@ import DmxapiIcon from "./dmxapi.svg?react";
 import LongcatIcon from "./longcat.svg?react";
 import AlayanewIcon from "./alayanew.svg?react";
 import AionlyIcon from "./aionly.svg?react";
+import NovitaIcon from "./novita.svg?react";
 import OcoolaiIcon from "./ocoolai.svg?react";
+import ReplicateIcon from "./replicate.svg?react";
 import VercelIcon from "./vercel.svg?react";
+import ZenmuxIcon from "./zenmux.svg?react";
 import PoeIcon from "./poe.svg?react";
 import HuggingfaceIcon from "./huggingface.svg?react";
+import SyntheticIcon from "./synthetic.svg?react";
+import veniceIconUrl from "./venice.png?url";
+import VultrIcon from "./vultr.svg?react";
+import WandbIcon from "./wandb.svg?react";
 
 // 新增图标 - 本地服务
 import OllamaIcon from "./ollama.svg?react";
 import LmstudioIcon from "./lmstudio.svg?react";
-import NewapiIcon from "./newapi.svg?react";
 import GpustackIcon from "./gpustack.svg?react";
 import OvmsIcon from "./ovms.svg?react";
+import VllmIcon from "./vllm.svg?react";
+import newapiIconUrl from "./newapi.png?url";
 
 // 新增图标 - 专用服务
 import JinaIcon from "./jina.svg?react";
@@ -106,21 +144,62 @@ import CherryinIcon from "./cherryin.svg?react";
 // 自定义 Provider 图标
 import CustomIcon from "./custom.svg?react";
 
-const AntigravityIcon: React.FC<SVGProps<SVGSVGElement>> = ({
-  width = "1em",
-  height = "1em",
-}) => {
-  const widthValue = typeof width === "number" ? `${width}px` : width;
-  const heightValue = typeof height === "number" ? `${height}px` : height;
+const createImageIconComponent = (
+  iconUrl: string,
+  alt: string,
+): React.FC<SVGProps<SVGSVGElement>> => {
+  const ImageIcon: React.FC<SVGProps<SVGSVGElement>> = ({
+    width = "1em",
+    height = "1em",
+    className,
+    style,
+  }) => {
+    const widthValue = typeof width === "number" ? `${width}px` : width;
+    const heightValue = typeof height === "number" ? `${height}px` : height;
 
-  return (
-    <img
-      src={antigravityIconUrl}
-      alt="Antigravity"
-      style={{ width: widthValue, height: heightValue, display: "block" }}
-    />
-  );
+    return (
+      <img
+        src={iconUrl}
+        alt={alt}
+        className={className}
+        style={{
+          width: widthValue,
+          height: heightValue,
+          display: "block",
+          objectFit: "contain",
+          ...(style as React.CSSProperties),
+        }}
+      />
+    );
+  };
+
+  return ImageIcon;
 };
+
+const AntigravityIcon = createImageIconComponent(
+  antigravityIconUrl,
+  "Antigravity",
+);
+const AbacusIcon = createImageIconComponent(abacusIconUrl, "Abacus");
+const BasetenIcon = createImageIconComponent(basetenIconUrl, "Baseten");
+const ChutesIcon = createImageIconComponent(chutesIconUrl, "Chutes");
+const CortecsIcon = createImageIconComponent(cortecsIconUrl, "Cortecs");
+const DeepinfraIcon = createImageIconComponent(deepinfraIconUrl, "DeepInfra");
+const GroqIcon = createImageIconComponent(groqIconUrl, "Groq");
+const DashscopeIcon = createImageIconComponent(dashscopeIconUrl, "Dashscope");
+const HeliconeIcon = createImageIconComponent(heliconeIconUrl, "Helicone");
+const InceptionIcon = createImageIconComponent(inceptionIconUrl, "Inception");
+const LucidqueryIcon = createImageIconComponent(
+  lucidqueryIconUrl,
+  "LucidQuery",
+);
+const IoNetIcon = createImageIconComponent(ioNetIconUrl, "IO.net");
+const NanoGptIcon = createImageIconComponent(nanoGptIconUrl, "NanoGPT");
+const NewapiIcon = createImageIconComponent(newapiIconUrl, "New API");
+const OpencodeIcon = createImageIconComponent(opencodeIconUrl, "OpenCode");
+const RequestyIcon = createImageIconComponent(requestyIconUrl, "Requesty");
+const SubmodelIcon = createImageIconComponent(submodelIconUrl, "Submodel");
+const VeniceIcon = createImageIconComponent(veniceIconUrl, "Venice");
 
 // ============================================================================
 // 图标组件映射
@@ -135,12 +214,37 @@ const iconComponents: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   aws: AwsIcon,
   gemini: GeminiIcon,
   anthropic: AnthropicIcon,
+  abacus: AbacusIcon,
+  ai21: Ai21Icon,
   claude: ClaudeIcon,
+  baseten: BasetenIcon,
+  chutes: ChutesIcon,
+  comfyui: ComfyuiIcon,
+  cortecs: CortecsIcon,
   qwen: QwenIcon,
+  deepinfra: DeepinfraIcon,
   google: GoogleIcon,
+  fal: FalIcon,
+  fastrouter: FastrouterIcon,
+  friendli: FriendliIcon,
+  higress: HigressIcon,
+  helicone: HeliconeIcon,
+  inference: InferenceIcon,
+  inception: InceptionIcon,
+  "io-net": IoNetIcon,
+  lucidquery: LucidqueryIcon,
+  morph: MorphIcon,
+  nebius: NebiusIcon,
+  "nano-gpt": NanoGptIcon,
   openai: OpenaiIcon,
+  opencode: OpencodeIcon,
+  ovhcloud: OvhcloudIcon,
   alibaba: AlibabaIcon,
   copilot: CopilotIcon,
+  requesty: RequestyIcon,
+  "sap-ai-core": SapAiCoreIcon,
+  scaleway: ScalewayIcon,
+  submodel: SubmodelIcon,
   amp: AmpIcon,
   kiro: KiroIcon,
   deepseek: DeepseekIcon,
@@ -149,9 +253,14 @@ const iconComponents: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   minimax: MinimaxIcon,
   doubao: DoubaoIcon,
   azure: AzureIcon,
+  cloudflare: CloudflareIcon,
   antigravity: AntigravityIcon,
   lime: LimeIcon,
   "lime-hub": LimeHubIcon,
+  meta: MetaIcon,
+  upstage: UpstageIcon,
+  v0: V0Icon,
+  zai: ZaiIcon,
 
   // 主流 AI
   perplexity: PerplexityIcon,
@@ -202,10 +311,17 @@ const iconComponents: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   longcat: LongcatIcon,
   alayanew: AlayanewIcon,
   aionly: AionlyIcon,
+  novita: NovitaIcon,
   ocoolai: OcoolaiIcon,
+  replicate: ReplicateIcon,
   vercel: VercelIcon,
+  zenmux: ZenmuxIcon,
   poe: PoeIcon,
   huggingface: HuggingfaceIcon,
+  synthetic: SyntheticIcon,
+  venice: VeniceIcon,
+  vultr: VultrIcon,
+  wandb: WandbIcon,
 
   // 本地服务
   ollama: OllamaIcon,
@@ -213,6 +329,7 @@ const iconComponents: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   newapi: NewapiIcon,
   gpustack: GpustackIcon,
   ovms: OvmsIcon,
+  vllm: VllmIcon,
 
   // 专用服务
   jina: JinaIcon,

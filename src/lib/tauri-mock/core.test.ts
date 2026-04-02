@@ -47,13 +47,65 @@ describe("tauri-mock/core invoke", () => {
   it("mock 优先命令直接返回默认 mock，不访问 bridge", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
 
-    await expect(invoke("list_plugin_tasks", { taskState: null, limit: 300 })).resolves.toEqual([]);
+    await expect(
+      invoke("list_plugin_tasks", { taskState: null, limit: 300 }),
+    ).resolves.toEqual([]);
 
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("工具库存 fallback mock 不应再返回空壳清单", async () => {
+    mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    try {
+      await expect(
+        invoke("agent_runtime_get_tool_inventory", {
+          request: {
+            caller: "assistant",
+            browserAssist: true,
+          },
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          request: expect.objectContaining({
+            caller: "assistant",
+            surface: expect.objectContaining({
+              browser_assist: true,
+            }),
+          }),
+          default_allowed_tools: expect.arrayContaining([
+            "ToolSearch",
+            "WebSearch",
+            "ask",
+          ]),
+          counts: expect.objectContaining({
+            catalog_total: expect.any(Number),
+            registry_visible_total: expect.any(Number),
+          }),
+          catalog_tools: expect.arrayContaining([
+            expect.objectContaining({ name: "ToolSearch" }),
+            expect.objectContaining({ name: "WebSearch" }),
+          ]),
+          registry_tools: expect.arrayContaining([
+            expect.objectContaining({ name: "ask" }),
+          ]),
+          mcp_tools: expect.arrayContaining([
+            expect.objectContaining({ name: "mcp__lime-browser__navigate" }),
+          ]),
+        }),
+      );
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
+  });
+
   it("bridge 失败且命令存在 mock 时回退默认 mock 数据", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
 
     try {
@@ -66,7 +118,9 @@ describe("tauri-mock/core invoke", () => {
   });
 
   it("OpenClaw 环境状态命令在 bridge 失败时回退默认 mock", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
 
     try {

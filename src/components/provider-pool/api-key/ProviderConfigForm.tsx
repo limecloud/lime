@@ -36,16 +36,19 @@ import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
 import { resolveRegistryProviderId } from "./providerTypeMapping";
+import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
 import {
   dedupeModelIds,
-  getProviderTypeLabel,
+  getSpecialProtocolHint,
   getLatestSelectableModel,
+  getProviderTypeLabel,
   parseCustomModelsValue,
   PROVIDER_TYPE_FIELDS,
   PROVIDER_TYPE_OPTIONS,
   serializeCustomModels,
 } from "./ProviderConfigForm.utils";
-import { Plus, Star, X } from "lucide-react";
+import { Plus, Save, Star, X } from "lucide-react";
+import { SectionInfoButton } from "./SectionInfoButton";
 
 // ============================================================================
 // 常量
@@ -70,15 +73,6 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   project: "your-project-id",
   location: "us-central1",
   region: "us-east-1",
-};
-
-/** 字段帮助文本映射 */
-const FIELD_HELP_TEXT: Record<string, string> = {
-  apiHost: "API 服务的基础 URL",
-  apiVersion: "Azure OpenAI API 版本",
-  project: "Google Cloud 项目 ID",
-  location: "VertexAI 服务位置",
-  region: "AWS Bedrock 区域",
 };
 
 // ============================================================================
@@ -108,6 +102,7 @@ export interface ProviderConfigFormRef {
 }
 
 interface FormState {
+  providerName: string;
   providerType: ProviderType;
   apiHost: string;
   apiVersion: string;
@@ -162,6 +157,7 @@ export const ProviderConfigForm = forwardRef<
   ) => {
     // 表单状态
     const [formState, setFormState] = useState<FormState>({
+      providerName: provider.name || "",
       providerType: (provider.type as ProviderType) || "openai",
       apiHost: provider.api_host || "",
       apiVersion: provider.api_version || "",
@@ -184,6 +180,10 @@ export const ProviderConfigForm = forwardRef<
       () => parseCustomModelsValue(formState.customModels),
       [formState.customModels],
     );
+    const enabledApiKeyCount = useMemo(
+      () => provider.api_keys.filter((apiKey) => apiKey.enabled).length,
+      [provider.api_keys],
+    );
 
     const configuredProvider = useMemo<ConfiguredProvider>(
       () => ({
@@ -195,10 +195,31 @@ export const ProviderConfigForm = forwardRef<
         }),
         type: formState.providerType,
         providerId: provider.id,
+        apiHost: formState.apiHost,
         customModels: selectedModels,
       }),
-      [formState.providerType, provider.id, provider.name, selectedModels],
+      [
+        formState.apiHost,
+        formState.providerType,
+        provider.id,
+        provider.name,
+        selectedModels,
+      ],
     );
+    const modelAutoFetchCapability = useMemo(
+      () =>
+        getProviderModelAutoFetchCapability({
+          providerId: provider.id,
+          providerType: formState.providerType,
+          apiHost: formState.apiHost,
+        }),
+      [formState.apiHost, formState.providerType, provider.id],
+    );
+    const requiresLiveModelTruth = modelAutoFetchCapability.supported;
+    const canReadLiveModels =
+      !requiresLiveModelTruth ||
+      !modelAutoFetchCapability.requiresApiKey ||
+      enabledApiKeyCount > 0;
 
     const {
       models: localCandidateModels,
@@ -206,7 +227,20 @@ export const ProviderConfigForm = forwardRef<
       error: localModelsError,
     } = useProviderModels(configuredProvider, {
       returnFullMetadata: true,
+      liveFetchOnly: requiresLiveModelTruth,
+      hasApiKey: enabledApiKeyCount > 0,
     });
+    const hasResolvedLiveModelDirectory =
+      !requiresLiveModelTruth || localCandidateModels.length > 0;
+    const shouldHideSavedModels =
+      requiresLiveModelTruth && !hasResolvedLiveModelDirectory;
+    const hiddenSelectedModelCount = shouldHideSavedModels
+      ? selectedModels.length
+      : 0;
+    const visibleSelectedModels = shouldHideSavedModels ? [] : selectedModels;
+    const shouldLockModelEditor =
+      requiresLiveModelTruth &&
+      (!canReadLiveModels || localModelsLoading || localCandidateModels.length === 0);
 
     const latestLocalModel = useMemo(() => {
       const localModelsWithMetadata = localCandidateModels.filter(
@@ -216,6 +250,10 @@ export const ProviderConfigForm = forwardRef<
     }, [localCandidateModels]);
 
     const recommendedLatestModel = useMemo(() => {
+      if (!hasResolvedLiveModelDirectory) {
+        return null;
+      }
+
       if (latestLocalModel) {
         return latestLocalModel;
       }
@@ -225,11 +263,56 @@ export const ProviderConfigForm = forwardRef<
       }
 
       return getLatestSelectableModel(localCandidateModels);
-    }, [latestLocalModel, localCandidateModels, localModelsLoading]);
+    }, [
+      hasResolvedLiveModelDirectory,
+      latestLocalModel,
+      localCandidateModels,
+      localModelsLoading,
+    ]);
+    const modelTruthNotice = useMemo(() => {
+      if (!requiresLiveModelTruth) {
+        return null;
+      }
+
+      if (!canReadLiveModels) {
+        return {
+          tone: "amber" as const,
+          title: "先补一把可用 API Key",
+          description:
+            "当前渠道会直接读取真实模型目录。为了避免继续展示旧缓存或错误模型，未配置可用 API Key 前暂不展示已选模型，也不开放手动输入。",
+        };
+      }
+
+      if (localModelsLoading) {
+        return {
+          tone: "slate" as const,
+          title: "正在读取真实模型目录",
+          description:
+            "读取完成前先不展示旧模型配置与推荐最新模型，避免把历史缓存误认为当前可用模型。",
+        };
+      }
+
+      if (localCandidateModels.length === 0) {
+        return {
+          tone: "amber" as const,
+          title: "当前未读取到真实模型目录",
+          description:
+            "这次没有拿到最新模型列表。为避免错误模型输出，页面不会继续展示旧模型或推荐模型，请先检查鉴权、Base URL 或接口兼容性。",
+        };
+      }
+
+      return null;
+    }, [
+      canReadLiveModels,
+      localCandidateModels.length,
+      localModelsLoading,
+      requiresLiveModelTruth,
+    ]);
 
     // 当 provider 变化时，重置表单状态
     useEffect(() => {
       setFormState({
+        providerName: provider.name || "",
         providerType: (provider.type as ProviderType) || "openai",
         apiHost: provider.api_host || "",
         apiVersion: provider.api_version || "",
@@ -242,6 +325,7 @@ export const ProviderConfigForm = forwardRef<
       setModelDraft("");
     }, [
       provider.id,
+      provider.name,
       provider.type,
       provider.api_host,
       provider.api_version,
@@ -268,13 +352,22 @@ export const ProviderConfigForm = forwardRef<
 
           const request: UpdateProviderRequest = {
             type: state.providerType,
-            api_host: state.apiHost || undefined,
-            api_version: state.apiVersion || undefined,
-            project: state.project || undefined,
-            location: state.location || undefined,
-            region: state.region || undefined,
-            custom_models: customModels.length > 0 ? customModels : undefined,
+            api_host: state.apiHost,
+            api_version: state.apiVersion,
+            project: state.project,
+            location: state.location,
+            region: state.region,
+            custom_models: customModels,
           };
+
+          const trimmedName = state.providerName.trim();
+          if (
+            !provider.is_system &&
+            trimmedName &&
+            trimmedName !== provider.name
+          ) {
+            request.name = trimmedName;
+          }
 
           await onUpdate(provider.id, request);
           setLastSaved(new Date());
@@ -284,7 +377,7 @@ export const ProviderConfigForm = forwardRef<
           setIsSaving(false);
         }
       },
-      [provider.id, onUpdate],
+      [onUpdate, provider.id, provider.is_system, provider.name],
     );
 
     // 防抖保存
@@ -390,12 +483,21 @@ export const ProviderConfigForm = forwardRef<
     );
 
     useEffect(() => {
-      if (selectedModels.length > 0 || !recommendedLatestModel) {
+      if (
+        selectedModels.length > 0 ||
+        !recommendedLatestModel ||
+        shouldLockModelEditor
+      ) {
         return;
       }
 
       applyCustomModels([recommendedLatestModel.id]);
-    }, [applyCustomModels, recommendedLatestModel, selectedModels.length]);
+    }, [
+      applyCustomModels,
+      recommendedLatestModel,
+      selectedModels.length,
+      shouldLockModelEditor,
+    ]);
 
     useEffect(() => {
       onModelsChange?.(selectedModels);
@@ -405,11 +507,53 @@ export const ProviderConfigForm = forwardRef<
       onRecommendedLatestModelChange?.(recommendedLatestModel?.id ?? null);
     }, [onRecommendedLatestModelChange, recommendedLatestModel]);
 
-    // 获取当前 Provider 类型需要显示的额外字段
-    // 使用 formState 中的 providerType，这样修改类型后会立即更新显示的字段
     const extraFields = PROVIDER_TYPE_FIELDS[formState.providerType] || [];
+    const specialProtocolHint = getSpecialProtocolHint(formState.providerType);
+    const defaultModelId =
+      visibleSelectedModels[0] ?? recommendedLatestModel?.id ?? null;
+    const extraFieldConfigs = extraFields.map((field) => {
+      switch (field) {
+        case "apiVersion":
+          return {
+            field,
+            id: "api-version",
+            label: FIELD_LABELS.apiVersion,
+            placeholder: FIELD_PLACEHOLDERS.apiVersion,
+            value: formState.apiVersion,
+            testId: "api-version-input",
+          };
+        case "project":
+          return {
+            field,
+            id: "project",
+            label: FIELD_LABELS.project,
+            placeholder: FIELD_PLACEHOLDERS.project,
+            value: formState.project,
+            testId: "project-input",
+          };
+        case "location":
+          return {
+            field,
+            id: "location",
+            label: FIELD_LABELS.location,
+            placeholder: FIELD_PLACEHOLDERS.location,
+            value: formState.location,
+            testId: "location-input",
+          };
+        case "region":
+          return {
+            field,
+            id: "region",
+            label: FIELD_LABELS.region,
+            placeholder: FIELD_PLACEHOLDERS.region,
+            value: formState.region,
+            testId: "region-input",
+          };
+        default:
+          return null;
+      }
+    });
 
-    // 格式化最后保存时间
     const formatLastSaved = (date: Date | null): string => {
       if (!date) return "";
       return `已保存于 ${date.toLocaleTimeString("zh-CN")}`;
@@ -417,291 +561,332 @@ export const ProviderConfigForm = forwardRef<
 
     return (
       <div
-        className={cn("space-y-5", className)}
+        className={cn(
+          "rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5",
+          className,
+        )}
         data-testid="provider-config-form"
       >
-        <div className="space-y-1.5">
-          <Label htmlFor="provider-type" className="text-sm font-medium">
-            Provider 类型
-          </Label>
-          <Select
-            value={formState.providerType}
-            onValueChange={(value) =>
-              handleFieldChange("providerType", value as ProviderType)
-            }
-            disabled={loading || isSaving}
-          >
-            <SelectTrigger id="provider-type" data-testid="provider-type-select">
-              <span>{getProviderTypeLabel(formState.providerType)}</span>
-            </SelectTrigger>
-            <SelectContent>
-              {PROVIDER_TYPE_OPTIONS.map((type) => (
-                <SelectItem key={type.value} value={type.value}>
-                  {type.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            选择 API 协议类型，不同类型使用不同的请求格式
-          </p>
-        </div>
-
-        {/* API Host 字段（所有 Provider 都有） */}
-        <div className="space-y-1.5">
-          <Label htmlFor="api-host" className="text-sm font-medium">
-            {FIELD_LABELS.apiHost}
-          </Label>
-          <Input
-            id="api-host"
-            type="text"
-            value={formState.apiHost}
-            onChange={(e) => handleFieldChange("apiHost", e.target.value)}
-            placeholder={FIELD_PLACEHOLDERS.apiHost}
-            disabled={loading || isSaving}
-            data-testid="api-host-input"
-          />
-          <p className="text-xs text-muted-foreground">
-            {FIELD_HELP_TEXT.apiHost}
-          </p>
-        </div>
-
-        {/* Azure OpenAI: API Version */}
-        {extraFields.includes("apiVersion") && (
-          <div className="space-y-1.5">
-            <Label htmlFor="api-version" className="text-sm font-medium">
-              {FIELD_LABELS.apiVersion}
-            </Label>
-            <Input
-              id="api-version"
-              type="text"
-              value={formState.apiVersion}
-              onChange={(e) => handleFieldChange("apiVersion", e.target.value)}
-              placeholder={FIELD_PLACEHOLDERS.apiVersion}
-              disabled={loading || isSaving}
-              data-testid="api-version-input"
-            />
-            <p className="text-xs text-muted-foreground">
-              {FIELD_HELP_TEXT.apiVersion}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <p className="text-base font-semibold text-slate-900">
+              协议与默认模型
             </p>
-          </div>
-        )}
-
-        {/* VertexAI: Project */}
-        {extraFields.includes("project") && (
-          <div className="space-y-1.5">
-            <Label htmlFor="project" className="text-sm font-medium">
-              {FIELD_LABELS.project}
-            </Label>
-            <Input
-              id="project"
-              type="text"
-              value={formState.project}
-              onChange={(e) => handleFieldChange("project", e.target.value)}
-              placeholder={FIELD_PLACEHOLDERS.project}
-              disabled={loading || isSaving}
-              data-testid="project-input"
-            />
-            <p className="text-xs text-muted-foreground">
-              {FIELD_HELP_TEXT.project}
-            </p>
-          </div>
-        )}
-
-        {/* VertexAI: Location */}
-        {extraFields.includes("location") && (
-          <div className="space-y-1.5">
-            <Label htmlFor="location" className="text-sm font-medium">
-              {FIELD_LABELS.location}
-            </Label>
-            <Input
-              id="location"
-              type="text"
-              value={formState.location}
-              onChange={(e) => handleFieldChange("location", e.target.value)}
-              placeholder={FIELD_PLACEHOLDERS.location}
-              disabled={loading || isSaving}
-              data-testid="location-input"
-            />
-            <p className="text-xs text-muted-foreground">
-              {FIELD_HELP_TEXT.location}
-            </p>
-          </div>
-        )}
-
-        {/* AWS Bedrock: Region */}
-        {extraFields.includes("region") && (
-          <div className="space-y-1.5">
-            <Label htmlFor="region" className="text-sm font-medium">
-              {FIELD_LABELS.region}
-            </Label>
-            <Input
-              id="region"
-              type="text"
-              value={formState.region}
-              onChange={(e) => handleFieldChange("region", e.target.value)}
-              placeholder={FIELD_PLACEHOLDERS.region}
-              disabled={loading || isSaving}
-              data-testid="region-input"
-            />
-            <p className="text-xs text-muted-foreground">
-              {FIELD_HELP_TEXT.region}
-            </p>
-          </div>
-        )}
-
-        {/* 自定义模型列表 */}
-        <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-1">
-                <Label
-                  htmlFor="custom-model-draft"
-                  className="text-sm font-medium"
-                >
-                  自定义模型
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  手动添加模型后会保留在这里；默认模型请在右侧“模型能力”列表中点击选择。
+            <SectionInfoButton
+              label="查看协议与默认模型说明"
+              triggerTestId="provider-config-info-button"
+            >
+              <p>
+                这里维护服务商名称、接口地址、协议类型和默认模型，保存会自动防抖提交。
+              </p>
+              <p className="mt-2">
+                {provider.is_system
+                  ? "官方供应商固定使用原生协议。"
+                  : "兼容协议主要用于自定义接入；官方供应商继续保持各自原生协议。"}
+              </p>
+              {specialProtocolHint ? (
+                <p className="mt-2" data-testid="protocol-special-hint">
+                  {specialProtocolHint}
                 </p>
-              </div>
-            </div>
+              ) : null}
+            </SectionInfoButton>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+            <Save className="h-3.5 w-3.5" />
+            <span>
+              {isSaving
+                ? "保存中..."
+                : saveError
+                  ? "保存失败"
+                  : lastSaved
+                    ? formatLastSaved(lastSaved)
+                    : "修改后自动保存"}
+            </span>
+          </div>
+        </div>
 
-            <input
-              id="custom-models"
-              type="hidden"
-              value={formState.customModels}
-              readOnly
-            />
-
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-              <div className="flex min-h-[56px] flex-wrap gap-2">
-                {selectedModels.length > 0 ? (
-                  selectedModels.map((modelId, index) => {
-                    const isLatest = recommendedLatestModel?.id === modelId;
-                    return (
-                      <div
-                        key={modelId}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-2 py-1 text-xs normal-case"
-                      >
-                        <span className="max-w-[220px] truncate normal-case">
-                          {modelId}
-                        </span>
-                        {index === 0 ? (
-                          <Badge variant="secondary">默认</Badge>
-                        ) : null}
-                        {isLatest ? (
-                          <Badge variant="outline">最新</Badge>
-                        ) : null}
-                        {index > 0 ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 rounded-full"
-                            onClick={() => setDefaultModel(modelId)}
-                            title="设为默认模型"
-                          >
-                            <Star className="h-3 w-3" />
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 rounded-full"
-                          onClick={() => handleRemoveModel(modelId)}
-                          title="移除模型"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    尚未选择模型。检测到可用模型后，系统会默认填入最新模型。
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {!provider.is_system ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="provider-name" className="text-sm font-medium">
+                Provider 名称
+              </Label>
               <Input
-                id="custom-model-draft"
-                type="text"
-                className="normal-case bg-background"
-                value={modelDraft}
-                onChange={(e) => setModelDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    handleAddModelDraft();
-                  }
-                }}
-                placeholder="手动输入模型 ID，按 Enter 添加"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
+                id="provider-name"
+                value={formState.providerName}
+                onChange={(e) =>
+                  handleFieldChange("providerName", e.target.value)
+                }
+                placeholder="输入服务商名称"
                 disabled={loading || isSaving}
-                data-testid="custom-models-input"
+                className="border-slate-200 bg-white"
+                data-testid="provider-name-input"
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAddModelDraft}
-                disabled={loading || isSaving || !modelDraft.trim()}
-                className="sm:min-w-[88px]"
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                添加
-              </Button>
             </div>
+          ) : null}
 
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>
-                第一个模型会作为默认模型，用于测试与默认请求；若未显式选择，则自动使用最新模型。
-              </span>
+          {!provider.is_system ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="provider-type" className="text-sm font-medium">
+                Provider 类型
+              </Label>
+              <Select
+                value={formState.providerType}
+                onValueChange={(value) =>
+                  handleFieldChange("providerType", value as ProviderType)
+                }
+                disabled={loading || isSaving}
+              >
+                <SelectTrigger
+                  id="provider-type"
+                  className="border-slate-200 bg-white"
+                  data-testid="provider-type-select"
+                >
+                  <span>{getProviderTypeLabel(formState.providerType)}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDER_TYPE_OPTIONS.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Provider 类型</Label>
+              <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                {getProviderTypeLabel(formState.providerType)}
+              </div>
+            </div>
+          )}
+
+          <div
+            className={cn(
+              "space-y-1.5",
+              provider.is_system ? "lg:col-span-2" : "",
+            )}
+          >
+            <Label htmlFor="api-host" className="text-sm font-medium">
+              {FIELD_LABELS.apiHost}
+            </Label>
+            <Input
+              id="api-host"
+              type="text"
+              value={formState.apiHost}
+              onChange={(e) => handleFieldChange("apiHost", e.target.value)}
+              placeholder={FIELD_PLACEHOLDERS.apiHost}
+              disabled={loading || isSaving}
+              className="border-slate-200 bg-white"
+              data-testid="api-host-input"
+            />
+          </div>
+
+          {extraFieldConfigs.map((config) => {
+            if (!config) {
+              return null;
+            }
+
+            return (
+              <div key={config.field} className="space-y-1.5">
+                <Label htmlFor={config.id} className="text-sm font-medium">
+                  {config.label}
+                </Label>
+                <Input
+                  id={config.id}
+                  type="text"
+                  value={config.value}
+                  onChange={(e) =>
+                    handleFieldChange(config.field, e.target.value)
+                  }
+                  placeholder={config.placeholder}
+                  disabled={loading || isSaving}
+                  className="border-slate-200 bg-white"
+                  data-testid={config.testId}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-slate-900">默认模型</p>
+              <SectionInfoButton
+                label="查看默认模型说明"
+                triggerTestId="provider-default-model-info-button"
+              >
+                <p>
+                  第一个模型会被视为默认模型。支持实时拉取的渠道，只有在拿到真实模型目录后才会展示当前模型与推荐最新模型。
+                </p>
+              </SectionInfoButton>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge
+                variant="outline"
+                className="border-slate-200 bg-slate-50 text-slate-600"
+              >
+                当前：
+                {defaultModelId ??
+                  (requiresLiveModelTruth ? "待读取真实目录" : "待指定")}
+              </Badge>
               {recommendedLatestModel ? (
-                <span>
-                  当前推荐最新模型：
-                  <span className="font-medium normal-case">
-                    {recommendedLatestModel.id}
-                  </span>
-                </span>
+                <Badge
+                  variant="outline"
+                  className="border-sky-200 bg-sky-50 text-sky-700"
+                >
+                  推荐最新：{recommendedLatestModel.id}
+                </Badge>
               ) : null}
             </div>
-            {localModelsError ? (
-              <p className="text-xs text-amber-600">{localModelsError}</p>
-            ) : null}
-            {localModelsLoading ? (
-              <p className="text-xs text-muted-foreground">
-                正在加载模型列表...
-              </p>
-            ) : null}
           </div>
-        </div>
 
-        {/* 保存状态指示 */}
-        <div className="flex items-center justify-between text-xs">
+          <input
+            id="custom-models"
+            type="hidden"
+            value={formState.customModels}
+            readOnly
+          />
+
+          {modelTruthNotice ? (
+            <div
+              className={cn(
+                "mt-4 rounded-[18px] border px-4 py-3 text-sm leading-6",
+                modelTruthNotice.tone === "amber"
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-slate-200 bg-slate-50 text-slate-700",
+              )}
+              data-testid="provider-model-truth-notice"
+            >
+              <p className="font-semibold">{modelTruthNotice.title}</p>
+              <p className="mt-1">{modelTruthNotice.description}</p>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex min-h-[64px] flex-wrap gap-2">
+            {visibleSelectedModels.length > 0 ? (
+              visibleSelectedModels.map((modelId, index) => {
+                const isLatest = recommendedLatestModel?.id === modelId;
+                return (
+                  <div
+                    key={modelId}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs"
+                  >
+                    <span className="max-w-[220px] truncate normal-case text-slate-900">
+                      {modelId}
+                    </span>
+                    {index === 0 ? (
+                      <Badge className="bg-slate-900 text-white hover:bg-slate-900">
+                        默认
+                      </Badge>
+                    ) : null}
+                    {isLatest ? <Badge variant="outline">最新</Badge> : null}
+                    {index > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 rounded-full text-slate-500 hover:text-slate-900"
+                        onClick={() => setDefaultModel(modelId)}
+                        title="设为默认模型"
+                      >
+                        <Star className="h-3 w-3" />
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 rounded-full text-slate-500 hover:text-slate-900"
+                      onClick={() => handleRemoveModel(modelId)}
+                      title="移除模型"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                {hiddenSelectedModelCount > 0
+                  ? `已保存 ${hiddenSelectedModelCount} 个模型配置，待读取真实模型目录后再展示。`
+                  : requiresLiveModelTruth
+                    ? "读取到真实模型目录后，才会展示当前模型与推荐最新模型。"
+                    : "尚未指定模型。读取到模型目录后会自动填入推荐最新模型。"}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <Input
+              id="custom-model-draft"
+              type="text"
+              className="normal-case border-slate-200 bg-white"
+              value={modelDraft}
+              onChange={(e) => setModelDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  handleAddModelDraft();
+                }
+              }}
+              placeholder={
+                shouldLockModelEditor
+                  ? "先读取真实模型目录，再补充模型 ID"
+                  : "手动输入模型 ID，按 Enter 添加"
+              }
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              disabled={loading || isSaving || shouldLockModelEditor}
+              data-testid="custom-models-input"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddModelDraft}
+              disabled={
+                loading ||
+                isSaving ||
+                shouldLockModelEditor ||
+                !modelDraft.trim()
+              }
+              className="border-slate-200 bg-white sm:min-w-[112px]"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              添加模型
+            </Button>
+          </div>
+
+          {localModelsError ? (
+            <p className="mt-3 text-xs text-amber-600">{localModelsError}</p>
+          ) : null}
+          {localModelsLoading ? (
+            <p className="mt-3 text-xs text-slate-500">正在加载模型列表...</p>
+          ) : null}
+          {saveError ? (
+            <p className="mt-3 text-xs text-red-500" data-testid="save-error">
+              {saveError}
+            </p>
+          ) : null}
+          {lastSaved && !isSaving && !saveError ? (
+            <p
+              className="mt-3 text-xs text-emerald-600"
+              data-testid="save-success"
+            >
+              {formatLastSaved(lastSaved)}
+            </p>
+          ) : null}
           {isSaving ? (
-            <span
-              className="text-muted-foreground"
+            <p
+              className="mt-3 text-xs text-slate-500"
               data-testid="saving-indicator"
             >
               保存中...
-            </span>
-          ) : saveError ? (
-            <span className="text-red-500" data-testid="save-error">
-              {saveError}
-            </span>
-          ) : lastSaved ? (
-            <span className="text-green-600" data-testid="save-success">
-              {formatLastSaved(lastSaved)}
-            </span>
-          ) : (
-            <span />
-          )}
+            </p>
+          ) : null}
         </div>
       </div>
     );

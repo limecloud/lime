@@ -7,10 +7,6 @@ import {
   createSkillSelectionProps,
   type SkillSelectionProps,
 } from "./Inputbar/components/skillSelectionBindings";
-import {
-  resetStableProcessingNoticeMemoryForTest,
-  STABLE_PROCESSING_NOTICE_AUTO_HIDE_MS,
-} from "../hooks/useStableProcessingNotice";
 
 vi.mock("./ChatModelSelector", () => ({
   ChatModelSelector: () => <div data-testid="empty-state-model-selector" />,
@@ -115,7 +111,6 @@ afterEach(() => {
     mounted.container.remove();
   }
   vi.useRealTimers();
-  resetStableProcessingNoticeMemoryForTest();
   vi.clearAllMocks();
 });
 
@@ -482,8 +477,7 @@ describe("EmptyStateComposerPanel", () => {
     ).toBeTruthy();
   });
 
-  it("命中稳妥模式模型时应短暂提示后自动收起且不再重复提醒", () => {
-    vi.useFakeTimers();
+  it("命中稳妥模式模型时不应再展示额外横幅", () => {
     const container = renderPanel({
       providerType: "openai",
       model: "glm-4.7",
@@ -493,30 +487,8 @@ describe("EmptyStateComposerPanel", () => {
       container.querySelector(
         '[data-testid="empty-state-stable-processing-notice"]',
       ),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("稳妥模式");
-    expect(container.textContent).toContain("依次开始同类请求");
-
-    act(() => {
-      vi.advanceTimersByTime(STABLE_PROCESSING_NOTICE_AUTO_HIDE_MS + 1);
-    });
-
-    expect(
-      container.querySelector(
-        '[data-testid="empty-state-stable-processing-notice"]',
-      ),
     ).toBeNull();
-
-    const nextContainer = renderPanel({
-      providerType: "openai",
-      model: "glm-4.7",
-    });
-
-    expect(
-      nextContainer.querySelector(
-        '[data-testid="empty-state-stable-processing-notice"]',
-      ),
-    ).toBeNull();
+    expect(container.textContent).not.toContain("稳妥模式");
   });
 
   it("点击多代理图标后应自动透传 Team 配置面板打开令牌", async () => {

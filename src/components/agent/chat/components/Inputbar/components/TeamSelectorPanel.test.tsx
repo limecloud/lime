@@ -4,10 +4,6 @@ import type { WorkspaceSettings } from "@/types/workspace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamSelectorPanel } from "./TeamSelectorPanel";
 import {
-  resetStableProcessingNoticeMemoryForTest,
-  STABLE_PROCESSING_NOTICE_AUTO_HIDE_MS,
-} from "../../../hooks/useStableProcessingNotice";
-import {
   createTeamDefinitionFromPreset,
   type TeamDefinition,
 } from "../../../utils/teamDefinitions";
@@ -96,7 +92,6 @@ describe("TeamSelectorPanel", () => {
     }
     localStorage.clear();
     vi.useRealTimers();
-    resetStableProcessingNoticeMemoryForTest();
     vi.clearAllMocks();
   });
 
@@ -222,8 +217,7 @@ describe("TeamSelectorPanel", () => {
     expect(mockToast.success).toHaveBeenCalled();
   });
 
-  it("命中稳妥模式模型时应短暂提示 Team 会依次开始后自动收起", async () => {
-    vi.useFakeTimers();
+  it("命中稳妥模式模型时不应再展示 Team 横幅提示", async () => {
     const { container } = renderPanel({
       providerType: "openai",
       model: "glm-4.7",
@@ -235,30 +229,7 @@ describe("TeamSelectorPanel", () => {
       container.querySelector(
         '[data-testid="team-selector-stable-processing-notice"]',
       ),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("稳妥模式");
-    expect(container.textContent).toContain("协作成员");
-    expect(container.textContent).toContain("依次开始");
-
-    act(() => {
-      vi.advanceTimersByTime(STABLE_PROCESSING_NOTICE_AUTO_HIDE_MS + 1);
-    });
-
-    expect(
-      container.querySelector(
-        '[data-testid="team-selector-stable-processing-notice"]',
-      ),
     ).toBeNull();
-
-    const nextRender = renderPanel({
-      providerType: "openai",
-      model: "glm-4.7",
-    });
-
-    expect(
-      nextRender.container.querySelector(
-        '[data-testid="team-selector-stable-processing-notice"]',
-      ),
-    ).toBeNull();
+    expect(container.textContent).not.toContain("稳妥模式");
   });
 });

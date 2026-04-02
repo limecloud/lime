@@ -18,6 +18,10 @@ import {
   listenViaHttpEvent,
   normalizeDevBridgeError,
 } from "./http-client";
+import {
+  invokeExplicitMock,
+  listenExplicitMock,
+} from "./explicitMockFallback";
 import { shouldPreferMockInBrowser } from "./mockPriorityCommands";
 import {
   getTauriGlobal,
@@ -123,6 +127,38 @@ function supportsUserTiming(): boolean {
 function sanitizeTimingLabel(input: string): string {
   const normalized = input.replace(/[^a-zA-Z0-9:_-]+/g, "_").slice(0, 120);
   return normalized || "invoke";
+}
+
+function canUseExplicitBrowserMockFallback(): boolean {
+  return typeof window !== "undefined" && !hasTauriRuntimeMarkers();
+}
+
+async function invokeFallbackTransport<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return (await baseInvoke(cmd, args)) as T;
+  } catch (error) {
+    if (!canUseExplicitBrowserMockFallback()) {
+      throw error;
+    }
+    return invokeExplicitMock<T>(cmd, args);
+  }
+}
+
+async function listenFallbackTransport<T>(
+  event: string,
+  handler: (event: { payload: T }) => void,
+): Promise<UnlistenFn> {
+  try {
+    return await baseListen(event, handler);
+  } catch (error) {
+    if (!canUseExplicitBrowserMockFallback()) {
+      throw error;
+    }
+    return listenExplicitMock(event, handler);
+  }
 }
 
 function startInvokeTiming(command: string): string | null {
@@ -403,7 +439,7 @@ export async function safeInvoke<T = any>(
   // 2. 浏览器开发模式下，部分原生/非关键命令直接优先走 mock。
   if (isDevBridgeAvailable() && shouldPreferMockInBrowser(cmd)) {
     try {
-      const result = (await baseInvoke(cmd, args)) as T;
+      const result = await invokeFallbackTransport<T>(cmd, args);
       recordInvokeTrace(cmd, args, "fallback-invoke", "success", startedAt);
       finishInvokeTiming(timingId, cmd, "fallback-invoke", "success");
       return result;
@@ -442,7 +478,7 @@ export async function safeInvoke<T = any>(
       );
 
       try {
-        const result = (await baseInvoke(cmd, args)) as T;
+        const result = await invokeFallbackTransport<T>(cmd, args);
         recordInvokeTrace(cmd, args, "fallback-invoke", "success", startedAt);
         finishInvokeTiming(timingId, cmd, "fallback-invoke", "success");
         return result;
@@ -464,7 +500,7 @@ export async function safeInvoke<T = any>(
 
   // 4. Fallback 到 mock（Vite alias 会替换 @tauri-apps 导入）
   try {
-    const result = (await baseInvoke(cmd, args)) as T;
+    const result = await invokeFallbackTransport<T>(cmd, args);
     recordInvokeTrace(cmd, args, "fallback-invoke", "success", startedAt);
     finishInvokeTiming(timingId, cmd, "fallback-invoke", "success");
     return result;
@@ -501,6 +537,9 @@ export async function safeListen<T = any>(
     try {
       return await listenViaHttpEvent(event, handler);
     } catch (error) {
+      if (!hasTauriRuntimeMarkers()) {
+        return listenExplicitMock(event, handler);
+      }
       console.warn(`[safeListen] DevBridge 事件流调用失败，跳过监听: ${event}`, error);
       return () => {};
     }
@@ -511,7 +550,7 @@ export async function safeListen<T = any>(
     return () => {};
   }
 
-  return baseListen(event, handler);
+  return listenFallbackTransport(event, handler);
 }
 
 export function hasNativeTauriEventSupport(): boolean {

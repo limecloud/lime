@@ -20,6 +20,7 @@ pub mod browser_profile_service;
 pub mod browser_runtime_window;
 pub mod chat_history_service;
 pub mod claw_solution_service;
+pub mod companion_service;
 pub mod conversation_statistics_service;
 pub mod environment_service;
 pub mod execution_tracker_service;

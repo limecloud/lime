@@ -397,7 +397,7 @@ fn page_info_from_event(event: &BrowserEvent) -> Option<BrowserPageInfo> {
 async fn capture_and_sync_page_info(session: &CdpSessionHandle) -> Option<BrowserPageInfo> {
     let page_info = session.capture_page_info().await.ok()?;
     let current_page_info = session.state().await.last_page_info;
-    let should_update = current_page_info.as_ref().map_or(true, |current| {
+    let should_update = current_page_info.as_ref().is_none_or(|current| {
         current.url != page_info.url
             || current.title != page_info.title
             || current.markdown != page_info.markdown

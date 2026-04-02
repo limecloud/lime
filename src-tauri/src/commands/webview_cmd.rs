@@ -3684,6 +3684,10 @@ mod tests {
     use crate::services::browser_profile_service::sanitize_browser_profile_key;
     use rusqlite::Connection;
     use std::sync::{Arc, Mutex};
+    use tokio::sync::Mutex as AsyncMutex;
+
+    static BROWSER_RUNTIME_AUDIT_TEST_LOCK: Lazy<AsyncMutex<()>> =
+        Lazy::new(|| AsyncMutex::new(()));
 
     fn setup_db() -> DbConnection {
         let conn = Connection::open_in_memory().unwrap();
@@ -3995,6 +3999,7 @@ mod tests {
 
     #[tokio::test]
     async fn browser_runtime_audit_should_store_launch_metadata() {
+        let _guard = BROWSER_RUNTIME_AUDIT_TEST_LOCK.lock().await;
         BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
 
         append_browser_runtime_launch_audit(BrowserRuntimeLaunchAuditInput {
@@ -4018,7 +4023,10 @@ mod tests {
         let logs = get_browser_action_audit_logs(Some(5))
             .await
             .expect("audit logs should be readable");
-        let record = logs.first().expect("launch audit must exist");
+        let record = logs
+            .iter()
+            .find(|record| matches!(record.kind, BrowserRuntimeAuditKind::Launch))
+            .expect("launch audit must exist");
         assert!(matches!(record.kind, BrowserRuntimeAuditKind::Launch));
         assert_eq!(
             record.profile_key.as_deref(),
@@ -4041,6 +4049,7 @@ mod tests {
 
     #[tokio::test]
     async fn browser_runtime_audit_should_store_action_session_keys() {
+        let _guard = BROWSER_RUNTIME_AUDIT_TEST_LOCK.lock().await;
         BROWSER_RUNTIME_AUDIT_LOGS.lock().await.clear();
 
         append_browser_runtime_audit(BrowserRuntimeAuditRecord::action(
@@ -4064,7 +4073,13 @@ mod tests {
         let logs = get_browser_action_audit_logs(Some(5))
             .await
             .expect("audit logs should be readable");
-        let record = logs.first().expect("action audit must exist");
+        let record = logs
+            .iter()
+            .find(|record| {
+                matches!(record.kind, BrowserRuntimeAuditKind::Action)
+                    && record.id == "browser-action-1"
+            })
+            .expect("action audit must exist");
         assert!(matches!(record.kind, BrowserRuntimeAuditKind::Action));
         assert_eq!(record.id, "browser-action-1");
         assert_eq!(record.session_id.as_deref(), Some("session-42"));

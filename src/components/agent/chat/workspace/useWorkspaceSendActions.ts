@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
@@ -29,6 +29,10 @@ import {
   type ContextWorkspaceSummary,
   type EnsureBrowserAssistCanvasOptions,
 } from "./workspaceSendHelpers";
+import {
+  createSubmissionPreviewSnapshot,
+  type SubmissionPreviewSnapshot,
+} from "./submissionPreview";
 import type { Character } from "@/lib/api/memory";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
@@ -112,6 +116,7 @@ interface WorkspaceResolvedSendState {
   effectiveToolPreferences: ChatToolPreferences;
   effectiveWebSearch?: boolean;
   effectiveThinking?: boolean;
+  submissionPreviewKey: string;
 }
 
 interface WorkspaceSendPlan extends WorkspaceResolvedSendState {
@@ -181,6 +186,9 @@ export function useWorkspaceSendActions({
   handleAutoLaunchMatchedSiteSkill,
   handleImageWorkbenchCommand,
 }: UseWorkspaceSendActionsParams) {
+  const [submissionPreview, setSubmissionPreview] =
+    useState<SubmissionPreviewSnapshot | null>(null);
+
   const resolveSendExecutionPlan = useCallback(
     async (
       images?: MessageImage[],
@@ -283,12 +291,32 @@ export function useWorkspaceSendActions({
         });
       }
 
-      const text = await buildWorkspaceSendText({
-        sourceText,
-        contextWorkspace,
-        mentionedCharacters,
-        sendOptions,
-      });
+      const submissionPreviewKey = crypto.randomUUID();
+      setSubmissionPreview(
+        createSubmissionPreviewSnapshot({
+          key: submissionPreviewKey,
+          prompt: sourceText,
+          images: images || [],
+          executionStrategy: sendExecutionStrategy ?? executionStrategy,
+          webSearch: effectiveWebSearch,
+          thinking: effectiveThinking,
+        }),
+      );
+
+      let text: string;
+      try {
+        text = await buildWorkspaceSendText({
+          sourceText,
+          contextWorkspace,
+          mentionedCharacters,
+          sendOptions,
+        });
+      } catch (error) {
+        setSubmissionPreview((current) =>
+          current?.key === submissionPreviewKey ? null : current,
+        );
+        throw error;
+      }
 
       return {
         kind: "ready",
@@ -300,6 +328,7 @@ export function useWorkspaceSendActions({
           effectiveToolPreferences,
           effectiveWebSearch,
           effectiveThinking,
+          submissionPreviewKey,
           sendExecutionStrategy,
           autoContinuePayload,
           sendOptions,
@@ -311,6 +340,7 @@ export function useWorkspaceSendActions({
       chatToolPreferences,
       contextWorkspace,
       ensureBrowserAssistCanvas,
+      executionStrategy,
       handleAutoLaunchMatchedSiteSkill,
       handleImageWorkbenchCommand,
       input,
@@ -333,12 +363,15 @@ export function useWorkspaceSendActions({
         effectiveToolPreferences,
         effectiveWebSearch,
         effectiveThinking,
+        submissionPreviewKey,
         sendExecutionStrategy,
         autoContinuePayload,
         sendOptions,
       } = plan;
 
       setRuntimeTeamDispatchPreview(null);
+      setInput("");
+      setMentionedCharacters([]);
 
       try {
         const preparedRuntimeTeamState = await _prepareRuntimeTeamBeforeSend({
@@ -356,9 +389,6 @@ export function useWorkspaceSendActions({
             ),
           );
         }
-
-        setInput("");
-        setMentionedCharacters([]);
 
         const nextRequestMetadata = buildWorkspaceRequestMetadata({
           workspaceRequestMetadataBase,
@@ -420,6 +450,10 @@ export function useWorkspaceSendActions({
         toast.error(`发送失败: ${errorMessage}`);
         setInput(sourceText);
         return false;
+      } finally {
+        setSubmissionPreview((current) =>
+          current?.key === submissionPreviewKey ? null : current,
+        );
       }
     },
     [
@@ -536,5 +570,6 @@ export function useWorkspaceSendActions({
     handleRecommendationClick,
     handleSendRef,
     webSearchPreferenceRef,
+    submissionPreview,
   };
 }

@@ -103,6 +103,22 @@ struct HostAliasRule {
     providers: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModelFetchProtocol {
+    OpenAiCompatible,
+    Anthropic,
+    Gemini,
+    Ollama,
+    Unsupported,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedModelFetchRequest {
+    protocol: ModelFetchProtocol,
+    url: String,
+    headers: Vec<(String, String)>,
+}
+
 /// 模型注册服务
 pub struct ModelRegistryService {
     /// 数据库连接
@@ -860,6 +876,28 @@ impl ModelRegistryService {
 
     // ========== 从 Provider API 获取模型 ==========
 
+    pub fn requires_api_key_for_model_fetch(
+        provider_id: &str,
+        api_host: &str,
+        provider_type: ApiProviderType,
+    ) -> bool {
+        match provider_type {
+            ApiProviderType::Ollama => false,
+            ApiProviderType::Openai
+            | ApiProviderType::OpenaiResponse
+            | ApiProviderType::Codex
+            | ApiProviderType::NewApi
+            | ApiProviderType::Gateway
+            | ApiProviderType::Fal => !Self::is_keyless_openai_like_provider(provider_id, api_host),
+            ApiProviderType::Anthropic
+            | ApiProviderType::AnthropicCompatible
+            | ApiProviderType::Gemini
+            | ApiProviderType::AzureOpenai
+            | ApiProviderType::Vertexai
+            | ApiProviderType::AwsBedrock => true,
+        }
+    }
+
     /// 从 Provider API 获取模型列表
     ///
     /// 调用 Provider 的 /v1/models 端点获取模型列表，
@@ -902,14 +940,20 @@ impl ModelRegistryService {
             api_host
         );
 
-        // 构建 API URL
-        let api_url = Self::build_models_api_url(api_host);
-        tracing::info!("[ModelRegistry] API URL: {}", api_url);
-        let diagnostic_hint = Self::build_models_api_hint(provider_id, api_host, &api_url);
+        let api_url = Self::build_diagnostic_models_api_url(provider_id, api_host, provider_type);
+        if let Some(url) = api_url.as_ref() {
+            tracing::info!("[ModelRegistry] API URL: {}", url);
+        }
+        let diagnostic_hint = api_url
+            .as_ref()
+            .and_then(|url| Self::build_models_api_hint(provider_id, api_host, url));
 
         // 尝试从 API 获取
-        match self.call_models_api(&api_url, api_key).await {
-            Ok(api_models) => {
+        match self
+            .call_models_api(provider_id, api_host, api_key, provider_type)
+            .await
+        {
+            Ok((api_models, request_url)) => {
                 tracing::info!("[ModelRegistry] 从 API 获取到 {} 个模型", api_models.len());
 
                 // 转换为内部格式
@@ -923,7 +967,7 @@ impl ModelRegistryService {
                     models,
                     source: ModelFetchSource::Api,
                     error: None,
-                    request_url: Some(api_url),
+                    request_url: Some(request_url),
                     diagnostic_hint: None,
                     error_kind: None,
                     should_prompt_error: false,
@@ -950,7 +994,7 @@ impl ModelRegistryService {
                         models: vec![],
                         source: ModelFetchSource::LocalFallback,
                         error: Some(format!("API 获取失败: {}, 本地也无数据", api_error.message)),
-                        request_url: Some(api_url),
+                        request_url: api_url.clone(),
                         diagnostic_hint,
                         error_kind: Some(api_error.kind.clone()),
                         should_prompt_error: Self::should_prompt_model_fetch_error(&api_error.kind),
@@ -963,7 +1007,7 @@ impl ModelRegistryService {
                             "API 获取失败: {}, 已使用本地数据",
                             api_error.message
                         )),
-                        request_url: Some(api_url),
+                        request_url: api_url,
                         diagnostic_hint,
                         error_kind: Some(api_error.kind.clone()),
                         should_prompt_error: Self::should_prompt_model_fetch_error(&api_error.kind),
@@ -1299,7 +1343,74 @@ impl ModelRegistryService {
         }
     }
 
-    /// 构建 /v1/models API URL
+    fn is_keyless_openai_like_provider(provider_id: &str, api_host: &str) -> bool {
+        let normalized_provider_id = provider_id.trim().to_lowercase();
+        if matches!(
+            normalized_provider_id.as_str(),
+            "ollama" | "lmstudio" | "gpustack" | "ovms"
+        ) {
+            return true;
+        }
+
+        let normalized_host = api_host.trim().to_lowercase();
+        matches!(
+            normalized_host.as_str(),
+            host if host.contains("://localhost")
+                || host.contains("://127.0.0.1")
+                || host.contains("://0.0.0.0")
+                || host.contains("://host.docker.internal")
+        )
+    }
+
+    fn resolve_model_fetch_protocol(
+        provider_id: &str,
+        api_host: &str,
+        provider_type: Option<ApiProviderType>,
+    ) -> ModelFetchProtocol {
+        if let Some(provider_type) = provider_type {
+            return match provider_type {
+                ApiProviderType::Openai
+                | ApiProviderType::OpenaiResponse
+                | ApiProviderType::Codex
+                | ApiProviderType::NewApi
+                | ApiProviderType::Gateway
+                | ApiProviderType::Fal => ModelFetchProtocol::OpenAiCompatible,
+                ApiProviderType::Anthropic | ApiProviderType::AnthropicCompatible => {
+                    ModelFetchProtocol::Anthropic
+                }
+                ApiProviderType::Gemini => ModelFetchProtocol::Gemini,
+                ApiProviderType::Ollama => ModelFetchProtocol::Ollama,
+                ApiProviderType::AzureOpenai
+                | ApiProviderType::Vertexai
+                | ApiProviderType::AwsBedrock => ModelFetchProtocol::Unsupported,
+            };
+        }
+
+        let normalized_provider = provider_id.trim().to_lowercase();
+        let normalized_host = api_host.trim().to_lowercase();
+
+        if normalized_provider == "ollama"
+            || normalized_host.contains("ollama")
+            || normalized_host.contains("://localhost:11434")
+        {
+            return ModelFetchProtocol::Ollama;
+        }
+
+        if normalized_provider.contains("gemini")
+            || normalized_provider == "google"
+            || normalized_host.contains("generativelanguage.googleapis.com")
+        {
+            return ModelFetchProtocol::Gemini;
+        }
+
+        if normalized_provider.contains("anthropic") || normalized_host.contains("anthropic.com") {
+            return ModelFetchProtocol::Anthropic;
+        }
+
+        ModelFetchProtocol::OpenAiCompatible
+    }
+
+    /// 构建模型枚举 API URL
     fn build_models_api_url(api_host: &str) -> String {
         let host = api_host.trim_end_matches('/');
 
@@ -1320,6 +1431,60 @@ impl ModelRegistryService {
         }
     }
 
+    fn build_gemini_models_api_url(api_host: &str) -> String {
+        let host = api_host.trim_end_matches('/');
+
+        if host.ends_with("/models") {
+            return host.to_string();
+        }
+
+        if host.ends_with("/v1beta") || host.ends_with("/v1") {
+            return format!("{host}/models");
+        }
+
+        if host.contains("/v1beta/") || host.contains("/v1/") {
+            return format!("{}/models", host.trim_end_matches('/'));
+        }
+
+        format!("{host}/v1beta/models")
+    }
+
+    fn build_ollama_models_api_url(api_host: &str) -> String {
+        let host = api_host.trim_end_matches('/');
+
+        if host.ends_with("/api/tags") {
+            return host.to_string();
+        }
+
+        if host.ends_with("/api") {
+            return format!("{host}/tags");
+        }
+
+        format!("{host}/api/tags")
+    }
+
+    fn build_diagnostic_models_api_url(
+        provider_id: &str,
+        api_host: &str,
+        provider_type: Option<ApiProviderType>,
+    ) -> Option<String> {
+        let host = api_host.trim();
+        if host.is_empty() {
+            return None;
+        }
+
+        let url = match Self::resolve_model_fetch_protocol(provider_id, api_host, provider_type) {
+            ModelFetchProtocol::Gemini => Self::build_gemini_models_api_url(host),
+            ModelFetchProtocol::Ollama => Self::build_ollama_models_api_url(host),
+            ModelFetchProtocol::Anthropic | ModelFetchProtocol::OpenAiCompatible => {
+                Self::build_models_api_url(host)
+            }
+            ModelFetchProtocol::Unsupported => host.trim_end_matches('/').to_string(),
+        };
+
+        Some(url)
+    }
+
     fn has_versioned_api_suffix(api_host: &str) -> bool {
         let path = api_host
             .split_once("://")
@@ -1333,14 +1498,12 @@ impl ModelRegistryService {
             .split('/')
             .filter(|segment| !segment.is_empty())
             .collect();
-        if segments.len() < 2 {
+        if segments.is_empty() {
             return false;
         }
 
         let version = segments[segments.len() - 1];
-        let api_segment = segments[segments.len() - 2];
-        api_segment.eq_ignore_ascii_case("api")
-            && version.starts_with('v')
+        version.starts_with('v')
             && version
                 .strip_prefix('v')
                 .map(|suffix| !suffix.is_empty() && suffix.chars().all(|ch| ch.is_ascii_digit()))
@@ -1361,6 +1524,12 @@ impl ModelRegistryService {
             ));
         }
 
+        if provider.contains("zhipu") || host.contains("bigmodel.cn/api/paas") {
+            return Some(format!(
+                "智谱 GLM 官方 OpenAI 兼容 Base URL 通常应使用 `https://open.bigmodel.cn/api/paas/v4`。当前模型列表请求为 `{api_url}`，如果出现 404，请优先检查 Base URL 是否保留 `/api/paas/v4`，不要再额外改成 `/v1` 风格地址。"
+            ));
+        }
+
         None
     }
 
@@ -1373,12 +1542,78 @@ impl ModelRegistryService {
         )
     }
 
-    /// 调用 /v1/models API
+    fn prepare_model_fetch_request(
+        provider_id: &str,
+        api_host: &str,
+        api_key: &str,
+        provider_type: Option<ApiProviderType>,
+    ) -> Result<PreparedModelFetchRequest, ModelsApiError> {
+        let protocol = Self::resolve_model_fetch_protocol(provider_id, api_host, provider_type);
+        let normalized_host = api_host.trim();
+
+        if normalized_host.is_empty() {
+            return Err(ModelsApiError::new(
+                ModelFetchErrorKind::Other,
+                "Provider 没有配置 API Host".to_string(),
+            ));
+        }
+
+        if protocol == ModelFetchProtocol::Unsupported {
+            return Err(ModelsApiError::new(
+                ModelFetchErrorKind::Other,
+                "当前协议暂不支持自动获取最新模型".to_string(),
+            ));
+        }
+
+        let request_type = provider_type.unwrap_or(match protocol {
+            ModelFetchProtocol::Anthropic => ApiProviderType::Anthropic,
+            ModelFetchProtocol::Gemini => ApiProviderType::Gemini,
+            ModelFetchProtocol::Ollama => ApiProviderType::Ollama,
+            ModelFetchProtocol::OpenAiCompatible | ModelFetchProtocol::Unsupported => {
+                ApiProviderType::Openai
+            }
+        });
+
+        let url = match protocol {
+            ModelFetchProtocol::OpenAiCompatible | ModelFetchProtocol::Anthropic => {
+                Self::build_models_api_url(normalized_host)
+            }
+            ModelFetchProtocol::Gemini => Self::build_gemini_models_api_url(normalized_host),
+            ModelFetchProtocol::Ollama => Self::build_ollama_models_api_url(normalized_host),
+            ModelFetchProtocol::Unsupported => unreachable!(),
+        };
+
+        let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+        let runtime_spec = request_type.runtime_spec();
+        if !api_key.trim().is_empty() {
+            let auth_value = runtime_spec
+                .auth_prefix
+                .map(|prefix| format!("{prefix} {api_key}"))
+                .unwrap_or_else(|| api_key.to_string());
+            headers.push((runtime_spec.auth_header.to_string(), auth_value));
+        }
+
+        for (name, value) in runtime_spec.extra_headers {
+            headers.push(((*name).to_string(), (*value).to_string()));
+        }
+
+        Ok(PreparedModelFetchRequest {
+            protocol,
+            url,
+            headers,
+        })
+    }
+
     async fn call_models_api(
         &self,
-        url: &str,
+        provider_id: &str,
+        api_host: &str,
         api_key: &str,
-    ) -> Result<Vec<ApiModelResponse>, ModelsApiError> {
+        provider_type: Option<ApiProviderType>,
+    ) -> Result<(Vec<ApiModelResponse>, String), ModelsApiError> {
+        let request =
+            Self::prepare_model_fetch_request(provider_id, api_host, api_key, provider_type)?;
+
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
@@ -1389,15 +1624,42 @@ impl ModelRegistryService {
                 )
             })?;
 
-        let response = client
-            .get(url)
-            .header("Authorization", format!("Bearer {api_key}"))
-            .header("Content-Type", "application/json")
-            .send()
-            .await
-            .map_err(|e| {
-                ModelsApiError::new(ModelFetchErrorKind::Network, format!("请求失败: {e}"))
-            })?;
+        let models = match request.protocol {
+            ModelFetchProtocol::OpenAiCompatible => {
+                let body =
+                    Self::send_models_api_request(&client, &request.url, &request.headers).await?;
+                Self::parse_openai_models_response(&body)?
+            }
+            ModelFetchProtocol::Anthropic => {
+                Self::call_anthropic_models_api(&client, &request.url, &request.headers).await?
+            }
+            ModelFetchProtocol::Gemini => {
+                Self::call_gemini_models_api(&client, &request.url, &request.headers).await?
+            }
+            ModelFetchProtocol::Ollama => {
+                let body =
+                    Self::send_models_api_request(&client, &request.url, &request.headers).await?;
+                Self::parse_ollama_models_response(&body)?
+            }
+            ModelFetchProtocol::Unsupported => unreachable!(),
+        };
+
+        Ok((models, request.url))
+    }
+
+    async fn send_models_api_request(
+        client: &reqwest::Client,
+        url: &str,
+        headers: &[(String, String)],
+    ) -> Result<String, ModelsApiError> {
+        let mut request_builder = client.get(url);
+        for (name, value) in headers {
+            request_builder = request_builder.header(name, value);
+        }
+
+        let response = request_builder.send().await.map_err(|e| {
+            ModelsApiError::new(ModelFetchErrorKind::Network, format!("请求失败: {e}"))
+        })?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -1426,15 +1688,16 @@ impl ModelRegistryService {
             ));
         }
 
-        let body = response.text().await.map_err(|e| {
+        response.text().await.map_err(|e| {
             ModelsApiError::new(
                 ModelFetchErrorKind::InvalidResponse,
                 format!("读取响应失败: {e}"),
             )
-        })?;
+        })
+    }
 
-        // 解析 OpenAI 格式的响应
-        let api_response: ApiModelsResponse = serde_json::from_str(&body).map_err(|e| {
+    fn parse_openai_models_response(body: &str) -> Result<Vec<ApiModelResponse>, ModelsApiError> {
+        let api_response: ApiModelsResponse = serde_json::from_str(body).map_err(|e| {
             ModelsApiError::new(
                 ModelFetchErrorKind::InvalidResponse,
                 format!("解析响应失败: {e}"),
@@ -1444,6 +1707,172 @@ impl ModelRegistryService {
         Ok(api_response.data)
     }
 
+    async fn call_anthropic_models_api(
+        client: &reqwest::Client,
+        base_url: &str,
+        headers: &[(String, String)],
+    ) -> Result<Vec<ApiModelResponse>, ModelsApiError> {
+        let mut models = Vec::new();
+        let mut after_id: Option<String> = None;
+
+        loop {
+            let mut request_url = reqwest::Url::parse(base_url).map_err(|e| {
+                ModelsApiError::new(
+                    ModelFetchErrorKind::Other,
+                    format!("无效的 Anthropic 模型地址: {e}"),
+                )
+            })?;
+            request_url.query_pairs_mut().append_pair("limit", "1000");
+            if let Some(after) = after_id.as_deref() {
+                request_url.query_pairs_mut().append_pair("after_id", after);
+            }
+
+            let body = Self::send_models_api_request(client, request_url.as_ref(), headers).await?;
+            let response = Self::parse_anthropic_models_response(&body)?;
+            models.extend(response.models);
+
+            if !response.has_more {
+                break;
+            }
+
+            let Some(next_after_id) = response.last_id else {
+                break;
+            };
+            if next_after_id.trim().is_empty() {
+                break;
+            }
+            after_id = Some(next_after_id);
+        }
+
+        Ok(models)
+    }
+
+    fn parse_anthropic_models_response(
+        body: &str,
+    ) -> Result<AnthropicModelsResponse, ModelsApiError> {
+        let response: RawAnthropicModelsResponse = serde_json::from_str(body).map_err(|e| {
+            ModelsApiError::new(
+                ModelFetchErrorKind::InvalidResponse,
+                format!("解析 Anthropic 响应失败: {e}"),
+            )
+        })?;
+
+        let models = response
+            .data
+            .into_iter()
+            .map(|model| ApiModelResponse {
+                id: model.id.clone(),
+                display_name: model.display_name,
+                provider_name: None,
+                family: None,
+                context_length: None,
+            })
+            .collect();
+
+        Ok(AnthropicModelsResponse {
+            models,
+            has_more: response.has_more,
+            last_id: response.last_id,
+        })
+    }
+
+    async fn call_gemini_models_api(
+        client: &reqwest::Client,
+        base_url: &str,
+        headers: &[(String, String)],
+    ) -> Result<Vec<ApiModelResponse>, ModelsApiError> {
+        let mut models = Vec::new();
+        let mut next_page_token: Option<String> = None;
+
+        loop {
+            let mut request_url = reqwest::Url::parse(base_url).map_err(|e| {
+                ModelsApiError::new(
+                    ModelFetchErrorKind::Other,
+                    format!("无效的 Gemini 模型地址: {e}"),
+                )
+            })?;
+            request_url
+                .query_pairs_mut()
+                .append_pair("pageSize", "1000");
+            if let Some(page_token) = next_page_token.as_deref() {
+                request_url
+                    .query_pairs_mut()
+                    .append_pair("pageToken", page_token);
+            }
+
+            let body = Self::send_models_api_request(client, request_url.as_ref(), headers).await?;
+            let response = Self::parse_gemini_models_response(&body)?;
+            models.extend(response.models);
+
+            let Some(page_token) = response.next_page_token else {
+                break;
+            };
+            if page_token.trim().is_empty() {
+                break;
+            }
+            next_page_token = Some(page_token);
+        }
+
+        Ok(models)
+    }
+
+    fn parse_gemini_models_response(body: &str) -> Result<GeminiModelsResponse, ModelsApiError> {
+        let response: RawGeminiModelsResponse = serde_json::from_str(body).map_err(|e| {
+            ModelsApiError::new(
+                ModelFetchErrorKind::InvalidResponse,
+                format!("解析 Gemini 响应失败: {e}"),
+            )
+        })?;
+
+        let models = response
+            .models
+            .into_iter()
+            .filter(|model| {
+                model
+                    .supported_generation_methods
+                    .as_ref()
+                    .is_none_or(|methods| {
+                        methods
+                            .iter()
+                            .any(|method| method.eq_ignore_ascii_case("generateContent"))
+                    })
+            })
+            .map(|model| ApiModelResponse {
+                id: model.name.trim_start_matches("models/").to_string(),
+                display_name: model.display_name,
+                provider_name: None,
+                family: None,
+                context_length: model.input_token_limit,
+            })
+            .collect();
+
+        Ok(GeminiModelsResponse {
+            models,
+            next_page_token: response.next_page_token,
+        })
+    }
+
+    fn parse_ollama_models_response(body: &str) -> Result<Vec<ApiModelResponse>, ModelsApiError> {
+        let response: OllamaModelsResponse = serde_json::from_str(body).map_err(|e| {
+            ModelsApiError::new(
+                ModelFetchErrorKind::InvalidResponse,
+                format!("解析 Ollama 响应失败: {e}"),
+            )
+        })?;
+
+        Ok(response
+            .models
+            .into_iter()
+            .map(|model| ApiModelResponse {
+                id: model.name.clone(),
+                display_name: Some(model.name),
+                provider_name: None,
+                family: model.details.and_then(|details| details.family),
+                context_length: None,
+            })
+            .collect())
+    }
+
     /// 转换 API 模型格式为内部格式
     fn convert_api_model(
         &self,
@@ -1451,20 +1880,23 @@ impl ModelRegistryService {
         provider_id: &str,
         now: i64,
     ) -> EnhancedModelMetadata {
-        // 从 model id 推断显示名称
-        let display_name = model
-            .id
-            .split('/')
-            .next_back()
-            .unwrap_or(&model.id)
-            .to_string();
+        let display_name = model.display_name.unwrap_or_else(|| {
+            model
+                .id
+                .split('/')
+                .next_back()
+                .unwrap_or(&model.id)
+                .to_string()
+        });
 
         EnhancedModelMetadata {
             id: model.id.clone(),
             display_name,
             provider_id: provider_id.to_string(),
-            provider_name: model.owned_by.unwrap_or_else(|| provider_id.to_string()),
-            family: None,
+            provider_name: model
+                .provider_name
+                .unwrap_or_else(|| provider_id.to_string()),
+            family: model.family,
             tier: ModelTier::Pro,
             capabilities: ModelCapabilities {
                 vision: false,
@@ -1519,9 +1951,83 @@ struct ApiModelsResponse {
 struct ApiModelResponse {
     id: String,
     #[serde(default)]
-    owned_by: Option<String>,
+    display_name: Option<String>,
+    #[serde(default, alias = "owned_by")]
+    provider_name: Option<String>,
+    #[serde(default)]
+    family: Option<String>,
     #[serde(default)]
     context_length: Option<u32>,
+}
+
+#[derive(Debug)]
+struct AnthropicModelsResponse {
+    models: Vec<ApiModelResponse>,
+    has_more: bool,
+    last_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawAnthropicModelsResponse {
+    #[serde(default)]
+    data: Vec<RawAnthropicModelResponse>,
+    #[serde(default)]
+    has_more: bool,
+    #[serde(default)]
+    last_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawAnthropicModelResponse {
+    id: String,
+    #[serde(default)]
+    display_name: Option<String>,
+}
+
+#[derive(Debug)]
+struct GeminiModelsResponse {
+    models: Vec<ApiModelResponse>,
+    next_page_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawGeminiModelsResponse {
+    #[serde(default)]
+    models: Vec<RawGeminiModelResponse>,
+    #[serde(default)]
+    next_page_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawGeminiModelResponse {
+    name: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    input_token_limit: Option<u32>,
+    #[serde(default)]
+    supported_generation_methods: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OllamaModelsResponse {
+    #[serde(default)]
+    models: Vec<OllamaModelResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OllamaModelResponse {
+    name: String,
+    #[serde(default)]
+    details: Option<OllamaModelDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OllamaModelDetails {
+    #[serde(default)]
+    family: Option<String>,
 }
 
 /// 模型获取来源
@@ -1566,7 +2072,7 @@ pub struct FetchModelsResult {
 
 #[cfg(test)]
 mod tests {
-    use super::{HostAliasRule, ModelRegistryService};
+    use super::{HostAliasRule, ModelFetchProtocol, ModelRegistryService};
     use lime_core::database::dao::api_key_provider::ApiProviderType;
     use lime_core::database::DbConnection;
     use rusqlite::Connection;
@@ -1588,12 +2094,44 @@ mod tests {
             "https://open.bigmodel.cn/api/anthropic/v1/models"
         );
         assert_eq!(
+            ModelRegistryService::build_models_api_url("https://open.bigmodel.cn/api/paas/v4/"),
+            "https://open.bigmodel.cn/api/paas/v4/models"
+        );
+        assert_eq!(
             ModelRegistryService::build_models_api_url("https://ark.cn-beijing.volces.com/api/v3/"),
             "https://ark.cn-beijing.volces.com/api/v3/models"
         );
         assert_eq!(
             ModelRegistryService::build_models_api_url("https://example.com/proxy/api/v9"),
             "https://example.com/proxy/api/v9/models"
+        );
+    }
+
+    #[test]
+    fn test_build_gemini_models_api_url() {
+        assert_eq!(
+            ModelRegistryService::build_gemini_models_api_url(
+                "https://generativelanguage.googleapis.com"
+            ),
+            "https://generativelanguage.googleapis.com/v1beta/models"
+        );
+        assert_eq!(
+            ModelRegistryService::build_gemini_models_api_url(
+                "https://generativelanguage.googleapis.com/v1beta"
+            ),
+            "https://generativelanguage.googleapis.com/v1beta/models"
+        );
+    }
+
+    #[test]
+    fn test_build_ollama_models_api_url() {
+        assert_eq!(
+            ModelRegistryService::build_ollama_models_api_url("http://localhost:11434"),
+            "http://localhost:11434/api/tags"
+        );
+        assert_eq!(
+            ModelRegistryService::build_ollama_models_api_url("http://localhost:11434/api"),
+            "http://localhost:11434/api/tags"
         );
     }
 
@@ -1609,6 +2147,20 @@ mod tests {
         assert!(hint
             .unwrap()
             .contains("https://ark.cn-beijing.volces.com/api/v3"));
+    }
+
+    #[test]
+    fn test_build_models_api_hint_for_zhipu() {
+        let hint = ModelRegistryService::build_models_api_hint(
+            "zhipu",
+            "https://open.bigmodel.cn/api/paas/v4",
+            "https://open.bigmodel.cn/api/paas/v4/models",
+        );
+
+        assert!(hint.is_some());
+        assert!(hint
+            .unwrap()
+            .contains("https://open.bigmodel.cn/api/paas/v4"));
     }
 
     fn create_service_with_resource_dir(resource_dir: std::path::PathBuf) -> ModelRegistryService {
@@ -1709,5 +2261,119 @@ mod tests {
             ModelRegistryService::map_provider_type_to_registry_ids(ApiProviderType::Gemini),
             ["google"]
         );
+    }
+
+    #[test]
+    fn test_requires_api_key_for_model_fetch() {
+        assert!(ModelRegistryService::requires_api_key_for_model_fetch(
+            "openai",
+            "https://api.openai.com",
+            ApiProviderType::Openai
+        ));
+        assert!(!ModelRegistryService::requires_api_key_for_model_fetch(
+            "ollama",
+            "http://localhost:11434",
+            ApiProviderType::Ollama
+        ));
+        assert!(!ModelRegistryService::requires_api_key_for_model_fetch(
+            "lmstudio",
+            "http://127.0.0.1:1234/v1",
+            ApiProviderType::Openai
+        ));
+    }
+
+    #[test]
+    fn test_resolve_model_fetch_protocol() {
+        assert_eq!(
+            ModelRegistryService::resolve_model_fetch_protocol(
+                "google",
+                "https://generativelanguage.googleapis.com",
+                Some(ApiProviderType::Gemini)
+            ),
+            ModelFetchProtocol::Gemini
+        );
+        assert_eq!(
+            ModelRegistryService::resolve_model_fetch_protocol(
+                "anthropic",
+                "https://api.anthropic.com",
+                Some(ApiProviderType::Anthropic)
+            ),
+            ModelFetchProtocol::Anthropic
+        );
+        assert_eq!(
+            ModelRegistryService::resolve_model_fetch_protocol(
+                "azure-openai",
+                "https://example.openai.azure.com",
+                Some(ApiProviderType::AzureOpenai)
+            ),
+            ModelFetchProtocol::Unsupported
+        );
+    }
+
+    #[test]
+    fn test_parse_anthropic_models_response() {
+        let response = ModelRegistryService::parse_anthropic_models_response(
+            r#"{
+              "data": [
+                { "id": "claude-sonnet-4-5", "display_name": "Claude Sonnet 4.5" }
+              ],
+              "has_more": false,
+              "last_id": "claude-sonnet-4-5"
+            }"#,
+        )
+        .expect("parse anthropic response");
+
+        assert_eq!(response.models.len(), 1);
+        assert_eq!(response.models[0].id, "claude-sonnet-4-5");
+        assert_eq!(
+            response.models[0].display_name.as_deref(),
+            Some("Claude Sonnet 4.5")
+        );
+    }
+
+    #[test]
+    fn test_parse_gemini_models_response() {
+        let response = ModelRegistryService::parse_gemini_models_response(
+            r#"{
+              "models": [
+                {
+                  "name": "models/gemini-2.5-pro",
+                  "displayName": "Gemini 2.5 Pro",
+                  "inputTokenLimit": 1048576,
+                  "supportedGenerationMethods": ["generateContent"]
+                },
+                {
+                  "name": "models/text-embedding-004",
+                  "displayName": "Embedding",
+                  "supportedGenerationMethods": ["embedContent"]
+                }
+              ],
+              "nextPageToken": "next-page"
+            }"#,
+        )
+        .expect("parse gemini response");
+
+        assert_eq!(response.models.len(), 1);
+        assert_eq!(response.models[0].id, "gemini-2.5-pro");
+        assert_eq!(response.next_page_token.as_deref(), Some("next-page"));
+    }
+
+    #[test]
+    fn test_parse_ollama_models_response() {
+        let models = ModelRegistryService::parse_ollama_models_response(
+            r#"{
+              "models": [
+                {
+                  "name": "qwen3:14b",
+                  "details": { "family": "qwen3" }
+                }
+              ]
+            }"#,
+        )
+        .expect("parse ollama response");
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "qwen3:14b");
+        assert_eq!(models[0].family.as_deref(), Some("qwen3"));
     }
 }

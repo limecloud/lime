@@ -4,7 +4,9 @@
 
 mod agent_sessions;
 mod app_runtime;
+mod automation;
 mod browser;
+mod companion;
 mod content;
 mod logs;
 mod memory;
@@ -87,6 +89,14 @@ pub async fn handle_command(
     args: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     if let Some(result) = app_runtime::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = companion::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = automation::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
 

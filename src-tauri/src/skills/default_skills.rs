@@ -42,6 +42,7 @@ const SITE_SEARCH_SKILL_CONTENT: &str =
 const SITE_SEARCH_ADAPTER_CATALOG_CONTENT: &str =
     include_str!("../../resources/default-skills/site_search/references/adapter-catalog.md");
 
+#[cfg(test)]
 const BUNDLED_SITE_ADAPTER_INDEX_CONTENT: &str =
     include_str!("../../resources/site-adapters/bundled/index.json");
 

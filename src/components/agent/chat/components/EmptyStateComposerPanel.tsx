@@ -22,7 +22,6 @@ import { InputbarModelExtra } from "./Inputbar/components/InputbarModelExtra";
 import { SkillBadge } from "./Inputbar/components/SkillBadge";
 import { SkillSelector } from "./Inputbar/components/SkillSelector";
 import { TeamSelector } from "./Inputbar/components/TeamSelector";
-import { StableProcessingNotice } from "./StableProcessingNotice";
 import type { WorkspaceSettings } from "@/types/workspace";
 import { CREATION_MODE_CONFIG } from "./constants";
 import type {
@@ -47,7 +46,6 @@ import {
 } from "./emptyStateSurfaceTokens";
 import type { ModelSelectorProps } from "@/components/input-kit";
 import { getTeamSuggestion } from "../utils/teamSuggestion";
-import { useStableProcessingNotice } from "../hooks/useStableProcessingNotice";
 import {
   buildSkillSelectionBindings,
   type SkillSelectionProps,
@@ -247,10 +245,6 @@ export function EmptyStateComposerPanel({
   const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
     number | null
   >(null);
-  const shouldShowStableNotice = useStableProcessingNotice({
-    providerType,
-    model,
-  });
   const activeSkill = skillSelection.activeSkill ?? null;
   const clearActiveSkill = skillSelection.onClearSkill;
   const { mentionProps: mentionSkillProps, selectorProps: skillSelectorProps } =
@@ -315,8 +309,7 @@ export function EmptyStateComposerPanel({
   const topExtra =
     isEntryTheme ||
     Boolean(activeSkill) ||
-    shouldShowTeamSuggestion ||
-    shouldShowStableNotice ? (
+    shouldShowTeamSuggestion ? (
       <>
         {isEntryTheme ? (
           <EntryTaskContainer>
@@ -386,14 +379,6 @@ export function EmptyStateComposerPanel({
             suggestedPresetLabel={teamSuggestion.suggestedPresetLabel}
             onEnableTeam={handleEnableTeamSuggestion}
             onContinueSingleAgent={handleContinueSingleAgent}
-          />
-        ) : null}
-
-        {shouldShowStableNotice ? (
-          <StableProcessingNotice
-            scope={subagentEnabled ? "team" : "request"}
-            className="mx-3 mb-2"
-            testId="empty-state-stable-processing-notice"
           />
         ) : null}
       </>

@@ -17,8 +17,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { WorkspaceSettings } from "@/types/workspace";
 import { toast } from "sonner";
-import { StableProcessingNotice } from "../../StableProcessingNotice";
-import { useStableProcessingNotice } from "../../../hooks/useStableProcessingNotice";
 import {
   BUILTIN_TEAM_PROFILE_OPTIONS,
   BUILTIN_TEAM_SKILL_OPTIONS,
@@ -301,8 +299,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
   activeTheme,
   input,
   workspaceId: _workspaceId,
-  providerType,
-  model,
+  providerType: _providerType,
+  model: _model,
   executionStrategy: _executionStrategy,
   selectedTeam = null,
   onSelectTeam,
@@ -317,10 +315,6 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
   const isProjectScopedCustomTeam = Boolean(
     workspaceSettings && onPersistCustomTeams,
   );
-  const shouldShowStableNotice = useStableProcessingNotice({
-    providerType,
-    model,
-  });
 
   useEffect(() => {
     setCustomTeams(resolveCustomTeams(workspaceSettings));
@@ -1032,13 +1026,6 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             </button>
           ) : null}
         </div>
-        {shouldShowStableNotice ? (
-          <StableProcessingNotice
-            scope="team"
-            className="mt-3"
-            testId="team-selector-stable-processing-notice"
-          />
-        ) : null}
         {selectedTeam ? (
           <div
             className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"

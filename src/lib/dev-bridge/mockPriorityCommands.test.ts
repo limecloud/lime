@@ -8,6 +8,9 @@ describe("mockPriorityCommands", () => {
       shouldPreferMockInBrowser("execution_run_get_theme_workbench_state"),
     ).toBe(true);
     expect(shouldPreferMockInBrowser("get_hint_routes")).toBe(true);
+    expect(shouldPreferMockInBrowser("agent_runtime_get_tool_inventory")).toBe(
+      false,
+    );
     expect(shouldPreferMockInBrowser("content_workflow_get_by_content")).toBe(
       false,
     );

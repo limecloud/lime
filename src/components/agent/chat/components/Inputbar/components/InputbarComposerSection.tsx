@@ -16,11 +16,9 @@ import { InputbarModelExtra } from "./InputbarModelExtra";
 import { InputbarVisionCapabilityNotice } from "./InputbarVisionCapabilityNotice";
 import { InputbarExecutionStrategySelect } from "./InputbarExecutionStrategySelect";
 import { InputbarAccessModeSelect } from "./InputbarAccessModeSelect";
-import { StableProcessingNotice } from "../../StableProcessingNotice";
 import { isGeneralResearchTheme } from "../../../utils/generalAgentPrompt";
 import type { TeamDefinition } from "../../../utils/teamDefinitions";
 import type { WorkspaceSettings } from "@/types/workspace";
-import { useStableProcessingNotice } from "../../../hooks/useStableProcessingNotice";
 import {
   buildSkillSelectionBindings,
   type SkillSelectionProps,
@@ -130,27 +128,14 @@ export const InputbarComposerSection: React.FC<
     buildSkillSelectionBindings(skillSelection);
   const resolvedProviderType = inputAdapter.model?.providerType;
   const resolvedModel = inputAdapter.model?.model;
-  const shouldShowStableNotice = useStableProcessingNotice({
-    providerType: resolvedProviderType,
-    model: resolvedModel,
-  });
-  const showStableNotice =
-    !isThemeWorkbenchVariant && shouldShowStableNotice;
   const shouldShowVisionNotice =
     currentPendingImages.length > 0 &&
     Boolean(resolvedProviderType?.trim()) &&
     Boolean(resolvedModel?.trim());
   const resolvedTopExtra =
-    topExtra || showStableNotice || shouldShowVisionNotice ? (
+    topExtra || shouldShowVisionNotice ? (
       <>
         {topExtra}
-        {showStableNotice ? (
-          <StableProcessingNotice
-            scope={activeTools["subagent_mode"] ? "team" : "request"}
-            className="mx-3 mb-2"
-            testId="inputbar-stable-processing-notice"
-          />
-        ) : null}
         {shouldShowVisionNotice ? (
           <InputbarVisionCapabilityNotice
             providerType={resolvedProviderType}

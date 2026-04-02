@@ -108,7 +108,8 @@ function ApiKeySection() {
 
 2. **应用后端层（Lime Tauri）**
    - `get_system_provider_catalog` 作为 Provider 元信息入口（含 `legacy_ids`）；
-   - `get_model_registry_provider_ids` 从 `src-tauri/resources/models/index.json` 提供模型 Provider 真相集。
+   - `get_model_registry_provider_ids` 从 `src-tauri/resources/models/index.json` 提供模型 Provider 真相集；
+   - 真相源读取失败时直接报错，不再静默回退数据库。
 
 3. **应用前端层（UI）**
    - `ProviderModelList` 先用 Catalog 归一 provider，再用模型 Provider 真相集校验；

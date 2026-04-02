@@ -2604,6 +2604,8 @@ mod tests {
         let customization = build_subagent_customization_state(&AgentRuntimeSpawnSubagentRequest {
             parent_session_id: "parent-1".to_string(),
             message: "定位当前 team runtime 差异".to_string(),
+            name: None,
+            team_name: None,
             agent_type: Some("Image #1".to_string()),
             model: None,
             reasoning_effort: None,
@@ -2619,6 +2621,7 @@ mod tests {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            cwd: None,
         })
         .expect("build customization state")
         .expect("customization should exist");

@@ -133,7 +133,10 @@ describe("resolveClawWorkspaceProviderSelection", () => {
 
   it("本地注册表无模型时应回退到后端 provider API 结果", async () => {
     mockLoadConfiguredProviders.mockResolvedValueOnce([
-      createProvider(),
+      createProvider({
+        providerId: "managed-social-provider",
+        apiHost: "https://api.example.com/v1",
+      }),
     ]);
     mockFetchProviderModelsAuto.mockResolvedValueOnce({
       models: [
@@ -157,7 +160,7 @@ describe("resolveClawWorkspaceProviderSelection", () => {
       model: "social-model-api",
     });
     expect(mockFetchProviderModelsAuto).toHaveBeenCalledWith(
-      "custom-social-provider",
+      "managed-social-provider",
     );
   });
 });

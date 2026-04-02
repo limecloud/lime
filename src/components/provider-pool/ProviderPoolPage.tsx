@@ -349,14 +349,15 @@ export const ProviderPoolPage = forwardRef<
   const currentCredentials = currentPool?.credentials || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {!hideHeader && (
-        <div className="flex items-center justify-between">
+        <div className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
           <div>
-            <h2 className="text-2xl font-bold">凭证池</h2>
-            <p className="text-muted-foreground text-sm">
-              管理多个 AI 服务凭证，自动轮询负载均衡，并为本机默认 Provider
-              提供稳定的凭证来源
+            <h2 className="text-xl font-semibold text-slate-900">
+              Provider 与凭证
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              默认先管理 API Key Provider。OAuth、语音和中转服务保留在同一入口，但不再和日常 Provider 配置抢同一视觉焦点。
             </p>
           </div>
         </div>
@@ -369,42 +370,42 @@ export const ProviderPoolPage = forwardRef<
       )}
 
       {/* Category Tabs - 第一行：分类选择 */}
-      <div className="flex gap-1 mb-2">
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={() => {
             setActiveCategory("apikey");
           }}
-          className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+          className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
             activeCategory === "apikey"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
+              ? "border-slate-300 bg-white text-slate-950 shadow-sm"
+              : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
           }`}
           data-testid="apikey-category-tab"
         >
-          API Key
+          服务商
         </button>
         <button
           onClick={() => {
             setActiveCategory("connect");
             setActiveTab("connect");
           }}
-          className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+          className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
             activeCategory === "connect"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
+              ? "border-slate-300 bg-white text-slate-950 shadow-sm"
+              : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
           }`}
           data-testid="connect-category-tab"
         >
-          Connect
+          中转服务
         </button>
         <button
           onClick={() => {
             setActiveCategory("voice");
           }}
-          className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+          className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
             activeCategory === "voice"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
+              ? "border-slate-300 bg-white text-slate-950 shadow-sm"
+              : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
           }`}
           data-testid="voice-category-tab"
         >
@@ -415,10 +416,10 @@ export const ProviderPoolPage = forwardRef<
             setActiveCategory("oauth");
             setActiveTab(oauthProviderTypes[0]);
           }}
-          className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+          className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
             activeCategory === "oauth"
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
+              ? "border-slate-300 bg-white text-slate-950 shadow-sm"
+              : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
           }`}
           data-testid="oauth-category-tab"
         >
@@ -435,12 +436,12 @@ export const ProviderPoolPage = forwardRef<
             return (
               <button
                 key={providerType}
-                onClick={() => setActiveTab(providerType)}
-                title={providerLabels[providerType]}
-                className={`group relative flex items-center justify-center gap-2 min-w-[120px] px-3 py-2 rounded-lg border transition-all ${
+              onClick={() => setActiveTab(providerType)}
+              title={providerLabels[providerType]}
+                className={`group relative flex min-w-[120px] items-center justify-center gap-2 rounded-xl border px-3 py-2 transition-all ${
                   isActive
-                    ? "border-primary bg-primary/10 text-primary shadow-sm"
-                    : "border-border bg-card hover:border-primary/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+                    ? "border-slate-300 bg-white text-slate-950 shadow-sm"
+                    : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
                 }`}
                 data-testid={`oauth-provider-${providerType}`}
               >
@@ -476,7 +477,7 @@ export const ProviderPoolPage = forwardRef<
       {/* API Key 分类 - 左右分栏布局 */}
       {activeCategory === "apikey" && (
         <div
-          className="h-[calc(100vh-280px)] min-h-[400px]"
+          className="h-[calc(100vh-240px)] min-h-[620px]"
           data-testid="apikey-section"
         >
           <ApiKeyProviderSection

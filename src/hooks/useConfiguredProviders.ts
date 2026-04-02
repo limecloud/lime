@@ -40,6 +40,8 @@ export interface ConfiguredProvider {
   credentialType?: string;
   /** Provider ID（用于 API Key Provider） */
   providerId?: string;
+  /** Provider API Host */
+  apiHost?: string;
   /** 自定义模型列表（用于 API Key Provider） */
   customModels?: string[];
 }
@@ -57,6 +59,29 @@ export interface UseConfiguredProvidersOptions {
 
 interface LoadConfiguredProvidersOptions {
   forceRefresh?: boolean;
+}
+
+function normalizeProviderType(value?: string | null): string {
+  return (value || "").trim().toLowerCase();
+}
+
+function hasConfiguredKeylessAccess(
+  provider: ProviderWithKeysDisplay,
+): boolean {
+  return (
+    normalizeProviderType(provider.type) === "ollama" &&
+    provider.enabled &&
+    provider.api_host.trim().length > 0
+  );
+}
+
+function isConfiguredApiKeyProvider(
+  provider: ProviderWithKeysDisplay,
+): boolean {
+  return provider.enabled && (
+    provider.api_key_count > 0 ||
+    hasConfiguredKeylessAccess(provider)
+  );
 }
 
 export function buildConfiguredProviders(
@@ -90,7 +115,7 @@ export function buildConfiguredProviders(
   });
 
   safeApiKeyProviders
-    .filter((p) => p.api_key_count > 0 && p.enabled)
+    .filter(isConfiguredApiKeyProvider)
     .forEach((provider) => {
       let key = provider.id;
       let label = provider.name;
@@ -109,6 +134,7 @@ export function buildConfiguredProviders(
           type: provider.type,
           credentialType: `${provider.type}_key`,
           providerId: provider.id,
+          apiHost: provider.api_host,
           customModels: provider.custom_models,
         });
       }

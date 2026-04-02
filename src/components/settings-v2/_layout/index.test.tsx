@@ -92,9 +92,6 @@ vi.mock("../system/web-search", () => ({
 vi.mock("../system/chrome-relay", () => ({
   ChromeRelaySettings: () => <div>chrome-relay</div>,
 }));
-vi.mock("../features/SettingHeader", () => ({
-  SettingHeader: ({ title }: { title: string }) => <div>{title}</div>,
-}));
 vi.mock("../home", () => ({
   SettingsHomePage: () => <div>home</div>,
 }));
@@ -171,26 +168,26 @@ afterEach(() => {
 });
 
 describe("SettingsLayoutV2 Profile Tab", () => {
-  it("OEM 运行时下只展示统一账户页，不再渲染本地资料编辑器", async () => {
+  it("OEM 运行时下只展示统一账户页，不再渲染本地资料编辑器，也不再注入壳层标题", async () => {
     const container = renderComponent(SettingsTabs.Profile);
     await flushEffects();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("账号与资料");
     expect(text).toContain("USER_CENTER_SESSION");
     expect(text).not.toContain("PROFILE_SETTINGS");
+    expect(text).not.toContain("账号与资料");
   });
 
-  it("非 OEM 运行时下仍保留本地资料编辑器", async () => {
+  it("非 OEM 运行时下仍保留本地资料编辑器，但不再显示重复页头", async () => {
     mockResolveOemCloudRuntimeContext.mockReturnValue(null);
 
     const container = renderComponent(SettingsTabs.Profile);
     await flushEffects();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("个人资料");
     expect(text).toContain("USER_CENTER_SESSION");
     expect(text).toContain("PROFILE_SETTINGS");
+    expect(text).not.toContain("个人资料");
   });
 });
 
@@ -206,24 +203,33 @@ describe("SettingsLayoutV2 Channels Redirect", () => {
 });
 
 describe("SettingsLayoutV2 Experimental Tab", () => {
-  it("实验功能页应复用标准设置页标题", async () => {
+  it("实验功能页应直接展示内容，不再复用壳层设置页标题", async () => {
     const container = renderComponent(SettingsTabs.Experimental);
     await flushEffects();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("实验功能");
     expect(text).toContain("experimental");
+    expect(text).not.toContain("实验功能");
   });
 });
 
 describe("SettingsLayoutV2 Developer Tab", () => {
-  it("开发者页应复用标准设置页标题", async () => {
+  it("开发者页应直接展示内容，不再复用壳层设置页标题", async () => {
     const container = renderComponent(SettingsTabs.Developer);
     await flushEffects();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("开发者");
     expect(text).toContain("developer");
+    expect(text).not.toContain("开发者");
+  });
+
+  it("设置内容区应挂载统一氛围层，避免页面背景过于单调", async () => {
+    const container = renderComponent(SettingsTabs.Providers);
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="settings-content-atmosphere"]'),
+    ).not.toBeNull();
   });
 
   it("预取开发者页时应连同延迟区块一起预热", async () => {

@@ -3,6 +3,7 @@
  */
 
 import type { AutomationJobRecord } from "../api/automation";
+import type { CompanionPetStatus } from "../api/companion";
 import type { AgentRun } from "../api/executionRun";
 
 import {
@@ -1202,8 +1203,354 @@ function buildMockClawSolutionPrompt(
   return `${basePrompt}\n\n补充上下文：${userInput}`;
 }
 
+function buildMockAgentRuntimeToolInventory(request?: {
+  caller?: string;
+  workbench?: boolean;
+  browserAssist?: boolean;
+}) {
+  const caller = request?.caller?.trim() || "assistant";
+  const surface = {
+    workbench: request?.workbench === true,
+    browser_assist: request?.browserAssist === true,
+  };
+
+  const catalogTools = [
+    {
+      name: "ToolSearch",
+      profiles: ["core"],
+      capabilities: ["web_search"],
+      lifecycle: "current",
+      source: "lime_injected",
+      permission_plane: "session_allowlist",
+      workspace_default_allow: true,
+      execution_warning_policy: "none",
+      execution_warning_policy_source: "default",
+      execution_restriction_profile: "none",
+      execution_restriction_profile_source: "default",
+      execution_sandbox_profile: "none",
+      execution_sandbox_profile_source: "default",
+    },
+    {
+      name: "WebSearch",
+      profiles: ["core"],
+      capabilities: ["web_search"],
+      lifecycle: "current",
+      source: "aster_builtin",
+      permission_plane: "session_allowlist",
+      workspace_default_allow: true,
+      execution_warning_policy: "none",
+      execution_warning_policy_source: "default",
+      execution_restriction_profile: "safe_https_url_required",
+      execution_restriction_profile_source: "default",
+      execution_sandbox_profile: "none",
+      execution_sandbox_profile_source: "default",
+    },
+    {
+      name: "ask",
+      profiles: ["core"],
+      capabilities: ["planning"],
+      lifecycle: "current",
+      source: "aster_builtin",
+      permission_plane: "session_allowlist",
+      workspace_default_allow: true,
+      execution_warning_policy: "none",
+      execution_warning_policy_source: "default",
+      execution_restriction_profile: "none",
+      execution_restriction_profile_source: "default",
+      execution_sandbox_profile: "none",
+      execution_sandbox_profile_source: "default",
+    },
+    {
+      name: "spawn_agent",
+      profiles: ["core"],
+      capabilities: ["delegation"],
+      lifecycle: "current",
+      source: "lime_injected",
+      permission_plane: "session_allowlist",
+      workspace_default_allow: true,
+      execution_warning_policy: "none",
+      execution_warning_policy_source: "default",
+      execution_restriction_profile: "none",
+      execution_restriction_profile_source: "default",
+      execution_sandbox_profile: "none",
+      execution_sandbox_profile_source: "default",
+    },
+  ];
+
+  const registryTools = [
+    {
+      name: "ToolSearch",
+      description: "搜索当前会话可用工具与能力清单。",
+      catalog_entry_name: "ToolSearch",
+      catalog_source: "lime_injected",
+      catalog_lifecycle: "current",
+      catalog_permission_plane: "session_allowlist",
+      catalog_workspace_default_allow: true,
+      catalog_execution_warning_policy: "none",
+      catalog_execution_warning_policy_source: "default",
+      catalog_execution_restriction_profile: "none",
+      catalog_execution_restriction_profile_source: "default",
+      catalog_execution_sandbox_profile: "none",
+      catalog_execution_sandbox_profile_source: "default",
+      deferred_loading: false,
+      always_visible: true,
+      allowed_callers: [caller],
+      tags: ["search"],
+      input_examples_count: 1,
+      caller_allowed: true,
+      visible_in_context: true,
+    },
+    {
+      name: "WebSearch",
+      description: "联网检索公开网页信息。",
+      catalog_entry_name: "WebSearch",
+      catalog_source: "aster_builtin",
+      catalog_lifecycle: "current",
+      catalog_permission_plane: "session_allowlist",
+      catalog_workspace_default_allow: true,
+      catalog_execution_warning_policy: "none",
+      catalog_execution_warning_policy_source: "default",
+      catalog_execution_restriction_profile: "safe_https_url_required",
+      catalog_execution_restriction_profile_source: "default",
+      catalog_execution_sandbox_profile: "none",
+      catalog_execution_sandbox_profile_source: "default",
+      deferred_loading: false,
+      always_visible: true,
+      allowed_callers: [caller],
+      tags: ["research"],
+      input_examples_count: 2,
+      caller_allowed: true,
+      visible_in_context: true,
+    },
+    {
+      name: "ask",
+      description: "向用户发起单轮最小必要澄清。",
+      catalog_entry_name: "ask",
+      catalog_source: "aster_builtin",
+      catalog_lifecycle: "current",
+      catalog_permission_plane: "session_allowlist",
+      catalog_workspace_default_allow: true,
+      catalog_execution_warning_policy: "none",
+      catalog_execution_warning_policy_source: "default",
+      catalog_execution_restriction_profile: "none",
+      catalog_execution_restriction_profile_source: "default",
+      catalog_execution_sandbox_profile: "none",
+      catalog_execution_sandbox_profile_source: "default",
+      deferred_loading: false,
+      always_visible: true,
+      allowed_callers: [caller],
+      tags: ["clarify"],
+      input_examples_count: 1,
+      caller_allowed: true,
+      visible_in_context: true,
+    },
+    {
+      name: "spawn_agent",
+      description: "在需要并行处理时派生子代理。",
+      catalog_entry_name: "spawn_agent",
+      catalog_source: "lime_injected",
+      catalog_lifecycle: "current",
+      catalog_permission_plane: "session_allowlist",
+      catalog_workspace_default_allow: true,
+      catalog_execution_warning_policy: "none",
+      catalog_execution_warning_policy_source: "default",
+      catalog_execution_restriction_profile: "none",
+      catalog_execution_restriction_profile_source: "default",
+      catalog_execution_sandbox_profile: "none",
+      catalog_execution_sandbox_profile_source: "default",
+      deferred_loading: false,
+      always_visible: true,
+      allowed_callers: [caller],
+      tags: ["delegation"],
+      input_examples_count: 1,
+      caller_allowed: true,
+      visible_in_context: true,
+    },
+  ];
+
+  const extensionSurfaces = surface.browser_assist
+    ? [
+        {
+          extension_name: "lime-browser",
+          description: "浏览器协助桥接工具集。",
+          source_kind: "mcp_bridge",
+          deferred_loading: false,
+          allowed_caller: caller,
+          available_tools: ["mcp__lime-browser__navigate"],
+          always_expose_tools: ["mcp__lime-browser__navigate"],
+          loaded_tools: ["mcp__lime-browser__navigate"],
+          searchable_tools: ["mcp__lime-browser__navigate"],
+        },
+      ]
+    : [];
+  const extensionTools = surface.browser_assist
+    ? [
+        {
+          name: "mcp__lime-browser__navigate",
+          description: "导航到目标网页。",
+          extension_name: "lime-browser",
+          source_kind: "mcp_bridge",
+          deferred_loading: false,
+          allowed_caller: caller,
+          status: "loaded",
+          caller_allowed: true,
+          visible_in_context: true,
+        },
+      ]
+    : [];
+  const mcpTools = surface.browser_assist
+    ? [
+        {
+          server_name: "lime-browser",
+          name: "mcp__lime-browser__navigate",
+          description: "导航到目标网页。",
+          deferred_loading: false,
+          always_visible: true,
+          allowed_callers: [caller],
+          tags: ["browser"],
+          input_examples_count: 1,
+          caller_allowed: true,
+          visible_in_context: true,
+        },
+      ]
+    : [];
+
+  const defaultAllowedTools = registryTools
+    .filter((entry) => entry.catalog_workspace_default_allow)
+    .map((entry) => entry.name);
+
+  return {
+    request: {
+      caller,
+      surface,
+    },
+    agent_initialized: false,
+    warnings: [
+      "当前展示的是浏览器 fallback mock 工具库存；如需完整运行时状态，请保持 DevBridge 后端在线。",
+    ],
+    mcp_servers: surface.browser_assist ? ["lime-browser"] : [],
+    default_allowed_tools: defaultAllowedTools,
+    counts: {
+      catalog_total: catalogTools.length,
+      catalog_current_total: catalogTools.length,
+      catalog_compat_total: 0,
+      catalog_deprecated_total: 0,
+      default_allowed_total: defaultAllowedTools.length,
+      registry_total: registryTools.length,
+      registry_visible_total: registryTools.filter(
+        (entry) => entry.visible_in_context,
+      ).length,
+      registry_catalog_unmapped_total: 0,
+      extension_surface_total: extensionSurfaces.length,
+      extension_mcp_bridge_total: extensionSurfaces.length,
+      extension_runtime_total: 0,
+      extension_tool_total: extensionTools.length,
+      extension_tool_visible_total: extensionTools.filter(
+        (entry) => entry.visible_in_context,
+      ).length,
+      mcp_server_total: surface.browser_assist ? 1 : 0,
+      mcp_tool_total: mcpTools.length,
+      mcp_tool_visible_total: mcpTools.filter(
+        (entry) => entry.visible_in_context,
+      ).length,
+    },
+    catalog_tools: catalogTools,
+    registry_tools: registryTools,
+    extension_surfaces: extensionSurfaces,
+    extension_tools: extensionTools,
+    mcp_tools: mcpTools,
+  };
+}
+
+function createDefaultCompanionPetStatus(): CompanionPetStatus {
+  return {
+    endpoint: "ws://127.0.0.1:45554/companion/pet",
+    server_listening: true,
+    connected: false,
+    client_id: null,
+    platform: null,
+    capabilities: [] as string[],
+    last_event: null,
+    last_error: null,
+    last_state: null as
+      | "hidden"
+      | "idle"
+      | "walking"
+      | "thinking"
+      | "done"
+      | null,
+  };
+}
+
+let mockCompanionPetStatus = createDefaultCompanionPetStatus();
+
 // 默认 mock 数据
 const defaultMocks: Record<string, any> = {
+  companion_get_pet_status: () => ({
+    ...mockCompanionPetStatus,
+    capabilities: [...mockCompanionPetStatus.capabilities],
+  }),
+  companion_launch_pet: (args?: Record<string, unknown>) => {
+    const request =
+      (args?.request as Record<string, unknown> | undefined) ?? args ?? {};
+    const endpoint =
+      typeof request.endpoint === "string" && request.endpoint.trim()
+        ? request.endpoint
+        : mockCompanionPetStatus.endpoint;
+
+    mockCompanionPetStatus = {
+      ...mockCompanionPetStatus,
+      endpoint,
+      server_listening: true,
+      last_event: "pet.launch_requested",
+      last_error: null,
+    };
+
+    return {
+      launched: true,
+      resolved_path:
+        typeof request.app_path === "string" ? request.app_path : null,
+      endpoint,
+      message: null,
+    };
+  },
+  companion_send_pet_command: (args?: Record<string, unknown>) => {
+    const request =
+      (args?.request as Record<string, unknown> | undefined) ?? args ?? {};
+    const event =
+      typeof request.event === "string" ? request.event : "pet.show_bubble";
+    const payload =
+      (request.payload as Record<string, unknown> | undefined) ?? {};
+
+    let lastState = mockCompanionPetStatus.last_state;
+    if (event === "pet.hide") {
+      lastState = "hidden";
+    } else if (event === "pet.show") {
+      lastState = "walking";
+    } else if (
+      event === "pet.state_changed" &&
+      typeof payload.state === "string"
+    ) {
+      lastState = payload.state as
+        | "hidden"
+        | "idle"
+        | "walking"
+        | "thinking"
+        | "done";
+    }
+
+    mockCompanionPetStatus = {
+      ...mockCompanionPetStatus,
+      last_event: event,
+      last_error: null,
+      last_state: lastState,
+    };
+
+    return {
+      delivered: true,
+      connected: mockCompanionPetStatus.connected,
+    };
+  },
   // 配置相关
   get_config: () => ({
     server: {
@@ -2795,39 +3142,13 @@ const defaultMocks: Record<string, any> = {
       },
     ],
   }),
-  agent_runtime_get_tool_inventory: () => ({
-    request: {
-      caller: "assistant",
-      surface: { workbench: false, browser_assist: false },
-    },
-    agent_initialized: false,
-    warnings: [],
-    mcp_servers: [],
-    default_allowed_tools: ["ToolSearch"],
-    counts: {
-      catalog_total: 0,
-      catalog_current_total: 0,
-      catalog_compat_total: 0,
-      catalog_deprecated_total: 0,
-      default_allowed_total: 1,
-      registry_total: 0,
-      registry_visible_total: 0,
-      registry_catalog_unmapped_total: 0,
-      extension_surface_total: 0,
-      extension_mcp_bridge_total: 0,
-      extension_runtime_total: 0,
-      extension_tool_total: 0,
-      extension_tool_visible_total: 0,
-      mcp_server_total: 0,
-      mcp_tool_total: 0,
-      mcp_tool_visible_total: 0,
-    },
-    catalog_tools: [],
-    registry_tools: [],
-    extension_surfaces: [],
-    extension_tools: [],
-    mcp_tools: [],
-  }),
+  agent_runtime_get_tool_inventory: (args?: {
+    request?: {
+      caller?: string;
+      workbench?: boolean;
+      browserAssist?: boolean;
+    };
+  }) => buildMockAgentRuntimeToolInventory(args?.request),
   agent_runtime_spawn_subagent: () => ({
     agent_id: "mock-subagent-session",
     nickname: "Mock Subagent",
@@ -2861,7 +3182,6 @@ const defaultMocks: Record<string, any> = {
   terminal_close: () => ({}),
   read_terminal_output: () => [],
   list_terminal_sessions: () => [],
-
   // 技能相关
   get_all_skills: () => [],
   get_skills_for_app: () => [],
@@ -3231,7 +3551,16 @@ const defaultMocks: Record<string, any> = {
 
   // 模型相关
   get_model_registry: () => [],
-  get_model_registry_provider_ids: () => [],
+  get_model_registry_provider_ids: () => [
+    "openai",
+    "anthropic",
+    "google",
+    "codex",
+    "azure",
+    "google-vertex",
+    "amazon-bedrock",
+    "ollama-cloud",
+  ],
   refresh_model_registry: () => ({ success: true }),
   search_models: () => [],
   get_all_provider_models: () => ({}),

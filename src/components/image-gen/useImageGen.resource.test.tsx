@@ -46,6 +46,10 @@ vi.mock("@/lib/api/apiKeyProvider", () => ({
   },
 }));
 
+vi.mock("@/lib/dev-bridge", () => ({
+  safeInvoke: mockInvoke,
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
 }));

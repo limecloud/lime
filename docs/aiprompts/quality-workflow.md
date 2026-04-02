@@ -72,6 +72,8 @@
 
 如果本轮是在清退旧图库素材命名，`create_poster_metadata` / `get_poster_metadata` / `get_poster_material` / `update_poster_metadata` / `delete_poster_metadata` / `list_by_*`，以及 `PosterMaterial*` / `poster_material_*` 表名与模块名也必须同步从前端网关、Rust 注册、DAO 与治理目录册中撤掉；如需保留历史数据，只允许在 schema 迁移中短暂停留旧表名。最低校验至少包含 `npm run test:contracts` 与 `npm run governance:legacy-report`。
 
+如果本轮涉及 `companion_*` 桌宠命令族，还要同步检查本地 companion `WebSocket` 入口、前端 `src/lib/api/companion.ts` 网关、Rust 注册、治理目录册以及浏览器模式 mock 返回形态；浏览器模式下这组命令默认也要保持可 mock，不要让桌宠接入把默认页面渲染链路卡死。
+
 ### 3. 用户可见 UI 改动必须补稳定回归
 
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言
@@ -176,16 +178,25 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改 `src/lib/api/document-export.ts`、`save_exported_document`，或把新的 GUI 导出入口接到本地文件保存主链
 - 修改 `agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy`
 - 修改 `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow`
+- 修改 `agent_runtime_spawn_subagent` 的 `name / teamName / cwd`、spawn 后 Team 成员写回，或 child `working_dir` / 父子上下文投影语义
 - 修改 `agent_runtime_update_session` 或会话 provider/model / recent_access_mode / recent_preferences / recent_team_selection 恢复语义
 - 修改 `execution_runtime.recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id` 恢复语义，或前端 `harness.access_mode / harness.theme / harness.session_mode / harness.gate_key / harness.run_title / harness.content_id` steady-state 去重逻辑
 - 修改首页 / 工作区进入 `Claw` 时的首条自动发送上下文，例如 `initialUserPrompt`、`initialAutoSendRequestMetadata`、`harness.service_skill_launch`
 - 修改 `site_*` 站点适配器命令族，例如 `site_recommend_adapters`、`site_get_adapter_launch_readiness`、`site_import_adapter_yaml_bundle`、`site_run_adapter`
+- 修改 `companion_get_pet_status`、`companion_launch_pet`、`companion_send_pet_command`，或调整 Lime 与独立桌宠之间的本地 companion 协议
+- 修改自动化设置命令族，例如 `get_automation_jobs`、`create_automation_job`、`update_automation_job`、`get_automation_health` 或 `get_automation_run_history`，尤其是它们在浏览器模式 DevBridge 与 mock 间的分流
 - 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
 - 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器、浏览器动作配置、扩展安装状态、打开 Chrome 扩展 / 远程调试页，或主动断开扩展连接
+- 修改 `get_model_registry_provider_ids`、Provider 模型映射或 `src-tauri/resources/models/index.json` 真相源读取语义
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
 - 修改 `src-tauri/src/dev_bridge/`
+
+如果本轮修改了 Provider 模型真相源或设置页中的“支持的模型”展示逻辑，还应额外确认：
+
+- 资源索引损坏时，GUI 会明确提示“模型真相源异常”
+- 不会再静默回退数据库或把错误伪装成空模型列表
 
 ### Layer 4：交互型 E2E
 
@@ -233,6 +244,10 @@ npm run bridge:health -- --timeout-ms 120000
 - 如果这次改动影响 `harness.team_memory_shadow` 这类 repo-scoped Team 协作上下文，除了契约检查之外，还应补：
   - 前端发送边界回归，确认 `team_memory_shadow` 能随当前请求进入 `agent_runtime_submit_turn`
   - Rust `prompt_context` 定向测试，确认 shadow 只作为低优先级协作参考，不覆盖显式 `selected_team_*` 或 `recent_team_selection`
+- 如果这次改动影响 `agent_runtime_spawn_subagent` 的 current request surface，除了契约检查之外，还应补：
+  - Rust 定向测试，确认显式 `name` 会覆盖 child session 展示名 / role hint 的 fallback
+  - Rust 或前端回归，确认 `teamName` 必须与 `name` 搭配，并且只在现有 Team 上下文内写回成员关系
+  - 定向验证，确认绝对 `cwd` 会投影到 child `working_dir`，相对路径会在边界被拒绝
 - 如果这次改动把 `accessMode` steady-state 从“只写 harness metadata”收敛到正式 turn context 与 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - turn 提交始终携带正式 `approval_policy / sandbox_policy`
   - session 已有 `execution_runtime.recent_access_mode` 时，切换话题会恢复对应 accessMode，而不是回退到工作区默认值

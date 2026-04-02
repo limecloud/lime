@@ -26,6 +26,8 @@
 - 浏览器模式默认首页从 `http://127.0.0.1:1420/` 进入
 - 能走真实后端就走真实后端；浏览器模式暂不支持或尚未桥接的能力，允许走 mock
 - `verify:gui-smoke` 内部的 browser runtime 校验默认走无界面浏览器会话；它只证明主链可启动，不替代后续真实页面交互验证
+- `lime-pet` 原生桌宠属于独立仓库与原生窗口壳，不纳入当前 WebView Playwright 的直接操控范围；在 Lime 主仓里只验证 `companion_*` API、状态事件与主窗口唤起链路，桌宠窗口移动、点击命中与原生层动画仍需额外手工 smoke
+- 如果 companion 协议新增了 provider 摘要或桌宠回跳设置等事件，Playwright 续测只覆盖 Lime 主仓内的“状态事件是否触发”“是否跳到 `设置 -> AI 服务商`”和“主窗口是否被唤起”，不在 WebView 层尝试直接操控原生桌宠 UI
 - 共享网关控制页已下线，托盘也不再展示网关状态或地址；共享网关 `/v1/routes` 与 selector HTTP 路由也已下线，不再对“启动/停止网关、复制网关地址、路由/curl 示例、selector 路由、托盘运行态文案”做 GUI 续测；server 验证只关注标准 `/v1/messages` 与 `/v1/chat/completions` 主链，如需看运行时状态，走开发者页或实验页的诊断面板
 - 项目排版模板与品牌人设扩展旧链路已下线，不再对相关弹窗、模板列表、默认模板、人设扩展表单做 GUI 续测；项目与工作台回归只围绕当前 `Claw` / `workspace` / 现役 `persona` 主链
 - 如果只是模块级代码修改、并不需要真实页面交互，优先跑最小单测或 `verify:local`
@@ -122,6 +124,15 @@ npm run test:contracts
 3. 验证主导航可见，例如“首页”“社媒内容”“设置”
 4. 检查控制台 error 是否为 0
 
+### AI 服务商页拆分后验证
+
+1. 进入 `设置 -> AI 服务商`
+2. 确认默认落在 `服务商设置`，左侧能看到 Provider 列表，右侧是当前 Provider 配置
+3. 确认首屏不会默认混入 OEM Offer、套餐或云端模型目录
+4. 点击 `云端服务`
+5. 确认 OEM 会话、Offer 卡片、默认来源和模型目录改为在该页单独展示
+6. 如当前环境故意破坏了 `models/index.json`，确认 Provider 模型区会提示“模型真相源异常”，而不是静默显示空态
+
 ### 社媒内容工作流
 
 1. 点击 `社媒内容`
@@ -178,6 +189,13 @@ npm run test:contracts
 8. 如当前环境已有 observer 连接，再确认“断开已连接扩展”能把页面状态回退到等待连接
 9. 如当前环境接通真实后端，再确认“打开 Chrome 扩展页”与“打开远程调试页”可成功唤起对应 Chrome 页面
 
+### 自动化设置页验证
+
+1. 进入 `设置 -> 系统 -> 自动化`
+2. 确认调度状态、任务列表、健康面板能正常加载
+3. 打开控制台，确认浏览器模式接通 DevBridge 时不再出现 `get_automation_jobs`、`get_automation_health` 或 `get_automation_run_history` 的 unknown command 报错
+4. 如当前环境允许创建或编辑任务，再确认提交后列表能刷新，而不是只靠 web mock 静态回显
+
 ### 话题模型恢复验证
 
 1. 进入同一工作区中的两个话题
@@ -211,6 +229,14 @@ npm run test:contracts
 4. 验证 Team 选择器、摘要区和 Team Workbench 展示恢复的是该话题最近一次 `recent_team_selection`，而不是主题级 localStorage 的旧值
 5. 对 custom Team 额外确认：切回后 label / description / roles 没丢；如果本轮是从 fallback 回填，继续切换一次确认第二次开始已优先走 runtime 恢复
 6. 如果当前项目已有子代理或父会话上下文，再发送一条新消息，确认 Team Workbench 的 shadow 卡片与当前 Team 恢复一致，不会退回到全局 theme fallback；本轮如涉及 `harness.team_memory_shadow`，这里就是最小 GUI 续测锚点
+
+### 子代理 current 字段验证
+
+1. 准备一个带 Team 或父子会话上下文的工作区，并触发一次子代理创建
+2. 如果当前入口支持显式名称或工作目录，优先带上 `name` 与绝对 `cwd`；如果 UI 暂无显式入口，至少复用现有 flow 创建一个 child session，并在详情区观察其展示名与工作目录
+3. 验证 child session / Team Workbench 优先显示显式 `name`，而不是退回 `agent_type`、profile label 或 task summary fallback
+4. 如果本轮涉及 `teamName`，确认 child 会回挂到当前 Team，上下文里能按该名字识别，不会出现重复成员或错挂到其它 Team
+5. 验证 child 的 `working_dir` 与详情展示反映请求的绝对 `cwd`；如果请求非法相对路径，前端应看到明确失败，而不是静默回退父目录
 
 ### 上下文压缩链路验证
 

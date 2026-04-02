@@ -23,6 +23,7 @@ import { useProviderModels } from "@/hooks/useProviderModels";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
+import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
 
 // ============================================================================
 // 类型定义
@@ -180,13 +181,25 @@ export const ProviderModelSelector: React.FC<ProviderModelSelectorProps> = ({
   const selectedProvider = useMemo(() => {
     return configuredProviders.find((p) => p.key === selectedProviderId);
   }, [configuredProviders, selectedProviderId]);
+  const providerModelLoadOptions = useMemo(
+    () =>
+      resolveProviderModelLoadOptions({
+        providerId: selectedProvider?.providerId,
+        providerType: selectedProvider?.type,
+        apiHost: selectedProvider?.apiHost,
+      }),
+    [selectedProvider?.apiHost, selectedProvider?.providerId, selectedProvider?.type],
+  );
 
   // 获取模型列表（使用共享 hook，返回完整元数据）
   const {
     models: filteredModels,
     loading: modelsLoading,
     error: modelsError,
-  } = useProviderModels(selectedProvider, { returnFullMetadata: true });
+  } = useProviderModels(selectedProvider, {
+    returnFullMetadata: true,
+    ...providerModelLoadOptions,
+  });
 
   const compatibleModels = useMemo(
     () =>

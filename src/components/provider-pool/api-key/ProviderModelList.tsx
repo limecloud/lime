@@ -10,13 +10,16 @@ import { useModelRegistry } from "@/hooks/useModelRegistry";
 import {
   Sparkles,
   Check,
+  AlertCircle,
   Loader2,
   RefreshCw,
   Cloud,
   HardDrive,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -36,6 +39,11 @@ import {
   resolveRegistryProviderId,
 } from "./providerTypeMapping";
 import { getLatestSelectableModel } from "./ProviderConfigForm.utils";
+import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
+import {
+  buildProviderModelsCacheKey,
+  isProviderModelsCacheExpired,
+} from "./providerModelListCache";
 
 // ============================================================================
 // 类型定义
@@ -56,6 +64,8 @@ export interface ProviderModelListProps {
   onLatestModelResolved?: (modelId: string | null) => void;
   /** 是否有可用的 API Key（用于显示刷新按钮） */
   hasApiKey?: boolean;
+  /** 当前 Provider 的 API Host */
+  apiHost?: string;
   /** 额外的 CSS 类名 */
   className?: string;
   /** 最大显示数量，默认显示全部 */
@@ -73,6 +83,7 @@ interface CachedProviderModels {
   requestUrl: string | null;
   diagnosticHint: string | null;
   shouldPromptError: boolean;
+  cachedAt: number;
 }
 
 const providerModelsCache = new Map<string, CachedProviderModels>();
@@ -122,11 +133,13 @@ const ModelItem: React.FC<ModelItemProps> = ({
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-3 rounded-lg border px-3 py-2 transition-colors",
-        onSelect ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/50",
+        "group flex items-start justify-between gap-3 rounded-[18px] border px-4 py-3 transition-colors",
+        onSelect
+          ? "cursor-pointer hover:border-slate-300 hover:bg-slate-50"
+          : "hover:bg-slate-50",
         isDefault
-          ? "border-primary/30 bg-primary/5"
-          : "border-transparent bg-transparent",
+          ? "border-slate-900 bg-slate-900/[0.03]"
+          : "border-slate-200/80 bg-white",
       )}
       onClick={onSelect ? () => onSelect(model.id) : undefined}
       role={onSelect ? "button" : undefined}
@@ -145,21 +158,33 @@ const ModelItem: React.FC<ModelItemProps> = ({
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">
+          <span className="truncate text-sm font-medium">
             {model.display_name}
           </span>
           {isLatest ? <Badge variant="outline">最新</Badge> : null}
           {isDefault ? <Badge variant="secondary">默认</Badge> : null}
         </div>
-        <div className="text-xs text-muted-foreground truncate">{model.id}</div>
+        <div className="truncate text-xs text-muted-foreground">{model.id}</div>
         <ModelCapabilityBadges
           capabilities={model.capabilities}
           className="mt-2"
         />
       </div>
 
-      <div className="flex items-center gap-1.5 pt-1">
-        {isDefault ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
+      <div className="flex shrink-0 items-center gap-2 pt-1">
+        {isDefault ? <Check className="h-3.5 w-3.5 text-slate-900" /> : null}
+        {onSelect ? (
+          <span
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              isDefault
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-200 bg-white text-slate-600 group-hover:border-slate-300 group-hover:text-slate-900",
+            )}
+          >
+            {isDefault ? "当前默认" : "设为默认"}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -187,15 +212,38 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
   onSelectModel,
   onLatestModelResolved,
   hasApiKey = false,
+  apiHost,
   className,
   maxItems,
 }) => {
+  const autoFetchCapability = useMemo(
+    () =>
+      getProviderModelAutoFetchCapability({
+        providerId,
+        providerType,
+        apiHost,
+      }),
+    [apiHost, providerId, providerType],
+  );
+  const canRefreshFromApi =
+    autoFetchCapability.supported &&
+    (!autoFetchCapability.requiresApiKey || hasApiKey);
+  const refreshTooltipText = autoFetchCapability.supported
+    ? autoFetchCapability.requiresApiKey && !hasApiKey
+      ? "先配置可用 API Key 后才能获取最新模型"
+      : "自动获取最新模型列表"
+    : (autoFetchCapability.unsupportedReason ??
+      "当前协议暂不支持自动获取最新模型");
+  const [searchQuery, setSearchQuery] = useState("");
   const [catalogAliasMap, setCatalogAliasMap] = useState<Record<
     string,
     string
   > | null>(null);
   const [validRegistryProviderIds, setValidRegistryProviderIds] =
     useState<Set<string> | null>(null);
+  const [registryTruthError, setRegistryTruthError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -234,10 +282,15 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         }
 
         setValidRegistryProviderIds(new Set(providerIds));
-      } catch {
+        setRegistryTruthError(null);
+      } catch (error) {
         if (cancelled) {
           return;
         }
+
+        setRegistryTruthError(
+          error instanceof Error ? error.message : String(error),
+        );
         setValidRegistryProviderIds(null);
       }
     };
@@ -278,11 +331,29 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
     null,
   );
   const [apiShouldPromptError, setApiShouldPromptError] = useState(false);
-  const cacheKey = `${providerId}:${providerType}`;
+  const cacheKey = buildProviderModelsCacheKey({
+    providerId,
+    providerType,
+    apiHost,
+  });
 
   useEffect(() => {
     const cached = providerModelsCache.get(cacheKey);
     if (!cached) {
+      setApiModels(null);
+      setApiSource(null);
+      setApiError(null);
+      setApiRequestUrl(null);
+      setApiDiagnosticHint(null);
+      setApiShouldPromptError(false);
+      return;
+    }
+
+    if (
+      isProviderModelsCacheExpired(cached.cachedAt) ||
+      (autoFetchCapability.requiresApiKey && !hasApiKey)
+    ) {
+      providerModelsCache.delete(cacheKey);
       setApiModels(null);
       setApiSource(null);
       setApiError(null);
@@ -298,10 +369,14 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
     setApiRequestUrl(cached.requestUrl);
     setApiDiagnosticHint(cached.diagnosticHint);
     setApiShouldPromptError(cached.shouldPromptError);
-  }, [cacheKey]);
+  }, [autoFetchCapability.requiresApiKey, cacheKey, hasApiKey]);
 
   // 从 API 获取模型列表（自动获取 API Key）
   const handleRefreshFromApi = useCallback(async () => {
+    if (!autoFetchCapability.supported) {
+      return;
+    }
+
     setRefreshing(true);
     setApiError(null);
     setApiRequestUrl(null);
@@ -313,8 +388,12 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         await fetchProviderModelsAuto(providerId);
 
       if (result && result.models) {
-        setApiModels(result.models);
-        setApiSource(result.source);
+        const shouldDisplayFetchedModels =
+          result.source === "Api" && result.models.length > 0;
+        const nextModels = shouldDisplayFetchedModels ? result.models : [];
+
+        setApiModels(nextModels);
+        setApiSource(shouldDisplayFetchedModels ? "Api" : null);
         setApiRequestUrl(result.request_url ?? null);
         setApiDiagnosticHint(result.diagnostic_hint ?? null);
         setApiShouldPromptError(Boolean(result.should_prompt_error));
@@ -324,41 +403,73 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
           setApiError(null);
         }
 
-        providerModelsCache.set(cacheKey, {
-          models: result.models,
-          source: result.source ?? null,
-          error: result.error ?? null,
-          requestUrl: result.request_url ?? null,
-          diagnosticHint: result.diagnostic_hint ?? null,
-          shouldPromptError: Boolean(result.should_prompt_error),
-        });
+        if (shouldDisplayFetchedModels) {
+          providerModelsCache.set(cacheKey, {
+            models: nextModels,
+            source: "Api",
+            error: result.error ?? null,
+            requestUrl: result.request_url ?? null,
+            diagnosticHint: result.diagnostic_hint ?? null,
+            shouldPromptError: Boolean(result.should_prompt_error),
+            cachedAt: Date.now(),
+          });
+        } else {
+          providerModelsCache.delete(cacheKey);
+        }
       } else {
         setApiError("返回结果格式错误");
       }
     } catch (err) {
       setApiError(err instanceof Error ? err.message : String(err));
+      providerModelsCache.delete(cacheKey);
     } finally {
       setRefreshing(false);
     }
-  }, [cacheKey, providerId]);
+  }, [autoFetchCapability.supported, cacheKey, providerId]);
 
   // 使用 API 模型或本地模型
-  const displayModelsSource = apiModels ?? models;
+  const displayModelsSource = useMemo(
+    () =>
+      autoFetchCapability.supported
+        ? (apiModels ?? [])
+        : registryTruthError
+          ? []
+          : models,
+    [apiModels, autoFetchCapability.supported, models, registryTruthError],
+  );
+  const filteredModelsSource = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return displayModelsSource;
+    }
+
+    const query = searchQuery.trim().toLowerCase();
+    return displayModelsSource.filter(
+      (model) =>
+        model.display_name.toLowerCase().includes(query) ||
+        model.id.toLowerCase().includes(query),
+    );
+  }, [displayModelsSource, searchQuery]);
   const apiDiagnosticLines = buildApiDiagnosticLines({
     error: apiError,
     request_url: apiRequestUrl,
     diagnostic_hint: apiDiagnosticHint,
   });
+  const registryDiagnosticLines = registryTruthError
+    ? [
+        "模型真相源异常：无法校验当前 Provider 是否存在于内置 registry。",
+        registryTruthError,
+      ]
+    : [];
 
   // 限制显示数量
   const displayModels = useMemo(() => {
     if (maxItems && maxItems > 0) {
-      return displayModelsSource.slice(0, maxItems);
+      return filteredModelsSource.slice(0, maxItems);
     }
-    return displayModelsSource;
-  }, [displayModelsSource, maxItems]);
+    return filteredModelsSource;
+  }, [filteredModelsSource, maxItems]);
 
-  const hasMore = maxItems && displayModelsSource.length > maxItems;
+  const hasMore = maxItems && filteredModelsSource.length > maxItems;
   const resolvedLatestModelId =
     latestModelId ?? getLatestSelectableModel(displayModelsSource)?.id ?? null;
   const effectiveDefaultModelId = selectedModelId ?? resolvedLatestModelId;
@@ -402,9 +513,12 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
   if (displayModelsSource.length === 0) {
     return (
       <div className={cn("space-y-2", className)}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="space-y-1">
-            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+        <div
+          className="mb-2 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between"
+          data-testid="provider-model-list-empty-toolbar"
+        >
+          <div className="min-w-0 space-y-1">
+            <h4 className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
               <Sparkles className="h-4 w-4 text-muted-foreground" />
               支持的模型
             </h4>
@@ -414,46 +528,93 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
               </p>
             ) : null}
           </div>
-          {hasApiKey && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleRefreshFromApi}
-                    disabled={refreshing}
-                    className="h-7 px-2"
-                  >
-                    {refreshing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>从 API 获取模型列表</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center 2xl:w-auto 2xl:min-w-[320px]">
+            <div className="relative min-w-0 flex-1 sm:min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="搜索模型"
+                className="h-8 border-slate-200 bg-white pl-8 text-xs"
+              />
+            </div>
+            {autoFetchCapability.supported ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRefreshFromApi}
+                      disabled={refreshing || !canRefreshFromApi}
+                      className="h-8 shrink-0 whitespace-nowrap border border-slate-200 bg-white px-3"
+                    >
+                      {refreshing ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      获取最新模型
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{refreshTooltipText}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+          </div>
         </div>
         <div
           className="py-4 text-center text-sm text-muted-foreground"
           data-testid="provider-model-list-empty"
         >
-          暂无模型数据
-          {hasApiKey && (
+          {registryTruthError
+            ? "模型真相源异常"
+            : autoFetchCapability.supported
+              ? autoFetchCapability.requiresApiKey && !hasApiKey
+                ? "请先添加可用 API Key"
+                : apiError
+                  ? "当前未读取到可用模型"
+                  : "尚未获取模型目录"
+              : "暂无模型数据"}
+          {!registryTruthError && autoFetchCapability.supported && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleRefreshFromApi}
-              disabled={refreshing}
-              className="ml-1 h-auto p-0 text-primary underline-offset-4 hover:underline"
+              disabled={refreshing || !canRefreshFromApi}
+              className="ml-1 h-auto p-0 text-primary underline-offset-4 hover:underline disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-60"
             >
-              点击从 API 获取
+              {canRefreshFromApi
+                ? "点击获取最新模型"
+                : autoFetchCapability.requiresApiKey
+                  ? "配置 API Key 后可获取最新模型"
+                  : "当前暂不可自动获取最新模型"}
             </Button>
           )}
         </div>
+        {!registryTruthError &&
+        !autoFetchCapability.supported &&
+        autoFetchCapability.unsupportedReason ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-600">
+            {autoFetchCapability.unsupportedReason}
+          </div>
+        ) : null}
+        {registryTruthError && (
+          <div
+            className="rounded-md border border-rose-200 bg-rose-50/90 px-3 py-2 text-left text-xs text-rose-700"
+            data-testid="provider-model-list-registry-error"
+          >
+            <div className="mb-1 flex items-center gap-1.5 font-semibold">
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span>请先修复内置模型索引</span>
+            </div>
+            {registryDiagnosticLines.map((line) => (
+              <div key={line} className="break-all leading-5">
+                {line}
+              </div>
+            ))}
+          </div>
+        )}
         {apiError && (
           <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-left text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300">
             {apiShouldPromptError ? (
@@ -474,75 +635,96 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
 
   return (
     <div
-      className={cn("space-y-1", className)}
+      className={cn("space-y-3", className)}
       data-testid="provider-model-list"
     >
-      {/* 标题 */}
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-muted-foreground" />
-          支持的模型
-          <span className="text-xs text-muted-foreground font-normal">
-            ({displayModelsSource.length})
-          </span>
-          {/* 数据来源标识 */}
-          {apiSource && (
+      <div
+        className="flex flex-col gap-3 2xl:flex-row 2xl:items-start 2xl:justify-between"
+        data-testid="provider-model-list-toolbar"
+      >
+        <div className="min-w-0 space-y-1">
+          <h4 className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+            <Sparkles className="h-4 w-4 text-muted-foreground" />
+            支持的模型
+            <span className="text-xs font-normal text-muted-foreground">
+              ({filteredModelsSource.length})
+            </span>
+            {apiSource && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs",
+                        apiSource === "Api"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700",
+                      )}
+                    >
+                      {apiSource === "Api" ? (
+                        <>
+                          <Cloud className="h-3 w-3" />
+                          API
+                        </>
+                      ) : (
+                        <>
+                          <HardDrive className="h-3 w-3" />
+                          本地
+                        </>
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {apiSource === "Api"
+                      ? "数据来自 Provider API"
+                      : "API 获取失败，使用本地数据"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            支持搜索、刷新模型目录，并直接把任一模型设为默认模型。
+          </p>
+        </div>
+
+        <div
+          className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center 2xl:w-auto 2xl:min-w-[360px]"
+          data-testid="provider-model-list-actions"
+        >
+          <div className="relative min-w-0 flex-1 sm:min-w-[220px] 2xl:w-[280px]">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索模型名称或 ID"
+              className="h-8 border-slate-200 bg-white pl-8 text-xs"
+            />
+          </div>
+          {autoFetchCapability.supported ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded",
-                      apiSource === "Api"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                    )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshFromApi}
+                    disabled={refreshing || !canRefreshFromApi}
+                    className="h-8 shrink-0 whitespace-nowrap border-slate-200 bg-white px-3"
                   >
-                    {apiSource === "Api" ? (
-                      <>
-                        <Cloud className="h-3 w-3" />
-                        API
-                      </>
+                    {refreshing ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <>
-                        <HardDrive className="h-3 w-3" />
-                        本地
-                      </>
+                      <RefreshCw className="mr-1 h-3.5 w-3.5" />
                     )}
-                  </span>
+                    获取最新模型
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  {apiSource === "Api"
-                    ? "数据来自 Provider API"
-                    : "API 获取失败，使用本地数据"}
-                </TooltipContent>
+                <TooltipContent>{refreshTooltipText}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )}
-        </h4>
-        {/* 刷新按钮 */}
-        {hasApiKey && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRefreshFromApi}
-                  disabled={refreshing}
-                  className="h-7 px-2"
-                >
-                  {refreshing ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>从 API 获取最新模型列表</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
+          ) : null}
+        </div>
       </div>
 
       {/* API 错误提示 */}
@@ -561,23 +743,52 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         </div>
       )}
 
-      {/* 模型列表 */}
-      <div className="border rounded-md divide-y divide-border">
-        {displayModels.map((model) => (
-          <ModelItem
-            key={model.id}
-            model={model}
-            isDefault={effectiveDefaultModelKey === model.id.toLowerCase()}
-            isLatest={resolvedLatestModelKey === model.id.toLowerCase()}
-            onSelect={onSelectModel}
-          />
-        ))}
-      </div>
+      {registryTruthError ? (
+        <div
+          className="mb-2 rounded-md border border-rose-200 bg-rose-50/90 px-3 py-2 text-xs text-rose-700"
+          data-testid="provider-model-list-registry-error"
+        >
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <span>模型真相源异常</span>
+          </div>
+          {registryDiagnosticLines.map((line) => (
+            <div key={line} className="break-all leading-5">
+              {line}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {!autoFetchCapability.supported &&
+      autoFetchCapability.unsupportedReason ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          {autoFetchCapability.unsupportedReason}
+        </div>
+      ) : null}
+
+      {filteredModelsSource.length === 0 ? (
+        <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+          {searchQuery ? "没有匹配的模型" : "暂无模型数据"}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {displayModels.map((model) => (
+            <ModelItem
+              key={model.id}
+              model={model}
+              isDefault={effectiveDefaultModelKey === model.id.toLowerCase()}
+              isLatest={resolvedLatestModelKey === model.id.toLowerCase()}
+              onSelect={onSelectModel}
+            />
+          ))}
+        </div>
+      )}
 
       {/* 显示更多提示 */}
       {hasMore && (
         <p className="text-xs text-muted-foreground text-center pt-2">
-          还有 {displayModelsSource.length - maxItems!} 个模型未显示
+          还有 {filteredModelsSource.length - maxItems!} 个模型未显示
         </p>
       )}
     </div>

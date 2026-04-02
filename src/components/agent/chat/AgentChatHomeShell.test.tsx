@@ -49,6 +49,20 @@ const {
 } = vi.hoisted(() => {
   const mockClawSolutions = [
     {
+      id: "web-research-brief",
+      title: "网页研究简报",
+      summary: "快速整理研究目标、关键来源与结论框架。",
+      outputHint: "研究提纲 + 结论简报",
+      recommendedCapabilities: ["模型", "研究"],
+      readiness: "ready",
+      readinessMessage: "可直接开始",
+      badge: "研究方案",
+      recentUsedAt: null,
+      isRecent: false,
+      readinessLabel: "可直接开始",
+      readinessTone: "emerald",
+    },
+    {
       id: "social-post-starter",
       title: "社媒主稿生成",
       summary: "进入社媒专项工作台并生成一版首稿。",
@@ -878,7 +892,8 @@ beforeEach(() => {
     domain: "github.com",
     profile_key: "attached-github",
     target_id: "tab-github",
-    message: "已检测到 github.com 的真实浏览器页面，Claw 可以直接复用当前会话执行。",
+    message:
+      "已检测到 github.com 的真实浏览器页面，Claw 可以直接复用当前会话执行。",
   });
   mockIsTerminalServiceSkillRunStatus.mockImplementation((status: string) =>
     ["success", "failed", "canceled", "timeout"].includes(status),
@@ -1110,6 +1125,61 @@ describe("AgentChatHomeShell", () => {
     );
   });
 
+  it("点击网页研究简报时应开启联网研究偏好并进入工作区", async () => {
+    const onEnterWorkspace = vi.fn();
+    mockPrepareClawSolution.mockResolvedValueOnce({
+      solutionId: "web-research-brief",
+      actionType: "fill_input",
+      prompt: "请围绕这个主题先给我做一版网页研究简报",
+      shouldLaunchBrowserAssist: false,
+      shouldEnableTeamMode: false,
+      readiness: "ready",
+      readinessMessage: "可直接开始",
+    });
+
+    const { container } = renderShell({
+      onNavigate: undefined,
+      onEnterWorkspace,
+    });
+
+    await flushEffects();
+
+    const researchSolutionButton = container.querySelector(
+      '[data-testid="home-shell-solution-web-research-brief"]',
+    ) as HTMLButtonElement | null;
+
+    expect(researchSolutionButton).toBeTruthy();
+
+    act(() => {
+      researchSolutionButton?.click();
+    });
+
+    await flushEffects();
+
+    expect(mockSaveChatToolPreferences).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        webSearch: true,
+        thinking: false,
+        task: false,
+        subagent: false,
+      }),
+      "general",
+    );
+    expect(onEnterWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        theme: "general",
+        initialCreationMode: "guided",
+        initialUserPrompt: "请围绕这个主题先给我做一版网页研究简报",
+      }),
+    );
+    expect(mockRecordClawSolutionUsage).toHaveBeenCalledWith({
+      solutionId: "web-research-brief",
+      actionType: "fill_input",
+      themeTarget: null,
+    });
+  });
+
   it("最近 session runtime 的工具偏好应先回灌首页壳，再参与 team 推荐", async () => {
     mockHomeShellRecentExecutionRuntime.current = {
       recent_preferences: {
@@ -1228,7 +1298,9 @@ describe("AgentChatHomeShell", () => {
 
     const snapshot = readTeamMemorySnapshot(localStorage, "/tmp/project-1");
     expect(
-      snapshot?.entries["team.selection"]?.content.includes("Team：首页协作团队"),
+      snapshot?.entries["team.selection"]?.content.includes(
+        "Team：首页协作团队",
+      ),
     ).toBe(true);
     expect(
       container.querySelector('[data-testid="home-shell-selected-team"]')
@@ -1282,9 +1354,8 @@ describe("AgentChatHomeShell", () => {
           harness: expect.objectContaining({
             selected_team_label: "研究协作团队",
             selected_team_source: "custom",
-            selected_team_summary: expect.stringContaining(
-              "负责调研、归纳与验证。",
-            ),
+            selected_team_summary:
+              expect.stringContaining("负责调研、归纳与验证。"),
           }),
         },
       }),
@@ -1602,8 +1673,7 @@ describe("AgentChatHomeShell", () => {
             workbench_surface: "right_panel",
           },
         },
-        initialUserPrompt:
-          expect.stringContaining("[技能任务] 复制短视频脚本"),
+        initialUserPrompt: expect.stringContaining("[技能任务] 复制短视频脚本"),
       }),
     );
     expect(onEnterWorkspace).toHaveBeenCalledWith(
@@ -1696,14 +1766,14 @@ describe("AgentChatHomeShell", () => {
         theme: "general",
         initialCreationMode: "guided",
         autoRunInitialPromptOnMount: true,
-        initialUserPrompt: "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
+        initialUserPrompt:
+          "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
         initialRequestMetadata: undefined,
         initialAutoSendRequestMetadata: {
           harness: {
             browser_requirement: "required",
-            browser_requirement_reason: expect.stringContaining(
-              "真实浏览器页面",
-            ),
+            browser_requirement_reason:
+              expect.stringContaining("真实浏览器页面"),
             browser_assist: {
               enabled: true,
               profile_key: "attached-github",
@@ -1739,9 +1809,9 @@ describe("AgentChatHomeShell", () => {
     expect(firstSiteSkillLaunchPayload?.initialUserPrompt).not.toContain(
       "adapter_name",
     );
-    expect(firstSiteSkillLaunchPayload?.initialAutoSendRequestMetadata).not.toHaveProperty(
-      "artifact",
-    );
+    expect(
+      firstSiteSkillLaunchPayload?.initialAutoSendRequestMetadata,
+    ).not.toHaveProperty("artifact");
     expect(onEnterWorkspace).not.toHaveBeenCalled();
     expect(mockRecordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "github-repo-radar",
@@ -1835,10 +1905,7 @@ describe("AgentChatHomeShell", () => {
 
     await flushEffects();
 
-    expect(onNavigate).not.toHaveBeenCalledWith(
-      "agent",
-      expect.anything(),
-    );
+    expect(onNavigate).not.toHaveBeenCalledWith("agent", expect.anything());
     expect(onEnterWorkspace).not.toHaveBeenCalled();
     expect(mockToastInfo).toHaveBeenCalledWith(
       expect.stringContaining("请先去浏览器工作台连接真实浏览器"),

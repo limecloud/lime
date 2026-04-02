@@ -377,6 +377,7 @@ pub(crate) use session_runtime::{
     resolve_session_recent_runtime_context, SessionRecentHarnessContext,
     SessionRecentRuntimeContext,
 };
+#[allow(unused_imports)]
 pub(crate) use subagent_runtime::{
     agent_runtime_close_subagent_internal, agent_runtime_resume_subagent_internal,
     agent_runtime_send_subagent_input_internal, agent_runtime_spawn_subagent_internal,

@@ -24,6 +24,7 @@ import { getProviderLabel } from "@/lib/constants/providerMappings";
 import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
+import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
 
 const compactTriggerClassName =
   "h-8 min-w-[104px] max-w-[168px] justify-start gap-1.5 rounded-full border-slate-200/80 bg-white/92 px-2.5 text-slate-600 shadow-none transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-800";
@@ -135,10 +136,23 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       (provider) => provider.key === providerType,
     );
   }, [configuredProviders, providerType]);
+  const providerModelLoadOptions = useMemo(
+    () =>
+      resolveProviderModelLoadOptions({
+        providerId: selectedProvider?.providerId,
+        providerType: selectedProvider?.type,
+        apiHost: selectedProvider?.apiHost,
+      }),
+    [selectedProvider?.apiHost, selectedProvider?.providerId, selectedProvider?.type],
+  );
 
   const { models: providerModels, loading: modelsLoading } = useProviderModels(
     selectedProvider,
-    { returnFullMetadata: true, autoLoad: shouldLoadModels },
+    {
+      returnFullMetadata: true,
+      autoLoad: shouldLoadModels,
+      ...providerModelLoadOptions,
+    },
   );
 
   const filteredResult = useMemo(() => {

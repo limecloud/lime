@@ -235,6 +235,7 @@ pub fn run() {
         .manage(automation_service_state)
         .manage(commands::subagent_cmd::SubAgentSchedulerState::default())
         .manage(commands::websocket_cmd::WsServiceState::default())
+        .manage(crate::services::companion_service::CompanionServiceState::default())
         .manage(lime_gateway::telegram::TelegramGatewayState::default())
         .manage(lime_gateway::discord::DiscordGatewayState::default())
         .manage(lime_gateway::feishu::FeishuGatewayState::default())
@@ -439,6 +440,23 @@ pub fn run() {
                         }
                         Err(error) => {
                             tracing::warn!("[启动] 恢复持久化排队执行失败: {}", error);
+                        }
+                    }
+                });
+            }
+
+            {
+                let app_handle = app.handle().clone();
+                let companion_state = app
+                    .state::<crate::services::companion_service::CompanionServiceState>()
+                    .inner()
+                    .clone();
+
+                tauri::async_runtime::spawn(async move {
+                    match companion_state.start(app_handle).await {
+                        Ok(()) => tracing::info!("[启动] Companion Pet 服务已启动"),
+                        Err(error) => {
+                            tracing::warn!("[启动] Companion Pet 服务启动失败: {}", error)
                         }
                     }
                 });
@@ -1129,6 +1147,10 @@ pub fn run() {
             // Path utility commands
             commands::config_cmd::expand_path,
             commands::config_cmd::open_auth_dir,
+            // Companion commands
+            commands::companion_cmd::companion_get_pet_status,
+            commands::companion_cmd::companion_launch_pet,
+            commands::companion_cmd::companion_send_pet_command,
             // OpenClaw commands
             commands::openclaw_cmd::openclaw_check_installed,
             commands::openclaw_cmd::openclaw_get_environment_status,

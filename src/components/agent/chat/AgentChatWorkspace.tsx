@@ -1142,6 +1142,9 @@ export function AgentChatWorkspace({
     }),
     [syncSessionRecentTeamSelection],
   );
+  const shouldAllowPersistedTeamFallback =
+    !persistedTeamMemoryShadowSnapshot &&
+    !executionRuntime?.recent_team_selection;
 
   const {
     selectedTeam,
@@ -1154,7 +1157,7 @@ export function AgentChatWorkspace({
     runtimeSelection: executionRuntime?.recent_team_selection ?? null,
     shadowSnapshot: persistedTeamMemoryShadowSnapshot,
     sessionSync: selectedTeamSessionSync,
-    allowPersistedThemeFallback: !projectId,
+    allowPersistedThemeFallback: shouldAllowPersistedTeamFallback,
   });
   const teamMemoryShadowSnapshot = useTeamMemoryShadowSync({
     repoScope: project?.rootPath || null,
@@ -2130,6 +2133,7 @@ export function AgentChatWorkspace({
     handleRecommendationClick,
     handleSendRef,
     webSearchPreferenceRef,
+    submissionPreview,
   } = useWorkspaceSendActions({
     input,
     setInput,
@@ -2276,6 +2280,7 @@ export function AgentChatWorkspace({
     pendingActionCount: pendingActions.length,
     queuedTurnCount: queuedTurns.length,
     runtimeTeamDispatchPreview,
+    submissionPreview,
     sessionId,
     updateTopicSnapshot,
     workspaceError: Boolean(workspacePathMissing || workspaceHealthError),

@@ -4,6 +4,10 @@ import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
 import { buildLegacyQuestionnaireA2UI } from "../utils/legacyQuestionnaireA2UI";
 import { buildRuntimeTeamDispatchPreviewMessages } from "./runtimeTeamPreview";
 import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
+import {
+  buildSubmissionPreviewMessages,
+  type SubmissionPreviewSnapshot,
+} from "./submissionPreview";
 import type { Message } from "../types";
 
 interface UseWorkspaceDisplayMessagesRuntimeParams {
@@ -14,6 +18,7 @@ interface UseWorkspaceDisplayMessagesRuntimeParams {
   pendingActionCount: number;
   queuedTurnCount: number;
   runtimeTeamDispatchPreview: RuntimeTeamDispatchPreviewSnapshot | null;
+  submissionPreview: SubmissionPreviewSnapshot | null;
   sessionId?: string | null;
   updateTopicSnapshot: (
     sessionId: string,
@@ -98,6 +103,7 @@ export function useWorkspaceDisplayMessagesRuntime({
   pendingActionCount,
   queuedTurnCount,
   runtimeTeamDispatchPreview,
+  submissionPreview,
   sessionId,
   updateTopicSnapshot,
   workspaceError,
@@ -107,9 +113,17 @@ export function useWorkspaceDisplayMessagesRuntime({
     const runtimeTeamDispatchPreviewMessages = runtimeTeamDispatchPreview
       ? buildRuntimeTeamDispatchPreviewMessages(runtimeTeamDispatchPreview)
       : [];
+    const submissionPreviewMessages =
+      collapsedMessages.length === 0 && submissionPreview
+        ? buildSubmissionPreviewMessages(submissionPreview)
+        : [];
 
     if (runtimeTeamDispatchPreviewMessages.length > 0) {
       return [...collapsedMessages, ...runtimeTeamDispatchPreviewMessages];
+    }
+
+    if (submissionPreviewMessages.length > 0) {
+      return submissionPreviewMessages;
     }
 
     if (collapsedMessages.length === 0 && browserTaskPreflight) {
@@ -129,6 +143,7 @@ export function useWorkspaceDisplayMessagesRuntime({
     bootstrapDispatchPreviewMessages,
     messages,
     runtimeTeamDispatchPreview,
+    submissionPreview,
   ]);
 
   useEffect(() => {

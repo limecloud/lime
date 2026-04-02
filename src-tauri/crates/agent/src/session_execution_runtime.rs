@@ -91,14 +91,14 @@ impl SessionExecutionRuntimeAccessMode {
         Self::from_extension_data(&session.extension_data)
     }
 
-    fn to_extension_data(&self, extension_data: &mut ExtensionData) -> Result<(), String> {
-        <Self as ExtensionState>::to_extension_data(self, extension_data)
+    fn write_extension_data(self, extension_data: &mut ExtensionData) -> Result<(), String> {
+        <Self as ExtensionState>::to_extension_data(&self, extension_data)
             .map_err(|error| error.to_string())
     }
 
     fn into_updated_extension_data(self, session: &Session) -> Result<ExtensionData, String> {
         let mut extension_data = session.extension_data.clone();
-        self.to_extension_data(&mut extension_data)?;
+        self.write_extension_data(&mut extension_data)?;
         Ok(extension_data)
     }
 

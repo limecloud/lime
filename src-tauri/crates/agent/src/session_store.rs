@@ -4,11 +4,9 @@
 //! 数据事实源收敛到 lime_core::database::agent_session_repository + Lime 数据库。
 
 use aster::model::ModelConfig;
-use aster::session::extension_data::{
-    resolve_todo_list_state, ExtensionState, TodoListItem, TodoListItemStatus,
-};
 use aster::session::{
-    resolve_subagent_session_metadata, Session as AsterSession, SessionRuntimeSnapshot,
+    resolve_subagent_session_metadata, resolve_task_board_state, ExtensionState,
+    Session as AsterSession, SessionRuntimeSnapshot, TaskBoardItem, TaskBoardItemStatus,
 };
 use chrono::Utc;
 use lime_core::agent::types::{AgentMessage, AgentSession, ContentPart, MessageContent};
@@ -150,6 +148,7 @@ pub struct ChildSubagentSession {
 }
 
 impl ChildSubagentSession {
+    #[allow(clippy::too_many_arguments)]
     fn new_base(
         id: String,
         name: String,
@@ -329,21 +328,21 @@ fn resolve_session_provider_selector(session: &AsterSession) -> Option<String> {
         .and_then(|state| normalize_optional_text(Some(state.provider_selector)))
 }
 
-fn map_session_todo_status(status: TodoListItemStatus) -> SessionTodoStatus {
+fn map_session_todo_status(status: TaskBoardItemStatus) -> SessionTodoStatus {
     match status {
-        TodoListItemStatus::Pending => SessionTodoStatus::Pending,
-        TodoListItemStatus::InProgress => SessionTodoStatus::InProgress,
-        TodoListItemStatus::Completed => SessionTodoStatus::Completed,
+        TaskBoardItemStatus::Pending => SessionTodoStatus::Pending,
+        TaskBoardItemStatus::InProgress => SessionTodoStatus::InProgress,
+        TaskBoardItemStatus::Completed => SessionTodoStatus::Completed,
     }
 }
 
-fn map_session_todo_item(item: TodoListItem) -> Option<SessionTodoItem> {
-    let content = item.content.trim().to_string();
+fn map_session_todo_item(item: TaskBoardItem) -> Option<SessionTodoItem> {
+    let content = item.subject.trim().to_string();
     if content.is_empty() {
         return None;
     }
 
-    let active_form = normalize_optional_nonempty_body(Some(item.active_form));
+    let active_form = normalize_optional_nonempty_body(item.active_form);
     Some(SessionTodoItem {
         content,
         status: map_session_todo_status(item.status),
@@ -367,9 +366,9 @@ fn load_session_todo_items_from_conn(
         }
     };
 
-    resolve_todo_list_state(&extension_data)
-        .map(|todo_list| {
-            todo_list
+    resolve_task_board_state(&extension_data)
+        .map(|task_board| {
+            task_board
                 .items
                 .into_iter()
                 .filter_map(map_session_todo_item)

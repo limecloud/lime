@@ -3,6 +3,7 @@ import { safeInvoke } from "@/lib/dev-bridge";
 import {
   getAllAliasConfigs,
   getModelRegistry,
+  getModelRegistryProviderIds,
   getProviderAliasConfig,
   invalidateModelRegistryCache,
   refreshModelRegistry,
@@ -91,5 +92,17 @@ describe("modelRegistry API", () => {
     ]);
 
     expect(vi.mocked(safeInvoke)).toHaveBeenCalledTimes(3);
+  });
+
+  it("getModelRegistryProviderIds 应直接透传命令结果", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce(["openai", "codex"]);
+
+    await expect(getModelRegistryProviderIds()).resolves.toEqual([
+      "openai",
+      "codex",
+    ]);
+    expect(vi.mocked(safeInvoke)).toHaveBeenCalledWith(
+      "get_model_registry_provider_ids",
+    );
   });
 });

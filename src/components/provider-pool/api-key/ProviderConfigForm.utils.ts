@@ -46,6 +46,17 @@ export const PROVIDER_TYPE_FIELDS: Record<ProviderType, string[]> = {
   gateway: [],
 };
 
+const SPECIAL_PROVIDER_PROTOCOL_HINTS: Partial<Record<ProviderType, string>> = {
+  codex:
+    "Codex 保留 Lime 的专属协议与模型别名能力，会继续使用独立的 Codex 模型映射与鉴权链路。",
+  anthropic:
+    "Anthropic 继续使用原生协议，不会被收敛到普通 OpenAI 兼容请求格式。",
+  "anthropic-compatible":
+    "Anthropic 兼容用于接入实现 Anthropic wire format 的第三方服务，仍按 Anthropic 语义处理请求与模型映射。",
+  gemini:
+    "Gemini 保留原生协议能力与专属模型映射，不按普通 OpenAI 兼容 Provider 处理。",
+};
+
 export function isSupportedProviderType(
   providerType: string,
 ): providerType is ProviderType {
@@ -57,6 +68,16 @@ export function getProviderTypeLabel(providerType: string): string {
     PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ??
     providerType
   );
+}
+
+export function isSpecialProtocolProviderType(type: ProviderType): boolean {
+  return getSpecialProtocolHint(type) !== null;
+}
+
+export function getSpecialProtocolHint(
+  type: ProviderType,
+): string | null {
+  return SPECIAL_PROVIDER_PROTOCOL_HINTS[type] ?? null;
 }
 
 export function dedupeModelIds(modelIds: string[]): string[] {

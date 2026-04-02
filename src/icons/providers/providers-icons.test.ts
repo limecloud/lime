@@ -10,6 +10,9 @@
 import { describe, expect } from "vitest";
 import { test } from "@fast-check/vitest";
 import * as fc from "fast-check";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
 import { getSystemProviderIds } from "@/lib/config/providers";
 import type { SystemProviderId } from "@/lib/types/provider";
 import {
@@ -21,6 +24,11 @@ import {
 import { iconComponents } from "./index";
 
 describe("Provider 图标系统", () => {
+  const resourceProviderIds = fs
+    .readdirSync(path.join(process.cwd(), "src-tauri/resources/models/providers"))
+    .filter((fileName) => fileName.endsWith(".json"))
+    .map((fileName) => fileName.replace(/\.json$/, ""));
+
   /**
    * Property 19: Provider 图标完整性
    *
@@ -67,6 +75,27 @@ describe("Provider 图标系统", () => {
     test.prop([fc.constantFrom(...systemProviderIds)])(
       "hasProviderIcon 应对所有 System Provider 返回 true",
       (providerId: SystemProviderId) => {
+        expect(hasProviderIcon(providerId)).toBe(true);
+      },
+    );
+  });
+
+  describe("模型资源 Provider 图标完整性", () => {
+    test.prop([fc.constantFrom(...resourceProviderIds)])(
+      "每个模型资源 Provider 应有图标映射",
+      (providerId: string) => {
+        const iconName = providerTypeToIcon[providerId];
+
+        expect(iconName).toBeDefined();
+        expect((availableIcons as readonly string[]).includes(iconName)).toBe(
+          true,
+        );
+      },
+    );
+
+    test.prop([fc.constantFrom(...resourceProviderIds)])(
+      "每个模型资源 Provider 应命中可渲染图标",
+      (providerId: string) => {
         expect(hasProviderIcon(providerId)).toBe(true);
       },
     );

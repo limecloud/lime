@@ -21,7 +21,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2 } from "lucide-react";
+import {
+  Bot,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { ProviderIcon } from "@/icons/providers";
 import { ApiKeyList } from "./ApiKeyList";
 import {
@@ -34,6 +39,8 @@ import {
 } from "./ConnectionTestButton";
 import { ProviderModelList } from "./ProviderModelList";
 import { getProviderTypeLabel } from "./ProviderConfigForm.utils";
+import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
+import { SectionInfoButton } from "./SectionInfoButton";
 import type {
   ChatTestResult,
   ProviderWithKeysDisplay,
@@ -121,7 +128,6 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
   >(null);
   const enabledApiKeyCount =
     provider?.api_keys?.filter((apiKey) => apiKey.enabled).length ?? 0;
-  const defaultModel = draftCustomModels[0] ?? recommendedLatestModelId ?? null;
 
   useEffect(() => {
     setDraftCustomModels(provider?.custom_models ?? []);
@@ -179,17 +185,18 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
     return (
       <div
         className={cn(
-          "flex h-full items-center justify-center bg-[linear-gradient(180deg,rgba(248,250,252,0.78),rgba(241,245,249,0.42))] px-6",
+          "flex h-full items-center justify-center bg-slate-50/60 px-6",
           className,
         )}
         data-testid="provider-setting-empty"
       >
-        <div className="w-full max-w-xl rounded-[28px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_48%,rgba(241,246,255,0.96)_100%)] p-8 text-center shadow-sm shadow-slate-950/5">
-          <p className="text-base font-semibold text-foreground">
-            请从左侧列表选择一个 Provider
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            选择后可在此处集中管理 API Key、模型、连接测试与支持模型信息。
+        <div className="w-full max-w-2xl rounded-[28px] border border-slate-200/80 bg-white p-8 shadow-sm shadow-slate-950/5">
+          <div className="flex items-center gap-3 text-slate-900">
+            <Sparkles className="h-5 w-5" />
+            <p className="text-lg font-semibold">服务商配置工作台</p>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            选择一个服务商后，这里只保留模型、密钥和必要配置，不再铺满整页说明。
           </p>
         </div>
       </div>
@@ -204,35 +211,35 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
       return provider.api_host;
     }
   })();
-
-  const summaryItems = [
-    {
-      label: "可用密钥",
-      value: `${enabledApiKeyCount}`,
-      hint: `共 ${provider.api_keys?.length ?? 0} 个 API Key`,
-      compact: false,
-    },
-    {
-      label: "默认模型",
-      value: defaultModel ?? "未设置",
-      hint: defaultModel
-        ? "第一个模型用于默认请求与测试"
-        : "可在下方配置中指定",
-      compact: true,
-    },
-    {
-      label: "协议类型",
-      value: getProviderTypeLabel(provider.type),
-      hint: `${provider.type} · ${provider.is_system ? "系统预设 Provider" : "自定义 Provider"}`,
-      compact: true,
-    },
-    {
-      label: "接口地址",
-      value: providerHostLabel,
-      hint: provider.api_host,
-      compact: true,
-    },
-  ];
+  const modelAutoFetchCapability = getProviderModelAutoFetchCapability({
+    providerId: provider.id,
+    providerType: provider.type,
+    apiHost: provider.api_host,
+  });
+  const requiresLiveModelTruth = modelAutoFetchCapability.supported;
+  const hasRequiredApiAccess =
+    !modelAutoFetchCapability.requiresApiKey || enabledApiKeyCount > 0;
+  const hasResolvedLiveModelDirectory =
+    !requiresLiveModelTruth || Boolean(recommendedLatestModelId);
+  const showVerifiedModelState =
+    !requiresLiveModelTruth || hasResolvedLiveModelDirectory;
+  const defaultModel = showVerifiedModelState
+    ? draftCustomModels[0] ?? recommendedLatestModelId ?? null
+    : null;
+  const connectionReady =
+    provider.enabled && hasRequiredApiAccess && hasResolvedLiveModelDirectory;
+  const connectionBlockHint = !provider.enabled
+    ? "请先启用当前 Provider，再进行连通性验证。"
+    : !hasRequiredApiAccess
+      ? "先添加并启用至少一把 API Key，再进行连通性验证。"
+      : !hasResolvedLiveModelDirectory
+        ? "先读取真实模型目录，再进行连接测试与默认模型验证。"
+        : null;
+  const modelStatusNotice = !hasRequiredApiAccess
+    ? "先添加并启用 API Key，才能读取真实模型目录。"
+    : !hasResolvedLiveModelDirectory
+      ? "读取真实模型目录前，不展示旧模型，避免把历史缓存误认为当前可用模型。"
+      : null;
 
   // 处理启用/禁用切换
   const handleToggleEnabled = async (enabled: boolean) => {
@@ -248,55 +255,76 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
       data-provider-id={provider.id}
     >
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-5 lg:p-6">
-          {/* Provider 头部 */}
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 p-4 lg:p-6">
           <section
-            className="relative overflow-hidden rounded-[28px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] p-5 shadow-sm shadow-slate-950/5"
+            className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-5 shadow-sm shadow-slate-950/5"
             data-testid="provider-header"
           >
-            <div className="pointer-events-none absolute -left-16 top-[-64px] h-48 w-48 rounded-full bg-emerald-200/30 blur-3xl" />
-            <div className="pointer-events-none absolute right-[-52px] top-[-24px] h-48 w-48 rounded-full bg-sky-200/25 blur-3xl" />
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex min-w-0 items-start gap-4">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
                 <ProviderIcon
                   providerType={provider.id}
                   fallbackText={provider.name}
-                  size={44}
+                  size={52}
                   className="flex-shrink-0"
                   data-testid="provider-icon"
                 />
 
-                <div className="min-w-0 flex-1 space-y-2">
+                <div className="min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3
-                      className="min-w-0 truncate text-2xl font-semibold text-foreground"
+                      className="min-w-0 truncate text-2xl font-semibold tracking-tight text-slate-900"
                       data-testid="provider-name"
                     >
                       {provider.name}
                     </h3>
-                    <Badge variant="outline">
+                    <Badge
+                      variant="outline"
+                      className="border-slate-200 bg-slate-50 text-slate-600"
+                    >
                       {provider.is_system ? "系统预设" : "自定义 Provider"}
                     </Badge>
-                    <Badge variant={provider.enabled ? "secondary" : "outline"}>
-                      {provider.enabled ? "已启用" : "已禁用"}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "border",
+                        provider.enabled
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-500",
+                      )}
+                    >
+                      {provider.enabled ? "运行中" : "已停用"}
                     </Badge>
                   </div>
-                  <p
-                    className="text-sm text-muted-foreground"
+                  <div
+                    className="flex flex-wrap items-center gap-2 text-sm text-slate-500"
                     data-testid="provider-type"
                   >
-                    类型: {getProviderTypeLabel(provider.type)}
-                  </p>
-                  <p className="break-all text-sm text-muted-foreground">
-                    {provider.api_host}
-                  </p>
+                    <span>{getProviderTypeLabel(provider.type)}</span>
+                    <span className="text-slate-300">/</span>
+                    <span className="break-all">{providerHostLabel}</span>
+                  </div>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-3 rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
-                  <span className="text-sm text-muted-foreground">
-                    {provider.enabled ? "已启用" : "已禁用"}
+                <Badge
+                  variant="outline"
+                  className="border-slate-200 bg-slate-50 text-slate-600"
+                >
+                  密钥 {enabledApiKeyCount}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="max-w-[240px] truncate border-slate-200 bg-slate-50 text-slate-600"
+                >
+                  默认
+                  {defaultModel ??
+                    (requiresLiveModelTruth ? "模型待同步" : "未设置")}
+                </Badge>
+                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-4 py-2">
+                  <span className="text-sm text-slate-600">
+                    {provider.enabled ? "已启用" : "已停用"}
                   </span>
                   <Switch
                     checked={provider.enabled}
@@ -312,62 +340,90 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
                     size="sm"
                     onClick={() => onDeleteProvider(provider.id)}
                     disabled={loading}
-                    className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    className="border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700"
                     title="删除此 Provider"
                     data-testid="delete-provider-button"
                   >
                     <Trash2 className="mr-1.5 h-4 w-4" />
-                    删除
+                    删除 Provider
                   </Button>
                 )}
               </div>
             </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {summaryItems.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm shadow-slate-950/5"
-                >
-                  <p className="text-[11px] font-medium text-slate-500">
-                    {item.label}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-2 font-semibold text-slate-900",
-                      item.compact
-                        ? "break-all text-sm leading-5"
-                        : "text-2xl leading-none",
-                    )}
-                  >
-                    {item.value}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-xs text-slate-500">
-                    {item.hint}
-                  </p>
-                </div>
-              ))}
-            </div>
           </section>
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <div className="space-y-6">
-              <section
-                className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm"
-                data-testid="api-key-section"
+          <div
+            className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,340px)]"
+            data-testid="provider-setting-workbench-grid"
+          >
+            <section
+              className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
+              data-testid="supported-models-section"
+            >
+              <div
+                className="mb-4 flex flex-wrap items-start justify-between gap-3"
+                data-testid="supported-models-header"
               >
-                <div className="mb-4 space-y-1">
-                  <h4 className="text-sm font-semibold text-foreground">
-                    访问凭证
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    管理当前 Provider 的 API Key、别名与启用状态。
-                  </p>
+                <div className="flex min-w-0 items-center gap-2 text-slate-900">
+                  <Bot className="h-4 w-4" />
+                  <h4 className="text-base font-semibold">模型设置</h4>
+                  <SectionInfoButton
+                    label="查看模型设置说明"
+                    triggerTestId="provider-models-info-button"
+                  >
+                    <p>
+                      模型区只展示当前真实可用的目录。支持自动拉取的渠道会优先读取最新模型；读取失败前不会继续展示旧模型。
+                    </p>
+                  </SectionInfoButton>
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    variant="outline"
+                    className="border-slate-200 bg-slate-50 text-slate-600"
+                  >
+                    默认：
+                    {defaultModel ??
+                      (requiresLiveModelTruth ? "待读取" : "未设置")}
+                  </Badge>
+                  {showVerifiedModelState && recommendedLatestModelId ? (
+                    <Badge
+                      variant="outline"
+                      className="border-sky-200 bg-sky-50 text-sky-700"
+                    >
+                      推荐最新：{recommendedLatestModelId}
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+
+              {modelStatusNotice ? (
+                <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {modelStatusNotice}
+                </div>
+              ) : null}
+
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                <ProviderModelList
+                  providerId={provider.id}
+                  providerType={provider.type}
+                  selectedModelId={draftCustomModels[0] ?? null}
+                  latestModelId={recommendedLatestModelId}
+                  onSelectModel={handleSelectDefaultModel}
+                  onLatestModelResolved={handleRecommendedLatestModelChange}
+                  hasApiKey={enabledApiKeyCount > 0}
+                  apiHost={provider.api_host}
+                />
+              </div>
+            </section>
+
+            <div className="space-y-5">
+              <section data-testid="api-key-section">
                 <ApiKeyList
                   key={`${provider.id}-${provider.api_keys?.length || 0}`}
                   apiKeys={provider.api_keys || []}
                   providerId={provider.id}
+                  providerName={provider.name}
+                  apiHost={provider.api_host}
                   onAdd={onAddApiKey}
                   onToggle={onToggleApiKey}
                   onDelete={onDeleteApiKey}
@@ -375,18 +431,7 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
                 />
               </section>
 
-              <section
-                className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm"
-                data-testid="config-section"
-              >
-                <div className="mb-4 space-y-1">
-                  <h4 className="text-sm font-semibold text-foreground">
-                    请求配置
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    配置 API Host、协议类型与默认模型，表单会自动保存。
-                  </p>
-                </div>
+              <section data-testid="config-section">
                 <ProviderConfigForm
                   ref={providerConfigFormRef}
                   provider={provider}
@@ -398,83 +443,68 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
                   loading={loading}
                 />
               </section>
-            </div>
 
-            <div className="space-y-6">
               <section
-                className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm"
+                className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5"
                 data-testid="connection-test-section"
               >
-                <div className="mb-4 space-y-1">
-                  <h4 className="text-sm font-semibold text-foreground">
-                    连接测试
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    使用当前默认模型检查连接、鉴权与基础对话可用性。
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-slate-900">
+                    <ShieldCheck className="h-4 w-4" />
+                    <h4 className="text-base font-semibold">连接验证</h4>
+                    <SectionInfoButton
+                      label="查看连接验证说明"
+                      triggerTestId="provider-connection-info-button"
+                    >
+                      <p>
+                        连接验证会用当前默认模型检查鉴权、路由和最小对话是否可用。未启用 Provider、缺少可用 Key 或模型目录尚未同步时不会放行测试。
+                      </p>
+                    </SectionInfoButton>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border",
+                      connectionReady
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-slate-50 text-slate-500",
+                    )}
+                  >
+                    {connectionReady ? "可测试" : "待就绪"}
+                  </Badge>
                 </div>
 
-                <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground">
-                  当前默认模型：
-                  <span className="ml-1 font-medium text-foreground">
-                    {defaultModel ?? "未设置"}
+                <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  默认模型：
+                  <span className="ml-1 font-semibold text-slate-900">
+                    {defaultModel ??
+                      (requiresLiveModelTruth ? "待读取真实目录" : "未设置")}
                   </span>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-4 flex flex-col gap-3">
                   <ConnectionTestButton
                     providerId={provider.id}
                     onTest={onTestConnection}
-                    disabled={
-                      loading ||
-                      !provider.enabled ||
-                      (provider.api_keys?.length ?? 0) === 0
-                    }
-                    className="flex-1"
+                    disabled={loading || !connectionReady}
+                    className="w-full"
                   />
                   <Button
                     variant="outline"
                     size="sm"
-                    className="sm:self-start"
-                    disabled={
-                      loading ||
-                      !provider.enabled ||
-                      (provider.api_keys?.length ?? 0) === 0 ||
-                      !onTestChat
-                    }
+                    className="border-slate-200 bg-white"
+                    disabled={loading || !connectionReady || !onTestChat}
                     onClick={() => setChatDialogOpen(true)}
                   >
                     对话测试
                   </Button>
                 </div>
-                {(provider.api_keys?.length ?? 0) === 0 && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    请先添加 API Key 后再进行连接测试。
-                  </p>
-                )}
-              </section>
 
-              <section
-                className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm"
-                data-testid="supported-models-section"
-              >
-                <div className="mb-4 space-y-1">
-                  <h4 className="text-sm font-semibold text-foreground">
-                    模型能力
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    展示当前 Provider 支持的模型，并支持从 API 主动刷新。
+                {connectionBlockHint ? (
+                  <p className="mt-3 text-xs text-slate-500">
+                    {connectionBlockHint}
                   </p>
-                </div>
-                <ProviderModelList
-                  providerId={provider.id}
-                  providerType={provider.type}
-                  selectedModelId={draftCustomModels[0] ?? null}
-                  latestModelId={recommendedLatestModelId}
-                  onSelectModel={handleSelectDefaultModel}
-                  onLatestModelResolved={handleRecommendedLatestModelChange}
-                  hasApiKey={enabledApiKeyCount > 0}
-                />
+                ) : null}
               </section>
             </div>
           </div>

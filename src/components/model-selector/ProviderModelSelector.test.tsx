@@ -66,6 +66,8 @@ beforeEach(() => {
         registryId: "custom-codex",
         fallbackRegistryId: "codex",
         type: "codex",
+        providerId: "custom-codex",
+        apiHost: "https://api.openai.com/v1",
       },
     ],
     loading: false,
@@ -117,6 +119,19 @@ afterEach(() => {
 });
 
 describe("ProviderModelSelector", () => {
+  it("支持实时拉取的 API Key Provider 应使用真实模型目录", () => {
+    renderSelector();
+
+    expect(mockUseProviderModels).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "custom-codex" }),
+      expect.objectContaining({
+        returnFullMetadata: true,
+        liveFetchOnly: true,
+        hasApiKey: true,
+      }),
+    );
+  });
+
   it("应隐藏 codex 不兼容模型并展示兼容提示", () => {
     const { container } = renderSelector();
 

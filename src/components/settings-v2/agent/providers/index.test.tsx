@@ -2,13 +2,48 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseOemCloudAccess, mockFormatOemCloudDateTime } = vi.hoisted(() => ({
+const {
+  mockUseOemCloudAccess,
+  mockFormatOemCloudDateTime,
+  mockGetCompanionPetStatus,
+  mockLaunchCompanionPet,
+  mockListenCompanionPetStatus,
+  mockSendCompanionPetCommand,
+  mockProviderPoolGetOverview,
+  mockSubscribeProviderDataChanged,
+} = vi.hoisted(() => ({
   mockUseOemCloudAccess: vi.fn(),
   mockFormatOemCloudDateTime: vi.fn((value?: string) => `fmt:${value ?? ""}`),
+  mockGetCompanionPetStatus: vi.fn(),
+  mockLaunchCompanionPet: vi.fn(),
+  mockListenCompanionPetStatus: vi.fn(),
+  mockSendCompanionPetCommand: vi.fn(),
+  mockProviderPoolGetOverview: vi.fn(),
+  mockSubscribeProviderDataChanged: vi.fn(),
 }));
 
 vi.mock("@/components/provider-pool", () => ({
   ProviderPoolPage: () => <div data-testid="provider-pool-stub">凭证池占位</div>,
+}));
+
+vi.mock("@/lib/api/companion", () => ({
+  getCompanionPetStatus: () => mockGetCompanionPetStatus(),
+  launchCompanionPet: () => mockLaunchCompanionPet(),
+  listenCompanionPetStatus: (...args: unknown[]) =>
+    mockListenCompanionPetStatus(...args),
+  sendCompanionPetCommand: (...args: unknown[]) =>
+    mockSendCompanionPetCommand(...args),
+}));
+
+vi.mock("@/lib/api/providerPool", () => ({
+  providerPoolApi: {
+    getOverview: (...args: unknown[]) => mockProviderPoolGetOverview(...args),
+  },
+}));
+
+vi.mock("@/lib/providerDataEvents", () => ({
+  subscribeProviderDataChanged: (...args: unknown[]) =>
+    mockSubscribeProviderDataChanged(...args),
 }));
 
 vi.mock("@/hooks/useOemCloudAccess", () => ({
@@ -107,13 +142,59 @@ function createAccessState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderPage(props: { onOpenProfile?: () => void } = {}) {
+function createPetStatus(overrides: Record<string, unknown> = {}) {
+  return {
+    endpoint: "ws://127.0.0.1:45554/companion/pet",
+    server_listening: true,
+    connected: false,
+    client_id: null,
+    platform: null,
+    capabilities: [],
+    last_event: null,
+    last_error: null,
+    last_state: "idle",
+    ...overrides,
+  };
+}
+
+function createProviderOverview() {
+  return [
+    {
+      provider_type: "openai",
+      stats: {
+        total: 2,
+        healthy: 1,
+        unhealthy: 1,
+        disabled: 0,
+        total_usage: 6,
+        total_errors: 1,
+      },
+      credentials: [],
+    },
+    {
+      provider_type: "codex",
+      stats: {
+        total: 1,
+        healthy: 1,
+        unhealthy: 0,
+        disabled: 0,
+        total_usage: 3,
+        total_errors: 0,
+      },
+      credentials: [],
+    },
+  ];
+}
+
+async function renderPage(props: { onOpenProfile?: () => void } = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  act(() => {
+  await act(async () => {
     root.render(<CloudProviderSettings {...props} />);
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   const page = { container, root };
@@ -140,6 +221,20 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   mockUseOemCloudAccess.mockReturnValue(createAccessState());
+  mockGetCompanionPetStatus.mockResolvedValue(createPetStatus());
+  mockLaunchCompanionPet.mockResolvedValue({
+    launched: true,
+    resolved_path: "/Applications/Lime Pet.app/Contents/MacOS/Lime Pet",
+    endpoint: "ws://127.0.0.1:45554/companion/pet",
+    message: null,
+  });
+  mockListenCompanionPetStatus.mockResolvedValue(vi.fn());
+  mockSendCompanionPetCommand.mockResolvedValue({
+    delivered: true,
+    connected: true,
+  });
+  mockProviderPoolGetOverview.mockResolvedValue(createProviderOverview());
+  mockSubscribeProviderDataChanged.mockReturnValue(vi.fn());
 });
 
 afterEach(() => {
@@ -159,7 +254,7 @@ afterEach(() => {
 });
 
 describe("CloudProviderSettings", () => {
-  it("未配置运行时信息时应展示配置提示，并通过单独视图承接本地 Provider", async () => {
+  it("默认应直接进入本地 Provider 主区，并保持切换器激活态清晰", async () => {
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
         runtime: null,
@@ -167,27 +262,50 @@ describe("CloudProviderSettings", () => {
       }),
     );
 
-    const { container } = renderPage();
+    const { container } = await renderPage();
     const text = container.textContent ?? "";
+    const settingsTab = container.querySelector(
+      '[data-testid="provider-workspace-tab-settings"]',
+    );
+    const cloudTab = container.querySelector(
+      '[data-testid="provider-workspace-tab-cloud"]',
+    );
 
-    expect(text).toContain("云端接入");
-    expect(text).toContain("public/oem-runtime-config.js");
-    expect(text).toContain("按任务阶段看 AI 服务商");
-    expect(text).not.toContain("凭证池占位");
+    expect(
+      container.querySelector('[data-testid="provider-workspace-switcher"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelectorAll('[data-testid="provider-workspace-switcher"]')
+        .length,
+    ).toBe(1);
+    expect(text).toContain("凭证池占位");
+    expect(text).not.toContain("把本地 Provider 配置和 OEM 云端服务拆开管理");
+    expect(text).not.toContain("默认先进入“服务商设置”处理 Provider");
+    expect(text).not.toContain("public/oem-runtime-config.js");
+    expect(settingsTab?.getAttribute("data-state")).toBe("active");
+    expect(cloudTab?.getAttribute("data-state")).toBe("inactive");
 
     await act(async () => {
-      findButton(container, "本地 Provider").dispatchEvent(
+      findButton(container, "云端服务").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });
 
-    expect(container.textContent ?? "").toContain("本地 / 其它开发者 Provider");
-    expect(container.textContent ?? "").toContain("凭证池占位");
+    expect(container.textContent ?? "").toContain("先配置 OEM 云端运行时");
+    expect(container.textContent ?? "").toContain("public/oem-runtime-config.js");
+    expect(settingsTab?.getAttribute("data-state")).toBe("inactive");
+    expect(cloudTab?.getAttribute("data-state")).toBe("active");
   });
 
   it("未登录时应提示前往个人中心登录", async () => {
     const onOpenProfile = vi.fn();
-    const { container } = renderPage({ onOpenProfile });
+    const { container } = await renderPage({ onOpenProfile });
+
+    await act(async () => {
+      findButton(container, "云端服务").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
 
     expect(container.textContent ?? "").toContain("去个人中心登录");
 
@@ -200,7 +318,7 @@ describe("CloudProviderSettings", () => {
     expect(onOpenProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("已登录时应通过分视图展示云端来源目录与模型详情", async () => {
+  it("已登录时应在云端页展示 OEM 来源目录与模型详情", async () => {
     const handleRefresh = vi.fn();
     const handleSetDefault = vi.fn();
     const selectedOffer = {
@@ -250,10 +368,13 @@ describe("CloudProviderSettings", () => {
       }),
     );
 
-    const { container } = renderPage();
-    expect(container.textContent ?? "").toContain("Demo Operator");
-    expect(container.textContent ?? "").toContain("治理摘要与下一步");
-    expect(container.textContent ?? "").toContain("fmt:2026-03-25T08:00:00.000Z");
+    const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "云端服务").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
 
     await act(async () => {
       findButton(container, "刷新云端状态").dispatchEvent(
@@ -261,13 +382,10 @@ describe("CloudProviderSettings", () => {
       );
     });
 
-    await act(async () => {
-      findButton(container, "云端目录").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
     const text = container.textContent ?? "";
+    expect(text).toContain("Demo Operator");
+    expect(text).toContain("当前云端摘要");
+    expect(text).toContain("fmt:2026-03-25T08:00:00.000Z");
     expect(text).toContain("Lime Hub 主服务");
     expect(text).toContain("GPT-5.2 Pro");
 
@@ -334,10 +452,10 @@ describe("CloudProviderSettings", () => {
       }),
     );
 
-    const { container } = renderPage();
+    const { container } = await renderPage();
 
     await act(async () => {
-      findButton(container, "云端目录").dispatchEvent(
+      findButton(container, "云端服务").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });
@@ -381,17 +499,150 @@ describe("CloudProviderSettings", () => {
       }),
     );
 
-    const { container } = renderPage();
-    act(() => {
-      findButton(container, "云端目录").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
+    return renderPage().then(({ container }) => {
+      act(() => {
+        findButton(container, "云端服务").dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        );
+      });
+      const offerGrid = container.querySelector(
+        '[data-testid="oem-cloud-offer-grid"]',
       );
+
+      expect(offerGrid).not.toBeNull();
+      expect(offerGrid?.className).not.toContain("lg:grid-cols-2");
     });
-    const offerGrid = container.querySelector(
-      '[data-testid="oem-cloud-offer-grid"]',
+  });
+
+  it("服务商设置页应展示桌宠桥接卡片和脱敏边界说明", async () => {
+    mockGetCompanionPetStatus.mockResolvedValue(
+      createPetStatus({
+        connected: true,
+        client_id: "lime-pet",
+        platform: "macos",
+        capabilities: ["provider-overview"],
+        last_event: "pet.ready",
+        last_state: "walking",
+      }),
     );
 
-    expect(offerGrid).not.toBeNull();
-    expect(offerGrid?.className).not.toContain("lg:grid-cols-2");
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(
+      container.querySelector('[data-testid="companion-provider-card"]'),
+    ).not.toBeNull();
+    expect(text).toContain("Lime Pet Companion");
+    expect(text).toContain("桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态");
+    expect(text).toContain("不会直接读取 API Key、OAuth 凭证或本地凭证文件");
+    expect(text).toContain("桌宠已连接");
+    expect(text).toContain("Provider 概览");
+    expect(text).toContain("桌宠视角预览");
+    expect(text).toContain("OpenAI");
+    expect(text).toContain("Codex");
+    expect(text).toContain("可用 2");
+    expect(text).toContain("需关注 1");
+    expect(text).toContain("接入检查");
+    expect(text).toContain("当前链路已就绪，可以直接点击“立即同步到桌宠”。");
+  });
+
+  it("点击启动桌宠后应调用 launch 接口并展示启动反馈", async () => {
+    mockGetCompanionPetStatus
+      .mockResolvedValueOnce(createPetStatus())
+      .mockResolvedValueOnce(
+        createPetStatus({
+          server_listening: true,
+          connected: false,
+          last_event: "pet.launch_requested",
+        }),
+      );
+
+    const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "启动 Lime Pet").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockLaunchCompanionPet).toHaveBeenCalledTimes(1);
+    expect(container.textContent ?? "").toContain("已请求启动 Lime Pet");
+  });
+
+  it("桌宠已连接且支持 provider 概览时，应允许手动同步摘要", async () => {
+    mockGetCompanionPetStatus.mockResolvedValue(
+      createPetStatus({
+        connected: true,
+        capabilities: ["provider-overview"],
+        last_event: "pet.ready",
+      }),
+    );
+
+    const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "立即同步到桌宠").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSendCompanionPetCommand).toHaveBeenCalledWith({
+      event: "pet.provider_overview",
+      payload: {
+        providers: [
+          {
+            provider_type: "codex",
+            display_name: "Codex",
+            total_count: 1,
+            healthy_count: 1,
+            available: true,
+            needs_attention: false,
+          },
+          {
+            provider_type: "openai",
+            display_name: "OpenAI",
+            total_count: 2,
+            healthy_count: 1,
+            available: true,
+            needs_attention: true,
+          },
+        ],
+        total_provider_count: 2,
+        available_provider_count: 2,
+        needs_attention_provider_count: 1,
+      },
+    });
+    expect(container.textContent ?? "").toContain("已同步 2 个服务商摘要到桌宠");
+    expect(container.textContent ?? "").toContain(
+      "当前链路已就绪，可以直接点击“立即同步到桌宠”。",
+    );
+  });
+
+  it("桌宠已连接但未声明 provider 概览能力时，应展示诊断并禁用手动同步", async () => {
+    mockGetCompanionPetStatus.mockResolvedValue(
+      createPetStatus({
+        connected: true,
+        client_id: "lime-pet",
+        platform: "windows",
+        capabilities: [],
+        last_event: "pet.ready",
+      }),
+    );
+
+    const { container } = await renderPage();
+    const syncButton = container.querySelector(
+      '[data-testid="companion-sync-preview"]',
+    ) as HTMLButtonElement | null;
+    const text = container.textContent ?? "";
+
+    expect(syncButton).not.toBeNull();
+    expect(syncButton?.disabled).toBe(true);
+    expect(text).toContain("能力未声明");
+    expect(text).toContain("当前桌宠已连接，但尚未声明 Provider 概览能力");
+    expect(text).toContain("平台：Windows");
   });
 });

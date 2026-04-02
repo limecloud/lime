@@ -7,13 +7,15 @@
  * **Validates: Requirements 7.1**
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiKeyItem } from "./ApiKeyItem";
 import type { ApiKeyDisplay } from "@/lib/api/apiKeyProvider";
+import { getProviderAccessHelp } from "@/lib/provider/providerAccessHelp";
+import { SectionInfoButton } from "./SectionInfoButton";
 
 // ============================================================================
 // 图标组件
@@ -71,6 +73,10 @@ export interface ApiKeyListProps {
   apiKeys: ApiKeyDisplay[];
   /** Provider ID */
   providerId: string;
+  /** Provider 显示名称 */
+  providerName?: string;
+  /** Provider API Host */
+  apiHost?: string;
   /** 添加 API Key 回调 */
   onAdd?: (providerId: string, apiKey: string, alias?: string) => Promise<void>;
   /** 切换 API Key 启用状态回调 */
@@ -106,6 +112,8 @@ export interface ApiKeyListProps {
 export const ApiKeyList: React.FC<ApiKeyListProps> = ({
   apiKeys,
   providerId,
+  providerName,
+  apiHost,
   onAdd,
   onToggle,
   onDelete,
@@ -119,22 +127,47 @@ export const ApiKeyList: React.FC<ApiKeyListProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 监听 apiKeys 变化，用于调试
-  React.useEffect(() => {
-    console.log(
-      `[ApiKeyList] 组件更新: providerId=${providerId}, apiKeys.length=${apiKeys.length}`,
-    );
-    apiKeys.forEach((k, i) => {
-      console.log(
-        `[ApiKeyList]   [${i}] id=${k.id}, masked=${k.api_key_masked}`,
-      );
-    });
-  }, [apiKeys, providerId]);
+  const enabledCount = useMemo(
+    () => apiKeys.filter((item) => item.enabled).length,
+    [apiKeys],
+  );
 
-  // 监听 providerId 变化
-  React.useEffect(() => {
-    console.log(`[ApiKeyList] providerId 变化: ${providerId}`);
-  }, [providerId]);
+  const errorCount = useMemo(
+    () => apiKeys.reduce((sum, item) => sum + item.error_count, 0),
+    [apiKeys],
+  );
+
+  const latestUsedLabel = useMemo(() => {
+    const latestUsedAt = apiKeys
+      .map((item) => item.last_used_at)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
+    if (!latestUsedAt) {
+      return "暂无调用";
+    }
+
+    const diffMs = Date.now() - new Date(latestUsedAt).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "刚刚";
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    if (diffDays < 30) return `${diffDays} 天前`;
+    return new Date(latestUsedAt).toLocaleDateString("zh-CN");
+  }, [apiKeys]);
+
+  const providerAccessHelp = useMemo(
+    () =>
+      getProviderAccessHelp({
+        providerId,
+        providerName,
+        apiHost,
+      }),
+    [apiHost, providerId, providerName],
+  );
 
   const handleAdd = async () => {
     if (!newApiKey.trim()) {
@@ -146,24 +179,12 @@ export const ApiKeyList: React.FC<ApiKeyListProps> = ({
     setError(null);
 
     try {
-      console.log("[ApiKeyList] 开始添加 API Key:", {
-        providerId,
-        alias: newAlias.trim() || undefined,
-        apiKeyLength: newApiKey.trim().length,
-      });
       await onAdd?.(providerId, newApiKey.trim(), newAlias.trim() || undefined);
-      console.log(
-        "[ApiKeyList] API Key 添加成功，当前 apiKeys:",
-        apiKeys.length,
-      );
-
-      // 重置表单
       setNewApiKey("");
       setNewAlias("");
       setShowAddForm(false);
       setShowApiKey(false);
     } catch (e) {
-      console.error("[ApiKeyList] API Key 添加失败:", e);
       setError(e instanceof Error ? e.message : "添加失败");
     } finally {
       setIsAdding(false);
@@ -179,130 +200,183 @@ export const ApiKeyList: React.FC<ApiKeyListProps> = ({
   };
 
   return (
-    <div className={cn("space-y-3", className)} data-testid="api-key-list">
-      {/* 标题和添加按钮 */}
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-foreground">
-          API Keys ({apiKeys.length})
-        </h4>
-        {!showAddForm && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddForm(true)}
-            disabled={loading}
-            data-testid="add-api-key-button"
-          >
-            <PlusIcon className="mr-1" />
-            添加
-          </Button>
-        )}
+    <div
+      className={cn(
+        "rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5",
+        className,
+      )}
+      data-testid="api-key-list"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h4 className="text-base font-semibold text-slate-900">API Key</h4>
+          {providerAccessHelp.helpText || providerAccessHelp.keylessHint ? (
+            <SectionInfoButton
+              label="查看 API Key 获取说明"
+              triggerTestId="provider-api-key-info-button"
+              contentTestId="provider-api-key-info-content"
+            >
+              <p
+                data-testid={
+                  providerAccessHelp.keylessHint
+                    ? "provider-api-key-keyless-hint"
+                    : "provider-api-key-help-text"
+                }
+              >
+                {providerAccessHelp.keylessHint ?? providerAccessHelp.helpText}
+              </p>
+              {providerAccessHelp.url ? (
+                <a
+                  href={providerAccessHelp.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex font-semibold text-slate-900 underline underline-offset-4"
+                  data-testid="provider-api-key-help-link"
+                >
+                  前往获取
+                </a>
+              ) : null}
+            </SectionInfoButton>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+            已启用 {enabledCount}
+          </span>
+          {apiKeys.length > 0 ? (
+            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+              最近调用 {latestUsedLabel}
+            </span>
+          ) : null}
+          {errorCount > 0 ? (
+            <span className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs text-rose-700">
+              错误 {errorCount}
+            </span>
+          ) : null}
+          {!showAddForm && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddForm(true)}
+              disabled={loading}
+              className="shrink-0 whitespace-nowrap border-slate-200 bg-white px-3"
+              data-testid="add-api-key-button"
+            >
+              <PlusIcon className="mr-1" />
+              新增 API Key
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* 添加表单 */}
-      {showAddForm && (
-        <div
-          className="p-3 rounded-lg border border-border bg-muted/20 space-y-3"
-          data-testid="add-api-key-form"
-        >
-          {/* API Key 输入 */}
-          <div className="space-y-1.5">
-            <Label htmlFor="new-api-key" className="text-xs">
-              API Key <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              <Input
-                id="new-api-key"
-                type={showApiKey ? "text" : "password"}
-                value={newApiKey}
-                onChange={(e) => setNewApiKey(e.target.value)}
-                placeholder="输入 API Key"
-                className="pr-10"
+        {showAddForm ? (
+          <div
+            className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+            data-testid="add-api-key-form"
+          >
+            <div
+              className="space-y-4"
+              data-testid="add-api-key-fields-stack"
+            >
+              <div className="min-w-0 space-y-1.5">
+                <Label htmlFor="new-api-key" className="text-xs font-medium">
+                  API Key <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="new-api-key"
+                    type={showApiKey ? "text" : "password"}
+                    value={newApiKey}
+                    onChange={(e) => setNewApiKey(e.target.value)}
+                    placeholder="输入 API Key"
+                    className="border-slate-200 bg-white pr-10"
+                    disabled={isAdding}
+                    autoComplete="new-password"
+                    data-testid="new-api-key-input"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    tabIndex={-1}
+                  >
+                    {showApiKey ? <EyeSlashIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-w-0 space-y-1.5">
+                <Label htmlFor="new-alias" className="text-xs font-medium">
+                  别名（可选）
+                </Label>
+                <Input
+                  id="new-alias"
+                  type="text"
+                  value={newAlias}
+                  onChange={(e) => setNewAlias(e.target.value)}
+                  placeholder="例如：生产主账号"
+                  disabled={isAdding}
+                  className="border-slate-200 bg-white"
+                  autoComplete="off"
+                  data-testid="new-alias-input"
+                />
+              </div>
+            </div>
+
+            {error ? (
+              <p className="mt-3 text-xs text-red-500" data-testid="add-error">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancel}
                 disabled={isAdding}
-                data-testid="new-api-key-input"
-              />
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowApiKey(!showApiKey)}
-                tabIndex={-1}
               >
-                {showApiKey ? <EyeSlashIcon /> : <EyeIcon />}
-              </button>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAdd}
+                disabled={isAdding || !newApiKey.trim()}
+                data-testid="confirm-add-button"
+              >
+                {isAdding ? "添加中..." : "确认添加"}
+              </Button>
             </div>
           </div>
+        ) : null}
 
-          {/* 别名输入 */}
-          <div className="space-y-1.5">
-            <Label htmlFor="new-alias" className="text-xs">
-              别名（可选）
-            </Label>
-            <Input
-              id="new-alias"
-              type="text"
-              value={newAlias}
-              onChange={(e) => setNewAlias(e.target.value)}
-              placeholder="例如：主账号、测试账号"
-              disabled={isAdding}
-              data-testid="new-alias-input"
-            />
+        {apiKeys.length > 0 ? (
+          <div className="mt-4 space-y-3" data-testid="api-key-items">
+            {apiKeys.map((apiKey) => (
+              <ApiKeyItem
+                key={apiKey.id}
+                apiKey={apiKey}
+                onToggle={onToggle}
+                onDelete={onDelete}
+                loading={loading}
+                className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3 hover:bg-slate-100/80"
+              />
+            ))}
           </div>
-
-          {/* 错误提示 */}
-          {error && (
-            <p className="text-xs text-red-500" data-testid="add-error">
-              {error}
-            </p>
-          )}
-
-          {/* 操作按钮 */}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCancel}
-              disabled={isAdding}
+        ) : (
+          !showAddForm && (
+            <div
+              className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center"
+              data-testid="empty-state"
             >
-              取消
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleAdd}
-              disabled={isAdding || !newApiKey.trim()}
-              data-testid="confirm-add-button"
-            >
-              {isAdding ? "添加中..." : "确认添加"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* API Key 列表 */}
-      {apiKeys.length > 0 ? (
-        <div className="space-y-2" data-testid="api-key-items">
-          {apiKeys.map((apiKey) => (
-            <ApiKeyItem
-              key={apiKey.id}
-              apiKey={apiKey}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              loading={loading}
-            />
-          ))}
-        </div>
-      ) : (
-        !showAddForm && (
-          <div
-            className="py-8 text-center text-sm text-muted-foreground"
-            data-testid="empty-state"
-          >
-            <p>暂无 API Key</p>
-            <p className="mt-1 text-xs">
-              点击上方「添加」按钮添加第一个 API Key
-            </p>
-          </div>
-        )
-      )}
+              <p className="text-sm font-medium text-slate-900">暂无 API Key</p>
+              <p className="mt-1 text-xs text-slate-500">
+                先新增第一把 Key，之后再做连接测试与模型刷新
+              </p>
+            </div>
+          )
+        )}
     </div>
   );
 };

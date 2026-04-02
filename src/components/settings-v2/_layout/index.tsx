@@ -20,8 +20,6 @@ import { SettingsTabs } from "@/types/settings";
 import { Page, PageParams } from "@/types/page";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
-
-import { SettingHeader } from "../features/SettingHeader";
 import { SettingsHomePage } from "../home";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 
@@ -147,8 +145,15 @@ const HeaderBar = styled.div`
 const ContentContainer = styled.main`
   flex: 1;
   min-width: 0;
+  position: relative;
+  isolation: isolate;
   overflow-y: auto;
   padding: 24px 32px;
+  background: linear-gradient(
+    180deg,
+    rgba(248, 250, 252, 0.96) 0%,
+    rgba(244, 249, 247, 0.92) 100%
+  );
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -173,9 +178,43 @@ const ContentContainer = styled.main`
 `;
 
 const ContentWrapper = styled.div<{ $wide: boolean }>`
+  position: relative;
+  z-index: 1;
   width: 100%;
   min-width: 0;
   max-width: ${({ $wide }) => ($wide ? "1440px" : "800px")};
+`;
+
+const ContentAtmosphere = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle at 8% 0%,
+      rgba(16, 185, 129, 0.1) 0%,
+      rgba(16, 185, 129, 0) 34%
+    ),
+    radial-gradient(
+      circle at 92% 4%,
+      rgba(56, 189, 248, 0.1) 0%,
+      rgba(56, 189, 248, 0) 30%
+    );
+
+  @media (max-width: 640px) {
+    background:
+      radial-gradient(
+        circle at 10% 0%,
+        rgba(16, 185, 129, 0.08) 0%,
+        rgba(16, 185, 129, 0) 36%
+      ),
+      radial-gradient(
+        circle at 92% 2%,
+        rgba(56, 189, 248, 0.08) 0%,
+        rgba(56, 189, 248, 0) 32%
+      );
+  }
 `;
 
 const PlaceholderPage = styled.div`
@@ -323,86 +362,53 @@ function renderSettingsContent(
     // 账号组
     case SettingsTabs.Profile:
       return (
-        <>
-          <SettingHeader title={hasManagedAccountProfile ? "账号与资料" : "个人资料"} />
-          {withSettingsContentFallback(
-            <>
-              <UserCenterSessionSettings />
-              {!hasManagedAccountProfile ? <ProfileSettings /> : null}
-            </>,
-            "正在加载账号资料...",
-          )}
-        </>
+        withSettingsContentFallback(
+          <>
+            <UserCenterSessionSettings />
+            {!hasManagedAccountProfile ? <ProfileSettings /> : null}
+          </>,
+          "正在加载账号资料...",
+        )
       );
 
     case SettingsTabs.Stats:
-      return (
-        <>
-          <SettingHeader title="数据统计" />
-          {withSettingsContentFallback(
-            <StatsSettings />,
-            "正在加载数据统计...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <StatsSettings />,
+        "正在加载数据统计...",
       );
 
     // 通用组
     case SettingsTabs.Appearance:
-      return (
-        <>
-          <SettingHeader title="外观" />
-          {withSettingsContentFallback(
-            <AppearanceSettings />,
-            "正在加载外观设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <AppearanceSettings />,
+        "正在加载外观设置...",
       );
 
     case SettingsTabs.Hotkeys:
-      return (
-        <>
-          <SettingHeader title="快捷键" />
-          {withSettingsContentFallback(
-            <HotkeysSettings />,
-            "正在加载快捷键设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <HotkeysSettings />,
+        "正在加载快捷键设置...",
       );
 
     case SettingsTabs.Memory:
-      return (
-        <>
-          <SettingHeader title="记忆" />
-          {withSettingsContentFallback(
-            <MemorySettings />,
-            "正在加载记忆设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <MemorySettings />,
+        "正在加载记忆设置...",
       );
 
     // 智能体组
     case SettingsTabs.Providers:
-      return (
-        <>
-          <SettingHeader title="AI 服务商" />
-          {withSettingsContentFallback(
-            <CloudProviderSettings
-              onOpenProfile={() => onTabChange(SettingsTabs.Profile)}
-            />,
-            "正在加载 AI 服务商设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <CloudProviderSettings
+          onOpenProfile={() => onTabChange(SettingsTabs.Profile)}
+        />,
+        "正在加载 AI 服务商设置...",
       );
 
     case SettingsTabs.Skills:
-      return (
-        <>
-          <SettingHeader title="技能管理" />
-          {withSettingsContentFallback(
-            <ExtensionsSettings />,
-            "正在加载技能管理...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <ExtensionsSettings />,
+        "正在加载技能管理...",
       );
 
     case SettingsTabs.MediaServices:
@@ -413,61 +419,36 @@ function renderSettingsContent(
 
     // 系统组
     case SettingsTabs.McpServer:
-      return (
-        <>
-          <SettingHeader title="MCP 服务器" />
-          {withSettingsContentFallback(
-            <McpPanel hideHeader />,
-            "正在加载 MCP 服务器...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <McpPanel hideHeader />,
+        "正在加载 MCP 服务器...",
       );
 
     case SettingsTabs.Channels:
       return <SettingsChannelsRedirect onNavigate={onNavigate} />;
 
     case SettingsTabs.WebSearch:
-      return (
-        <>
-          <SettingHeader title="网络搜索" />
-          {withSettingsContentFallback(
-            <WebSearchSettings />,
-            "正在加载网络搜索设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <WebSearchSettings />,
+        "正在加载网络搜索设置...",
       );
 
     case SettingsTabs.Environment:
-      return (
-        <>
-          <SettingHeader title="环境变量" />
-          {withSettingsContentFallback(
-            <EnvironmentSettings />,
-            "正在加载环境变量...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <EnvironmentSettings />,
+        "正在加载环境变量...",
       );
 
     case SettingsTabs.ChromeRelay:
-      return (
-        <>
-          <SettingHeader title="连接器" />
-          {withSettingsContentFallback(
-            <ChromeRelaySettings />,
-            "正在加载连接器设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <ChromeRelaySettings />,
+        "正在加载连接器设置...",
       );
 
     case SettingsTabs.SecurityPerformance:
-      return (
-        <>
-          <SettingHeader title="安全与性能" />
-          {withSettingsContentFallback(
-            <SecurityPerformanceSettings />,
-            "正在加载安全与性能设置...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <SecurityPerformanceSettings />,
+        "正在加载安全与性能设置...",
       );
 
     case SettingsTabs.Automation:
@@ -486,25 +467,15 @@ function renderSettingsContent(
       );
 
     case SettingsTabs.Experimental:
-      return (
-        <>
-          <SettingHeader title="实验功能" />
-          {withSettingsContentFallback(
-            <ExperimentalSettings />,
-            "正在加载实验功能...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <ExperimentalSettings />,
+        "正在加载实验功能...",
       );
 
     case SettingsTabs.Developer:
-      return (
-        <>
-          <SettingHeader title="开发者" />
-          {withSettingsContentFallback(
-            <DeveloperSettings />,
-            "正在加载开发者工具...",
-          )}
-        </>
+      return withSettingsContentFallback(
+        <DeveloperSettings />,
+        "正在加载开发者工具...",
       );
 
     case SettingsTabs.About:
@@ -611,6 +582,7 @@ export function SettingsLayoutV2({
           onTabPrefetch={handleTabPrefetch}
         />
         <ContentContainer ref={contentContainerRef}>
+          <ContentAtmosphere data-testid="settings-content-atmosphere" />
           <ContentWrapper $wide={WIDE_CONTENT_TABS.has(activeTab)}>
             {renderSettingsContent(
               activeTab,

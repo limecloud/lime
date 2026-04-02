@@ -34,6 +34,7 @@ import { useSiteAdapterCatalogBootstrap } from "./hooks/useSiteAdapterCatalogBoo
 import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppShellLayout } from "./hooks/useAppShellLayout";
 import { useAppStartupEffects } from "./hooks/useAppStartupEffects";
+import { useCompanionProviderBridge } from "./hooks/useCompanionProviderBridge";
 import { useGlobalTrayModelSync } from "./hooks/useGlobalTrayModelSync";
 import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
@@ -120,6 +121,9 @@ function AppContent() {
   useGlobalTrayModelSync({
     currentPage,
     pageParams,
+  });
+  useCompanionProviderBridge({
+    onNavigate: handleNavigate,
   });
 
   const _handleRequestRecommendation = useCallback(
