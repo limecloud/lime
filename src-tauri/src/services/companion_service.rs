@@ -8,12 +8,20 @@ use axum::{
     Router,
 };
 use futures::{SinkExt, StreamExt};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{path::PathBuf, process::Command, sync::Arc};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use uuid::Uuid;
+
+use crate::app::AppState;
+use crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState;
+use crate::commands::model_registry_cmd::ModelRegistryState;
+use crate::database::dao::api_key_provider::{ApiProviderType, ProviderWithKeys};
+use crate::database::DbConnection;
 
 const DEFAULT_COMPANION_HOST: &str = "127.0.0.1";
 const DEFAULT_COMPANION_PORT: u16 = 45554;
@@ -28,6 +36,21 @@ const WINDOWS_PET_EXE_NAME: &str = "Lime Pet.exe";
 
 pub const COMPANION_PET_STATUS_EVENT: &str = "companion-pet-status";
 pub const COMPANION_OPEN_PROVIDER_SETTINGS_EVENT: &str = "companion-open-provider-settings";
+pub const COMPANION_REQUEST_PROVIDER_SYNC_EVENT: &str = "companion-request-provider-sync";
+pub const COMPANION_REQUEST_PET_CHEER_EVENT: &str = "companion-request-pet-cheer";
+pub const COMPANION_REQUEST_PET_NEXT_STEP_EVENT: &str = "companion-request-pet-next-step";
+pub const COMPANION_REQUEST_PET_CHAT_EVENT: &str = "companion-request-pet-chat";
+pub const COMPANION_REQUEST_PET_CHAT_RESET_EVENT: &str = "companion-request-pet-chat-reset";
+pub const COMPANION_REQUEST_PET_VOICE_CHAT_EVENT: &str = "companion-request-pet-voice-chat";
+pub const COMPANION_PET_VOICE_TRANSCRIPT_EVENT: &str = "companion-pet-voice-transcript";
+
+const MAX_PET_CONVERSATION_TURNS: usize = 6;
+const SUPPORTED_LIVE2D_EMOTION_TAGS: &[&str] = &[
+    "neutral", "joy", "sadness", "surprise", "anger", "fear", "disgust", "smirk",
+];
+
+static LIVE2D_TAG_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\[([a-z0-9_-]+)\]").expect("live2d tag regex should compile"));
 
 fn default_companion_endpoint() -> String {
     format!("ws://{DEFAULT_COMPANION_HOST}:{DEFAULT_COMPANION_PORT}{DEFAULT_COMPANION_PATH}")
@@ -128,10 +151,57 @@ struct CompanionReadyPayload {
     capabilities: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompanionPetChatRequestPayload {
+    pub text: String,
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct CompanionPetConversationTurn {
+    role: CompanionPetConversationRole,
+    content: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CompanionPetConversationRole {
+    User,
+    Assistant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CompanionPetQuickAction {
+    Cheer,
+    NextStep,
+}
+
+#[derive(Debug, Clone)]
+struct CompanionResolvedChatTarget {
+    provider: ProviderWithKeys,
+    model_name: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct NormalizedConversationBubble {
+    bubble_text: String,
+    emotion_tags: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 struct ActivePetSender {
     connection_id: String,
     tx: mpsc::UnboundedSender<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct CompanionIncomingEventEffects {
+    focus_main_window: bool,
+    open_provider_settings: bool,
+    request_provider_sync: bool,
+    request_pet_cheer: bool,
+    request_pet_next_step: bool,
+    request_pet_voice_chat: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -152,6 +222,9 @@ pub struct CompanionServiceState {
     runtime: Arc<RwLock<CompanionRuntime>>,
     sender: Arc<Mutex<Option<ActivePetSender>>>,
     start_lock: Arc<Mutex<()>>,
+    pet_action_lock: Arc<Mutex<()>>,
+    pet_conversation_history: Arc<Mutex<Vec<CompanionPetConversationTurn>>>,
+    frontend_event_listener_registered: Arc<Mutex<bool>>,
 }
 
 impl Default for CompanionServiceState {
@@ -164,6 +237,9 @@ impl Default for CompanionServiceState {
             })),
             sender: Arc::new(Mutex::new(None)),
             start_lock: Arc::new(Mutex::new(())),
+            pet_action_lock: Arc::new(Mutex::new(())),
+            pet_conversation_history: Arc::new(Mutex::new(Vec::new())),
+            frontend_event_listener_registered: Arc::new(Mutex::new(false)),
         }
     }
 }
@@ -171,6 +247,7 @@ impl Default for CompanionServiceState {
 impl CompanionServiceState {
     pub async fn start(&self, app_handle: AppHandle) -> Result<(), String> {
         self.set_app_handle(app_handle.clone()).await;
+        self.register_frontend_event_listeners(&app_handle).await;
 
         let _guard = self.start_lock.lock().await;
         if self.snapshot().await.server_listening {
@@ -219,6 +296,40 @@ impl CompanionServiceState {
             default_companion_endpoint()
         );
         Ok(())
+    }
+
+    async fn register_frontend_event_listeners(&self, app_handle: &AppHandle) {
+        let mut guard = self.frontend_event_listener_registered.lock().await;
+        if *guard {
+            return;
+        }
+
+        let service = self.clone();
+        let listener_app_handle = app_handle.clone();
+        app_handle.listen(COMPANION_PET_VOICE_TRANSCRIPT_EVENT, move |event| {
+            let raw_payload = event.payload().to_string();
+            let service = service.clone();
+            let app_handle = listener_app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let payload = match parse_companion_chat_request_event_payload(&raw_payload) {
+                    Ok(payload) => payload,
+                    Err(error) => {
+                        tracing::warn!(
+                            "[Companion] 解析桌宠语音转写事件失败: {}，payload={}",
+                            error,
+                            raw_payload
+                        );
+                        return;
+                    }
+                };
+
+                if let Err(error) = service.handle_pet_chat_request(&app_handle, payload).await {
+                    tracing::warn!("[Companion] 处理桌宠语音转写失败: {}", error);
+                }
+            });
+        });
+
+        *guard = true;
     }
 
     pub async fn snapshot(&self) -> CompanionPetStatus {
@@ -441,10 +552,7 @@ impl CompanionServiceState {
             return;
         }
 
-        let should_focus_main_window = matches!(
-            envelope.event.as_str(),
-            "pet.clicked" | "pet.open_chat" | "pet.open_provider_settings"
-        );
+        let event_effects = companion_incoming_event_effects(envelope.event.as_str());
 
         self.update_runtime(|runtime| {
             if runtime.active_connection_id.as_deref() != Some(connection_id) {
@@ -473,13 +581,70 @@ impl CompanionServiceState {
             }
         }
 
-        if should_focus_main_window {
+        if event_effects.focus_main_window {
             reveal_main_window(app_handle);
         }
 
-        if envelope.event == "pet.open_provider_settings" {
+        if event_effects.open_provider_settings {
             if let Err(error) = app_handle.emit(COMPANION_OPEN_PROVIDER_SETTINGS_EVENT, ()) {
                 tracing::warn!("[Companion] 发送服务商设置跳转事件失败: {}", error);
+            }
+        }
+
+        if event_effects.request_provider_sync {
+            if let Err(error) = app_handle.emit(COMPANION_REQUEST_PROVIDER_SYNC_EVENT, ()) {
+                tracing::warn!("[Companion] 发送桌宠摘要同步请求失败: {}", error);
+            }
+        }
+
+        if event_effects.request_pet_cheer {
+            if let Err(error) = self
+                .handle_pet_quick_action_request(app_handle, CompanionPetQuickAction::Cheer)
+                .await
+            {
+                tracing::warn!("[Companion] 处理桌宠鼓励请求失败: {}", error);
+            }
+        }
+
+        if event_effects.request_pet_next_step {
+            if let Err(error) = self
+                .handle_pet_quick_action_request(app_handle, CompanionPetQuickAction::NextStep)
+                .await
+            {
+                tracing::warn!("[Companion] 处理桌宠下一步建议请求失败: {}", error);
+            }
+        }
+
+        if event_effects.request_pet_voice_chat {
+            if let Err(error) = self.handle_pet_voice_chat_request(app_handle).await {
+                tracing::warn!("[Companion] 处理桌宠语音对话请求失败: {}", error);
+            }
+        }
+
+        if envelope.event == "pet.request_chat_reply" {
+            match serde_json::from_value::<CompanionPetChatRequestPayload>(envelope.payload.clone())
+            {
+                Ok(payload) => {
+                    if let Err(error) = self.handle_pet_chat_request(app_handle, payload).await {
+                        tracing::warn!("[Companion] 处理桌宠对话请求失败: {}", error);
+                    }
+                }
+                Err(error) => {
+                    self.update_runtime(|runtime| {
+                        if runtime.active_connection_id.as_deref() != Some(connection_id) {
+                            return;
+                        }
+                        runtime.status.last_error =
+                            Some(format!("桌宠对话请求负载解析失败: {error}"));
+                    })
+                    .await;
+                }
+            }
+        }
+
+        if envelope.event == "pet.request_chat_reset" {
+            if let Err(error) = self.handle_pet_chat_reset_request().await {
+                tracing::warn!("[Companion] 处理桌宠对话重置请求失败: {}", error);
             }
         }
     }
@@ -505,6 +670,206 @@ impl CompanionServiceState {
         })
         .await;
     }
+
+    async fn handle_pet_voice_chat_request(&self, app_handle: &AppHandle) -> Result<(), String> {
+        if !self.snapshot().await.connected {
+            return Ok(());
+        }
+
+        let _ = self.send_pet_bubble("你说吧，我在认真听", 1600).await;
+
+        if let Err(error) =
+            crate::voice::window::open_voice_window(app_handle, Some("companion-pet"))
+        {
+            tracing::warn!("[Companion] 打开桌宠语音窗口失败: {}", error);
+            let _ = self
+                .send_pet_bubble("语音入口暂时没打开，你先打字和我聊吧", 2200)
+                .await;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_pet_chat_reset_request(&self) -> Result<(), String> {
+        self.pet_conversation_history.lock().await.clear();
+        let _ = self
+            .send_pet_bubble("好呀，我们从这句重新开始聊", 1800)
+            .await;
+        Ok(())
+    }
+
+    async fn handle_pet_quick_action_request(
+        &self,
+        app_handle: &AppHandle,
+        action: CompanionPetQuickAction,
+    ) -> Result<(), String> {
+        let action_guard = match self.pet_action_lock.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                let _ = self.send_pet_bubble("我还在想上一句呢", 1400).await;
+                return Ok(());
+            }
+        };
+        let resume_state = self.resume_visual_state().await;
+        let _ = self
+            .send_pet_visual_state(CompanionPetVisualState::Thinking)
+            .await;
+
+        let target = match resolve_companion_chat_target(app_handle).await {
+            Ok(target) => target,
+            Err(error) => {
+                let _ = self
+                    .send_pet_bubble(&format_quick_action_error(action, &error), 2200)
+                    .await;
+                drop(action_guard);
+                let _ = self.send_pet_visual_state(resume_state).await;
+                return Ok(());
+            }
+        };
+
+        let prompt = build_quick_action_prompt(action);
+        let result = run_companion_chat_completion(app_handle, &target, prompt).await;
+        match result {
+            Ok(content) => {
+                let bubble_text = normalize_quick_action_bubble(action, content.content.as_deref());
+                let auto_hide_ms = match action {
+                    CompanionPetQuickAction::Cheer => 2200,
+                    CompanionPetQuickAction::NextStep => 2600,
+                };
+                let _ = self.send_pet_bubble(&bubble_text, auto_hide_ms).await;
+            }
+            Err(error) => {
+                let _ = self
+                    .send_pet_bubble(&format_quick_action_error(action, &error), 2200)
+                    .await;
+            }
+        }
+
+        drop(action_guard);
+        let _ = self.send_pet_visual_state(resume_state).await;
+        Ok(())
+    }
+
+    async fn handle_pet_chat_request(
+        &self,
+        app_handle: &AppHandle,
+        payload: CompanionPetChatRequestPayload,
+    ) -> Result<(), String> {
+        let input = normalize_text(&payload.text);
+        if input.is_empty() {
+            let _ = self.send_pet_bubble("你先跟我说一句话吧", 1600).await;
+            return Ok(());
+        }
+
+        let action_guard = match self.pet_action_lock.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                let _ = self.send_pet_bubble("我还在想上一句呢", 1400).await;
+                return Ok(());
+            }
+        };
+        let resume_state = self.resume_visual_state().await;
+        let _ = self
+            .send_pet_visual_state(CompanionPetVisualState::Thinking)
+            .await;
+
+        let target = match resolve_companion_chat_target(app_handle).await {
+            Ok(target) => target,
+            Err(error) => {
+                let _ = self
+                    .send_pet_bubble(&format_pet_conversation_error(&error), 2200)
+                    .await;
+                drop(action_guard);
+                let _ = self.send_pet_visual_state(resume_state).await;
+                return Ok(());
+            }
+        };
+
+        let history = self.pet_conversation_history.lock().await.clone();
+        let prompt = build_pet_conversation_prompt(&history, &input);
+        let result = run_companion_chat_completion(app_handle, &target, prompt).await;
+        match result {
+            Ok(content) => {
+                let normalized = normalize_conversation_bubble(content.content.as_deref());
+                {
+                    let mut history = self.pet_conversation_history.lock().await;
+                    append_pet_conversation_turn(
+                        &mut history,
+                        CompanionPetConversationRole::User,
+                        &input,
+                    );
+                    append_pet_conversation_turn(
+                        &mut history,
+                        CompanionPetConversationRole::Assistant,
+                        &normalized.bubble_text,
+                    );
+                }
+
+                if !normalized.emotion_tags.is_empty() {
+                    let _ = self.send_pet_live2d_action(&normalized.emotion_tags).await;
+                }
+                let _ = self.send_pet_bubble(&normalized.bubble_text, 3200).await;
+            }
+            Err(error) => {
+                let _ = self
+                    .send_pet_bubble(&format_pet_conversation_error(&error), 2200)
+                    .await;
+            }
+        }
+
+        drop(action_guard);
+        let _ = self.send_pet_visual_state(resume_state).await;
+        Ok(())
+    }
+
+    async fn resume_visual_state(&self) -> CompanionPetVisualState {
+        let snapshot = self.snapshot().await;
+        match snapshot.last_state {
+            Some(state) if state != CompanionPetVisualState::Thinking => state,
+            _ => CompanionPetVisualState::Walking,
+        }
+    }
+
+    async fn send_pet_visual_state(
+        &self,
+        state: CompanionPetVisualState,
+    ) -> Result<CompanionPetSendResult, String> {
+        self.send_pet_command(CompanionPetCommandRequest {
+            event: "pet.state_changed".to_string(),
+            payload: serde_json::json!({
+                "state": state.as_wire_value(),
+            }),
+        })
+        .await
+    }
+
+    async fn send_pet_bubble(
+        &self,
+        text: &str,
+        auto_hide_ms: u64,
+    ) -> Result<CompanionPetSendResult, String> {
+        self.send_pet_command(CompanionPetCommandRequest {
+            event: "pet.show_bubble".to_string(),
+            payload: serde_json::json!({
+                "text": text,
+                "auto_hide_ms": auto_hide_ms,
+            }),
+        })
+        .await
+    }
+
+    async fn send_pet_live2d_action(
+        &self,
+        emotion_tags: &[String],
+    ) -> Result<CompanionPetSendResult, String> {
+        self.send_pet_command(CompanionPetCommandRequest {
+            event: "pet.live2d_action".to_string(),
+            payload: serde_json::json!({
+                "emotion_tags": emotion_tags,
+            }),
+        })
+        .await
+    }
 }
 
 fn parse_visual_state(value: &str) -> Option<CompanionPetVisualState> {
@@ -515,6 +880,410 @@ fn parse_visual_state(value: &str) -> Option<CompanionPetVisualState> {
         "thinking" => Some(CompanionPetVisualState::Thinking),
         "done" => Some(CompanionPetVisualState::Done),
         _ => None,
+    }
+}
+
+impl CompanionPetVisualState {
+    fn as_wire_value(self) -> &'static str {
+        match self {
+            CompanionPetVisualState::Hidden => "hidden",
+            CompanionPetVisualState::Idle => "idle",
+            CompanionPetVisualState::Walking => "walking",
+            CompanionPetVisualState::Thinking => "thinking",
+            CompanionPetVisualState::Done => "done",
+        }
+    }
+}
+
+fn parse_companion_chat_request_event_payload(
+    raw_payload: &str,
+) -> Result<CompanionPetChatRequestPayload, String> {
+    if let Ok(payload) = serde_json::from_str::<CompanionPetChatRequestPayload>(raw_payload) {
+        return Ok(payload);
+    }
+
+    let value: Value =
+        serde_json::from_str(raw_payload).map_err(|error| format!("JSON 解析失败: {error}"))?;
+    match value {
+        Value::String(text) => Ok(CompanionPetChatRequestPayload {
+            text,
+            source: Some("voice_window".to_string()),
+        }),
+        Value::Object(_) => serde_json::from_value(value)
+            .map_err(|error| format!("桌宠语音转写负载解析失败: {error}")),
+        _ => Err("桌宠语音转写负载不是合法对象或字符串".to_string()),
+    }
+}
+
+fn build_quick_action_prompt(action: CompanionPetQuickAction) -> String {
+    match action {
+        CompanionPetQuickAction::NextStep => [
+            "你是“Lime 青柠精灵”桌宠。",
+            "请只输出一句中文下一步行动建议。",
+            "要求具体、轻量、可立刻执行，不超过26个汉字。",
+            "不要使用表情、引号、换行、编号，也不要解释原因。",
+        ]
+        .join(""),
+        CompanionPetQuickAction::Cheer => [
+            "你是“Lime 青柠精灵”桌宠。",
+            "请只输出一句中文陪伴或鼓励短句。",
+            "语气温柔机灵，不超过24个汉字。",
+            "不要使用表情、引号、换行、编号，也不要自我介绍。",
+        ]
+        .join(""),
+    }
+}
+
+fn build_pet_conversation_prompt(
+    history: &[CompanionPetConversationTurn],
+    user_input: &str,
+) -> String {
+    let supported_tags = SUPPORTED_LIVE2D_EMOTION_TAGS
+        .iter()
+        .map(|tag| format!("[{tag}]"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut prompt = String::from("你是“Lime 青柠精灵”桌宠。用户正在直接和你说话。");
+
+    if !history.is_empty() {
+        prompt.push_str("最近几轮对话如下，请自然延续语气和上下文。");
+        for turn in history {
+            match turn.role {
+                CompanionPetConversationRole::User => prompt.push_str("用户："),
+                CompanionPetConversationRole::Assistant => prompt.push_str("青柠："),
+            }
+            prompt.push_str(&turn.content);
+        }
+    }
+
+    prompt.push_str("请直接用中文回复用户，最多两句，总长度不超过48个汉字。");
+    prompt.push_str(&format!(
+        "为了驱动 Live2D，你可以插入 0 到 2 个情绪标签：{supported_tags}。"
+    ));
+    prompt.push_str("标签可放在句首或句中，但除了这些标签以外，不要输出任何方括号内容。");
+    prompt.push_str("语气温柔、机灵、自然，像桌边陪伴，不要使用表情、引号、编号、标题或换行。");
+    prompt.push_str(&format!("用户输入：{user_input}"));
+    prompt
+}
+
+fn normalize_text(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn sanitize_bubble_candidate(value: Option<&str>) -> String {
+    let compact = normalize_text(value.unwrap_or_default());
+    let trimmed_quotes = compact.trim_matches(|ch| matches!(ch, '"' | '“' | '”' | '\'' | '`'));
+    trimmed_quotes
+        .trim_start_matches(|ch: char| {
+            ch.is_ascii_digit() || matches!(ch, '-' | '*' | ' ' | '、' | '.')
+        })
+        .to_string()
+}
+
+fn truncate_chars(value: &str, limit: usize) -> String {
+    let chars = value.chars().collect::<Vec<_>>();
+    if chars.len() <= limit {
+        return value.to_string();
+    }
+
+    format!("{}…", chars.into_iter().take(limit).collect::<String>())
+}
+
+fn fallback_quick_action_bubble(action: CompanionPetQuickAction) -> &'static str {
+    match action {
+        CompanionPetQuickAction::NextStep => "先把眼前最小的一步做掉",
+        CompanionPetQuickAction::Cheer => "青柠会一直陪着你",
+    }
+}
+
+fn normalize_quick_action_bubble(action: CompanionPetQuickAction, content: Option<&str>) -> String {
+    let bubble = sanitize_bubble_candidate(content);
+    if bubble.is_empty() {
+        return fallback_quick_action_bubble(action).to_string();
+    }
+
+    truncate_chars(&bubble, 30)
+}
+
+fn is_supported_live2d_emotion_tag(tag: &str) -> bool {
+    SUPPORTED_LIVE2D_EMOTION_TAGS.contains(&tag)
+}
+
+fn normalize_conversation_bubble(content: Option<&str>) -> NormalizedConversationBubble {
+    let mut emotion_tags = Vec::new();
+    let content_without_tags = LIVE2D_TAG_REGEX
+        .replace_all(content.unwrap_or_default(), |captures: &regex::Captures| {
+            let tag = captures
+                .get(1)
+                .map(|value| value.as_str().to_ascii_lowercase())
+                .unwrap_or_default();
+            if is_supported_live2d_emotion_tag(&tag) {
+                if !emotion_tags.iter().any(|existing| existing == &tag) {
+                    emotion_tags.push(tag);
+                }
+                " ".to_string()
+            } else {
+                captures
+                    .get(0)
+                    .map(|value| value.as_str().to_string())
+                    .unwrap_or_default()
+            }
+        })
+        .to_string();
+
+    let bubble = sanitize_bubble_candidate(Some(&content_without_tags));
+    if bubble.is_empty() {
+        return NormalizedConversationBubble {
+            bubble_text: "我在呢，我们慢慢说".to_string(),
+            emotion_tags,
+        };
+    }
+
+    NormalizedConversationBubble {
+        bubble_text: truncate_chars(&bubble, 56),
+        emotion_tags,
+    }
+}
+
+fn append_pet_conversation_turn(
+    history: &mut Vec<CompanionPetConversationTurn>,
+    role: CompanionPetConversationRole,
+    content: &str,
+) {
+    let normalized_content = normalize_text(content);
+    if normalized_content.is_empty() {
+        return;
+    }
+
+    history.push(CompanionPetConversationTurn {
+        role,
+        content: normalized_content,
+    });
+    if history.len() > MAX_PET_CONVERSATION_TURNS {
+        let overflow = history.len() - MAX_PET_CONVERSATION_TURNS;
+        history.drain(0..overflow);
+    }
+}
+
+fn missing_provider_message() -> &'static str {
+    "还没找到可聊天的 AI 服务商，先去 Lime 里配置一个吧"
+}
+
+fn format_quick_action_error(action: CompanionPetQuickAction, error: &str) -> String {
+    let message = error.trim();
+    if message.contains("还没找到可聊天的 AI 服务商") {
+        return message.to_string();
+    }
+
+    match action {
+        CompanionPetQuickAction::NextStep => "青柠这次没想好下一步，稍后再试试".to_string(),
+        CompanionPetQuickAction::Cheer => "青柠这次灵感掉线啦，稍后再点我".to_string(),
+    }
+}
+
+fn format_pet_conversation_error(error: &str) -> String {
+    let message = error.trim();
+    if message.contains("还没找到可聊天的 AI 服务商") || message.contains("你先跟我说一句话吧")
+    {
+        return message.to_string();
+    }
+
+    "青柠刚刚走神了，你再和我说一次吧".to_string()
+}
+
+async fn resolve_companion_chat_target(
+    app_handle: &AppHandle,
+) -> Result<CompanionResolvedChatTarget, String> {
+    let app_state = app_handle
+        .try_state::<AppState>()
+        .ok_or_else(|| "AppState 未初始化".to_string())?;
+    let config = {
+        let guard = app_state.inner().read().await;
+        guard.config.clone()
+    };
+
+    let db = app_handle
+        .try_state::<DbConnection>()
+        .ok_or_else(|| "DbConnection 未初始化".to_string())?;
+    let api_key_service = app_handle
+        .try_state::<ApiKeyProviderServiceState>()
+        .ok_or_else(|| "ApiKeyProviderServiceState 未初始化".to_string())?;
+    let providers = api_key_service.0.get_all_providers(db.inner())?;
+
+    let general_preference = &config.workspace_preferences.companion_defaults.general;
+    if let Some(preferred_provider_id) = general_preference
+        .preferred_provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if let Some(provider) = find_usable_provider_by_hint(&providers, preferred_provider_id) {
+            return Ok(CompanionResolvedChatTarget {
+                provider: provider.clone(),
+                model_name: general_preference.preferred_model_id.clone(),
+            });
+        }
+
+        if !general_preference.allow_fallback {
+            return Err(format!(
+                "桌宠通用模型 Provider 不可用：{}",
+                preferred_provider_id
+            ));
+        }
+    }
+
+    if let Some(provider) = find_usable_provider_by_hint(&providers, &config.default_provider) {
+        return Ok(CompanionResolvedChatTarget {
+            provider: provider.clone(),
+            model_name: None,
+        });
+    }
+
+    let provider = providers
+        .iter()
+        .find(|provider| can_use_companion_chat_provider(provider))
+        .cloned()
+        .ok_or_else(|| missing_provider_message().to_string())?;
+
+    Ok(CompanionResolvedChatTarget {
+        provider,
+        model_name: None,
+    })
+}
+
+async fn run_companion_chat_completion(
+    app_handle: &AppHandle,
+    target: &CompanionResolvedChatTarget,
+    prompt: String,
+) -> Result<lime_services::api_key_provider_service::ChatTestResult, String> {
+    let db = app_handle
+        .try_state::<DbConnection>()
+        .ok_or_else(|| "DbConnection 未初始化".to_string())?;
+    let api_key_service = app_handle
+        .try_state::<ApiKeyProviderServiceState>()
+        .ok_or_else(|| "ApiKeyProviderServiceState 未初始化".to_string())?;
+    let fallback_models = load_local_fallback_models(app_handle, &target.provider.provider).await;
+    let result = api_key_service
+        .0
+        .test_chat_with_fallback_models(
+            db.inner(),
+            &target.provider.provider.id,
+            target.model_name.clone(),
+            prompt,
+            fallback_models,
+        )
+        .await?;
+
+    if result.success {
+        return Ok(result);
+    }
+
+    Err(normalize_text(
+        result
+            .error
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("青柠这次暂时没有连上可用模型"),
+    ))
+}
+
+async fn load_local_fallback_models(
+    app_handle: &AppHandle,
+    provider: &crate::database::dao::api_key_provider::ApiKeyProvider,
+) -> Vec<String> {
+    let Some(model_registry_state) = app_handle.try_state::<ModelRegistryState>() else {
+        return Vec::new();
+    };
+
+    let guard = model_registry_state.inner().read().await;
+    let Some(model_registry) = guard.as_ref() else {
+        return Vec::new();
+    };
+
+    model_registry
+        .get_local_fallback_model_ids_with_hints(
+            &provider.id,
+            &provider.api_host,
+            Some(provider.provider_type),
+            &provider.custom_models,
+        )
+        .await
+}
+
+fn can_use_companion_chat_provider(provider: &ProviderWithKeys) -> bool {
+    provider.provider.enabled
+        && (provider.api_keys.iter().any(|item| item.enabled)
+            || (provider.provider.provider_type == ApiProviderType::Ollama
+                && !provider.provider.api_host.trim().is_empty()))
+}
+
+fn find_usable_provider_by_hint<'a>(
+    providers: &'a [ProviderWithKeys],
+    hint: &str,
+) -> Option<&'a ProviderWithKeys> {
+    let normalized_hint = normalize_provider_hint(hint);
+    if normalized_hint.is_empty() {
+        return None;
+    }
+
+    providers.iter().find(|provider| {
+        can_use_companion_chat_provider(provider)
+            && (normalize_provider_hint(&provider.provider.id) == normalized_hint
+                || normalize_provider_hint(api_provider_type_key(provider.provider.provider_type))
+                    == normalized_hint)
+    })
+}
+
+fn normalize_provider_hint(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn api_provider_type_key(value: ApiProviderType) -> &'static str {
+    match value {
+        ApiProviderType::Openai => "openai",
+        ApiProviderType::OpenaiResponse => "openai-response",
+        ApiProviderType::Codex => "codex",
+        ApiProviderType::Anthropic => "anthropic",
+        ApiProviderType::AnthropicCompatible => "anthropic-compatible",
+        ApiProviderType::Gemini => "gemini",
+        ApiProviderType::AzureOpenai => "azure-openai",
+        ApiProviderType::Vertexai => "vertexai",
+        ApiProviderType::AwsBedrock => "aws-bedrock",
+        ApiProviderType::Ollama => "ollama",
+        ApiProviderType::Fal => "fal",
+        ApiProviderType::NewApi => "new-api",
+        ApiProviderType::Gateway => "gateway",
+    }
+}
+
+fn companion_incoming_event_effects(event: &str) -> CompanionIncomingEventEffects {
+    match event {
+        "pet.clicked" | "pet.open_chat" => CompanionIncomingEventEffects {
+            focus_main_window: true,
+            ..CompanionIncomingEventEffects::default()
+        },
+        "pet.open_provider_settings" => CompanionIncomingEventEffects {
+            focus_main_window: true,
+            open_provider_settings: true,
+            ..CompanionIncomingEventEffects::default()
+        },
+        "pet.request_provider_overview_sync" => CompanionIncomingEventEffects {
+            request_provider_sync: true,
+            ..CompanionIncomingEventEffects::default()
+        },
+        "pet.request_pet_cheer" => CompanionIncomingEventEffects {
+            request_pet_cheer: true,
+            ..CompanionIncomingEventEffects::default()
+        },
+        "pet.request_pet_next_step" => CompanionIncomingEventEffects {
+            request_pet_next_step: true,
+            ..CompanionIncomingEventEffects::default()
+        },
+        "pet.request_voice_chat" => CompanionIncomingEventEffects {
+            request_pet_voice_chat: true,
+            ..CompanionIncomingEventEffects::default()
+        },
+        _ => CompanionIncomingEventEffects::default(),
     }
 }
 
@@ -778,5 +1547,102 @@ mod tests {
         assert_eq!(snapshot.last_event.as_deref(), Some("pet.state_changed"));
         assert_eq!(snapshot.last_state, Some(CompanionPetVisualState::Thinking));
         assert!(snapshot.connected);
+    }
+
+    #[test]
+    fn incoming_event_effects_focus_or_emit_expected_side_effects() {
+        assert_eq!(
+            companion_incoming_event_effects("pet.clicked"),
+            CompanionIncomingEventEffects {
+                focus_main_window: true,
+                open_provider_settings: false,
+                request_provider_sync: false,
+                request_pet_cheer: false,
+                request_pet_next_step: false,
+                request_pet_voice_chat: false,
+            }
+        );
+        assert_eq!(
+            companion_incoming_event_effects("pet.open_provider_settings"),
+            CompanionIncomingEventEffects {
+                focus_main_window: true,
+                open_provider_settings: true,
+                request_provider_sync: false,
+                request_pet_cheer: false,
+                request_pet_next_step: false,
+                request_pet_voice_chat: false,
+            }
+        );
+        assert_eq!(
+            companion_incoming_event_effects("pet.request_provider_overview_sync"),
+            CompanionIncomingEventEffects {
+                focus_main_window: false,
+                open_provider_settings: false,
+                request_provider_sync: true,
+                request_pet_cheer: false,
+                request_pet_next_step: false,
+                request_pet_voice_chat: false,
+            }
+        );
+        assert_eq!(
+            companion_incoming_event_effects("pet.request_pet_cheer"),
+            CompanionIncomingEventEffects {
+                focus_main_window: false,
+                open_provider_settings: false,
+                request_provider_sync: false,
+                request_pet_cheer: true,
+                request_pet_next_step: false,
+                request_pet_voice_chat: false,
+            }
+        );
+        assert_eq!(
+            companion_incoming_event_effects("pet.request_pet_next_step"),
+            CompanionIncomingEventEffects {
+                focus_main_window: false,
+                open_provider_settings: false,
+                request_provider_sync: false,
+                request_pet_cheer: false,
+                request_pet_next_step: true,
+                request_pet_voice_chat: false,
+            }
+        );
+        assert_eq!(
+            companion_incoming_event_effects("pet.request_voice_chat"),
+            CompanionIncomingEventEffects {
+                focus_main_window: false,
+                open_provider_settings: false,
+                request_provider_sync: false,
+                request_pet_cheer: false,
+                request_pet_next_step: false,
+                request_pet_voice_chat: true,
+            }
+        );
+    }
+
+    #[test]
+    fn normalize_conversation_bubble_should_extract_supported_live2d_tags() {
+        let normalized =
+            normalize_conversation_bubble(Some("[joy]当然在，我会陪你把今天慢慢走完[unknown]"));
+
+        assert_eq!(
+            normalized.bubble_text,
+            "当然在，我会陪你把今天慢慢走完[unknown]"
+        );
+        assert_eq!(normalized.emotion_tags, vec!["joy".to_string()]);
+    }
+
+    #[test]
+    fn parse_companion_chat_request_event_payload_should_accept_object_and_string() {
+        let object_payload = parse_companion_chat_request_event_payload(
+            r#"{"text":"陪我聊两句","source":"voice_window"}"#,
+        )
+        .expect("对象事件负载应被成功解析");
+        assert_eq!(object_payload.text, "陪我聊两句");
+        assert_eq!(object_payload.source.as_deref(), Some("voice_window"));
+
+        let string_payload = parse_companion_chat_request_event_payload(r#""今天有点累""#)
+            .expect("字符串事件负载应被成功解析");
+        assert_eq!(string_payload.text, "今天有点累");
+        assert_eq!(string_payload.source.as_deref(), Some("voice_window"));
     }
 }

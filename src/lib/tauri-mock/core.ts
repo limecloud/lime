@@ -117,6 +117,16 @@ type MockBrowserConnectorInstallStatus = {
   message: string | null;
 };
 
+type MockToolSpec = {
+  name: string;
+  description: string;
+  capabilities: string[];
+  source: string;
+  tags: string[];
+  input_examples_count: number;
+  execution_restriction_profile?: string;
+};
+
 const DEFAULT_MOCK_BROWSER_ACTION_CAPABILITIES = [
   {
     key: "tabs_context_mcp",
@@ -1073,17 +1083,6 @@ function syncMockAutomationBrowserSessionState(
   return session;
 }
 
-type MockClawSolutionSummary = {
-  id: string;
-  title: string;
-  summary: string;
-  outputHint: string;
-  recommendedCapabilities: string[];
-  readiness: "ready" | "needs_setup" | "needs_capability";
-  readinessMessage: string;
-  reasonCode?: string;
-};
-
 type MockReviewDecisionRequest = {
   session_id?: string;
   sessionId?: string;
@@ -1108,101 +1107,6 @@ type MockReviewDecisionRequest = {
   notes?: string;
 };
 
-const mockClawSolutionCatalog: MockClawSolutionSummary[] = [
-  {
-    id: "web-research-brief",
-    title: "网页研究简报",
-    summary: "快速整理研究目标、关键来源与结论框架。",
-    outputHint: "研究提纲 + 结论简报",
-    recommendedCapabilities: ["模型", "研究"],
-    readiness: "ready",
-    readinessMessage: "可直接开始",
-  },
-  {
-    id: "social-post-starter",
-    title: "社媒主稿生成",
-    summary: "进入社媒专项工作台并生成一版首稿。",
-    outputHint: "社媒首稿 + 平台结构",
-    recommendedCapabilities: ["模型", "社媒主题"],
-    readiness: "ready",
-    readinessMessage: "可直接开始",
-  },
-  {
-    id: "frontend-concept",
-    title: "前端概念方案",
-    summary: "输出信息架构、核心模块与页面关系。",
-    outputHint: "IA + 模块方案",
-    recommendedCapabilities: ["模型", "结构化输出"],
-    readiness: "ready",
-    readinessMessage: "可直接开始",
-  },
-  {
-    id: "slide-outline",
-    title: "演示提纲草案",
-    summary: "生成一版可讲述的演示结构。",
-    outputHint: "PPT 大纲 + 讲述线",
-    recommendedCapabilities: ["模型", "结构化输出"],
-    readiness: "ready",
-    readinessMessage: "可直接开始",
-  },
-  {
-    id: "browser-assist-task",
-    title: "浏览器协助办事",
-    summary: "进入工作区后直接打开浏览器协助。",
-    outputHint: "浏览器任务执行",
-    recommendedCapabilities: ["模型", "浏览器协助"],
-    readiness: "ready",
-    readinessMessage: "可直接开始",
-  },
-  {
-    id: "team-breakdown",
-    title: "多代理拆任务",
-    summary: "默认启用多代理偏好，按 team runtime 方式展开任务。",
-    outputHint: "任务拆解 + 分工执行",
-    recommendedCapabilities: ["模型", "多代理"],
-    readiness: "ready",
-    readinessMessage: "可直接开始，进入后会启用多代理偏好",
-    reasonCode: "team_recommended",
-  },
-] as const;
-
-function getMockClawSolution(solutionId: string) {
-  const solution = mockClawSolutionCatalog.find(
-    (item) => item.id === solutionId,
-  );
-  if (!solution) {
-    throw new Error(`Unknown mock claw solution: ${solutionId}`);
-  }
-  return solution;
-}
-
-function buildMockClawSolutionPrompt(
-  solutionId: string,
-  context?: { userInput?: string },
-) {
-  const prompts: Record<string, string> = {
-    "web-research-brief":
-      "请围绕这个主题先给我做一版网页研究简报：明确研究目标、关键信息来源、核心发现、风险点，以及接下来最值得继续追踪的问题。",
-    "social-post-starter":
-      "请先帮我起草一版社媒内容首稿：明确目标受众、平台语境、标题方向、正文结构和可继续扩写的角度。",
-    "frontend-concept":
-      "请帮我先整理一版前端概念方案：输出信息架构、核心页面、关键模块、交互流程和第一轮组件拆分建议。",
-    "slide-outline":
-      "请基于这个目标先生成一版演示提纲：包含封面定位、目录、核心论点、案例支撑、结论和下一步行动。",
-    "browser-assist-task":
-      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，再进入执行。",
-    "team-breakdown":
-      "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
-  };
-
-  const basePrompt = prompts[solutionId] ?? "";
-  const userInput = context?.userInput?.trim();
-  if (!userInput) {
-    return basePrompt;
-  }
-  return `${basePrompt}\n\n补充上下文：${userInput}`;
-}
-
 function buildMockAgentRuntimeToolInventory(request?: {
   caller?: string;
   workbench?: boolean;
@@ -1214,170 +1118,374 @@ function buildMockAgentRuntimeToolInventory(request?: {
     browser_assist: request?.browserAssist === true,
   };
 
-  const catalogTools = [
-    {
-      name: "ToolSearch",
-      profiles: ["core"],
-      capabilities: ["web_search"],
-      lifecycle: "current",
-      source: "lime_injected",
-      permission_plane: "session_allowlist",
-      workspace_default_allow: true,
-      execution_warning_policy: "none",
-      execution_warning_policy_source: "default",
-      execution_restriction_profile: "none",
-      execution_restriction_profile_source: "default",
-      execution_sandbox_profile: "none",
-      execution_sandbox_profile_source: "default",
-    },
-    {
-      name: "WebSearch",
-      profiles: ["core"],
-      capabilities: ["web_search"],
-      lifecycle: "current",
-      source: "aster_builtin",
-      permission_plane: "session_allowlist",
-      workspace_default_allow: true,
-      execution_warning_policy: "none",
-      execution_warning_policy_source: "default",
-      execution_restriction_profile: "safe_https_url_required",
-      execution_restriction_profile_source: "default",
-      execution_sandbox_profile: "none",
-      execution_sandbox_profile_source: "default",
-    },
-    {
-      name: "ask",
-      profiles: ["core"],
-      capabilities: ["planning"],
-      lifecycle: "current",
-      source: "aster_builtin",
-      permission_plane: "session_allowlist",
-      workspace_default_allow: true,
-      execution_warning_policy: "none",
-      execution_warning_policy_source: "default",
-      execution_restriction_profile: "none",
-      execution_restriction_profile_source: "default",
-      execution_sandbox_profile: "none",
-      execution_sandbox_profile_source: "default",
-    },
-    {
-      name: "spawn_agent",
-      profiles: ["core"],
-      capabilities: ["delegation"],
-      lifecycle: "current",
-      source: "lime_injected",
-      permission_plane: "session_allowlist",
-      workspace_default_allow: true,
-      execution_warning_policy: "none",
-      execution_warning_policy_source: "default",
-      execution_restriction_profile: "none",
-      execution_restriction_profile_source: "default",
-      execution_sandbox_profile: "none",
-      execution_sandbox_profile_source: "default",
-    },
-  ];
-
-  const registryTools = [
+  const toolSpecs: MockToolSpec[] = [
     {
       name: "ToolSearch",
       description: "搜索当前会话可用工具与能力清单。",
-      catalog_entry_name: "ToolSearch",
-      catalog_source: "lime_injected",
-      catalog_lifecycle: "current",
-      catalog_permission_plane: "session_allowlist",
-      catalog_workspace_default_allow: true,
-      catalog_execution_warning_policy: "none",
-      catalog_execution_warning_policy_source: "default",
-      catalog_execution_restriction_profile: "none",
-      catalog_execution_restriction_profile_source: "default",
-      catalog_execution_sandbox_profile: "none",
-      catalog_execution_sandbox_profile_source: "default",
-      deferred_loading: false,
-      always_visible: true,
-      allowed_callers: [caller],
+      capabilities: ["web_search"],
+      source: "lime_injected",
       tags: ["search"],
       input_examples_count: 1,
-      caller_allowed: true,
-      visible_in_context: true,
+    },
+    {
+      name: "ListMcpResourcesTool",
+      description: "列出当前已连接 MCP 服务暴露的资源。",
+      capabilities: ["web_search"],
+      source: "lime_injected",
+      tags: ["mcp", "resource", "list"],
+      input_examples_count: 1,
+    },
+    {
+      name: "ReadMcpResourceTool",
+      description: "按 server 与 uri 读取指定 MCP 资源内容。",
+      capabilities: ["web_search"],
+      source: "lime_injected",
+      tags: ["mcp", "resource", "read"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Bash",
+      description: "执行工作区命令并返回结果。",
+      capabilities: ["execution"],
+      source: "aster_builtin",
+      tags: ["command", "workspace"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Read",
+      description: "读取文件内容。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["read", "file"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Write",
+      description: "写入文件内容。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["write", "file"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Edit",
+      description: "按补丁方式编辑文件。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["edit", "file"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Glob",
+      description: "按模式列出匹配文件。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["search", "file"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Grep",
+      description: "在工作区中搜索文本。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["search", "text"],
+      input_examples_count: 1,
+    },
+    {
+      name: "WebFetch",
+      description: "抓取指定网页内容。",
+      capabilities: ["web_search"],
+      source: "aster_builtin",
+      tags: ["web", "fetch"],
+      input_examples_count: 1,
+      execution_restriction_profile: "safe_https_url_required",
     },
     {
       name: "WebSearch",
       description: "联网检索公开网页信息。",
-      catalog_entry_name: "WebSearch",
-      catalog_source: "aster_builtin",
-      catalog_lifecycle: "current",
-      catalog_permission_plane: "session_allowlist",
-      catalog_workspace_default_allow: true,
-      catalog_execution_warning_policy: "none",
-      catalog_execution_warning_policy_source: "default",
-      catalog_execution_restriction_profile: "safe_https_url_required",
-      catalog_execution_restriction_profile_source: "default",
-      catalog_execution_sandbox_profile: "none",
-      catalog_execution_sandbox_profile_source: "default",
-      deferred_loading: false,
-      always_visible: true,
-      allowed_callers: [caller],
+      capabilities: ["web_search"],
+      source: "aster_builtin",
       tags: ["research"],
       input_examples_count: 2,
-      caller_allowed: true,
-      visible_in_context: true,
+      execution_restriction_profile: "safe_https_url_required",
     },
     {
-      name: "ask",
+      name: "AskUserQuestion",
       description: "向用户发起单轮最小必要澄清。",
-      catalog_entry_name: "ask",
-      catalog_source: "aster_builtin",
-      catalog_lifecycle: "current",
-      catalog_permission_plane: "session_allowlist",
-      catalog_workspace_default_allow: true,
-      catalog_execution_warning_policy: "none",
-      catalog_execution_warning_policy_source: "default",
-      catalog_execution_restriction_profile: "none",
-      catalog_execution_restriction_profile_source: "default",
-      catalog_execution_sandbox_profile: "none",
-      catalog_execution_sandbox_profile_source: "default",
-      deferred_loading: false,
-      always_visible: true,
-      allowed_callers: [caller],
+      capabilities: ["planning"],
+      source: "aster_builtin",
       tags: ["clarify"],
       input_examples_count: 1,
-      caller_allowed: true,
-      visible_in_context: true,
     },
     {
-      name: "spawn_agent",
+      name: "SendUserMessage",
+      description: "向用户发送一条主可见消息，可用于回复、进度同步或主动提醒。",
+      capabilities: ["session_control"],
+      source: "aster_builtin",
+      tags: ["message", "user"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Agent",
       description: "在需要并行处理时派生子代理。",
-      catalog_entry_name: "spawn_agent",
-      catalog_source: "lime_injected",
-      catalog_lifecycle: "current",
-      catalog_permission_plane: "session_allowlist",
-      catalog_workspace_default_allow: true,
-      catalog_execution_warning_policy: "none",
-      catalog_execution_warning_policy_source: "default",
-      catalog_execution_restriction_profile: "none",
-      catalog_execution_restriction_profile_source: "default",
-      catalog_execution_sandbox_profile: "none",
-      catalog_execution_sandbox_profile_source: "default",
-      deferred_loading: false,
-      always_visible: true,
-      allowed_callers: [caller],
+      capabilities: ["delegation"],
+      source: "lime_injected",
       tags: ["delegation"],
       input_examples_count: 1,
-      caller_allowed: true,
-      visible_in_context: true,
     },
-  ];
+    {
+      name: "SendMessage",
+      description: "向已存在的协作成员追加说明或指令。",
+      capabilities: ["delegation"],
+      source: "aster_builtin",
+      tags: ["delegation"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TeamCreate",
+      description: "创建共享 task board 与 team 协作上下文。",
+      capabilities: ["delegation"],
+      source: "aster_builtin",
+      tags: ["delegation", "team"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TeamDelete",
+      description: "删除当前 team 协作上下文。",
+      capabilities: ["delegation"],
+      source: "aster_builtin",
+      tags: ["delegation", "team"],
+      input_examples_count: 1,
+    },
+    {
+      name: "ListPeers",
+      description: "列出当前 team 中可直接通信的协作成员。",
+      capabilities: ["delegation"],
+      source: "aster_builtin",
+      tags: ["delegation", "team"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Skill",
+      description: "加载并执行当前可用技能。",
+      capabilities: ["skill_execution"],
+      source: "aster_builtin",
+      tags: ["skill"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Workflow",
+      description: "执行工作流脚本。",
+      capabilities: ["execution"],
+      source: "aster_builtin",
+      tags: ["workflow"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TaskCreate",
+      description: "创建结构化任务。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["task"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TaskList",
+      description: "查看结构化任务列表。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["task"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TaskGet",
+      description: "读取单个结构化任务。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["task"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TaskUpdate",
+      description: "更新结构化任务状态。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["task"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TaskOutput",
+      description: "读取任务输出结果。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["task", "output"],
+      input_examples_count: 1,
+    },
+    {
+      name: "TaskStop",
+      description: "停止正在执行的任务。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["task"],
+      input_examples_count: 1,
+    },
+    {
+      name: "NotebookEdit",
+      description: "编辑 notebook 单元内容。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["notebook"],
+      input_examples_count: 1,
+    },
+    {
+      name: "EnterPlanMode",
+      description: "进入计划模式以拆解方案。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["planning"],
+      input_examples_count: 1,
+    },
+    {
+      name: "ExitPlanMode",
+      description: "退出计划模式并继续执行。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["planning"],
+      input_examples_count: 1,
+    },
+    {
+      name: "EnterWorktree",
+      description: "进入独立工作树执行隔离修改。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["worktree"],
+      input_examples_count: 1,
+    },
+    {
+      name: "ExitWorktree",
+      description: "退出独立工作树并回到主工作区。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["worktree"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Config",
+      description: "查看或调整当前运行配置。",
+      capabilities: ["session_control"],
+      source: "aster_builtin",
+      tags: ["config"],
+      input_examples_count: 1,
+    },
+    {
+      name: "Sleep",
+      description: "等待一段时间后继续执行。",
+      capabilities: ["execution"],
+      source: "aster_builtin",
+      tags: ["timing"],
+      input_examples_count: 1,
+    },
+    {
+      name: "PowerShell",
+      description: "在 PowerShell 环境中执行命令。",
+      capabilities: ["execution"],
+      source: "aster_builtin",
+      tags: ["command", "windows"],
+      input_examples_count: 1,
+    },
+    {
+      name: "LSP",
+      description: "查询语言服务返回的语义信息。",
+      capabilities: ["workspace_io"],
+      source: "aster_builtin",
+      tags: ["code", "lsp"],
+      input_examples_count: 1,
+    },
+    {
+      name: "RemoteTrigger",
+      description: "管理或触发远程 trigger 执行。",
+      capabilities: ["execution"],
+      source: "aster_builtin",
+      tags: ["trigger", "remote"],
+      input_examples_count: 1,
+    },
+    {
+      name: "CronCreate",
+      description: "创建新的定时触发器。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["trigger", "schedule"],
+      input_examples_count: 1,
+    },
+    {
+      name: "CronList",
+      description: "查看当前可用的定时触发器。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["trigger", "schedule"],
+      input_examples_count: 1,
+    },
+    {
+      name: "CronDelete",
+      description: "删除指定的定时触发器。",
+      capabilities: ["planning"],
+      source: "aster_builtin",
+      tags: ["trigger", "schedule"],
+      input_examples_count: 1,
+    },
+  ] as const;
+
+  const catalogTools = toolSpecs.map((tool) => ({
+    name: tool.name,
+    profiles: ["core"],
+    capabilities: [...tool.capabilities],
+    lifecycle: "current",
+    source: tool.source,
+    permission_plane: "session_allowlist",
+    workspace_default_allow: true,
+    execution_warning_policy: "none",
+    execution_warning_policy_source: "default",
+    execution_restriction_profile:
+      tool.execution_restriction_profile || "none",
+    execution_restriction_profile_source: "default",
+    execution_sandbox_profile: "none",
+    execution_sandbox_profile_source: "default",
+  }));
+
+  const registryTools = toolSpecs.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    catalog_entry_name: tool.name,
+    catalog_source: tool.source,
+    catalog_lifecycle: "current",
+    catalog_permission_plane: "session_allowlist",
+    catalog_workspace_default_allow: true,
+    catalog_execution_warning_policy: "none",
+    catalog_execution_warning_policy_source: "default",
+    catalog_execution_restriction_profile:
+      tool.execution_restriction_profile || "none",
+    catalog_execution_restriction_profile_source: "default",
+    catalog_execution_sandbox_profile: "none",
+    catalog_execution_sandbox_profile_source: "default",
+    deferred_loading: false,
+    always_visible: true,
+    allowed_callers: [caller],
+    tags: [...tool.tags],
+    input_examples_count: tool.input_examples_count,
+    caller_allowed: true,
+    visible_in_context: true,
+  }));
 
   const extensionSurfaces = surface.browser_assist
     ? [
         {
-          extension_name: "lime-browser",
+          extension_name: "mcp__lime-browser",
           description: "浏览器协助桥接工具集。",
           source_kind: "mcp_bridge",
           deferred_loading: false,
           allowed_caller: caller,
-          available_tools: ["mcp__lime-browser__navigate"],
-          always_expose_tools: ["mcp__lime-browser__navigate"],
+          available_tools: ["navigate"],
+          always_expose_tools: ["navigate"],
           loaded_tools: ["mcp__lime-browser__navigate"],
           searchable_tools: ["mcp__lime-browser__navigate"],
         },
@@ -1388,7 +1496,7 @@ function buildMockAgentRuntimeToolInventory(request?: {
         {
           name: "mcp__lime-browser__navigate",
           description: "导航到目标网页。",
-          extension_name: "lime-browser",
+          extension_name: "mcp__lime-browser",
           source_kind: "mcp_bridge",
           deferred_loading: false,
           allowed_caller: caller,
@@ -1675,6 +1783,7 @@ const defaultMocks: Record<string, any> = {
     workspace_preferences: {
       schema_version: 1,
       media_defaults: {},
+      companion_defaults: {},
     },
     navigation: {
       schema_version: 1,
@@ -3279,61 +3388,6 @@ const defaultMocks: Record<string, any> = {
   // API Key Provider 相关
   get_api_key_providers: () => [],
   get_api_key_provider: () => null,
-  claw_solution_list: () => mockClawSolutionCatalog,
-  claw_solution_detail: (args: any) => {
-    const solution = getMockClawSolution(args?.solutionId ?? "");
-    return {
-      ...solution,
-      starterPrompt: buildMockClawSolutionPrompt(solution.id),
-      themeTarget:
-        solution.id === "social-post-starter" ? "social-media" : undefined,
-      followupMode:
-        solution.id === "browser-assist-task"
-          ? "browser_assist"
-          : solution.id === "team-breakdown"
-            ? "team_runtime"
-            : "iterative",
-      capabilityTags:
-        solution.id === "browser-assist-task"
-          ? ["browser", "automation"]
-          : solution.id === "team-breakdown"
-            ? ["team", "decomposition"]
-            : solution.id === "social-post-starter"
-              ? ["social-media", "draft"]
-              : ["general"],
-    };
-  },
-  claw_solution_check_readiness: (args: any) => {
-    const solution = getMockClawSolution(args?.solutionId ?? "");
-    return {
-      solutionId: solution.id,
-      readiness: solution.readiness,
-      readinessMessage: solution.readinessMessage,
-      reasonCode: solution.reasonCode,
-    };
-  },
-  claw_solution_prepare: (args: any) => {
-    const solution = getMockClawSolution(args?.solutionId ?? "");
-    return {
-      solutionId: solution.id,
-      actionType:
-        solution.id === "social-post-starter"
-          ? "navigate_theme"
-          : solution.id === "browser-assist-task"
-            ? "launch_browser_assist"
-            : solution.id === "team-breakdown"
-              ? "enable_team_mode"
-              : "fill_input",
-      prompt: buildMockClawSolutionPrompt(solution.id, args?.context),
-      themeTarget:
-        solution.id === "social-post-starter" ? "social-media" : undefined,
-      shouldLaunchBrowserAssist: solution.id === "browser-assist-task",
-      shouldEnableTeamMode: solution.id === "team-breakdown",
-      readiness: solution.readiness,
-      readinessMessage: solution.readinessMessage,
-      reasonCode: solution.reasonCode,
-    };
-  },
   add_custom_api_key_provider: () => ({ success: true }),
   update_api_key_provider: () => ({ success: true }),
   delete_custom_api_key_provider: () => ({ success: true }),

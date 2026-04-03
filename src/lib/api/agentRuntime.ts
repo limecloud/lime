@@ -24,7 +24,10 @@ import type {
   AgentThreadItem,
   AgentThreadTurn,
 } from "./agentProtocol";
-import { normalizeLegacyThreadItem } from "./agentTextNormalization";
+import {
+  normalizeLegacyThreadItem,
+  normalizeLegacyToolSurfaceName,
+} from "./agentTextNormalization";
 import type {
   AsterApprovalPolicy,
   AsterExecutionStrategy,
@@ -998,8 +1001,13 @@ export interface AgentRuntimeUpdateSessionRequest {
 export interface AgentRuntimeSpawnSubagentRequest {
   parent_session_id: string;
   message: string;
+  name?: string;
+  team_name?: string;
   agent_type?: string;
   model?: string;
+  run_in_background?: boolean;
+  mode?: string;
+  isolation?: 'worktree' | 'remote' | string;
   reasoning_effort?: string;
   fork_context?: boolean;
   blueprint_role_id?: string;
@@ -1013,6 +1021,7 @@ export interface AgentRuntimeSpawnSubagentRequest {
   theme?: string;
   system_overlay?: string;
   output_contract?: string;
+  cwd?: string;
 }
 
 export interface AgentRuntimeSpawnSubagentResponse {
@@ -1256,6 +1265,31 @@ export interface AgentRuntimeToolInventory {
   mcp_tools: AgentRuntimeToolInventoryMcpEntry[];
 }
 
+function normalizeSubagentSessionInfo(
+  session: AsterSubagentSessionInfo,
+): AsterSubagentSessionInfo {
+  return {
+    ...session,
+    origin_tool: normalizeLegacyToolSurfaceName(session.origin_tool),
+  };
+}
+
+function normalizeSubagentParentContext(
+  context?: AsterSubagentParentContext | null,
+): AsterSubagentParentContext | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  return {
+    ...context,
+    origin_tool: normalizeLegacyToolSurfaceName(context.origin_tool),
+    sibling_subagent_sessions: Array.isArray(context.sibling_subagent_sessions)
+      ? context.sibling_subagent_sessions.map(normalizeSubagentSessionInfo)
+      : context.sibling_subagent_sessions,
+  };
+}
+
 export async function submitAgentRuntimeTurn(
   request: AgentRuntimeSubmitTurnRequest,
 ): Promise<void> {
@@ -1383,6 +1417,14 @@ export async function getAgentRuntimeSession(
           normalizeLegacyThreadItem(item as AgentThreadItem),
         )
       : normalizedDetail?.items,
+    child_subagent_sessions: Array.isArray(
+      normalizedDetail?.child_subagent_sessions,
+    )
+      ? normalizedDetail.child_subagent_sessions.map(normalizeSubagentSessionInfo)
+      : normalizedDetail?.child_subagent_sessions,
+    subagent_parent_context: normalizeSubagentParentContext(
+      normalizedDetail?.subagent_parent_context,
+    ),
     queued_turns: normalizeQueuedTurnSnapshots(normalizedDetail?.queued_turns),
     thread_read: normalizeThreadReadModel(normalizedDetail?.thread_read),
   };

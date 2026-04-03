@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
   COMPANION_OPEN_PROVIDER_SETTINGS_EVENT,
+  COMPANION_REQUEST_PROVIDER_SYNC_EVENT,
   COMPANION_PROVIDER_OVERVIEW_CAPABILITY,
   getCompanionPetStatus,
   listenCompanionPetStatus,
@@ -9,9 +10,8 @@ import {
   type CompanionPetStatus,
 } from "@/lib/api/companion";
 import { safeListen } from "@/lib/dev-bridge";
-import { providerPoolApi } from "@/lib/api/providerPool";
 import { subscribeProviderDataChanged } from "@/lib/providerDataEvents";
-import { buildCompanionProviderOverview } from "@/lib/provider/companionProviderOverview";
+import { loadCompanionProviderOverview } from "@/lib/provider/companionProviderOverview";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 
@@ -24,7 +24,7 @@ function supportsProviderOverview(
 ): boolean {
   return Boolean(
     status?.connected &&
-      status.capabilities.includes(COMPANION_PROVIDER_OVERVIEW_CAPABILITY),
+    status.capabilities.includes(COMPANION_PROVIDER_OVERVIEW_CAPABILITY),
   );
 }
 
@@ -39,8 +39,12 @@ export function useCompanionProviderBridge({
     let cancelled = false;
     let statusUnlisten: UnlistenFn | null = null;
     let openSettingsUnlisten: UnlistenFn | null = null;
+    let requestProviderSyncUnlisten: UnlistenFn | null = null;
 
-    const syncProviderOverview = async (forceRefresh = false) => {
+    const syncProviderOverview = async (
+      forceRefresh = false,
+      forceDeliver = false,
+    ) => {
       if (!supportsProviderOverview(statusRef.current)) {
         return;
       }
@@ -48,16 +52,15 @@ export function useCompanionProviderBridge({
       const requestId = ++syncRequestIdRef.current;
 
       try {
-        const overview = await providerPoolApi.getOverview(
-          forceRefresh ? { forceRefresh: true } : undefined,
-        );
+        const payload = await loadCompanionProviderOverview({
+          forceRefresh,
+        });
         if (cancelled || requestId !== syncRequestIdRef.current) {
           return;
         }
 
-        const payload = buildCompanionProviderOverview(overview);
         const fingerprint = JSON.stringify(payload);
-        if (fingerprint === lastFingerprintRef.current) {
+        if (!forceDeliver && fingerprint === lastFingerprintRef.current) {
           return;
         }
 
@@ -91,7 +94,8 @@ export function useCompanionProviderBridge({
 
       const becameProviderAware =
         supportsProviderOverview(status) &&
-        (!previousStatus?.connected || !supportsProviderOverview(previousStatus));
+        (!previousStatus?.connected ||
+          !supportsProviderOverview(previousStatus));
 
       if (becameProviderAware) {
         void syncProviderOverview(true);
@@ -148,6 +152,20 @@ export function useCompanionProviderBridge({
         console.warn("[Companion] 监听桌宠设置跳转失败:", error);
       });
 
+    void safeListen(COMPANION_REQUEST_PROVIDER_SYNC_EVENT, () => {
+      void syncProviderOverview(true, true);
+    })
+      .then((unlisten) => {
+        if (cancelled) {
+          void unlisten();
+          return;
+        }
+        requestProviderSyncUnlisten = unlisten;
+      })
+      .catch((error) => {
+        console.warn("[Companion] 监听桌宠摘要同步请求失败:", error);
+      });
+
     return () => {
       cancelled = true;
       unsubscribeProviderData();
@@ -157,6 +175,9 @@ export function useCompanionProviderBridge({
       }
       if (openSettingsUnlisten) {
         openSettingsUnlisten();
+      }
+      if (requestProviderSyncUnlisten) {
+        requestProviderSyncUnlisten();
       }
     };
   }, [onNavigate]);

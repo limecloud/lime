@@ -198,6 +198,12 @@ export interface TranscribeResult {
   provider: string;
 }
 
+export type VoiceWindowTarget = "companion-pet";
+
+export interface OpenVoiceWindowOptions {
+  target?: VoiceWindowTarget;
+}
+
 /** 润色结果 */
 export interface PolishResult {
   text: string;
@@ -229,8 +235,10 @@ export async function polishVoiceText(
 }
 
 /** 打开语音输入窗口 */
-export async function openVoiceWindow(): Promise<void> {
-  return safeInvoke<void>("open_voice_window");
+export async function openVoiceWindow(
+  options: OpenVoiceWindowOptions = {},
+): Promise<void> {
+  return safeInvoke<void>("open_voice_window", { ...options });
 }
 
 /** 关闭语音输入窗口 */
