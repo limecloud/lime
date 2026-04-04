@@ -469,7 +469,7 @@ pub async fn mcp_search_tools(
 /// 调用 MCP 工具
 ///
 /// 根据工具名称和参数调用指定的 MCP 工具。
-/// 工具名称可能包含服务器前缀（格式为 "server_toolname"）。
+/// current 工具名称格式为 `mcp__<server>__<tool>`。
 ///
 /// # Arguments
 ///

@@ -172,7 +172,7 @@ describe("AddCustomProviderModal", () => {
     expect(hostInput.value).toBe("https://open.bigmodel.cn/api/paas/v4/");
   });
 
-  it("应注入 Codex CLI、Gemini CLI 与 Claude Code 特例模板", async () => {
+  it("应注入 Codex CLI、Gemini CLI 与 Claude 特例模板", async () => {
     renderModal();
 
     await settleModal();

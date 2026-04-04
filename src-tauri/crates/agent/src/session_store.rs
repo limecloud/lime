@@ -1746,7 +1746,7 @@ mod tests {
         );
         summary.task_summary = Some("整理事实源".to_string());
         summary.role_hint = Some("explorer".to_string());
-        summary.origin_tool = Some("spawn_agent".to_string());
+        summary.origin_tool = Some("Agent".to_string());
         summary.created_from_turn_id = Some("turn-1".to_string());
 
         apply_runtime_status_to_child_subagent_session(

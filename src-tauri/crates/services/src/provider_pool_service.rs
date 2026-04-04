@@ -40,6 +40,7 @@ impl ProviderCredentialClientCompat for ProviderCredential {
     }
 }
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
@@ -315,7 +316,29 @@ impl ProviderPoolService {
             credentials.extend(ai_provider_creds);
         }
 
+        let recoverable_antigravity: HashMap<String, Option<String>> =
+            if pt == PoolProviderType::Antigravity {
+                credentials
+                    .iter()
+                    .filter(|cred| Self::should_auto_recover_antigravity_credential(cred))
+                    .map(|cred| (cred.uuid.clone(), cred.check_model_name.clone()))
+                    .collect()
+            } else {
+                HashMap::new()
+            };
+
         drop(conn);
+
+        if !recoverable_antigravity.is_empty() {
+            for (uuid, check_model_name) in &recoverable_antigravity {
+                self.mark_healthy(db, uuid, check_model_name.as_deref())?;
+            }
+            for cred in &mut credentials {
+                if let Some(check_model_name) = recoverable_antigravity.get(&cred.uuid) {
+                    cred.mark_healthy(check_model_name.clone());
+                }
+            }
+        }
 
         eprintln!(
             "[SELECT_CREDENTIAL] total_credentials={}, model={:?}",
@@ -401,6 +424,28 @@ impl ProviderPoolService {
         let selected = self.select_best_credential_by_weight(&available);
 
         Ok(Some(selected))
+    }
+
+    fn should_auto_recover_antigravity_credential(cred: &ProviderCredential) -> bool {
+        let CredentialData::AntigravityOAuth {
+            creds_file_path, ..
+        } = &cred.credential
+        else {
+            return false;
+        };
+
+        if cred.is_healthy || Path::new(creds_file_path).exists() {
+            return false;
+        }
+
+        let last_error = cred.last_error_message.as_deref().unwrap_or_default();
+        let is_missing_path_failure = last_error.contains("Failed to load credentials")
+            || last_error.contains("No such file or directory");
+        if !is_missing_path_failure {
+            return false;
+        }
+
+        lime_providers::providers::antigravity::AntigravityProvider::default_creds_path().exists()
     }
 
     /// 带智能降级的凭证选择
@@ -2084,6 +2129,49 @@ pub struct MigrationResult {
 mod tests {
     use super::*;
     use lime_core::database::dao::api_key_provider::ApiProviderType;
+    use lime_core::database::schema::create_tables;
+    use rusqlite::Connection;
+    use std::ffi::OsString;
+    use std::sync::{Arc, Mutex, OnceLock};
+    use tempfile::tempdir;
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvGuard {
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvGuard {
+        fn set(entries: &[(&'static str, OsString)]) -> Self {
+            let mut values = Vec::new();
+            for (key, value) in entries {
+                values.push((*key, std::env::var_os(key)));
+                std::env::set_var(key, value);
+            }
+            Self { values }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (key, previous) in self.values.drain(..) {
+                if let Some(value) = previous {
+                    std::env::set_var(key, value);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
+
+    fn setup_test_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("open in memory db");
+        create_tables(&conn).expect("create tables");
+        Arc::new(Mutex::new(conn))
+    }
 
     // ==================== Property 3: 不健康凭证排除 ====================
     // Feature: antigravity-token-refresh, Property 3: 不健康凭证排除
@@ -2250,5 +2338,66 @@ mod tests {
     fn test_build_openai_health_check_urls_defaults_to_official_endpoint() {
         let urls = ProviderPoolService::build_openai_health_check_urls(None);
         assert_eq!(urls[0], "https://api.openai.com/v1/chat/completions");
+    }
+
+    #[test]
+    fn select_credential_should_auto_recover_antigravity_from_default_path() {
+        let _guard = env_lock().lock().expect("env lock");
+        let temp = tempdir().expect("create tempdir");
+        let _env = EnvGuard::set(&[("HOME", temp.path().as_os_str().to_os_string())]);
+        let default_path = temp.path().join(".antigravity").join("oauth_creds.json");
+        std::fs::create_dir_all(default_path.parent().expect("default parent"))
+            .expect("create default dir");
+        std::fs::write(
+            &default_path,
+            r#"{"access_token":"fallback_token","refresh_token":"refresh","project_id":"fallback-project"}"#,
+        )
+        .expect("write default creds");
+
+        let db = setup_test_db();
+        let service = ProviderPoolService::new();
+        let inserted = service
+            .add_credential(
+                &db,
+                "antigravity",
+                CredentialData::AntigravityOAuth {
+                    creds_file_path: temp
+                        .path()
+                        .join("missing.json")
+                        .to_string_lossy()
+                        .to_string(),
+                    project_id: Some("fallback-project".to_string()),
+                },
+                Some("Recovered Antigravity".to_string()),
+                Some(true),
+                None,
+            )
+            .expect("insert credential");
+
+        for _ in 0..3 {
+            service
+                .mark_unhealthy(
+                    &db,
+                    &inserted.uuid,
+                    Some("Failed to load credentials: No such file or directory (os error 2)"),
+                )
+                .expect("mark unhealthy");
+        }
+
+        let selected = service
+            .select_credential(&db, "antigravity", Some("gemini-3-pro-image-preview"))
+            .expect("select credential")
+            .expect("recovered credential should be selectable");
+
+        assert_eq!(selected.uuid, inserted.uuid);
+        assert!(selected.is_healthy);
+
+        let recovered = service
+            .get_by_uuid(&db, &inserted.uuid)
+            .expect("query credential")
+            .expect("credential should exist");
+        assert!(recovered.is_healthy);
+        assert_eq!(recovered.error_count, 0);
+        assert!(recovered.last_error_message.is_none());
     }
 }

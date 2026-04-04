@@ -325,7 +325,11 @@ pub fn list_directory(path: &str) -> DirectoryListing {
     let canonical_path = match path_buf.canonicalize() {
         Ok(p) => p,
         Err(e) => {
-            error!("无法解析路径 {}: {}", path, e);
+            if e.kind() == std::io::ErrorKind::NotFound {
+                debug!("目录尚未创建，返回空列表: {}", path);
+            } else {
+                error!("无法解析路径 {}: {}", path, e);
+            }
             return DirectoryListing {
                 path: path.to_string(),
                 parent_path: None,

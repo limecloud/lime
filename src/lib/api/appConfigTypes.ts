@@ -60,9 +60,15 @@ export interface MediaGenerationDefaultsConfig {
   voice?: MediaGenerationPreferenceConfig;
 }
 
+export interface CompanionDefaultsConfig {
+  general?: MediaGenerationPreferenceConfig;
+  tts?: MediaGenerationPreferenceConfig;
+}
+
 export interface WorkspacePreferencesConfig {
   schema_version?: number;
   media_defaults?: MediaGenerationDefaultsConfig;
+  companion_defaults?: CompanionDefaultsConfig;
 }
 
 export interface NavigationConfig {

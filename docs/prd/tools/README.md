@@ -43,7 +43,7 @@ Lime 实际已经具备这些能力：
 
 - `search_tools`
 - `list_tools_for_context`
-- `tool_search` bridge tool
+- `ToolSearch` bridge tool
 - `deferred_loading`
 - `allowed_callers`
 - `input_examples`
@@ -75,9 +75,9 @@ Lime 实际已经具备这些能力：
 | current        | `src-tauri/src/agent_tools/catalog.rs`           | 完整 native tool 目录与默认授权子集                                                                                      |
 | current        | `src-tauri/src/agent_tools/execution.rs`         | 统一 execution 层的 warning / sandbox / 参数限制事实源                                                                   |
 | current        | `src-tauri/crates/mcp/src/manager.rs`            | MCP tools runtime registry                                                                                               |
-| current        | `src-tauri/src/commands/aster_agent_cmd.rs`      | Aster runtime 注入、tool_search、inventory 命令                                                                          |
+| current        | `src-tauri/src/commands/aster_agent_cmd.rs`      | Aster runtime 注入、`ToolSearch`、inventory 命令                                                                         |
 | current        | `src-tauri/src/agent_tools/inventory.rs`         | runtime 工具库存快照                                                                                                     |
-| compat         | `SubAgentTask`                                   | 兼容旧子代理工具名，仍可见但应逐步退出                                                                                   |
+| compat         | `SubAgentTask`                                   | 兼容旧子代理工具名；current 协作工具面已收敛到 `Agent / SendMessage / TeamCreate / TeamDelete / ListPeers`              |
 | compat         | `workspace_allowed_tool_names(...)`              | 当前保留为旧调用入口别名，实际委托默认授权目录                                                                           |
 | dead-candidate | `src-tauri/crates/agent/src/tool_permissions.rs` | 已退出 `lime-agent` 的 `lib.rs` 编译图，仅通过 `src-tauri/crates/agent/tests/legacy_permission_surfaces.rs` 测试夹具加载 |
 | dead-candidate | `src-tauri/crates/agent/src/shell_security.rs`   | 已退出 `lime-agent` 的 `lib.rs` 编译图，仅通过 `src-tauri/crates/agent/tests/legacy_permission_surfaces.rs` 测试夹具加载 |
@@ -147,7 +147,7 @@ Lime 实际已经具备这些能力：
 
 负责：
 
-- `bash` / `Task` 的 warning gate 语义
+- `Bash` / `Task*` 的 warning gate 语义
 - workspace 参数限制模板
 - sandbox profile 归类
 - execution permission 模板生成
@@ -200,7 +200,7 @@ Lime 实际已经具备这些能力：
 
 - **runtime 事实源没有新增**
 - **测试入口新增了一条更轻的执行面**
-- `tool_search` 与 inventory 的 extension 状态判定也已继续收口到共享 helper，避免主包再次长出重复逻辑
+- `ToolSearch` 与 inventory 的 extension 状态判定也已继续收口到共享 helper，避免主包再次长出重复逻辑
 
 ### 3.7 旧权限表面下沉
 
@@ -228,13 +228,20 @@ Lime 实际已经具备这些能力：
 
 ### 4.1 Core surface
 
-- **Aster built-ins**：19 个  
-  `read` / `write` / `edit` / `glob` / `grep` / `bash` / `lsp` / `Skill` / `Task` / `TaskOutput` / `KillShell` / `TodoWrite` / `NotebookEdit` / `EnterPlanMode` / `ExitPlanMode` / `WebFetch` / `WebSearch` / `analyze_image` / `ask`
+- **Aster built-ins 与 current tool surface**  
+  `Read` / `Write` / `Edit` / `Glob` / `Grep` / `Bash` / `LSP` / `Skill` / `TaskCreate` / `TaskList` / `TaskGet` / `TaskUpdate` / `TaskOutput` / `TaskStop` / `NotebookEdit` / `EnterPlanMode` / `ExitPlanMode` / `EnterWorktree` / `ExitWorktree` / `WebFetch` / `WebSearch` / `AskUserQuestion` / `SendUserMessage`
 
-- **Lime injected core tools**：7 个  
-  `tool_search` / `spawn_agent` / `send_input` / `wait_agent` / `resume_agent` / `close_agent` / `SubAgentTask`
+- **Lime injected current tools**  
+  `ToolSearch` / `ListMcpResourcesTool` / `ReadMcpResourceTool` / `Agent`
 
-- **Core surface catalog total**：26 个
+- **Team runtime current surface**  
+  `Agent` / `SendMessage` / `TeamCreate` / `TeamDelete` / `ListPeers`
+
+- **Compat only**  
+  `SubAgentTask`
+
+- **说明**  
+  Core surface 现已按 current surface 收敛；精确数量与分类以 `src-tauri/src/agent_tools/catalog.rs` 为准。
 
 ### 4.2 Workbench surface
 

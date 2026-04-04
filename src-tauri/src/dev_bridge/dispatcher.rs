@@ -9,6 +9,7 @@ mod browser;
 mod companion;
 mod content;
 mod logs;
+mod media_tasks;
 mod memory;
 mod memory_runtime;
 mod models;
@@ -101,6 +102,10 @@ pub async fn handle_command(
     }
 
     if let Some(result) = logs::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = media_tasks::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
 
@@ -297,19 +302,6 @@ mod tests {
 
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, created.id);
-    }
-
-    #[tokio::test]
-    async fn claw_solution_list_bridge_query_available() {
-        let state = make_test_state();
-        let list_value = handle_command(&state, "claw_solution_list", None)
-            .await
-            .unwrap();
-        let list = list_value.as_array().unwrap();
-
-        assert!(!list.is_empty());
-        assert!(list[0]["id"].is_string());
-        assert!(list[0]["readiness"].is_string());
     }
 
     #[tokio::test]
@@ -537,5 +529,48 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(active_list_after_restore.as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn skill_execution_catalog_commands_are_bridged() {
+        let state = make_test_state();
+
+        let list_value = handle_command(&state, "list_executable_skills", None)
+            .await
+            .unwrap();
+        let skills = list_value.as_array().expect("skills should be array");
+        assert!(!skills.is_empty());
+        assert!(skills.iter().any(|item| item["name"] == "image_generate"));
+
+        let detail_value = handle_command(
+            &state,
+            "get_skill_detail",
+            Some(serde_json::json!({
+                "skillName": "image_generate"
+            })),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(detail_value["name"], "image_generate");
+        assert_eq!(detail_value["execution_mode"], "prompt");
+    }
+
+    #[tokio::test]
+    async fn execute_skill_bridge_requires_app_handle_in_test_state() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "execute_skill",
+            Some(serde_json::json!({
+                "skillName": "image_generate",
+                "userInput": "画一张春日花园海报"
+            })),
+        )
+        .await
+        .expect_err("execute_skill without app handle should fail");
+
+        assert!(error.to_string().contains("Dev Bridge 未持有 AppHandle"));
     }
 }

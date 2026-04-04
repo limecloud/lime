@@ -101,7 +101,7 @@ let stream = agent.reply(user_message, session_config, Some(cancel_token)).await
 | `agent_runtime_submit_turn` | 统一提交 turn |
 | `agent_runtime_interrupt_turn` | 统一中断 turn |
 | `agent_runtime_create/list/get/update/delete_session` | 统一会话管理 |
-| `agent_runtime_spawn/send_input/wait/resume/close_subagent` | subagent 控制面 |
+| `agent_runtime_spawn_subagent / agent_runtime_send_subagent_input / agent_runtime_wait_subagents / agent_runtime_resume_subagent / agent_runtime_close_subagent` | subagent 控制面 |
 | `agent_runtime_respond_action` | 统一响应工具确认 / ask / elicitation |
 
 ## 凭证池桥接

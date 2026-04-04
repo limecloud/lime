@@ -74,6 +74,10 @@
 
 如果本轮涉及 `companion_*` 桌宠命令族，还要同步检查本地 companion `WebSocket` 入口、前端 `src/lib/api/companion.ts` 网关、Rust 注册、治理目录册以及浏览器模式 mock 返回形态；浏览器模式下这组命令默认也要保持可 mock，不要让桌宠接入把默认页面渲染链路卡死。
 
+如果本轮涉及 team runtime 工具面或主线程用户消息工具，还要同步检查 Rust catalog / inventory、runtime 注册、浏览器 fallback mock 与前端 tool display；`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers` 必须保持同一组 current surface，`SendUserMessage` 也必须继续停留在 current 主线程工具面，`SubAgentTask` 只能继续停留在 compat 读取边界。
+
+如果本轮涉及 MCP bridge runtime tool surface、inventory 或 ToolSearch，还要同步检查 Rust extension 注入、inventory 快照、浏览器 fallback mock 与 GUI 面板命名；当前唯一命名事实源是 `mcp__<server>__<tool>`，对应 extension surface key 为 `mcp__<server>`，不要让 mock 或 UI 退回裸 `server__tool`。
+
 ### 3. 用户可见 UI 改动必须补稳定回归
 
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言
@@ -171,27 +175,37 @@ npm run bridge:health -- --timeout-ms 120000
 - 检查 harness metadata / execution runtime / 后端 request metadata 的关键字段是否漂移
 - 检查浏览器桥接 / mock 优先路径是否同步
 - 检查 `DevBridge` 是否可用
+- 检查 `Claw @配图` 是否仍然只创建 task file，而不是回流前端直连图片服务
 
 高频场景：
 
 - 修改 `safeInvoke` / `invoke`
+- 修改 `execute_skill`、`list_executable_skills`、`get_skill_detail` 或它们在 DevBridge / mock 中的分流
 - 修改 `src/lib/api/document-export.ts`、`save_exported_document`，或把新的 GUI 导出入口接到本地文件保存主链
 - 修改 `agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy`
 - 修改 `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow`
 - 修改 `agent_runtime_spawn_subagent` 的 `name / teamName / cwd`、spawn 后 Team 成员写回，或 child `working_dir` / 父子上下文投影语义
+- 修改 team runtime tool surface、tool inventory、主线程用户消息工具或协作工具展示，例如 `SendUserMessage`、`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers`
 - 修改 `agent_runtime_update_session` 或会话 provider/model / recent_access_mode / recent_preferences / recent_team_selection 恢复语义
 - 修改 `execution_runtime.recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id` 恢复语义，或前端 `harness.access_mode / harness.theme / harness.session_mode / harness.gate_key / harness.run_title / harness.content_id` steady-state 去重逻辑
 - 修改首页 / 工作区进入 `Claw` 时的首条自动发送上下文，例如 `initialUserPrompt`、`initialAutoSendRequestMetadata`、`harness.service_skill_launch`
 - 修改 `site_*` 站点适配器命令族，例如 `site_recommend_adapters`、`site_get_adapter_launch_readiness`、`site_import_adapter_yaml_bundle`、`site_run_adapter`
-- 修改 `companion_get_pet_status`、`companion_launch_pet`、`companion_send_pet_command`，或调整 Lime 与独立桌宠之间的本地 companion 协议
+- 修改 `companion_get_pet_status`、`companion_launch_pet`、`companion_send_pet_command`，或调整 Lime 与独立桌宠之间的本地 companion 协议（例如 `pet.provider_overview`、`pet.open_provider_settings`、`pet.request_provider_overview_sync`、`pet.request_pet_cheer`、`pet.request_pet_next_step`、`pet.request_chat_reply`）
 - 修改自动化设置命令族，例如 `get_automation_jobs`、`create_automation_job`、`update_automation_job`、`get_automation_health` 或 `get_automation_run_history`，尤其是它们在浏览器模式 DevBridge 与 mock 间的分流
 - 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
 - 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器、浏览器动作配置、扩展安装状态、打开 Chrome 扩展 / 远程调试页，或主动断开扩展连接
 - 修改 `get_model_registry_provider_ids`、Provider 模型映射或 `src-tauri/resources/models/index.json` 真相源读取语义
+- 修改 `create_image_generation_task_artifact`、`get_media_task_artifact`、`list_media_task_artifacts`、`retry_media_task_artifact`、`cancel_media_task_artifact`、`src/lib/api/mediaTasks.ts`，或调整 `Claw @配图 -> task file` 的异步图片任务主链
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
 - 修改 `src-tauri/src/dev_bridge/`
+
+如果本轮修改了 `Claw @配图` 或图片任务 artifact 回填语义，最低校验至少包含：
+
+- `npm run test:contracts`
+- 受影响的 `image task` / `image workbench` Hook 单测
+- `npm run verify:gui-smoke`
 
 如果本轮修改了 Provider 模型真相源或设置页中的“支持的模型”展示逻辑，还应额外确认：
 
@@ -229,6 +243,7 @@ npm run bridge:health -- --timeout-ms 120000
 
 补充说明：
 
+- 如果这次改动新增或调整公开 CLI（例如 `@lime/cli`、`lime media ...`），至少补受影响 crate 的定向测试；媒体 CLI 主链当前最低建议为 `cargo test --manifest-path src-tauri/Cargo.toml -p lime-media-runtime -p lime-cli`。如果 CLI 结果会回流 Workbench/Agent，再补对应 Rust 或前端定向回归。
 - 如果这次改动把 `ServiceSkill -> automation_job -> agent_turn` 接到 Artifact 主线，除了常规 `verify:local` / `test:contracts` 之外，还应至少补一条稳定回归，证明 `content_id + request_metadata.artifact` 没在表单编辑或执行链路里丢失。
 - 如果这次改动影响 `Claw` 与站点技能的直跑门禁，还应补回归证明：阻断停留在技能入口层，不再把浏览器准备态注入成对话里的继续执行确认。
 - 如果这次改动把 `content_id` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
@@ -236,7 +251,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 如果这次改动涉及上下文压缩语义，至少要同时验证两条运行时链路：
   - 普通 `agent_runtime_submit_turn` 发消息链路
   - `agent_runtime_respond_action` 的 ask-user / elicitation 恢复链路
-  二者在 `workspace.settings.auto_compact=false` 时都不应再偷偷触发自动压缩，而应把“请手动压缩或新建会话”的错误显式投影到前端。
+    二者在 `workspace.settings.auto_compact=false` 时都不应再偷偷触发自动压缩，而应把“请手动压缩或新建会话”的错误显式投影到前端。
   - 切换到新 content 但 runtime 尚未同步时，前端仍会保留显式 `content_id`
 - 如果这次改动把 `theme / session_mode` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - session 已有 `execution_runtime.recent_theme / recent_session_mode` 时，前端不会重复提交相同 `harness.theme / harness.session_mode`
@@ -247,6 +262,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 如果这次改动影响 `agent_runtime_spawn_subagent` 的 current request surface，除了契约检查之外，还应补：
   - Rust 定向测试，确认显式 `name` 会覆盖 child session 展示名 / role hint 的 fallback
   - Rust 或前端回归，确认 `teamName` 必须与 `name` 搭配，并且只在现有 Team 上下文内写回成员关系
+  - Rust 定向测试，确认当前 runtime 对非空 `mode / isolation` 会返回明确 unsupported，而不是静默忽略
   - 定向验证，确认绝对 `cwd` 会投影到 child `working_dir`，相对路径会在边界被拒绝
 - 如果这次改动把 `accessMode` steady-state 从“只写 harness metadata”收敛到正式 turn context 与 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - turn 提交始终携带正式 `approval_policy / sandbox_policy`

@@ -1,4 +1,5 @@
 use super::*;
+use crate::agent_tools::catalog::mcp_extension_runtime_name;
 
 pub(crate) async fn inject_mcp_extensions(
     state: &AsterAgentState,
@@ -43,10 +44,18 @@ pub(crate) async fn inject_mcp_extensions(
     let mut fail_count = 0usize;
 
     for server_name in &running_servers {
+        let runtime_extension_name = mcp_extension_runtime_name(server_name);
+
         // 检查是否已注册（避免重复注册）
         let ext_configs = agent.get_extension_configs().await;
-        if ext_configs.iter().any(|c| c.name() == *server_name) {
-            tracing::debug!("[AsterAgent] MCP extension '{}' 已注册，跳过", server_name);
+        if ext_configs
+            .iter()
+            .any(|c| c.name() == runtime_extension_name)
+        {
+            tracing::debug!(
+                "[AsterAgent] MCP extension '{}' 已注册，跳过",
+                runtime_extension_name
+            );
             success_count += 1;
             continue;
         }
@@ -68,13 +77,13 @@ pub(crate) async fn inject_mcp_extensions(
             .cloned()
             .unwrap_or_default();
         let surface = build_mcp_extension_surface(
-            server_name,
+            &runtime_extension_name,
             format!("Lime MCP Bridge: {server_name}"),
             &server_tools,
         );
 
         let extension = ExtensionConfig::Builtin {
-            name: server_name.clone(),
+            name: surface.extension_name.clone(),
             display_name: Some(server_name.clone()),
             description: surface.description.clone(),
             timeout: None,
@@ -97,7 +106,7 @@ pub(crate) async fn inject_mcp_extensions(
         agent
             .extension_manager
             .add_client(
-                server_name.clone(),
+                runtime_extension_name.clone(),
                 extension,
                 client,
                 running_service.peer_info().cloned(),
@@ -106,7 +115,8 @@ pub(crate) async fn inject_mcp_extensions(
             .await;
 
         tracing::info!(
-            "[AsterAgent] 已桥接 MCP extension: name={}, tool_count={}, deferred={}, always_expose={}",
+            "[AsterAgent] 已桥接 MCP extension: name={}, display_name={}, tool_count={}, deferred={}, always_expose={}",
+            runtime_extension_name,
             server_name,
             surface.available_tools.len(),
             surface.deferred_loading,

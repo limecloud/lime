@@ -39,7 +39,7 @@ export const userProfiles: UserProfileConfig[] = [
   {
     id: "developer",
     name: "程序员",
-    description: "使用 Claude Code、Codex、Gemini 等 AI 编程工具",
+    description: "使用 Claude、Codex、Gemini 等 AI 编程工具",
     icon: Code,
     defaultPlugins: ["config-switch"],
   },
@@ -59,7 +59,7 @@ export const onboardingPlugins: OnboardingPlugin[] = [
   {
     id: "config-switch",
     name: "配置管理",
-    description: "一键切换 API 配置，支持 Claude Code、Codex、Gemini 等客户端",
+    description: "一键切换 API 配置，支持 Claude、Codex、Gemini 等客户端",
     icon: FileCode,
     downloadUrl:
       "https://github.com/aiclientproxy/config-switch/releases/latest/download/config-switch-plugin.zip",

@@ -10,9 +10,8 @@
 
 `lime` 侧主要事实源：
 
-- `src/components/agent/chat/AgentChatHomeShell.tsx`
+- `src/components/agent/chat/index.tsx`
 - `src/components/agent/chat/components/EmptyState.tsx`
-- `src-tauri/src/services/claw_solution_service.rs`
 - `src-tauri/src/skills/README.md`
 - `src-tauri/src/services/automation_service/mod.rs`
 - `src-tauri/src/services/execution_tracker_service.rs`
@@ -26,7 +25,7 @@
 
 关键环境事实：
 
-1. `lime` 已有首页壳、技能执行链、自动化调度链、执行追踪链。
+1. `lime` 已有任务入口、技能执行链、自动化调度链、执行追踪链。
 2. `limecore` 已有 `control-plane-svc / gateway-svc / scene-orchestrator-svc`，并已有客户端 bootstrap 聚合接口。
 3. `bootstrap.serviceCatalog` 现有语义偏商业服务目录，不适合直接承载新的服务型技能目录。
 4. `scene-orchestrator-svc` 已定位为 Scene 运行时服务，但不应在本方案中演进为默认主执行流。

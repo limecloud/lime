@@ -34,13 +34,13 @@ import {
   sendCompanionPetCommand,
   type CompanionPetStatus,
 } from "@/lib/api/companion";
-import { providerPoolApi } from "@/lib/api/providerPool";
 import { subscribeProviderDataChanged } from "@/lib/providerDataEvents";
 import {
-  buildCompanionProviderOverview,
+  loadCompanionProviderOverview,
   type CompanionProviderOverviewPayload,
 } from "@/lib/provider/companionProviderOverview";
 import { cn } from "@/lib/utils";
+import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPreferencesCard";
 
 const SURFACE_CLASS_NAME =
   "rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5";
@@ -55,7 +55,9 @@ function SessionValueCard(props: {
   return (
     <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
       <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-        {props.icon ? <span className="text-slate-400">{props.icon}</span> : null}
+        {props.icon ? (
+          <span className="text-slate-400">{props.icon}</span>
+        ) : null}
         <span>{props.label}</span>
       </div>
       <p className="mt-2 break-all text-sm font-semibold text-slate-900">
@@ -66,10 +68,7 @@ function SessionValueCard(props: {
   );
 }
 
-function NoticeBar(props: {
-  tone: "error" | "success";
-  message: string;
-}) {
+function NoticeBar(props: { tone: "error" | "success"; message: string }) {
   return (
     <div
       className={cn(
@@ -141,6 +140,8 @@ function formatCompanionCapabilityLabel(capability: string): string {
   switch (capability) {
     case "provider-overview":
       return "Provider 概览";
+    case "provider-sync-request":
+      return "主动请求同步";
     default:
       return capability;
   }
@@ -164,7 +165,9 @@ function formatCompanionVisualStateLabel(
   }
 }
 
-function formatCompanionPlatformLabel(platform: string | null | undefined): string {
+function formatCompanionPlatformLabel(
+  platform: string | null | undefined,
+): string {
   switch (platform) {
     case "macos":
       return "macOS";
@@ -227,16 +230,18 @@ function CompanionProviderBridgeCard() {
       }
 
       try {
-        const overview = await providerPoolApi.getOverview(
-          forceRefresh ? { forceRefresh: true } : undefined,
-        );
+        const payload = await loadCompanionProviderOverview({
+          forceRefresh,
+        });
         if (cancelled) {
           return;
         }
-        setProviderOverviewPreview(buildCompanionProviderOverview(overview));
+        setProviderOverviewPreview(payload);
       } catch (error) {
         if (!cancelled) {
-          setPreviewError(`读取桌宠摘要预览失败：${formatCompanionError(error)}`);
+          setPreviewError(
+            `读取桌宠摘要预览失败：${formatCompanionError(error)}`,
+          );
         }
       } finally {
         if (!cancelled) {
@@ -314,10 +319,9 @@ function CompanionProviderBridgeCard() {
     try {
       const [nextStatus] = await Promise.all([
         getCompanionPetStatus(),
-        providerPoolApi
-          .getOverview({ forceRefresh: true })
-          .then((overview) => {
-            setProviderOverviewPreview(buildCompanionProviderOverview(overview));
+        loadCompanionProviderOverview({ forceRefresh: true })
+          .then((payload) => {
+            setProviderOverviewPreview(payload);
             setPreviewError(null);
           })
           .catch((error) => {
@@ -348,7 +352,8 @@ function CompanionProviderBridgeCard() {
       if (result.launched) {
         setActionFeedback({
           tone: "success",
-          message: result.message || "已请求启动 Lime Pet，请等待桌宠建立连接。",
+          message:
+            result.message || "已请求启动 Lime Pet，请等待桌宠建立连接。",
         });
       } else {
         setActionFeedback({
@@ -434,7 +439,9 @@ function CompanionProviderBridgeCard() {
     status?.capabilities.includes("provider-overview"),
   );
   const endpoint = status?.endpoint || DEFAULT_COMPANION_ENDPOINT;
-  const lastState = formatCompanionVisualStateLabel(status?.last_state || "idle");
+  const lastState = formatCompanionVisualStateLabel(
+    status?.last_state || "idle",
+  );
   const capabilityText =
     status && status.capabilities.length > 0
       ? status.capabilities.map(formatCompanionCapabilityLabel).join(" / ")
@@ -445,7 +452,7 @@ function CompanionProviderBridgeCard() {
     if (previewLoading) {
       return {
         label: "整理摘要中",
-        hint: "正在从本地 Provider 真相源整理桌宠预览。",
+        hint: "正在从当前服务商配置与凭证池整理桌宠预览。",
       };
     }
     if (previewError) {
@@ -523,7 +530,7 @@ function CompanionProviderBridgeCard() {
         previewProviders.length >= 0,
       pending: previewLoading,
       detail: previewLoading
-        ? "正在从本地 Provider 真相源整理脱敏摘要。"
+        ? "正在从当前服务商配置与凭证池整理脱敏摘要。"
         : previewError
           ? previewError
           : `当前已准备 ${providerOverviewPreview?.total_provider_count ?? 0} 个服务商摘要。`,
@@ -549,7 +556,10 @@ function CompanionProviderBridgeCard() {
   })();
 
   return (
-    <article className={SURFACE_CLASS_NAME} data-testid="companion-provider-card">
+    <article
+      className={SURFACE_CLASS_NAME}
+      data-testid="companion-provider-card"
+    >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-4">
           <div className="flex items-start gap-4">
@@ -569,7 +579,9 @@ function CompanionProviderBridgeCard() {
                         ? "等待桌宠连接"
                         : "本地 Companion 未监听"
                   }
-                  tone={connected ? "emerald" : serverListening ? "amber" : "slate"}
+                  tone={
+                    connected ? "emerald" : serverListening ? "amber" : "slate"
+                  }
                 />
                 <InfoPill
                   label={
@@ -581,7 +593,9 @@ function CompanionProviderBridgeCard() {
                 />
               </div>
               <p className="text-sm leading-6 text-slate-600">
-                桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态，只接收脱敏后的可用性摘要，不会直接读取 API Key、OAuth 凭证或本地凭证文件。
+                桌宠通过本地 Companion 通道复用 Lime 的 AI
+                服务商状态，只接收脱敏后的可用性摘要，不会直接读取 API
+                Key、OAuth 凭证或本地凭证文件。
               </p>
             </div>
           </div>
@@ -590,18 +604,18 @@ function CompanionProviderBridgeCard() {
             <RuntimeSummaryItem
               label="桥接状态"
               value={
-                connected
-                  ? "已接通"
-                  : serverListening
-                    ? "等待连接"
-                    : "未监听"
+                connected ? "已接通" : serverListening ? "等待连接" : "未监听"
               }
               hint="Lime 负责本地 Companion 宿主，桌宠作为独立原生壳接入。"
             />
             <RuntimeSummaryItem
               label="最近状态"
               value={lastState}
-              hint={status?.last_event ? `最近事件：${status.last_event}` : "尚未收到桌宠事件"}
+              hint={
+                status?.last_event
+                  ? `最近事件：${status.last_event}`
+                  : "尚未收到桌宠事件"
+              }
             />
             <RuntimeSummaryItem
               label="能力"
@@ -629,7 +643,8 @@ function CompanionProviderBridgeCard() {
                 </p>
               </div>
               <div className="rounded-[14px] border border-slate-200/80 bg-white px-3 py-2 text-xs text-slate-600">
-                当前建议：<span className="font-medium text-slate-800">{nextAction}</span>
+                当前建议：
+                <span className="font-medium text-slate-800">{nextAction}</span>
               </div>
             </div>
 
@@ -662,8 +677,12 @@ function CompanionProviderBridgeCard() {
                       )}
                     </span>
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-slate-900">{item.label}</p>
-                      <p className="text-xs leading-5 text-slate-500">{item.detail}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {item.label}
+                      </p>
+                      <p className="text-xs leading-5 text-slate-500">
+                        {item.detail}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -678,7 +697,8 @@ function CompanionProviderBridgeCard() {
                   桌宠视角预览
                 </p>
                 <p className="text-xs leading-5 text-slate-500">
-                  这里展示 Lime 准备发给桌宠的 Provider 脱敏摘要，便于确认 Companion 边界没有把原始凭证带出去。
+                  这里展示 Lime 准备发给桌宠的服务商脱敏摘要，会合并当前 AI
+                  服务商配置与凭证池状态，但不会带出原始凭证。
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -693,7 +713,9 @@ function CompanionProviderBridgeCard() {
                   label={`需关注 ${providerOverviewPreview?.needs_attention_provider_count ?? 0}`}
                   tone="amber"
                 />
-                <InfoPill label={`最近同步 ${formatCompanionDateTime(lastManualSyncAt)}`} />
+                <InfoPill
+                  label={`最近同步 ${formatCompanionDateTime(lastManualSyncAt)}`}
+                />
                 <button
                   type="button"
                   onClick={() => void handleSyncPreview()}
@@ -718,7 +740,8 @@ function CompanionProviderBridgeCard() {
             </div>
 
             <div className="mt-3 rounded-[14px] border border-slate-200/80 bg-white px-3 py-2 text-xs text-slate-500">
-              Companion 地址：<span className="font-medium text-slate-700">{endpoint}</span>
+              Companion 地址：
+              <span className="font-medium text-slate-700">{endpoint}</span>
             </div>
 
             {previewLoading ? (
@@ -764,7 +787,7 @@ function CompanionProviderBridgeCard() {
               </div>
             ) : (
               <div className="mt-4 rounded-[16px] border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
-                当前还没有可供桌宠消费的 Provider 摘要。配置任一服务商后，这里会显示脱敏后的可用性信息。
+                当前还没有可供桌宠消费的服务商摘要。配置任一服务商后，这里会显示脱敏后的可用性信息。
               </div>
             )}
           </div>
@@ -836,7 +859,9 @@ function resolveOfferTone(state: string): "slate" | "emerald" | "amber" {
   }
 }
 
-type DisplayableOffer = OemCloudProviderOfferSummary | OemCloudProviderOfferDetail;
+type DisplayableOffer =
+  | OemCloudProviderOfferSummary
+  | OemCloudProviderOfferDetail;
 
 function resolveDisplayOfferState(
   session: OemCloudCurrentSession | null,
@@ -884,7 +909,7 @@ function resolveDisplayOfferState(
   return "available_subscribe_required";
 }
 
-type ProviderWorkspaceView = "settings" | "cloud";
+type ProviderWorkspaceView = "settings" | "cloud" | "companion";
 
 const PROVIDER_WORKSPACE_VIEW_META: Array<{
   value: ProviderWorkspaceView;
@@ -903,6 +928,12 @@ const PROVIDER_WORKSPACE_VIEW_META: Array<{
     label: "云端服务",
     summary: "Offer / 目录 / 会话",
     icon: Cloud,
+  },
+  {
+    value: "companion",
+    label: "桌宠管理",
+    summary: "Companion / 同步 / 诊断",
+    icon: Bot,
   },
 ];
 
@@ -967,13 +998,18 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       orderedViews.push("cloud");
     }
 
+    if (!orderedViews.includes("companion")) {
+      orderedViews.push("companion");
+    }
+
     return orderedViews.map(
       (view) =>
         PROVIDER_WORKSPACE_VIEW_META.find((item) => item.value === view)!,
     );
   }, [isLimeBrand, isOemRuntime, showProviderSettingsEntry]);
   const defaultView = workspaceViews[0]?.value ?? "cloud";
-  const [activeView, setActiveView] = useState<ProviderWorkspaceView>(defaultView);
+  const [activeView, setActiveView] =
+    useState<ProviderWorkspaceView>(defaultView);
 
   useEffect(() => {
     if (!workspaceViews.some((item) => item.value === activeView)) {
@@ -1059,7 +1095,9 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
             </button>
             <button
               type="button"
-              onClick={() => void openUserCenter(runtime?.loginPath || "/login")}
+              onClick={() =>
+                void openUserCenter(runtime?.loginPath || "/login")
+              }
               className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               <ExternalLink className="h-4 w-4" />
@@ -1075,7 +1113,9 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
             云端页面承接什么
           </h3>
           <p className="text-sm leading-6 text-slate-600">
-            这里保留 OEM 商业化相关的 Offer、套餐、模型目录、默认来源和会话状态，不再和本地 Provider 配置共用一个长页。
+            这里保留 OEM 商业化相关的
+            Offer、套餐、模型目录、默认来源和会话状态，不再和本地 Provider
+            配置共用一个长页。
           </p>
         </div>
       </article>
@@ -1098,10 +1138,13 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                     {session.user.displayName || session.user.email || "已登录"}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {session.user.email || session.user.username || session.user.id}
+                    {session.user.email ||
+                      session.user.username ||
+                      session.user.id}
                   </p>
                   <p className="text-sm leading-6 text-slate-600">
-                    当前云端会话将驱动 OEM Offer、模型目录和默认来源。商业化套餐、可用模型和是否开放开发者入口都以服务端治理结果为准。
+                    当前云端会话将驱动 OEM
+                    Offer、模型目录和默认来源。商业化套餐、可用模型和是否开放开发者入口都以服务端治理结果为准。
                   </p>
                 </div>
               </div>
@@ -1165,7 +1208,8 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                 当前云端摘要
               </h3>
               <p className="text-sm leading-6 text-slate-600">
-                这里只展示 OEM 云端的最终接入态，方便快速确认默认来源、模型目录和开发者入口是否符合当前租户策略。
+                这里只展示 OEM
+                云端的最终接入态，方便快速确认默认来源、模型目录和开发者入口是否符合当前租户策略。
               </p>
             </div>
 
@@ -1202,7 +1246,8 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       <div className="space-y-2">
         <h3 className="text-lg font-semibold text-slate-900">云端服务目录</h3>
         <p className="text-sm leading-6 text-slate-600">
-          卡片以服务端返回为主，并结合当前桌面会话做状态归一。是否允许 API Key 模式、当前模型来源、租户覆盖是否生效，都以服务端治理结果为准。
+          卡片以服务端返回为主，并结合当前桌面会话做状态归一。是否允许 API Key
+          模式、当前模型来源、租户覆盖是否生效，都以服务端治理结果为准。
         </p>
       </div>
 
@@ -1473,10 +1518,11 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     </section>
   );
 
-  const localProviderContent = (
-    <div className="space-y-4">
+  const localProviderContent = <ProviderPoolPage hideHeader />;
+  const companionContent = (
+    <div className="space-y-5">
       <CompanionProviderBridgeCard />
-      <ProviderPoolPage hideHeader />
+      <CompanionCapabilityPreferencesCard />
     </div>
   );
 
@@ -1487,16 +1533,21 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
 
       <Tabs
         value={activeView}
-        onValueChange={(value) =>
-          setActiveView(value as ProviderWorkspaceView)
-        }
+        onValueChange={(value) => setActiveView(value as ProviderWorkspaceView)}
         className="space-y-4"
       >
         {workspaceViews.length > 1 ? (
           <TabsList
             className={cn(
-              "grid h-auto w-full gap-2 rounded-[22px] border border-slate-200/80 bg-slate-100 p-1.5 shadow-sm md:max-w-[460px]",
-              workspaceViews.length === 1 ? "grid-cols-1" : "grid-cols-2",
+              "grid h-auto w-full gap-2 rounded-[22px] border border-slate-200/80 bg-slate-100 p-1.5 shadow-sm",
+              workspaceViews.length === 3
+                ? "md:max-w-[680px]"
+                : "md:max-w-[460px]",
+              workspaceViews.length === 1
+                ? "grid-cols-1"
+                : workspaceViews.length === 2
+                  ? "grid-cols-2"
+                  : "grid-cols-3",
             )}
             data-testid="provider-workspace-switcher"
           >
@@ -1531,6 +1582,10 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
 
         <TabsContent value="cloud" className="mt-0">
           {cloudDirectoryContent}
+        </TabsContent>
+
+        <TabsContent value="companion" className="mt-0">
+          {companionContent}
         </TabsContent>
       </Tabs>
     </div>

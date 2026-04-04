@@ -17,6 +17,17 @@ export interface MessageImage {
   mediaType: string;
 }
 
+export interface MessageImageWorkbenchPreview {
+  taskId: string;
+  prompt: string;
+  status: "running" | "complete" | "partial" | "failed";
+  projectId?: string | null;
+  contentId?: string | null;
+  imageUrl?: string | null;
+  imageCount?: number;
+  size?: string;
+}
+
 /**
  * 内容片段类型（用于交错显示）
  *
@@ -241,6 +252,8 @@ export interface Message {
   contextTrace?: ContextTraceStep[];
   /** 与当前消息关联的产物列表 */
   artifacts?: Artifact[];
+  /** 图片工作台消息卡预览 */
+  imageWorkbenchPreview?: MessageImageWorkbenchPreview;
   /** 首个流式事件到达前的本地运行态 */
   runtimeStatus?: AgentRuntimeStatus;
   /** 消息用途（用于跳过特定副作用） */

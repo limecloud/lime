@@ -52,6 +52,21 @@ pub struct ToolPermissionChecker {
     dynamic_checker: Option<Box<dyn DynamicPermissionCheck>>,
 }
 
+fn normalize_permission_tool_name(tool_name: &str) -> String {
+    match tool_name.trim() {
+        "Read" | "read" | "read_file" => "read_file".to_string(),
+        "Write" | "write" | "write_file" | "create_file" => "write_file".to_string(),
+        "Edit" | "edit" | "edit_file" => "edit_file".to_string(),
+        "Glob" | "glob" => "glob".to_string(),
+        "Grep" | "grep" => "grep".to_string(),
+        "LSP" | "lsp" | "lsp_query" => "lsp_query".to_string(),
+        "Bash" | "bash" | "PowerShell" | "powershell" | "shell" | "execute_command" => {
+            "bash".to_string()
+        }
+        other => other.to_string(),
+    }
+}
+
 impl ToolPermissionChecker {
     pub fn new() -> Self {
         let mut checker = Self {
@@ -69,12 +84,20 @@ impl ToolPermissionChecker {
 
     /// 注册工具的权限元数据
     pub fn register_tool(&mut self, meta: ToolPermissionMeta) {
-        self.permissions.insert(meta.tool_name.clone(), meta);
+        let normalized_name = normalize_permission_tool_name(&meta.tool_name);
+        self.permissions.insert(
+            normalized_name.clone(),
+            ToolPermissionMeta {
+                tool_name: normalized_name,
+                ..meta
+            },
+        );
     }
 
     /// 检查工具是否需要用户确认
     pub fn needs_confirmation(&self, tool_name: &str) -> bool {
-        match self.permissions.get(tool_name) {
+        let normalized_name = normalize_permission_tool_name(tool_name);
+        match self.permissions.get(&normalized_name) {
             Some(meta) => meta.requires_confirmation && meta.risk_level > self.auto_approve_level,
             // 未知工具默认需要确认
             None => true,
@@ -83,8 +106,9 @@ impl ToolPermissionChecker {
 
     /// 获取工具的风险等级
     pub fn risk_level(&self, tool_name: &str) -> ToolRiskLevel {
+        let normalized_name = normalize_permission_tool_name(tool_name);
         self.permissions
-            .get(tool_name)
+            .get(&normalized_name)
             .map(|m| m.risk_level)
             // 未知工具默认为破坏性
             .unwrap_or(ToolRiskLevel::Destructive)
@@ -106,8 +130,9 @@ impl ToolPermissionChecker {
         tool_name: &str,
         input: Option<&serde_json::Value>,
     ) -> PermissionBehavior {
+        let normalized_name = normalize_permission_tool_name(tool_name);
         // 1. 会话级记忆
-        if let Some(allowed) = self.has_session_decision(tool_name) {
+        if let Some(allowed) = self.has_session_decision(&normalized_name) {
             return if allowed {
                 PermissionBehavior::Allow
             } else {
@@ -119,14 +144,14 @@ impl ToolPermissionChecker {
         // 2. 动态检查（如 shell 安全）
         if let Some(input) = input {
             if let Some(checker) = &self.dynamic_checker {
-                let result = checker.check_permissions(tool_name, input);
+                let result = checker.check_permissions(&normalized_name, input);
                 if result != PermissionBehavior::Allow {
                     return result;
                 }
             }
         }
         // 3. 静态分级
-        if self.needs_confirmation(tool_name) {
+        if self.needs_confirmation(&normalized_name) {
             PermissionBehavior::Ask {
                 message: format!("工具 {} 需要确认执行", tool_name),
             }
@@ -137,25 +162,28 @@ impl ToolPermissionChecker {
 
     /// 记录用户的允许决策
     pub fn record_allow(&mut self, tool_name: &str) {
+        let normalized_name = normalize_permission_tool_name(tool_name);
         let count = self
             .session_allowed
-            .entry(tool_name.to_string())
+            .entry(normalized_name.clone())
             .or_insert(0);
         *count += 1;
-        self.session_denied.remove(tool_name);
+        self.session_denied.remove(&normalized_name);
     }
 
     /// 记录用户的拒绝决策
     pub fn record_deny(&mut self, tool_name: &str) {
-        self.session_denied.insert(tool_name.to_string());
-        self.session_allowed.remove(tool_name);
+        let normalized_name = normalize_permission_tool_name(tool_name);
+        self.session_denied.insert(normalized_name.clone());
+        self.session_allowed.remove(&normalized_name);
     }
 
     /// 检查是否有会话级记忆
     pub fn has_session_decision(&self, tool_name: &str) -> Option<bool> {
-        if self.session_allowed.contains_key(tool_name) {
+        let normalized_name = normalize_permission_tool_name(tool_name);
+        if self.session_allowed.contains_key(&normalized_name) {
             Some(true)
-        } else if self.session_denied.contains(tool_name) {
+        } else if self.session_denied.contains(&normalized_name) {
             Some(false)
         } else {
             None
@@ -251,6 +279,9 @@ mod tests {
     #[test]
     fn test_default_permissions_loaded() {
         let checker = ToolPermissionChecker::new();
+        assert_eq!(checker.risk_level("Read"), ToolRiskLevel::ReadOnly);
+        assert_eq!(checker.risk_level("Edit"), ToolRiskLevel::Reversible);
+        assert_eq!(checker.risk_level("Bash"), ToolRiskLevel::Destructive);
         assert_eq!(checker.risk_level("read_file"), ToolRiskLevel::ReadOnly);
         assert_eq!(checker.risk_level("edit_file"), ToolRiskLevel::Reversible);
         assert_eq!(

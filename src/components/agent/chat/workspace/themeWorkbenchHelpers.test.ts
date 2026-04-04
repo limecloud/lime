@@ -55,6 +55,53 @@ describe("themeWorkbenchHelpers", () => {
     );
   });
 
+  it("应为 lime media CLI bash 调用生成明确的媒体任务标题", () => {
+    const messages: Message[] = [
+      {
+        id: "user-1",
+        role: "user",
+        content: "/image_generate 请生成配图",
+        timestamp: new Date("2026-04-03T10:00:00.000Z"),
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-03T10:00:01.000Z"),
+        isThinking: true,
+        toolCalls: [
+          {
+            id: "tool-bash-1",
+            name: "Bash",
+            arguments: JSON.stringify({
+              command:
+                "lime media image generate --prompt '未来城市插图' --json",
+            }),
+            status: "completed",
+            startTime: new Date("2026-04-03T10:00:01.500Z"),
+            endTime: new Date("2026-04-03T10:00:02.000Z"),
+          },
+        ],
+      },
+    ];
+
+    const workflowSteps = buildThemeWorkbenchWorkflowSteps(
+      messages,
+      null,
+      true,
+      {},
+    );
+
+    expect(workflowSteps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "提交配图任务",
+          status: "completed",
+        }),
+      ]),
+    );
+  });
+
   it("应读取后端持久化的主题工作台版本元数据", () => {
     const persisted = readPersistedThemeWorkbenchDocument({
       theme_workbench_document_v1: {

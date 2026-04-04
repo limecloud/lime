@@ -113,7 +113,9 @@ describe("ImageWorkbenchCanvas", () => {
       container.querySelector('[data-testid="image-workbench-view-scale"]')
         ?.textContent,
     ).toContain("100%");
-    expect(container.textContent).toContain("结果直接留在任务卡内，聊天区只记录调度");
+    expect(container.textContent).toContain(
+      "结果留在任务卡内，对话区会同步进度与结果摘要",
+    );
     expect(container.textContent).toContain("1/1 输出");
     expect(container.textContent).not.toContain("主图优先展示当前选中结果");
     expect(container.textContent).not.toContain("X 0 / Y 0");
@@ -286,5 +288,56 @@ describe("ImageWorkbenchCanvas", () => {
     clickButtonByText(container, "停止", { exact: true });
 
     expect(onStopGeneration).toHaveBeenCalledTimes(1);
+  });
+
+  it("仅展示处理中状态时，不应出现误导性的停止按钮", () => {
+    const { container } = mountHarness(
+      ImageWorkbenchCanvas,
+      {
+        tasks: [
+          {
+            id: "task-4",
+            mode: "generate",
+            status: "queued",
+            prompt: "异步图片任务",
+            rawText: "@配图 生成 异步图片任务",
+            expectedCount: 1,
+            outputIds: [],
+            createdAt: Date.now(),
+          },
+        ],
+        outputs: [],
+        selectedOutputId: null,
+        viewport: { x: 0, y: 0, scale: 1 },
+        preferenceSummary: null,
+        preferenceWarning: null,
+        availableProviders: [{ id: "fal", name: "Fal" }],
+        selectedProviderId: "fal",
+        onProviderChange: vi.fn(),
+        availableModels: [
+          {
+            id: "nano-banana",
+            name: "nano-banana",
+            supportedSizes: ["1024x1024"],
+          },
+        ],
+        selectedModelId: "nano-banana",
+        onModelChange: vi.fn(),
+        selectedSize: "1024x1024",
+        onSizeChange: vi.fn(),
+        generating: true,
+        savingToResource: false,
+        onViewportChange: vi.fn(),
+        onSelectOutput: vi.fn(),
+        onSaveSelectedToLibrary: vi.fn(),
+        onApplySelectedOutput: vi.fn(),
+        onSeedFollowUpCommand: vi.fn(),
+        onOpenImage: vi.fn(),
+      },
+      mountedRoots,
+    );
+
+    expect(container.textContent).toContain("处理中");
+    expect(container.textContent).not.toContain("停止");
   });
 });

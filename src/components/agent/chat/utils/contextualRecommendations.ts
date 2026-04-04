@@ -198,7 +198,7 @@ function buildGeneralRecommendations(
   return [
     [
       "Team 冒烟测试",
-      `请按 team runtime 方式处理“${subject}”：先在主线程拆成两个子任务，再创建 explorer 与 executor 两个子代理并行推进；至少等待一个子代理结束，必要时继续 send_input，最后回到主线程汇总每个 agent 的状态、结论和下一步。${teamSetupHint}`,
+      `请按 team runtime 方式处理“${subject}”：先在主线程拆成两个子任务，再创建 explorer 与 executor 两个子代理并行推进；至少等待一个子代理结束，必要时继续使用 SendMessage 追加说明，最后回到主线程汇总每个 agent 的状态、结论和下一步。${teamSetupHint}`,
     ],
     [
       "父子线程联调",

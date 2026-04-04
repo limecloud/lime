@@ -8,13 +8,25 @@ const VOICE_WINDOW_LABEL: &str = "voice-input";
 const VOICE_WINDOW_WIDTH: f64 = 500.0;
 const VOICE_WINDOW_HEIGHT: f64 = 80.0;
 
+#[derive(Clone, serde::Serialize)]
+struct VoiceWindowResetPayload {
+    target: Option<String>,
+}
+
 /// 打开语音输入窗口
-pub fn open_voice_window(app: &AppHandle) -> Result<(), String> {
+pub fn open_voice_window(app: &AppHandle, target: Option<&str>) -> Result<(), String> {
+    let target = normalize_voice_window_target(target);
+
     // 检查窗口是否已存在
     if let Some(window) = app.get_webview_window(VOICE_WINDOW_LABEL) {
         // 发送重置事件，让前端重新开始录音
         window
-            .emit("voice-reset", ())
+            .emit(
+                "voice-reset",
+                VoiceWindowResetPayload {
+                    target: target.clone(),
+                },
+            )
             .map_err(|e| format!("发送重置事件失败: {e}"))?;
 
         // 移动到鼠标所在屏幕
@@ -30,7 +42,7 @@ pub fn open_voice_window(app: &AppHandle) -> Result<(), String> {
     let window = WebviewWindowBuilder::new(
         app,
         VOICE_WINDOW_LABEL,
-        WebviewUrl::App("/smart-input?voice=true".into()),
+        WebviewUrl::App(build_voice_window_route(target.as_deref()).into()),
     )
     .title("语音输入")
     .inner_size(VOICE_WINDOW_WIDTH, VOICE_WINDOW_HEIGHT)
@@ -50,6 +62,20 @@ pub fn open_voice_window(app: &AppHandle) -> Result<(), String> {
 
     tracing::info!("[语音输入] 窗口已打开");
     Ok(())
+}
+
+fn normalize_voice_window_target(target: Option<&str>) -> Option<String> {
+    target
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn build_voice_window_route(target: Option<&str>) -> String {
+    match normalize_voice_window_target(target).as_deref() {
+        Some(target) => format!("/smart-input?voice=true&target={target}"),
+        None => "/smart-input?voice=true".to_string(),
+    }
 }
 
 /// 将窗口定位到鼠标所在屏幕的中央

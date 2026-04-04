@@ -7,15 +7,12 @@ import {
 import { toast } from "sonner";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
-import { IMAGE_GENERATION_CANCELED_MESSAGE } from "@/components/image-gen/useImageGen";
-import type { GeneratedImage } from "@/components/image-gen/types";
 import type { Character } from "@/lib/api/memory";
+import type { CreateImageGenerationTaskArtifactRequest } from "@/lib/api/mediaTasks";
 import { emitCanvasImageInsertRequest } from "@/lib/canvasImageInsertBus";
 import type { Message, MessageImage } from "../types";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import {
-  buildImageWorkbenchCompletionMessage,
-  buildImageWorkbenchDispatchMessages,
   collapseWhitespace,
   resolveImageWorkbenchActionLabel,
   type ImageWorkbenchApplyTarget,
@@ -30,20 +27,17 @@ interface SaveImagesToResourceResult {
 
 interface UseWorkspaceImageWorkbenchActionRuntimeParams {
   appendLocalDispatchMessages: (messages: Message[]) => void;
-  cancelImageWorkbenchGeneration: () => void;
   contentId?: string | null;
+  createImageGenerationTask: (
+    request: CreateImageGenerationTaskArtifactRequest,
+  ) => Promise<unknown>;
   currentImageWorkbenchState: SessionImageWorkbenchState;
+  imageWorkbenchSelectedModelId?: string;
+  imageWorkbenchSelectedProviderId?: string;
   imageWorkbenchSelectedSize: string;
   imageWorkbenchSessionKey: string;
   projectId?: string;
-  runImageWorkbenchGeneration: (
-    prompt: string,
-    options: {
-      imageCount?: number;
-      referenceImages?: string[];
-      size?: string;
-    },
-  ) => Promise<GeneratedImage[]>;
+  projectRootPath?: string | null;
   saveImageWorkbenchImagesToResource: (
     imageIds: string[],
     targetProjectId: string,
@@ -59,15 +53,29 @@ interface UseWorkspaceImageWorkbenchActionRuntimeParams {
   ) => void;
 }
 
+function dedupeReferenceImages(values: Array<string | undefined>): string[] {
+  const normalized: string[] = [];
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed || normalized.includes(trimmed)) {
+      continue;
+    }
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
 export function useWorkspaceImageWorkbenchActionRuntime({
   appendLocalDispatchMessages,
-  cancelImageWorkbenchGeneration,
   contentId,
+  createImageGenerationTask,
   currentImageWorkbenchState,
+  imageWorkbenchSelectedModelId,
+  imageWorkbenchSelectedProviderId,
   imageWorkbenchSelectedSize,
   imageWorkbenchSessionKey,
   projectId,
-  runImageWorkbenchGeneration,
+  projectRootPath,
   saveImageWorkbenchImagesToResource,
   setCanvasState,
   setInput,
@@ -114,22 +122,8 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   }, []);
 
   const handleStopImageWorkbenchGeneration = useCallback(() => {
-    cancelImageWorkbenchGeneration();
-    updateCurrentImageWorkbenchState((current) => ({
-      ...current,
-      active: true,
-      tasks: current.tasks.map((task) =>
-        task.status === "routing" || task.status === "running"
-          ? {
-              ...task,
-              status: "error",
-              failureMessage: IMAGE_GENERATION_CANCELED_MESSAGE,
-            }
-          : task,
-      ),
-    }));
-    toast.info(IMAGE_GENERATION_CANCELED_MESSAGE);
-  }, [cancelImageWorkbenchGeneration, updateCurrentImageWorkbenchState]);
+    toast.info("异步图片任务已进入队列，当前版本暂不支持前端直接取消");
+  }, []);
 
   const handleSaveSelectedImageWorkbenchOutput = useCallback(async () => {
     const selectedOutput = currentImageWorkbenchState.outputs.find(
@@ -277,6 +271,10 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         toast.error("请先选择项目后再开始配图");
         return false;
       }
+      if (!projectRootPath?.trim()) {
+        toast.error("当前项目目录未就绪，暂时无法创建图片任务");
+        return false;
+      }
 
       const { rawText, parsedCommand, images } = params;
       const targetOutput = parsedCommand.targetRef
@@ -308,211 +306,82 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         return false;
       }
 
-      const taskId = `image-task-${Date.now()}-${Math.random()
+      const localDispatchId = `image-task-dispatch-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}`;
-      const referenceImages = [
-        ...(targetOutput?.url ? [targetOutput.url] : []),
-        ...images.map((image) => image.data).filter(Boolean),
-      ];
-      const now = Date.now();
+      const referenceImages = dedupeReferenceImages([
+        targetOutput?.url,
+        ...images.map((image) => image.data),
+      ]);
+      const requestedTarget =
+        effectiveApplyTarget?.kind === "document-cover" ? "cover" : "generate";
 
-      updateCurrentImageWorkbenchState((current) => ({
-        ...current,
-        active: true,
-        tasks: [
-          {
-            sessionId: imageWorkbenchSessionKey,
-            id: taskId,
-            mode: parsedCommand.mode,
-            status: "routing",
-            prompt: effectivePrompt,
-            rawText,
-            expectedCount: parsedCommand.count,
-            outputIds: [],
-            targetOutputId: targetOutput?.id ?? null,
-            createdAt: now,
-            hookImageIds: [],
-            applyTarget: effectiveApplyTarget,
-          },
-          ...current.tasks,
-        ],
-        selectedOutputId: targetOutput?.id ?? current.selectedOutputId,
-      }));
+      appendLocalDispatchMessages([
+        {
+          id: `image-workbench:${localDispatchId}:user`,
+          role: "user",
+          content: rawText,
+          images: images.length > 0 ? images : undefined,
+          timestamp: new Date(),
+        },
+      ]);
 
-      appendLocalDispatchMessages(
-        buildImageWorkbenchDispatchMessages({
-          rawText,
-          images,
-          taskId,
-          prompt: effectivePrompt,
-          mode: parsedCommand.mode,
-          count: parsedCommand.count,
-        }),
-      );
-
-      setLayoutMode("chat-canvas");
       setInput("");
       setMentionedCharacters([]);
 
-      updateCurrentImageWorkbenchState((current) => ({
-        ...current,
-        active: true,
-        tasks: current.tasks.map((task) =>
-          task.id === taskId ? { ...task, status: "running" } : task,
-        ),
-      }));
-
       try {
-        const generatedImages = await runImageWorkbenchGeneration(
-          effectivePrompt,
-          {
-            imageCount: parsedCommand.count,
-            referenceImages,
-            size: parsedCommand.size || imageWorkbenchSelectedSize,
-          },
-        );
-        const hookImageIds = generatedImages.map((image) => image.id);
-
-        let successCount = 0;
-        updateCurrentImageWorkbenchState((current) => {
-          let nextOutputIndex = current.nextOutputIndex;
-          const nextOutputs = [...current.outputs];
-          const createdOutputIds: string[] = [];
-
-          for (const image of generatedImages) {
-            if (image.status !== "complete" || !image.url) {
-              continue;
-            }
-
-            successCount += 1;
-            const outputId = `${taskId}:${image.id}`;
-            const refId = `img-${nextOutputIndex}`;
-            nextOutputIndex += 1;
-            nextOutputs.unshift({
-              id: outputId,
-              taskId,
-              hookImageId: image.id,
-              refId,
-              url: image.url,
-              prompt: image.prompt,
-              createdAt: image.createdAt,
-              providerName: image.providerName,
-              modelName: image.model,
-              size: image.size,
-              parentOutputId: targetOutput?.refId ?? null,
-              resourceSaved: Boolean(image.resourceMaterialId),
-              applyTarget: effectiveApplyTarget,
-            });
-            createdOutputIds.push(outputId);
-          }
-
-          const failedCount = Math.max(0, parsedCommand.count - successCount);
-          const nextStatus =
-            successCount === 0
-              ? "error"
-              : failedCount > 0
-                ? "partial"
-                : "complete";
-
-          return {
-            ...current,
-            active: true,
-            outputs: nextOutputs,
-            selectedOutputId:
-              createdOutputIds[0] ||
-              current.selectedOutputId ||
-              targetOutput?.id ||
-              null,
-            nextOutputIndex,
-            tasks: current.tasks.map((task) =>
-              task.id === taskId
-                ? {
-                    ...task,
-                    status: nextStatus,
-                    outputIds: createdOutputIds,
-                    hookImageIds,
-                    failureMessage:
-                      successCount === 0
-                        ? "图片服务未返回可用结果"
-                        : failedCount > 0
-                          ? `有 ${failedCount} 张结果生成失败`
-                          : undefined,
-                  }
-                : task,
-            ),
-          };
+        await createImageGenerationTask({
+          projectRootPath: projectRootPath.trim(),
+          prompt: effectivePrompt,
+          title: effectivePrompt,
+          mode: parsedCommand.mode,
+          rawText,
+          size: parsedCommand.size || imageWorkbenchSelectedSize,
+          aspectRatio: parsedCommand.aspectRatio,
+          count: parsedCommand.count,
+          usage:
+            requestedTarget === "cover" ? "cover" : "claw-image-workbench",
+          providerId: imageWorkbenchSelectedProviderId,
+          model: imageWorkbenchSelectedModelId,
+          sessionId: imageWorkbenchSessionKey,
+          projectId,
+          contentId: contentId ?? undefined,
+          entrySource: "at_image_command",
+          requestedTarget,
+          targetOutputId: targetOutput?.id ?? undefined,
+          targetOutputRefId: targetOutput?.refId ?? undefined,
+          referenceImages,
         });
-
-        appendLocalDispatchMessages([
-          buildImageWorkbenchCompletionMessage({
-            taskId,
-            successCount,
-            failedCount: Math.max(0, parsedCommand.count - successCount),
-            mode: parsedCommand.mode,
-          }),
-        ]);
-
-        if (successCount === 0) {
-          toast.error("图片任务失败，未生成可用结果");
-        } else if (parsedCommand.count - successCount > 0) {
-          toast.warning(
-            `图片任务已完成 ${successCount} 张，失败 ${Math.max(
-              0,
-              parsedCommand.count - successCount,
-            )} 张`,
-          );
-        } else {
-          toast.success(`图片任务已完成，共生成 ${successCount} 张`);
-        }
         return true;
       } catch (error) {
         const failureMessage =
-          error instanceof Error ? error.message : "图片任务执行失败";
-        const canceled = failureMessage === IMAGE_GENERATION_CANCELED_MESSAGE;
-        updateCurrentImageWorkbenchState((current) => ({
-          ...current,
-          active: true,
-          tasks: current.tasks.map((task) =>
-            task.id === taskId
-              ? {
-                  ...task,
-                  status: "error",
-                  failureMessage,
-                }
-              : task,
-          ),
-        }));
-        if (!canceled) {
-          appendLocalDispatchMessages([
-            {
-              id: `image-workbench:${taskId}:failed`,
-              role: "assistant",
-              content: `当前图片任务失败：${failureMessage}`,
-              timestamp: new Date(),
-              runtimeStatus: {
-                phase: "failed",
-                title: "图片任务失败",
-                detail: failureMessage,
-              },
-            },
-          ]);
-          toast.error(failureMessage);
-        }
+          error instanceof Error ? error.message : "图片任务创建失败";
+        appendLocalDispatchMessages([
+          {
+            id: `image-workbench:${localDispatchId}:assistant-error`,
+            role: "assistant",
+            content: `图片任务创建失败：${failureMessage}`,
+            timestamp: new Date(),
+            isThinking: false,
+          },
+        ]);
+        toast.error(failureMessage);
         return true;
       }
     },
     [
       appendLocalDispatchMessages,
+      createImageGenerationTask,
+      contentId,
       currentImageWorkbenchState.outputs,
+      imageWorkbenchSelectedModelId,
+      imageWorkbenchSelectedProviderId,
       imageWorkbenchSelectedSize,
       imageWorkbenchSessionKey,
       projectId,
-      runImageWorkbenchGeneration,
+      projectRootPath,
       setInput,
-      setLayoutMode,
       setMentionedCharacters,
-      updateCurrentImageWorkbenchState,
     ],
   );
 

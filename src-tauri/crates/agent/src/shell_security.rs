@@ -138,7 +138,13 @@ impl ShellSecurityChecker {
 impl DynamicPermissionCheck for ShellSecurityChecker {
     fn check_permissions(&self, tool_name: &str, input: &serde_json::Value) -> PermissionBehavior {
         // 只检查 bash/shell 类工具
-        if tool_name != "bash" && tool_name != "shell" && tool_name != "execute_command" {
+        if tool_name != "bash"
+            && tool_name != "Bash"
+            && tool_name != "PowerShell"
+            && tool_name != "powershell"
+            && tool_name != "shell"
+            && tool_name != "execute_command"
+        {
             return PermissionBehavior::Allow;
         }
 
@@ -216,7 +222,7 @@ mod tests {
         let checker = ShellSecurityChecker;
         let input = serde_json::json!({"command": "ls -la"});
         assert_eq!(
-            checker.check_permissions("bash", &input),
+            checker.check_permissions("Bash", &input),
             PermissionBehavior::Allow
         );
     }
@@ -225,7 +231,7 @@ mod tests {
     fn test_dynamic_permission_check_dangerous() {
         let checker = ShellSecurityChecker;
         let input = serde_json::json!({"command": "rm -rf /"});
-        match checker.check_permissions("bash", &input) {
+        match checker.check_permissions("Bash", &input) {
             PermissionBehavior::Deny { .. } => {}
             other => panic!("Expected Deny, got {:?}", other),
         }

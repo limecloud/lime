@@ -57,6 +57,7 @@ import {
   ensureWorkspaceReady,
   type Project,
 } from "@/lib/api/project";
+import { createImageGenerationTaskArtifact } from "@/lib/api/mediaTasks";
 import { updateAgentRuntimeSession } from "@/lib/api/agentRuntime";
 import {
   getProjectMemory,
@@ -149,6 +150,7 @@ import { useWorkspaceGeneralResourceSync } from "./workspace/useWorkspaceGeneral
 import { useWorkspaceArtifactWorkbenchActions } from "./workspace/useWorkspaceArtifactWorkbenchActions";
 import { useWorkspaceImageWorkbenchActionRuntime } from "./workspace/useWorkspaceImageWorkbenchActionRuntime";
 import { useWorkspaceImageWorkbenchEventRuntime } from "./workspace/useWorkspaceImageWorkbenchEventRuntime";
+import { useWorkspaceImageTaskPreviewRuntime } from "./workspace/useWorkspaceImageTaskPreviewRuntime";
 import { useWorkspaceRuntimeTeamDispatchPreviewRuntime } from "./workspace/useWorkspaceRuntimeTeamDispatchPreviewRuntime";
 import { useWorkspaceSessionRestore } from "./workspace/useWorkspaceSessionRestore";
 import { useWorkspaceResetRuntime } from "./workspace/useWorkspaceResetRuntime";
@@ -343,6 +345,10 @@ export function AgentChatWorkspace({
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(
     shouldBootstrapCanvasOnEntry ? "canvas" : "chat",
   );
+  const shouldPreserveEntryThemeOnHome =
+    agentEntry === "new-task" && !contentId;
+  const shouldPreserveBlankHomeSurface =
+    shouldPreserveEntryThemeOnHome && normalizedEntryTheme === "general";
   const [isInitialContentLoading, setIsInitialContentLoading] = useState(
     shouldBootstrapCanvasOnEntry,
   );
@@ -480,8 +486,6 @@ export function AgentChatWorkspace({
     selectedSize: imageWorkbenchSelectedSize,
     setSelectedSize: setImageWorkbenchSelectedSize,
     preferredProviderUnavailable: imageWorkbenchPreferredProviderUnavailable,
-    generateImage: runImageWorkbenchGeneration,
-    cancelGeneration: cancelImageWorkbenchGeneration,
     saveImagesToResource: saveImageWorkbenchImagesToResource,
   } = imageWorkbenchGenerationRuntime;
   const imageWorkbenchPreferenceSourceLabel = useMemo(() => {
@@ -743,7 +747,10 @@ export function AgentChatWorkspace({
           theme,
           workspaceType: p.workspaceType,
         });
-        if (!lockTheme || !initialTheme) {
+        if (
+          !shouldPreserveEntryThemeOnHome &&
+          (!lockTheme || !initialTheme)
+        ) {
           setActiveTheme(theme);
         }
 
@@ -922,7 +929,13 @@ export function AgentChatWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [projectId, contentId, lockTheme, initialTheme]);
+  }, [
+    projectId,
+    contentId,
+    lockTheme,
+    initialTheme,
+    shouldPreserveEntryThemeOnHome,
+  ]);
 
   useEffect(() => {
     if (!shouldBootstrapCanvasOnEntry) {
@@ -1302,7 +1315,22 @@ export function AgentChatWorkspace({
   );
   const appendLocalDispatchMessages = useCallback(
     (nextMessages: Message[]) => {
-      setChatMessages((previous) => [...previous, ...nextMessages]);
+      setChatMessages((previous) => {
+        const next = [...previous];
+
+        for (const message of nextMessages) {
+          const existingIndex = next.findIndex(
+            (candidate) => candidate.id === message.id,
+          );
+          if (existingIndex === -1) {
+            next.push(message);
+            continue;
+          }
+          next[existingIndex] = message;
+        }
+
+        return next;
+      });
     },
     [setChatMessages],
   );
@@ -2097,13 +2125,15 @@ export function AgentChatWorkspace({
 
   const imageWorkbenchActionRuntime = useWorkspaceImageWorkbenchActionRuntime({
     appendLocalDispatchMessages,
-    cancelImageWorkbenchGeneration,
     contentId,
+    createImageGenerationTask: createImageGenerationTaskArtifact,
     currentImageWorkbenchState,
+    imageWorkbenchSelectedModelId,
+    imageWorkbenchSelectedProviderId,
     imageWorkbenchSelectedSize,
     imageWorkbenchSessionKey,
     projectId,
-    runImageWorkbenchGeneration,
+    projectRootPath: project?.rootPath || null,
     saveImageWorkbenchImagesToResource,
     setCanvasState,
     setInput,
@@ -2296,6 +2326,15 @@ export function AgentChatWorkspace({
   // 布局层按实际展示内容判断，避免 browser preflight / bootstrap 预览仍被视为空白态。
   const hasDisplayMessages = displayMessages.length > 0;
   const hasMessages = hasDisplayMessages;
+  const effectiveShowChatPanel =
+    showChatPanel ||
+    (agentEntry === "new-task" &&
+      (hasDisplayMessages ||
+        isThemeWorkbench ||
+        (!shouldUseCompactThemeWorkbench && isBootstrapDispatchPending) ||
+        isSending ||
+        queuedTurns.length > 0 ||
+        Boolean(browserTaskPreflight)));
 
   const handleCanvasSelectionTextChange = useCallback((text: string) => {
     const normalized = text.trim().replace(/\s+/g, " ");
@@ -2322,7 +2361,7 @@ export function AgentChatWorkspace({
     isThemeWorkbench,
     hasPendingA2UIForm,
     layoutMode,
-    showChatPanel,
+    showChatPanel: effectiveShowChatPanel,
     showSidebar,
     defaultTopicSidebarVisible,
     hasMessages,
@@ -2330,6 +2369,7 @@ export function AgentChatWorkspace({
     autoCollapsedTopicSidebarRef,
     mappedTheme,
     normalizedEntryTheme,
+    shouldPreserveBlankHomeSurface,
     shouldBootstrapCanvasOnEntry,
     canvasState,
     generalCanvasState,
@@ -2581,6 +2621,16 @@ export function AgentChatWorkspace({
     handleImageWorkbenchCommand,
   });
 
+  useWorkspaceImageTaskPreviewRuntime({
+    sessionId,
+    projectId,
+    contentId,
+    projectRootPath: project?.rootPath || null,
+    canvasState,
+    setChatMessages,
+    updateCurrentImageWorkbenchState,
+  });
+
   const shellChromeRuntime = useWorkspaceShellChromeRuntime({
     agentEntry,
     browserTaskPreflight,
@@ -2602,7 +2652,7 @@ export function AgentChatWorkspace({
     teamDispatchPreviewState,
   });
   const themeWorkbenchShellRuntime = useWorkspaceThemeWorkbenchShellRuntime({
-    showChatPanel,
+    showChatPanel: effectiveShowChatPanel,
     showSidebar,
     hasPendingA2UIForm,
     contextHarnessRuntime,
@@ -2852,7 +2902,7 @@ export function AgentChatWorkspace({
     handleOpenBrowserAssistInCanvas: handleOpenBrowserRuntimeForBrowserAssist,
     browserAssistLaunching,
     hideHistoryToggle,
-    showChatPanel,
+    showChatPanel: effectiveShowChatPanel,
     topBarChrome,
     onBackToProjectManagement,
     fromResources,

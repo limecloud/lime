@@ -23,6 +23,7 @@ use axum::{
     Json,
 };
 
+use super::image_api_provider;
 use crate::handlers::verify_api_key;
 use crate::AppState;
 use lime_core::models::openai::ImageGenerationRequest;
@@ -100,6 +101,42 @@ pub async fn handle_image_generation(
             request.model, prompt_display, request.n, request.response_format
         ),
     );
+
+    match image_api_provider::try_generate_with_configured_provider(&state, &request).await {
+        Ok(Some(response)) => {
+            state.logs.write().await.add(
+                "info",
+                &format!(
+                    "[IMAGE] 默认图片服务生成成功: {} 张图片",
+                    response.data.len()
+                ),
+            );
+            return (StatusCode::OK, Json(response)).into_response();
+        }
+        Ok(None) => {
+            state.logs.write().await.add(
+                "debug",
+                "[IMAGE] 默认图片服务未命中，继续回退到 Antigravity 兼容链路",
+            );
+        }
+        Err(error) => {
+            state.logs.write().await.add(
+                "error",
+                &format!("[IMAGE] 默认图片服务失败: {}", error.message),
+            );
+            return (
+                error.status,
+                Json(serde_json::json!({
+                    "error": {
+                        "message": error.message,
+                        "type": "server_error",
+                        "code": error.code,
+                    }
+                })),
+            )
+                .into_response();
+        }
+    }
 
     // 获取 Antigravity 凭证
     let db = match &state.db {

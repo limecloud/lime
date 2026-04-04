@@ -2,6 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IMAGE_WORKBENCH_FOCUS_EVENT } from "@/lib/imageWorkbenchEvents";
 import { MessageList } from "./MessageList";
 import type { Message } from "../types";
 
@@ -197,6 +198,85 @@ describe("MessageList", () => {
     expect(mockStreamingRenderer).toHaveBeenLastCalledWith(
       expect.objectContaining({ renderA2UIInline: false }),
     );
+  });
+
+  it("图片任务消息卡应在聊天区渲染预览并支持展开图片画布", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench",
+        role: "assistant",
+        content: "图片生成已完成，共生成 1 张。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-1",
+          prompt: "一颗戴耳机的青柠，科技感插画风格",
+          status: "complete",
+          imageUrl: "https://example.com/generated.png",
+          imageCount: 1,
+          size: "1024x1024",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    let focusDetail: Record<string, unknown> | null = null;
+    const handleFocus = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+      focusDetail = event.detail as Record<string, unknown>;
+    };
+    window.addEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("图片任务卡");
+    expect(previewCard?.textContent).toContain("点击查看图片画布");
+    expect(previewCard?.textContent).toContain("1024x1024");
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(focusDetail).toEqual({
+      projectId: "project-1",
+      contentId: "content-1",
+    });
+    window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+  });
+
+  it("图片任务完成但图片仍在工作台时，不应继续显示生成中占位", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-complete-without-image",
+        role: "assistant",
+        content: "图片任务已完成。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-complete-without-image",
+          prompt: "赛博青柠实验室，电影感光影",
+          status: "complete",
+          imageCount: 2,
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-complete-without-image"]',
+    );
+
+    expect(previewCard?.textContent).toContain("结果已同步");
+    expect(previewCard?.textContent).toContain("点击查看图片画布");
+    expect(previewCard?.textContent).not.toContain("正在生成预览");
   });
 
   it("当前由聊天区底部承载的 assistant A2UI 不应继续在正文里内联渲染", () => {

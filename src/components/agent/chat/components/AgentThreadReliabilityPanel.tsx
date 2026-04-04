@@ -812,7 +812,7 @@ export const AgentThreadReliabilityPanel: React.FC<
       </div>
       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-900">
         当前入口属于 `compat` 线程级快速诊断，只覆盖当前 thread 的运行信号。
-        正式交给外部 Claude Code / Codex 分析时，请优先使用工作台“交接制品
+        正式交给外部 Claude / Codex 分析时，请优先使用工作台“交接制品
         → 外部分析交接”的 `analysis-brief.md / analysis-context.json`
         主链；这里的“快速复制给 AI”只适合临时排障，“复制原始 JSON（debug）”适合程序化分析、存档或二次处理。
       </div>

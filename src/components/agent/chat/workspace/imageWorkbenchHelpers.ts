@@ -60,6 +60,10 @@ export function createInitialSessionImageWorkbenchState(): SessionImageWorkbench
   };
 }
 
+export function resolveImageWorkbenchAssistantMessageId(taskId: string): string {
+  return `image-workbench:${taskId}:assistant`;
+}
+
 export function buildImageWorkbenchDispatchMessages(params: {
   rawText: string;
   images: MessageImage[];
@@ -67,6 +71,9 @@ export function buildImageWorkbenchDispatchMessages(params: {
   prompt: string;
   mode: ImageWorkbenchTaskMode;
   count: number;
+  size?: string;
+  projectId?: string | null;
+  contentId?: string | null;
 }): Message[] {
   const timestamp = new Date();
   const modeLabel =
@@ -85,17 +92,27 @@ export function buildImageWorkbenchDispatchMessages(params: {
       timestamp,
     },
     {
-      id: `image-workbench:${params.taskId}:assistant`,
+      id: resolveImageWorkbenchAssistantMessageId(params.taskId),
       role: "assistant",
       content: `已创建${modeLabel}任务，正在准备 ${params.count} 张结果。`,
       timestamp: new Date(timestamp.getTime() + 1),
+      isThinking: true,
+      imageWorkbenchPreview: {
+        taskId: params.taskId,
+        prompt: params.prompt,
+        status: "running",
+        projectId: params.projectId ?? null,
+        contentId: params.contentId ?? null,
+        imageCount: params.count,
+        size: params.size,
+      },
       runtimeStatus: {
         phase: "routing",
-        title: `${modeLabel}已进入工作台`,
+        title: `${modeLabel}进行中`,
         detail: params.prompt.trim()
-          ? `主画布已接管当前任务：${params.prompt.trim()}`
-          : "主画布已接管当前任务，正在准备图片服务与结果卡片。",
-        checkpoints: ["记录当前调度", "创建画布任务卡", "等待结果回填"],
+          ? `任务已进入图片工作台，对话区会持续同步进度：${params.prompt.trim()}`
+          : "任务已进入图片工作台，对话区会持续同步进度与结果摘要。",
+        checkpoints: ["记录当前调度", "提交图片服务", "回填结果摘要"],
       },
     },
   ];
@@ -106,6 +123,11 @@ export function buildImageWorkbenchCompletionMessage(params: {
   successCount: number;
   failedCount: number;
   mode: ImageWorkbenchTaskMode;
+  prompt: string;
+  projectId?: string | null;
+  contentId?: string | null;
+  imageUrl?: string | null;
+  size?: string;
 }): Message {
   const timestamp = new Date();
   const modeLabel =
@@ -120,10 +142,61 @@ export function buildImageWorkbenchCompletionMessage(params: {
       : `${modeLabel}已完成，共生成 ${params.successCount} 张。`;
 
   return {
-    id: `image-workbench:${params.taskId}:complete`,
+    id: resolveImageWorkbenchAssistantMessageId(params.taskId),
     role: "assistant",
     content: detail,
     timestamp,
+    isThinking: false,
+    imageWorkbenchPreview: {
+      taskId: params.taskId,
+      prompt: params.prompt,
+      status:
+        params.successCount === 0
+          ? "failed"
+          : params.failedCount > 0
+            ? "partial"
+            : "complete",
+      projectId: params.projectId ?? null,
+      contentId: params.contentId ?? null,
+      imageUrl: params.imageUrl ?? null,
+      imageCount: params.successCount,
+      size: params.size,
+    },
+  };
+}
+
+export function buildImageWorkbenchFailureMessage(params: {
+  taskId: string;
+  failureMessage: string;
+  mode: ImageWorkbenchTaskMode;
+  prompt: string;
+  projectId?: string | null;
+  contentId?: string | null;
+  size?: string;
+}): Message {
+  const timestamp = new Date();
+  const modeLabel =
+    params.mode === "edit"
+      ? "图片编辑"
+      : params.mode === "variation"
+        ? "图片变体"
+        : "图片生成";
+
+  return {
+    id: resolveImageWorkbenchAssistantMessageId(params.taskId),
+    role: "assistant",
+    content: `${modeLabel}失败：${params.failureMessage}`,
+    timestamp,
+    isThinking: false,
+    imageWorkbenchPreview: {
+      taskId: params.taskId,
+      prompt: params.prompt,
+      status: "failed",
+      projectId: params.projectId ?? null,
+      contentId: params.contentId ?? null,
+      imageCount: 0,
+      size: params.size,
+    },
   };
 }
 

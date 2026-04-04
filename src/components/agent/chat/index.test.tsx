@@ -1565,6 +1565,31 @@ describe("AgentChatPage 侧栏显示控制", () => {
     expect(container.querySelector('[data-testid="chat-sidebar"]')).toBeNull();
   });
 
+  it("new-task 执行态即使初始 showChatPanel=false 也应允许从顶栏展开对话侧栏", async () => {
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        messages: [{ id: "msg-new-task", role: "user", content: "继续执行" }],
+        isSending: true,
+      }),
+    );
+
+    const container = renderPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+    });
+    await flushEffects();
+
+    expect(container.querySelector('[data-testid="chat-sidebar"]')).toBeNull();
+
+    clickButton(container, "toggle-history");
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="chat-sidebar"]'),
+    ).not.toBeNull();
+  });
+
   it("Claw 模式无激活任务时应展示任务选择空态", async () => {
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
@@ -1619,6 +1644,48 @@ describe("AgentChatPage 侧栏显示控制", () => {
 });
 
 describe("AgentChatPage 通用工作台", () => {
+  it("空白新建任务首页不应自动打开 fallback 新文档画布", async () => {
+    const container = renderPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+    });
+    await flushEffects(10);
+
+    expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
+    ).toBeNull();
+  });
+
+  it("新建任务首页即使记住了文档项目也应保留真实首页", async () => {
+    mockIsSpecializedWorkbenchTheme.mockImplementation(
+      (theme?: string) => theme !== "general",
+    );
+    mockUseThemeContextWorkspace.mockImplementation(
+      ({ activeTheme }: { activeTheme?: string }) =>
+        createMockThemeContextWorkspaceState({
+          enabled: activeTheme !== "general",
+        }),
+    );
+    mockGetProject.mockResolvedValue({
+      ...createProject("project-document-home"),
+      workspaceType: "document",
+    });
+
+    const container = renderPage({
+      agentEntry: "new-task",
+      projectId: "project-document-home",
+      theme: "general",
+    });
+    await flushEffects(10);
+
+    expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
+    ).toBeNull();
+  });
+
   it("聊天态应通过顶栏按钮展开画布，并支持在展开后再次折叠", async () => {
     const container = renderPage({
       theme: "general",

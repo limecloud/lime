@@ -23,6 +23,8 @@ import {
   onVoiceStopRecording,
 } from "@/lib/api/voiceShortcutEvents";
 import { useVoiceSound } from "@/hooks/useVoiceSound";
+import { safeEmit, safeListen } from "@/lib/dev-bridge";
+import { COMPANION_PET_VOICE_TRANSCRIPT_EVENT } from "@/lib/api/companion";
 import "./smart-input.css";
 
 // Lime Logo组件
@@ -82,6 +84,21 @@ function getInstructionIdFromUrl(): string | null {
   return instruction ? decodeURIComponent(instruction) : null;
 }
 
+type VoiceTarget = "companion-pet";
+
+interface VoiceResetPayload {
+  target?: string | null;
+}
+
+function normalizeVoiceTarget(value: string | null | undefined): VoiceTarget | null {
+  return value === "companion-pet" ? "companion-pet" : null;
+}
+
+function getVoiceTargetFromUrl(): VoiceTarget | null {
+  const params = new URLSearchParams(window.location.search);
+  return normalizeVoiceTarget(params.get("target"));
+}
+
 /** 语音状态 */
 type VoiceState = "idle" | "recording" | "transcribing" | "polishing";
 
@@ -101,6 +118,7 @@ export function SmartInputPage() {
 
   // 追踪是否已经从 URL 初始化过语音模式
   const voiceModeInitializedRef = useRef(false);
+  const voiceTargetRef = useRef<VoiceTarget | null>(getVoiceTargetFromUrl());
 
   // 语音音效
   const { playStartSound, playStopSound } = useVoiceSound(soundEnabled);
@@ -123,6 +141,23 @@ export function SmartInputPage() {
     setErrorMsg(msg);
     setTimeout(() => setErrorMsg(null), 3000);
   }, []);
+
+  const applyResolvedVoiceText = useCallback(
+    async (finalText: string) => {
+      if (voiceTargetRef.current === "companion-pet") {
+        await safeEmit(COMPANION_PET_VOICE_TRANSCRIPT_EVENT, {
+          text: finalText,
+          source: "voice_window",
+        });
+        await getCurrentWindow().close();
+        return;
+      }
+
+      setInputValue(finalText);
+      inputRef.current?.focus();
+    },
+    [],
+  );
 
   // 开始语音模式
   const startVoiceMode = useCallback(async () => {
@@ -187,6 +222,7 @@ export function SmartInputPage() {
     const isVoiceMode = getVoiceModeFromUrl();
     const isTranslateMode = getTranslateModeFromUrl();
     const instructionId = getInstructionIdFromUrl();
+    voiceTargetRef.current = getVoiceTargetFromUrl();
 
     console.log(
       "[语音输入] URL 参数 voice=",
@@ -207,6 +243,26 @@ export function SmartInputPage() {
       voiceModeInitializedRef.current = true;
       startVoiceMode();
     }
+  }, [startVoiceMode]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    (async () => {
+      try {
+        unlisten = await safeListen<VoiceResetPayload>("voice-reset", (event) => {
+          voiceTargetRef.current =
+            normalizeVoiceTarget(event.payload?.target) ?? getVoiceTargetFromUrl();
+          void startVoiceMode();
+        });
+      } catch (err) {
+        console.error("[语音输入] 监听重置事件失败:", err);
+      }
+    })();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, [startVoiceMode]);
 
   // 监听后端发送的开始录音事件（窗口已存在时使用）
@@ -388,10 +444,9 @@ export function SmartInputPage() {
           console.error("[语音润色] 失败:", e);
         }
 
-        setInputValue(finalText);
         setVoiceState("idle");
         setVoiceMode(false);
-        inputRef.current?.focus();
+        await applyResolvedVoiceText(finalText);
       } catch (err) {
         console.error("[语音识别] 失败:", err);
         showError("语音识别过程中发生错误");
@@ -399,8 +454,8 @@ export function SmartInputPage() {
         setVoiceMode(false);
       }
     },
-    [showError],
-  ); // 只依赖 showError，其他通过 Ref 获取
+    [applyResolvedVoiceText, showError],
+  ); // 依赖通过 Ref 和稳定回调控制，避免录音闭包拿到旧状态
 
   // 监听快捷键释放事件
   useEffect(() => {
@@ -494,10 +549,9 @@ export function SmartInputPage() {
               console.error("[语音润色] 失败:", e);
             }
 
-            setInputValue(finalText);
             setVoiceState("idle");
             setVoiceMode(false);
-            inputRef.current?.focus();
+            await applyResolvedVoiceText(finalText);
           } catch (err) {
             console.error("[语音识别] 失败:", err);
             showError("语音识别过程中发生错误");
@@ -513,10 +567,10 @@ export function SmartInputPage() {
     };
 
     const unlistenPromise = setupStopListener();
-        return () => {
-          unlistenPromise.then((unlisten) => unlisten());
-        };
-  }, [voiceMode, showError]);
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [applyResolvedVoiceText, voiceMode, showError]);
 
   // 关闭窗口
   const handleClose = useCallback(async () => {

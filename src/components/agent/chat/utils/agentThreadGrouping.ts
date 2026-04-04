@@ -535,6 +535,70 @@ function summarizeCommandItem(item: AgentThreadItem): string | null {
   return null;
 }
 
+function summarizeCollaborationItem(item: AgentThreadItem): string | null {
+  if (item.type !== "tool_call") {
+    return null;
+  }
+
+  const normalized = normalizeToolName(item.tool_name);
+  const args = asRecord(item.arguments);
+
+  if (normalized === "agent") {
+    return prefixAction(
+      readString(args, ["description", "task", "taskType", "role", "agent_type"]) ||
+        resolveToolDisplayLabel(item.tool_name),
+      "分给协作成员处理 ",
+      ["分给协作成员", "协作中 ", "邀请 ", "已邀请 "],
+    );
+  }
+
+  if (normalized === "sendmessage") {
+    return prefixAction(
+      readString(args, ["id", "agent_id", "message"]) || "目标协作成员",
+      "补充说明 ",
+      ["补充说明 ", "已补充说明 ", "发送给 "],
+    );
+  }
+
+  if (normalized === "teamcreate") {
+    return prefixAction(
+      readString(args, ["team_name", "teamName"]) || "当前团队",
+      "已创建 ",
+      ["已创建 ", "创建了 "],
+    );
+  }
+
+  if (normalized === "teamdelete") {
+    return prefixAction(
+      readString(args, ["team_name", "teamName"]) || "当前团队",
+      "已删除 ",
+      ["已删除 ", "删除了 "],
+    );
+  }
+
+  if (normalized === "listpeers") {
+    return prefixAction(
+      readString(args, ["team_name", "teamName"]) || "当前团队",
+      "已列出 ",
+      ["已列出 ", "列出了 ", "查看了 "],
+    );
+  }
+
+  if (
+    normalized === "waitagent" ||
+    normalized === "resumeagent" ||
+    normalized === "closeagent"
+  ) {
+    return prefixAction(
+      readString(args, ["id", "ids", "session_id"]) || resolveToolDisplayLabel(item.tool_name),
+      "处理了 ",
+      ["处理了 ", "继续了 ", "暂停了 ", "查看了 "],
+    );
+  }
+
+  return null;
+}
+
 function summarizeSubagentItem(item: AgentThreadItem): string | null {
   if (item.type !== "subagent_activity") {
     return null;
@@ -569,6 +633,17 @@ function summarizeAlertItem(item: AgentThreadItem): string | null {
 
 function summarizeOtherItem(item: AgentThreadItem): string | null {
   if (item.type === "tool_call") {
+    const normalized = normalizeToolName(item.tool_name);
+    const args = asRecord(item.arguments);
+
+    if (normalized === "sendusermessage" || normalized === "brief") {
+      return prefixAction(
+        readString(args, ["message"]) || resolveToolDisplayLabel(item.tool_name),
+        "已发送 ",
+        ["已发送 ", "发送了 "],
+      );
+    }
+
     return prefixAction(
       resolveToolDisplayLabel(item.tool_name),
       "执行了 ",
@@ -626,6 +701,12 @@ function summarizeGroupPreviewLine(
         item.type === "context_compaction"
       ) {
         return summarizeThinkingItem(item);
+      }
+      {
+        const collaborationSummary = summarizeCollaborationItem(item);
+        if (collaborationSummary) {
+          return collaborationSummary;
+        }
       }
       if (isBrowserItem(item)) {
         return summarizeBrowserItem(item);

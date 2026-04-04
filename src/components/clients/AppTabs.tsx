@@ -15,8 +15,8 @@ const apps: {
 }[] = [
   {
     id: "claude",
-    label: "Claude Code",
-    description: "Claude CLI 配置",
+    label: "Claude",
+    description: "Claude 配置",
     iconType: "claude",
   },
   {

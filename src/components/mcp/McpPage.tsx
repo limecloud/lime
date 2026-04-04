@@ -277,7 +277,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                     onClick={() => handleImport("claude")}
                     className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
                   >
-                    从 Claude Code
+                    从 Claude
                   </button>
                   <button
                     onClick={() => handleImport("codex")}
@@ -334,7 +334,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                   onClick={() => handleImport("claude")}
                   className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
                 >
-                  从 Claude Code
+                  从 Claude
                 </button>
                 <button
                   onClick={() => handleImport("codex")}
@@ -370,7 +370,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
             能访问文件系统、数据库等外部资源
           </li>
           <li>
-            在此添加 MCP 服务器后，可同步到 Claude Code、Codex、Gemini CLI
+            在此添加 MCP 服务器后，可同步到 Claude、Codex、Gemini CLI
           </li>
           <li>也可从这些工具导入已有的 MCP 配置，统一管理</li>
         </ul>
@@ -562,7 +562,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                       onChange={(e) => setEnabledClaude(e.target.checked)}
                       className="w-3.5 h-3.5 rounded border-gray-300"
                     />
-                    <span className="text-xs">Claude Code</span>
+                    <span className="text-xs">Claude</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input

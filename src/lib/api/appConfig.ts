@@ -9,6 +9,7 @@ let configLoadingPromise: Promise<Config> | null = null;
 let configCacheStamp: string | null = null;
 
 export type {
+  CompanionDefaultsConfig,
   Config,
   CrashReportingConfig,
   ChatAppearanceConfig,

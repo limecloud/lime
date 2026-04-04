@@ -15,31 +15,6 @@ const latestWorkspaceProps = vi.hoisted(
     }) as { value: Record<string, unknown> | null },
 );
 
-vi.mock("./AgentChatHomeShell", () => ({
-  AgentChatHomeShell: ({
-    onEnterWorkspace,
-  }: {
-    onEnterWorkspace: (payload: Record<string, unknown>) => void;
-  }) => (
-    <div data-testid="home-shell">
-      <button
-        type="button"
-        data-testid="enter-workspace"
-        onClick={() =>
-          onEnterWorkspace({
-            projectId: "project-shell",
-            theme: "general",
-            autoRunInitialPromptOnMount: true,
-            newChatAt: 123,
-          })
-        }
-      >
-        进入工作区
-      </button>
-    </div>
-  ),
-}));
-
 vi.mock("./AgentChatWorkspace", () => ({
   AgentChatWorkspace: (props: Record<string, unknown>) => {
     latestWorkspaceProps.value = props;
@@ -112,8 +87,8 @@ async function flushEffects(times = 8) {
   });
 }
 
-describe("AgentChatPage 首页壳路由", () => {
-  it("标准 new-task 空白入口应渲染首页壳，而不是旧工作区空页", async () => {
+describe("AgentChatPage 工作区路由", () => {
+  it("标准 new-task 空白入口应保留当前首页语义", async () => {
     const container = renderPage({
       agentEntry: "new-task",
       projectId: "project-standard",
@@ -122,85 +97,34 @@ describe("AgentChatPage 首页壳路由", () => {
 
     await flushEffects();
 
-    expect(
-      container.querySelector('[data-testid="home-shell"]'),
-    ).not.toBeNull();
-    expect(container.querySelector('[data-testid="workspace"]')).toBeNull();
+    const workspace = container.querySelector(
+      '[data-testid="workspace"]',
+    ) as HTMLDivElement | null;
+
+    expect(workspace).not.toBeNull();
+    expect(workspace?.dataset.agentEntry).toBe("new-task");
+    expect(workspace?.dataset.showChatPanel).toBe("false");
   });
 
-  it("immersiveHome 模式同样应渲染首页壳", async () => {
+  it("immersiveHome 模式同样应保留当前首页语义", async () => {
     const container = renderPage({
       agentEntry: "new-task",
       immersiveHome: true,
       showChatPanel: false,
     });
 
-    await flushEffects();
-
-    expect(
-      container.querySelector('[data-testid="home-shell"]'),
-    ).not.toBeNull();
-    expect(container.querySelector('[data-testid="workspace"]')).toBeNull();
-  });
-
-  it("从首页壳进入工作区后应按 claw 语义渲染", async () => {
-    renderPage({
-      agentEntry: "new-task",
-      initialUserPrompt: "预热工作区模块",
-      showChatPanel: false,
-    });
-    await flushEffects();
-    latestWorkspaceProps.value = null;
-
-    const container = renderPage({
-      agentEntry: "new-task",
-      immersiveHome: true,
-      showChatPanel: false,
-    });
-
-    await flushEffects();
-
-    const enterButton = container.querySelector(
-      '[data-testid="enter-workspace"]',
-    ) as HTMLButtonElement | null;
-
-    expect(enterButton).toBeTruthy();
-
-    act(() => {
-      enterButton?.click();
-    });
-
-    await flushEffects();
-    await act(
-      async () =>
-        await new Promise((resolve) => {
-          window.setTimeout(resolve, 220);
-        }),
-    );
     await flushEffects();
 
     const workspace = container.querySelector(
       '[data-testid="workspace"]',
     ) as HTMLDivElement | null;
 
-    expect(container.querySelector('[data-testid="home-shell"]')).toBeNull();
-    expect(
-      container.querySelector('[data-testid="claw-empty-state"]'),
-    ).toBeNull();
     expect(workspace).not.toBeNull();
-    expect(workspace?.dataset.agentEntry).toBe("claw");
-    expect(workspace?.dataset.showChatPanel).toBe("true");
-    expect(latestWorkspaceProps.value).toMatchObject({
-      projectId: "project-shell",
-      theme: "general",
-      autoRunInitialPromptOnMount: true,
-      newChatAt: 123,
-      agentEntry: "claw",
-      showChatPanel: true,
-    });
+    expect(workspace?.dataset.agentEntry).toBe("new-task");
+    expect(workspace?.dataset.showChatPanel).toBe("false");
   });
 
-  it("new-task 携带首条上下文时应直接按 claw 语义渲染", async () => {
+  it("new-task 携带首条上下文时应继续按当前工作区语义渲染", async () => {
     const container = renderPage({
       agentEntry: "new-task",
       projectId: "project-standard",
@@ -217,5 +141,10 @@ describe("AgentChatPage 首页壳路由", () => {
     expect(workspace).not.toBeNull();
     expect(workspace?.dataset.agentEntry).toBe("claw");
     expect(workspace?.dataset.showChatPanel).toBe("true");
+    expect(latestWorkspaceProps.value).toMatchObject({
+      initialUserPrompt: "请直接开始处理这个任务",
+      agentEntry: "claw",
+      showChatPanel: true,
+    });
   });
 });

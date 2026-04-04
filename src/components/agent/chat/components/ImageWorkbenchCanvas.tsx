@@ -553,7 +553,7 @@ export const ImageWorkbenchCanvas: React.FC<ImageWorkbenchCanvasProps> = ({
               ) : null}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
-              <span>结果直接留在任务卡内，聊天区只记录调度。</span>
+              <span>结果留在任务卡内，对话区会同步进度与结果摘要。</span>
               {preferenceSummary ? (
                 <span
                   className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600"

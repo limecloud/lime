@@ -209,7 +209,7 @@ const SPECIAL_PROTOCOL_PROVIDER_SEEDS = [
   },
   {
     id: "claude-code",
-    name: "Claude Code",
+    name: "Claude",
     type: "anthropic",
     apiHost: "https://api.anthropic.com",
     keywords: ["claude", "anthropic", "claude-code", "claude code"],

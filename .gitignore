@@ -30,6 +30,8 @@ __pycache__/
 docs/prd/
 !docs/prd/
 docs/prd/*
+!docs/prd/skills/
+!docs/prd/skills/*.md
 !docs/prd/tools/
 !docs/prd/tools/*.md
 
@@ -88,6 +90,8 @@ lime.db
 
 .codex-*
 target-codex*
+
+.lime/
 
 tmp/
 

@@ -273,7 +273,7 @@ function createToolInventory(): AgentRuntimeToolInventory {
     ],
     extension_surfaces: [
       {
-        extension_name: "lime-browser",
+        extension_name: "mcp__lime-browser",
         description: "浏览器桥接工具面",
         source_kind: "mcp_bridge",
         deferred_loading: true,
@@ -291,7 +291,7 @@ function createToolInventory(): AgentRuntimeToolInventory {
       {
         name: "mcp__lime-browser__navigate",
         description: "打开网页",
-        extension_name: "lime-browser",
+        extension_name: "mcp__lime-browser",
         source_kind: "mcp_bridge",
         deferred_loading: false,
         allowed_caller: "assistant",

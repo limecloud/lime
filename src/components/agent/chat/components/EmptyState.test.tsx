@@ -165,6 +165,7 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   mockGetConfig.mockImplementation(async () => ({}));
+  window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -176,6 +177,7 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -249,6 +251,156 @@ function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
 }
 
 describe("EmptyState", () => {
+  it("新建任务首页不应再显示旧 Claw 首页品牌文案", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("新建任务");
+    expect(container.textContent).toContain("开始一个新任务");
+    expect(container.textContent).not.toContain("青柠一下，灵感即来");
+    expect(container.textContent).not.toContain("CLAW WORKSPACE");
+  });
+
+  it("通用首页应展示推荐方案并替换旧快速启动内容", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      onLaunchBrowserAssist: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("推荐方案");
+    expect(container.textContent).toContain("浏览器协助办事");
+    expect(container.textContent).toContain("网页研究简报");
+    expect(container.textContent).toContain("社媒主稿生成");
+    expect(container.textContent).toContain("前端概念方案");
+    expect(container.textContent).toContain("演示提纲草案");
+    expect(container.textContent).toContain("多代理拆任务");
+    expect(container.textContent).not.toContain("生成配图");
+    expect(container.textContent).not.toContain("Team 冒烟测试");
+  });
+
+  it("点击网页研究简报应开启联网搜索并记录最近使用", async () => {
+    const setInput = vi.fn<(value: string) => void>();
+    const onWebSearchEnabledChange = vi.fn<(enabled: boolean) => void>();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      setInput,
+      onWebSearchEnabledChange,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const card = container.querySelector(
+      '[data-testid="home-recommended-web-research-brief"]',
+    ) as HTMLDivElement | null;
+    expect(card).toBeTruthy();
+
+    act(() => {
+      card?.click();
+    });
+
+    expect(onWebSearchEnabledChange).toHaveBeenCalledWith(true);
+    expect(setInput).toHaveBeenCalledWith(
+      "请围绕这个主题先给我做一版网页研究简报：明确研究目标、关键信息来源、核心发现、风险点，以及接下来最值得继续追踪的问题。",
+    );
+    expect(container.textContent).toContain("最近使用");
+  });
+
+  it("点击社媒主稿生成应切换到社媒主题并写入起始动作", async () => {
+    const setInput = vi.fn<(value: string) => void>();
+    const onThemeChange = vi.fn<(theme: string) => void>();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      setInput,
+      onThemeChange,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const card = container.querySelector(
+      '[data-testid="home-recommended-social-post-starter"]',
+    ) as HTMLDivElement | null;
+    expect(card).toBeTruthy();
+
+    act(() => {
+      card?.click();
+    });
+
+    expect(onThemeChange).toHaveBeenCalledWith("social-media");
+    expect(setInput).toHaveBeenCalledWith(
+      "请先帮我起草一版社媒内容首稿：明确目标受众、平台语境、标题方向、正文结构和可继续扩写的角度。",
+    );
+  });
+
+  it("点击浏览器协助办事应打开浏览器工作台并写入起始动作", async () => {
+    const setInput = vi.fn<(value: string) => void>();
+    const onLaunchBrowserAssist = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      setInput,
+      onLaunchBrowserAssist,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const card = container.querySelector(
+      '[data-testid="home-recommended-browser-assist-task"]',
+    ) as HTMLDivElement | null;
+    expect(card).toBeTruthy();
+
+    act(() => {
+      card?.click();
+    });
+
+    expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
+    expect(setInput).toHaveBeenCalledWith(
+      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，再进入执行。",
+    );
+  });
+
+  it("点击多代理拆任务应开启多代理偏好并写入起始动作", async () => {
+    const setInput = vi.fn<(value: string) => void>();
+    const onSubagentEnabledChange = vi.fn<(enabled: boolean) => void>();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      setInput,
+      onSubagentEnabledChange,
+      subagentEnabled: false,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const card = container.querySelector(
+      '[data-testid="home-recommended-team-breakdown"]',
+    ) as HTMLDivElement | null;
+    expect(card).toBeTruthy();
+
+    act(() => {
+      card?.click();
+    });
+
+    expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
+    expect(setInput).toHaveBeenCalledWith(
+      "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
+    );
+  });
+
   it("应挂载 CharacterMention，并透传角色与技能", async () => {
     const characters: Character[] = [
       {

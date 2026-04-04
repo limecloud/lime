@@ -43,6 +43,33 @@ use crate::client::McpClientWrapper;
 use crate::types::*;
 
 const AUTO_DEFER_TOOL_COUNT_THRESHOLD: usize = 6;
+const MCP_RUNTIME_TOOL_PREFIX: &str = "mcp__";
+
+fn build_mcp_runtime_tool_name(server_name: &str, tool_name: &str) -> String {
+    format!("{MCP_RUNTIME_TOOL_PREFIX}{server_name}__{tool_name}")
+}
+
+fn extract_mcp_runtime_inner_tool_name<'a>(
+    server_name: &str,
+    tool_name: &'a str,
+) -> Option<&'a str> {
+    let prefix = build_mcp_runtime_tool_name(server_name, "");
+    tool_name
+        .strip_prefix(prefix.as_str())
+        .filter(|inner_name| !inner_name.is_empty())
+}
+
+fn parse_mcp_runtime_tool_name<'a>(
+    tool_name: &str,
+    server_names: impl Iterator<Item = &'a String>,
+) -> Option<(String, String)> {
+    server_names
+        .filter_map(|server_name| {
+            extract_mcp_runtime_inner_tool_name(server_name, tool_name)
+                .map(|inner_name| (server_name.clone(), inner_name.to_string()))
+        })
+        .max_by_key(|(server_name, _)| server_name.len())
+}
 
 /// MCP 客户端管理器
 ///
@@ -755,9 +782,9 @@ impl McpClientManager {
         }
         drop(clients);
 
-        // 3. 解决名称冲突（添加服务器前缀）
+        // 3. 收口到 MCP current runtime 名称
         let resolved_tools =
-            Self::apply_default_loading_policy(Self::resolve_tool_name_conflicts(all_tools));
+            Self::apply_default_loading_policy(Self::apply_runtime_tool_names(all_tools));
 
         // 4. 更新缓存
         self.update_tool_cache(resolved_tools.clone()).await;
@@ -858,12 +885,21 @@ impl McpClientManager {
     }
 
     fn score_tool_match(tool: &McpToolDefinition, query: &str) -> i32 {
-        let score = lime_core::tool_calling::score_tool_match(
-            &tool.name,
-            &tool.description,
-            tool.tags.as_deref().unwrap_or(&[]),
-            query,
-        );
+        let tags = tool.tags.as_deref().unwrap_or(&[]);
+        let inner_tool_name = extract_mcp_runtime_inner_tool_name(&tool.server_name, &tool.name)
+            .unwrap_or(&tool.name);
+        let score = [
+            lime_core::tool_calling::score_tool_match(&tool.name, &tool.description, tags, query),
+            lime_core::tool_calling::score_tool_match(
+                inner_tool_name,
+                &tool.description,
+                tags,
+                query,
+            ),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
 
         if tool.always_visible.unwrap_or(false) {
             return score + 5;
@@ -897,9 +933,7 @@ impl McpClientManager {
             .collect()
     }
 
-    /// 解决工具名称冲突
-    ///
-    /// 当多个服务器提供同名工具时，为冲突的工具名称添加服务器前缀。
+    /// 将 MCP 工具名统一收口到当前 runtime 命名。
     ///
     /// # Arguments
     ///
@@ -907,33 +941,13 @@ impl McpClientManager {
     ///
     /// # Returns
     ///
-    /// 返回解决冲突后的工具列表。
-    fn resolve_tool_name_conflicts(tools: Vec<McpToolDefinition>) -> Vec<McpToolDefinition> {
-        // 统计每个工具名称出现的次数
-        let mut name_counts: HashMap<String, usize> = HashMap::new();
-        for tool in &tools {
-            *name_counts.entry(tool.name.clone()).or_insert(0) += 1;
-        }
-
-        // 找出有冲突的名称
-        let conflicting_names: HashSet<String> = name_counts
-            .into_iter()
-            .filter(|(_, count)| *count > 1)
-            .map(|(name, _)| name)
-            .collect();
-
-        // 为冲突的工具添加服务器前缀
+    /// 返回统一后的工具列表，名称始终为 `mcp__<server>__<tool>`。
+    fn apply_runtime_tool_names(tools: Vec<McpToolDefinition>) -> Vec<McpToolDefinition> {
         tools
             .into_iter()
             .map(|mut tool| {
-                if conflicting_names.contains(&tool.name) {
-                    debug!(
-                        original_name = %tool.name,
-                        server_name = %tool.server_name,
-                        "工具名称冲突，添加服务器前缀"
-                    );
-                    tool.name = format!("{}_{}", tool.server_name, tool.name);
-                }
+                let original_name = tool.name.clone();
+                tool.name = build_mcp_runtime_tool_name(&tool.server_name, &original_name);
                 tool
             })
             .collect()
@@ -943,7 +957,7 @@ impl McpClientManager {
     ///
     /// # Arguments
     ///
-    /// * `tool_name` - 工具名称（可能包含服务器前缀）
+    /// * `tool_name` - 工具名称，格式为 `mcp__<server>__<tool>`
     /// * `arguments` - 工具参数
     ///
     /// # Returns
@@ -1068,7 +1082,7 @@ impl McpClientManager {
     ///
     /// # Arguments
     ///
-    /// * `tool_name` - 工具名称（可能包含服务器前缀，格式为 "server_toolname"）
+    /// * `tool_name` - 工具名称，格式为 `mcp__<server>__<tool>`
     ///
     /// # Returns
     ///
@@ -1076,34 +1090,16 @@ impl McpClientManager {
     ///
     /// # 解析逻辑
     ///
-    /// 1. 如果工具名包含下划线，尝试解析为 "server_toolname" 格式
-    /// 2. 检查解析出的服务器是否存在
-    /// 3. 如果服务器存在，使用解析结果
-    /// 4. 如果服务器不存在，在所有服务器中查找该工具
+    /// 1. 按 `mcp__<server>__<tool>` 解析运行时工具名
+    /// 2. 使用最长 server 名匹配，避免 server 名中包含 `__` 时误切割
+    /// 3. 解析失败则视为未知 current 工具名
     async fn resolve_tool_target(&self, tool_name: &str) -> Result<(String, String), McpError> {
         let clients = self.clients.read().await;
 
-        // 尝试解析带前缀的工具名（格式：server_toolname）
-        if let Some(underscore_pos) = tool_name.find('_') {
-            let potential_server = &tool_name[..underscore_pos];
-            let potential_tool = &tool_name[underscore_pos + 1..];
-
-            // 检查是否存在该服务器
-            if clients.contains_key(potential_server) && !potential_tool.is_empty() {
-                return Ok((potential_server.to_string(), potential_tool.to_string()));
-            }
-        }
-
-        // 没有前缀或前缀不匹配，在所有服务器中查找该工具
-        for (server_name, wrapper) in clients.iter() {
-            if let Some(service) = wrapper.running_service() {
-                // 尝试获取工具列表并查找
-                if let Ok(tools) = service.list_all_tools().await {
-                    if tools.iter().any(|t| t.name.as_ref() == tool_name) {
-                        return Ok((server_name.clone(), tool_name.to_string()));
-                    }
-                }
-            }
+        if let Some((server_name, actual_tool_name)) =
+            parse_mcp_runtime_tool_name(tool_name, clients.keys())
+        {
+            return Ok((server_name, actual_tool_name));
         }
 
         // 工具未找到
@@ -2080,63 +2076,57 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_resolve_tool_name_conflicts_no_conflict() {
-        // 没有冲突的情况
+    fn test_apply_runtime_tool_names_prefixes_all_tools() {
         let tools = vec![
             create_test_tool("tool1", "Tool 1", "server1"),
             create_test_tool("tool2", "Tool 2", "server2"),
         ];
 
-        let resolved = McpClientManager::resolve_tool_name_conflicts(tools);
+        let resolved = McpClientManager::apply_runtime_tool_names(tools);
 
-        // 名称应该保持不变
         assert_eq!(resolved.len(), 2);
-        assert!(resolved.iter().any(|t| t.name == "tool1"));
-        assert!(resolved.iter().any(|t| t.name == "tool2"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server1__tool1"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server2__tool2"));
     }
 
     #[test]
-    fn test_resolve_tool_name_conflicts_with_conflict() {
-        // 有冲突的情况：两个服务器都提供 "read_file" 工具
+    fn test_apply_runtime_tool_names_keeps_distinct_servers_for_same_tool() {
         let tools = vec![
             create_test_tool("read_file", "Read file from server1", "server1"),
             create_test_tool("read_file", "Read file from server2", "server2"),
             create_test_tool("unique_tool", "Unique tool", "server1"),
         ];
 
-        let resolved = McpClientManager::resolve_tool_name_conflicts(tools);
+        let resolved = McpClientManager::apply_runtime_tool_names(tools);
 
-        // 冲突的工具应该添加服务器前缀
         assert_eq!(resolved.len(), 3);
-        assert!(resolved.iter().any(|t| t.name == "server1_read_file"));
-        assert!(resolved.iter().any(|t| t.name == "server2_read_file"));
-        // 唯一的工具名称应该保持不变
-        assert!(resolved.iter().any(|t| t.name == "unique_tool"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server1__read_file"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server2__read_file"));
+        assert!(resolved
+            .iter()
+            .any(|t| t.name == "mcp__server1__unique_tool"));
     }
 
     #[test]
-    fn test_resolve_tool_name_conflicts_multiple_conflicts() {
-        // 多个冲突的情况
+    fn test_apply_runtime_tool_names_supports_multiple_same_name_tools() {
         let tools = vec![
             create_test_tool("tool_a", "Tool A from server1", "server1"),
             create_test_tool("tool_a", "Tool A from server2", "server2"),
             create_test_tool("tool_a", "Tool A from server3", "server3"),
         ];
 
-        let resolved = McpClientManager::resolve_tool_name_conflicts(tools);
+        let resolved = McpClientManager::apply_runtime_tool_names(tools);
 
-        // 所有冲突的工具都应该添加服务器前缀
         assert_eq!(resolved.len(), 3);
-        assert!(resolved.iter().any(|t| t.name == "server1_tool_a"));
-        assert!(resolved.iter().any(|t| t.name == "server2_tool_a"));
-        assert!(resolved.iter().any(|t| t.name == "server3_tool_a"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server1__tool_a"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server2__tool_a"));
+        assert!(resolved.iter().any(|t| t.name == "mcp__server3__tool_a"));
     }
 
     #[test]
-    fn test_resolve_tool_name_conflicts_empty_list() {
-        // 空列表的情况
+    fn test_apply_runtime_tool_names_empty_list() {
         let tools: Vec<McpToolDefinition> = vec![];
-        let resolved = McpClientManager::resolve_tool_name_conflicts(tools);
+        let resolved = McpClientManager::apply_runtime_tool_names(tools);
         assert!(resolved.is_empty());
     }
 
@@ -2166,7 +2156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_tool_name_conflicts_preserves_metadata_fields() {
+    fn test_apply_runtime_tool_names_preserves_metadata_fields() {
         let mut tool_a = create_test_tool("search", "Search docs", "server1");
         tool_a.deferred_loading = Some(true);
         tool_a.always_visible = Some(true);
@@ -2181,14 +2171,14 @@ mod tests {
         tool_b.tags = Some(vec!["issues".to_string()]);
         tool_b.input_examples = Some(vec![serde_json::json!({ "query": "bug" })]);
 
-        let resolved = McpClientManager::resolve_tool_name_conflicts(vec![tool_a, tool_b]);
+        let resolved = McpClientManager::apply_runtime_tool_names(vec![tool_a, tool_b]);
         let server1 = resolved
             .iter()
-            .find(|tool| tool.name == "server1_search")
+            .find(|tool| tool.name == "mcp__server1__search")
             .expect("server1 tool should be renamed");
         let server2 = resolved
             .iter()
-            .find(|tool| tool.name == "server2_search")
+            .find(|tool| tool.name == "mcp__server2__search")
             .expect("server2 tool should be renamed");
 
         assert_eq!(server1.deferred_loading, Some(true));
@@ -2304,7 +2294,7 @@ mod tests {
 
         // 预先设置缓存
         let cached_tools = vec![create_test_tool(
-            "cached_tool",
+            "mcp__cached_server__cached_tool",
             "Cached tool",
             "cached_server",
         )];
@@ -2313,7 +2303,7 @@ mod tests {
         // 调用 list_tools 应该返回缓存的工具
         let result = manager.list_tools().await.unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].name, "cached_tool");
+        assert_eq!(result[0].name, "mcp__cached_server__cached_tool");
     }
 
     #[tokio::test]
@@ -2321,9 +2311,9 @@ mod tests {
         let manager = McpClientManager::new(None);
         manager
             .update_tool_cache(vec![
-                create_test_tool("always_tool", "always", "s1"),
+                create_test_tool("mcp__s1__always_tool", "always", "s1"),
                 McpToolDefinition {
-                    name: "hidden_tool".to_string(),
+                    name: "mcp__s1__hidden_tool".to_string(),
                     description: "hidden".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2334,7 +2324,7 @@ mod tests {
                     tags: None,
                 },
                 McpToolDefinition {
-                    name: "visible_deferred".to_string(),
+                    name: "mcp__s1__visible_deferred".to_string(),
                     description: "visible deferred".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2351,15 +2341,23 @@ mod tests {
             .list_tools_for_context(Some("assistant"), false)
             .await
             .unwrap();
-        assert!(assistant_tools.iter().any(|t| t.name == "always_tool"));
-        assert!(assistant_tools.iter().any(|t| t.name == "visible_deferred"));
-        assert!(!assistant_tools.iter().any(|t| t.name == "hidden_tool"));
+        assert!(assistant_tools
+            .iter()
+            .any(|t| t.name == "mcp__s1__always_tool"));
+        assert!(assistant_tools
+            .iter()
+            .any(|t| t.name == "mcp__s1__visible_deferred"));
+        assert!(!assistant_tools
+            .iter()
+            .any(|t| t.name == "mcp__s1__hidden_tool"));
 
         let code_exec_tools = manager
             .list_tools_for_context(Some("code_execution"), true)
             .await
             .unwrap();
-        assert!(code_exec_tools.iter().any(|t| t.name == "hidden_tool"));
+        assert!(code_exec_tools
+            .iter()
+            .any(|t| t.name == "mcp__s1__hidden_tool"));
     }
 
     #[tokio::test]
@@ -2368,7 +2366,7 @@ mod tests {
         manager
             .update_tool_cache(vec![
                 McpToolDefinition {
-                    name: "weather".to_string(),
+                    name: "mcp__s1__weather".to_string(),
                     description: "Get weather".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2379,7 +2377,7 @@ mod tests {
                     tags: Some(vec!["forecast".to_string()]),
                 },
                 McpToolDefinition {
-                    name: "get_weather".to_string(),
+                    name: "mcp__s1__get_weather".to_string(),
                     description: "weather by city".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2397,7 +2395,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(tools.len(), 2);
-        assert_eq!(tools[0].name, "weather");
+        assert_eq!(tools[0].name, "mcp__s1__weather");
     }
 
     #[tokio::test]
@@ -2406,7 +2404,7 @@ mod tests {
         manager
             .update_tool_cache(vec![
                 McpToolDefinition {
-                    name: "alpha".to_string(),
+                    name: "mcp__s1__alpha".to_string(),
                     description: "alpha".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2417,7 +2415,7 @@ mod tests {
                     tags: None,
                 },
                 McpToolDefinition {
-                    name: "zeta".to_string(),
+                    name: "mcp__s1__zeta".to_string(),
                     description: "zeta".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2428,7 +2426,7 @@ mod tests {
                     tags: None,
                 },
                 McpToolDefinition {
-                    name: "beta".to_string(),
+                    name: "mcp__s1__beta".to_string(),
                     description: "beta".to_string(),
                     input_schema: serde_json::json!({}),
                     server_name: "s1".to_string(),
@@ -2452,7 +2450,7 @@ mod tests {
                 .iter()
                 .map(|tool| tool.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["beta", "zeta"]
+            vec!["mcp__s1__beta", "mcp__s1__zeta"]
         );
     }
 
@@ -2461,7 +2459,7 @@ mod tests {
         let manager = McpClientManager::new(None);
         manager
             .update_tool_cache(vec![McpToolDefinition {
-                name: "restricted".to_string(),
+                name: "mcp__s1__restricted".to_string(),
                 description: "Restricted tool".to_string(),
                 input_schema: serde_json::json!({}),
                 server_name: "s1".to_string(),
@@ -2474,7 +2472,11 @@ mod tests {
             .await;
 
         let result = manager
-            .call_tool_with_caller("restricted", serde_json::json!({}), Some("assistant"))
+            .call_tool_with_caller(
+                "mcp__s1__restricted",
+                serde_json::json!({}),
+                Some("assistant"),
+            )
             .await;
         assert!(result.is_err());
         match result {
@@ -2504,14 +2506,14 @@ mod tests {
 
         // 调用不存在的工具
         let result = manager
-            .call_tool("nonexistent_tool", serde_json::json!({}))
+            .call_tool("mcp__missing__nonexistent_tool", serde_json::json!({}))
             .await;
 
         // 应该返回 ToolNotFound 错误
         assert!(result.is_err());
         match result {
             Err(McpError::ToolNotFound(name)) => {
-                assert_eq!(name, "nonexistent_tool");
+                assert_eq!(name, "mcp__missing__nonexistent_tool");
             }
             _ => panic!("Expected ToolNotFound error"),
         }
@@ -2530,7 +2532,7 @@ mod tests {
 
         // 使用非对象参数调用工具
         let result = manager
-            .call_tool("test-server_some_tool", serde_json::json!("invalid"))
+            .call_tool("mcp__test-server__some_tool", serde_json::json!("invalid"))
             .await;
 
         // 应该返回错误（参数必须是对象或 null）

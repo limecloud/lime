@@ -44,6 +44,95 @@ const deprecatedAgentCommandMocks = Object.fromEntries(
   ),
 ) as Record<string, () => never>;
 
+function normalizeMockMediaTaskId(taskRef?: string): string {
+  const normalized = (taskRef || "task-image-mock-1")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "-");
+  return normalized || "task-image-mock-1";
+}
+
+function buildMockMediaTaskOutput(
+  args: any,
+  overrides?: Partial<Record<string, unknown>>,
+) {
+  const request = args?.request ?? args ?? {};
+  const taskId = normalizeMockMediaTaskId(
+    typeof request.taskRef === "string" ? request.taskRef : undefined,
+  );
+  const projectRootPath =
+    typeof request.projectRootPath === "string" && request.projectRootPath.trim()
+      ? request.projectRootPath.trim()
+      : "/mock/workspace";
+  const prompt =
+    typeof request.prompt === "string" && request.prompt.trim()
+      ? request.prompt.trim()
+      : "mock image task";
+  const status =
+    typeof overrides?.status === "string"
+      ? overrides.status
+      : "pending_submit";
+  const normalizedStatus =
+    typeof overrides?.normalized_status === "string"
+      ? overrides.normalized_status
+      : status === "cancelled"
+        ? "cancelled"
+        : status === "failed"
+          ? "failed"
+          : "pending";
+  const attemptCount =
+    typeof overrides?.attempt_count === "number" ? overrides.attempt_count : 1;
+  const currentAttemptId =
+    typeof overrides?.current_attempt_id === "string"
+      ? overrides.current_attempt_id
+      : `attempt-${attemptCount}`;
+  const createdAt = "2026-04-04T00:00:00.000Z";
+  const path = `.lime/tasks/image_generate/${taskId}.json`;
+  const record = {
+    task_id: taskId,
+    task_type: "image_generate",
+    task_family: "image",
+    title: request.title ?? null,
+    summary: "mock media task",
+    payload: {
+      prompt,
+      mode: request.mode ?? "generate",
+      size: request.size ?? "1024x1024",
+      count: request.count ?? 1,
+    },
+    status,
+    normalized_status: normalizedStatus,
+    created_at: createdAt,
+    current_attempt_id: currentAttemptId,
+    retry_count: Math.max(attemptCount - 1, 0),
+    attempts: Array.from({ length: attemptCount }, (_, index) => ({
+      attempt_id: `attempt-${index + 1}`,
+      attempt_index: index + 1,
+      status: index === attemptCount - 1 ? status : "cancelled",
+      input_snapshot: {
+        prompt,
+      },
+    })),
+  };
+
+  return {
+    success: true,
+    task_id: taskId,
+    task_type: "image_generate",
+    task_family: "image",
+    status,
+    normalized_status: normalizedStatus,
+    current_attempt_id: currentAttemptId,
+    attempt_count: attemptCount,
+    path,
+    absolute_path: `${projectRootPath}/${path}`,
+    artifact_path: path,
+    absolute_artifact_path: `${projectRootPath}/${path}`,
+    reused_existing: false,
+    record,
+    ...overrides,
+  };
+}
+
 type MockBrowserProfileRecord = {
   id: string;
   profile_key: string;
@@ -3427,6 +3516,37 @@ const defaultMocks: Record<string, any> = {
   get_video_generation_task: () => null,
   list_video_generation_tasks: () => [],
   cancel_video_generation_task: () => null,
+  create_image_generation_task_artifact: (args: any) =>
+    buildMockMediaTaskOutput(args),
+  get_media_task_artifact: (args: any) => buildMockMediaTaskOutput(args),
+  list_media_task_artifacts: (args: any) => {
+    const request = args?.request ?? args ?? {};
+    return {
+      success: true,
+      workspace_root: request.projectRootPath ?? "/mock/workspace",
+      artifact_root: `${request.projectRootPath ?? "/mock/workspace"}/.lime/tasks`,
+      filters: {
+        status: request.status ?? null,
+        task_family: request.taskFamily ?? null,
+        task_type: request.taskType ?? null,
+        limit: request.limit ?? null,
+      },
+      total: 1,
+      tasks: [buildMockMediaTaskOutput(args)],
+    };
+  },
+  retry_media_task_artifact: (args: any) =>
+    buildMockMediaTaskOutput(args, {
+      attempt_count: 2,
+      current_attempt_id: "attempt-2",
+      status: "pending_submit",
+      normalized_status: "pending",
+    }),
+  cancel_media_task_artifact: (args: any) =>
+    buildMockMediaTaskOutput(args, {
+      status: "cancelled",
+      normalized_status: "cancelled",
+    }),
   search_pixabay_images: () => ({
     total: 0,
     total_hits: 0,

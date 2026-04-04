@@ -291,6 +291,10 @@ export function useWorkspaceConversationSceneRuntime({
 
   const teamWorkspaceDockLayoutMode =
     layoutMode === "chat" ? "chat" : "chat-canvas";
+  const shouldSyncCanvasWorkbenchLayoutMode =
+    !isThemeWorkbench &&
+    activeTheme === "general" &&
+    layoutMode === "chat-canvas";
 
   return useWorkspaceConversationScenePresentation({
     scene: {
@@ -465,7 +469,9 @@ export function useWorkspaceConversationSceneRuntime({
       onOpenPath: canvasScene.handleOpenCanvasWorkbenchPath,
       onRevealPath: canvasScene.handleRevealCanvasWorkbenchPath,
       renderPreview: canvasScene.renderCanvasWorkbenchPreview,
-      onLayoutModeChange: setCanvasWorkbenchLayoutMode,
+      onLayoutModeChange: shouldSyncCanvasWorkbenchLayoutMode
+        ? setCanvasWorkbenchLayoutMode
+        : undefined,
     },
   });
 }

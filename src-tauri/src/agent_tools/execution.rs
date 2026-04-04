@@ -1,6 +1,6 @@
 use crate::agent_tools::catalog::{
-    tool_catalog_entries_for_surface, tool_catalog_entry, workspace_default_allowed_tool_names,
-    ToolPermissionPlane, WorkspaceToolSurface,
+    tool_catalog_entries_for_surface, tool_catalog_entry, tool_catalog_names_match,
+    workspace_default_allowed_tool_names, ToolPermissionPlane, WorkspaceToolSurface,
 };
 use aster::permission::{ParameterRestriction, PermissionScope, RestrictionType, ToolPermission};
 use lime_core::config::{
@@ -113,15 +113,15 @@ pub fn tool_execution_policy(tool_name: &str) -> ToolExecutionPolicy {
     };
 
     match catalog_entry.name {
-        "read" | "write" | "edit" | "lsp" => ToolExecutionPolicy {
+        "Read" | "Write" | "Edit" | "LSP" => ToolExecutionPolicy {
             restriction_profile: ToolExecutionRestrictionProfile::WorkspacePathRequired,
             ..ToolExecutionPolicy::default()
         },
-        "glob" | "grep" => ToolExecutionPolicy {
+        "Glob" | "Grep" => ToolExecutionPolicy {
             restriction_profile: ToolExecutionRestrictionProfile::WorkspacePathOptional,
             ..ToolExecutionPolicy::default()
         },
-        "bash" => ToolExecutionPolicy {
+        "Bash" | "PowerShell" => ToolExecutionPolicy {
             warning_policy: ToolExecutionWarningPolicy::ShellCommandRisk,
             restriction_profile: ToolExecutionRestrictionProfile::WorkspaceShellCommand,
             sandbox_profile: ToolExecutionSandboxProfile::WorkspaceCommand,
@@ -343,18 +343,11 @@ fn find_case_insensitive_object<'a>(
     key: &str,
 ) -> Option<&'a JsonMap<String, JsonValue>> {
     let normalized_key = key.trim();
-    object
-        .get(normalized_key)
-        .and_then(JsonValue::as_object)
-        .or_else(|| {
-            object.iter().find_map(|(candidate, value)| {
-                candidate
-                    .trim()
-                    .eq_ignore_ascii_case(normalized_key)
-                    .then_some(value)
-                    .and_then(JsonValue::as_object)
-            })
-        })
+    object.iter().find_map(|(candidate, value)| {
+        tool_catalog_names_match(candidate, normalized_key)
+            .then_some(value)
+            .and_then(JsonValue::as_object)
+    })
 }
 
 fn find_tool_override_config<'a>(
@@ -362,16 +355,11 @@ fn find_tool_override_config<'a>(
     tool_name: &str,
 ) -> Option<&'a ConfigToolExecutionOverrideConfig> {
     let normalized_name = tool_name.trim();
-    tool_overrides.get(normalized_name).or_else(|| {
-        tool_overrides
-            .iter()
-            .find_map(|(candidate, override_config)| {
-                candidate
-                    .trim()
-                    .eq_ignore_ascii_case(normalized_name)
-                    .then_some(override_config)
-            })
-    })
+    tool_overrides
+        .iter()
+        .find_map(|(candidate, override_config)| {
+            tool_catalog_names_match(candidate, normalized_name).then_some(override_config)
+        })
 }
 
 fn extract_named_string<'a>(
@@ -629,8 +617,8 @@ fn pattern_restriction(
 
 fn permission_priority(tool_name: &str) -> i32 {
     match tool_name {
-        "read" | "write" | "edit" | "glob" | "grep" => 100,
-        "bash" => 90,
+        "Read" | "Write" | "Edit" | "Glob" | "Grep" => 100,
+        "Bash" | "PowerShell" => 90,
         _ => 88,
     }
 }
@@ -699,7 +687,7 @@ mod tests {
 
     #[test]
     fn test_tool_execution_policy_marks_bash_as_sandboxed_shell_risk() {
-        let policy = tool_execution_policy("bash");
+        let policy = tool_execution_policy("Bash");
         assert_eq!(
             policy.warning_policy,
             ToolExecutionWarningPolicy::ShellCommandRisk
@@ -726,8 +714,8 @@ mod tests {
 
         let read = permissions
             .iter()
-            .find(|permission| permission.tool == "read")
-            .expect("read permission should exist");
+            .find(|permission| permission.tool == "Read")
+            .expect("Read permission should exist");
         assert_eq!(read.parameter_restrictions.len(), 1);
         assert_eq!(read.parameter_restrictions[0].parameter, "path");
         assert!(read.parameter_restrictions[0]
@@ -738,8 +726,8 @@ mod tests {
 
         let bash = permissions
             .iter()
-            .find(|permission| permission.tool == "bash")
-            .expect("bash permission should exist");
+            .find(|permission| permission.tool == "Bash")
+            .expect("Bash permission should exist");
         assert_eq!(bash.parameter_restrictions.len(), 2);
         assert!(permissions
             .iter()
@@ -761,8 +749,8 @@ mod tests {
 
         let bash = permissions
             .iter()
-            .find(|permission| permission.tool == "bash")
-            .expect("bash permission should exist");
+            .find(|permission| permission.tool == "Bash")
+            .expect("Bash permission should exist");
         assert!(bash.parameter_restrictions.is_empty());
         assert!(permissions
             .iter()
@@ -773,9 +761,9 @@ mod tests {
     fn test_should_auto_approve_tool_warnings_only_for_shell_risk_tools() {
         let input = ToolExecutionResolverInput::default();
 
-        assert!(should_auto_approve_tool_warnings("bash", true, input));
-        assert!(!should_auto_approve_tool_warnings("read", true, input));
-        assert!(!should_auto_approve_tool_warnings("bash", false, input));
+        assert!(should_auto_approve_tool_warnings("Bash", true, input));
+        assert!(!should_auto_approve_tool_warnings("Read", true, input));
+        assert!(!should_auto_approve_tool_warnings("Bash", false, input));
     }
 
     #[test]
@@ -803,7 +791,7 @@ mod tests {
         };
 
         let policy = resolve_tool_execution_policy(
-            "bash",
+            "Bash",
             ToolExecutionResolverInput {
                 persisted_policy: Some(&persisted_policy),
                 request_metadata: None,
@@ -847,7 +835,7 @@ mod tests {
         });
 
         let policy = resolve_tool_execution_policy(
-            "bash",
+            "Bash",
             ToolExecutionResolverInput {
                 persisted_policy: Some(&persisted_policy),
                 request_metadata: Some(&request_metadata),
@@ -893,7 +881,7 @@ mod tests {
         });
 
         let resolution = resolve_tool_execution_policy_resolution(
-            "bash",
+            "Bash",
             ToolExecutionResolverInput {
                 persisted_policy: Some(&persisted_policy),
                 request_metadata: Some(&request_metadata),
@@ -953,8 +941,8 @@ mod tests {
 
         let bash = permissions
             .iter()
-            .find(|permission| permission.tool == "bash")
-            .expect("bash permission should exist");
+            .find(|permission| permission.tool == "Bash")
+            .expect("Bash permission should exist");
         assert!(bash.parameter_restrictions.is_empty());
     }
 }

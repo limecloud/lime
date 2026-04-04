@@ -326,7 +326,7 @@ impl Tool for SubAgentTaskTool {
     }
 
     fn description(&self) -> &str {
-        "兼容入口。仅用于兼容仍输出旧 SubAgentTask schema 的历史提示词或旧技能；内部会退化为串行的 spawn_agent + wait_agent，不适合作为新的多代理并发主路径。新实现优先直接使用 spawn_agent / send_input / wait_agent / resume_agent / close_agent。"
+        "兼容入口。仅用于兼容仍输出旧 SubAgentTask schema 的历史提示词或旧技能；内部会退化为串行 team runtime 调用，不适合作为新的多代理并发主路径。新实现优先直接使用 Agent / TeamCreate / TeamDelete / SendMessage / ListPeers。"
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -412,6 +412,7 @@ impl Tool for SubAgentTaskTool {
                 team_name: None,
                 agent_type: Some(role.to_string()),
                 model: input.model.clone(),
+                run_in_background: false,
                 reasoning_effort: None,
                 fork_context: false,
                 blueprint_role_id: None,
@@ -425,6 +426,8 @@ impl Tool for SubAgentTaskTool {
                 theme: None,
                 system_overlay: None,
                 output_contract: None,
+                mode: None,
+                isolation: None,
                 cwd: None,
             },
         )
@@ -499,7 +502,7 @@ impl Tool for SubAgentTaskTool {
             "role": role.to_string(),
             "status": status,
             "timed_out": wait_result.timed_out,
-            "compat_mode": "subagent_task->spawn_agent",
+            "compat_mode": "SubAgentTask->Agent",
             "compat_warnings": compat_warnings,
         });
 
@@ -535,6 +538,7 @@ fn build_agent_control_tool_config(
                         team_name: request.team_name,
                         agent_type: request.agent_type,
                         model: request.model,
+                        run_in_background: false,
                         reasoning_effort: request.reasoning_effort,
                         fork_context: request.fork_context,
                         blueprint_role_id: request.blueprint_role_id,
@@ -548,6 +552,8 @@ fn build_agent_control_tool_config(
                         theme: request.theme,
                         system_overlay: request.system_overlay,
                         output_contract: request.output_contract,
+                        mode: None,
+                        isolation: None,
                         cwd: request.cwd,
                     },
                 )
@@ -587,4 +593,7 @@ pub(super) fn register_subagent_runtime_tools(
 ) {
     registry.register(Box::new(SubAgentTaskTool::new(runtime.clone())));
     aster::tools::register_agent_control_tools(registry, &build_agent_control_tool_config(runtime));
+    registry.register(Box::new(aster::tools::TeamCreateTool::new()));
+    registry.register(Box::new(aster::tools::TeamDeleteTool::new()));
+    registry.register(Box::new(aster::tools::ListPeersTool::new()));
 }

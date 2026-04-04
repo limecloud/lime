@@ -171,6 +171,19 @@ fn normalize_optional_vec(values: &[String]) -> Vec<String> {
     normalized
 }
 
+fn validate_spawn_request_surface(
+    request: &AgentRuntimeSpawnSubagentRequest,
+) -> Result<(), String> {
+    if normalize_optional_text(request.mode.clone()).is_some() {
+        return Err("mode is not supported in the current runtime".to_string());
+    }
+    if normalize_optional_text(request.isolation.clone()).is_some() {
+        return Err("isolation is not supported in the current runtime".to_string());
+    }
+
+    Ok(())
+}
+
 fn build_subagent_session_name(
     explicit_name: Option<&str>,
     message: &str,
@@ -675,7 +688,7 @@ async fn create_runtime_subagent_session(
         .with_task_summary(build_subagent_task_summary(&message))
         .with_role_hint(role_hint.clone())
         .with_created_from_turn_id(resolve_action_scope_turn_id(&parent_session_id));
-    metadata.origin_tool = "spawn_agent".to_string();
+    metadata.origin_tool = "Agent".to_string();
     let mut extension_data = session.extension_data.clone();
     metadata
         .to_extension_data(&mut extension_data)
@@ -750,6 +763,7 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
     request: AgentRuntimeSpawnSubagentRequest,
 ) -> Result<AgentRuntimeSpawnSubagentResponse, String> {
     runtime.ensure_initialized().await?;
+    validate_spawn_request_surface(&request)?;
     let PreparedRuntimeSubagentSession {
         session: child_session,
         customization,
@@ -784,10 +798,13 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
                     "name": request.name,
                     "team_name": request.team_name,
                     "agent_type": request.agent_type,
+                    "run_in_background": request.run_in_background,
                     "reasoning_effort": request.reasoning_effort,
                     "fork_context": request.fork_context,
+                    "mode": request.mode,
+                    "isolation": request.isolation,
                     "cwd": request.cwd,
-                    "origin_tool": "spawn_agent",
+                    "origin_tool": "Agent",
                     "blueprint_role_id": customization.as_ref().and_then(|state| state.blueprint_role_id.clone()),
                     "blueprint_role_label": customization.as_ref().and_then(|state| state.blueprint_role_label.clone()),
                     "profile_id": customization.as_ref().and_then(|state| state.profile_id.clone()),
@@ -861,7 +878,7 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
         system_prompt,
         metadata: Some(serde_json::json!({
             "subagent": {
-                "origin_tool": "send_input",
+                "origin_tool": "SendMessage",
                 "interrupt": request.interrupt,
                 "blueprint_role_id": customization.as_ref().and_then(|state| state.blueprint_role_id.clone()),
                 "blueprint_role_label": customization.as_ref().and_then(|state| state.blueprint_role_label.clone()),
@@ -1075,6 +1092,7 @@ mod tests {
             team_name: Some("delivery-team".to_string()),
             agent_type: Some("explorer".to_string()),
             model: None,
+            run_in_background: false,
             reasoning_effort: None,
             fork_context: false,
             blueprint_role_id: None,
@@ -1088,6 +1106,8 @@ mod tests {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            mode: None,
+            isolation: None,
             cwd: None,
         };
 
@@ -1107,5 +1127,50 @@ mod tests {
                 .expect("cwd override should resolve");
 
         assert_eq!(resolved, child.path());
+    }
+
+    #[test]
+    fn test_validate_spawn_request_surface_rejects_mode_and_isolation() {
+        let request = AgentRuntimeSpawnSubagentRequest {
+            parent_session_id: "parent-1".to_string(),
+            message: "定位当前 team runtime 差异".to_string(),
+            name: None,
+            team_name: None,
+            agent_type: None,
+            model: None,
+            run_in_background: false,
+            reasoning_effort: None,
+            fork_context: false,
+            blueprint_role_id: None,
+            blueprint_role_label: None,
+            profile_id: None,
+            profile_name: None,
+            role_key: None,
+            skill_ids: Vec::new(),
+            skill_directories: Vec::new(),
+            team_preset_id: None,
+            theme: None,
+            system_overlay: None,
+            output_contract: None,
+            mode: Some("plan".to_string()),
+            isolation: None,
+            cwd: None,
+        };
+
+        assert_eq!(
+            validate_spawn_request_surface(&request).unwrap_err(),
+            "mode is not supported in the current runtime"
+        );
+
+        let isolation_request = AgentRuntimeSpawnSubagentRequest {
+            mode: None,
+            isolation: Some("worktree".to_string()),
+            ..request
+        };
+
+        assert_eq!(
+            validate_spawn_request_surface(&isolation_request).unwrap_err(),
+            "isolation is not supported in the current runtime"
+        );
     }
 }

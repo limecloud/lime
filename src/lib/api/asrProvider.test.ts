@@ -143,7 +143,11 @@ describe("asrProvider API", () => {
     await expect(polishVoiceText("你好")).resolves.toEqual(
       expect.objectContaining({ instruction_name: "润色" }),
     );
-    await expect(openVoiceWindow()).resolves.toBeUndefined();
+    await expect(
+      openVoiceWindow({
+        target: "companion-pet",
+      }),
+    ).resolves.toBeUndefined();
     await expect(closeVoiceWindow()).resolves.toBeUndefined();
     await expect(outputVoiceText("hello", "type")).resolves.toBeUndefined();
     await expect(startRecording("default")).resolves.toBeUndefined();
@@ -160,6 +164,9 @@ describe("asrProvider API", () => {
       audioData: [1, 2, 3],
       sampleRate: 16000,
       credentialId: "cred-1",
+    });
+    expect(safeInvoke).toHaveBeenNthCalledWith(3, "open_voice_window", {
+      target: "companion-pet",
     });
     expect(safeInvoke).toHaveBeenNthCalledWith(6, "start_recording", {
       deviceId: "default",

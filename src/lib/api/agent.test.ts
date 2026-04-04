@@ -545,7 +545,7 @@ describe("Agent API 治理护栏", () => {
           model: "gpt-5.4-mini",
           role_hint: "image_editor",
           task_summary: "处理封面图优化",
-          origin_tool: "spawn_agent",
+          origin_tool: "Agent",
           runtime_status: "completed",
         },
       ],
@@ -554,7 +554,7 @@ describe("Agent API 治理护栏", () => {
         parent_session_name: "主线程会话",
         role_hint: "image_editor",
         task_summary: "处理封面图优化",
-        origin_tool: "spawn_agent",
+        origin_tool: "Agent",
         created_from_turn_id: "turn-2",
         sibling_subagent_sessions: [
           {
@@ -640,7 +640,7 @@ describe("Agent API 治理护栏", () => {
           model: "gpt-5.4-mini",
           role_hint: "image_editor",
           task_summary: "处理封面图优化",
-          origin_tool: "spawn_agent",
+          origin_tool: "Agent",
           runtime_status: "completed",
         },
       ],
@@ -649,7 +649,7 @@ describe("Agent API 治理护栏", () => {
         parent_session_name: "主线程会话",
         role_hint: "image_editor",
         task_summary: "处理封面图优化",
-        origin_tool: "spawn_agent",
+        origin_tool: "Agent",
         created_from_turn_id: "turn-2",
         sibling_subagent_sessions: [
           {

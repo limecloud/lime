@@ -150,6 +150,13 @@ export function useWorkspaceCanvasSceneRuntime({
   teamDispatchPreviewState,
   teamMemorySnapshot,
 }: UseWorkspaceCanvasSceneRuntimeParams) {
+  const imageWorkbenchHasPendingTasks = currentImageWorkbenchState.tasks.some(
+    (task) =>
+      task.status === "queued" ||
+      task.status === "routing" ||
+      task.status === "running",
+  );
+
   return useWorkspaceCanvasScenePresentation({
     shouldBootstrapCanvasOnEntry,
     normalizedEntryTheme,
@@ -202,10 +209,9 @@ export function useWorkspaceCanvasSceneRuntime({
         onModelChange: imageWorkbenchGenerationRuntime.setSelectedModelId,
         selectedSize: imageWorkbenchGenerationRuntime.selectedSize,
         onSizeChange: imageWorkbenchGenerationRuntime.setSelectedSize,
-        generating: imageWorkbenchGenerationRuntime.generating,
+        generating: imageWorkbenchHasPendingTasks,
         savingToResource: imageWorkbenchGenerationRuntime.savingToResource,
-        onStopGeneration:
-          imageWorkbenchActionRuntime.handleStopImageWorkbenchGeneration,
+        onStopGeneration: undefined,
         onViewportChange:
           imageWorkbenchActionRuntime.handleImageWorkbenchViewportChange,
         onSelectOutput:

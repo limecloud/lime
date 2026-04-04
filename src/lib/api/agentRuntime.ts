@@ -1094,6 +1094,96 @@ export interface AgentRuntimeCloseSubagentResponse {
   changed_session_ids: string[];
 }
 
+export interface CreateImageGenerationTaskArtifactRequest {
+  projectRootPath: string;
+  prompt: string;
+  title?: string;
+  mode?: "generate" | "edit" | "variation";
+  rawText?: string;
+  size?: string;
+  aspectRatio?: string;
+  count?: number;
+  usage?: string;
+  style?: string;
+  providerId?: string;
+  model?: string;
+  sessionId?: string;
+  projectId?: string;
+  contentId?: string;
+  entrySource?: string;
+  requestedTarget?: "generate" | "cover";
+  targetOutputId?: string;
+  targetOutputRefId?: string;
+  referenceImages?: string[];
+}
+
+export interface MediaTaskArtifactRecord {
+  task_id: string;
+  task_type: string;
+  task_family: string;
+  title?: string | null;
+  summary?: string | null;
+  payload: Record<string, unknown>;
+  status: string;
+  normalized_status: string;
+  created_at: string;
+  updated_at?: string | null;
+  current_attempt_id?: string | null;
+  idempotency_key?: string | null;
+  retry_count?: number;
+  result?: unknown;
+  last_error?: Record<string, unknown> | null;
+  attempts?: Array<Record<string, unknown>>;
+  progress?: Record<string, unknown>;
+  ui_hints?: Record<string, unknown>;
+}
+
+export interface MediaTaskArtifactOutput {
+  success: boolean;
+  task_id: string;
+  task_type: string;
+  task_family: string;
+  status: string;
+  normalized_status: string;
+  current_attempt_id?: string | null;
+  path: string;
+  absolute_path: string;
+  artifact_path: string;
+  absolute_artifact_path: string;
+  reused_existing: boolean;
+  idempotency_key?: string | null;
+  record: MediaTaskArtifactRecord;
+}
+
+export interface MediaTaskLookupRequest {
+  projectRootPath: string;
+  taskRef: string;
+}
+
+export interface ListMediaTaskArtifactsRequest {
+  projectRootPath: string;
+  status?: string;
+  taskFamily?: string;
+  taskType?: string;
+  limit?: number;
+}
+
+export interface MediaTaskListFilters {
+  status?: string | null;
+  task_family?: string | null;
+  task_type?: string | null;
+  limit?: number | null;
+}
+
+export interface ListMediaTaskArtifactsOutput {
+  success: boolean;
+  workspace_root: string;
+  artifact_root: string;
+  filters: MediaTaskListFilters;
+  total: number;
+  tasks: MediaTaskArtifactOutput[];
+}
+
 export type AgentToolSurfaceProfile = "core" | "workbench" | "browser_assist";
 
 export type AgentToolCapability =
@@ -1541,6 +1631,36 @@ export async function deleteAgentRuntimeSession(
   sessionId: string,
 ): Promise<void> {
   return await safeInvoke("agent_runtime_delete_session", { sessionId });
+}
+
+export async function createImageGenerationTaskArtifact(
+  request: CreateImageGenerationTaskArtifactRequest,
+): Promise<MediaTaskArtifactOutput> {
+  return await safeInvoke("create_image_generation_task_artifact", { request });
+}
+
+export async function getMediaTaskArtifact(
+  request: MediaTaskLookupRequest,
+): Promise<MediaTaskArtifactOutput> {
+  return await safeInvoke("get_media_task_artifact", { request });
+}
+
+export async function listMediaTaskArtifacts(
+  request: ListMediaTaskArtifactsRequest,
+): Promise<ListMediaTaskArtifactsOutput> {
+  return await safeInvoke("list_media_task_artifacts", { request });
+}
+
+export async function retryMediaTaskArtifact(
+  request: MediaTaskLookupRequest,
+): Promise<MediaTaskArtifactOutput> {
+  return await safeInvoke("retry_media_task_artifact", { request });
+}
+
+export async function cancelMediaTaskArtifact(
+  request: MediaTaskLookupRequest,
+): Promise<MediaTaskArtifactOutput> {
+  return await safeInvoke("cancel_media_task_artifact", { request });
 }
 
 export async function siteListAdapters(): Promise<SiteAdapterDefinition[]> {

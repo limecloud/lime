@@ -1477,6 +1477,8 @@ pub struct AgentRuntimeSpawnSubagentRequest {
     pub agent_type: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    #[serde(default, alias = "runInBackground")]
+    pub run_in_background: bool,
     #[serde(default, alias = "reasoningEffort")]
     pub reasoning_effort: Option<String>,
     #[serde(default, alias = "forkContext")]
@@ -1503,6 +1505,10 @@ pub struct AgentRuntimeSpawnSubagentRequest {
     pub system_overlay: Option<String>,
     #[serde(default, alias = "outputContract")]
     pub output_contract: Option<String>,
+    #[serde(default)]
+    pub mode: Option<String>,
+    #[serde(default)]
+    pub isolation: Option<String>,
     #[serde(default)]
     pub cwd: Option<String>,
 }
@@ -1745,6 +1751,9 @@ mod tests {
             "name": "verifier",
             "teamName": "delivery-team",
             "agentType": "explorer",
+            "runInBackground": true,
+            "mode": "plan",
+            "isolation": "worktree",
             "cwd": "/tmp/workspace"
         }))
         .expect("spawn subagent request should deserialize");
@@ -1754,6 +1763,9 @@ mod tests {
         assert_eq!(request.name.as_deref(), Some("verifier"));
         assert_eq!(request.team_name.as_deref(), Some("delivery-team"));
         assert_eq!(request.agent_type.as_deref(), Some("explorer"));
+        assert!(request.run_in_background);
+        assert_eq!(request.mode.as_deref(), Some("plan"));
+        assert_eq!(request.isolation.as_deref(), Some("worktree"));
         assert_eq!(request.cwd.as_deref(), Some("/tmp/workspace"));
     }
 

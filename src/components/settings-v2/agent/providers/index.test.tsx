@@ -9,8 +9,11 @@ const {
   mockLaunchCompanionPet,
   mockListenCompanionPetStatus,
   mockSendCompanionPetCommand,
+  mockApiKeyProviderGetProviders,
   mockProviderPoolGetOverview,
   mockSubscribeProviderDataChanged,
+  mockGetConfig,
+  mockSaveConfig,
 } = vi.hoisted(() => ({
   mockUseOemCloudAccess: vi.fn(),
   mockFormatOemCloudDateTime: vi.fn((value?: string) => `fmt:${value ?? ""}`),
@@ -18,12 +21,17 @@ const {
   mockLaunchCompanionPet: vi.fn(),
   mockListenCompanionPetStatus: vi.fn(),
   mockSendCompanionPetCommand: vi.fn(),
+  mockApiKeyProviderGetProviders: vi.fn(),
   mockProviderPoolGetOverview: vi.fn(),
   mockSubscribeProviderDataChanged: vi.fn(),
+  mockGetConfig: vi.fn(),
+  mockSaveConfig: vi.fn(),
 }));
 
 vi.mock("@/components/provider-pool", () => ({
-  ProviderPoolPage: () => <div data-testid="provider-pool-stub">凭证池占位</div>,
+  ProviderPoolPage: () => (
+    <div data-testid="provider-pool-stub">凭证池占位</div>
+  ),
 }));
 
 vi.mock("@/lib/api/companion", () => ({
@@ -41,6 +49,18 @@ vi.mock("@/lib/api/providerPool", () => ({
   },
 }));
 
+vi.mock("@/lib/api/apiKeyProvider", () => ({
+  apiKeyProviderApi: {
+    getProviders: (...args: unknown[]) =>
+      mockApiKeyProviderGetProviders(...args),
+  },
+}));
+
+vi.mock("@/lib/api/appConfig", () => ({
+  getConfig: (...args: unknown[]) => mockGetConfig(...args),
+  saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
+}));
+
 vi.mock("@/lib/providerDataEvents", () => ({
   subscribeProviderDataChanged: (...args: unknown[]) =>
     mockSubscribeProviderDataChanged(...args),
@@ -48,8 +68,7 @@ vi.mock("@/lib/providerDataEvents", () => ({
 
 vi.mock("@/hooks/useOemCloudAccess", () => ({
   useOemCloudAccess: () => mockUseOemCloudAccess(),
-  formatOemCloudDateTime: (value?: string) =>
-    mockFormatOemCloudDateTime(value),
+  formatOemCloudDateTime: (value?: string) => mockFormatOemCloudDateTime(value),
   formatOemCloudAccessModeLabel: (value?: string) => value || "未知",
   formatOemCloudConfigModeLabel: (value?: string) => value || "未知",
   formatOemCloudModelsSourceLabel: (value?: string) => value || "未知",
@@ -186,6 +205,42 @@ function createProviderOverview() {
   ];
 }
 
+function createApiKeyProviders() {
+  return [
+    {
+      id: "deepseek",
+      name: "DeepSeek",
+      type: "openai",
+      api_host: "https://api.deepseek.com/v1",
+      is_system: false,
+      group: "cloud",
+      enabled: true,
+      sort_order: 5,
+      api_version: undefined,
+      project: undefined,
+      location: undefined,
+      region: undefined,
+      custom_models: [],
+      api_key_count: 1,
+      api_keys: [
+        {
+          id: "key-deepseek-1",
+          provider_id: "deepseek",
+          api_key_masked: "sk-***1234",
+          alias: "主 Key",
+          enabled: true,
+          usage_count: 0,
+          error_count: 0,
+          last_used_at: undefined,
+          created_at: "2026-04-01T00:00:00Z",
+        },
+      ],
+      created_at: "2026-04-01T00:00:00Z",
+      updated_at: "2026-04-01T00:00:00Z",
+    },
+  ];
+}
+
 async function renderPage(props: { onOpenProfile?: () => void } = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -233,8 +288,26 @@ beforeEach(() => {
     delivered: true,
     connected: true,
   });
+  mockApiKeyProviderGetProviders.mockResolvedValue(createApiKeyProviders());
   mockProviderPoolGetOverview.mockResolvedValue(createProviderOverview());
   mockSubscribeProviderDataChanged.mockReturnValue(vi.fn());
+  mockGetConfig.mockResolvedValue({
+    workspace_preferences: {
+      companion_defaults: {
+        general: {
+          preferredProviderId: "deepseek",
+          preferredModelId: "deepseek-chat",
+          allowFallback: false,
+        },
+        tts: {
+          preferredProviderId: "openai-tts",
+          preferredModelId: "gpt-4o-mini-tts",
+          allowFallback: true,
+        },
+      },
+    },
+  });
+  mockSaveConfig.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -270,6 +343,9 @@ describe("CloudProviderSettings", () => {
     const cloudTab = container.querySelector(
       '[data-testid="provider-workspace-tab-cloud"]',
     );
+    const companionTab = container.querySelector(
+      '[data-testid="provider-workspace-tab-companion"]',
+    );
 
     expect(
       container.querySelector('[data-testid="provider-workspace-switcher"]'),
@@ -279,11 +355,13 @@ describe("CloudProviderSettings", () => {
         .length,
     ).toBe(1);
     expect(text).toContain("凭证池占位");
+    expect(text).not.toContain("Lime Pet Companion");
     expect(text).not.toContain("把本地 Provider 配置和 OEM 云端服务拆开管理");
     expect(text).not.toContain("默认先进入“服务商设置”处理 Provider");
     expect(text).not.toContain("public/oem-runtime-config.js");
     expect(settingsTab?.getAttribute("data-state")).toBe("active");
     expect(cloudTab?.getAttribute("data-state")).toBe("inactive");
+    expect(companionTab?.getAttribute("data-state")).toBe("inactive");
 
     await act(async () => {
       findButton(container, "云端服务").dispatchEvent(
@@ -292,9 +370,12 @@ describe("CloudProviderSettings", () => {
     });
 
     expect(container.textContent ?? "").toContain("先配置 OEM 云端运行时");
-    expect(container.textContent ?? "").toContain("public/oem-runtime-config.js");
+    expect(container.textContent ?? "").toContain(
+      "public/oem-runtime-config.js",
+    );
     expect(settingsTab?.getAttribute("data-state")).toBe("inactive");
     expect(cloudTab?.getAttribute("data-state")).toBe("active");
+    expect(companionTab?.getAttribute("data-state")).toBe("inactive");
   });
 
   it("未登录时应提示前往个人中心登录", async () => {
@@ -514,7 +595,7 @@ describe("CloudProviderSettings", () => {
     });
   });
 
-  it("服务商设置页应展示桌宠桥接卡片和脱敏边界说明", async () => {
+  it("桌宠管理页应展示桌宠桥接卡片和脱敏边界说明", async () => {
     mockGetCompanionPetStatus.mockResolvedValue(
       createPetStatus({
         connected: true,
@@ -527,23 +608,40 @@ describe("CloudProviderSettings", () => {
     );
 
     const { container } = await renderPage();
+
+    expect(
+      container.querySelector('[data-testid="companion-provider-card"]'),
+    ).toBeNull();
+
+    await act(async () => {
+      findButton(container, "桌宠管理").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
     const text = container.textContent ?? "";
 
     expect(
       container.querySelector('[data-testid="companion-provider-card"]'),
     ).not.toBeNull();
     expect(text).toContain("Lime Pet Companion");
-    expect(text).toContain("桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态");
+    expect(text).toContain(
+      "桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态",
+    );
     expect(text).toContain("不会直接读取 API Key、OAuth 凭证或本地凭证文件");
     expect(text).toContain("桌宠已连接");
     expect(text).toContain("Provider 概览");
     expect(text).toContain("桌宠视角预览");
+    expect(text).toContain("DeepSeek");
     expect(text).toContain("OpenAI");
     expect(text).toContain("Codex");
-    expect(text).toContain("可用 2");
+    expect(text).toContain("可用 3");
     expect(text).toContain("需关注 1");
     expect(text).toContain("接入检查");
     expect(text).toContain("当前链路已就绪，可以直接点击“立即同步到桌宠”。");
+    expect(text).toContain("桌宠能力偏好");
+    expect(text).toContain("桌宠通用模型");
+    expect(text).toContain("桌宠语音播报");
   });
 
   it("点击启动桌宠后应调用 launch 接口并展示启动反馈", async () => {
@@ -558,6 +656,12 @@ describe("CloudProviderSettings", () => {
       );
 
     const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "桌宠管理").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
 
     await act(async () => {
       findButton(container, "启动 Lime Pet").dispatchEvent(
@@ -583,6 +687,12 @@ describe("CloudProviderSettings", () => {
     const { container } = await renderPage();
 
     await act(async () => {
+      findButton(container, "桌宠管理").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    await act(async () => {
       findButton(container, "立即同步到桌宠").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
@@ -603,6 +713,14 @@ describe("CloudProviderSettings", () => {
             needs_attention: false,
           },
           {
+            provider_type: "deepseek",
+            display_name: "DeepSeek",
+            total_count: 1,
+            healthy_count: 1,
+            available: true,
+            needs_attention: false,
+          },
+          {
             provider_type: "openai",
             display_name: "OpenAI",
             total_count: 2,
@@ -611,12 +729,14 @@ describe("CloudProviderSettings", () => {
             needs_attention: true,
           },
         ],
-        total_provider_count: 2,
-        available_provider_count: 2,
+        total_provider_count: 3,
+        available_provider_count: 3,
         needs_attention_provider_count: 1,
       },
     });
-    expect(container.textContent ?? "").toContain("已同步 2 个服务商摘要到桌宠");
+    expect(container.textContent ?? "").toContain(
+      "已同步 3 个服务商摘要到桌宠",
+    );
     expect(container.textContent ?? "").toContain(
       "当前链路已就绪，可以直接点击“立即同步到桌宠”。",
     );
@@ -634,6 +754,13 @@ describe("CloudProviderSettings", () => {
     );
 
     const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "桌宠管理").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
     const syncButton = container.querySelector(
       '[data-testid="companion-sync-preview"]',
     ) as HTMLButtonElement | null;

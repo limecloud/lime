@@ -42,7 +42,12 @@
     "site_import_adapter_yaml_bundle",
     "site_run_adapter",
     "site_debug_run_adapter",
-    "site_save_adapter_result"
+    "site_save_adapter_result",
+    "create_image_generation_task_artifact",
+    "get_media_task_artifact",
+    "list_media_task_artifacts",
+    "retry_media_task_artifact",
+    "cancel_media_task_artifact"
   ],
   "desktopCompanionCommands": [
     "companion_get_pet_status",

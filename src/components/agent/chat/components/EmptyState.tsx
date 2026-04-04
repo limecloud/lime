@@ -31,6 +31,11 @@ import {
   getContextualRecommendations,
   isTeamRuntimeRecommendation,
 } from "../utils/contextualRecommendations";
+import {
+  listHomeRecommendedSolutions,
+  recordHomeRecommendedSolutionUsage,
+  type HomeRecommendedSolutionItem,
+} from "../utils/homeRecommendedSolutions";
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateHero } from "./EmptyStateHero";
 import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
@@ -240,10 +245,11 @@ const THEME_WORKBENCH_COPY: Record<
   }
 > = {
   general: {
-    title: "青柠一下，灵感即来",
-    description: "从一句想法，到成稿、成图、成片、成事。",
+    title: "开始一个新任务",
+    description:
+      "把目标、上下文和限制告诉我，我会围绕当前任务持续推进，而不是只回答一次。",
     supportingDescription:
-      "Claw 工作台会围绕一个目标持续对话、检索网页、补充素材，并把结果沉淀到工作台与项目资源，而不是只停留在一次性提问。",
+      "你可以直接输入需求，也可以先挂载技能、开启联网搜索或浏览器工作台，再开始执行。",
   },
   "social-media": {
     title: "社媒内容工作台",
@@ -359,6 +365,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     appendSelectedTextToRecommendation,
     setAppendSelectedTextToRecommendation,
   ] = useState(true);
+  const [homeRecommendedSolutionsVersion, setHomeRecommendedSolutionsVersion] =
+    useState(0);
 
   // 加载配置
   useEffect(() => {
@@ -497,6 +505,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     recommendationSelectedText,
     subagentEnabled,
   ]);
+
+  const homeRecommendedSolutions = useMemo(
+    () => {
+      void homeRecommendedSolutionsVersion;
+      return listHomeRecommendedSolutions();
+    },
+    [homeRecommendedSolutionsVersion],
+  );
 
   const selectedTextPreview = useMemo(() => {
     const normalized = (recommendationSelectedText || "")
@@ -676,6 +692,36 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       onRecommendationClick(shortLabel, promptWithSelection);
       return;
     }
+    setInput(promptWithSelection);
+  };
+
+  const handleApplyHomeRecommendedSolution = (
+    solution: HomeRecommendedSolutionItem,
+  ) => {
+    recordHomeRecommendedSolutionUsage(solution.id);
+    setHomeRecommendedSolutionsVersion((previous) => previous + 1);
+
+    if (solution.shouldEnableWebSearch && !webSearchEnabled) {
+      onWebSearchEnabledChange?.(true);
+    }
+
+    if (solution.shouldEnableTeamMode && !subagentEnabled) {
+      onSubagentEnabledChange?.(true);
+    }
+
+    if (solution.themeTarget) {
+      handleThemeChange(solution.themeTarget);
+    }
+
+    if (solution.shouldLaunchBrowserAssist) {
+      void onLaunchBrowserAssist?.();
+    }
+
+    const promptWithSelection = buildRecommendationPrompt(
+      solution.prompt,
+      selectedText,
+      appendSelectedTextToRecommendation,
+    );
     setInput(promptWithSelection);
   };
 
@@ -1055,6 +1101,34 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     />
   );
 
+  const generalRecommendedSolutionsPanel = (
+    <EmptyStateQuickActions
+      title="推荐方案"
+      description="先选一个方案，Claw 会自动进入对应工作模式并带好起始动作。"
+      items={homeRecommendedSolutions.map((solution) => ({
+        key: solution.id,
+        title: solution.title,
+        description: solution.summary,
+        badge: solution.badge,
+        prompt: solution.prompt,
+        actionLabel: solution.actionLabel,
+        outputHint: solution.outputHint,
+        statusLabel: solution.statusLabel,
+        statusTone: solution.statusTone,
+        testId: `home-recommended-${solution.id}`,
+      }))}
+      embedded
+      onAction={(item) => {
+        const solution = homeRecommendedSolutions.find(
+          (candidate) => candidate.id === item.key,
+        );
+        if (solution) {
+          handleApplyHomeRecommendedSolution(solution);
+        }
+      }}
+    />
+  );
+
   const headerControls = onProjectChange ? (
     <div className="flex w-full justify-start sm:w-auto sm:justify-end">
       <div className="inline-flex max-w-full items-center rounded-[24px] border border-slate-200/80 bg-white p-1 shadow-sm shadow-slate-950/5">
@@ -1101,11 +1175,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <PageContainer>
       <ContentWrapper>
         <EmptyStateHero
-          eyebrow={
-            activeTheme === "general"
-              ? "CLAW WORKSPACE · Claw 工作台"
-              : "CLAW WORKSPACE"
-          }
+          eyebrow={activeTheme === "general" ? "新建任务" : "主题工作台"}
           title={workbenchCopy.title}
           description={workbenchCopy.description}
           supportingDescription={workbenchCopy.supportingDescription}
@@ -1113,7 +1183,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           cards={workspaceCards}
           features={workspaceFeatures}
           prioritySlot={composerPanel}
-          supportingSlot={supportingSlotOverride ?? defaultQuickActionsPanel}
+          supportingSlot={
+            supportingSlotOverride ??
+            (isGeneralTheme
+              ? generalRecommendedSolutionsPanel
+              : defaultQuickActionsPanel)
+          }
           themeTabs={themeTabs}
           headerControls={headerControls}
         />

@@ -2,13 +2,18 @@ use super::*;
 
 pub(super) struct WorkspaceSandboxedBashTool {
     delegate: BashTool,
+    app_handle: AppHandle,
     sandbox_type_name: String,
     base_sandbox_config: ProcessSandboxConfig,
     auto_approve_warnings: bool,
 }
 
 impl WorkspaceSandboxedBashTool {
-    pub(super) fn new(workspace_root: &str, auto_approve_warnings: bool) -> Result<Self, String> {
+    pub(super) fn new(
+        workspace_root: &str,
+        auto_approve_warnings: bool,
+        app_handle: AppHandle,
+    ) -> Result<Self, String> {
         let workspace_root = workspace_root.trim();
         if workspace_root.is_empty() {
             return Err("workspace 根目录为空".to_string());
@@ -68,6 +73,7 @@ impl WorkspaceSandboxedBashTool {
 
         Ok(Self {
             delegate: BashTool::new(),
+            app_handle,
             sandbox_type_name,
             base_sandbox_config,
             auto_approve_warnings,
@@ -114,6 +120,9 @@ impl WorkspaceSandboxedBashTool {
     }
 
     fn build_shell_command(&self, command: &str, _context: &ToolContext) -> (String, Vec<String>) {
+        let command =
+            lime_cli_runtime::prefix_shell_command_with_lime_cli(command, Some(&self.app_handle));
+
         #[cfg(target_os = "windows")]
         {
             return (
@@ -378,10 +387,10 @@ pub(crate) fn normalize_params_for_durable_memory_support(
     let mut changed = false;
 
     match tool_name {
-        "read" | "write" | "edit" | "grep" => {
+        "Read" | "Write" | "Edit" | "Grep" | "read" | "write" | "edit" | "grep" => {
             changed |= remap_virtual_memory_path_param(&mut normalized, "path")?;
         }
-        "glob" => {
+        "Glob" | "glob" => {
             changed |= remap_virtual_memory_path_param(&mut normalized, "path")?;
             changed |= remap_virtual_memory_glob_pattern(&mut normalized)?;
         }
@@ -531,7 +540,7 @@ fn wrap_registry_native_tools_for_harness_observability(registry: &mut aster::to
 }
 
 fn wrap_registry_native_tools_for_durable_memory_fs(registry: &mut aster::tools::ToolRegistry) {
-    for tool_name in ["read", "write", "edit", "glob", "grep"] {
+    for tool_name in ["Read", "Write", "Edit", "Glob", "Grep"] {
         let Some(tool) = registry.unregister(tool_name) else {
             continue;
         };
@@ -639,7 +648,7 @@ impl Tool for WorkspaceSandboxedBashTool {
             &format!("{:?}", execution.sandbox_type),
         );
         if execution.exit_code == 0 {
-            Ok(ToolResult::success(output)
+            let result = ToolResult::success(output)
                 .with_metadata("exit_code", serde_json::json!(execution.exit_code))
                 .with_metadata("stdout_length", serde_json::json!(execution.stdout.len()))
                 .with_metadata("stderr_length", serde_json::json!(execution.stderr.len()))
@@ -647,9 +656,14 @@ impl Tool for WorkspaceSandboxedBashTool {
                 .with_metadata(
                     "sandbox_type",
                     serde_json::json!(format!("{:?}", execution.sandbox_type)),
-                ))
+                );
+            Ok(media_cli_bridge::enrich_tool_result_from_media_cli_output(
+                result,
+                &execution.stdout,
+                Some(&self.app_handle),
+            ))
         } else {
-            Ok(ToolResult::success(output)
+            let result = ToolResult::success(output)
                 .with_metadata("exit_code", serde_json::json!(execution.exit_code))
                 .with_metadata("stdout_length", serde_json::json!(execution.stdout.len()))
                 .with_metadata("stderr_length", serde_json::json!(execution.stderr.len()))
@@ -658,7 +672,12 @@ impl Tool for WorkspaceSandboxedBashTool {
                     "sandbox_type",
                     serde_json::json!(format!("{:?}", execution.sandbox_type)),
                 )
-                .with_metadata("reported_success", serde_json::json!(false)))
+                .with_metadata("reported_success", serde_json::json!(false));
+            Ok(media_cli_bridge::enrich_tool_result_from_media_cli_output(
+                result,
+                &execution.stdout,
+                Some(&self.app_handle),
+            ))
         }
     }
 }
@@ -666,13 +685,19 @@ impl Tool for WorkspaceSandboxedBashTool {
 /// 统一处理 bash 工具的风险提示与共享任务管理器
 struct WorkspaceBashTool {
     delegate: BashTool,
+    app_handle: AppHandle,
     auto_approve_warnings: bool,
 }
 
 impl WorkspaceBashTool {
-    fn new(auto_approve_warnings: bool, task_manager: Arc<TaskManager>) -> Self {
+    fn new(
+        auto_approve_warnings: bool,
+        task_manager: Arc<TaskManager>,
+        app_handle: AppHandle,
+    ) -> Self {
         Self {
             delegate: BashTool::with_task_manager(task_manager),
+            app_handle,
             auto_approve_warnings,
         }
     }
@@ -714,8 +739,27 @@ impl Tool for WorkspaceBashTool {
         params: serde_json::Value,
         context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
-        let normalized_params = normalize_shell_command_params(&params);
-        self.delegate.execute(normalized_params, context).await
+        let mut normalized_params = normalize_shell_command_params(&params);
+        if let Some(object) = normalized_params.as_object_mut() {
+            if let Some(command) = object.get("command").and_then(|value| value.as_str()) {
+                object.insert(
+                    "command".to_string(),
+                    serde_json::Value::String(
+                        lime_cli_runtime::prefix_shell_command_with_lime_cli(
+                            command,
+                            Some(&self.app_handle),
+                        ),
+                    ),
+                );
+            }
+        }
+        let result = self.delegate.execute(normalized_params, context).await?;
+        let raw_output = result.output.as_deref().unwrap_or_default().to_string();
+        Ok(media_cli_bridge::enrich_tool_result_from_media_cli_output(
+            result,
+            &raw_output,
+            Some(&self.app_handle),
+        ))
     }
 }
 
@@ -799,11 +843,13 @@ pub(super) fn register_workspace_runtime_tools(
     registry: &mut aster::tools::ToolRegistry,
     task_manager: Arc<TaskManager>,
     auto_approve_warnings: bool,
+    app_handle: AppHandle,
     sandboxed_bash_tool: Option<WorkspaceSandboxedBashTool>,
 ) {
     registry.register(Box::new(WorkspaceBashTool::new(
         auto_approve_warnings,
         task_manager.clone(),
+        app_handle,
     )));
     registry.register(Box::new(WorkspaceTaskOutputTool::new(task_manager.clone())));
     registry.register(Box::new(TaskStopTool::with_task_manager(task_manager)));

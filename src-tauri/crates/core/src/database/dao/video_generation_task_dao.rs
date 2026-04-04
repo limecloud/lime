@@ -40,6 +40,12 @@ impl VideoGenerationTaskStatus {
     }
 }
 
+impl std::fmt::Display for VideoGenerationTaskStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// 视频生成任务
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

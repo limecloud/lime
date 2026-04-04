@@ -4,41 +4,54 @@
 
 ## 1.1 Core surface
 
-### Aster built-ins（19）
+### Aster built-ins 与 current surface
 
-- `read`
-- `write`
-- `edit`
-- `glob`
-- `grep`
-- `bash`
-- `lsp`
+- `Read`
+- `Write`
+- `Edit`
+- `Glob`
+- `Grep`
+- `Bash`
+- `LSP`
 - `Skill`
-- `Task`
+- `TaskCreate`
+- `TaskList`
+- `TaskGet`
+- `TaskUpdate`
 - `TaskOutput`
-- `KillShell`
-- `TodoWrite`
+- `TaskStop`
 - `NotebookEdit`
 - `EnterPlanMode`
 - `ExitPlanMode`
+- `EnterWorktree`
+- `ExitWorktree`
 - `WebFetch`
 - `WebSearch`
-- `analyze_image`
-- `ask`
+- `AskUserQuestion`
+- `SendUserMessage`
 
-### Lime injected（7）
+### Lime injected current tools
 
-- `tool_search`
-- `spawn_agent`
-- `send_input`
-- `wait_agent`
-- `resume_agent`
-- `close_agent`
+- `ToolSearch`
+- `ListMcpResourcesTool`
+- `ReadMcpResourceTool`
+- `Agent`
+
+### Team runtime current surface
+
+- `Agent`
+- `SendMessage`
+- `TeamCreate`
+- `TeamDelete`
+- `ListPeers`
+
+### Compat only
+
 - `SubAgentTask`
 
 ### Core 总数
 
-- **26 个 catalog entries**
+- 以 `src-tauri/src/agent_tools/catalog.rs` 当前目录为准，不再手写旧 surface 固定数值
 
 ---
 
@@ -55,7 +68,7 @@
 
 ### Workbench 总数
 
-- **34 个 catalog entries**
+- 以 `src-tauri/src/agent_tools/catalog.rs` 当前目录为准
 
 ---
 
@@ -70,38 +83,36 @@
 
 ### Browser Assist 总数
 
-- **27 个 catalog entries**
+- 以 `src-tauri/src/agent_tools/catalog.rs` 当前目录为准
 
 ### Workbench + Browser Assist 总数
 
-- **35 个 catalog entries**
+- 以 `src-tauri/src/agent_tools/catalog.rs` 当前目录为准
 
 ---
 
 ## 2. 默认授权子集
 
-Core surface 当前默认 allow 的工具为：
+Core surface 当前默认 allow 的工具集已经收敛到 current surface，重点包括：
 
 - `Skill`
 - `TaskOutput`
-- `KillShell`
-- `TodoWrite`
 - `EnterPlanMode`
 - `ExitPlanMode`
 - `WebSearch`
-- `ask`
-- `tool_search`
-- `spawn_agent`
-- `send_input`
-- `wait_agent`
-- `resume_agent`
-- `close_agent`
-- `SubAgentTask`
+- `AskUserQuestion`
+- `ToolSearch`
+- `Agent`
+- `SendMessage`
+- `TeamCreate`
+- `TeamDelete`
+- `ListPeers`
 
 结论：
 
-- 默认 allowlist 是 **15 个**
-- 明确排除了 `read` / `write` / `edit` / `bash` / `WebFetch` / `analyze_image` 这类需要参数约束或更强执行控制的工具
+- 默认 allowlist 继续优先保留常驻、小而稳的工具面
+- `SubAgentTask` 已降为 compat 入口，不再作为 current 默认协作工具面
+- `read` / `write` / `edit` / `bash` / `WebFetch` 这类需要参数约束或更强执行控制的工具仍不应默认放开
 
 这符合“常驻工具面小而稳”的原则。
 
@@ -180,7 +191,7 @@ const snapshot = await getAgentRuntimeToolInventory({
 - registry
 - mcp manager
 - extension manager
-- tool_search 输出
+- `ToolSearch` 输出
 
 现在一条命令就能同时回答这些问题：
 

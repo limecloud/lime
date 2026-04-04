@@ -49,7 +49,7 @@ export interface McpServerInfo {
 // 工具类型
 // ============================================================================
 
-/** MCP 工具定义 */
+/** MCP 工具定义。`name` 当前格式固定为 `mcp__<server>__<tool>`。 */
 export interface McpToolDefinition {
   name: string;
   description: string;
@@ -72,6 +72,28 @@ export type McpContent =
 export interface McpToolResult {
   content: McpContent[];
   is_error: boolean;
+}
+
+/** 从 runtime 名 `mcp__<server>__<tool>` 提取 inner tool 名。 */
+export function getMcpInnerToolName(
+  toolName: string,
+  serverName?: string,
+): string {
+  if (!toolName) return toolName;
+
+  if (serverName) {
+    const prefixedName = `mcp__${serverName}__`;
+    if (toolName.startsWith(prefixedName)) {
+      return toolName.slice(prefixedName.length);
+    }
+  }
+
+  if (!toolName.startsWith("mcp__")) {
+    return toolName;
+  }
+
+  const parts = toolName.split("__");
+  return parts.length >= 3 ? parts.slice(2).join("__") : toolName;
 }
 
 // ============================================================================
@@ -179,7 +201,7 @@ export const mcpApi = {
   // 工具管理 API
   // --------------------------------------------------------------------------
 
-  /** 获取所有可用工具 */
+  /** 获取所有可用工具，返回名格式为 `mcp__<server>__<tool>`。 */
   listTools: (): Promise<McpToolDefinition[]> => safeInvoke("mcp_list_tools"),
 
   /** 按调用上下文获取可见工具（支持 deferred_loading） */
@@ -189,7 +211,7 @@ export const mcpApi = {
   ): Promise<McpToolDefinition[]> =>
     safeInvoke("mcp_list_tools_for_context", { caller, includeDeferred }),
 
-  /** 工具搜索（Tool Search） */
+  /** 工具搜索（Tool Search），返回名格式为 `mcp__<server>__<tool>`。 */
   searchTools: (
     query: string,
     caller?: string,
@@ -197,14 +219,14 @@ export const mcpApi = {
   ): Promise<McpToolDefinition[]> =>
     safeInvoke("mcp_search_tools", { query, caller, limit }),
 
-  /** 调用工具 */
+  /** 调用工具，`toolName` 当前格式为 `mcp__<server>__<tool>`。 */
   callTool: (
     toolName: string,
     args: Record<string, unknown>,
   ): Promise<McpToolResult> =>
     safeInvoke("mcp_call_tool", { toolName, arguments: args }),
 
-  /** 带 caller 校验调用工具 */
+  /** 带 caller 校验调用工具，`toolName` 当前格式为 `mcp__<server>__<tool>`。 */
   callToolWithCaller: (
     toolName: string,
     args: Record<string, unknown>,

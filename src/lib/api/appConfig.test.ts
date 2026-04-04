@@ -61,6 +61,12 @@ describe("appConfig API", () => {
             preferredProviderId: "fal",
           },
         },
+        companion_defaults: {
+          general: {
+            preferredProviderId: "deepseek",
+            preferredModelId: "deepseek-chat",
+          },
+        },
       },
     });
 
@@ -73,6 +79,12 @@ describe("appConfig API", () => {
               preferredProviderId: "fal",
             }),
           }),
+          companion_defaults: expect.objectContaining({
+            general: expect.objectContaining({
+              preferredProviderId: "deepseek",
+              preferredModelId: "deepseek-chat",
+            }),
+          }),
         }),
       }),
     );
@@ -82,6 +94,12 @@ describe("appConfig API", () => {
         media_defaults: expect.objectContaining({
           image: expect.objectContaining({
             preferredProviderId: "fal",
+          }),
+        }),
+        companion_defaults: expect.objectContaining({
+          general: expect.objectContaining({
+            preferredProviderId: "deepseek",
+            preferredModelId: "deepseek-chat",
           }),
         }),
       }),
@@ -96,6 +114,9 @@ describe("appConfig API", () => {
       workspace_preferences: {
         media_defaults: {
           voice: { preferredProviderId: "openai" },
+        },
+        companion_defaults: {
+          general: { preferredProviderId: "deepseek" },
         },
       },
     } as never;

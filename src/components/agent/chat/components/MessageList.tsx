@@ -22,6 +22,7 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 import { StreamingRenderer } from "./StreamingRenderer";
 import { TokenUsageDisplay } from "./TokenUsageDisplay";
 import { AgentThreadTimeline } from "./AgentThreadTimeline";
+import { ImageWorkbenchMessagePreview } from "./ImageWorkbenchMessagePreview";
 import {
   formatArtifactWritePhaseLabel,
   resolveArtifactPreviewText,
@@ -513,6 +514,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
                       : undefined
                   }
                 />
+                {msg.imageWorkbenchPreview ? (
+                  <ImageWorkbenchMessagePreview
+                    preview={msg.imageWorkbenchPreview}
+                  />
+                ) : null}
               </>
             ) : displayContent ? (
               <MarkdownRenderer

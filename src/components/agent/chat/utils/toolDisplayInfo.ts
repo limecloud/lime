@@ -724,7 +724,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
-    "ask",
+    "askuserquestion",
     {
       family: "generic",
       label: "用户确认",
@@ -740,23 +740,55 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
-    "requestuserinput",
+    "sendusermessage",
     {
       family: "generic",
-      label: "用户确认",
-      verb: "收集",
-      icon: Wrench,
-      groupTitle: "交互",
+      label: "用户消息",
+      verb: "发送",
+      icon: FileText,
+      groupTitle: "用户消息",
       actionKey: "generic",
       actions: {
-        failed: "收集失败",
-        completed: "已收集",
-        running: "等待输入",
+        failed: "发送失败",
+        completed: "已发送",
+        running: "发送中",
       },
     },
   ],
   [
-    "spawnagent",
+    "structuredoutput",
+    {
+      family: "generic",
+      label: "结构化输出",
+      verb: "返回",
+      icon: FileText,
+      groupTitle: "回复",
+      actionKey: "generic",
+      actions: {
+        failed: "返回失败",
+        completed: "已返回结构化结果",
+        running: "返回结构化结果中",
+      },
+    },
+  ],
+  [
+    "brief",
+    {
+      family: "generic",
+      label: "用户消息",
+      verb: "发送",
+      icon: FileText,
+      groupTitle: "用户消息",
+      actionKey: "generic",
+      actions: {
+        failed: "发送失败",
+        completed: "已发送",
+        running: "发送中",
+      },
+    },
+  ],
+  [
+    "agent",
     {
       family: "subagent",
       label: "邀请协作成员",
@@ -767,7 +799,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
-    "sendinput",
+    "sendmessage",
     {
       family: "subagent",
       label: "补充说明",
@@ -775,6 +807,49 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       icon: Globe,
       groupTitle: "协作",
       actionKey: "subagent",
+    },
+  ],
+  [
+    "teamcreate",
+    {
+      family: "subagent",
+      label: "创建团队",
+      verb: "创建",
+      icon: Globe,
+      groupTitle: "创建团队",
+      actionKey: "subagent",
+      actions: {
+        failed: "创建失败",
+        completed: "已创建",
+        running: "创建中",
+      },
+    },
+  ],
+  [
+    "teamdelete",
+    {
+      family: "subagent",
+      label: "删除团队",
+      verb: "删除",
+      icon: Globe,
+      groupTitle: "删除团队",
+      actionKey: "subagent",
+      actions: {
+        failed: "删除失败",
+        completed: "已删除",
+        running: "删除中",
+      },
+    },
+  ],
+  [
+    "listpeers",
+    {
+      family: "list",
+      label: "协作成员",
+      verb: "查看",
+      icon: Globe,
+      groupTitle: "协作",
+      actionKey: "list",
     },
   ],
   [
@@ -811,14 +886,62 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
-    "subagenttask",
+    "croncreate",
     {
-      family: "subagent",
-      label: "协作分工",
-      verb: "分工",
+      family: "task",
+      label: "定时触发器",
+      verb: "创建",
+      icon: Settings,
+      groupTitle: "定时触发",
+      actionKey: "generic",
+      actions: {
+        failed: "创建失败",
+        completed: "已创建",
+        running: "创建中",
+      },
+    },
+  ],
+  [
+    "cronlist",
+    {
+      family: "list",
+      label: "定时触发器",
+      verb: "查看",
+      icon: Settings,
+      groupTitle: "定时触发",
+      actionKey: "list",
+    },
+  ],
+  [
+    "crondelete",
+    {
+      family: "task",
+      label: "定时触发器",
+      verb: "删除",
+      icon: Settings,
+      groupTitle: "定时触发",
+      actionKey: "generic",
+      actions: {
+        failed: "删除失败",
+        completed: "已删除",
+        running: "删除中",
+      },
+    },
+  ],
+  [
+    "remotetrigger",
+    {
+      family: "command",
+      label: "远程触发器",
+      verb: "处理",
       icon: Globe,
-      groupTitle: "协作",
-      actionKey: "subagent",
+      groupTitle: "远程触发",
+      actionKey: "generic",
+      actions: {
+        failed: "处理失败",
+        completed: "已处理",
+        running: "处理中",
+      },
     },
   ],
   [
@@ -1303,21 +1426,72 @@ const getFileName = (filePath: string): string => {
   return parts[parts.length - 1] || filePath;
 };
 
+const TOOL_NAME_KEY_ALIASES: Record<string, string> = {
+  ask: "askuserquestion",
+  requestuserinput: "askuserquestion",
+  requestuserinputtool: "askuserquestion",
+  askuserquestiontool: "askuserquestion",
+  brief: "sendusermessage",
+  brieftool: "sendusermessage",
+  sendusermessage: "sendusermessage",
+  sendusermessagetool: "sendusermessage",
+  spawnagent: "agent",
+  subagenttask: "agent",
+  agenttool: "agent",
+  sendinput: "sendmessage",
+  sendmessagetool: "sendmessage",
+  bashtool: "bash",
+  configtool: "config",
+  enterplanmodetool: "enterplanmode",
+  exitplanmodetool: "exitplanmode",
+  enterworktreetool: "enterworktree",
+  exitworktreetool: "exitworktree",
+  filereadtool: "read",
+  readfiletool: "read",
+  filewritetool: "write",
+  writefiletool: "write",
+  createfiletool: "write",
+  fileedittool: "edit",
+  globtool: "glob",
+  greptool: "grep",
+  lsptool: "lsp",
+  listmcpresourcestool: "listmcpresources",
+  readmcpresourcetool: "readmcpresource",
+  notebookedittool: "notebookedit",
+  powershelltool: "powershell",
+  remotetriggertool: "remotetrigger",
+  schedulecrontool: "croncreate",
+  croncreatetool: "croncreate",
+  cronlisttool: "cronlist",
+  crondeletetool: "crondelete",
+  skilltool: "skill",
+  sleeptool: "sleep",
+  syntheticoutputtool: "structuredoutput",
+  taskcreatetool: "taskcreate",
+  taskgettool: "taskget",
+  tasklisttool: "tasklist",
+  taskoutputtool: "taskoutput",
+  agentoutputtool: "taskoutput",
+  bashoutputtool: "taskoutput",
+  taskstoptool: "taskstop",
+  taskupdatetool: "taskupdate",
+  teamcreatetool: "teamcreate",
+  teamdeletetool: "teamdelete",
+  toolsearchtool: "toolsearch",
+  webfetchtool: "webfetch",
+  websearchtool: "websearch",
+  task: "bash",
+  killshell: "taskstop",
+  todowrite: "taskupdate",
+  writetodos: "taskupdate",
+};
+
 export const normalizeToolNameKey = (value: string): string => {
   const normalized = value
     .replace(/[\s_-]+/g, "")
     .trim()
     .toLowerCase();
-  if (normalized === "task") {
-    return "bash";
-  }
-  if (normalized === "killshell") {
-    return "taskstop";
-  }
-  if (normalized === "todowrite" || normalized === "writetodos") {
-    return "taskupdate";
-  }
-  return normalized;
+  return TOOL_NAME_KEY_ALIASES[normalized] || normalized;
 };
 
 export const humanizeToolName = (toolName: string): string =>
@@ -1387,7 +1561,7 @@ export const resolveToolPrimarySubject = (
     return resolveToolArgumentPreview(args, ["command", "cmd", "cwd"]);
   }
 
-  if (normalizedName === "spawnagent" || normalizedName === "subagenttask") {
+  if (normalizedName === "agent") {
     return resolveToolArgumentPreview(args, [
       "description",
       "task",
@@ -1398,11 +1572,23 @@ export const resolveToolPrimarySubject = (
     ]);
   }
 
-  if (normalizedName === "sendinput") {
+  if (normalizedName === "sendmessage") {
     return (
       resolveToolArgumentPreview(args, ["message", "id", "agent_id"]) ||
       "目标协作成员"
     );
+  }
+
+  if (normalizedName === "sendusermessage" || normalizedName === "brief") {
+    return resolveToolArgumentPreview(args, ["message"]) || "用户";
+  }
+
+  if (normalizedName === "teamcreate" || normalizedName === "teamdelete") {
+    return resolveToolArgumentPreview(args, ["team_name", "teamName"]) || "当前团队";
+  }
+
+  if (normalizedName === "listpeers") {
+    return resolveToolArgumentPreview(args, ["team_name", "teamName"]) || "当前团队";
   }
 
   if (
@@ -1516,13 +1702,35 @@ export const resolveToolPrimarySubject = (
     return resolveToolArgumentPreview(args, ["query", "q"]) || "站点能力";
   }
 
-  if (normalizedName === "ask" || normalizedName === "requestuserinput") {
+  if (normalizedName === "askuserquestion") {
     return resolveToolArgumentPreview(args, [
       "question",
       "header",
       "prompt",
       "request_id",
     ]);
+  }
+
+  if (normalizedName === "remotetrigger") {
+    return (
+      resolveToolArgumentPreview(args, [
+        "trigger_id",
+        "triggerId",
+        "action",
+        "organization_uuid",
+      ]) || "远程触发器"
+    );
+  }
+
+  if (
+    normalizedName === "croncreate" ||
+    normalizedName === "cronlist" ||
+    normalizedName === "crondelete"
+  ) {
+    return (
+      resolveToolArgumentPreview(args, ["id", "cron", "schedule", "prompt"]) ||
+      "定时触发器"
+    );
   }
 
   return (

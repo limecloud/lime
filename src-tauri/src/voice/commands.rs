@@ -137,8 +137,8 @@ pub async fn delete_voice_instruction(id: String) -> Result<(), String> {
 
 /// 打开语音输入窗口
 #[command]
-pub async fn open_voice_window(app: AppHandle) -> Result<(), String> {
-    super::window::open_voice_window(&app)
+pub async fn open_voice_window(app: AppHandle, target: Option<String>) -> Result<(), String> {
+    super::window::open_voice_window(&app, target.as_deref())
 }
 
 /// 关闭语音输入窗口

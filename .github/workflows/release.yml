@@ -39,12 +39,19 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             name: macOS-arm64
+            build_cli: true
           - platform: macos-15-intel
             target: x86_64-apple-darwin
             name: macOS-x64
+            build_cli: true
           - platform: windows-2022
             target: x86_64-pc-windows-msvc
             name: Windows-x64
+            build_cli: true
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            name: Linux-x64-cli
+            build_cli: true
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -591,6 +598,60 @@ jobs:
           printf ' - %s\n' "${assets[@]}"
 
           gh release upload "$TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+      - name: Build lime-cli release binary
+        if: matrix.build_cli && (matrix.platform == 'windows-2022' || matrix.platform == 'ubuntu-22.04' || (startsWith(matrix.platform, 'macos') && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')))
+        shell: bash
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "off"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
+          CARGO_INCREMENTAL: 0
+          CARGO_TARGET_DIR: src-tauri/target
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+        run: |
+          set -euxo pipefail
+          cargo build --manifest-path src-tauri/Cargo.toml -p lime-cli --release --target "${{ matrix.target }}"
+
+      - name: Package lime-cli release asset
+        id: package_lime_cli
+        if: matrix.build_cli && (matrix.platform == 'windows-2022' || matrix.platform == 'ubuntu-22.04' || (startsWith(matrix.platform, 'macos') && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')))
+        shell: bash
+        run: |
+          set -euxo pipefail
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          metadata="$(
+            node packages/lime-cli-npm/scripts/build-release.js \
+              --target-triple "${{ matrix.target }}" \
+              --version "$VERSION" \
+              --out-dir "packages/lime-cli-npm/dist" \
+              --json
+          )"
+
+          echo "$metadata"
+          asset_path="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(data.archivePath);' "$metadata")"
+          echo "asset_path=$asset_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload lime-cli release asset
+        if: matrix.build_cli && (matrix.platform == 'windows-2022' || matrix.platform == 'ubuntu-22.04' || (startsWith(matrix.platform, 'macos') && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')))
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          ASSET_PATH="${{ steps.package_lime_cli.outputs.asset_path }}"
+
+          if [ -z "$ASSET_PATH" ] || [ ! -f "$ASSET_PATH" ]; then
+            echo "lime-cli asset missing: $ASSET_PATH" >&2
+            exit 1
+          fi
+
+          gh release upload "$TAG" "$ASSET_PATH" \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
 

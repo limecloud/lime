@@ -643,6 +643,9 @@ pub struct WorkspacePreferencesConfig {
     /// 全局媒体生成默认设置
     #[serde(default)]
     pub media_defaults: MediaGenerationDefaultsConfig,
+    /// 桌宠能力偏好设置
+    #[serde(default)]
+    pub companion_defaults: CompanionDefaultsConfig,
 }
 
 fn current_workspace_preferences_schema_version() -> u8 {
@@ -654,6 +657,7 @@ impl Default for WorkspacePreferencesConfig {
         Self {
             schema_version: current_workspace_preferences_schema_version(),
             media_defaults: MediaGenerationDefaultsConfig::default(),
+            companion_defaults: CompanionDefaultsConfig::default(),
         }
     }
 }
@@ -692,6 +696,14 @@ pub struct MediaGenerationDefaultsConfig {
     pub video: MediaGenerationPreferenceConfig,
     #[serde(default)]
     pub voice: MediaGenerationPreferenceConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct CompanionDefaultsConfig {
+    #[serde(default)]
+    pub general: MediaGenerationPreferenceConfig,
+    #[serde(default)]
+    pub tts: MediaGenerationPreferenceConfig,
 }
 
 // ============ 导航栏配置类型 ============
@@ -2895,6 +2907,59 @@ mod unit_tests {
                 "claw".to_string(),
                 "resources".to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn test_workspace_preferences_supports_companion_defaults_roundtrip() {
+        let mut config = Config::default();
+        config
+            .workspace_preferences
+            .companion_defaults
+            .general
+            .preferred_provider_id = Some("deepseek".to_string());
+        config
+            .workspace_preferences
+            .companion_defaults
+            .general
+            .preferred_model_id = Some("deepseek-chat".to_string());
+        config
+            .workspace_preferences
+            .companion_defaults
+            .tts
+            .preferred_provider_id = Some("openai-tts".to_string());
+
+        let value =
+            serde_json::to_value(&config).expect("config should serialize companion defaults");
+        let parsed: Config =
+            serde_json::from_value(value).expect("config should deserialize companion defaults");
+
+        assert_eq!(
+            parsed
+                .workspace_preferences
+                .companion_defaults
+                .general
+                .preferred_provider_id
+                .as_deref(),
+            Some("deepseek")
+        );
+        assert_eq!(
+            parsed
+                .workspace_preferences
+                .companion_defaults
+                .general
+                .preferred_model_id
+                .as_deref(),
+            Some("deepseek-chat")
+        );
+        assert_eq!(
+            parsed
+                .workspace_preferences
+                .companion_defaults
+                .tts
+                .preferred_provider_id
+                .as_deref(),
+            Some("openai-tts")
         );
     }
 

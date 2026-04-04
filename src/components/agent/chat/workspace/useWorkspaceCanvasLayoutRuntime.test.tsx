@@ -29,6 +29,7 @@ function renderHook(props?: Partial<HookProps>) {
     autoCollapsedTopicSidebarRef: { current: false },
     mappedTheme: "general",
     normalizedEntryTheme: "general",
+    shouldPreserveBlankHomeSurface: false,
     shouldBootstrapCanvasOnEntry: false,
     canvasState: null,
     generalCanvasState: {
@@ -227,5 +228,30 @@ describe("useWorkspaceCanvasLayoutRuntime", () => {
     expect(dismissActiveTeamWorkbenchAutoOpen).toHaveBeenCalledTimes(1);
     expect(suppressGeneralCanvasArtifactAutoOpen).toHaveBeenCalledTimes(1);
     expect(suppressBrowserAssistCanvasAutoOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("空白 new-task 首页在隐藏聊天面板时不应自动生成 fallback 画布", async () => {
+    const setLayoutMode = vi.fn();
+    const setGeneralCanvasState = vi.fn();
+    const setCanvasState = vi.fn();
+    const { render } = renderHook({
+      showChatPanel: false,
+      hasMessages: false,
+      layoutMode: "chat",
+      activeTheme: "general",
+      normalizedEntryTheme: "general",
+      shouldPreserveBlankHomeSurface: true,
+      setLayoutMode,
+      setGeneralCanvasState,
+      setCanvasState,
+    });
+
+    await render();
+
+    expect(
+      setLayoutMode.mock.calls.some((call) => call[0] === "canvas"),
+    ).toBe(false);
+    expect(setGeneralCanvasState).not.toHaveBeenCalled();
+    expect(setCanvasState).not.toHaveBeenCalled();
   });
 });

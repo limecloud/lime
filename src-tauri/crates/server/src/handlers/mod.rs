@@ -6,6 +6,7 @@ pub mod api;
 pub mod api_key_provider_utils;
 pub mod chrome_bridge_ws;
 pub mod credentials_api;
+pub(crate) mod image_api_provider;
 pub mod image_handler;
 pub mod kiro_credential;
 pub mod provider_calls;

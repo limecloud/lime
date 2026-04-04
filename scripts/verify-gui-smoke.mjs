@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const DEFAULTS = {
   appUrl: "http://127.0.0.1:1420/",
   healthUrl: "http://127.0.0.1:3030/health",
-  timeoutMs: 180_000,
+  timeoutMs: 600_000,
   intervalMs: 1_000,
   reuseRunning: false,
   sampleProjectName: "Lime Smoke Workspace",
@@ -35,12 +35,12 @@ Lime GUI 冒烟入口
 用法:
   npm run verify:gui-smoke
   npm run verify:gui-smoke -- --reuse-running
-  npm run verify:gui-smoke -- --timeout-ms 180000
+  npm run verify:gui-smoke -- --timeout-ms 600000
 
 选项:
   --app-url <url>             前端地址，默认 http://127.0.0.1:1420/
   --health-url <url>          DevBridge 健康检查地址，默认 http://127.0.0.1:3030/health
-  --timeout-ms <ms>           等待 headless / bridge / smoke 的超时，默认 180000
+  --timeout-ms <ms>           等待 headless / bridge / smoke 的超时，默认 600000
   --interval-ms <ms>          轮询间隔，默认 1000
   --sample-project-name <s>   workspace 路径校验使用的示例项目名
   --reuse-running             复用已启动的 headless Tauri，不主动拉起

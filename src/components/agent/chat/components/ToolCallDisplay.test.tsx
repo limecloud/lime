@@ -466,7 +466,7 @@ describe("ToolCallDisplay", () => {
             },
             {
               id: "tool-subagent-1",
-              name: "spawn_agent",
+              name: "Agent",
               arguments: JSON.stringify({ description: "修复登录页" }),
               status: "running",
               startTime: new Date("2026-03-20T12:20:02.000Z"),
@@ -500,10 +500,64 @@ describe("ToolCallDisplay", () => {
             },
             {
               id: "tool-input-1",
-              name: "request_user_input",
+              name: "AskUserQuestion",
               arguments: JSON.stringify({ question: "需要继续吗？" }),
               status: "running",
               startTime: new Date("2026-03-20T12:20:09.000Z"),
+            },
+            {
+              id: "tool-send-user-message-1",
+              name: "SendUserMessage",
+              arguments: JSON.stringify({ message: "修复已完成" }),
+              status: "completed",
+              result: { success: true, output: "Message delivered to user." },
+              startTime: new Date("2026-03-20T12:20:09.500Z"),
+              endTime: new Date("2026-03-20T12:20:09.900Z"),
+            },
+            {
+              id: "tool-list-peers-1",
+              name: "ListPeers",
+              arguments: JSON.stringify({}),
+              status: "completed",
+              result: { success: true, output: "[]" },
+              startTime: new Date("2026-03-20T12:20:10.000Z"),
+              endTime: new Date("2026-03-20T12:20:11.000Z"),
+            },
+            {
+              id: "tool-team-create-1",
+              name: "TeamCreate",
+              arguments: JSON.stringify({ team_name: "当前团队" }),
+              status: "completed",
+              result: { success: true, output: "{}" },
+              startTime: new Date("2026-03-20T12:20:11.000Z"),
+              endTime: new Date("2026-03-20T12:20:12.000Z"),
+            },
+            {
+              id: "tool-team-delete-1",
+              name: "TeamDelete",
+              arguments: JSON.stringify({ team_name: "当前团队" }),
+              status: "completed",
+              result: { success: true, output: "{}" },
+              startTime: new Date("2026-03-20T12:20:12.000Z"),
+              endTime: new Date("2026-03-20T12:20:13.000Z"),
+            },
+            {
+              id: "tool-remote-trigger-1",
+              name: "RemoteTrigger",
+              arguments: JSON.stringify({ action: "run", trigger_id: "remote-1" }),
+              status: "completed",
+              result: { success: true, output: "ok" },
+              startTime: new Date("2026-03-20T12:20:14.000Z"),
+              endTime: new Date("2026-03-20T12:20:15.000Z"),
+            },
+            {
+              id: "tool-cron-delete-1",
+              name: "CronDelete",
+              arguments: JSON.stringify({ id: "cron-job-1" }),
+              status: "completed",
+              result: { success: true, output: "ok" },
+              startTime: new Date("2026-03-20T12:20:16.000Z"),
+              endTime: new Date("2026-03-20T12:20:17.000Z"),
             },
           ]}
         />,
@@ -518,6 +572,13 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain("已加载技能 lime-governance");
     expect(container.textContent).toContain("已列出 src/**/*.tsx");
     expect(container.textContent).toContain("等待输入 需要继续吗？");
+    expect(container.textContent).toContain("已发送");
+    expect(container.textContent).toContain("修复已完成");
+    expect(container.textContent).toContain("已列出 当前团队");
+    expect(container.textContent).toContain("已创建 当前团队");
+    expect(container.textContent).toContain("已删除 当前团队");
+    expect(container.textContent).toContain("已处理 remote-1");
+    expect(container.textContent).toContain("已删除 cron-job-1");
   });
 
   it("写文件工具应通过 artifact protocol 解析嵌套产物路径", () => {

@@ -135,13 +135,13 @@ const SKILL_CAP: &[ToolCapability] = &[ToolCapability::SkillExecution];
 const CONTENT_CAP: &[ToolCapability] = &[ToolCapability::ContentCreation];
 const BROWSER_CAP: &[ToolCapability] = &[ToolCapability::BrowserRuntime];
 const SITE_CAP: &[ToolCapability] = &[ToolCapability::BrowserRuntime, ToolCapability::WebSearch];
+const SESSION_CAP: &[ToolCapability] = &[ToolCapability::SessionControl];
 const WORKSPACE_IO_CAP: &[ToolCapability] = &[ToolCapability::WorkspaceIo];
 const EXECUTION_CAP: &[ToolCapability] = &[ToolCapability::Execution];
-const VISION_CAP: &[ToolCapability] = &[ToolCapability::Vision];
 
 static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     ToolCatalogEntry {
-        name: "read",
+        name: "Read",
         profiles: CORE_PROFILES,
         capabilities: WORKSPACE_IO_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -150,7 +150,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "write",
+        name: "Write",
         profiles: CORE_PROFILES,
         capabilities: WORKSPACE_IO_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -159,7 +159,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "edit",
+        name: "Edit",
         profiles: CORE_PROFILES,
         capabilities: WORKSPACE_IO_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -168,7 +168,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "glob",
+        name: "Glob",
         profiles: CORE_PROFILES,
         capabilities: WORKSPACE_IO_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -177,7 +177,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "grep",
+        name: "Grep",
         profiles: CORE_PROFILES,
         capabilities: WORKSPACE_IO_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -186,7 +186,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "bash",
+        name: "Bash",
         profiles: CORE_PROFILES,
         capabilities: EXECUTION_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -195,7 +195,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "lsp",
+        name: "LSP",
         profiles: CORE_PROFILES,
         capabilities: WORKSPACE_IO_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -207,6 +207,15 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         name: "Skill",
         profiles: CORE_PROFILES,
         capabilities: SKILL_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "Workflow",
+        profiles: CORE_PROFILES,
+        capabilities: EXECUTION_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
@@ -294,6 +303,24 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
+        name: "EnterWorktree",
+        profiles: CORE_PROFILES,
+        capabilities: WORKSPACE_IO_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "ExitWorktree",
+        profiles: CORE_PROFILES,
+        capabilities: WORKSPACE_IO_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
         name: "WebFetch",
         profiles: CORE_PROFILES,
         capabilities: SEARCH_CAP,
@@ -312,16 +339,88 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "analyze_image",
+        name: "AskUserQuestion",
         profiles: CORE_PROFILES,
-        capabilities: VISION_CAP,
+        capabilities: PLAN_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "SendUserMessage",
+        profiles: CORE_PROFILES,
+        capabilities: SESSION_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "StructuredOutput",
+        profiles: CORE_PROFILES,
+        capabilities: SESSION_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: false,
+    },
+    ToolCatalogEntry {
+        name: "Config",
+        profiles: CORE_PROFILES,
+        capabilities: SESSION_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "Sleep",
+        profiles: CORE_PROFILES,
+        capabilities: EXECUTION_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "PowerShell",
+        profiles: CORE_PROFILES,
+        capabilities: EXECUTION_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::ParameterRestricted,
         workspace_default_allow: false,
     },
     ToolCatalogEntry {
-        name: "ask",
+        name: "RemoteTrigger",
+        profiles: CORE_PROFILES,
+        capabilities: EXECUTION_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "CronCreate",
+        profiles: CORE_PROFILES,
+        capabilities: PLAN_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "CronList",
+        profiles: CORE_PROFILES,
+        capabilities: PLAN_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::AsterBuiltin,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: "CronDelete",
         profiles: CORE_PROFILES,
         capabilities: PLAN_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -357,7 +456,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "spawn_agent",
+        name: "Agent",
         profiles: CORE_PROFILES,
         capabilities: DELEGATION_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -366,38 +465,38 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "send_input",
+        name: "SendMessage",
         profiles: CORE_PROFILES,
         capabilities: DELEGATION_CAP,
         lifecycle: ToolLifecycle::Current,
-        source: ToolSourceKind::LimeInjected,
+        source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "wait_agent",
+        name: "TeamCreate",
         profiles: CORE_PROFILES,
         capabilities: DELEGATION_CAP,
         lifecycle: ToolLifecycle::Current,
-        source: ToolSourceKind::LimeInjected,
+        source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "resume_agent",
+        name: "TeamDelete",
         profiles: CORE_PROFILES,
         capabilities: DELEGATION_CAP,
         lifecycle: ToolLifecycle::Current,
-        source: ToolSourceKind::LimeInjected,
+        source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "close_agent",
+        name: "ListPeers",
         profiles: CORE_PROFILES,
         capabilities: DELEGATION_CAP,
         lifecycle: ToolLifecycle::Current,
-        source: ToolSourceKind::LimeInjected,
+        source: ToolSourceKind::AsterBuiltin,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
         workspace_default_allow: true,
     },
@@ -542,15 +641,91 @@ pub fn native_tool_catalog() -> &'static [ToolCatalogEntry] {
     NATIVE_TOOL_CATALOG
 }
 
+fn normalize_tool_catalog_alias(tool_name: &str) -> &str {
+    match tool_catalog_reference_lookup_key(tool_name).as_str() {
+        "ask" | "requestuserinput" | "askuserquestiontool" => "AskUserQuestion",
+        "brief" | "brieftool" | "sendusermessagetool" => "SendUserMessage",
+        "spawnagent" | "subagenttask" | "agenttool" => "Agent",
+        "sendinput" | "sendmessagetool" => "SendMessage",
+        "bashtool" => "Bash",
+        "configtool" => "Config",
+        "enterplanmodetool" => "EnterPlanMode",
+        "exitplanmodetool" => "ExitPlanMode",
+        "enterworktreetool" => "EnterWorktree",
+        "exitworktreetool" => "ExitWorktree",
+        "filereadtool" | "readfiletool" => "Read",
+        "filewritetool" | "writefiletool" | "createfiletool" => "Write",
+        "fileedittool" => "Edit",
+        "globtool" => "Glob",
+        "greptool" => "Grep",
+        "lsptool" => "LSP",
+        "listmcpresourcestool" => "ListMcpResourcesTool",
+        "readmcpresourcetool" => "ReadMcpResourceTool",
+        "notebookedittool" => "NotebookEdit",
+        "powershelltool" => "PowerShell",
+        "remotetriggertool" => "RemoteTrigger",
+        "schedulecrontool" | "croncreatetool" => "CronCreate",
+        "cronlisttool" => "CronList",
+        "crondeletetool" => "CronDelete",
+        "skilltool" => "Skill",
+        "sleeptool" => "Sleep",
+        "syntheticoutputtool" => "StructuredOutput",
+        "taskcreatetool" => "TaskCreate",
+        "taskgettool" => "TaskGet",
+        "tasklisttool" => "TaskList",
+        "taskoutputtool" | "agentoutputtool" | "bashoutputtool" => "TaskOutput",
+        "taskstoptool" => "TaskStop",
+        "taskupdatetool" => "TaskUpdate",
+        "teamcreatetool" => "TeamCreate",
+        "teamdeletetool" => "TeamDelete",
+        "toolsearchtool" => "ToolSearch",
+        "webfetchtool" => "WebFetch",
+        "websearchtool" => "WebSearch",
+        _ => tool_name.trim(),
+    }
+}
+
+fn tool_catalog_reference_lookup_key(tool_name: &str) -> String {
+    tool_name
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .map(|character| character.to_ascii_lowercase())
+        .collect()
+}
+
+fn tool_catalog_lookup_key(tool_name: &str) -> String {
+    normalize_tool_catalog_alias(tool_name)
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .map(|character| character.to_ascii_lowercase())
+        .collect()
+}
+
+pub fn tool_catalog_names_match(left: &str, right: &str) -> bool {
+    let left_key = tool_catalog_lookup_key(left);
+    let right_key = tool_catalog_lookup_key(right);
+    !left_key.is_empty() && left_key == right_key
+}
+
 pub fn tool_catalog_entry(tool_name: &str) -> Option<&'static ToolCatalogEntry> {
-    let normalized_name = tool_name.trim();
+    let requested_name = tool_name.trim();
+    let canonical_name = normalize_tool_catalog_alias(requested_name);
+    if let Some(entry) = native_tool_catalog()
+        .iter()
+        .find(|entry| entry.name == canonical_name)
+    {
+        return Some(entry);
+    }
+    let normalized_key = tool_catalog_lookup_key(canonical_name);
     native_tool_catalog()
         .iter()
         .filter(|entry| {
             if entry.name.ends_with("__") {
-                normalized_name.starts_with(entry.name)
+                requested_name.starts_with(entry.name)
+                    || (!normalized_key.is_empty()
+                        && normalized_key.starts_with(&tool_catalog_lookup_key(entry.name)))
             } else {
-                entry.name == normalized_name
+                tool_catalog_names_match(entry.name, canonical_name)
             }
         })
         .max_by_key(|entry| entry.name.len())
@@ -600,6 +775,17 @@ pub fn browser_runtime_tool_prefix() -> &'static str {
     BROWSER_RUNTIME_TOOL_PREFIX
 }
 
+pub fn mcp_extension_runtime_name(server_name: &str) -> String {
+    format!("mcp__{server_name}")
+}
+
+fn mcp_extension_inner_tool_name<'a>(extension_name: &str, tool_name: &'a str) -> &'a str {
+    tool_name
+        .strip_prefix(extension_name)
+        .and_then(|rest| rest.strip_prefix("__"))
+        .unwrap_or(tool_name)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McpExtensionSurface {
     pub extension_name: String,
@@ -623,7 +809,7 @@ pub fn build_mcp_extension_surface(
 ) -> McpExtensionSurface {
     let mut available_tools = tools
         .iter()
-        .map(|tool| tool.name.clone())
+        .map(|tool| mcp_extension_inner_tool_name(extension_name, &tool.name).to_string())
         .collect::<Vec<_>>();
     available_tools.sort();
     available_tools.dedup();
@@ -633,7 +819,7 @@ pub fn build_mcp_extension_surface(
         .filter(|tool| {
             tool.always_visible.unwrap_or(false) || !tool.deferred_loading.unwrap_or(false)
         })
-        .map(|tool| tool.name.clone())
+        .map(|tool| mcp_extension_inner_tool_name(extension_name, &tool.name).to_string())
         .collect::<Vec<_>>();
     always_expose_tools.sort();
     always_expose_tools.dedup();
@@ -715,12 +901,113 @@ mod tests {
     #[test]
     fn test_workspace_default_allowed_tool_names_excludes_parameter_restricted_tools() {
         let names = workspace_default_allowed_tool_names(WorkspaceToolSurface::core());
-        assert!(names.contains(&"spawn_agent"));
+        assert!(names.contains(&"Agent"));
+        assert!(names.contains(&"SendUserMessage"));
+        assert!(names.contains(&"TeamCreate"));
+        assert!(names.contains(&"TeamDelete"));
+        assert!(names.contains(&"Workflow"));
         assert!(names.contains(&"WebSearch"));
         assert!(!names.contains(&"SubAgentTask"));
-        assert!(!names.contains(&"read"));
-        assert!(!names.contains(&"bash"));
+        assert!(!names.contains(&"Read"));
+        assert!(!names.contains(&"Bash"));
         assert!(!names.contains(&SOCIAL_IMAGE_TOOL_NAME));
+    }
+
+    #[test]
+    fn test_tool_catalog_entry_normalizes_legacy_aliases_to_current_surface() {
+        assert_eq!(
+            tool_catalog_entry("spawn_agent")
+                .expect("legacy spawn_agent should normalize")
+                .name,
+            "Agent"
+        );
+        assert_eq!(
+            tool_catalog_entry("brief")
+                .expect("legacy brief should normalize")
+                .name,
+            "SendUserMessage"
+        );
+        assert_eq!(
+            tool_catalog_entry("send_input")
+                .expect("legacy send_input should normalize")
+                .name,
+            "SendMessage"
+        );
+        assert_eq!(
+            tool_catalog_entry("ask")
+                .expect("legacy ask should normalize")
+                .name,
+            "AskUserQuestion"
+        );
+        assert_eq!(
+            tool_catalog_entry("remote_trigger")
+                .expect("snake_case current name should normalize")
+                .name,
+            "RemoteTrigger"
+        );
+    }
+
+    #[test]
+    fn test_tool_catalog_entry_normalizes_reference_js_tool_names_to_current_surface() {
+        let cases = [
+            ("AgentTool", "Agent"),
+            ("AskUserQuestionTool", "AskUserQuestion"),
+            ("BashTool", "Bash"),
+            ("BriefTool", "SendUserMessage"),
+            ("ConfigTool", "Config"),
+            ("EnterPlanModeTool", "EnterPlanMode"),
+            ("EnterWorktreeTool", "EnterWorktree"),
+            ("ExitPlanModeTool", "ExitPlanMode"),
+            ("ExitWorktreeTool", "ExitWorktree"),
+            ("FileEditTool", "Edit"),
+            ("FileReadTool", "Read"),
+            ("FileWriteTool", "Write"),
+            ("GlobTool", "Glob"),
+            ("GrepTool", "Grep"),
+            ("LSPTool", "LSP"),
+            ("ListMcpResourcesTool", "ListMcpResourcesTool"),
+            ("NotebookEditTool", "NotebookEdit"),
+            ("PowerShellTool", "PowerShell"),
+            ("ReadMcpResourceTool", "ReadMcpResourceTool"),
+            ("RemoteTriggerTool", "RemoteTrigger"),
+            ("ScheduleCronTool", "CronCreate"),
+            ("SendMessageTool", "SendMessage"),
+            ("SkillTool", "Skill"),
+            ("SleepTool", "Sleep"),
+            ("SyntheticOutputTool", "StructuredOutput"),
+            ("TaskCreateTool", "TaskCreate"),
+            ("TaskGetTool", "TaskGet"),
+            ("TaskListTool", "TaskList"),
+            ("TaskOutputTool", "TaskOutput"),
+            ("AgentOutputTool", "TaskOutput"),
+            ("BashOutputTool", "TaskOutput"),
+            ("TaskStopTool", "TaskStop"),
+            ("TaskUpdateTool", "TaskUpdate"),
+            ("TeamCreateTool", "TeamCreate"),
+            ("TeamDeleteTool", "TeamDelete"),
+            ("ToolSearchTool", "ToolSearch"),
+            ("WebFetchTool", "WebFetch"),
+            ("WebSearchTool", "WebSearch"),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(
+                tool_catalog_entry(input)
+                    .unwrap_or_else(|| panic!("reference tool '{input}' should normalize"))
+                    .name,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_tool_catalog_entry_leaves_intentional_reference_exceptions_unmapped() {
+        for name in ["MCPTool", "McpAuthTool", "REPLTool"] {
+            assert!(
+                tool_catalog_entry(name).is_none(),
+                "reference exception '{name}' should stay outside current catalog"
+            );
+        }
     }
 
     #[test]
@@ -741,12 +1028,12 @@ mod tests {
             .iter()
             .filter(|entry| entry.profiles.contains(&ToolSurfaceProfile::BrowserAssist))
             .count();
-        assert_eq!(core.len(), 30);
+        assert_eq!(core.len(), 41);
         assert_eq!(
             core.iter()
                 .filter(|entry| entry.lifecycle == ToolLifecycle::Current)
                 .count(),
-            29
+            40
         );
         assert_eq!(
             core.iter()
@@ -800,11 +1087,14 @@ mod tests {
         let names = workspace_default_allowed_tool_names(
             WorkspaceToolSurface::workbench_with_browser_assist(),
         );
-        assert_eq!(names.len(), 32);
+        assert_eq!(names.len(), 42);
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&TOOL_SEARCH_TOOL_NAME));
         assert!(names.contains(&LIST_MCP_RESOURCES_TOOL_NAME));
         assert!(names.contains(&READ_MCP_RESOURCE_TOOL_NAME));
+        assert!(names.contains(&"SendUserMessage"));
+        assert!(names.contains(&"TeamCreate"));
+        assert!(names.contains(&"TeamDelete"));
         assert!(names.contains(&LIME_SITE_RECOMMEND_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));
         assert!(!names
@@ -906,5 +1196,30 @@ mod tests {
 
         let surface = build_mcp_extension_surface("docs", "docs tools", &tools);
         assert_eq!(surface.allowed_caller, None);
+    }
+
+    #[test]
+    fn test_build_mcp_extension_surface_strips_runtime_prefix_from_prefixed_tools() {
+        let tools = vec![
+            sample_tool(
+                "mcp__docs__search_docs",
+                Some(true),
+                Some(false),
+                Some(vec!["assistant"]),
+            ),
+            sample_tool(
+                "mcp__docs__read_docs",
+                Some(false),
+                Some(true),
+                Some(vec!["assistant"]),
+            ),
+        ];
+
+        let surface = build_mcp_extension_surface("mcp__docs", "docs tools", &tools);
+        assert_eq!(
+            surface.available_tools,
+            vec!["read_docs".to_string(), "search_docs".to_string()]
+        );
+        assert_eq!(surface.always_expose_tools, vec!["read_docs".to_string()]);
     }
 }

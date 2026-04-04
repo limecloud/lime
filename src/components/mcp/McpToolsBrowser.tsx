@@ -6,7 +6,7 @@
  * @module components/mcp/McpToolsBrowser
  */
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Wrench,
   ChevronDown,
@@ -16,12 +16,16 @@ import {
   Code,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { McpToolDefinition } from "@/lib/api/mcp";
+import { getMcpInnerToolName, McpToolDefinition } from "@/lib/api/mcp";
 
 interface McpToolsBrowserProps {
   tools: McpToolDefinition[];
   loading: boolean;
   onRefresh: () => Promise<void>;
+  serverCount?: number;
+  runningServerCount?: number;
+  onOpenRuntimeTab?: () => void;
+  onOpenConfigTab?: () => void;
   onCallTool?: (
     toolName: string,
     args: Record<string, unknown>,
@@ -32,6 +36,10 @@ export function McpToolsBrowser({
   tools,
   loading,
   onRefresh,
+  serverCount = 0,
+  runningServerCount = 0,
+  onOpenRuntimeTab,
+  onOpenConfigTab,
   onCallTool,
 }: McpToolsBrowserProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,33 +48,115 @@ export function McpToolsBrowser({
   );
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
-  // 按服务器分组工具
-  const toolsByServer = tools.reduce(
-    (acc, tool) => {
-      if (!acc[tool.server_name]) {
-        acc[tool.server_name] = [];
+  const dedupedTools = useMemo(() => {
+    const seen = new Set<string>();
+    return tools.filter((tool) => {
+      const key = `${tool.server_name}::${tool.name}`;
+      if (seen.has(key)) {
+        return false;
       }
-      acc[tool.server_name].push(tool);
-      return acc;
-    },
-    {} as Record<string, McpToolDefinition[]>,
+      seen.add(key);
+      return true;
+    });
+  }, [tools]);
+
+  const toolsByServer = useMemo(
+    () =>
+      dedupedTools.reduce(
+        (acc, tool) => {
+          if (!acc[tool.server_name]) {
+            acc[tool.server_name] = [];
+          }
+          acc[tool.server_name].push(tool);
+          return acc;
+        },
+        {} as Record<string, McpToolDefinition[]>,
+      ),
+    [dedupedTools],
   );
 
-  // 过滤工具
-  const filteredToolsByServer = Object.entries(toolsByServer).reduce(
-    (acc, [serverName, serverTools]) => {
-      const filtered = serverTools.filter(
-        (tool) =>
-          tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tool.description.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
-      if (filtered.length > 0) {
-        acc[serverName] = filtered;
-      }
-      return acc;
-    },
-    {} as Record<string, McpToolDefinition[]>,
+  const filteredToolsByServer = useMemo(
+    () =>
+      Object.entries(toolsByServer).reduce(
+        (acc, [serverName, serverTools]) => {
+          const filtered = serverTools
+            .filter((tool) => {
+              const displayName = getMcpInnerToolName(tool.name, tool.server_name);
+              const normalizedQuery = searchQuery.toLowerCase();
+              return (
+                displayName.toLowerCase().includes(normalizedQuery) ||
+                tool.name.toLowerCase().includes(normalizedQuery) ||
+                tool.description.toLowerCase().includes(normalizedQuery)
+              );
+            })
+            .sort((left, right) => {
+              const leftName = getMcpInnerToolName(left.name, left.server_name);
+              const rightName = getMcpInnerToolName(right.name, right.server_name);
+              return leftName.localeCompare(rightName);
+            });
+          if (filtered.length > 0) {
+            acc[serverName] = filtered;
+          }
+          return acc;
+        },
+        {} as Record<string, McpToolDefinition[]>,
+      ),
+    [searchQuery, toolsByServer],
   );
+
+  useEffect(() => {
+    const serverNames = Object.keys(filteredToolsByServer);
+    setExpandedServers((prev) => {
+      const next = new Set(
+        [...prev].filter((serverName) => serverNames.includes(serverName)),
+      );
+      if (next.size > 0 || serverNames.length === 0) {
+        return next;
+      }
+      return new Set(serverNames);
+    });
+  }, [filteredToolsByServer]);
+
+  const emptyState = useMemo(() => {
+    if (searchQuery) {
+      return {
+        title: "未找到匹配的工具",
+        description: "可以尝试改用服务器名、工具名或描述关键词重新检索。",
+      };
+    }
+
+    if (serverCount === 0) {
+      return {
+        title: "还没有配置 MCP 服务器",
+        description: "先添加服务器配置，再回来浏览和调用工具。",
+        actionLabel: "去配置管理",
+        action: onOpenConfigTab,
+      };
+    }
+
+    if (runningServerCount === 0) {
+      return {
+        title: "已配置服务器，但当前没有运行中的 MCP 服务器",
+        description: "先在“运行状态”里启动服务器，工具目录才会加载出来。",
+        actionLabel: "去启动服务器",
+        action: onOpenRuntimeTab,
+      };
+    }
+
+    return {
+      title: "运行中的服务器暂未暴露工具",
+      description: "可以先刷新一次；如果仍为空，请检查服务器能力声明或连接日志。",
+      actionLabel: "刷新工具列表",
+      action: () => void onRefresh(),
+    };
+  }, [
+    onOpenConfigTab,
+    onOpenRuntimeTab,
+    onRefresh,
+    runningServerCount,
+    searchQuery,
+    serverCount,
+  ]);
 
   const toggleServer = (serverName: string) => {
     const newExpanded = new Set(expandedServers);
@@ -88,139 +178,150 @@ export function McpToolsBrowser({
     setExpandedTools(newExpanded);
   };
 
-  // 格式化 JSON Schema
   const formatSchema = (schema: Record<string, unknown>) => {
     return JSON.stringify(schema, null, 2);
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* 标题栏 */}
-      <div className="p-3 border-b flex items-center justify-between">
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b p-3">
         <div className="flex items-center gap-2">
           <Wrench className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">可用工具</span>
           <span className="text-xs text-muted-foreground">
-            ({tools.length})
+            ({dedupedTools.length})
           </span>
         </div>
         <button
           onClick={() => onRefresh()}
           disabled={loading}
-          className="p-1.5 rounded hover:bg-muted"
+          className="rounded p-1.5 hover:bg-muted"
           title="刷新工具列表"
         >
           <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
         </button>
       </div>
 
-      {/* 搜索框 */}
-      <div className="p-2 border-b">
+      <div className="border-b p-2">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索工具..."
-            className="w-full pl-8 pr-3 py-1.5 rounded border bg-background text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+            className="w-full rounded border bg-background py-1.5 pl-8 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
-      {/* 工具列表 */}
       <div className="flex-1 overflow-auto">
-        {loading && tools.length === 0 ? (
+        {loading && dedupedTools.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : Object.keys(filteredToolsByServer).length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            {searchQuery ? (
-              <p>未找到匹配的工具</p>
-            ) : (
-              <p>暂无可用工具，请先启动 MCP 服务器</p>
-            )}
+          <div className="px-6 py-8 text-center text-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+              <Wrench className="h-5 w-5" />
+            </div>
+            <p className="mt-3 font-medium text-foreground">{emptyState.title}</p>
+            <p className="mt-1 text-muted-foreground">{emptyState.description}</p>
+            {emptyState.actionLabel && emptyState.action ? (
+              <button
+                type="button"
+                onClick={emptyState.action}
+                className="mt-4 inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                {emptyState.actionLabel}
+              </button>
+            ) : null}
           </div>
         ) : (
-          <div className="p-2 space-y-1">
+          <div className="space-y-1 p-2">
             {Object.entries(filteredToolsByServer).map(
               ([serverName, serverTools]) => (
-                <div key={serverName} className="border rounded-lg">
-                  {/* 服务器标题 */}
+                <div key={serverName} className="rounded-lg border">
                   <button
                     onClick={() => toggleServer(serverName)}
-                    className="w-full p-2.5 flex items-center gap-2 hover:bg-muted/50 rounded-t-lg"
+                    className="flex w-full items-center gap-2 rounded-t-lg p-2.5 hover:bg-muted/50"
                   >
                     {expandedServers.has(serverName) ? (
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     ) : (
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
-                    <span className="font-medium text-sm">{serverName}</span>
+                    <span className="text-sm font-medium">{serverName}</span>
                     <span className="text-xs text-muted-foreground">
                       ({serverTools.length} 个工具)
                     </span>
                   </button>
 
-                  {/* 工具列表 */}
                   {expandedServers.has(serverName) && (
                     <div className="border-t">
-                      {serverTools.map((tool) => (
-                        <div
-                          key={tool.name}
-                          className="border-b last:border-b-0"
-                        >
-                          {/* 工具标题 */}
-                          <button
-                            onClick={() => toggleTool(tool.name)}
-                            className="w-full p-2.5 pl-8 flex items-start gap-2 hover:bg-muted/30 text-left"
-                          >
-                            {expandedTools.has(tool.name) ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <Code className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
-                                <span className="font-mono text-sm text-blue-600 dark:text-blue-400">
-                                  {tool.name}
-                                </span>
-                              </div>
-                              {tool.description && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                  {tool.description}
-                                </p>
-                              )}
-                            </div>
-                          </button>
+                      {serverTools.map((tool) => {
+                        const displayName = getMcpInnerToolName(
+                          tool.name,
+                          tool.server_name,
+                        );
 
-                          {/* 工具详情 */}
-                          {expandedTools.has(tool.name) && (
-                            <div className="px-8 pb-3">
-                              <div className="bg-muted/50 rounded-lg p-3">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-xs font-medium text-muted-foreground">
-                                    输入参数 Schema
+                        return (
+                          <div
+                            key={`${tool.server_name}::${tool.name}`}
+                            className="border-b last:border-b-0"
+                          >
+                            <button
+                              onClick={() => toggleTool(tool.name)}
+                              className="flex w-full items-start gap-2 p-2.5 pl-8 text-left hover:bg-muted/30"
+                            >
+                              {expandedTools.has(tool.name) ? (
+                                <ChevronDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Code className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
+                                  <span
+                                    className="font-mono text-sm text-blue-600 dark:text-blue-400"
+                                    title={tool.name}
+                                  >
+                                    {displayName}
                                   </span>
-                                  {onCallTool && (
-                                    <button
-                                      onClick={() => onCallTool(tool.name, {})}
-                                      className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
-                                    >
-                                      调用工具
-                                    </button>
-                                  )}
                                 </div>
-                                <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all bg-background p-2 rounded border">
-                                  {formatSchema(tool.input_schema)}
-                                </pre>
+                                {tool.description && (
+                                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                    {tool.description}
+                                  </p>
+                                )}
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            </button>
+
+                            {expandedTools.has(tool.name) && (
+                              <div className="px-8 pb-3">
+                                <div className="rounded-lg bg-muted/50 p-3">
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-xs font-medium text-muted-foreground">
+                                      输入参数 Schema
+                                    </span>
+                                    {onCallTool && (
+                                      <button
+                                        onClick={() => onCallTool(tool.name, {})}
+                                        className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                                      >
+                                        调用工具
+                                      </button>
+                                    )}
+                                  </div>
+                                  <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono text-xs">
+                                    {formatSchema(tool.input_schema)}
+                                  </pre>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

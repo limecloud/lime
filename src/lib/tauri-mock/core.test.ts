@@ -78,8 +78,20 @@ describe("tauri-mock/core invoke", () => {
           }),
           default_allowed_tools: expect.arrayContaining([
             "ToolSearch",
+            "ListMcpResourcesTool",
+            "ReadMcpResourceTool",
+            "Bash",
             "WebSearch",
-            "ask",
+            "WebFetch",
+            "AskUserQuestion",
+            "SendUserMessage",
+            "SendMessage",
+            "TeamCreate",
+            "TeamDelete",
+            "ListPeers",
+            "RemoteTrigger",
+            "TaskCreate",
+            "Workflow",
           ]),
           counts: expect.objectContaining({
             catalog_total: expect.any(Number),
@@ -87,10 +99,26 @@ describe("tauri-mock/core invoke", () => {
           }),
           catalog_tools: expect.arrayContaining([
             expect.objectContaining({ name: "ToolSearch" }),
+            expect.objectContaining({ name: "ListMcpResourcesTool" }),
+            expect.objectContaining({ name: "Bash" }),
             expect.objectContaining({ name: "WebSearch" }),
+            expect.objectContaining({ name: "WebFetch" }),
+            expect.objectContaining({ name: "SendUserMessage" }),
+            expect.objectContaining({ name: "RemoteTrigger" }),
+            expect.objectContaining({ name: "CronCreate" }),
           ]),
           registry_tools: expect.arrayContaining([
-            expect.objectContaining({ name: "ask" }),
+            expect.objectContaining({ name: "AskUserQuestion" }),
+            expect.objectContaining({ name: "SendUserMessage" }),
+            expect.objectContaining({ name: "ReadMcpResourceTool" }),
+            expect.objectContaining({ name: "EnterPlanMode" }),
+            expect.objectContaining({ name: "SendMessage" }),
+            expect.objectContaining({ name: "TeamCreate" }),
+            expect.objectContaining({ name: "TeamDelete" }),
+            expect.objectContaining({ name: "ListPeers" }),
+            expect.objectContaining({ name: "CronList" }),
+            expect.objectContaining({ name: "TaskOutput" }),
+            expect.objectContaining({ name: "ExitWorktree" }),
           ]),
           mcp_tools: expect.arrayContaining([
             expect.objectContaining({ name: "mcp__lime-browser__navigate" }),
@@ -111,6 +139,37 @@ describe("tauri-mock/core invoke", () => {
     try {
       await expect(invoke("workspace_get_projects_root")).resolves.toBe(
         "/mock/workspace/projects",
+      );
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
+  });
+
+  it("媒体任务命令在 bridge 失败时应回退统一 task file mock 协议", async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    try {
+      await expect(
+        invoke("list_media_task_artifacts", {
+          request: {
+            projectRootPath: "/mock/workspace",
+            taskFamily: "image",
+          },
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          success: true,
+          total: 1,
+          tasks: expect.arrayContaining([
+            expect.objectContaining({
+              task_type: "image_generate",
+              task_family: "image",
+            }),
+          ]),
+        }),
       );
     } finally {
       consoleWarnSpy.mockRestore();

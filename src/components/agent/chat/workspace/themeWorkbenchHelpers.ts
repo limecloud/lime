@@ -16,8 +16,7 @@ import { parseSkillSlashCommand } from "../hooks/skillCommand";
 import type { Message } from "../types";
 import type { TaskFile } from "../components/TaskFiles";
 
-export const THEME_WORKBENCH_DOCUMENT_META_KEY =
-  "theme_workbench_document_v1";
+export const THEME_WORKBENCH_DOCUMENT_META_KEY = "theme_workbench_document_v1";
 export const MAX_PERSISTED_DOCUMENT_VERSIONS = 40;
 export const SOCIAL_ARTICLE_SKILL_KEY = "social_post_with_cover";
 export const THEME_WORKBENCH_ACTIVE_RUN_MAX_AGE_MS = 45 * 1000;
@@ -195,6 +194,15 @@ function resolveThemeWorkbenchToolTaskTitle(toolCall: ToolCallState): string {
   if (normalized.includes("bash") || normalized.includes("shell")) {
     const commandValue = resolveThemeWorkbenchTextArg(args, ["command", "cmd"]);
     const commandProbe = commandValue.toLowerCase();
+    if (commandProbe.includes("lime media image generate")) {
+      return "提交配图任务";
+    }
+    if (commandProbe.includes("lime media cover generate")) {
+      return "提交封面任务";
+    }
+    if (commandProbe.includes("lime media video generate")) {
+      return "提交视频任务";
+    }
     if (commandProbe.includes("ffmpeg")) {
       return "处理音视频素材";
     }

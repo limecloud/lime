@@ -1,106 +1,56 @@
 use super::*;
-
-fn is_safe_relative_path(path: &Path) -> bool {
-    if path.is_absolute() {
-        return false;
-    }
-    !path.components().any(|component| {
-        matches!(
-            component,
-            std::path::Component::ParentDir
-                | std::path::Component::RootDir
-                | std::path::Component::Prefix(_)
-        )
-    })
-}
-
-fn resolve_output_relative_path(
-    task_type: &str,
-    output_path: Option<&str>,
-) -> Result<PathBuf, ToolError> {
-    if let Some(raw) = output_path {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            return Err(ToolError::invalid_params(
-                "outputPath 不能为空字符串".to_string(),
-            ));
-        }
-        let candidate = PathBuf::from(trimmed);
-        if !is_safe_relative_path(&candidate) {
-            return Err(ToolError::invalid_params(
-                "outputPath 必须是安全的相对路径，且不能包含 '..'".to_string(),
-            ));
-        }
-        return Ok(candidate);
-    }
-
-    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S").to_string();
-    let suffix = uuid::Uuid::new_v4().simple().to_string();
-    Ok(PathBuf::from(".lime")
-        .join("tasks")
-        .join(task_type)
-        .join(format!("{timestamp}-{suffix}.json")))
-}
+use lime_media_runtime::{write_task_artifact, MediaTaskType, TaskType, TaskWriteOptions};
 
 fn submit_creation_task_record(
     app_handle: &AppHandle,
     context: &ToolContext,
-    task_type: &str,
+    task_type: TaskType,
     title: Option<String>,
     payload: serde_json::Value,
+    status: Option<String>,
     output_path: Option<&str>,
 ) -> Result<ToolResult, ToolError> {
-    let output_rel_path = resolve_output_relative_path(task_type, output_path)?;
-    let output_abs_path = context.working_directory.join(&output_rel_path);
+    let output = write_task_artifact(
+        context.working_directory.as_path(),
+        task_type,
+        title,
+        payload,
+        TaskWriteOptions {
+            status,
+            output_path,
+            artifact_dir: None,
+            idempotency_key: None,
+        },
+    )
+    .map_err(media_cli_bridge::tool_error_from_media_runtime)?;
 
-    let parent = output_abs_path
-        .parent()
-        .ok_or_else(|| ToolError::execution_failed("无法解析任务文件父目录".to_string()))?;
-    std::fs::create_dir_all(parent)
-        .map_err(|error| ToolError::execution_failed(format!("创建任务目录失败: {error}")))?;
+    media_cli_bridge::emit_media_creation_task_event(app_handle, &output);
+    let serialized = serde_json::to_string_pretty(&output)
+        .unwrap_or_else(|_| serde_json::json!(&output).to_string());
+    Ok(media_cli_bridge::attach_media_task_metadata(
+        ToolResult::success(serialized),
+        &output,
+    ))
+}
 
-    let task_id = uuid::Uuid::new_v4().to_string();
-    let task_record = serde_json::json!({
-        "task_id": task_id,
-        "task_type": task_type,
-        "title": title,
-        "payload": payload,
-        "status": "pending_submit",
-        "created_at": chrono::Utc::now().to_rfc3339()
-    });
-    let task_content =
-        serde_json::to_string_pretty(&task_record).unwrap_or_else(|_| task_record.to_string());
-
-    std::fs::write(&output_abs_path, task_content.as_bytes())
-        .map_err(|error| ToolError::execution_failed(format!("写入任务文件失败: {error}")))?;
-
-    let emitted_payload = serde_json::json!({
-        "task_id": task_id,
-        "task_type": task_type,
-        "path": output_rel_path.to_string_lossy().to_string(),
-        "absolute_path": output_abs_path.to_string_lossy().to_string()
-    });
-    if let Err(error) = app_handle.emit("lime://creation_task_submitted", &emitted_payload) {
-        tracing::warn!(
-            "[AsterAgent] creation_task_submitted 事件发送失败: {}",
-            error
-        );
-    }
-
-    let output_payload = serde_json::json!({
-        "success": true,
-        "task_id": task_id,
-        "task_type": task_type,
-        "path": output_rel_path.to_string_lossy().to_string(),
-        "absolute_path": output_abs_path.to_string_lossy().to_string(),
-        "record": task_record
-    });
-    let output = serde_json::to_string_pretty(&output_payload)
-        .unwrap_or_else(|_| output_payload.to_string());
-    Ok(ToolResult::success(output)
-        .with_metadata("task_id", serde_json::json!(task_id))
-        .with_metadata("task_type", serde_json::json!(task_type))
-        .with_metadata("path", serde_json::json!(output_abs_path.to_string_lossy())))
+fn submit_media_generation_task_record(
+    app_handle: &AppHandle,
+    context: &ToolContext,
+    task_type: MediaTaskType,
+    title: Option<String>,
+    payload: serde_json::Value,
+    status: Option<String>,
+    output_path: Option<&str>,
+) -> Result<ToolResult, ToolError> {
+    submit_creation_task_record(
+        app_handle,
+        context,
+        task_type,
+        title,
+        payload,
+        status,
+        output_path,
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -182,9 +132,10 @@ impl Tool for LimeCreateBroadcastTaskTool {
         submit_creation_task_record(
             &self.app_handle,
             context,
-            "broadcast_generate",
+            TaskType::BroadcastGenerate,
             input.title,
             payload,
+            None,
             input.output_path.as_deref(),
         )
     }
@@ -268,18 +219,21 @@ impl Tool for LimeCreateCoverTaskTool {
         }
         let payload = serde_json::json!({
             "prompt": input.prompt,
+            "model": "lime-cover-cli",
             "platform": input.platform,
             "size": input.size,
             "imageUrl": input.image_url,
+            "usage": "cover",
             "status": input.status,
             "remark": input.remark
         });
-        submit_creation_task_record(
+        submit_media_generation_task_record(
             &self.app_handle,
             context,
-            "cover_generate",
+            MediaTaskType::CoverGenerate,
             input.title,
             payload,
+            Some("pending_submit".to_string()),
             input.output_path.as_deref(),
         )
     }
@@ -367,9 +321,10 @@ impl Tool for LimeCreateResourceSearchTaskTool {
         submit_creation_task_record(
             &self.app_handle,
             context,
-            "modal_resource_search",
+            TaskType::ModalResourceSearch,
             input.title,
             payload,
+            None,
             input.output_path.as_deref(),
         )
     }
@@ -450,17 +405,19 @@ impl Tool for LimeCreateImageTaskTool {
         }
         let payload = serde_json::json!({
             "prompt": input.prompt,
+            "model": "lime-image-cli",
             "style": input.style,
             "size": input.size,
             "count": input.count,
             "usage": input.usage
         });
-        submit_creation_task_record(
+        submit_media_generation_task_record(
             &self.app_handle,
             context,
-            "image_generate",
+            MediaTaskType::ImageGenerate,
             input.title,
             payload,
+            Some("pending_submit".to_string()),
             input.output_path.as_deref(),
         )
     }
@@ -543,9 +500,10 @@ impl Tool for LimeCreateUrlParseTaskTool {
         submit_creation_task_record(
             &self.app_handle,
             context,
-            "url_parse",
+            TaskType::UrlParse,
             input.title,
             payload,
+            None,
             input.output_path.as_deref(),
         )
     }
@@ -626,9 +584,10 @@ impl Tool for LimeCreateTypesettingTaskTool {
         submit_creation_task_record(
             &self.app_handle,
             context,
-            "typesetting",
+            TaskType::Typesetting,
             input.title,
             payload,
+            None,
             input.output_path.as_deref(),
         )
     }
@@ -638,13 +597,19 @@ impl Tool for LimeCreateTypesettingTaskTool {
 struct LimeCreateVideoGenerationTaskTool {
     db: DbConnection,
     api_key_provider_service: Arc<ApiKeyProviderService>,
+    app_handle: AppHandle,
 }
 
 impl LimeCreateVideoGenerationTaskTool {
-    fn new(db: DbConnection, api_key_provider_service: Arc<ApiKeyProviderService>) -> Self {
+    fn new(
+        db: DbConnection,
+        api_key_provider_service: Arc<ApiKeyProviderService>,
+        app_handle: AppHandle,
+    ) -> Self {
         Self {
             db,
             api_key_provider_service,
+            app_handle,
         }
     }
 }
@@ -699,7 +664,7 @@ impl Tool for LimeCreateVideoGenerationTaskTool {
     async fn execute(
         &self,
         params: serde_json::Value,
-        _context: &ToolContext,
+        context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
         let request: CreateVideoGenerationRequest = serde_json::from_value(params)
             .map_err(|error| ToolError::invalid_params(format!("参数解析失败: {error}")))?;
@@ -719,12 +684,46 @@ impl Tool for LimeCreateVideoGenerationTaskTool {
             .await
             .map_err(|error| ToolError::execution_failed(format!("创建视频任务失败: {error}")))?;
 
+        let task_json = serde_json::to_value(&created).unwrap_or_else(|_| serde_json::json!({}));
+        let artifact_output = write_task_artifact(
+            context.working_directory.as_path(),
+            MediaTaskType::VideoGenerate,
+            Some(created.prompt.clone()),
+            serde_json::json!({
+                "projectId": created.project_id.clone(),
+                "providerId": created.provider_id.clone(),
+                "model": created.model.clone(),
+                "prompt": created.prompt.clone(),
+                "status": created.status.to_string(),
+                "task": task_json.clone(),
+            }),
+            TaskWriteOptions {
+                status: Some(created.status.to_string()),
+                output_path: None,
+                artifact_dir: None,
+                idempotency_key: None,
+            },
+        )
+        .map_err(media_cli_bridge::tool_error_from_media_runtime)?;
+
+        media_cli_bridge::emit_media_creation_task_event(&self.app_handle, &artifact_output);
         let payload = serde_json::json!({
             "success": true,
-            "task": created
+            "task_id": artifact_output.task_id,
+            "task_type": artifact_output.task_type,
+            "status": artifact_output.status,
+            "path": artifact_output.path,
+            "absolute_path": artifact_output.absolute_path,
+            "artifact_path": artifact_output.artifact_path,
+            "absolute_artifact_path": artifact_output.absolute_artifact_path,
+            "task": created,
+            "record": artifact_output.record
         });
         let output = serde_json::to_string_pretty(&payload).unwrap_or_else(|_| payload.to_string());
-        Ok(ToolResult::success(output))
+        Ok(media_cli_bridge::attach_media_task_metadata(
+            ToolResult::success(output),
+            &artifact_output,
+        ))
     }
 }
 
@@ -738,6 +737,7 @@ pub(super) fn register_creation_task_tools_to_registry(
         registry.register(Box::new(LimeCreateVideoGenerationTaskTool::new(
             db.clone(),
             api_key_provider_service.clone(),
+            app_handle.clone(),
         )));
     }
     if !registry.contains(LIME_CREATE_BROADCAST_TASK_TOOL_NAME) {

@@ -57,6 +57,7 @@ import {
   exportAgentRuntimeReviewDecisionTemplate,
   saveAgentRuntimeReviewDecision,
 } from "@/lib/api/agentRuntime";
+import { getMcpInnerToolName } from "@/lib/api/mcp";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -3535,7 +3536,7 @@ export function HarnessStatusPanel({
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted-foreground">
                             把 handoff / evidence / replay 主链重新包装成外部
-                            Claude Code / Codex
+                            Claude / Codex
                             可直接消费的分析交接；复制后可直接粘贴给 AI，
                             不需要你再手写补充 prompt。
                           </div>
@@ -3785,7 +3786,7 @@ export function HarnessStatusPanel({
                         <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
                           尚未导出外部分析交接。点击“一键复制给
                           AI”时会自动先导出再复制， 用于把当前 Lime
-                          证据链直接交给外部 Claude Code / Codex
+                          证据链直接交给外部 Claude / Codex
                           做诊断与最小修复。
                         </div>
                       )}
@@ -3799,7 +3800,7 @@ export function HarnessStatusPanel({
                             <span>人工审核记录</span>
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                            把外部 Claude Code / Codex 的分析结论回挂为
+                            把外部 Claude / Codex 的分析结论回挂为
                             `review-decision.md/json`
                             模板，固定接受、延后、拒绝与回归要求；最终决策仍由开发者审核，不是
                             Lime 自动闭环。
@@ -5098,7 +5099,10 @@ export function HarnessStatusPanel({
                               >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="text-sm font-medium text-foreground">
-                                    {entry.name}
+                                    {getMcpInnerToolName(
+                                      entry.name,
+                                      entry.server_name,
+                                    )}
                                   </span>
                                   <Badge variant="outline">
                                     {entry.server_name}

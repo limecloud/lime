@@ -548,7 +548,7 @@ describe("ThemeWorkbenchSidebar", () => {
             },
             {
               id: "tool-input-1",
-              name: "request_user_input",
+              name: "AskUserQuestion",
               arguments: JSON.stringify({ question: "需要继续吗？" }),
               status: "running",
               startTime: new Date("2026-03-12T10:40:02.000Z"),

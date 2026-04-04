@@ -4,6 +4,18 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 export const COMPANION_PET_STATUS_EVENT = "companion-pet-status";
 export const COMPANION_OPEN_PROVIDER_SETTINGS_EVENT =
   "companion-open-provider-settings";
+export const COMPANION_REQUEST_PROVIDER_SYNC_EVENT =
+  "companion-request-provider-sync";
+export const COMPANION_REQUEST_PET_CHEER_EVENT = "companion-request-pet-cheer";
+export const COMPANION_REQUEST_PET_NEXT_STEP_EVENT =
+  "companion-request-pet-next-step";
+export const COMPANION_REQUEST_PET_CHAT_EVENT = "companion-request-pet-chat";
+export const COMPANION_REQUEST_PET_CHAT_RESET_EVENT =
+  "companion-request-pet-chat-reset";
+export const COMPANION_REQUEST_PET_VOICE_CHAT_EVENT =
+  "companion-request-pet-voice-chat";
+export const COMPANION_PET_VOICE_TRANSCRIPT_EVENT =
+  "companion-pet-voice-transcript";
 export const COMPANION_PROVIDER_OVERVIEW_CAPABILITY = "provider-overview";
 
 export type CompanionPetVisualState =
@@ -49,6 +61,18 @@ export interface CompanionPetCommandRequest<
 export interface CompanionPetSendResult {
   delivered: boolean;
   connected: boolean;
+}
+
+export interface CompanionPetChatRequestPayload {
+  text: string;
+  source?: string | null;
+}
+
+export interface CompanionPetLive2DActionPayload {
+  expressions?: Array<number | string>;
+  emotion_tags?: string[];
+  motion_group?: string | null;
+  motion_index?: number | null;
 }
 
 export async function getCompanionPetStatus(): Promise<CompanionPetStatus> {

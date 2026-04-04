@@ -423,11 +423,33 @@ impl AntigravityProvider {
         Ok(())
     }
 
+    async fn resolve_credentials_path(path: &str) -> PathBuf {
+        let explicit_path = PathBuf::from(path);
+        if tokio::fs::try_exists(&explicit_path).await.unwrap_or(false) {
+            return explicit_path;
+        }
+
+        let default_path = Self::default_creds_path();
+        if explicit_path != default_path
+            && tokio::fs::try_exists(&default_path).await.unwrap_or(false)
+        {
+            tracing::warn!(
+                "[ANTIGRAVITY] 显式凭证路径不存在，回退到默认路径: missing={}, fallback={}",
+                explicit_path.display(),
+                default_path.display()
+            );
+            return default_path;
+        }
+
+        explicit_path
+    }
+
     pub async fn load_credentials_from_path(
         &mut self,
         path: &str,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let content = tokio::fs::read_to_string(path).await?;
+        let resolved_path = Self::resolve_credentials_path(path).await;
+        let content = tokio::fs::read_to_string(&resolved_path).await?;
 
         // 尝试解析为单个凭证对象
         if let Ok(creds) = serde_json::from_str::<AntigravityCredentials>(&content) {
@@ -2268,6 +2290,41 @@ impl StreamingProvider for AntigravityProvider {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+    use std::ffi::OsString;
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::tempdir;
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvGuard {
+        values: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvGuard {
+        fn set(entries: &[(&'static str, OsString)]) -> Self {
+            let mut values = Vec::new();
+            for (key, value) in entries {
+                values.push((*key, std::env::var_os(key)));
+                std::env::set_var(key, value);
+            }
+            Self { values }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (key, previous) in self.values.drain(..) {
+                if let Some(value) = previous {
+                    std::env::set_var(key, value);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
 
     // 辅助函数：检查是否为 Valid 状态
     fn is_valid(result: &TokenValidationResult) -> bool {
@@ -2576,5 +2633,57 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(error.requires_reauth());
+    }
+
+    #[tokio::test]
+    async fn load_credentials_from_path_prefers_existing_explicit_path() {
+        let _guard = env_lock().lock().expect("env lock");
+        let temp = tempdir().expect("create tempdir");
+        let _env = EnvGuard::set(&[("HOME", temp.path().as_os_str().to_os_string())]);
+        let explicit_path = temp.path().join("explicit.json");
+        std::fs::write(
+            &explicit_path,
+            r#"{"access_token":"explicit_token","refresh_token":"refresh","project_id":"explicit-project"}"#,
+        )
+        .expect("write explicit creds");
+
+        let mut provider = AntigravityProvider::new();
+        provider
+            .load_credentials_from_path(explicit_path.to_string_lossy().as_ref())
+            .await
+            .expect("load explicit creds");
+
+        assert_eq!(
+            provider.credentials.access_token.as_deref(),
+            Some("explicit_token")
+        );
+        assert_eq!(provider.project_id.as_deref(), Some("explicit-project"));
+    }
+
+    #[tokio::test]
+    async fn load_credentials_from_path_falls_back_to_default_path_when_explicit_missing() {
+        let _guard = env_lock().lock().expect("env lock");
+        let temp = tempdir().expect("create tempdir");
+        let _env = EnvGuard::set(&[("HOME", temp.path().as_os_str().to_os_string())]);
+        let default_path = temp.path().join(".antigravity").join("oauth_creds.json");
+        std::fs::create_dir_all(default_path.parent().expect("default parent"))
+            .expect("create default dir");
+        std::fs::write(
+            &default_path,
+            r#"{"access_token":"fallback_token","refresh_token":"refresh","project_id":"fallback-project"}"#,
+        )
+        .expect("write fallback creds");
+
+        let mut provider = AntigravityProvider::new();
+        provider
+            .load_credentials_from_path(temp.path().join("missing.json").to_string_lossy().as_ref())
+            .await
+            .expect("load fallback creds");
+
+        assert_eq!(
+            provider.credentials.access_token.as_deref(),
+            Some("fallback_token")
+        );
+        assert_eq!(provider.project_id.as_deref(), Some("fallback-project"));
     }
 }

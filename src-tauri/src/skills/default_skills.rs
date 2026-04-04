@@ -317,8 +317,17 @@ mod tests {
         assert!(VIDEO_GENERATE_SKILL_CONTENT.contains("name: video_generate"));
         assert!(BROADCAST_GENERATE_SKILL_CONTENT.contains("name: broadcast_generate"));
         assert!(COVER_GENERATE_SKILL_CONTENT.contains("name: cover_generate"));
+        assert!(COVER_GENERATE_SKILL_CONTENT.contains(
+            "allowed-tools: social_generate_cover_image, Bash, lime_create_cover_generation_task"
+        ));
+        assert!(COVER_GENERATE_SKILL_CONTENT
+            .contains("优先调用 `Bash` 执行 `lime task create cover --json` 创建任务"));
         assert!(MODAL_RESOURCE_SEARCH_SKILL_CONTENT.contains("name: modal_resource_search"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("name: image_generate"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("allowed-tools: Bash, lime_create_image_generation_task"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("优先调用 `Bash` 执行 `lime task create image --json` 创建任务。"));
         assert!(LIBRARY_SKILL_CONTENT.contains("name: library"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("name: url_parse"));
         assert!(RESEARCH_SKILL_CONTENT.contains("name: research"));

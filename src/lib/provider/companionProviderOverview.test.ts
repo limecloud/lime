@@ -157,4 +157,79 @@ describe("buildCompanionProviderOverview", () => {
     expect(serialized).not.toContain("base_url");
     expect(serialized).not.toContain("display_credential");
   });
+
+  it("应把 API Key Provider 与凭证池摘要合并给桌宠", () => {
+    const result = buildCompanionProviderOverview(
+      [
+        {
+          provider_type: "openai",
+          stats: {
+            total: 1,
+            healthy: 1,
+            unhealthy: 0,
+            disabled: 0,
+            total_usage: 2,
+            total_errors: 0,
+          },
+          credentials: [],
+        },
+      ],
+      [
+        {
+          id: "deepseek",
+          name: "DeepSeek",
+          type: "openai",
+          api_host: "https://api.deepseek.com/v1",
+          is_system: false,
+          group: "cloud",
+          enabled: true,
+          sort_order: 10,
+          custom_models: [],
+          api_key_count: 1,
+          api_keys: [
+            {
+              id: "deepseek-key-1",
+              provider_id: "deepseek",
+              api_key_masked: "sk-***1234",
+              enabled: true,
+              usage_count: 0,
+              error_count: 0,
+              created_at: "2026-04-01T00:00:00Z",
+            },
+          ],
+          created_at: "2026-04-01T00:00:00Z",
+          updated_at: "2026-04-01T00:00:00Z",
+        },
+      ],
+    );
+
+    expect(result).toEqual({
+      providers: [
+        {
+          provider_type: "deepseek",
+          display_name: "DeepSeek",
+          total_count: 1,
+          healthy_count: 1,
+          available: true,
+          needs_attention: false,
+        },
+        {
+          provider_type: "openai",
+          display_name: "OpenAI",
+          total_count: 1,
+          healthy_count: 1,
+          available: true,
+          needs_attention: false,
+        },
+      ],
+      total_provider_count: 2,
+      available_provider_count: 2,
+      needs_attention_provider_count: 0,
+    });
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("sk-***1234");
+    expect(serialized).not.toContain("deepseek-key-1");
+    expect(serialized).not.toContain("api_host");
+  });
 });

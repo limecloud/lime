@@ -57,6 +57,64 @@
       "allowedPaths": []
     },
     {
+      "id": "claw-home-shell-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 首页壳入口",
+      "targets": ["src/components/agent/chat/AgentChatHomeShell.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-home-shell-preference-hook",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 首页壳偏好恢复 Hook",
+      "targets": ["src/components/agent/chat/hooks/useHomeShellAgentPreferences.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-home-shell-project-memory-hook",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 首页项目记忆 Hook",
+      "targets": ["src/components/agent/chat/hooks/useHomeShellProjectMemory.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-home-shell-skills-hook",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 首页技能加载 Hook",
+      "targets": ["src/components/agent/chat/hooks/useHomeShellSkills.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-home-shell-solution-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 首页推荐方案组件与辅助模块",
+      "targets": [
+        "src/components/agent/chat/claw-solutions/ClawHomeSolutionsPanel.tsx",
+        "src/components/agent/chat/claw-solutions/useClawSolutions.ts",
+        "src/components/agent/chat/claw-solutions/actionDispatcher.ts",
+        "src/components/agent/chat/claw-solutions/storage.ts",
+        "src/components/agent/chat/claw-solutions/types.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-solution-legacy-api-gateway",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 推荐方案前端 API 网关",
+      "targets": ["src/lib/api/clawSolutions.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-solution-legacy-rust-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 推荐方案 Rust 命令与服务模块",
+      "targets": [
+        "src-tauri/src/commands/claw_solution_cmd.rs",
+        "src-tauri/src/services/claw_solution_service.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "heartbeat-api-gateway",
       "classification": "dead-candidate",
       "description": "已删除的旧 heartbeat 前端 API 入口",
@@ -730,6 +788,18 @@
         "get_tray_state",
         "refresh_tray_menu",
         "refresh_tray_with_stats"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "claw-solution-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Claw 首页推荐方案命令边界",
+      "commands": [
+        "claw_solution_list",
+        "claw_solution_detail",
+        "claw_solution_check_readiness",
+        "claw_solution_prepare"
       ],
       "allowedPaths": []
     },

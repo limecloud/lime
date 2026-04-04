@@ -1,8 +1,16 @@
-use super::{args_or_default, get_string_arg};
+use super::{args_or_default, get_string_arg, require_app_handle};
 use crate::dev_bridge::DevBridgeState;
 use serde_json::Value as JsonValue;
+use tauri::Manager;
 
 type DynError = Box<dyn std::error::Error>;
+
+fn get_optional_string_arg(args: &JsonValue, primary: &str, secondary: &str) -> Option<String> {
+    args.get(primary)
+        .or_else(|| args.get(secondary))
+        .and_then(|value| value.as_str())
+        .map(ToString::to_string)
+}
 
 pub(super) async fn try_handle(
     state: &DevBridgeState,
@@ -122,6 +130,52 @@ pub(super) async fn try_handle(
                 .await
                 .map_err(|e| format!("检查远程 Skill 失败: {e}"))?;
             serde_json::to_value(inspection)?
+        }
+        "list_executable_skills" => serde_json::to_value(
+            crate::commands::skill_exec_cmd::list_executable_skills()
+                .await
+                .map_err(|e| format!("获取可执行 Skill 列表失败: {e}"))?,
+        )?,
+        "get_skill_detail" => {
+            let args = args_or_default(args);
+            let skill_name = get_string_arg(&args, "skillName", "skill_name")
+                .or_else(|_| get_string_arg(&args, "skill_name", "skillName"))?;
+            serde_json::to_value(
+                crate::commands::skill_exec_cmd::get_skill_detail(skill_name)
+                    .await
+                    .map_err(|e| format!("获取 Skill 详情失败: {e}"))?,
+            )?
+        }
+        "execute_skill" => {
+            let app_handle = require_app_handle(state)?;
+            let args = args_or_default(args);
+            let skill_name = get_string_arg(&args, "skillName", "skill_name")
+                .or_else(|_| get_string_arg(&args, "skill_name", "skillName"))?;
+            let user_input = get_string_arg(&args, "userInput", "user_input")
+                .or_else(|_| get_string_arg(&args, "user_input", "userInput"))?;
+            let db = app_handle.state::<crate::database::DbConnection>();
+            let api_key_provider_service =
+                app_handle
+                    .state::<crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            serde_json::to_value(
+                crate::commands::skill_exec_cmd::execute_skill(
+                    app_handle.clone(),
+                    db,
+                    api_key_provider_service,
+                    config_manager,
+                    aster_state,
+                    skill_name,
+                    user_input,
+                    get_optional_string_arg(&args, "providerOverride", "provider_override"),
+                    get_optional_string_arg(&args, "modelOverride", "model_override"),
+                    get_optional_string_arg(&args, "executionId", "execution_id"),
+                    get_optional_string_arg(&args, "sessionId", "session_id"),
+                )
+                .await
+                .map_err(|e| format!("执行 Skill 失败: {e}"))?,
+            )?
         }
         _ => return Ok(None),
     };

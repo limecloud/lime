@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { createInitialCanvasState, type CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
-import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
+import {
+  DEFAULT_CANVAS_STATE,
+  type CanvasState as GeneralCanvasState,
+} from "@/components/general-chat/bridge";
 import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 import type { CanvasWorkbenchLayoutMode } from "../components/CanvasWorkbenchLayout";
@@ -22,6 +25,7 @@ interface UseWorkspaceCanvasLayoutRuntimeParams {
   autoCollapsedTopicSidebarRef: MutableRefObject<boolean>;
   mappedTheme: ThemeType;
   normalizedEntryTheme: ThemeType;
+  shouldPreserveBlankHomeSurface: boolean;
   shouldBootstrapCanvasOnEntry: boolean;
   canvasState: CanvasStateUnion | null;
   generalCanvasState: GeneralCanvasState;
@@ -56,6 +60,7 @@ export function useWorkspaceCanvasLayoutRuntime({
   autoCollapsedTopicSidebarRef,
   mappedTheme,
   normalizedEntryTheme,
+  shouldPreserveBlankHomeSurface,
   shouldBootstrapCanvasOnEntry,
   canvasState,
   generalCanvasState,
@@ -93,6 +98,30 @@ export function useWorkspaceCanvasLayoutRuntime({
 
     setShowSidebar(false);
 
+    if (shouldPreserveBlankHomeSurface) {
+      if (layoutMode !== "chat") {
+        setLayoutMode("chat");
+      }
+
+      if (activeTheme === "general") {
+        const isDefaultGeneralCanvasState =
+          generalCanvasState.isOpen === DEFAULT_CANVAS_STATE.isOpen &&
+          generalCanvasState.contentType === DEFAULT_CANVAS_STATE.contentType &&
+          generalCanvasState.content === DEFAULT_CANVAS_STATE.content &&
+          generalCanvasState.isEditing === DEFAULT_CANVAS_STATE.isEditing;
+
+        if (!isDefaultGeneralCanvasState) {
+          setGeneralCanvasState(DEFAULT_CANVAS_STATE);
+        }
+      }
+
+      if (canvasState) {
+        setCanvasState(null);
+      }
+
+      return;
+    }
+
     if (layoutMode === "canvas") {
       return;
     }
@@ -121,6 +150,10 @@ export function useWorkspaceCanvasLayoutRuntime({
   }, [
     activeTheme,
     canvasState,
+    generalCanvasState.content,
+    generalCanvasState.contentType,
+    generalCanvasState.isEditing,
+    generalCanvasState.isOpen,
     layoutMode,
     mappedTheme,
     setCanvasState,
@@ -128,6 +161,7 @@ export function useWorkspaceCanvasLayoutRuntime({
     setLayoutMode,
     setShowSidebar,
     showChatPanel,
+    shouldPreserveBlankHomeSurface,
   ]);
 
   useEffect(() => {

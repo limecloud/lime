@@ -373,11 +373,11 @@ export function ProviderForm({
   const generateJsonFromFields = useCallback(() => {
     const env: Record<string, string> = {};
     if (apiKey) {
-      // Claude Code 只需要 ANTHROPIC_API_KEY，不需要 OPENAI_API_KEY
+      // Claude 只需要 ANTHROPIC_API_KEY，不需要 OPENAI_API_KEY
       env.ANTHROPIC_API_KEY = apiKey;
     }
     if (baseUrl) {
-      // Claude Code 只需要 ANTHROPIC_BASE_URL，不需要 OPENAI_BASE_URL
+      // Claude 只需要 ANTHROPIC_BASE_URL，不需要 OPENAI_BASE_URL
       env.ANTHROPIC_BASE_URL = baseUrl;
     }
     if (primaryModel) env.ANTHROPIC_MODEL = primaryModel;

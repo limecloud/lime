@@ -1900,7 +1900,7 @@ describe("TeamWorkspaceBoard", () => {
     ]);
   });
 
-  it("选中其他子代理时应支持 send_input 与 interrupt send_input", async () => {
+  it("选中其他子代理时应支持 SendMessage 与 interrupt SendMessage", async () => {
     const onSendSubagentInput = vi.fn();
     const container = await renderBoard({
       currentSessionId: "parent-1",

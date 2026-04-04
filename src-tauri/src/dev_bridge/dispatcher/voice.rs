@@ -95,8 +95,10 @@ pub(super) async fn try_handle(
             JsonValue::Null
         }
         "open_voice_window" => {
+            let args = args_or_default(args);
+            let target = get_optional_string_arg(&args, "target", "target");
             let app_handle = require_app_handle(state)?;
-            crate::voice::commands::open_voice_window(app_handle).await?;
+            crate::voice::commands::open_voice_window(app_handle, target).await?;
             JsonValue::Null
         }
         "close_voice_window" => {

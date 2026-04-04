@@ -2358,11 +2358,12 @@ mod tests {
         );
 
         for tool_name in [
-            "spawn_agent",
-            "send_input",
-            "wait_agent",
-            "resume_agent",
-            "close_agent",
+            "Agent",
+            "SendUserMessage",
+            "SendMessage",
+            "TeamCreate",
+            "TeamDelete",
+            "ListPeers",
         ] {
             assert!(
                 tool_names.contains(&tool_name),
@@ -2387,7 +2388,7 @@ mod tests {
 
         assert!(prompt.contains(TEAM_PREFERENCE_PROMPT_MARKER));
         assert!(prompt.contains("代码排障团队"));
-        assert!(prompt.contains("spawn_agent"));
+        assert!(prompt.contains("Agent"));
 
         let disabled = build_team_preference_system_prompt(
             Some(&serde_json::json!({
@@ -2525,7 +2526,7 @@ mod tests {
         .expect("team prompt should exist");
 
         assert!(prompt.contains("代码排障团队"));
-        assert!(prompt.contains("spawn_agent"));
+        assert!(prompt.contains("Agent"));
     }
 
     #[test]
@@ -2608,6 +2609,7 @@ mod tests {
             team_name: None,
             agent_type: Some("Image #1".to_string()),
             model: None,
+            run_in_background: false,
             reasoning_effort: None,
             fork_context: false,
             blueprint_role_id: Some("runtime-explorer".to_string()),
@@ -2621,6 +2623,8 @@ mod tests {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            mode: None,
+            isolation: None,
             cwd: None,
         })
         .expect("build customization state")
@@ -3105,35 +3109,35 @@ mod tests {
     #[test]
     fn test_tool_search_extension_tool_status_marks_default_visible_and_loaded_tools() {
         let configs = vec![builtin_extension_config(
-            "docs",
+            "mcp__docs",
             vec!["search_docs", "read_docs"],
             true,
             vec!["search_docs"],
             Some("assistant"),
         )];
-        let visible_tool_names = HashSet::from(["docs__read_docs".to_string()]);
+        let visible_tool_names = HashSet::from(["mcp__docs__read_docs".to_string()]);
 
         let visible = ToolSearchBridgeTool::extension_tool_status(
             &configs,
             &visible_tool_names,
-            "docs__search_docs",
+            "mcp__docs__search_docs",
         );
-        assert_eq!(visible, ("visible", false, Some("docs".to_string())));
+        assert_eq!(visible, ("visible", false, Some("mcp__docs".to_string())));
 
         let loaded = ToolSearchBridgeTool::extension_tool_status(
             &configs,
             &visible_tool_names,
-            "docs__read_docs",
+            "mcp__docs__read_docs",
         );
-        assert_eq!(loaded, ("loaded", false, Some("docs".to_string())));
+        assert_eq!(loaded, ("loaded", false, Some("mcp__docs".to_string())));
     }
 
     #[test]
     fn test_tool_search_extension_tool_status_prefers_longest_extension_name() {
         let configs = vec![
-            builtin_extension_config("docs", vec!["search"], true, vec![], Some("assistant")),
+            builtin_extension_config("mcp__docs", vec!["search"], true, vec![], Some("assistant")),
             builtin_extension_config(
-                "docs__admin",
+                "mcp__docs__admin",
                 vec!["search"],
                 true,
                 vec![],
@@ -3144,9 +3148,12 @@ mod tests {
         let status = ToolSearchBridgeTool::extension_tool_status(
             &configs,
             &HashSet::new(),
-            "docs__admin__search",
+            "mcp__docs__admin__search",
         );
-        assert_eq!(status, ("deferred", true, Some("docs__admin".to_string())));
+        assert_eq!(
+            status,
+            ("deferred", true, Some("mcp__docs__admin".to_string()))
+        );
     }
 
     #[test]

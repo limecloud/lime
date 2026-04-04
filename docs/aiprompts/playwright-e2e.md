@@ -27,7 +27,7 @@
 - 能走真实后端就走真实后端；浏览器模式暂不支持或尚未桥接的能力，允许走 mock
 - `verify:gui-smoke` 内部的 browser runtime 校验默认走无界面浏览器会话；它只证明主链可启动，不替代后续真实页面交互验证
 - `lime-pet` 原生桌宠属于独立仓库与原生窗口壳，不纳入当前 WebView Playwright 的直接操控范围；在 Lime 主仓里只验证 `companion_*` API、状态事件与主窗口唤起链路，桌宠窗口移动、点击命中与原生层动画仍需额外手工 smoke
-- 如果 companion 协议新增了 provider 摘要或桌宠回跳设置等事件，Playwright 续测只覆盖 Lime 主仓内的“状态事件是否触发”“是否跳到 `设置 -> AI 服务商`”和“主窗口是否被唤起”，不在 WebView 层尝试直接操控原生桌宠 UI
+- 如果 companion 协议新增了 provider 摘要、桌宠回跳设置、桌宠主动请求同步，或双击 / 三击 / 文本对话触发的桌宠 LLM 交互事件，Playwright 续测只覆盖 Lime 主仓内的“状态事件是否触发”“是否跳到 `设置 -> AI 服务商`”“是否重发脱敏摘要”“是否调用宿主侧 LLM 代理逻辑”和“主窗口是否被唤起”，不在 WebView 层尝试直接操控原生桌宠 UI
 - 共享网关控制页已下线，托盘也不再展示网关状态或地址；共享网关 `/v1/routes` 与 selector HTTP 路由也已下线，不再对“启动/停止网关、复制网关地址、路由/curl 示例、selector 路由、托盘运行态文案”做 GUI 续测；server 验证只关注标准 `/v1/messages` 与 `/v1/chat/completions` 主链，如需看运行时状态，走开发者页或实验页的诊断面板
 - 项目排版模板与品牌人设扩展旧链路已下线，不再对相关弹窗、模板列表、默认模板、人设扩展表单做 GUI 续测；项目与工作台回归只围绕当前 `Claw` / `workspace` / 现役 `persona` 主链
 - 如果只是模块级代码修改、并不需要真实页面交互，优先跑最小单测或 `verify:local`
@@ -157,6 +157,16 @@ npm run test:contracts
 7. 如工作台模式开启自动保存，再确认执行成功后保存态文案与打开入口正常
 8. 打开控制台并确认浏览器资料 / 环境预设读取没有落回 web mock，尤其不应出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`
 
+### Team runtime 工具面验证
+
+1. 进入 `Claw` 或带有 `HarnessStatusPanel` 的运行时页面
+2. 打开工具库存 / runtime inventory 面板
+3. 确认 current 协作工具面至少包含 `Agent`、`TeamCreate`、`TeamDelete`、`SendMessage`、`ListPeers`
+4. 同时确认主线程 current 工具面包含 `SendUserMessage`，且 tool display 不会退回通用图标或泛化文案
+5. 如果页面当前走的是浏览器 fallback mock，也要确认 fallback inventory 与 tool display 仍显示同一组工具，而不是只出现一部分协作工具或退回通用图标
+6. 如果页面同时展示 MCP bridge 工具，确认 current 命名为 `mcp__<server>__<tool>`，对应 extension surface key 为 `mcp__<server>`；若仍出现裸 `server__tool`、混合前缀或 extension/tool 各自一套命名，判定为协议漂移
+7. 如出现缺失、重复图标或文案回退，优先检查 Rust catalog、runtime 注册、`src/lib/tauri-mock/core.ts` 与 `toolDisplayInfo.ts` 是否同步
+
 ### Claw 站点技能直跑门禁验证
 
 1. 在 `Claw` 首页打开一个站点型技能弹窗
@@ -167,6 +177,23 @@ npm run test:contracts
 6. 确认进入 `Claw` 后会自动发送一条首回合技能任务消息，消息文本包含站点技能启动上下文，而不是由前端挂载副作用偷偷直跑
 7. 如果已有附着会话，确认 `Claw` 会通过 `lime_site_run` 执行并把结果写回当前主稿或项目资源
 8. 如果没有附着会话，确认不会再向 `Claw` 对话流注入“我已完成登录，继续执行”之类的确认卡；阻断必须停留在技能入口层
+
+### Claw `@配图` 异步任务验证
+
+1. 在 `Claw` 对话框输入 `@配图 生成 ...`
+2. 确认聊天区先出现运行中占位卡，不会自动展开图片画布
+3. 等待 task file 回流后，确认同一条卡片被替换为成功或失败状态，而不是额外再插一条前端本地伪造结果
+4. 刷新页面或切换会话再返回原话题，确认最近图片任务会从 `.lime/tasks` 恢复
+5. 如手动打开图片画布，确认任务卡状态与聊天区一致
+6. 如当前界面已暴露任务控制入口，确认 `get/list/retry/cancel` 仍然只经由 `src/lib/api/mediaTasks.ts -> task file` 主链，不会回流前端直连图片服务
+
+### Slash Skill / Skill 执行验证
+
+1. 进入 `Claw` 或任一支持 slash skill 的聊天入口
+2. 输入一个已安装技能，例如 `/image_generate 画一张春日海报`
+3. 确认前端不会回退普通 `chat_stream`，而是进入 skill 执行态
+4. 打开控制台，确认浏览器模式接通 DevBridge 时不再出现 `execute_skill`、`list_executable_skills` 或 `get_skill_detail` 的 unknown command 报错
+5. 如当前 skill 设计为走 `Bash -> lime ...`，继续确认最终反馈的是任务提交摘要或任务状态，而不是前端本地伪造成功态
 
 ### 开发者页站点来源导入验证
 
@@ -237,6 +264,7 @@ npm run test:contracts
 3. 验证 child session / Team Workbench 优先显示显式 `name`，而不是退回 `agent_type`、profile label 或 task summary fallback
 4. 如果本轮涉及 `teamName`，确认 child 会回挂到当前 Team，上下文里能按该名字识别，不会出现重复成员或错挂到其它 Team
 5. 验证 child 的 `working_dir` 与详情展示反映请求的绝对 `cwd`；如果请求非法相对路径，前端应看到明确失败，而不是静默回退父目录
+6. 如果当前入口或调试面板暴露 `mode / isolation`，传入非空值时前端应看到明确 unsupported，而不是静默创建 child session
 
 ### 上下文压缩链路验证
 

@@ -9,7 +9,12 @@
 import { useState } from "react";
 import { Play, X, AlertCircle, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { McpToolDefinition, McpToolResult, McpContent } from "@/lib/api/mcp";
+import {
+  getMcpInnerToolName,
+  McpToolDefinition,
+  McpToolResult,
+  McpContent,
+} from "@/lib/api/mcp";
 
 interface McpToolCallerProps {
   tool: McpToolDefinition;
@@ -75,6 +80,7 @@ export function McpToolCaller({
   onCallTool,
   onClose,
 }: McpToolCallerProps) {
+  const displayName = getMcpInnerToolName(tool.name, tool.server_name);
   const fields = extractFields(tool.input_schema);
   const [args, setArgs] = useState<Record<string, string>>({});
   const [jsonMode, setJsonMode] = useState(false);
@@ -120,7 +126,9 @@ export function McpToolCaller({
       <div className="p-3 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Play className="h-4 w-4 text-blue-500" />
-          <span className="font-mono text-sm font-medium">{tool.name}</span>
+          <span className="font-mono text-sm font-medium" title={tool.name}>
+            {displayName}
+          </span>
           <span className="text-xs text-muted-foreground">
             ({tool.server_name})
           </span>

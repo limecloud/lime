@@ -64,6 +64,34 @@
 
 `Artifact Workbench`、文档工作台与其他导出入口如需把内容落到用户选择的本地路径，应继续复用这条主链，不要在业务组件里重新扩散 `Blob + a.download` 式浏览器旁路。
 
+媒体生成任务链路同样需要单一事实源。当前对外公开契约应优先收敛到 `lime media ... generate --json` 这条 CLI 主链，至少覆盖：
+
+- `lime media image generate`
+- `lime media cover generate`
+- `lime media video generate`
+
+这些命令统一产出 `.lime/tasks/<task_type>/*.json` artifact 与稳定 JSON 输出。仓库内现有 `lime_create_*_generation_task`、`social_generate_cover_image` 与相关 Tauri / agent tool 入口在兼容期内允许保留，但应继续委托同一套任务文件与输出契约，不要再长出第三套“媒体任务协议”。
+
+`Claw` 的 `@配图` 当前前端网关为 `src/lib/api/mediaTasks.ts`，统一承接：
+
+- `create_image_generation_task_artifact`
+- `get_media_task_artifact`
+- `list_media_task_artifacts`
+- `retry_media_task_artifact`
+- `cancel_media_task_artifact`
+
+这条命令只负责在当前项目根目录创建标准 `image_generate` task file，并写入 `session_id / project_id / content_id / entry_source / mode` 等上下文。聊天区动态占位、结果回填、刷新恢复都必须继续以 `.lime/tasks` 为唯一事实源，不允许重新回到前端直连图片服务。
+
+Workspace `Bash` 运行时在当前主链中应优先解析同名 `lime` 入口：开发态优先回落到 `cargo run -p lime-cli`，打包态优先使用随应用提供的 CLI 二进制。默认 skill 若已经切到 `Bash -> lime media ...`，仍应保留 compat tool 作为兜底，避免在 CLI 暂不可用时把用户流量打断。
+
+Skill 执行链路同样遵循单一命令边界。当前前端入口为 `src/lib/api/skill-execution.ts`，统一承接：
+
+- `execute_skill`
+- `list_executable_skills`
+- `get_skill_detail`
+
+这三条命令除了 Tauri `generate_handler!` 之外，也必须继续保持 DevBridge dispatcher 已桥接，避免浏览器模式、headless smoke 或 Playwright 续测时回退成 unknown command。
+
 自动化设置链路同样遵循这条路径。当前主入口为 `src/lib/api/automation.ts`，统一承接：
 
 - `get_automation_scheduler_config`
@@ -90,8 +118,7 @@ Companion 桌宠链路同样遵循这条路径。当前主入口为 `src/lib/api
 
 Lime 主应用会在本地维护 `ws://127.0.0.1:45554/companion/pet` 的桌宠 companion 入口。前端如需感知桌宠连接状态，应继续通过 `companion-pet-status` 事件监听统一状态，不要在页面或 Hook 里自行直连本地 `WebSocket`。
 
-如果 companion 协议继续扩展，也应优先延续“Lime 做宿主、桌宠只收脱敏派生状态”的边界。例如 provider 凭证池相关能力，允许 Lime 通过 `companion_send_pet_command` 下发诸如 `pet.provider_overview` 这类脱敏摘要，并允许桌宠通过 `pet.open_provider_settings` 之类事件请求 Lime 聚焦主窗口并跳到 `设置 -> AI 服务商`；但不允许桌宠直接读取凭证文件、数据库或内部 `/v1/credentials/*` 完整凭证接口。
-
+如果 companion 协议继续扩展，也应优先延续“Lime 做宿主、桌宠只收脱敏派生状态”的边界。例如 provider 凭证池相关能力，允许 Lime 通过 `companion_send_pet_command` 下发诸如 `pet.provider_overview` 这类脱敏摘要，并允许桌宠通过 `pet.open_provider_settings` 请求 Lime 聚焦主窗口并跳到 `设置 -> AI 服务商`，或通过 `pet.request_provider_overview_sync` 请求 Lime 立即重发最新的脱敏摘要；桌宠交互增强能力也应继续走这条主链，例如双击 / 三击桌宠后发出 `pet.request_pet_cheer`、`pet.request_pet_next_step`，或通过 `pet.request_chat_reply` 携带用户输入文本，请求 Lime 代为调用当前可聊天模型，再统一回写 `pet.show_bubble`；但不允许桌宠直接读取凭证文件、数据库或内部 `/v1/credentials/*` 完整凭证接口。
 
 ## 命令契约的五个事实源
 
@@ -113,6 +140,20 @@ Lime 主应用会在本地维护 `ws://127.0.0.1:45554/companion/pet` 的桌宠 
    `src/lib/tauri-mock/core.ts` 中的 `defaultMocks`
 
 只看其中一侧都不够。只要能力仍然依赖命令边界，就至少要同时核对前端调用、Rust 注册、治理目录册、mock 集合这几面。
+
+## MCP 工具命名主链
+
+MCP bridge 当前唯一继续演进的工具命名事实源是：
+
+- 工具全名：`mcp__<server>__<tool>`
+- extension surface key：`mcp__<server>`
+- UI 展示名：继续优先显示 server 原名，例如 `lime-browser`
+
+不要再新增或恢复以下旧命名心智：
+
+- 裸 `server__tool`
+- 只在重名时才临时拼 `server_tool`
+- inventory / mock / GUI 面板里 extension key 与工具前缀各自一套
 
 ## 命令分类语言
 
@@ -218,7 +259,7 @@ npm run verify:local
 
 - `agent_runtime_submit_turn.turn_config` 新增或调整 `approval_policy / sandbox_policy`
 - `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow` 新增或调整 repo-scoped Team 协作记忆注入
-- `agent_runtime_spawn_subagent` 的 current request 字段新增或调整 `name / teamName / cwd`，或修改 spawn 后的 Team 成员写回、child `working_dir` 与父子会话上下文投影
+- `agent_runtime_spawn_subagent` 的 current request 字段新增或调整 `name / teamName / runInBackground / mode / isolation / cwd`，或修改 spawn 后的 Team 成员写回、child `working_dir` 与父子会话上下文投影
 - `agent_runtime_update_session` 新增或调整 `provider_name / model_name / execution_strategy / recent_access_mode / recent_preferences / recent_team_selection`
 - `getSession/listSessions` 的 `execution_runtime` 新增或调整 `recent_access_mode / recent_theme / recent_session_mode / recent_gate_key / recent_run_title / recent_content_id`
 - 话题切换时的 provider/model、权限 accessMode、工具偏好、Team 选择，或 `theme / session_mode / gate_key / run_title / content_id` 恢复从本地 fallback 向 `execution_runtime` 收敛
@@ -263,13 +304,15 @@ npm run verify:local
 以下是仓库当前已经明确收敛的几个方向：
 
 - **Agent / Codex 主命令**：继续收敛到 `agent_runtime_*`
-- **子代理运行时主链**：继续收敛到 `agent_runtime_spawn_subagent`；当前 request surface 使用 `name / teamName / cwd` 等字段，其中 `teamName` 需要与 `name` 搭配并依附现有 Team 上下文，`cwd` 必须是绝对目录，并稳定投影到 child session 的 `working_dir` 与 Team 成员展示
+- **子代理运行时主链**：继续收敛到 `agent_runtime_spawn_subagent`；当前 request surface 使用 `name / teamName / runInBackground / mode / isolation / cwd` 等字段，其中 `teamName` 需要与 `name` 搭配并依附现有 Team 上下文，`cwd` 必须是绝对目录，并稳定投影到 child session 的 `working_dir` 与 Team 成员展示；当前 runtime 仍会明确拒绝非空 `mode / isolation`
+- **Team runtime 工具主链**：当前协作工具面继续收敛到 `Agent / TeamCreate / TeamDelete / SendMessage / ListPeers`；`SubAgentTask` 仅保留兼容入口，不再作为新的多代理主路径
+- **用户可见消息工具主链**：继续收敛到 `SendUserMessage`，用于把回复、进度同步、主动提醒和附件送到用户主可见消息面；不要再把这类能力拆到其它平行工具名或旁路协议里
 - **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略、session provider/model、`recent_access_mode`、`recent_preferences` 以及 `recent_team_selection` 的轻量持久化回写
 - **会话权限主链**：`agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy` 是正式 turn context 权限协议；`getSession` 返回的 `execution_runtime.recent_access_mode` 负责承接会话最近一次 accessMode。当前端已命中同一 steady-state 权限时，不应继续依赖 `harness.access_mode` 作为唯一事实源
 - **运行时交接导出主链**：继续收敛到 `agent_runtime_export_handoff_bundle`；前端统一通过 `src/lib/api/agentRuntime.ts` 网关进入，当前 GUI 入口位于 `HarnessStatusPanel`
 - **运行时证据导出主链**：继续收敛到 `agent_runtime_export_evidence_pack`，用于把 runtime / timeline / artifacts 打包成最小问题证据
 - **运行时 replay 样本主链**：继续收敛到 `agent_runtime_export_replay_case`，复用 handoff bundle + evidence pack 生成 `input / expected / grader / evidence-links`
-- **运行时外部分析交接主链**：继续收敛到 `agent_runtime_export_analysis_handoff`，复用 handoff bundle + evidence pack + replay case 生成 `analysis-brief.md / analysis-context.json / copy_prompt`，供外部 Claude Code / Codex 直接诊断与最小修复；当前 GUI 入口位于 `HarnessStatusPanel`
+- **运行时外部分析交接主链**：继续收敛到 `agent_runtime_export_analysis_handoff`，复用 handoff bundle + evidence pack + replay case 生成 `analysis-brief.md / analysis-context.json / copy_prompt`，供外部诊断代理直接诊断与最小修复；当前 GUI 入口位于 `HarnessStatusPanel`
 - **运行时人工审核记录主链**：继续收敛到 `agent_runtime_export_review_decision_template` + `agent_runtime_save_review_decision`；前者复用 `analysis handoff` 生成 `review-decision.md / review-decision.json` 模板，后者把开发者的接受 / 延后 / 拒绝与回归要求回写到同一份工作区制品；当前 GUI 入口位于 `HarnessStatusPanel`
 - **会话主题上下文主链**：`getSession` 返回的 `execution_runtime.recent_theme / recent_session_mode` 负责承接最近一次运行态主题上下文；当前端已命中同一 steady-state theme/workbench mode 时，不应继续每回合重复携带 `harness.theme / harness.session_mode`
 - **会话运行阶段上下文主链**：`getSession` 返回的 `execution_runtime.recent_gate_key / recent_run_title` 负责承接最近一次 Theme Workbench 运行阶段上下文；当前端已命中同一 steady-state gate/run 时，不应继续每回合重复携带 `harness.gate_key / harness.run_title`

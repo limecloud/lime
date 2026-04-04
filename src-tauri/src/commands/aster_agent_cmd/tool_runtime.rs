@@ -4,8 +4,12 @@ use super::*;
 mod browser_tools;
 #[path = "tool_runtime/creation_tools.rs"]
 mod creation_tools;
+#[path = "tool_runtime/lime_cli_runtime.rs"]
+mod lime_cli_runtime;
 #[path = "tool_runtime/mcp_resource_tools.rs"]
 mod mcp_resource_tools;
+#[path = "tool_runtime/media_cli_bridge.rs"]
+pub(crate) mod media_cli_bridge;
 #[path = "tool_runtime/search_bridge.rs"]
 mod search_bridge;
 #[path = "tool_runtime/site_tools.rs"]
@@ -140,7 +144,8 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     } else {
         match WorkspaceSandboxedBashTool::new(
             workspace_root,
-            should_auto_approve_tool_warnings("bash", auto_mode, execution_policy_input),
+            should_auto_approve_tool_warnings("Bash", auto_mode, execution_policy_input),
+            app_handle.clone(),
         ) {
             Ok(tool) => {
                 let sandbox_type = tool.sandbox_type().to_string();
@@ -200,7 +205,8 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     workspace_tools::register_workspace_runtime_tools(
         &mut registry,
         task_manager,
-        should_auto_approve_tool_warnings("bash", auto_mode, execution_policy_input),
+        should_auto_approve_tool_warnings("Bash", auto_mode, execution_policy_input),
+        app_handle.clone(),
         sandboxed_bash_tool,
     );
 

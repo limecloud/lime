@@ -43,10 +43,13 @@ const EXPLICIT_TEAM_PATTERNS = [
   /子代理/,
   /父子线程/,
   /subagent/i,
-  /spawn_agent/i,
-  /wait_agent/i,
-  /resume_agent/i,
-  /close_agent/i,
+  /agent/i,
+  /sendmessage/i,
+  /agent\s*tool/i,
+  /agent工具/,
+  /teamcreate/i,
+  /teamdelete/i,
+  /listpeers/i,
   /explorer/i,
   /executor/i,
   /orchestrator/i,
@@ -158,7 +161,7 @@ function inferSuggestedRoles(
   activeTheme?: string,
 ): SuggestedTeamRole[] {
   if (
-    /team runtime|team|多代理|子代理|父子线程|subagent|explorer|executor|orchestrator/i.test(
+    /team runtime|team|多代理|子代理|父子线程|subagent|agent|sendmessage|teamcreate|teamdelete|listpeers|explorer|executor|orchestrator/i.test(
       normalizedInput,
     )
   ) {

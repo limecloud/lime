@@ -1,7 +1,7 @@
 use crate::agent_tools::catalog::{
-    tool_catalog_entries_for_surface, tool_catalog_entry, workspace_default_allowed_tool_names,
-    ToolCapability, ToolLifecycle, ToolPermissionPlane, ToolSourceKind, ToolSurfaceProfile,
-    WorkspaceToolSurface, BROWSER_RUNTIME_TOOL_PREFIX,
+    mcp_extension_runtime_name, tool_catalog_entries_for_surface, tool_catalog_entry,
+    workspace_default_allowed_tool_names, ToolCapability, ToolLifecycle, ToolPermissionPlane,
+    ToolSourceKind, ToolSurfaceProfile, WorkspaceToolSurface, BROWSER_RUNTIME_TOOL_PREFIX,
 };
 use crate::agent_tools::execution::{
     resolve_tool_execution_policy_resolution, ToolExecutionPolicySource,
@@ -270,7 +270,10 @@ pub fn build_tool_inventory(input: AgentToolInventoryBuildInput) -> AgentToolInv
         .into_iter()
         .collect::<Vec<_>>();
     mcp_servers.sort();
-    let mcp_server_lookup = mcp_servers.iter().cloned().collect::<HashSet<_>>();
+    let mcp_extension_lookup = mcp_servers
+        .iter()
+        .map(|server_name| mcp_extension_runtime_name(server_name))
+        .collect::<HashSet<_>>();
 
     let mut default_allowed_tools = workspace_default_allowed_tool_names(surface)
         .into_iter()
@@ -315,14 +318,14 @@ pub fn build_tool_inventory(input: AgentToolInventoryBuildInput) -> AgentToolInv
         &extension_configs,
         &visible_extension_tools,
         &searchable_extension_tools,
-        &mcp_server_lookup,
+        &mcp_extension_lookup,
     );
     let extension_tools = build_extension_tool_inventory(
         &extension_configs,
         &visible_extension_tools,
         &searchable_extension_tools,
         &caller,
-        &mcp_server_lookup,
+        &mcp_extension_lookup,
     );
     let mcp_tools = build_mcp_inventory(&mcp_tools, &caller);
 
@@ -795,12 +798,17 @@ mod tests {
             registry_definitions: vec![
                 definition("ToolSearch", "search tools", json!({ "type": "object" })),
                 definition(
-                    "read",
+                    "Read",
                     "read file",
                     json!({
                         "type": "object",
                         "x-lime": { "allowed_callers": ["assistant"] }
                     }),
+                ),
+                definition(
+                    "StructuredOutput",
+                    "structured response",
+                    json!({ "type": "object" }),
                 ),
                 definition(
                     "admin_secret",
@@ -815,33 +823,33 @@ mod tests {
                 ),
             ],
             extension_configs: vec![builtin_extension(
-                "docs",
+                "mcp__docs",
                 vec!["search_docs", "read_docs"],
                 true,
                 vec!["search_docs"],
                 Some("assistant"),
             )],
             visible_extension_tools: vec![ExtensionToolInventorySeed {
-                name: "docs__search_docs".to_string(),
+                name: "mcp__docs__search_docs".to_string(),
                 description: "visible docs tool".to_string(),
             }],
             searchable_extension_tools: vec![
                 ExtensionToolInventorySeed {
-                    name: "docs__search_docs".to_string(),
+                    name: "mcp__docs__search_docs".to_string(),
                     description: "visible docs tool".to_string(),
                 },
                 ExtensionToolInventorySeed {
-                    name: "docs__read_docs".to_string(),
+                    name: "mcp__docs__read_docs".to_string(),
                     description: "deferred docs tool".to_string(),
                 },
             ],
         });
 
-        assert_eq!(inventory.counts.catalog_total, 30);
-        assert_eq!(inventory.counts.catalog_current_total, 29);
+        assert_eq!(inventory.counts.catalog_total, 41);
+        assert_eq!(inventory.counts.catalog_current_total, 40);
         assert_eq!(inventory.counts.catalog_compat_total, 1);
-        assert_eq!(inventory.counts.registry_total, 3);
-        assert_eq!(inventory.counts.registry_visible_total, 2);
+        assert_eq!(inventory.counts.registry_total, 4);
+        assert_eq!(inventory.counts.registry_visible_total, 3);
         assert_eq!(inventory.counts.registry_catalog_unmapped_total, 1);
         assert_eq!(inventory.counts.extension_surface_total, 1);
         assert_eq!(inventory.counts.extension_mcp_bridge_total, 1);
@@ -855,8 +863,8 @@ mod tests {
         let bash_catalog = inventory
             .catalog_tools
             .iter()
-            .find(|entry| entry.name == "bash")
-            .expect("bash catalog entry should exist");
+            .find(|entry| entry.name == "Bash")
+            .expect("Bash catalog entry should exist");
         assert_eq!(
             bash_catalog.execution_warning_policy,
             ToolExecutionWarningPolicy::ShellCommandRisk
@@ -875,10 +883,28 @@ mod tests {
         assert!(!admin_tool.visible_in_context);
         assert!(admin_tool.catalog_entry_name.is_none());
 
+        let structured_output_tool = inventory
+            .registry_tools
+            .iter()
+            .find(|entry| entry.name == "StructuredOutput")
+            .expect("StructuredOutput should exist");
+        assert_eq!(
+            structured_output_tool.catalog_entry_name.as_deref(),
+            Some("StructuredOutput")
+        );
+        assert_eq!(
+            structured_output_tool.catalog_source,
+            Some(ToolSourceKind::AsterBuiltin)
+        );
+        assert_eq!(
+            structured_output_tool.catalog_lifecycle,
+            Some(ToolLifecycle::Current)
+        );
+
         let docs_surface = inventory
             .extension_surfaces
             .iter()
-            .find(|entry| entry.extension_name == "docs")
+            .find(|entry| entry.extension_name == "mcp__docs")
             .expect("docs surface should exist");
         assert_eq!(
             docs_surface.source_kind,
@@ -886,20 +912,20 @@ mod tests {
         );
         assert_eq!(
             docs_surface.loaded_tools,
-            vec!["docs__search_docs".to_string()]
+            vec!["mcp__docs__search_docs".to_string()]
         );
         assert_eq!(
             docs_surface.searchable_tools,
             vec![
-                "docs__read_docs".to_string(),
-                "docs__search_docs".to_string()
+                "mcp__docs__read_docs".to_string(),
+                "mcp__docs__search_docs".to_string()
             ]
         );
 
         let deferred_extension_tool = inventory
             .extension_tools
             .iter()
-            .find(|entry| entry.name == "docs__read_docs")
+            .find(|entry| entry.name == "mcp__docs__read_docs")
             .expect("deferred extension tool should exist");
         assert_eq!(deferred_extension_tool.status, "deferred");
         assert!(!deferred_extension_tool.visible_in_context);
@@ -975,8 +1001,8 @@ mod tests {
         .map(ToString::to_string)
         .collect::<Vec<_>>();
 
-        assert_eq!(inventory.counts.catalog_total, 44);
-        assert_eq!(inventory.counts.catalog_current_total, 43);
+        assert_eq!(inventory.counts.catalog_total, 55);
+        assert_eq!(inventory.counts.catalog_current_total, 54);
         assert_eq!(inventory.counts.catalog_compat_total, 1);
         assert_eq!(inventory.default_allowed_tools, expected_default_allowed);
         assert_eq!(
@@ -1092,7 +1118,7 @@ mod tests {
             mcp_server_names: Vec::new(),
             mcp_tools: Vec::new(),
             registry_definitions: vec![definition(
-                "bash",
+                "Bash",
                 "workspace bash",
                 json!({
                     "type": "object",
@@ -1107,8 +1133,8 @@ mod tests {
         let bash_catalog = inventory
             .catalog_tools
             .iter()
-            .find(|entry| entry.name == "bash")
-            .expect("bash catalog entry should exist");
+            .find(|entry| entry.name == "Bash")
+            .expect("Bash catalog entry should exist");
         assert_eq!(
             bash_catalog.execution_warning_policy,
             ToolExecutionWarningPolicy::None
@@ -1137,8 +1163,8 @@ mod tests {
         let bash_registry = inventory
             .registry_tools
             .iter()
-            .find(|entry| entry.name == "bash")
-            .expect("bash registry entry should exist");
+            .find(|entry| entry.name == "Bash")
+            .expect("Bash registry entry should exist");
         assert_eq!(
             bash_registry.catalog_execution_warning_policy,
             Some(ToolExecutionWarningPolicy::None)
@@ -1179,7 +1205,7 @@ mod tests {
             registry_definitions: Vec::new(),
             extension_configs: vec![
                 builtin_extension(
-                    "docs",
+                    "mcp__docs",
                     vec!["search_docs", "read_docs"],
                     true,
                     vec!["search_docs"],
@@ -1187,10 +1213,10 @@ mod tests {
                 ),
                 builtin_extension("fs", vec!["list"], false, vec![], Some("code_execution")),
             ],
-            visible_extension_tools: vec![seed("docs__read_docs", "loaded docs tool")],
+            visible_extension_tools: vec![seed("mcp__docs__read_docs", "loaded docs tool")],
             searchable_extension_tools: vec![
-                seed("docs__search_docs", "search docs"),
-                seed("docs__read_docs", "loaded docs tool"),
+                seed("mcp__docs__search_docs", "search docs"),
+                seed("mcp__docs__read_docs", "loaded docs tool"),
                 seed("fs__list", "list files"),
             ],
         });
@@ -1198,7 +1224,7 @@ mod tests {
         let docs_surface = inventory
             .extension_surfaces
             .iter()
-            .find(|entry| entry.extension_name == "docs")
+            .find(|entry| entry.extension_name == "mcp__docs")
             .expect("docs surface should exist");
         assert_eq!(
             docs_surface.source_kind,
@@ -1206,13 +1232,13 @@ mod tests {
         );
         assert_eq!(
             docs_surface.loaded_tools,
-            vec!["docs__read_docs".to_string()]
+            vec!["mcp__docs__read_docs".to_string()]
         );
         assert_eq!(
             docs_surface.searchable_tools,
             vec![
-                "docs__read_docs".to_string(),
-                "docs__search_docs".to_string()
+                "mcp__docs__read_docs".to_string(),
+                "mcp__docs__search_docs".to_string()
             ]
         );
 
@@ -1229,7 +1255,7 @@ mod tests {
         let visible_tool = inventory
             .extension_tools
             .iter()
-            .find(|entry| entry.name == "docs__search_docs")
+            .find(|entry| entry.name == "mcp__docs__search_docs")
             .expect("visible tool should exist");
         assert_eq!(visible_tool.status, "visible");
         assert!(!visible_tool.deferred_loading);
@@ -1238,7 +1264,7 @@ mod tests {
         let loaded_tool = inventory
             .extension_tools
             .iter()
-            .find(|entry| entry.name == "docs__read_docs")
+            .find(|entry| entry.name == "mcp__docs__read_docs")
             .expect("loaded tool should exist");
         assert_eq!(loaded_tool.status, "loaded");
         assert!(!loaded_tool.deferred_loading);
@@ -1275,9 +1301,9 @@ mod tests {
             mcp_tools: Vec::new(),
             registry_definitions: Vec::new(),
             extension_configs: vec![
-                builtin_extension("docs", vec!["search"], true, vec![], Some("assistant")),
+                builtin_extension("mcp__docs", vec!["search"], true, vec![], Some("assistant")),
                 builtin_extension(
-                    "docs__admin",
+                    "mcp__docs__admin",
                     vec!["search"],
                     true,
                     vec![],
@@ -1285,15 +1311,15 @@ mod tests {
                 ),
             ],
             visible_extension_tools: Vec::new(),
-            searchable_extension_tools: vec![seed("docs__admin__search", "admin search")],
+            searchable_extension_tools: vec![seed("mcp__docs__admin__search", "admin search")],
         });
 
         let tool = inventory
             .extension_tools
             .iter()
-            .find(|entry| entry.name == "docs__admin__search")
+            .find(|entry| entry.name == "mcp__docs__admin__search")
             .expect("nested extension tool should exist");
-        assert_eq!(tool.extension_name.as_deref(), Some("docs__admin"));
+        assert_eq!(tool.extension_name.as_deref(), Some("mcp__docs__admin"));
         assert_eq!(tool.allowed_caller.as_deref(), Some("code_execution"));
         assert_eq!(tool.status, "deferred");
         assert!(tool.deferred_loading);
@@ -1304,7 +1330,7 @@ mod tests {
     fn test_resolve_extension_tool_runtime_status_defaults_unknown_tools_visible() {
         let status = resolve_extension_tool_runtime_status(
             &[builtin_extension(
-                "docs",
+                "mcp__docs",
                 vec!["search"],
                 true,
                 vec![],
@@ -1338,7 +1364,7 @@ mod tests {
             mcp_tools: Vec::new(),
             registry_definitions: vec![
                 definition(
-                    "bash",
+                    "Bash",
                     "workspace bash",
                     json!({
                         "type": "object",
@@ -1402,7 +1428,7 @@ mod tests {
             inventory
                 .registry_tools
                 .iter()
-                .find(|entry| entry.name == "bash")
+                .find(|entry| entry.name == "Bash")
                 .and_then(|entry| entry.catalog_execution_sandbox_profile),
             Some(ToolExecutionSandboxProfile::WorkspaceCommand)
         );

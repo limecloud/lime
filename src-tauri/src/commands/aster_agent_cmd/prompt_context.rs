@@ -723,7 +723,7 @@ pub(crate) fn build_team_preference_system_prompt(
             "- 用户偏好的 Team Preset：{preset_label} ({team_preset_id})。"
         ));
         lines.push(
-            "- 当你判断当前任务适合多代理时，优先沿用该 preset 的 profile / skill 组合去调用 spawn_agent。"
+            "- 当你判断当前任务适合多代理时，优先沿用该 preset 的 profile / skill 组合去调用 Agent。"
                 .to_string(),
         );
     }
@@ -748,7 +748,7 @@ pub(crate) fn build_team_preference_system_prompt(
             lines.push("- 当前 Team 角色参考：".to_string());
             lines.extend(rendered_roles);
             lines.push(
-                "- 如果你决定调用 spawn_agent，请优先把上述 profile / roleKey / skillIds 映射到对应结构化字段；若该角色带有 id，优先同步写入 blueprintRoleId / blueprintRoleLabel，保持 GUI Team 画布与实际分工一致。"
+                "- 如果你决定调用 Agent，请优先把上述角色信息映射到对应结构化字段，例如 description / subagent_type / name / team_name；需要保留 Team 蓝图角色锚点时，再补充 blueprintRoleId / profile_id / role_key / skill_ids，保持 GUI Team 画布与实际分工一致。"
                     .to_string(),
             );
         }
@@ -769,7 +769,7 @@ pub(crate) fn build_team_preference_system_prompt(
     }
 
     lines.push(
-        "- spawn_agent 支持这些结构化字段：name、teamName、cwd、blueprintRoleId、blueprintRoleLabel、teamPresetId、profileId、profileName、roleKey、skillIds、skillDirectories、theme、systemOverlay、outputContract。teamName 需要与 name 搭配，并依附现有 team 上下文。"
+        "- Agent 支持这些结构化字段：description、prompt、subagent_type、model、run_in_background、name、team_name（别名 teamName）、reasoning_effort、fork_context、blueprint_role_id（别名 blueprintRoleId）、blueprint_role_label、profile_id、profile_name、role_key、skill_ids、skill_directories、team_preset_id、theme、system_overlay、output_contract、cwd、mode、isolation。team_name 需要与 name 搭配，并依附现有 team 上下文；当前 runtime 仍会拒绝非空 mode / isolation。"
             .to_string(),
     );
     lines.push(

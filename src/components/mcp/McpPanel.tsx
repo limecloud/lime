@@ -154,6 +154,12 @@ export function McpPanel({ hideHeader = false }: McpPanelProps) {
                 tools={tools}
                 loading={loading}
                 onRefresh={refreshTools}
+                serverCount={servers.length}
+                runningServerCount={
+                  servers.filter((server) => server.is_running).length
+                }
+                onOpenRuntimeTab={() => setActiveTab("runtime")}
+                onOpenConfigTab={() => setActiveTab("config")}
                 onCallTool={handleOpenToolCaller}
               />
             </div>
