@@ -43,6 +43,8 @@
 
 这些命令属于当前设置主路径，不应再在页面组件里散落裸 `invoke`。
 
+旧设置页里“安全与性能 / 容错配置”那组命令已经下线。`get_retry_config`、`update_retry_config`、`get_failover_config`、`update_failover_config`、`get_switch_log`、`clear_switch_log`、`get_rate_limit_config`、`update_rate_limit_config`、`get_conversation_config`、`update_conversation_config`、`update_hint_routes`、`get_pairing_config`、`update_pairing_config` 都应视为 `dead`，不允许重新接回前端网关、Rust 注册或 mock。提示路由当前只保留只读的 `get_hint_routes` 读取面；如果未来确实要恢复编辑入口，必须重新定义 `current` 主链，而不是直接复活旧设置页命令。
+
 图库素材链路也遵循同一原则。当前主入口为 `src/lib/api/galleryMaterials.ts`，统一承接：
 
 - `create_gallery_material_metadata`

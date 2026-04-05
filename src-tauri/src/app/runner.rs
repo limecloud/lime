@@ -107,7 +107,6 @@ pub fn run() {
         credential_sync_service: credential_sync_service_state,
         token_cache_service: token_cache_service_state,
         machine_id_service: machine_id_service_state,
-        resilience_config: resilience_config_state,
         plugin_manager: plugin_manager_state,
         plugin_installer: plugin_installer_state,
         plugin_rpc_manager: plugin_rpc_manager_state,
@@ -214,7 +213,6 @@ pub fn run() {
         .manage(credential_sync_service_state)
         .manage(token_cache_service_state)
         .manage(machine_id_service_state)
-        .manage(resilience_config_state)
         .manage(telemetry_state)
         .manage(plugin_manager_state)
         .manage(plugin_installer_state)
@@ -1344,13 +1342,6 @@ pub fn run() {
             // API Key Provider connection test command
             commands::api_key_provider_cmd::test_api_key_provider_connection,
             commands::api_key_provider_cmd::test_api_key_provider_chat,
-            // Resilience config commands
-            commands::resilience_cmd::get_retry_config,
-            commands::resilience_cmd::update_retry_config,
-            commands::resilience_cmd::get_failover_config,
-            commands::resilience_cmd::update_failover_config,
-            commands::resilience_cmd::get_switch_log,
-            commands::resilience_cmd::clear_switch_log,
             // Telemetry commands
             commands::telemetry_cmd::get_request_logs,
             commands::telemetry_cmd::get_request_log_detail,
@@ -1369,15 +1360,8 @@ pub fn run() {
             commands::injection_cmd::add_injection_rule,
             commands::injection_cmd::remove_injection_rule,
             commands::injection_cmd::update_injection_rule,
-            // Security & Performance commands
-            commands::security_perf_cmd::get_rate_limit_config,
-            commands::security_perf_cmd::update_rate_limit_config,
-            commands::security_perf_cmd::get_conversation_config,
-            commands::security_perf_cmd::update_conversation_config,
+            // Hint route commands
             commands::security_perf_cmd::get_hint_routes,
-            commands::security_perf_cmd::update_hint_routes,
-            commands::security_perf_cmd::get_pairing_config,
-            commands::security_perf_cmd::update_pairing_config,
             // Usage commands
             commands::usage_cmd::get_kiro_usage,
             // Tray commands

@@ -1,6 +1,10 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { listDirectory, readFilePreview } from "@/lib/api/fileBrowser";
-import type { MediaTaskArtifactOutput } from "@/lib/api/mediaTasks";
+import {
+  getMediaTaskArtifact,
+  listMediaTaskArtifacts,
+  type MediaTaskArtifactOutput,
+} from "@/lib/api/mediaTasks";
 import { safeListen } from "@/lib/dev-bridge";
 import { resolveAbsoluteWorkspacePath } from "./workspacePath";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
@@ -90,6 +94,17 @@ interface TaskContextMetadata {
   sessionId?: string;
   projectId?: string;
   contentId?: string;
+}
+
+interface LoadedImageTaskSnapshot {
+  snapshot: ParsedImageTaskSnapshot;
+  taskRecord: Record<string, unknown>;
+}
+
+interface RestoredImageTaskSnapshot extends LoadedImageTaskSnapshot {
+  absolutePath: string;
+  taskType: string;
+  taskFamily: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1257,12 +1272,7 @@ export function buildImageTaskSnapshotFromArtifactOutput(params: {
   contentId?: string | null;
   canvasState: CanvasStateUnion | null;
 }): ParsedImageTaskSnapshot | null {
-  const record =
-    params.artifact.record &&
-    typeof params.artifact.record === "object" &&
-    !Array.isArray(params.artifact.record)
-      ? (params.artifact.record as Record<string, unknown>)
-      : null;
+  const record = asRecord(params.artifact.record);
 
   if (record) {
     return (
@@ -1313,12 +1323,17 @@ function upsertPreviewMessage(
     );
     if (taskMatchedIndex >= 0) {
       const existingMessage = nextMessages[taskMatchedIndex];
+      const existingPreview = existingMessage.imageWorkbenchPreview;
+      const nextPreview = nextMessage.imageWorkbenchPreview;
       nextMessages[taskMatchedIndex] = {
         ...existingMessage,
-        imageWorkbenchPreview: {
-          ...(existingMessage.imageWorkbenchPreview || {}),
-          ...nextMessage.imageWorkbenchPreview,
-        },
+        imageWorkbenchPreview:
+          existingPreview && nextPreview
+            ? {
+                ...existingPreview,
+                ...nextPreview,
+              }
+            : nextPreview || existingPreview,
         runtimeStatus:
           nextMessage.runtimeStatus ?? existingMessage.runtimeStatus,
       };
@@ -1419,6 +1434,63 @@ export function useWorkspaceImageTaskPreviewRuntime({
     let cancelled = false;
     let unlisten: (() => void) | null = null;
 
+    const loadTaskSnapshotFromArtifactApi = async (
+      taskId: string,
+    ): Promise<LoadedImageTaskSnapshot | null> => {
+      const currentProjectRootPath =
+        runtimeContextRef.current.projectRootPath?.trim();
+      if (!currentProjectRootPath) {
+        return null;
+      }
+
+      try {
+        const artifact = await getMediaTaskArtifact({
+          projectRootPath: currentProjectRootPath,
+          taskRef: taskId,
+        });
+        if (cancelled) {
+          return null;
+        }
+
+        const taskRecord = asRecord(artifact.record);
+        if (!taskRecord) {
+          return null;
+        }
+
+        const snapshot = buildImageTaskSnapshotFromArtifactOutput({
+          artifact,
+          projectId: runtimeContextRef.current.projectId,
+          contentId: runtimeContextRef.current.contentId,
+          canvasState: runtimeContextRef.current.canvasState,
+        });
+        if (!snapshot) {
+          return null;
+        }
+
+        return {
+          snapshot,
+          taskRecord,
+        };
+      } catch {
+        return null;
+      }
+    };
+
+    const applyLoadedTaskSnapshot = (params: LoadedImageTaskSnapshot) => {
+      setChatMessages((previous) =>
+        upsertPreviewMessage(previous, params.snapshot.message),
+      );
+      updateCurrentImageWorkbenchState((current) =>
+        mergeImageTaskSnapshot(current, params.snapshot),
+      );
+      syncDocumentInlineImageTask({
+        taskRecord: params.taskRecord,
+        taskId: params.snapshot.taskId,
+        outputs: params.snapshot.outputs,
+        setCanvasState,
+      });
+    };
+
     const scheduleNextPoll = (taskId: string) => {
       const trackedTask = trackedTasks.get(taskId);
       if (!trackedTask || cancelled) {
@@ -1442,47 +1514,52 @@ export function useWorkspaceImageTaskPreviewRuntime({
       trackedTask.polling = true;
 
       try {
-        const preview = await readFilePreview(
-          trackedTask.absolutePath,
-          IMAGE_TASK_FILE_PREVIEW_MAX_SIZE,
-        );
-        if (cancelled || !trackedTasks.has(taskId)) {
-          return;
+        let loadedSnapshot: LoadedImageTaskSnapshot | null = null;
+
+        try {
+          const preview = await readFilePreview(
+            trackedTask.absolutePath,
+            IMAGE_TASK_FILE_PREVIEW_MAX_SIZE,
+          );
+          if (cancelled || !trackedTasks.has(taskId)) {
+            return;
+          }
+
+          if (!preview.error && preview.content?.trim()) {
+            const parsed = JSON.parse(preview.content) as Record<
+              string,
+              unknown
+            >;
+            const snapshot = buildParsedImageTaskSnapshot({
+              taskRecord: parsed,
+              taskId: trackedTask.taskId,
+              taskType: trackedTask.taskType,
+              projectId: runtimeContextRef.current.projectId,
+              contentId: runtimeContextRef.current.contentId,
+              canvasState: runtimeContextRef.current.canvasState,
+            });
+            if (snapshot) {
+              loadedSnapshot = {
+                snapshot,
+                taskRecord: parsed,
+              };
+            }
+          }
+        } catch {
+          loadedSnapshot = null;
         }
 
-        if (preview.error || !preview.content?.trim()) {
+        if (!loadedSnapshot) {
+          loadedSnapshot = await loadTaskSnapshotFromArtifactApi(taskId);
+        }
+        if (!loadedSnapshot) {
           scheduleNextPoll(taskId);
           return;
         }
 
-        const parsed = JSON.parse(preview.content) as Record<string, unknown>;
-        const snapshot = buildParsedImageTaskSnapshot({
-          taskRecord: parsed,
-          taskId: trackedTask.taskId,
-          taskType: trackedTask.taskType,
-          projectId: runtimeContextRef.current.projectId,
-          contentId: runtimeContextRef.current.contentId,
-          canvasState: runtimeContextRef.current.canvasState,
-        });
-        if (!snapshot) {
-          scheduleNextPoll(taskId);
-          return;
-        }
+        applyLoadedTaskSnapshot(loadedSnapshot);
 
-        setChatMessages((previous) =>
-          upsertPreviewMessage(previous, snapshot.message),
-        );
-        updateCurrentImageWorkbenchState((current) =>
-          mergeImageTaskSnapshot(current, snapshot),
-        );
-        syncDocumentInlineImageTask({
-          taskRecord: parsed,
-          taskId,
-          outputs: snapshot.outputs,
-          setCanvasState,
-        });
-
-        if (snapshot.terminal) {
+        if (loadedSnapshot.snapshot.terminal) {
           trackedTasks.delete(taskId);
           return;
         }
@@ -1505,81 +1582,141 @@ export function useWorkspaceImageTaskPreviewRuntime({
         return;
       }
 
-      const candidatePaths = await collectImageTaskCandidatePaths(
-        currentProjectRootPath,
-      );
-      if (cancelled || candidatePaths.length === 0) {
-        return;
-      }
+      let restoredSnapshots: RestoredImageTaskSnapshot[] | null = null;
 
-      const restoredSnapshots: Array<{
-        snapshot: ParsedImageTaskSnapshot;
-        taskRecord: Record<string, unknown>;
-        absolutePath: string;
-        taskType: string;
-        taskFamily: string;
-      }> = [];
-      const seenTaskIds = new Set<string>();
+      try {
+        const artifactList = await listMediaTaskArtifacts({
+          projectRootPath: currentProjectRootPath,
+          taskFamily: "image",
+          limit: IMAGE_TASK_RESTORE_LIMIT * 4,
+        });
+        if (cancelled) {
+          return;
+        }
 
-      for (const candidatePath of candidatePaths) {
-        try {
-          const preview = await readFilePreview(
-            candidatePath,
-            IMAGE_TASK_FILE_PREVIEW_MAX_SIZE,
-          );
-          if (cancelled || preview.error || !preview.content?.trim()) {
-            continue;
+        restoredSnapshots = artifactList.tasks.reduce<
+          RestoredImageTaskSnapshot[]
+        >((items, artifact) => {
+          const taskRecord = asRecord(artifact.record);
+          if (!taskRecord) {
+            return items;
           }
-
-          const parsed = JSON.parse(preview.content) as Record<string, unknown>;
           if (
             !shouldRestoreImageTaskRecord({
-              taskRecord: parsed,
+              taskRecord,
               sessionId: runtimeContextRef.current.sessionId,
               projectId: runtimeContextRef.current.projectId,
               contentId: runtimeContextRef.current.contentId,
             })
           ) {
-            continue;
+            return items;
           }
 
-          const taskId = readString([parsed], ["task_id", "taskId"]);
-          const taskType = readString([parsed], ["task_type", "taskType"]);
           const taskFamily = normalizeTaskFamily(
-            taskType || "",
-            readString([parsed], ["task_family", "taskFamily"]),
+            artifact.task_type,
+            artifact.task_family,
           );
-          if (
-            !taskId ||
-            !taskType ||
-            taskFamily !== "image" ||
-            seenTaskIds.has(taskId)
-          ) {
-            continue;
+          if (taskFamily !== "image") {
+            return items;
           }
 
-          const snapshot = buildParsedImageTaskSnapshot({
-            taskRecord: parsed,
-            taskId,
-            taskType,
+          const snapshot = buildImageTaskSnapshotFromArtifactOutput({
+            artifact,
             projectId: runtimeContextRef.current.projectId,
             contentId: runtimeContextRef.current.contentId,
             canvasState: runtimeContextRef.current.canvasState,
           });
           if (!snapshot) {
-            continue;
+            return items;
           }
 
-          seenTaskIds.add(taskId);
-          restoredSnapshots.push({
+          items.push({
             snapshot,
-            taskRecord: parsed,
-            absolutePath: candidatePath,
-            taskType,
+            taskRecord,
+            absolutePath: artifact.absolute_path,
+            taskType: artifact.task_type,
             taskFamily,
           });
-        } catch {
-          continue;
+          return items;
+        }, []);
+      } catch {
+        restoredSnapshots = null;
+      }
+
+      if (restoredSnapshots === null) {
+        const candidatePaths = await collectImageTaskCandidatePaths(
+          currentProjectRootPath,
+        );
+        if (cancelled || candidatePaths.length === 0) {
+          return;
+        }
+
+        restoredSnapshots = [];
+        const seenTaskIds = new Set<string>();
+
+        for (const candidatePath of candidatePaths) {
+          try {
+            const preview = await readFilePreview(
+              candidatePath,
+              IMAGE_TASK_FILE_PREVIEW_MAX_SIZE,
+            );
+            if (cancelled || preview.error || !preview.content?.trim()) {
+              continue;
+            }
+
+            const parsed = JSON.parse(preview.content) as Record<
+              string,
+              unknown
+            >;
+            if (
+              !shouldRestoreImageTaskRecord({
+                taskRecord: parsed,
+                sessionId: runtimeContextRef.current.sessionId,
+                projectId: runtimeContextRef.current.projectId,
+                contentId: runtimeContextRef.current.contentId,
+              })
+            ) {
+              continue;
+            }
+
+            const taskId = readString([parsed], ["task_id", "taskId"]);
+            const taskType = readString([parsed], ["task_type", "taskType"]);
+            const taskFamily = normalizeTaskFamily(
+              taskType || "",
+              readString([parsed], ["task_family", "taskFamily"]),
+            );
+            if (
+              !taskId ||
+              !taskType ||
+              taskFamily !== "image" ||
+              seenTaskIds.has(taskId)
+            ) {
+              continue;
+            }
+
+            const snapshot = buildParsedImageTaskSnapshot({
+              taskRecord: parsed,
+              taskId,
+              taskType,
+              projectId: runtimeContextRef.current.projectId,
+              contentId: runtimeContextRef.current.contentId,
+              canvasState: runtimeContextRef.current.canvasState,
+            });
+            if (!snapshot) {
+              continue;
+            }
+
+            seenTaskIds.add(taskId);
+            restoredSnapshots.push({
+              snapshot,
+              taskRecord: parsed,
+              absolutePath: candidatePath,
+              taskType,
+              taskFamily,
+            });
+          } catch {
+            continue;
+          }
         }
       }
 
@@ -1689,7 +1826,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
               canvasState: runtimeContextRef.current.canvasState,
             })
           : null;
-      if (pendingSnapshot) {
+      if (pendingSnapshot && taskId && taskType) {
         setChatMessages((previous) =>
           upsertPreviewMessage(previous, pendingSnapshot.message),
         );

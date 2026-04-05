@@ -10,20 +10,15 @@ React 组件层，包含 UI 组件和业务组件。
 ## 文件索引
 
 - `agent/` - AI Agent 聊天页面组件
-- `clients/` - 客户端管理组件
-- `config/` - 配置管理组件
 - `connect/` - Lime Connect 组件（中转商 API Key 添加）
 - `flow-monitor/` - LLM 流量监控组件
-- `general-chat/` - 通用对话功能组件（三栏布局：会话列表 + 聊天区域 + 画布）
 - `mcp/` - MCP 服务器管理组件（配置管理、运行时控制、工具/提示词/资源浏览与调用）
 - `plugins/` - 插件管理组件
 - `provider-pool/` - Provider 凭证池管理组件
-- `resilience/` - 弹性策略配置组件
 - `routing/` - 路由规则配置组件
 - `screenshot-chat/` - 截图对话功能组件（实验室功能）
 - `settings-v2/` - 设置页面组件（当前主实现）
 - `skills/` - 技能管理组件
-- `switch/` - 开关控制组件
 - `terminal/` - 内置终端组件（使用 Tauri Commands）
 - `tools/` - 工具页面组件
 - `widgets/` - 右侧小部件栏组件（移植自 Waveterm）

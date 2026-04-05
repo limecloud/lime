@@ -3858,14 +3858,6 @@ const defaultMocks: Record<string, any> = {
   // Usage 相关
   get_kiro_usage: () => ({ usage: {} }),
 
-  // Resilience 相关
-  get_retry_config: () => ({ config: {} }),
-  update_retry_config: () => ({ success: true }),
-  get_failover_config: () => ({ config: {} }),
-  update_failover_config: () => ({ success: true }),
-  get_switch_log: () => ({ logs: [] }),
-  clear_switch_log: () => ({ success: true }),
-
   // Machine ID 相关
   get_current_machine_id: () => ({ machine_id: "" }),
   set_machine_id: () => ({ success: true }),

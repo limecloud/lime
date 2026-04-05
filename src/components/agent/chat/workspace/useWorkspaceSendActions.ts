@@ -358,6 +358,11 @@ interface UseWorkspaceSendActionsParams {
   handleAutoLaunchMatchedSiteSkill: (
     match: AutoMatchedSiteSkill<ServiceSkillHomeItem>,
   ) => Promise<void>;
+  handleImageWorkbenchCommand: (input: {
+    rawText: string;
+    parsedCommand: ParsedImageWorkbenchCommand;
+    images: MessageImage[];
+  }) => Promise<boolean>;
   resolveImageWorkbenchSkillRequest: (input: {
     rawText: string;
     parsedCommand: ParsedImageWorkbenchCommand;
@@ -440,6 +445,7 @@ export function useWorkspaceSendActions({
   setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
   handleAutoLaunchMatchedSiteSkill,
+  handleImageWorkbenchCommand,
   resolveImageWorkbenchSkillRequest,
 }: UseWorkspaceSendActionsParams) {
   const [submissionPreview, setSubmissionPreview] =
@@ -494,6 +500,16 @@ export function useWorkspaceSendActions({
           ? parseImageWorkbenchCommand(sourceText)
           : null;
       if (parsedImageWorkbenchCommand) {
+        if (parsedImageWorkbenchCommand.trigger.trim().startsWith("@")) {
+          return {
+            kind: "done",
+            result: await handleImageWorkbenchCommand({
+              rawText: sourceText,
+              parsedCommand: parsedImageWorkbenchCommand,
+              images: effectiveImages,
+            }),
+          };
+        }
         const skillRequest = resolveImageWorkbenchSkillRequest({
           rawText: sourceText,
           parsedCommand: parsedImageWorkbenchCommand,
@@ -712,6 +728,7 @@ export function useWorkspaceSendActions({
       ensureBrowserAssistCanvas,
       executionStrategy,
       handleAutoLaunchMatchedSiteSkill,
+      handleImageWorkbenchCommand,
       resolveImageWorkbenchSkillRequest,
       input,
       maybeStartBrowserTaskPreflight,

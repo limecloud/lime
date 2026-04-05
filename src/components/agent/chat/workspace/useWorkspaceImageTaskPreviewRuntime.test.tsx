@@ -7,6 +7,11 @@ import {
   readFilePreview,
   type FilePreview,
 } from "@/lib/api/fileBrowser";
+import {
+  getMediaTaskArtifact,
+  listMediaTaskArtifacts,
+  type MediaTaskArtifactOutput,
+} from "@/lib/api/mediaTasks";
 import { safeListen } from "@/lib/dev-bridge";
 import type { Message } from "../types";
 import {
@@ -24,6 +29,11 @@ vi.mock("@/lib/dev-bridge", () => ({
 vi.mock("@/lib/api/fileBrowser", () => ({
   listDirectory: vi.fn(),
   readFilePreview: vi.fn(),
+}));
+
+vi.mock("@/lib/api/mediaTasks", () => ({
+  getMediaTaskArtifact: vi.fn(),
+  listMediaTaskArtifacts: vi.fn(),
 }));
 
 type HookProps = Parameters<typeof useWorkspaceImageTaskPreviewRuntime>[0];
@@ -82,6 +92,27 @@ function createDirectoryListingResult(
     parentPath: null,
     entries,
     error: null,
+  };
+}
+
+function createArtifactOutput(
+  overrides: Partial<MediaTaskArtifactOutput> & {
+    record: MediaTaskArtifactOutput["record"];
+    task_id: string;
+    task_type: string;
+  },
+): MediaTaskArtifactOutput {
+  return {
+    success: true,
+    task_family: "image",
+    status: "completed",
+    normalized_status: "succeeded",
+    path: `.lime/tasks/${overrides.task_type}/${overrides.task_id}.json`,
+    absolute_path: `/workspace/project-image-1/.lime/tasks/${overrides.task_type}/${overrides.task_id}.json`,
+    artifact_path: `.lime/tasks/${overrides.task_type}/${overrides.task_id}.json`,
+    absolute_artifact_path: `/workspace/project-image-1/.lime/tasks/${overrides.task_type}/${overrides.task_id}.json`,
+    reused_existing: false,
+    ...overrides,
   };
 }
 
@@ -160,6 +191,15 @@ function renderHook(
   };
 }
 
+function getDocumentCanvasContent(
+  canvasState: RuntimeHarnessProps["canvasState"],
+): string {
+  if (!canvasState || canvasState.type !== "document") {
+    throw new Error("期望 document canvasState");
+  }
+  return canvasState.content;
+}
+
 describe("useWorkspaceImageTaskPreviewRuntime", () => {
   beforeEach(() => {
     (
@@ -170,6 +210,12 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     vi.resetAllMocks();
     vi.useFakeTimers();
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
+    vi.mocked(getMediaTaskArtifact).mockRejectedValue(
+      new Error("task artifact unavailable"),
+    );
+    vi.mocked(listMediaTaskArtifacts).mockRejectedValue(
+      new Error("task artifact list unavailable"),
+    );
     vi.mocked(listDirectory).mockResolvedValue(
       createDirectoryListingResult(
         "/workspace/project-image-1/.lime/tasks",
@@ -415,6 +461,98 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         providerName: "fal",
         modelName: "flux-pro",
         size: "1024x1024",
+      }),
+    ]);
+  });
+
+  it("task file 预览被截断时，应回退到媒体任务接口继续回填图片结果", async () => {
+    let listener: CreationTaskListener | null = null;
+    vi.mocked(safeListen).mockImplementationOnce(async (_event, handler) => {
+      listener = handler;
+      return vi.fn();
+    });
+
+    const taskId = "task-image-large-preview-1";
+    const dataUrl = `data:image/png;base64,${"A".repeat(4096)}`;
+    vi.mocked(readFilePreview).mockResolvedValueOnce({
+      path: `/workspace/project-image-1/.lime/tasks/image_generate/${taskId}.json`,
+      content:
+        '{"task_id":"task-image-large-preview-1","result":{"images":[{"url":"data:image/png;base64,AAAA',
+      isBinary: false,
+      size: 512 * 1024,
+      error: null,
+    });
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        current_attempt_id: "attempt-large-preview-1",
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T11:00:00Z",
+          current_attempt_id: "attempt-large-preview-1",
+          payload: {
+            prompt: "[img:高保真青柠品牌主视觉]",
+            count: 1,
+            size: "1024x1024",
+          },
+          result: {
+            images: [{ url: dataUrl }],
+          },
+          attempts: [
+            {
+              attempt_id: "attempt-large-preview-1",
+              provider: "fal",
+              model: "flux-pro",
+              result_snapshot: {
+                images: [{ url: dataUrl }],
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook();
+    await render();
+
+    await act(async () => {
+      listener?.({
+        payload: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          path: `.lime/tasks/image_generate/${taskId}.json`,
+        }),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getMediaTaskArtifact).toHaveBeenCalledWith({
+      projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+      taskRef: taskId,
+    });
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: dataUrl,
+          prompt: "高保真青柠品牌主视觉",
+        }),
+      }),
+    ]);
+    expect(getValue().imageWorkbenchState.outputs).toEqual([
+      expect.objectContaining({
+        taskId,
+        url: dataUrl,
       }),
     ]);
   });
@@ -711,6 +849,66 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         parentOutputId: "output-source-1",
       }),
     ]);
+  });
+
+  it("应优先通过媒体任务接口恢复最近的图片任务，避免大 task file 截断", async () => {
+    const taskId = "task-image-restored-api";
+    vi.mocked(listMediaTaskArtifacts).mockResolvedValueOnce({
+      success: true,
+      workspace_root: DEFAULT_PROJECT_ROOT_PATH,
+      artifact_root: `${DEFAULT_PROJECT_ROOT_PATH}/.lime/tasks`,
+      filters: {
+        task_family: "image",
+        limit: 32,
+      },
+      total: 1,
+      tasks: [
+        createArtifactOutput({
+          task_id: taskId,
+          task_type: "image_generate",
+          record: withDefaultTaskContext({
+            task_id: taskId,
+            task_type: "image_generate",
+            task_family: "image",
+            status: "completed",
+            normalized_status: "succeeded",
+            created_at: "2026-04-04T10:00:00Z",
+            payload: {
+              prompt: "[img:通过 API 恢复的青柠主视觉]",
+              count: 1,
+              size: "1024x1024",
+            },
+            result: {
+              images: [{ url: "https://example.com/restored-api-lime.png" }],
+            },
+          }),
+        }),
+      ],
+    });
+
+    const { render, getValue } = renderHook();
+    await render();
+
+    await vi.waitFor(() => {
+      expect(getValue().messages).toEqual([
+        expect.objectContaining({
+          id: `image-workbench:${taskId}:assistant`,
+          imageWorkbenchPreview: expect.objectContaining({
+            taskId,
+            imageUrl: "https://example.com/restored-api-lime.png",
+            prompt: "通过 API 恢复的青柠主视觉",
+          }),
+        }),
+      ]);
+    });
+
+    expect(listMediaTaskArtifacts).toHaveBeenCalledWith({
+      projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+      taskFamily: "image",
+      limit: 32,
+    });
+    expect(listDirectory).not.toHaveBeenCalled();
+    expect(readFilePreview).not.toHaveBeenCalled();
   });
 
   it("应在进入会话时从 task file 恢复最近的图片任务", async () => {
@@ -1022,10 +1220,10 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     });
 
     expect(getValue().canvasState?.type).toBe("document");
-    expect(getValue().canvasState?.content).toContain(
+    expect(getDocumentCanvasContent(getValue().canvasState)).toContain(
       "https://example.com/restored-inline-lime.png",
     );
-    expect(getValue().canvasState?.content).not.toContain(
+    expect(getDocumentCanvasContent(getValue().canvasState)).not.toContain(
       "pending-image-task://",
     );
   });
@@ -1122,7 +1320,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
       await Promise.resolve();
     });
 
-    const nextContent = getValue().canvasState?.content || "";
+    const nextContent = getDocumentCanvasContent(getValue().canvasState);
     const imageIndex = nextContent.indexOf(
       "https://example.com/restored-inline-section.png",
     );
@@ -1442,11 +1640,13 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     });
 
     expect(getValue().canvasState?.type).toBe("document");
-    expect(getValue().canvasState?.content).toContain("pending-image-task://");
-    expect(getValue().canvasState?.content).toContain(
+    expect(getDocumentCanvasContent(getValue().canvasState)).toContain(
+      "pending-image-task://",
+    );
+    expect(getDocumentCanvasContent(getValue().canvasState)).toContain(
       "lime:image-task-slot:document-slot-inline-1",
     );
-    const pendingContent = getValue().canvasState?.content || "";
+    const pendingContent = getDocumentCanvasContent(getValue().canvasState);
     const placeholderIndex = pendingContent.indexOf("pending-image-task://");
     expect(placeholderIndex).toBeGreaterThan(
       pendingContent.indexOf("这里是被选中的核心观点段落。"),
@@ -1499,10 +1699,10 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
       await Promise.resolve();
     });
 
-    expect(getValue().canvasState?.content).toContain(
+    expect(getDocumentCanvasContent(getValue().canvasState)).toContain(
       "https://example.com/generated-inline-lime.png",
     );
-    const finalContent = getValue().canvasState?.content || "";
+    const finalContent = getDocumentCanvasContent(getValue().canvasState);
     const imageIndex = finalContent.indexOf(
       "https://example.com/generated-inline-lime.png",
     );
@@ -1512,7 +1712,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     expect(imageIndex).toBeLessThan(
       finalContent.indexOf("这里是核心观点补充说明。"),
     );
-    expect(getValue().canvasState?.content).not.toContain(
+    expect(getDocumentCanvasContent(getValue().canvasState)).not.toContain(
       "pending-image-task://",
     );
   });

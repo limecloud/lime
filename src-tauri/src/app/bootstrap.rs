@@ -15,7 +15,6 @@ use crate::commands::orchestrator_cmd::OrchestratorState;
 use crate::commands::plugin_cmd::PluginManagerState;
 use crate::commands::plugin_install_cmd::PluginInstallerState;
 use crate::commands::provider_pool_cmd::{CredentialSyncServiceState, ProviderPoolServiceState};
-use crate::commands::resilience_cmd::ResilienceConfigState;
 use crate::commands::session_files_cmd::SessionFilesState;
 use crate::commands::skill_cmd::SkillServiceState;
 use crate::commands::terminal_cmd::TerminalManagerState;
@@ -56,7 +55,6 @@ pub struct AppStates {
     pub credential_sync_service: CredentialSyncServiceState,
     pub token_cache_service: TokenCacheServiceState,
     pub machine_id_service: MachineIdState,
-    pub resilience_config: ResilienceConfigState,
     pub plugin_manager: PluginManagerState,
     pub plugin_installer: PluginInstallerState,
     pub plugin_rpc_manager: crate::commands::plugin_rpc_cmd::PluginRpcManagerState,
@@ -177,8 +175,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         .map_err(|e| format!("MachineIdService 初始化失败: {e}"))?;
     let machine_id_service_state: MachineIdState = Arc::new(RwLock::new(machine_id_service));
 
-    let resilience_config_state = ResilienceConfigState::default();
-
     // 插件管理器
     let plugin_manager = plugin::PluginManager::with_defaults();
     let plugin_manager_state = PluginManagerState(Arc::new(RwLock::new(plugin_manager)));
@@ -281,7 +277,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         credential_sync_service: credential_sync_service_state,
         token_cache_service: token_cache_service_state,
         machine_id_service: machine_id_service_state,
-        resilience_config: resilience_config_state,
         plugin_manager: plugin_manager_state,
         plugin_installer: plugin_installer_state,
         plugin_rpc_manager: plugin_rpc_manager_state,

@@ -119,6 +119,9 @@ export const InputbarComposerSection: React.FC<
     buildSkillSelectionBindings(skillSelection);
   const resolvedProviderType = inputAdapter.model?.providerType;
   const resolvedModel = inputAdapter.model?.model;
+  const resolvedSetProviderType =
+    inputAdapter.actions.setProviderType || (() => undefined);
+  const resolvedSetModel = inputAdapter.actions.setModel || (() => undefined);
   const shouldShowVisionNotice =
     currentPendingImages.length > 0 &&
     Boolean(resolvedProviderType?.trim()) &&
@@ -127,7 +130,7 @@ export const InputbarComposerSection: React.FC<
     topExtra || shouldShowVisionNotice ? (
       <>
         {topExtra}
-        {shouldShowVisionNotice ? (
+        {shouldShowVisionNotice && resolvedProviderType && resolvedModel ? (
           <InputbarVisionCapabilityNotice
             providerType={resolvedProviderType}
             model={resolvedModel}
@@ -235,9 +238,9 @@ export const InputbarComposerSection: React.FC<
               <InputbarModelExtra
                 isFullscreen={isFullscreen}
                 providerType={inputAdapter.model?.providerType}
-                setProviderType={inputAdapter.actions.setProviderType}
+                setProviderType={resolvedSetProviderType}
                 model={inputAdapter.model?.model}
-                setModel={inputAdapter.actions.setModel}
+                setModel={resolvedSetModel}
                 activeTheme={activeTheme}
                 onManageProviders={onManageProviders}
                 executionRuntime={executionRuntime}

@@ -728,12 +728,12 @@ export async function tryExecuteSlashSkillCommand(
               let imageTaskPreview: MessageImageWorkbenchPreview | null = null;
               const patched = prev.map((msg) => {
                 if (msg.id !== assistantMsgId) return msg;
-                const currentToolArguments =
-                  streamEvent.arguments ||
-                  msg.toolCalls?.find((tc) => tc.id === streamEvent.tool_id)
-                    ?.arguments;
+                const currentToolCall = msg.toolCalls?.find(
+                  (tc) => tc.id === streamEvent.tool_id,
+                );
+                const currentToolArguments = currentToolCall?.arguments;
                 imageTaskPreview = buildImageTaskPreviewFromToolResult({
-                  toolName: streamEvent.tool_name,
+                  toolName: currentToolCall?.name || "",
                   toolArguments: currentToolArguments,
                   toolResult: asRecord(normalizedResult) || undefined,
                   fallbackPrompt: command.userInput || rawContent,

@@ -906,8 +906,8 @@ export function useWorkspaceImageWorkbenchActionRuntime({
                 : "claw-image-workbench",
           slotId: documentInlineSlotId,
           anchorHint: documentInlineAnchorHint,
-          anchorSectionTitle: documentInlineAnchorSectionTitle,
-          anchorText: documentInlineAnchorText,
+          anchorSectionTitle: documentInlineAnchorSectionTitle ?? undefined,
+          anchorText: documentInlineAnchorText ?? undefined,
           providerId: imageWorkbenchSelectedProviderId,
           model: imageWorkbenchSelectedModelId,
           sessionId: imageWorkbenchSessionKey,
@@ -932,11 +932,7 @@ export function useWorkspaceImageWorkbenchActionRuntime({
           );
           syncDocumentInlineImageTask({
             taskRecord:
-              createdArtifact.record &&
-              typeof createdArtifact.record === "object" &&
-              !Array.isArray(createdArtifact.record)
-                ? (createdArtifact.record as Record<string, unknown>)
-                : {
+              asRecord(createdArtifact.record) || {
                     task_id: createdArtifact.task_id,
                     task_type: createdArtifact.task_type,
                     status: createdArtifact.status,

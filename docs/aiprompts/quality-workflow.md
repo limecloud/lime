@@ -76,6 +76,8 @@
 
 如果本轮是在清退旧图库素材命名，`create_poster_metadata` / `get_poster_metadata` / `get_poster_material` / `update_poster_metadata` / `delete_poster_metadata` / `list_by_*`，以及 `PosterMaterial*` / `poster_material_*` 表名与模块名也必须同步从前端网关、Rust 注册、DAO 与治理目录册中撤掉；如需保留历史数据，只允许在 schema 迁移中短暂停留旧表名。最低校验至少包含 `npm run test:contracts` 与 `npm run governance:legacy-report`。
 
+如果本轮是在清退旧设置页的“安全与性能 / 容错配置”命令面，`get_retry_config`、`update_retry_config`、`get_failover_config`、`update_failover_config`、`get_switch_log`、`clear_switch_log`、`get_rate_limit_config`、`update_rate_limit_config`、`get_conversation_config`、`update_conversation_config`、`update_hint_routes`、`get_pairing_config`、`update_pairing_config` 也必须同步从前端网关、Rust 注册和默认 mock 中撤掉；若当前输入框提示仍依赖 `get_hint_routes`，则只保留该只读读取面。最低校验至少包含 `npm run test:contracts` 与 `npm run governance:legacy-report`。
+
 如果本轮涉及 `companion_*` 桌宠命令族，还要同步检查本地 companion `WebSocket` 入口、前端 `src/lib/api/companion.ts` 网关、Rust 注册、治理目录册以及浏览器模式 mock 返回形态；浏览器模式下这组命令默认也要保持可 mock，不要让桌宠接入把默认页面渲染链路卡死。
 
 如果本轮涉及 team runtime 工具面或主线程用户消息工具，还要同步检查 Rust catalog / inventory、runtime 注册、浏览器 fallback mock 与前端 tool display；`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers` 必须保持同一组 current surface，`SendUserMessage` 也必须继续停留在 current 主线程工具面，`SubAgentTask` 只能继续停留在 compat 读取边界。

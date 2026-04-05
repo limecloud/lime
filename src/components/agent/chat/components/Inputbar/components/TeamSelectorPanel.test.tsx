@@ -218,10 +218,7 @@ describe("TeamSelectorPanel", () => {
   });
 
   it("命中稳妥模式模型时不应再展示 Team 横幅提示", async () => {
-    const { container } = renderPanel({
-      providerType: "openai",
-      model: "glm-4.7",
-    });
+    const { container } = renderPanel();
 
     await flushEffects();
 
