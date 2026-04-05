@@ -3,6 +3,8 @@ import {
   clearSkillCatalogCache,
   getSeededSkillCatalog,
   getSkillCatalog,
+  listSkillCatalogCommandEntries,
+  listSkillCatalogSceneEntries,
   saveSkillCatalog,
   type SkillCatalog,
 } from "./skillCatalog";
@@ -31,6 +33,7 @@ function buildLegacyCatalogWithSiteEntries(): SkillCatalog {
         itemCount: 1,
       },
     ],
+    entries: [],
     items: [
       {
         ...generalSkill,
@@ -113,5 +116,50 @@ describe("skillCatalog", () => {
 
     const stored = window.localStorage.getItem("lime:skill-catalog:v1");
     expect(stored).not.toContain("legacy-site-skill");
+  });
+
+  it("应从统一目录中暴露 command 与 scene 扩展入口", async () => {
+    const seeded = await getSkillCatalog();
+
+    expect(
+      listSkillCatalogCommandEntries(seeded).map((entry) => entry.commandKey),
+    ).toEqual(
+      expect.arrayContaining([
+        "image_generate",
+        "cover_generate",
+        "video_generate",
+        "transcription_generate",
+        "url_parse",
+      ]),
+    );
+
+    const remoteCatalog: SkillCatalog = {
+      ...buildLegacyCatalogWithSiteEntries(),
+      entries: [
+        {
+          id: "scene:campaign-launch",
+          kind: "scene",
+          title: "新品发布场景",
+          summary: "把链接解析、配图与封面串成一个可复用场景。",
+          sceneKey: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+          aliases: ["launch", "campaign"],
+          executionKind: "scene",
+          renderContract: {
+            resultKind: "tool_timeline",
+            detailKind: "scene_detail",
+            supportsStreaming: true,
+            supportsTimeline: true,
+          },
+        },
+      ],
+    };
+
+    saveSkillCatalog(remoteCatalog, "bootstrap_sync");
+    const catalog = await getSkillCatalog();
+
+    expect(
+      listSkillCatalogSceneEntries(catalog).map((entry) => entry.sceneKey),
+    ).toContain("campaign-launch");
   });
 });

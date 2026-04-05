@@ -31,6 +31,7 @@ function buildRemoteCatalog(): SkillCatalog {
         itemCount: 2,
       },
     ],
+    entries: [],
     items: [
       {
         ...seeded.items[0]!,
@@ -68,6 +69,7 @@ function buildCloudCatalog(): SkillCatalog {
         itemCount: 1,
       },
     ],
+    entries: [],
     items: [
       {
         ...seeded.items[1]!,
@@ -104,6 +106,7 @@ function buildLegacySiteCatalog(): SkillCatalog {
         itemCount: 1,
       },
     ],
+    entries: [],
     items: [
       {
         ...baseSkill,

@@ -108,27 +108,9 @@ function resolveImageWorkbenchModeLabel(mode: ImageWorkbenchTaskMode): string {
   return "图片生成";
 }
 
-function resolveImageWorkbenchSkillLabel(mode: ImageWorkbenchTaskMode): string {
-  if (mode === "edit") {
-    return "图片编辑技能";
-  }
-  if (mode === "variation") {
-    return "图片重绘技能";
-  }
-  return "配图技能";
-}
-
-function resolveImageWorkbenchCommandLabel(mode: ImageWorkbenchTaskMode): string {
-  if (mode === "edit") {
-    return "@修图";
-  }
-  if (mode === "variation") {
-    return "@重绘";
-  }
-  return "@配图";
-}
-
-function resolveImageWorkbenchProgressLabel(mode: ImageWorkbenchTaskMode): string {
+function resolveImageWorkbenchProgressLabel(
+  mode: ImageWorkbenchTaskMode,
+): string {
   if (mode === "edit") {
     return "修图";
   }
@@ -140,12 +122,12 @@ function resolveImageWorkbenchProgressLabel(mode: ImageWorkbenchTaskMode): strin
 
 function resolveImageWorkbenchActionVerb(mode: ImageWorkbenchTaskMode): string {
   if (mode === "edit") {
-    return "梳理来源图与编辑要求，再通过图片编辑技能提交异步修图任务";
+    return "整理来源图与编辑要求，并创建异步修图任务";
   }
   if (mode === "variation") {
-    return "梳理参考图与重绘要求，再通过图片重绘技能提交异步图片任务";
+    return "整理参考图与重绘要求，并创建异步图片任务";
   }
-  return "梳理画面主题、尺寸和出图数量，再通过配图技能提交异步图片任务";
+  return "整理画面主题、尺寸和出图数量，并创建异步图片任务";
 }
 
 function formatToolArguments(value: Record<string, unknown>): string {
@@ -172,38 +154,6 @@ function resolveImageWorkbenchAnalysisText(
   }
 }
 
-function buildImageWorkbenchSkillToolCall(
-  params: BuildImageWorkbenchProcessDescriptorParams,
-): AgentToolCallState {
-  const endedAt = params.endedAt ?? params.startedAt;
-  const prompt = collapseWhitespace(params.prompt) || "当前图片任务";
-  const rawText =
-    collapseWhitespace(params.rawText || "") ||
-    `${resolveImageWorkbenchCommandLabel(params.mode)} ${
-      params.mode === "variation" ? "重绘 " : params.mode === "generate" ? "生成 " : ""
-    }${prompt}`.trim();
-
-  return {
-    id: `${params.taskId}:skill`,
-    name: "skill",
-    arguments: formatToolArguments({
-      name: resolveImageWorkbenchSkillLabel(params.mode),
-      command: rawText,
-      prompt,
-    }),
-    status: "completed",
-    result: {
-      success: true,
-      output:
-        params.status === "running"
-          ? `已完成${resolveImageWorkbenchProgressLabel(params.mode)}需求解析，正在提交异步图片任务。`
-          : `已完成${resolveImageWorkbenchProgressLabel(params.mode)}需求解析，并保留本轮执行上下文。`,
-    },
-    startTime: params.startedAt,
-    endTime: endedAt,
-  };
-}
-
 function resolveImageWorkbenchTaskToolStatus(
   status: ImageWorkbenchMessageStatus,
 ): AgentToolCallState["status"] {
@@ -227,7 +177,8 @@ function buildImageWorkbenchTaskToolResult(
     params.successCount ??
     (params.status === "complete" ? params.count || 1 : undefined);
   const images =
-    params.imageUrl && (params.status === "complete" || params.status === "partial")
+    params.imageUrl &&
+    (params.status === "complete" || params.status === "partial")
       ? [{ src: params.imageUrl, origin: "tool_payload" as const }]
       : undefined;
 
@@ -253,7 +204,8 @@ function buildImageWorkbenchTaskToolResult(
     default:
       return {
         success: false,
-        output: params.failureMessage?.trim() || "图片任务执行失败，未返回可用结果。",
+        output:
+          params.failureMessage?.trim() || "图片任务执行失败，未返回可用结果。",
         error: params.failureMessage?.trim() || "图片任务执行失败",
       };
   }
@@ -278,7 +230,8 @@ function buildImageWorkbenchTaskToolCall(
     status,
     result: buildImageWorkbenchTaskToolResult(params),
     startTime: params.startedAt,
-    endTime: status === "running" ? undefined : params.endedAt ?? params.startedAt,
+    endTime:
+      status === "running" ? undefined : (params.endedAt ?? params.startedAt),
   };
 }
 
@@ -288,19 +241,14 @@ export function buildImageWorkbenchProcessDescriptor(
   toolCalls: AgentToolCallState[];
   contentParts: ContentPart[];
 } {
-  const skillToolCall = buildImageWorkbenchSkillToolCall(params);
   const taskToolCall = buildImageWorkbenchTaskToolCall(params);
 
   return {
-    toolCalls: [skillToolCall, taskToolCall],
+    toolCalls: [taskToolCall],
     contentParts: [
       {
         type: "text",
         text: resolveImageWorkbenchAnalysisText(params),
-      },
-      {
-        type: "tool_use",
-        toolCall: skillToolCall,
       },
       {
         type: "tool_use",

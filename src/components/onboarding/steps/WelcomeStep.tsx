@@ -4,7 +4,7 @@
 
 import styled from "styled-components";
 import { Button } from "@/components/ui/button";
-import { Cpu, Puzzle, Mic } from "lucide-react";
+import { Cpu, LayoutDashboard, Mic } from "lucide-react";
 
 const Container = styled.div`
   display: flex;
@@ -150,11 +150,11 @@ export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
 
         <FeatureCard>
           <FeatureIcon>
-            <Puzzle />
+            <LayoutDashboard />
           </FeatureIcon>
-          <FeatureTitle>插件扩展</FeatureTitle>
+          <FeatureTitle>持续工作区</FeatureTitle>
           <FeatureDescription>
-            丰富的插件生态，按需安装扩展功能
+            围绕同一目标持续整理对话、素材和结果，减少来回切换。
           </FeatureDescription>
         </FeatureCard>
 

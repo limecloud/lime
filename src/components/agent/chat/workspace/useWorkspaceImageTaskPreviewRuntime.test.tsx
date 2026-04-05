@@ -310,10 +310,6 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         isThinking: true,
         toolCalls: [
           expect.objectContaining({
-            name: "skill",
-            status: "completed",
-          }),
-          expect.objectContaining({
             name: "limeCreateImageGenerationTask",
             status: "running",
           }),
@@ -321,12 +317,6 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         contentParts: expect.arrayContaining([
           expect.objectContaining({
             type: "text",
-          }),
-          expect.objectContaining({
-            type: "tool_use",
-            toolCall: expect.objectContaining({
-              name: "skill",
-            }),
           }),
           expect.objectContaining({
             type: "tool_use",
@@ -392,10 +382,6 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         content: "图片任务正在生成中。",
         toolCalls: [
           expect.objectContaining({
-            name: "skill",
-            status: "completed",
-          }),
-          expect.objectContaining({
             name: "limeCreateImageGenerationTask",
             status: "running",
           }),
@@ -426,10 +412,6 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         content: "图片任务已完成，共生成 1 张。",
         isThinking: false,
         toolCalls: [
-          expect.objectContaining({
-            name: "skill",
-            status: "completed",
-          }),
           expect.objectContaining({
             name: "limeCreateImageGenerationTask",
             status: "completed",

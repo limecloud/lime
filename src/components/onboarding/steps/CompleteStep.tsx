@@ -66,7 +66,7 @@ export function CompleteStep({ onFinish }: CompleteStepProps) {
       <Subtitle>Lime 已准备就绪，您可以开始使用了。</Subtitle>
 
       <TipsMessage>
-        提示：您可以在左侧导航栏的"插件中心"随时安装插件
+        提示：后续可在设置中继续调整语音输入和快捷键。
       </TipsMessage>
 
       <Button size="lg" onClick={onFinish}>

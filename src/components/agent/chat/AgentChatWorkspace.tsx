@@ -2160,6 +2160,7 @@ export function AgentChatWorkspace({
       contentId,
       input,
       chatToolPreferences: effectiveChatToolPreferences,
+      serviceSkills: activeTheme === "general" ? serviceSkills : [],
       preferredTeamPresetId,
       selectedTeam,
       selectedTeamLabel,
@@ -2216,6 +2217,8 @@ export function AgentChatWorkspace({
     ensureBrowserAssistCanvas,
     handleAutoLaunchMatchedSiteSkill:
       workspaceServiceSkillEntryActions.handleAutoLaunchMatchedSiteSkill,
+    handleRuntimeSceneLaunch:
+      workspaceServiceSkillEntryActions.handleRuntimeSceneLaunch,
     handleImageWorkbenchCommand,
     resolveImageWorkbenchSkillRequest,
   });

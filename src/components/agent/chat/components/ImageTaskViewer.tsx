@@ -1,5 +1,6 @@
 import { ArrowUpRight, LoaderCircle, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
 
 function resolveModeEyebrow(mode?: string): string {
@@ -151,6 +152,43 @@ function resolveEmptyStateDescription(
   }
 }
 
+function resolveImageUnavailableTitle(status?: string): string {
+  switch ((status || "").trim().toLowerCase()) {
+    case "complete":
+    case "partial":
+      return "图片暂时无法显示";
+    default:
+      return resolveStatusLabel(status);
+  }
+}
+
+function resolveImageUnavailableDescription(mode?: string): string {
+  switch ((mode || "").trim().toLowerCase()) {
+    case "edit":
+      return "修图结果已经返回，但当前预览地址暂时无法加载。";
+    case "variation":
+      return "重绘结果已经返回，但当前预览地址暂时无法加载。";
+    case "generate":
+    default:
+      return "图片结果已经返回，但当前预览地址暂时无法加载。";
+  }
+}
+
+function resolveSourcePlaceholderLabel(
+  mode?: string,
+  reason?: "empty" | "error",
+) {
+  if (reason === "error") {
+    return (mode || "").trim().toLowerCase() === "variation"
+      ? "参考图暂时无法显示"
+      : "来源图暂时无法显示";
+  }
+
+  return (mode || "").trim().toLowerCase() === "variation"
+    ? "参考图待同步"
+    : "来源图待同步";
+}
+
 export function ImageTaskViewer({
   tasks,
   outputs,
@@ -208,8 +246,8 @@ export function ImageTaskViewer({
   );
   const sourceSummary = sourceImagePrompt
     ? sourceImagePrompt
-      : sourceImageRef
-        ? `已引用 ${sourceImageRef}`
+    : sourceImageRef
+      ? `已引用 ${sourceImageRef}`
       : selectedTask?.mode === "variation"
         ? "当前任务会基于参考图继续生成新的重绘结果。"
         : "当前任务会基于已有图片结果继续完成修图。";
@@ -266,22 +304,53 @@ export function ImageTaskViewer({
       <div className="flex min-h-0 flex-1 flex-col px-5 py-5">
         <div className="flex-1 overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50">
           {selectedOutput ? (
-            <button
-              type="button"
-              className="group relative block h-full w-full overflow-hidden"
-              onClick={() => onOpenImage?.(selectedOutput.url)}
-              data-testid="image-task-viewer-open-image"
-            >
-              <img
-                src={selectedOutput.url}
-                alt={selectedOutput.prompt || "图片任务结果"}
-                className="h-full w-full object-contain bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))]"
-              />
-              <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/92 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm shadow-slate-950/5">
-                <span>打开原图</span>
-                <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-              </div>
-            </button>
+            <RenderableTaskImage
+              src={selectedOutput.url}
+              alt={selectedOutput.prompt || "图片任务结果"}
+              className="h-full w-full object-contain bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))]"
+              renderImage={(imageProps) => (
+                <button
+                  type="button"
+                  className="group relative block h-full w-full overflow-hidden"
+                  onClick={() => onOpenImage?.(selectedOutput.url)}
+                  data-testid="image-task-viewer-open-image"
+                >
+                  <img {...imageProps} />
+                  <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/92 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm shadow-slate-950/5">
+                    <span>打开原图</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </div>
+                </button>
+              )}
+              renderFallback={(reason) => (
+                <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
+                  <div className="max-w-sm space-y-3">
+                    {reason === "empty" &&
+                    (selectedTask?.status === "running" ||
+                      selectedTask?.status === "routing" ||
+                      selectedTask?.status === "queued") ? (
+                      <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-sky-500" />
+                    ) : (
+                      <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
+                    )}
+                    <div className="text-sm font-semibold text-slate-900">
+                      {reason === "error"
+                        ? resolveImageUnavailableTitle(selectedTask?.status)
+                        : statusLabel}
+                    </div>
+                    <div className="text-sm leading-6 text-slate-500">
+                      {reason === "error"
+                        ? resolveImageUnavailableDescription(selectedTask?.mode)
+                        : resolveEmptyStateDescription(
+                            selectedTask?.status,
+                            selectedTask?.failureMessage,
+                            selectedTask?.mode,
+                          )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            />
           ) : (
             <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
               <div className="max-w-sm space-y-3">
@@ -317,24 +386,22 @@ export function ImageTaskViewer({
             </div>
             <div className="mt-3 flex items-center gap-3">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-slate-200 bg-white">
-                {sourceImageUrl ? (
-                  <img
-                    data-testid="image-task-viewer-source-image"
-                    src={sourceImageUrl}
-                    alt={
-                      sourceImagePrompt ||
-                      resolveSourceLabel(selectedTask?.mode)
-                    }
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="px-2 text-center text-[11px] font-medium text-slate-400">
-                    {(selectedTask?.mode || "").trim().toLowerCase() ===
-                    "variation"
-                      ? "参考图待同步"
-                      : "来源图待同步"}
-                  </span>
-                )}
+                <RenderableTaskImage
+                  src={sourceImageUrl}
+                  data-testid="image-task-viewer-source-image"
+                  alt={
+                    sourceImagePrompt || resolveSourceLabel(selectedTask?.mode)
+                  }
+                  className="h-full w-full object-cover"
+                  renderFallback={(reason) => (
+                    <span className="px-2 text-center text-[11px] font-medium text-slate-400">
+                      {resolveSourcePlaceholderLabel(
+                        selectedTask?.mode,
+                        reason,
+                      )}
+                    </span>
+                  )}
+                />
               </div>
               <div className="min-w-0">
                 <div className="line-clamp-2 text-sm font-medium leading-6 text-slate-800">
@@ -456,10 +523,15 @@ export function ImageTaskViewer({
                       : "border-slate-200 hover:border-slate-300",
                   )}
                 >
-                  <img
+                  <RenderableTaskImage
                     src={output.url}
                     alt={output.prompt || "图片结果缩略图"}
                     className="h-20 w-28 object-cover"
+                    renderFallback={() => (
+                      <div className="flex h-20 w-28 items-center justify-center bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-400">
+                        预览失败
+                      </div>
+                    )}
                   />
                 </button>
               );

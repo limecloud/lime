@@ -30,13 +30,15 @@ struct ImageProviderRoutingConfig {
     preferred_model_id: Option<String>,
     allow_fallback: bool,
     default_size: Option<String>,
+    is_explicit: bool,
 }
 
 pub(crate) async fn try_generate_with_configured_provider(
     state: &AppState,
     request: &ImageGenerationRequest,
+    explicit_provider_id: Option<&str>,
 ) -> Result<Option<ImageGenerationResponse>, ConfiguredImageProviderError> {
-    let Some(routing) = load_image_provider_routing() else {
+    let Some(routing) = load_image_provider_routing(explicit_provider_id) else {
         return Ok(None);
     };
 
@@ -115,8 +117,8 @@ pub(crate) async fn try_generate_with_configured_provider(
     state.logs.write().await.add(
         "info",
         &format!(
-            "[IMAGE] 默认图片服务命中 API Provider: provider_id={}, model={}, size={}",
-            provider.id, request_model, request_size
+            "[IMAGE] 图片服务命中 API Provider: provider_id={}, model={}, size={}, explicit={}",
+            provider.id, request_model, request_size, routing.is_explicit
         ),
     );
 
@@ -173,7 +175,23 @@ fn handle_routing_failure(
     })
 }
 
-fn load_image_provider_routing() -> Option<ImageProviderRoutingConfig> {
+fn load_image_provider_routing(
+    explicit_provider_id: Option<&str>,
+) -> Option<ImageProviderRoutingConfig> {
+    if let Some(provider_id) = explicit_provider_id
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| item.to_string())
+    {
+        return Some(ImageProviderRoutingConfig {
+            provider_id,
+            preferred_model_id: None,
+            allow_fallback: false,
+            default_size: None,
+            is_explicit: true,
+        });
+    }
+
     let config_path = ConfigManager::default_config_path();
     let manager = ConfigManager::load(&config_path).ok()?;
     let image_preference = manager
@@ -193,6 +211,7 @@ fn load_image_provider_routing() -> Option<ImageProviderRoutingConfig> {
         preferred_model_id: normalize_optional_string(image_preference.preferred_model_id),
         allow_fallback: image_preference.allow_fallback,
         default_size: normalize_optional_string(manager.config().image_gen.default_size.clone()),
+        is_explicit: false,
     })
 }
 
@@ -302,6 +321,19 @@ fn resolve_fal_queue_host(api_host: &str) -> String {
     }
 }
 
+const FAL_SUPPORTED_ASPECT_RATIOS: [(&str, f64); 10] = [
+    ("21:9", 21.0 / 9.0),
+    ("16:9", 16.0 / 9.0),
+    ("3:2", 3.0 / 2.0),
+    ("4:3", 4.0 / 3.0),
+    ("5:4", 5.0 / 4.0),
+    ("1:1", 1.0),
+    ("4:5", 4.0 / 5.0),
+    ("3:4", 3.0 / 4.0),
+    ("2:3", 2.0 / 3.0),
+    ("9:16", 9.0 / 16.0),
+];
+
 fn size_to_aspect_ratio(size: &str) -> Option<String> {
     let (width_raw, height_raw) = size.split_once('x')?;
     let width = width_raw.parse::<u32>().ok()?;
@@ -311,7 +343,25 @@ fn size_to_aspect_ratio(size: &str) -> Option<String> {
     }
 
     let gcd = greatest_common_divisor(width, height);
-    Some(format!("{}:{}", width / gcd, height / gcd))
+    let exact_ratio = format!("{}:{}", width / gcd, height / gcd);
+    if FAL_SUPPORTED_ASPECT_RATIOS
+        .iter()
+        .any(|(label, _)| *label == exact_ratio)
+    {
+        return Some(exact_ratio);
+    }
+
+    let numeric_ratio = width as f64 / height as f64;
+    let nearest = FAL_SUPPORTED_ASPECT_RATIOS
+        .iter()
+        .map(|(label, ratio)| (*label, (numeric_ratio - ratio).abs()))
+        .min_by(|left, right| left.1.total_cmp(&right.1));
+
+    match nearest {
+        Some((label, diff)) if diff <= 0.08 => Some(label.to_string()),
+        Some(_) => Some("auto".to_string()),
+        None => None,
+    }
 }
 
 fn greatest_common_divisor(mut left: u32, mut right: u32) -> u32 {
@@ -397,7 +447,7 @@ async fn post_fal_json(
         return Err(format!(
             "Fal HTTP {}: {}",
             status.as_u16(),
-            preview_text(&body, 240)
+            summarize_fal_error_body(&body)
         ));
     }
 
@@ -523,7 +573,7 @@ async fn get_fal_json(client: &Client, endpoint: &str, api_key: &str) -> Result<
         return Err(format!(
             "Fal GET HTTP {}: {}",
             status.as_u16(),
-            preview_text(&body, 240)
+            summarize_fal_error_body(&body)
         ));
     }
 
@@ -547,12 +597,25 @@ async fn build_openai_response(
     let mut data = Vec::with_capacity(image_urls.len());
     for image_url in image_urls {
         if response_format == "b64_json" {
-            let b64_json = download_image_as_base64(client, image_url).await?;
-            data.push(ImageData {
-                b64_json: Some(b64_json),
-                url: None,
-                revised_prompt: None,
-            });
+            match download_image_as_base64(client, image_url).await {
+                Ok(b64_json) => data.push(ImageData {
+                    b64_json: Some(b64_json),
+                    url: None,
+                    revised_prompt: None,
+                }),
+                Err(error) => {
+                    tracing::warn!(
+                        "[IMAGE] 图片二次下载失败，回退原始 URL: url={}, error={}",
+                        image_url,
+                        error
+                    );
+                    data.push(ImageData {
+                        b64_json: None,
+                        url: Some(image_url.clone()),
+                        revised_prompt: None,
+                    });
+                }
+            }
         } else {
             data.push(ImageData {
                 b64_json: None,
@@ -600,13 +663,23 @@ async fn download_image_as_base64(client: &Client, image_url: &str) -> Result<St
 
 fn collect_image_urls(value: &Value) -> Vec<String> {
     let mut urls = Vec::new();
-    collect_image_urls_inner(value, &mut urls);
+    collect_image_urls_inner(value, None, &mut urls);
     urls
 }
 
-fn collect_image_urls_inner(value: &Value, urls: &mut Vec<String>) {
+fn should_skip_control_url_key(key: &str) -> bool {
+    matches!(
+        key,
+        "status_url" | "statusUrl" | "response_url" | "responseUrl" | "cancel_url" | "cancelUrl"
+    )
+}
+
+fn collect_image_urls_inner(value: &Value, parent_key: Option<&str>, urls: &mut Vec<String>) {
     match value {
         Value::String(text) => {
+            if parent_key.is_some_and(should_skip_control_url_key) {
+                return;
+            }
             let trimmed = text.trim();
             if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
                 push_unique(urls, trimmed.to_string());
@@ -614,7 +687,7 @@ fn collect_image_urls_inner(value: &Value, urls: &mut Vec<String>) {
         }
         Value::Array(items) => {
             for item in items {
-                collect_image_urls_inner(item, urls);
+                collect_image_urls_inner(item, None, urls);
             }
         }
         Value::Object(map) => {
@@ -640,8 +713,8 @@ fn collect_image_urls_inner(value: &Value, urls: &mut Vec<String>) {
                 }
             }
 
-            for nested in map.values() {
-                collect_image_urls_inner(nested, urls);
+            for (key, nested) in map {
+                collect_image_urls_inner(nested, Some(key.as_str()), urls);
             }
         }
         _ => {}
@@ -652,6 +725,54 @@ fn push_unique(urls: &mut Vec<String>, candidate: String) {
     if !urls.iter().any(|existing| existing == &candidate) {
         urls.push(candidate);
     }
+}
+
+fn summarize_fal_error_body(body: &str) -> String {
+    let normalized = body.trim();
+    if normalized.is_empty() {
+        return "Fal 返回了空响应。".to_string();
+    }
+
+    if normalized.contains("aspect_ratio") {
+        return "当前图片服务不支持这个画幅比例，请改用 21:9、16:9、3:2、4:3、5:4、1:1、4:5、3:4、2:3 或 9:16。".to_string();
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<Value>(normalized) {
+        if let Some(message) = parsed
+            .get("message")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return message.to_string();
+        }
+
+        if let Some(message) = parsed
+            .get("error")
+            .and_then(Value::as_object)
+            .and_then(|error| error.get("message"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return message.to_string();
+        }
+
+        if let Some(message) = parsed
+            .get("detail")
+            .and_then(Value::as_array)
+            .and_then(|items| items.first())
+            .and_then(Value::as_object)
+            .and_then(|record| record.get("msg"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return message.to_string();
+        }
+    }
+
+    preview_text(normalized, 240)
 }
 
 fn preview_text(text: &str, max_len: usize) -> String {
@@ -667,7 +788,8 @@ fn preview_text(text: &str, max_len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_image_urls, normalize_fal_api_host, resolve_fal_model, size_to_aspect_ratio,
+        collect_image_urls, load_image_provider_routing, normalize_fal_api_host, resolve_fal_model,
+        size_to_aspect_ratio,
     };
     use serde_json::json;
 
@@ -696,9 +818,11 @@ mod tests {
     }
 
     #[test]
-    fn size_to_aspect_ratio_reduces_fraction() {
+    fn size_to_aspect_ratio_maps_to_supported_fal_values() {
         assert_eq!(size_to_aspect_ratio("1024x1024"), Some("1:1".to_string()));
-        assert_eq!(size_to_aspect_ratio("1792x1024"), Some("7:4".to_string()));
+        assert_eq!(size_to_aspect_ratio("1792x1024"), Some("16:9".to_string()));
+        assert_eq!(size_to_aspect_ratio("1024x1792"), Some("9:16".to_string()));
+        assert_eq!(size_to_aspect_ratio("1000x100"), Some("auto".to_string()));
         assert_eq!(size_to_aspect_ratio("invalid"), None);
     }
 
@@ -722,5 +846,35 @@ mod tests {
                 "https://example.com/c.png".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn collect_image_urls_ignores_fal_queue_control_urls() {
+        let payload = json!({
+            "status_url": "https://queue.fal.run/fal-ai/nano-banana/requests/req-1/status",
+            "response_url": "https://queue.fal.run/fal-ai/nano-banana/requests/req-1/response",
+            "cancel_url": "https://queue.fal.run/fal-ai/nano-banana/requests/req-1/cancel",
+            "data": [
+                {
+                    "url": "https://cdn.example.com/final-image.png"
+                }
+            ]
+        });
+
+        assert_eq!(
+            collect_image_urls(&payload),
+            vec!["https://cdn.example.com/final-image.png".to_string()]
+        );
+    }
+
+    #[test]
+    fn load_image_provider_routing_prefers_explicit_provider_without_fallback() {
+        let routing = load_image_provider_routing(Some("fal")).expect("explicit provider routing");
+
+        assert_eq!(routing.provider_id, "fal");
+        assert_eq!(routing.preferred_model_id, None);
+        assert_eq!(routing.default_size, None);
+        assert!(!routing.allow_fallback);
+        assert!(routing.is_explicit);
     }
 }

@@ -31,6 +31,7 @@ const mockSetChatToolPreferences = vi.fn();
 const mockSetRuntimeTeamDispatchPreview = vi.fn();
 const mockEnsureBrowserAssistCanvas = vi.fn(async () => true);
 const mockHandleAutoLaunchMatchedSiteSkill = vi.fn(async () => undefined);
+const mockHandleRuntimeSceneLaunch = vi.fn(async () => false);
 const mockHandleImageWorkbenchCommand = vi.fn<
   HookProps["handleImageWorkbenchCommand"]
 >(async () => true);
@@ -203,6 +204,8 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       mockEnsureBrowserAssistCanvas as HookProps["ensureBrowserAssistCanvas"],
     handleAutoLaunchMatchedSiteSkill:
       mockHandleAutoLaunchMatchedSiteSkill as HookProps["handleAutoLaunchMatchedSiteSkill"],
+    handleRuntimeSceneLaunch:
+      mockHandleRuntimeSceneLaunch as HookProps["handleRuntimeSceneLaunch"],
     handleImageWorkbenchCommand:
       mockHandleImageWorkbenchCommand as HookProps["handleImageWorkbenchCommand"],
     resolveImageWorkbenchSkillRequest:
@@ -245,6 +248,7 @@ describe("useWorkspaceSendActions", () => {
 
     vi.clearAllMocks();
     mockHandleImageWorkbenchCommand.mockResolvedValue(true);
+    mockHandleRuntimeSceneLaunch.mockResolvedValue(false);
     mockResolveImageWorkbenchSkillRequest.mockReturnValue(null);
   });
 
@@ -761,6 +765,29 @@ describe("useWorkspaceSendActions", () => {
           },
         },
       });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("/scene-key 命中运行时场景时应走统一 scene 启动入口，而不是继续发送普通消息", async () => {
+    mockHandleRuntimeSceneLaunch.mockResolvedValueOnce(true);
+    const harness = mountHook({
+      input: "/campaign-launch 帮我做一版新品活动启动方案",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockHandleRuntimeSceneLaunch).toHaveBeenCalledTimes(1);
+      expect(mockHandleRuntimeSceneLaunch).toHaveBeenCalledWith(
+        "/campaign-launch 帮我做一版新品活动启动方案",
+      );
+      expect(mockSendMessage).not.toHaveBeenCalled();
+      expect(mockHandleAutoLaunchMatchedSiteSkill).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }

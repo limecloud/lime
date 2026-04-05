@@ -136,6 +136,27 @@ describe("ImageTaskViewer", () => {
     expect(onOpenImage).toHaveBeenCalledWith("https://example.com/image-1.png");
   });
 
+  it("结果图加载失败时应展示兜底文案并隐藏打开原图入口", () => {
+    const { container } = renderComponent();
+
+    const image = container.querySelector(
+      'img[src="https://example.com/image-1.png"]',
+    );
+    expect(image).toBeTruthy();
+
+    act(() => {
+      image?.dispatchEvent(new Event("error"));
+    });
+
+    expect(container.textContent).toContain("图片暂时无法显示");
+    expect(container.textContent).toContain(
+      "图片结果已经返回，但当前预览地址暂时无法加载。",
+    );
+    expect(
+      container.querySelector('[data-testid="image-task-viewer-open-image"]'),
+    ).toBeNull();
+  });
+
   it("点击缩略图应切换当前输出", () => {
     const onSelectOutput = vi.fn();
     const { container } = renderComponent({ onSelectOutput });
@@ -216,6 +237,68 @@ describe("ImageTaskViewer", () => {
     expect(
       sourcePanel?.querySelector('img[src="https://example.com/source.png"]'),
     ).toBeTruthy();
+  });
+
+  it("来源图加载失败时应展示来源图兜底文案", () => {
+    const { container } = renderComponent({
+      tasks: [
+        {
+          id: "task-source-1",
+          mode: "generate",
+          status: "complete",
+          prompt: "原始海报",
+          rawText: "@配图 原始海报",
+          expectedCount: 1,
+          outputIds: ["output-source-1"],
+          createdAt: 1,
+        },
+        {
+          id: "task-edit-1",
+          mode: "edit",
+          status: "complete",
+          prompt: "去掉背景里的路人，保留主体人物",
+          rawText: "@修图 去掉背景里的路人，保留主体人物",
+          expectedCount: 1,
+          outputIds: ["output-edit-1"],
+          targetOutputId: "output-source-1",
+          targetOutputRefId: "img-source-1",
+          sourceImageRef: "img-source-1",
+          sourceImageCount: 1,
+          createdAt: 2,
+        },
+      ],
+      outputs: [
+        {
+          id: "output-source-1",
+          refId: "img-source-1",
+          taskId: "task-source-1",
+          url: "https://example.com/source.png",
+          prompt: "原始海报",
+          createdAt: 1,
+        },
+        {
+          id: "output-edit-1",
+          refId: "img-edit-1",
+          taskId: "task-edit-1",
+          url: "https://example.com/edited.png",
+          prompt: "移除路人后的海报",
+          createdAt: 2,
+          parentOutputId: "output-source-1",
+        },
+      ],
+      selectedOutputId: "output-edit-1",
+    });
+
+    const sourceImage = container.querySelector(
+      '[data-testid="image-task-viewer-source-image"]',
+    );
+    expect(sourceImage).toBeTruthy();
+
+    act(() => {
+      sourceImage?.dispatchEvent(new Event("error"));
+    });
+
+    expect(container.textContent).toContain("来源图暂时无法显示");
   });
 
   it("重绘任务应优先展示参考图输出与重绘语义", () => {

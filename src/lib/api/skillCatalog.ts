@@ -8,6 +8,7 @@ import {
   type ServiceSkillExecutorBinding,
   type ServiceSkillItem,
   type ServiceSkillSiteCapabilityBinding,
+  type ServiceSkillSurfaceScope,
 } from "./serviceSkills";
 
 export type SkillCatalogExecutionKind =
@@ -21,6 +22,85 @@ export interface SkillCatalogExecution {
   kind: SkillCatalogExecutionKind;
   siteAdapterBinding?: ServiceSkillSiteCapabilityBinding;
 }
+
+export type SkillCatalogEntryKind = "skill" | "command" | "scene";
+
+export type SkillCatalogRenderResultKind =
+  | "text"
+  | "tool_timeline"
+  | "image_gallery"
+  | "artifact"
+  | "form"
+  | "table_report";
+
+export type SkillCatalogRenderDetailKind =
+  | "json"
+  | "task_detail"
+  | "artifact_detail"
+  | "media_detail"
+  | "scene_detail";
+
+export interface SkillCatalogRenderContract {
+  resultKind: SkillCatalogRenderResultKind;
+  detailKind: SkillCatalogRenderDetailKind;
+  supportsStreaming?: boolean;
+  supportsTimeline?: boolean;
+}
+
+export type SkillCatalogCommandTriggerMode = "mention" | "slash";
+
+export interface SkillCatalogCommandTrigger {
+  mode: SkillCatalogCommandTriggerMode;
+  prefix: string;
+}
+
+export interface SkillCatalogSkillEntry {
+  id: string;
+  kind: "skill";
+  title: string;
+  summary: string;
+  skillId: string;
+  groupKey: string;
+  aliases?: string[];
+  surfaceScopes?: ServiceSkillSurfaceScope[];
+  execution: SkillCatalogExecution;
+  renderContract?: SkillCatalogRenderContract;
+}
+
+export interface SkillCatalogCommandEntry {
+  id: string;
+  kind: "command";
+  title: string;
+  summary: string;
+  commandKey: string;
+  aliases?: string[];
+  surfaceScopes?: ServiceSkillSurfaceScope[];
+  triggers: SkillCatalogCommandTrigger[];
+  binding?: {
+    skillId?: string;
+    executionKind?: SkillCatalogExecutionKind | "task_queue" | "server_api" | "cli";
+  };
+  renderContract?: SkillCatalogRenderContract;
+}
+
+export interface SkillCatalogSceneEntry {
+  id: string;
+  kind: "scene";
+  title: string;
+  summary: string;
+  sceneKey: string;
+  commandPrefix: string;
+  aliases?: string[];
+  surfaceScopes?: ServiceSkillSurfaceScope[];
+  linkedSkillId?: string;
+  executionKind?: SkillCatalogExecutionKind | "scene";
+  renderContract?: SkillCatalogRenderContract;
+}
+
+export type SkillCatalogEntry =
+  | SkillCatalogSkillEntry
+  | SkillCatalogCommandEntry
+  | SkillCatalogSceneEntry;
 
 export interface SkillCatalogGroup {
   key: string;
@@ -43,6 +123,7 @@ export interface SkillCatalog {
   syncedAt: string;
   groups: SkillCatalogGroup[];
   items: SkillCatalogItem[];
+  entries: SkillCatalogEntry[];
 }
 
 export type SkillCatalogChangeSource =
@@ -126,6 +207,134 @@ const SEEDED_SKILL_GROUP_PRESETS = [
   },
 ] as const;
 const SEEDED_SKILL_CATALOG_VERSION = "client-seed-skill-catalog-2026-04-04";
+const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
+  {
+    id: "command:image_generate",
+    title: "配图",
+    summary: "根据文字描述生成新的图片结果。",
+    commandKey: "image_generate",
+    aliases: ["image", "img", "图片", "生图"],
+    triggers: [{ mode: "mention", prefix: "@配图" }],
+    binding: {
+      skillId: "image_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "image_gallery" as const,
+      detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:cover_generate",
+    title: "封面",
+    summary: "根据主题生成平台封面图任务。",
+    commandKey: "cover_generate",
+    aliases: ["cover", "fengmian", "封面", "封面图", "头图"],
+    triggers: [{ mode: "mention", prefix: "@封面" }],
+    binding: {
+      skillId: "cover_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "image_gallery" as const,
+      detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:image_edit",
+    title: "修图",
+    summary: "编辑已有图片并生成新的结果图。",
+    commandKey: "image_edit",
+    aliases: ["edit", "xiutu", "修图", "改图", "图片编辑"],
+    triggers: [{ mode: "mention", prefix: "@修图" }],
+    binding: {
+      skillId: "image_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "image_gallery" as const,
+      detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:image_variation",
+    title: "重绘",
+    summary: "基于已有图片或参考图继续重绘新的结果图。",
+    commandKey: "image_variation",
+    aliases: ["variation", "variant", "zhonghui", "重绘", "图片重绘", "变体"],
+    triggers: [{ mode: "mention", prefix: "@重绘" }],
+    binding: {
+      skillId: "image_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "image_gallery" as const,
+      detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:video_generate",
+    title: "视频",
+    summary: "根据文字描述提交视频生成任务。",
+    commandKey: "video_generate",
+    aliases: ["video", "shipin", "视频", "短视频", "生成视频"],
+    triggers: [{ mode: "mention", prefix: "@视频" }],
+    binding: {
+      skillId: "video_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "tool_timeline" as const,
+      detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:transcription_generate",
+    title: "转写",
+    summary: "把音频或视频来源提交为转写任务。",
+    commandKey: "transcription_generate",
+    aliases: ["transcribe", "zhuanxie", "转写", "逐字稿", "字幕", "语音转文字"],
+    triggers: [{ mode: "mention", prefix: "@转写" }],
+    binding: {
+      skillId: "transcription_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:url_parse",
+    title: "链接解析",
+    summary: "解析网页链接并提交为可追踪的文本任务。",
+    commandKey: "url_parse",
+    aliases: ["url", "url_parse", "链接", "链接解析", "网页读取", "网页解析"],
+    triggers: [{ mode: "mention", prefix: "@链接解析" }],
+    binding: {
+      skillId: "url_parse",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+] as const;
 const SITE_GROUP_TITLE_OVERRIDES: Record<string, string> = {
   github: "GitHub",
   zhihu: "知乎",
@@ -154,6 +363,7 @@ function cloneSkillCatalog(catalog: SkillCatalog): SkillCatalog {
           : undefined,
       },
     })),
+    entries: (catalog.entries || []).map((entry) => cloneJsonValue(entry)),
   };
 }
 
@@ -186,6 +396,226 @@ function resolveSkillCatalogExecutionKind(
     default:
       return "agent_turn";
   }
+}
+
+function parseCommandBindingExecutionKind(
+  value: unknown,
+):
+  | SkillCatalogExecutionKind
+  | "task_queue"
+  | "server_api"
+  | "cli"
+  | undefined {
+  const normalized = normalizeText(value);
+  if (
+    normalized === "native_skill" ||
+    normalized === "agent_turn" ||
+    normalized === "automation_job" ||
+    normalized === "cloud_scene" ||
+    normalized === "site_adapter" ||
+    normalized === "task_queue" ||
+    normalized === "server_api" ||
+    normalized === "cli"
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function parseSceneExecutionKind(
+  value: unknown,
+): SkillCatalogSceneEntry["executionKind"] | undefined {
+  const normalized = normalizeText(value);
+  if (
+    normalized === "native_skill" ||
+    normalized === "agent_turn" ||
+    normalized === "automation_job" ||
+    normalized === "cloud_scene" ||
+    normalized === "site_adapter" ||
+    normalized === "scene"
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function normalizeSearchAliases(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const aliases = value
+    .map((item) => normalizeText(item))
+    .filter((item): item is string => Boolean(item));
+
+  return aliases.length > 0 ? aliases : undefined;
+}
+
+function normalizeSurfaceScopes(
+  value: unknown,
+): ServiceSkillSurfaceScope[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const scopes = value.filter(
+    (item): item is ServiceSkillSurfaceScope =>
+      item === "home" || item === "mention" || item === "workspace",
+  );
+
+  return scopes.length > 0 ? scopes : undefined;
+}
+
+function parseRenderContract(value: unknown): SkillCatalogRenderContract | undefined {
+  if (!isPlainRecord(value)) {
+    return undefined;
+  }
+
+  const resultKind = normalizeText(value.resultKind);
+  const detailKind = normalizeText(value.detailKind);
+  if (
+    resultKind !== "text" &&
+    resultKind !== "tool_timeline" &&
+    resultKind !== "image_gallery" &&
+    resultKind !== "artifact" &&
+    resultKind !== "form" &&
+    resultKind !== "table_report"
+  ) {
+    return undefined;
+  }
+
+  if (
+    detailKind !== "json" &&
+    detailKind !== "task_detail" &&
+    detailKind !== "artifact_detail" &&
+    detailKind !== "media_detail" &&
+    detailKind !== "scene_detail"
+  ) {
+    return undefined;
+  }
+
+  return {
+    resultKind,
+    detailKind,
+    supportsStreaming:
+      typeof value.supportsStreaming === "boolean"
+        ? value.supportsStreaming
+        : undefined,
+    supportsTimeline:
+      typeof value.supportsTimeline === "boolean"
+        ? value.supportsTimeline
+        : undefined,
+  };
+}
+
+function buildSkillEntryFromCatalogItem(item: SkillCatalogItem): SkillCatalogSkillEntry {
+  return {
+    id: `skill:${item.id}`,
+    kind: "skill",
+    title: item.title,
+    summary: item.summary,
+    skillId: item.id,
+    groupKey: item.groupKey,
+    aliases: item.aliases,
+    surfaceScopes: item.surfaceScopes,
+    execution: cloneJsonValue(item.execution),
+    renderContract:
+      item.defaultArtifactKind === "table_report"
+        ? {
+            resultKind: "table_report",
+            detailKind: "artifact_detail",
+            supportsStreaming: true,
+          }
+        : item.defaultArtifactKind
+          ? {
+              resultKind: "artifact",
+              detailKind: "artifact_detail",
+              supportsStreaming: true,
+            }
+          : {
+              resultKind: "text",
+              detailKind: "json",
+              supportsStreaming: true,
+            },
+  };
+}
+
+function buildSceneEntryFromCatalogItem(
+  item: SkillCatalogItem,
+): SkillCatalogSceneEntry | null {
+  if (item.execution.kind !== "cloud_scene") {
+    return null;
+  }
+
+  const sceneKey = normalizeText(item.skillKey) ?? normalizeText(item.id);
+  if (!sceneKey) {
+    return null;
+  }
+
+  return {
+    id: `scene:${sceneKey}`,
+    kind: "scene",
+    title: item.title,
+    summary: item.summary,
+    sceneKey,
+    commandPrefix: `/${sceneKey}`,
+    aliases: item.aliases,
+    surfaceScopes: item.surfaceScopes,
+    linkedSkillId: item.id,
+    executionKind: item.execution.kind,
+    renderContract: {
+      resultKind: "tool_timeline",
+      detailKind: "scene_detail",
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  };
+}
+
+function buildSeededCommandEntries(): SkillCatalogCommandEntry[] {
+  return SEEDED_COMMAND_ENTRY_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    kind: "command",
+    title: definition.title,
+    summary: definition.summary,
+    commandKey: definition.commandKey,
+    aliases: [...definition.aliases],
+    surfaceScopes: ["mention", "workspace"],
+    triggers: definition.triggers.map((trigger) => ({ ...trigger })),
+    binding: definition.binding ? { ...definition.binding } : undefined,
+    renderContract: definition.renderContract
+      ? { ...definition.renderContract }
+      : undefined,
+  }));
+}
+
+function buildLegacyCatalogEntries(items: SkillCatalogItem[]): SkillCatalogEntry[] {
+  const entries: SkillCatalogEntry[] = [];
+  const seenIds = new Set<string>();
+
+  buildSeededCommandEntries().forEach((entry) => {
+    if (seenIds.has(entry.id)) {
+      return;
+    }
+    seenIds.add(entry.id);
+    entries.push(entry);
+  });
+
+  items.forEach((item) => {
+    const skillEntry = buildSkillEntryFromCatalogItem(item);
+    if (!seenIds.has(skillEntry.id)) {
+      seenIds.add(skillEntry.id);
+      entries.push(skillEntry);
+    }
+
+    const sceneEntry = buildSceneEntryFromCatalogItem(item);
+    if (sceneEntry && !seenIds.has(sceneEntry.id)) {
+      seenIds.add(sceneEntry.id);
+      entries.push(sceneEntry);
+    }
+  });
+
+  return entries;
 }
 
 function resolveSeededSkillGroupKey(item: ServiceSkillItem): string {
@@ -232,6 +662,7 @@ function buildSeededSkillCatalog(): SkillCatalog {
     syncedAt: seeded.syncedAt,
     groups,
     items,
+    entries: buildLegacyCatalogEntries(items),
   };
 }
 
@@ -334,11 +765,27 @@ function shouldExposeSkillCatalogItem(item: SkillCatalogItem): boolean {
 function normalizeSkillCatalog(catalog: SkillCatalog): SkillCatalog {
   const filteredItems = catalog.items.filter(shouldExposeSkillCatalogItem);
   const normalizedGroups = mergeCatalogGroups(catalog.groups, filteredItems);
+  const normalizedEntries =
+    catalog.entries.length > 0
+      ? catalog.entries.filter((entry) => {
+          if (entry.kind === "skill") {
+            return filteredItems.some((item) => entry.skillId === item.id);
+          }
+          if (entry.kind === "scene") {
+            return (
+              !entry.linkedSkillId ||
+              filteredItems.some((item) => item.id === entry.linkedSkillId)
+            );
+          }
+          return true;
+        })
+      : buildLegacyCatalogEntries(filteredItems);
 
   return cloneSkillCatalog({
     ...catalog,
     groups: normalizedGroups,
     items: filteredItems,
+    entries: normalizedEntries,
   });
 }
 
@@ -453,6 +900,122 @@ function parseSkillCatalogGroup(value: unknown): SkillCatalogGroup | null {
   };
 }
 
+function parseSkillCatalogCommandTrigger(
+  value: unknown,
+): SkillCatalogCommandTrigger | null {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  const mode = normalizeText(value.mode);
+  const prefix = normalizeText(value.prefix);
+  if (!prefix || (mode !== "mention" && mode !== "slash")) {
+    return null;
+  }
+
+  return {
+    mode,
+    prefix,
+  };
+}
+
+function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  const id = normalizeText(value.id);
+  const kind = normalizeText(value.kind);
+  const title = normalizeText(value.title);
+  const summary = normalizeText(value.summary);
+  if (!id || !kind || !title || !summary) {
+    return null;
+  }
+
+  if (kind === "command") {
+    const commandKey = normalizeText(value.commandKey);
+    const triggers = Array.isArray(value.triggers)
+      ? value.triggers
+          .map((trigger) => parseSkillCatalogCommandTrigger(trigger))
+          .filter((trigger): trigger is SkillCatalogCommandTrigger =>
+            Boolean(trigger),
+          )
+      : [];
+
+    if (!commandKey || triggers.length === 0) {
+      return null;
+    }
+
+    const binding = isPlainRecord(value.binding)
+      ? {
+          skillId: normalizeText(value.binding.skillId) ?? undefined,
+          executionKind: parseCommandBindingExecutionKind(
+            value.binding.executionKind,
+          ),
+        }
+      : undefined;
+
+    return {
+      id,
+      kind: "command",
+      title,
+      summary,
+      commandKey,
+      aliases: normalizeSearchAliases(value.aliases),
+      surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
+      triggers,
+      binding,
+      renderContract: parseRenderContract(value.renderContract),
+    };
+  }
+
+  if (kind === "scene") {
+    const sceneKey = normalizeText(value.sceneKey);
+    const commandPrefix = normalizeText(value.commandPrefix);
+    if (!sceneKey || !commandPrefix) {
+      return null;
+    }
+
+    return {
+      id,
+      kind: "scene",
+      title,
+      summary,
+      sceneKey,
+      commandPrefix,
+      aliases: normalizeSearchAliases(value.aliases),
+      surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
+      linkedSkillId: normalizeText(value.linkedSkillId) ?? undefined,
+      executionKind: parseSceneExecutionKind(value.executionKind),
+      renderContract: parseRenderContract(value.renderContract),
+    };
+  }
+
+  if (kind === "skill") {
+    const skillId = normalizeText(value.skillId);
+    const groupKey = normalizeText(value.groupKey);
+    const execution = parseSkillCatalogExecution(value.execution);
+    if (!skillId || !groupKey || !execution) {
+      return null;
+    }
+
+    return {
+      id,
+      kind: "skill",
+      title,
+      summary,
+      skillId,
+      groupKey,
+      aliases: normalizeSearchAliases(value.aliases),
+      surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
+      execution,
+      renderContract: parseRenderContract(value.renderContract),
+    };
+  }
+
+  return null;
+}
+
 export function parseSkillCatalog(value: unknown): SkillCatalog | null {
   if (!isPlainRecord(value)) {
     return null;
@@ -486,12 +1049,23 @@ export function parseSkillCatalog(value: unknown): SkillCatalog | null {
     items.push(parsed);
   }
 
+  const entriesSource = Array.isArray(value.entries) ? value.entries : [];
+  const entries: SkillCatalogEntry[] = [];
+  for (const entry of entriesSource) {
+    const parsed = parseSkillCatalogEntry(entry);
+    if (!parsed) {
+      return null;
+    }
+    entries.push(parsed);
+  }
+
   return normalizeSkillCatalog({
     version,
     tenantId,
     syncedAt,
     groups,
     items,
+    entries,
   });
 }
 
@@ -577,6 +1151,16 @@ function shouldRefreshSeededSkillCatalog(
     }
   }
 
+  for (const seededEntry of seeded.entries) {
+    const cachedEntry = cached.entries.find((entry) => entry.id === seededEntry.id);
+    if (
+      !cachedEntry ||
+      JSON.stringify(cachedEntry) !== JSON.stringify(seededEntry)
+    ) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -628,6 +1212,36 @@ function emitSkillCatalogChanged(source: SkillCatalogChangeSource): void {
 
 export function getSeededSkillCatalog(): SkillCatalog {
   return cloneSkillCatalog(SEEDED_SKILL_CATALOG);
+}
+
+export function listSkillCatalogEntries(
+  catalog: SkillCatalog,
+): SkillCatalogEntry[] {
+  return (catalog.entries || []).map((entry) => cloneJsonValue(entry));
+}
+
+export function listSkillCatalogCommandEntries(
+  catalog: SkillCatalog,
+): SkillCatalogCommandEntry[] {
+  return listSkillCatalogEntries(catalog).filter(
+    (entry): entry is SkillCatalogCommandEntry => entry.kind === "command",
+  );
+}
+
+export function listSkillCatalogSceneEntries(
+  catalog: SkillCatalog,
+): SkillCatalogSceneEntry[] {
+  return listSkillCatalogEntries(catalog).filter(
+    (entry): entry is SkillCatalogSceneEntry => entry.kind === "scene",
+  );
+}
+
+export function listSkillCatalogSkillEntries(
+  catalog: SkillCatalog,
+): SkillCatalogSkillEntry[] {
+  return listSkillCatalogEntries(catalog).filter(
+    (entry): entry is SkillCatalogSkillEntry => entry.kind === "skill",
+  );
 }
 
 export function isSeededSkillCatalog(catalog: SkillCatalog): boolean {

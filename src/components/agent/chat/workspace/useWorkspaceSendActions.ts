@@ -358,6 +358,7 @@ interface UseWorkspaceSendActionsParams {
   handleAutoLaunchMatchedSiteSkill: (
     match: AutoMatchedSiteSkill<ServiceSkillHomeItem>,
   ) => Promise<void>;
+  handleRuntimeSceneLaunch: (rawText: string) => Promise<boolean>;
   handleImageWorkbenchCommand: (input: {
     rawText: string;
     parsedCommand: ParsedImageWorkbenchCommand;
@@ -445,6 +446,7 @@ export function useWorkspaceSendActions({
   setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
   handleAutoLaunchMatchedSiteSkill,
+  handleRuntimeSceneLaunch,
   handleImageWorkbenchCommand,
   resolveImageWorkbenchSkillRequest,
 }: UseWorkspaceSendActionsParams) {
@@ -631,6 +633,14 @@ export function useWorkspaceSendActions({
         };
       }
 
+      if (
+        !sendOptions?.purpose &&
+        sourceText.trim().startsWith("/") &&
+        (await handleRuntimeSceneLaunch(sourceText))
+      ) {
+        return { kind: "done", result: true };
+      }
+
       const trimmedSourceText = sourceText.trim();
       if (
         activeTheme === "general" &&
@@ -735,6 +745,7 @@ export function useWorkspaceSendActions({
       mentionedCharacters,
       projectId,
       resolveSendBoundary,
+      handleRuntimeSceneLaunch,
       serviceSkills,
       workspaceRequestMetadataBase,
     ],

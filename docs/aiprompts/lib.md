@@ -10,14 +10,13 @@
 src/lib/
 ├── api/                # API 封装
 │   ├── apiKeyProvider.ts
-│   └── pluginUI.ts
+│   └── pluginUI.ts     # 插件元数据 API
 ├── config/             # 配置
 │   └── providers.ts
 ├── types/              # 类型定义
 │   └── provider.ts
 ├── errors/             # 错误处理
 │   └── playwrightErrors.ts
-├── plugin-ui/          # 插件 UI 系统
 ├── tauri/              # Tauri 命令封装
 ├── utils/              # 工具函数
 ├── flowEventManager.ts # 流量事件管理

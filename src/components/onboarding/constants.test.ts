@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { onboardingPlugins, userProfiles } from "./constants";
+import * as onboardingConstants from "./constants";
 
 describe("onboarding constants", () => {
-  it("开发者引导与配置管理描述应使用 current 品牌表述", () => {
-    const developerProfile = userProfiles.find((item) => item.id === "developer");
-    const configSwitchPlugin = onboardingPlugins.find(
-      (item) => item.id === "config-switch",
-    );
-
-    expect(developerProfile?.description).toContain("Claude、Codex、Gemini");
-    expect(developerProfile?.description).not.toContain("Claude Code");
-    expect(configSwitchPlugin?.description).toContain("Claude、Codex、Gemini");
-    expect(configSwitchPlugin?.description).not.toContain("Claude Code");
+  it("不再暴露旧插件安装流常量", () => {
+    expect("userProfiles" in onboardingConstants).toBe(false);
+    expect("onboardingPlugins" in onboardingConstants).toBe(false);
+    expect(onboardingConstants.ONBOARDING_VERSION).toBe("1.1.0");
   });
 });

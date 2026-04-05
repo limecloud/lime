@@ -513,15 +513,25 @@ async fn execute_image_generation_task(
         model: prepared_input.model.clone(),
         n: prepared_input.count.max(1),
         size: prepared_input.size.clone(),
-        response_format: "url".to_string(),
+        response_format: "b64_json".to_string(),
         quality: None,
         style: prepared_input.style.clone(),
         user: Some(task_id.clone()),
     };
 
-    let response = client
+    let mut request_builder = client
         .post(&runner_config.endpoint)
-        .header("Authorization", format!("Bearer {}", runner_config.api_key))
+        .header("Authorization", format!("Bearer {}", runner_config.api_key));
+    if let Some(provider_id) = prepared_input
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        request_builder = request_builder.header("X-Provider-Id", provider_id);
+    }
+
+    let response = request_builder
         .json(&request_body)
         .send()
         .await
@@ -890,7 +900,12 @@ pub fn cancel_media_task_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{http::StatusCode, routing::post, Json, Router};
+    use axum::{
+        http::{HeaderMap, StatusCode},
+        routing::post,
+        Json, Router,
+    };
+    use std::sync::{Arc, Mutex};
     use tokio::net::TcpListener;
 
     #[test]
@@ -1132,6 +1147,8 @@ mod tests {
     #[tokio::test]
     async fn execute_image_generation_task_should_advance_task_file_to_succeeded() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let captured_provider_id = Arc::new(Mutex::new(None::<String>));
+        let captured_response_format = Arc::new(Mutex::new(None::<String>));
         let created =
             create_image_generation_task_artifact_inner(CreateImageGenerationTaskArtifactRequest {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
@@ -1165,22 +1182,40 @@ mod tests {
             .await
             .expect("bind image api");
         let address = listener.local_addr().expect("resolve address");
+        let captured_provider_id_for_server = Arc::clone(&captured_provider_id);
+        let captured_response_format_for_server = Arc::clone(&captured_response_format);
         let server = tokio::spawn(async move {
             let app = Router::new().route(
                 "/v1/images/generations",
-                post(|| async move {
-                    (
-                        StatusCode::OK,
-                        Json(json!({
-                            "created": 1_717_200_000i64,
-                            "data": [
-                                {
-                                    "url": "https://example.com/generated-lime.png",
-                                    "revised_prompt": "未来感青柠实验室主视觉"
-                                }
-                            ]
-                        })),
-                    )
+                post(move |headers: HeaderMap, Json(body): Json<Value>| {
+                    let captured_provider_id = Arc::clone(&captured_provider_id_for_server);
+                    let captured_response_format = Arc::clone(&captured_response_format_for_server);
+                    async move {
+                        let provider_id = headers
+                            .get("x-provider-id")
+                            .and_then(|value| value.to_str().ok())
+                            .map(|value| value.to_string());
+                        *captured_provider_id.lock().expect("lock provider id") = provider_id;
+                        let response_format = body
+                            .get("response_format")
+                            .and_then(Value::as_str)
+                            .map(|value| value.to_string());
+                        *captured_response_format
+                            .lock()
+                            .expect("lock response format") = response_format;
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "created": 1_717_200_000i64,
+                                "data": [
+                                    {
+                                        "b64_json": "ZmFrZS1saW1lLWltYWdl",
+                                        "revised_prompt": "未来感青柠实验室主视觉"
+                                    }
+                                ]
+                            })),
+                        )
+                    }
                 }),
             );
             axum::serve(listener, app).await.expect("serve image api");
@@ -1212,6 +1247,18 @@ mod tests {
         assert_eq!(
             result
                 .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("images"))
+                .and_then(|value| value.as_array())
+                .and_then(|images| images.first())
+                .and_then(|value| value.get("url"))
+                .and_then(Value::as_str),
+            Some("data:image/png;base64,ZmFrZS1saW1lLWltYWdl")
+        );
+        assert_eq!(
+            result
+                .record
                 .attempts
                 .last()
                 .and_then(|attempt| attempt.worker_id.as_deref()),
@@ -1233,6 +1280,32 @@ mod tests {
                 .and_then(|value| value.as_array())
                 .map(Vec::len),
             Some(1)
+        );
+        assert_eq!(
+            loaded
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("images"))
+                .and_then(|value| value.as_array())
+                .and_then(|images| images.first())
+                .and_then(|value| value.get("url"))
+                .and_then(Value::as_str),
+            Some("data:image/png;base64,ZmFrZS1saW1lLWltYWdl")
+        );
+        assert_eq!(
+            captured_provider_id
+                .lock()
+                .expect("lock provider id")
+                .clone(),
+            Some("fal".to_string())
+        );
+        assert_eq!(
+            captured_response_format
+                .lock()
+                .expect("lock response format")
+                .clone(),
+            Some("b64_json".to_string())
         );
 
         server.abort();

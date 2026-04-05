@@ -192,7 +192,10 @@ async function fetchWithManagedAbort(
 ): Promise<Response> {
   const timeoutMs = options?.timeoutMs ?? 0;
   const abortController = new AbortController();
-  const cleanupExternalAbort = bindAbortSignal(abortController, options?.signal);
+  const cleanupExternalAbort = bindAbortSignal(
+    abortController,
+    options?.signal,
+  );
   const timeoutHandle =
     timeoutMs > 0
       ? setTimeout(() => {
@@ -241,7 +244,9 @@ async function attemptFalQueueCancellation(
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[ImageGen][fal/queue-cancel] cancel request failed: ${message}`);
+    console.warn(
+      `[ImageGen][fal/queue-cancel] cancel request failed: ${message}`,
+    );
   }
 }
 
@@ -804,7 +809,42 @@ function sizeToAspectRatio(size: string): string | null {
   }
 
   const gcd = computeGreatestCommonDivisor(width, height);
-  return `${Math.round(width / gcd)}:${Math.round(height / gcd)}`;
+  const exactRatio = `${Math.round(width / gcd)}:${Math.round(height / gcd)}`;
+  const supportedAspectRatios = [
+    ["21:9", 21 / 9],
+    ["16:9", 16 / 9],
+    ["3:2", 3 / 2],
+    ["4:3", 4 / 3],
+    ["5:4", 5 / 4],
+    ["1:1", 1],
+    ["4:5", 4 / 5],
+    ["3:4", 3 / 4],
+    ["2:3", 2 / 3],
+    ["9:16", 9 / 16],
+  ] as const;
+
+  if (supportedAspectRatios.some(([label]) => label === exactRatio)) {
+    return exactRatio;
+  }
+
+  const numericRatio = width / height;
+  const nearest = supportedAspectRatios.reduce<
+    readonly [string, number] | null
+  >((best, current) => {
+    if (!best) {
+      return current;
+    }
+
+    const bestDiff = Math.abs(numericRatio - best[1]);
+    const currentDiff = Math.abs(numericRatio - current[1]);
+    return currentDiff < bestDiff ? current : best;
+  }, null);
+
+  if (!nearest) {
+    return null;
+  }
+
+  return Math.abs(numericRatio - nearest[1]) <= 0.08 ? nearest[0] : "auto";
 }
 
 function collectTextFromUnknown(value: unknown): string[] {
@@ -1983,7 +2023,8 @@ function isFalProviderLike(provider: {
 
   const normalizedHost = provider.api_host.trim().toLowerCase();
   return (
-    normalizedHost.includes("fal.run") || normalizedHost.includes("queue.fal.run")
+    normalizedHost.includes("fal.run") ||
+    normalizedHost.includes("queue.fal.run")
   );
 }
 
@@ -2261,7 +2302,9 @@ export function useImageGen(options: UseImageGenOptions = {}) {
     () =>
       Boolean(preferredProviderId) &&
       !providersLoading &&
-      !availableProviders.some((provider) => provider.id === preferredProviderId),
+      !availableProviders.some(
+        (provider) => provider.id === preferredProviderId,
+      ),
     [availableProviders, preferredProviderId, providersLoading],
   );
 
@@ -2782,9 +2825,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
           });
         }
 
-        throw canceled
-          ? new Error(IMAGE_GENERATION_CANCELED_MESSAGE)
-          : error;
+        throw canceled ? new Error(IMAGE_GENERATION_CANCELED_MESSAGE) : error;
       } finally {
         if (generationRunIdRef.current === generationRunId) {
           generationAbortControllerRef.current = null;

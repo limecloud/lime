@@ -441,24 +441,44 @@ Lime 技能能力必须明确区分三个对象：
 
 客户端现状：
 
-- 本地 seeded skill catalog
-- `bootstrap.serviceSkillCatalog`
-- `client/service-skills`
+- 本地 seeded `SkillCatalog`
+- `bootstrap.skillCatalog`
+- `client/skills`
+- `client/service-skills` compat 投影
 - `siteAdapterCatalog`
 
 服务端现状：
 
-- `control-plane-svc` 负责客户端技能目录聚合
+- `control-plane-svc` 负责客户端统一技能目录聚合
 - Tool Hub 方向负责 tool / adapter 工件真相源
 
 ### 长期收敛方向
 
 长期收敛规则固定如下：
 
-1. 统一 skill 目录收敛到 `client/skills`
-2. 兼容期保留 `client/service-skills`
-3. adapter / tool 工件目录继续独立，不与 skill 目录混用
-4. bootstrap 与独立刷新必须消费同一份目录协议
+1. 统一技能目录继续收敛到 `client/skills`
+2. `bootstrap.skillCatalog` 与独立刷新必须消费同一份目录协议
+3. `SkillCatalog.entries` 必须承载三类统一目录项：
+   - `skill`
+   - `command`
+   - `scene`
+4. `client/service-skills` 只允许作为 compat 投影继续保留，不再承接新的目录标准定义
+5. adapter / tool 工件目录继续独立，不与 skill 目录混用
+
+### 统一目录补充分层
+
+`SkillCatalog.entries` 是分发层的 current 投影，但它不改变 skill 的产品与执行边界：
+
+- `skill` 目录项回答“这是一个什么业务能力”
+- `command` 目录项回答“用户可以通过哪个 `@` 原子入口触发它”
+- `scene` 目录项回答“用户可以通过哪个 `/` 场景把多个能力编排起来”
+
+固定约束：
+
+- `/` 场景不是新的客户端硬编码系统，而是统一目录中的 `scene`
+- `@` 命令不是独立于 skill 的第二套协议，而是统一目录中的 `command`
+- `command` / `scene` 可以绑定到 skill、CLI、服务端 API 或 hybrid executor，但绑定规则仍属于运行时层
+- Lime 客户端必须保留 seeded catalog 作为 offline / degrade 兜底，不能只依赖服务端在线目录
 
 ## 外部 `SKILL.md` 参考边界
 
@@ -493,12 +513,21 @@ Lime 技能能力必须明确区分三个对象：
 
 ## 当前主链
 
-在统一 `client/skills` 正式落地前，当前新增能力的主链固定如下：
+当前新增能力的主链固定如下：
 
-- 业务技能目录：继续收敛到 `ServiceSkillCatalog`
+- 在线目录：继续收敛到 `client/skills` 与 `bootstrap.skillCatalog`
+- 本地兜底：继续收敛到 seeded `SkillCatalog`
+- compat 投影：仅在迁移期保留 `client/service-skills`
 - 标准摘要层：继续收敛到 `skillBundle`
 - 站点工件目录：继续收敛到 `siteAdapterCatalog`
 - 业务 skill 引用站点能力：通过 `siteCapabilityBinding.adapterName`
+
+对输入面板和启动入口再补一条固定约束：
+
+- `entries.kind=command` 驱动 `@`
+- `entries.kind=scene` 驱动产品型 `/`
+- `entries.kind=skill` 驱动首页技能入口与技能中心
+- 服务端未返回 `entries` 时，客户端允许由 compat `items` 投影构造，但不得继续在组件层手写平行常量
 
 不要在这个阶段再引入：
 

@@ -15,6 +15,10 @@ import React, {
 import { createPortal } from "react-dom";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import {
+  getSkillCatalog,
+  subscribeSkillCatalogChanged,
+} from "@/lib/api/skillCatalog";
 import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import { toast } from "sonner";
@@ -23,8 +27,13 @@ import {
   type CodexSlashCommandDefinition,
 } from "../commands";
 import {
+  INPUTBAR_BUILTIN_COMMANDS,
   filterBuiltinCommands,
+  filterRuntimeSceneSlashCommands,
+  listBuiltinCommandsFromSkillCatalog,
+  listRuntimeSceneSlashCommandsFromSkillCatalog,
   type BuiltinInputCommand,
+  type RuntimeSceneSlashCommand,
 } from "./builtinCommands";
 import {
   LazyCharacterMentionPanel,
@@ -135,6 +144,12 @@ export function CharacterMention({
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [triggerMode, setTriggerMode] = useState<TriggerMode>("mention");
+  const [runtimeBuiltinCommands, setRuntimeBuiltinCommands] = useState<
+    BuiltinInputCommand[]
+  >(INPUTBAR_BUILTIN_COMMANDS);
+  const [runtimeSceneCommands, setRuntimeSceneCommands] = useState<
+    RuntimeSceneSlashCommand[]
+  >([]);
   const [panelAnchor, setPanelAnchor] = useState({
     top: 0,
     left: 0,
@@ -150,8 +165,8 @@ export function CharacterMention({
   });
 
   const filteredBuiltinCommands = useMemo(
-    () => filterBuiltinCommands(mentionQuery),
-    [mentionQuery],
+    () => filterBuiltinCommands(mentionQuery, runtimeBuiltinCommands),
+    [mentionQuery, runtimeBuiltinCommands],
   );
   const filteredServiceSkills = useMemo(
     () => filterMentionableServiceSkills(serviceSkills, mentionQuery),
@@ -160,6 +175,10 @@ export function CharacterMention({
   const filteredSlashCommands = useMemo(
     () => filterCodexSlashCommands(mentionQuery),
     [mentionQuery],
+  );
+  const filteredRuntimeSceneCommands = useMemo(
+    () => filterRuntimeSceneSlashCommands(mentionQuery, runtimeSceneCommands),
+    [mentionQuery, runtimeSceneCommands],
   );
 
   const filteredCharacters = useMemo(() => {
@@ -221,6 +240,44 @@ export function CharacterMention({
       ),
     });
   }, [inputRef]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncCatalog = async () => {
+      try {
+        const catalog = await getSkillCatalog();
+        if (cancelled) {
+          return;
+        }
+        const nextBuiltinCommands = listBuiltinCommandsFromSkillCatalog(catalog);
+        const nextRuntimeScenes =
+          listRuntimeSceneSlashCommandsFromSkillCatalog(catalog);
+        setRuntimeBuiltinCommands(
+          nextBuiltinCommands.length > 0
+            ? nextBuiltinCommands
+            : INPUTBAR_BUILTIN_COMMANDS,
+        );
+        setRuntimeSceneCommands(nextRuntimeScenes);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setRuntimeBuiltinCommands(INPUTBAR_BUILTIN_COMMANDS);
+        setRuntimeSceneCommands([]);
+      }
+    };
+
+    void syncCatalog();
+    const unsubscribe = subscribeSkillCatalogChanged(() => {
+      void syncCatalog();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const textarea = inputRef.current;
@@ -492,6 +549,36 @@ export function CharacterMention({
     }, 0);
   };
 
+  const handleSelectRuntimeSceneCommand = (
+    command: RuntimeSceneSlashCommand,
+  ) => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    const currentValue = textarea.value || value;
+    const cursorPos = textarea.selectionStart ?? currentValue.length;
+    const textAfterCursor = currentValue.slice(cursorPos);
+    const activeTrigger = resolveActiveTrigger(currentValue, cursorPos);
+    if (!activeTrigger || activeTrigger.mode !== "slash") {
+      return;
+    }
+
+    const newValue =
+      currentValue.slice(0, activeTrigger.triggerIndex) +
+      `${command.commandPrefix} ` +
+      textAfterCursor;
+
+    onChange(newValue);
+    setShowMentions(false);
+
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos =
+        activeTrigger.triggerIndex + command.commandPrefix.length + 1;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
   useEffect(() => {
     const textarea = inputRef.current;
     if (!textarea || !showMentions) return;
@@ -575,18 +662,20 @@ export function CharacterMention({
           <LazyCharacterMentionPanel
             mode={triggerMode}
             mentionQuery={mentionQuery}
-            builtinCommands={filteredBuiltinCommands}
-            slashCommands={filteredSlashCommands}
-            mentionServiceSkills={filteredServiceSkills}
-            filteredCharacters={filteredCharacters}
+                  builtinCommands={filteredBuiltinCommands}
+                  slashCommands={filteredSlashCommands}
+                  sceneCommands={filteredRuntimeSceneCommands}
+                  mentionServiceSkills={filteredServiceSkills}
+                  filteredCharacters={filteredCharacters}
             installedSkills={installedSkills}
             availableSkills={availableSkills}
             commandRef={commandRef}
             onQueryChange={setMentionQuery}
-            onSelectBuiltinCommand={handleSelectBuiltinCommand}
-            onSelectServiceSkill={handleSelectServiceSkill}
-            onSelectSlashCommand={handleSelectSlashCommand}
-            onSelectCharacter={handleSelectCharacter}
+                  onSelectBuiltinCommand={handleSelectBuiltinCommand}
+                  onSelectServiceSkill={handleSelectServiceSkill}
+                  onSelectSlashCommand={handleSelectSlashCommand}
+                  onSelectSceneCommand={handleSelectRuntimeSceneCommand}
+                  onSelectCharacter={handleSelectCharacter}
             onSelectInstalledSkill={handleSelectInstalledSkill}
             onSelectAvailableSkill={handleSelectAvailableSkill}
             onNavigateToSettings={

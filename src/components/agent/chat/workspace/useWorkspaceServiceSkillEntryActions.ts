@@ -3,6 +3,11 @@ import { toast } from "sonner";
 import { siteGetAdapterLaunchReadiness } from "@/lib/webview-api";
 import { createAutomationJob } from "@/lib/api/automation";
 import {
+  getSkillCatalog,
+  listSkillCatalogSceneEntries,
+  type SkillCatalogSceneEntry,
+} from "@/lib/api/skillCatalog";
+import {
   createServiceSkillRun,
   getServiceSkillRun,
   isTerminalServiceSkillRunStatus,
@@ -26,7 +31,10 @@ import {
   resolveWorkspaceEntry,
   type WorkspaceEntryPayload,
 } from "../workspaceEntry";
-import { composeServiceSkillPrompt } from "../service-skills/promptComposer";
+import {
+  createDefaultServiceSkillSlotValues,
+  composeServiceSkillPrompt,
+} from "../service-skills/promptComposer";
 import {
   buildServiceSkillAutomationAgentTurnPayloadContext,
   buildServiceSkillAutomationInitialValues,
@@ -89,6 +97,7 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
 interface ServiceSkillLaunchOptions {
   launchUserInput?: string | null;
+  fallbackToWorkspaceOnCloudSubmitFailure?: boolean;
 }
 
 function resolveServiceSkillLaunchUserInput(
@@ -100,6 +109,77 @@ function resolveServiceSkillLaunchUserInput(
   }
 
   return normalizeOptionalText(currentInput);
+}
+
+interface ParsedRuntimeSceneCommand {
+  sceneKey: string;
+  userInput: string;
+}
+
+function normalizeCommandToken(value?: string | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/^\/+/, "").toLowerCase();
+}
+
+function parseRuntimeSceneCommand(
+  rawText: string,
+): ParsedRuntimeSceneCommand | null {
+  const sceneMatch = rawText.trim().match(/^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/);
+  if (!sceneMatch) {
+    return null;
+  }
+
+  const [, sceneKey, userInput] = sceneMatch;
+  return {
+    sceneKey,
+    userInput: userInput?.trim() || "",
+  };
+}
+
+function matchesRuntimeSceneEntry(
+  entry: SkillCatalogSceneEntry,
+  sceneKey: string,
+): boolean {
+  const normalizedSceneKey = normalizeCommandToken(sceneKey);
+  if (!normalizedSceneKey) {
+    return false;
+  }
+
+  if (normalizeCommandToken(entry.sceneKey) === normalizedSceneKey) {
+    return true;
+  }
+
+  if (normalizeCommandToken(entry.commandPrefix) === normalizedSceneKey) {
+    return true;
+  }
+
+  return (entry.aliases ?? []).some(
+    (alias) => normalizeCommandToken(alias) === normalizedSceneKey,
+  );
+}
+
+function resolveRuntimeSceneSkill(
+  serviceSkills: ServiceSkillHomeItem[],
+  entry: SkillCatalogSceneEntry,
+): ServiceSkillHomeItem | null {
+  const normalizedSceneKey = normalizeCommandToken(entry.sceneKey);
+  if (!normalizedSceneKey) {
+    return null;
+  }
+
+  return (
+    serviceSkills.find((skill) => skill.id === entry.linkedSkillId) ||
+    serviceSkills.find(
+      (skill) => normalizeCommandToken(skill.skillKey) === normalizedSceneKey,
+    ) ||
+    serviceSkills.find(
+      (skill) => normalizeCommandToken(skill.id) === normalizedSceneKey,
+    ) ||
+    null
+  );
 }
 
 function buildServiceSkillCloudResultBody(
@@ -209,6 +289,7 @@ interface UseWorkspaceServiceSkillEntryActionsParams {
   contentId?: string | null;
   input: string;
   chatToolPreferences: ChatToolPreferences;
+  serviceSkills: ServiceSkillHomeItem[];
   preferredTeamPresetId?: string | null;
   selectedTeam?: TeamDefinition | null;
   selectedTeamLabel?: string | null;
@@ -227,6 +308,7 @@ export function useWorkspaceServiceSkillEntryActions({
   contentId,
   input,
   chatToolPreferences,
+  serviceSkills,
   preferredTeamPresetId,
   selectedTeam,
   selectedTeamLabel,
@@ -685,12 +767,14 @@ export function useWorkspaceServiceSkillEntryActions({
 
       if (skill.executionLocation === "cloud_required") {
         const toastId = toast.loading(`正在提交 ${skill.title} 到云端...`);
+        let runCreated = false;
 
         try {
           setServiceSkillDialogOpen(false);
           setSelectedServiceSkill(null);
 
           let run = await createServiceSkillRun(skill.id, prompt);
+          runCreated = true;
           recordServiceSkillCloudRun(skill.id, run);
           recordServiceSkillUsage({
             skillId: skill.id,
@@ -762,6 +846,47 @@ export function useWorkspaceServiceSkillEntryActions({
             },
           );
         } catch (error) {
+          if (
+            options?.fallbackToWorkspaceOnCloudSubmitFailure &&
+            !runCreated
+          ) {
+            let workspacePayload: WorkspaceEntryPayload;
+            try {
+              workspacePayload = await prepareServiceSkillWorkspacePayload(
+                skill,
+                prompt,
+              );
+            } catch (workspaceError) {
+              toast.error(
+                `提交云端运行失败：${getErrorMessage(error)}；本地回退失败：${getErrorMessage(workspaceError)}`,
+                {
+                  id: toastId,
+                },
+              );
+              return;
+            }
+
+            const entered = navigateToServiceSkillWorkspace(workspacePayload);
+            if (!entered) {
+              toast.error(
+                `提交云端运行失败：${getErrorMessage(error)}；进入本地工作区失败，请稍后重试。`,
+                {
+                  id: toastId,
+                },
+              );
+              return;
+            }
+
+            recordServiceSkillUsage({
+              skillId: skill.id,
+              runnerType: skill.runnerType,
+            });
+            toast.info(`${skill.title} 云端暂不可用，已切换到本地工作区继续。`, {
+              id: toastId,
+            });
+            return;
+          }
+
           toast.error(`提交云端运行失败：${getErrorMessage(error)}`, {
             id: toastId,
           });
@@ -806,6 +931,41 @@ export function useWorkspaceServiceSkillEntryActions({
       prepareServiceSkillWorkspacePayload,
       recordServiceSkillUsage,
     ],
+  );
+
+  const handleRuntimeSceneLaunch = useCallback(
+    async (rawText: string): Promise<boolean> => {
+      const parsedSceneCommand = parseRuntimeSceneCommand(rawText);
+      if (!parsedSceneCommand) {
+        return false;
+      }
+
+      const catalog = await getSkillCatalog();
+      const sceneEntry = listSkillCatalogSceneEntries(catalog).find((entry) =>
+        matchesRuntimeSceneEntry(entry, parsedSceneCommand.sceneKey),
+      );
+      if (!sceneEntry) {
+        return false;
+      }
+
+      const matchedSkill = resolveRuntimeSceneSkill(serviceSkills, sceneEntry);
+      if (!matchedSkill) {
+        return false;
+      }
+
+      await handleServiceSkillLaunch(
+        matchedSkill,
+        createDefaultServiceSkillSlotValues(matchedSkill),
+        {
+          launchUserInput:
+            normalizeOptionalText(parsedSceneCommand.userInput) ?? undefined,
+          fallbackToWorkspaceOnCloudSubmitFailure: true,
+        },
+      );
+
+      return true;
+    },
+    [handleServiceSkillLaunch, serviceSkills],
   );
 
   const handleAutoLaunchMatchedSiteSkill = useCallback(
@@ -996,6 +1156,7 @@ export function useWorkspaceServiceSkillEntryActions({
     handleServiceSkillSelect,
     handleServiceSkillDialogOpenChange,
     handleServiceSkillLaunch,
+    handleRuntimeSceneLaunch,
     handleAutoLaunchMatchedSiteSkill,
     handleServiceSkillBrowserRuntimeLaunch,
     handleServiceSkillAutomationSetup,

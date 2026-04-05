@@ -5,6 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CharacterMention } from "./CharacterMention";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import {
+  clearSkillCatalogCache,
+  getSeededSkillCatalog,
+  saveSkillCatalog,
+  type SkillCatalog,
+} from "@/lib/api/skillCatalog";
 import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { BuiltinInputCommand } from "./builtinCommands";
@@ -147,6 +153,8 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  window.localStorage.clear();
+  clearSkillCatalogCache();
 });
 
 afterEach(() => {
@@ -158,6 +166,8 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  window.localStorage.clear();
+  clearSkillCatalogCache();
   vi.clearAllMocks();
 });
 
@@ -344,6 +354,36 @@ function createServiceSkill(
   };
 }
 
+function buildCatalogWithSceneEntry(): SkillCatalog {
+  const seeded = getSeededSkillCatalog();
+
+  return {
+    ...seeded,
+    tenantId: "tenant-scene-demo",
+    version: "tenant-scene-demo-2026-04-05",
+    syncedAt: "2026-04-05T12:00:00.000Z",
+    entries: [
+      ...seeded.entries,
+      {
+        id: "scene:campaign-launch",
+        kind: "scene",
+        title: "新品发布场景",
+        summary: "把链接解析、配图和封面串成一条产品链路。",
+        sceneKey: "campaign-launch",
+        commandPrefix: "/campaign-launch",
+        aliases: ["launch", "campaign"],
+        executionKind: "scene",
+        renderContract: {
+          resultKind: "tool_timeline",
+          detailKind: "scene_detail",
+          supportsStreaming: true,
+          supportsTimeline: true,
+        },
+      },
+    ],
+  };
+}
+
 describe("CharacterMention", () => {
   it("输入 @ 当次应弹出提及面板（不依赖受控 value 同步）", async () => {
     const container = renderHarness({
@@ -397,7 +437,7 @@ describe("CharacterMention", () => {
 
     expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "image",
+        key: "image_generate",
         commandPrefix: "@配图",
       }),
     );
@@ -679,6 +719,23 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("/review");
   });
 
+  it("统一目录中的 scene 应出现在 slash 面板里", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
+    });
+
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/camp");
+
+    expect(document.body.textContent).toContain("场景组合");
+    expect(document.body.textContent).toContain("/campaign-launch");
+    expect(document.body.textContent).toContain(
+      "把链接解析、配图和封面串成一条产品链路。",
+    );
+  });
+
   it("slash 面板选择 Lime 命令时应回填到输入框", async () => {
     const onChangeSpy = vi.fn<(value: string) => void>();
     const container = renderHarness({
@@ -698,6 +755,31 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenCalledWith("/compact ");
+  });
+
+  it("slash 面板选择服务端 scene 时应回填场景命令", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const container = renderHarness({
+      onChangeSpy,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/camp");
+
+    const sceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/campaign-launch"));
+    expect(sceneButton).toBeTruthy();
+
+    act(() => {
+      sceneButton?.click();
+    });
+
+    expect(onChangeSpy).toHaveBeenCalledWith("/campaign-launch ");
   });
 
   it("slash 面板选择已安装技能时应直接回填 slash skill", async () => {

@@ -246,6 +246,20 @@
       "allowedPaths": []
     },
     {
+      "id": "experimental-banner-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 ExperimentalBanner 独立提示组件入口，当前前端主链不再暴露该实验提示壳",
+      "targets": ["src/components/ui/ExperimentalBanner.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "panel-layout-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧分屏 PanelLayout 布局组件入口，当前工作区主链不再暴露该独立布局壳",
+      "targets": ["src/components/layout/PanelLayout.tsx"],
+      "allowedPaths": []
+    },
+    {
       "id": "stores-root-barrel-entry",
       "classification": "dead-candidate",
       "description": "旧 stores 根 barrel 入口",
@@ -345,6 +359,141 @@
       "targets": [
         "src/lib/api/apiCompatibility.ts",
         "src/lib/api/apiCompatibility.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "provider-pool-model-registry-tabs",
+      "classification": "dead-candidate",
+      "description": "已删除的 provider-pool 旧模型库 Tab 与增强模型列表页，当前前端主链不再暴露该独立模型浏览页面",
+      "targets": [
+        "src/components/provider-pool/EnhancedModelsTab.tsx",
+        "src/components/provider-pool/ModelRegistryTab.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "provider-pool-standalone-credential-forms",
+      "classification": "dead-candidate",
+      "description": "已删除的 provider-pool 独立凭证表单与旧 barrel 入口，当前凭证池主链统一停留在 AddCredentialModal 内嵌表单",
+      "targets": [
+        "src/components/provider-pool/credential-forms/AntigravityFormStandalone.tsx",
+        "src/components/provider-pool/credential-forms/ClaudeFormStandalone.tsx",
+        "src/components/provider-pool/credential-forms/GeminiFormStandalone.tsx",
+        "src/components/provider-pool/credential-forms/KiroFormStandalone.tsx",
+        "src/components/provider-pool/credential-forms/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "agent-chat-fixed-backend-config-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的 Agent Chat 固定后端 compat 配置壳，当前聊天运行时不再暴露旧后端切换心智",
+      "targets": ["src/components/agent/chat/config.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "stable-processing-notice-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的稳定处理中提示组件与 Hook，当前聊天主链不再暴露该独立短暂提示壳",
+      "targets": [
+        "src/components/agent/chat/components/StableProcessingNotice.tsx",
+        "src/components/agent/chat/hooks/useStableProcessingNotice.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "ui-radio-group-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 RadioGroup UI primitive，当前前端主链不再暴露该独立单选组壳",
+      "targets": ["src/components/ui/radio-group.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "ui-separator-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 Separator UI primitive，当前前端主链不再暴露该独立分隔线壳",
+      "targets": ["src/components/ui/separator.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "plugin-ui-frontend-runtime-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的前端 plugin-ui 渲染链，当前插件主链只保留 pluginUI 元数据 API 与插件管理页，不再保留独立渲染器运行时",
+      "targets": [
+        "src/lib/plugin-ui/ComponentRegistry.ts",
+        "src/lib/plugin-ui/DataStore.ts",
+        "src/lib/plugin-ui/PluginUIContainer.tsx",
+        "src/lib/plugin-ui/PluginUIRenderer.tsx",
+        "src/lib/plugin-ui/README.md",
+        "src/lib/plugin-ui/SurfaceManager.test.ts",
+        "src/lib/plugin-ui/SurfaceManager.ts",
+        "src/lib/plugin-ui/components/README.md",
+        "src/lib/plugin-ui/components/data.tsx",
+        "src/lib/plugin-ui/components/display.tsx",
+        "src/lib/plugin-ui/components/index.ts",
+        "src/lib/plugin-ui/components/input.tsx",
+        "src/lib/plugin-ui/components/layout.tsx",
+        "src/lib/plugin-ui/components/registry.ts",
+        "src/lib/plugin-ui/index.ts",
+        "src/lib/plugin-ui/types.ts",
+        "src/lib/plugin-ui/usePluginUI.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "ui-alert-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 Alert UI primitive，当前前端主链不再暴露该独立警示框壳",
+      "targets": ["src/components/ui/alert.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "websocket-status-widget-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 WebSocket 状态独立组件入口，当前前端主链不再暴露该独立状态面板",
+      "targets": ["src/components/websocket/WebSocketStatus.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "subagent-progress-display-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 SubAgent 独立进度展示组件与 barrel，当前 compat 主链不再暴露该单独展示壳",
+      "targets": [
+        "src/components/subagent/SubAgentProgress.tsx",
+        "src/components/subagent/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "openclaw-dashboard-frame-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 OpenClaw Dashboard 内嵌 frame 壳，当前主链已收口到独立 Dashboard 页面与外部打开模式",
+      "targets": ["src/components/openclaw/OpenClawDashboardFrame.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "ecommerce-review-reply-frontend-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的电商差评回复旧前端页面与 API 网关，当前前端主链不再暴露该独立解决方案页",
+      "targets": [
+        "src/solutions/ecommerce-review-reply/GuideStep.tsx",
+        "src/solutions/ecommerce-review-reply/Results.tsx",
+        "src/solutions/ecommerce-review-reply/Tasks.tsx",
+        "src/solutions/ecommerce-review-reply/index.tsx",
+        "src/lib/api/ecommerce-review-reply.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "memory-feedback-frontend-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的记忆反馈旧前端组件与 API 网关，当前记忆页面主链不再暴露该独立反馈侧链",
+      "targets": [
+        "src/components/memory/MemoryFeedback.tsx",
+        "src/components/memory/FeedbackStats.tsx",
+        "src/lib/api/memoryFeedback.ts",
+        "src/lib/api/memoryFeedback.test.ts"
       ],
       "allowedPaths": []
     },
@@ -872,11 +1021,7 @@
       "classification": "compat",
       "description": "旧 SubAgent scheduler Hook 只允许停留在 compat 展示层",
       "targets": ["src/hooks/useSubAgentScheduler.ts"],
-      "allowedPaths": [
-        "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
-        "src/components/subagent/SubAgentProgress.tsx",
-        "src/components/subagent/index.ts"
-      ]
+      "allowedPaths": ["src/components/agent/chat/hooks/useCompatSubagentRuntime.ts"]
     },
     {
       "id": "team-subagent-scheduler-api",
@@ -914,6 +1059,26 @@
         "src/components/agent/chat/workspace/useWorkspaceA2UIRuntime.ts",
         "src/components/agent/chat/workspace/useWorkspaceA2UISubmitActions.ts"
       ]
+    },
+    {
+      "id": "onboarding-legacy-plugin-install-surfaces",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 onboarding 插件选择与安装进度步骤",
+      "targets": [
+        "src/components/onboarding/steps/PluginSelectStep.tsx",
+        "src/components/onboarding/steps/InstallProgressStep.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "provider-switch-legacy-rust-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Provider Switch Rust 命令与服务模块",
+      "targets": [
+        "src-tauri/src/commands/switch_cmd.rs",
+        "src-tauri/crates/services/src/switch.rs"
+      ],
+      "allowedPaths": []
     }
   ],
   "commands": [
@@ -1209,6 +1374,24 @@
       "description": "旧 execute_subagent_tasks/cancel_subagent_tasks 只允许通过 compat API 网关暴露",
       "commands": ["execute_subagent_tasks", "cancel_subagent_tasks"],
       "allowedPaths": ["src/lib/api/subAgentScheduler.ts"]
+    },
+    {
+      "id": "provider-switch-legacy-commands",
+      "classification": "dead-candidate",
+      "description": "已下线的旧 Provider Switch 命令边界",
+      "commands": [
+        "get_switch_providers",
+        "get_current_switch_provider",
+        "add_switch_provider",
+        "update_switch_provider",
+        "delete_switch_provider",
+        "switch_provider",
+        "import_default_config",
+        "read_live_provider_settings",
+        "check_config_sync_status",
+        "sync_from_external_config"
+      ],
+      "allowedPaths": []
     }
   ],
   "frontendText": [
@@ -1272,6 +1455,19 @@
         "custom_assistants",
         "show_suggestions",
         "auto_select"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-onboarding-legacy-plugin-install-surfaces",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复旧 onboarding 插件选择与 config-switch 推荐安装链路",
+      "patterns": [
+        "config-switch",
+        "onboardingPlugins",
+        "userProfiles",
+        "PluginSelectStep",
+        "InstallProgressStep"
       ],
       "allowedPaths": []
     },
@@ -3067,6 +3263,18 @@
       "description": "已零引用的 agent prompt 层 legacy 全局指令文件名回流",
       "patterns": ["\".lime/AGENT.md\"", "\".lime/instructions.md\""],
       "includePathPrefixes": ["src-tauri/crates/agent/src/prompt"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-switch-legacy-surfaces",
+      "classification": "dead-candidate",
+      "description": "Rust 不允许恢复旧 Provider Switch 模块与辅助同步实现",
+      "patterns": [
+        "SwitchService",
+        "commands::switch_cmd::",
+        "pub mod switch_cmd;",
+        "pub mod switch;"
+      ],
       "allowedPaths": []
     }
   ],

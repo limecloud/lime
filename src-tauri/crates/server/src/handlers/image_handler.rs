@@ -33,6 +33,15 @@ use lime_providers::converter::openai_to_antigravity::{
 };
 use lime_providers::providers::AntigravityProvider;
 
+fn read_explicit_provider_id(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-provider-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
 /// 处理图像生成请求
 ///
 /// # 端点
@@ -102,28 +111,34 @@ pub async fn handle_image_generation(
         ),
     );
 
-    match image_api_provider::try_generate_with_configured_provider(&state, &request).await {
+    let explicit_provider_id = read_explicit_provider_id(&headers);
+
+    match image_api_provider::try_generate_with_configured_provider(
+        &state,
+        &request,
+        explicit_provider_id.as_deref(),
+    )
+    .await
+    {
         Ok(Some(response)) => {
             state.logs.write().await.add(
                 "info",
-                &format!(
-                    "[IMAGE] 默认图片服务生成成功: {} 张图片",
-                    response.data.len()
-                ),
+                &format!("[IMAGE] 图片服务生成成功: {} 张图片", response.data.len()),
             );
             return (StatusCode::OK, Json(response)).into_response();
         }
         Ok(None) => {
             state.logs.write().await.add(
                 "debug",
-                "[IMAGE] 默认图片服务未命中，继续回退到 Antigravity 兼容链路",
+                "[IMAGE] 图片服务未命中当前路由，继续回退到 Antigravity 兼容链路",
             );
         }
         Err(error) => {
-            state.logs.write().await.add(
-                "error",
-                &format!("[IMAGE] 默认图片服务失败: {}", error.message),
-            );
+            state
+                .logs
+                .write()
+                .await
+                .add("error", &format!("[IMAGE] 图片服务失败: {}", error.message));
             return (
                 error.status,
                 Json(serde_json::json!({

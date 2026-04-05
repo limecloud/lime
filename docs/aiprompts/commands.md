@@ -45,6 +45,8 @@
 
 旧设置页里“安全与性能 / 容错配置”那组命令已经下线。`get_retry_config`、`update_retry_config`、`get_failover_config`、`update_failover_config`、`get_switch_log`、`clear_switch_log`、`get_rate_limit_config`、`update_rate_limit_config`、`get_conversation_config`、`update_conversation_config`、`update_hint_routes`、`get_pairing_config`、`update_pairing_config` 都应视为 `dead`，不允许重新接回前端网关、Rust 注册或 mock。提示路由当前只保留只读的 `get_hint_routes` 读取面；如果未来确实要恢复编辑入口，必须重新定义 `current` 主链，而不是直接复活旧设置页命令。
 
+旧 onboarding 插件安装流与 Provider Switch 命令链也已经下线。`get_switch_providers`、`get_current_switch_provider`、`add_switch_provider`、`update_switch_provider`、`delete_switch_provider`、`switch_provider`、`import_default_config`、`read_live_provider_settings`、`check_config_sync_status`、`sync_from_external_config` 都应视为 `dead`；初装引导当前只保留语音体验流程，不再允许通过 `config-switch`、插件推荐或配置切换 UI 重新接回这条旧链。
+
 图库素材链路也遵循同一原则。当前主入口为 `src/lib/api/galleryMaterials.ts`，统一承接：
 
 - `create_gallery_material_metadata`
@@ -69,6 +71,42 @@
 - `save_exported_document`
 
 `Artifact Workbench`、文档工作台与其他导出入口如需把内容落到用户选择的本地路径，应继续复用这条主链，不要在业务组件里重新扩散 `Blob + a.download` 式浏览器旁路。
+
+命令目录与输入补全链路同样需要单一事实源。当前前端主入口为 `src/lib/api/skillCatalog.ts`，统一承接：
+
+- `bootstrap.skillCatalog`
+- `GET /v1/public/tenants/{tenantId}/client/skills`
+- 本地 seeded `SkillCatalog`
+
+当前目录协议固定收敛到 `SkillCatalog.entries`：
+
+- `entries.kind=command` 用于 `@` 原子命令
+- `entries.kind=scene` 用于产品型 `/` 场景命令
+- `entries.kind=skill` 用于首页与技能入口
+
+固定约束：
+
+- `CharacterMention`、`builtinCommands`、场景 slash 补全不得再各自维护一套业务命令静态常量
+- 服务端尚未返回 `entries` 时，允许网关层从 legacy `items` 兼容投影出 `entries`
+- 客户端必须保留 seeded fallback，不能因为服务端暂时不可用就让 `@配图`、`@转写` 这类主链入口失能
+- `src/components/agent/chat/commands/catalog.ts` 只继续承接 Lime 本地 / Codex 原生命令；产品型 `/` 场景不应再长期硬编码在这里
+- 若服务端下发的 `renderContract` 超出 Lime 当前支持范围，优先由服务端回退到已支持类型，客户端也必须退化到通用 timeline / artifact 展示
+
+当前 `/scene-key` 的发送主链也已经固定：
+
+- 发送前由 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 统一拦截 slash 场景
+- 再委托 `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts` 的 `handleRuntimeSceneLaunch(...)`
+- 运行时只从统一 catalog 解析 `scene -> linkedSkillId -> ServiceSkillHomeItem`
+- 对 `cloud_scene`，优先复用现有 `createServiceSkillRun(...)` 云端运行链
+- 若云端 run 在创建前就失败，客户端必须自动回退到本地工作区 prompt 主链，不能把 slash scene 直接判死
+- 未命中统一 scene 目录的 slash 文本必须继续回到普通 slash / Codex 命令流，不能误报本地 Skill 不存在
+
+如果这轮改动触达了 `client/skills` 协议，不仅要改 Lime 前端 selector，还要同步检查 `limecore` 的：
+
+- OpenAPI source fragments
+- `packages/types`
+- `packages/api-client`
+- `control-plane-svc` skill catalog service 与路由测试
 
 媒体生成任务链路同样需要单一事实源。当前对外公开契约应优先收敛到 `lime media ... generate --json` 这条 CLI 主链，至少覆盖：
 

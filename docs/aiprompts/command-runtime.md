@@ -6,6 +6,7 @@
 
 - 什么时候一个需求已经属于“命令运行时改动”，而不是普通 UI 或普通 skill 改动
 - `@`、`/`、`skill`、`ServiceSkill`、`task`、`viewer` 之间的固定关系是什么
+- 服务端统一目录与客户端 seeded / fallback 应该如何配合
 - 为什么命令能力不能“先写代码再补 PRD”
 - 新增一个命令功能时，最少要先补哪些设计文档
 - 公共设计包和单功能方案包分别放在哪里
@@ -76,6 +77,40 @@ Lime 的命令体系固定按以下关系理解：
 - “某个工作台自己维护一套状态”
 - “viewer 自己推断任务状态”
 
+## 统一目录与兜底规则
+
+命令运行时的可发现性必须统一收敛到同一份目录协议，而不是前端各处各写一份静态数组。
+
+当前固定规则如下：
+
+1. `SkillCatalog.entries` 是当前统一目录投影。
+2. `entries.kind=command` 驱动 `@` 原子命令。
+3. `entries.kind=scene` 驱动产品型 `/` 场景命令。
+4. `entries.kind=skill` 驱动首页技能卡、技能中心、启动推荐和补参入口。
+5. 在线主路径优先消费：
+   - `bootstrap.skillCatalog`
+   - `GET /v1/public/tenants/{tenantId}/client/skills`
+6. 客户端必须保留本地 seeded catalog 作为韧性兜底：
+   - 未登录
+   - 服务端未升级
+   - 远端拉取失败
+   - 返回 legacy `items` 但未返回 `entries`
+7. 如果服务端暂时只返回 legacy `items`，客户端允许在网关层兼容构造 `entries`，但这只是 compat 过渡，不是新的长期事实源。
+8. 输入区、提及面板、slash 场景面板、首页技能入口都应消费同一份 catalog selector；不要继续在组件内维护第二套硬编码命令列表。
+9. 如果服务端下发了 Lime 尚未支持的展示类型，优先由服务端回退到已有 `renderContract`；客户端也必须退化到通用 `tool_timeline` 或 `artifact` 展示，而不是直接失能。
+
+当前 `scene` slash 的第一刀执行也固定如下：
+
+- `useWorkspaceSendActions` 先识别 `/scene-key ...`
+- 再通过 `useWorkspaceServiceSkillEntryActions.handleRuntimeSceneLaunch(...)` 从本地缓存 `SkillCatalog.entries` 里解析 `scene`
+- 客户端按 `linkedSkillId -> ServiceSkillHomeItem` 复用已有 `ServiceSkill` 启动链，而不是新增一套 scene 执行器
+- 若云端 `cloud_scene` 在创建 run 之前就失败，例如缺少会话、服务端暂不可达，客户端要自动回退到本地工作区 prompt 主链，不能让 `/scene-key` 直接失能
+- 未命中统一目录的 slash 文本必须继续回到普通 slash 流程，不能被错误吞成“未找到本地 Skill”
+
+一句话：
+
+> 目录发现要服务端优先，但体验稳定性必须由客户端 seeded/fallback 托底。
+
 ## 四种产品分型
 
 新增命令前，必须先判断它属于哪一种产品分型：
@@ -117,6 +152,13 @@ Lime 的命令体系固定按以下关系理解：
 - 场景化
 - 有 slot schema
 - 有 run / delivery / managed 语义
+
+当前客户端第一刀收口规则：
+
+- `/scene-key` 不再直接落回本地 slash skill 预处理
+- 先按统一目录找到 `scene` 与其 `linkedSkillId`
+- 复用现有 `ServiceSkill` 启动主链
+- 云端首提失败时自动回退本地工作区，保证 seeded/fallback 仍可推进
 
 ### 3. `Agent + Workflow`
 
@@ -212,12 +254,23 @@ Lime 的命令体系固定按以下关系理解：
 - 如果涉及 `skill`，背后是 CLI、API 还是 hybrid
 - 底层 truth source 是什么
 
+### 2.5 先判目录来源与兜底策略
+
+至少要明确：
+
+- 这项能力是否需要出现在统一 `SkillCatalog.entries`
+- 它是 `command`、`scene` 还是 `skill`
+- 对应目录项由 `limecore client/skills` 下发，还是暂时由客户端 seeded
+- 服务端未返回该目录项时，客户端如何回退
+- 如果这项能力依赖新 render type，Lime 当前是否已经支持
+
 ### 3. 先补方案包
 
 方案包至少要回答：
 
 - Agent 如何判断
 - 如何补参
+- 目录项由谁下发，客户端如何兜底
 - 轻卡长什么样
 - viewer 看什么
 - scope / 恢复 / 重试 / 取消怎么做

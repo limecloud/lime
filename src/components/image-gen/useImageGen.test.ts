@@ -8,8 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __imageGenFalTestUtils } from "./useImageGen";
 import { silenceConsole } from "./test-utils";
 
-const { buildFalInput, requestImageFromFal, resolveFalEndpointModelCandidates } =
-  __imageGenFalTestUtils;
+const {
+  buildFalInput,
+  requestImageFromFal,
+  resolveFalEndpointModelCandidates,
+} = __imageGenFalTestUtils;
 
 function createJsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -83,6 +86,18 @@ describe("useImageGen Fal 调用链路", () => {
     expect(payload).not.toHaveProperty("enable_safety_checker");
     expect(payload).not.toHaveProperty("image_url");
     expect(payload).not.toHaveProperty("image_urls");
+  });
+
+  it("1792x1024 应映射为 Fal 支持的 16:9，而不是 7:4", () => {
+    const payload = buildFalInput(
+      "a spring cafe",
+      [],
+      "1792x1024",
+      "fal-ai/nano-banana-pro",
+      true,
+    ) as Record<string, unknown>;
+
+    expect(payload.aspect_ratio).toBe("16:9");
   });
 
   it("Fal Host 带 /fal-ai 历史路径时应自动归一化，避免重复拼接", async () => {
@@ -189,10 +204,10 @@ describe("useImageGen Fal 调用链路", () => {
     );
 
     const editPayload = JSON.parse(
-      ((fetchMock.mock.calls[0]?.[1] as { body?: string })?.body ?? "{}"),
+      (fetchMock.mock.calls[0]?.[1] as { body?: string })?.body ?? "{}",
     ) as Record<string, unknown>;
     const basePayload = JSON.parse(
-      ((fetchMock.mock.calls[2]?.[1] as { body?: string })?.body ?? "{}"),
+      (fetchMock.mock.calls[2]?.[1] as { body?: string })?.body ?? "{}",
     ) as Record<string, unknown>;
 
     expect(editPayload).toMatchObject({

@@ -10,7 +10,6 @@
 | `PluginManager.tsx`         | 插件管理主组件，显示插件列表和状态                  |
 | `PluginInstallDialog.tsx`   | 插件安装对话框，支持本地文件和 URL 安装             |
 | `PluginUninstallDialog.tsx` | 插件卸载确认对话框                                  |
-| `PluginUIRenderer.tsx`      | 插件 UI 渲染器，根据 pluginId 渲染对应的插件 UI     |
 | `PluginItemContextMenu.tsx` | 插件项右键菜单，支持启用/禁用、打开目录、卸载等操作 |
 | `index.ts`                  | 模块导出                                            |
 
@@ -55,13 +54,6 @@
 - 显示插件信息确认
 - 调用后端卸载命令
 - 刷新插件列表
-
-### PluginUIRenderer
-
-- 根据 pluginId 渲染对应的插件 UI 组件
-- 支持内置插件组件映射 (machine-id-tool -> MachineIdTool)
-- 显示友好的错误提示（插件未找到、加载失败）
-- 导出 Page 类型定义，支持动态插件路由
 
 ### PluginItemContextMenu
 

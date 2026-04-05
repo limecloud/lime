@@ -56,7 +56,6 @@ pub mod skill_cmd;
 pub mod skill_error;
 pub mod skill_exec_cmd;
 pub mod subagent_cmd;
-pub mod switch_cmd;
 pub mod telegram_remote_cmd;
 pub mod telemetry_cmd;
 pub mod terminal_cmd;

@@ -18,7 +18,10 @@ import type { Skill } from "@/lib/api/skills";
 import { resolveServiceSkillEntryDescription } from "@/components/agent/chat/service-skills/entryAdapter";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { CodexSlashCommandDefinition } from "../commands";
-import type { BuiltinInputCommand } from "./builtinCommands";
+import type {
+  BuiltinInputCommand,
+  RuntimeSceneSlashCommand,
+} from "./builtinCommands";
 
 interface MentionServiceSkillGroup {
   key: string;
@@ -88,6 +91,7 @@ interface CharacterMentionPanelProps {
   mentionQuery: string;
   builtinCommands: BuiltinInputCommand[];
   slashCommands: CodexSlashCommandDefinition[];
+  sceneCommands: RuntimeSceneSlashCommand[];
   mentionServiceSkills: ServiceSkillHomeItem[];
   filteredCharacters: Character[];
   installedSkills: Skill[];
@@ -97,6 +101,7 @@ interface CharacterMentionPanelProps {
   onSelectBuiltinCommand: (command: BuiltinInputCommand) => void;
   onSelectServiceSkill: (skill: ServiceSkillHomeItem) => void;
   onSelectSlashCommand: (command: CodexSlashCommandDefinition) => void;
+  onSelectSceneCommand: (command: RuntimeSceneSlashCommand) => void;
   onSelectCharacter: (character: Character) => void;
   onSelectInstalledSkill: (skill: Skill) => void;
   onSelectAvailableSkill: (skill: Skill) => void;
@@ -108,6 +113,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   mentionQuery,
   builtinCommands,
   slashCommands,
+  sceneCommands,
   mentionServiceSkills,
   filteredCharacters,
   installedSkills,
@@ -117,6 +123,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   onSelectBuiltinCommand,
   onSelectServiceSkill,
   onSelectSlashCommand,
+  onSelectSceneCommand,
   onSelectCharacter,
   onSelectInstalledSkill,
   onSelectAvailableSkill,
@@ -130,8 +137,10 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   );
   const visibleCharacters = mode === "mention" ? filteredCharacters : [];
   const visibleSlashCommands = mode === "slash" ? slashCommands : [];
+  const visibleSceneCommands = mode === "slash" ? sceneCommands : [];
   const hasFilteredResults =
     visibleSlashCommands.length > 0 ||
+    visibleSceneCommands.length > 0 ||
     visibleBuiltinCommands.length > 0 ||
     visibleServiceSkillGroups.length > 0 ||
     visibleCharacters.length > 0 ||
@@ -183,6 +192,25 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                       </span>
                     ) : null}
                   </div>
+                  <div className="text-xs text-muted-foreground line-clamp-1">
+                    {command.description}
+                  </div>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ) : null}
+        {visibleSceneCommands.length > 0 ? (
+          <CommandGroup heading="场景组合">
+            {visibleSceneCommands.map((command) => (
+              <CommandItem
+                key={command.entryId ?? command.key}
+                onSelect={() => onSelectSceneCommand(command)}
+                className="cursor-pointer"
+              >
+                <Zap className="mr-2 h-4 w-4 text-sky-600" />
+                <div className="flex-1">
+                  <div className="font-medium">{command.commandPrefix}</div>
                   <div className="text-xs text-muted-foreground line-clamp-1">
                     {command.description}
                   </div>

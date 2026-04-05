@@ -3770,7 +3770,6 @@ const defaultMocks: Record<string, any> = {
   toggle_mcp_server: () => ({ success: true }),
   import_mcp_from_app: () => ({ success: true }),
   sync_all_mcp_to_live: () => ({ success: true }),
-  sync_from_external_config: () => ({ success: true }),
   mcp_list_servers_with_status: () => [],
   mcp_start_server: () => ({ success: true }),
   mcp_stop_server: () => ({ success: true }),
@@ -3783,14 +3782,6 @@ const defaultMocks: Record<string, any> = {
   mcp_get_prompt: () => ({ description: "", messages: [] }),
   mcp_list_resources: () => [],
   mcp_read_resource: () => ({}),
-
-  // Switch Provider 相关
-  get_switch_providers: () => [],
-  add_switch_provider: () => ({ success: true }),
-  delete_switch_provider: () => ({ success: true }),
-  update_switch_provider: () => ({ success: true }),
-  get_current_switch_provider: () => null,
-  read_live_provider_settings: () => ({}),
 
   // 系统信息相关
   subscribe_sysinfo: () => ({ success: true }),
@@ -4065,9 +4056,6 @@ const defaultMocks: Record<string, any> = {
 
   // Auto Fix 相关
   auto_fix_configuration: () => ({ success: true }),
-
-  // Check Config Sync 相关
-  check_config_sync_status: () => ({ status: "synced" }),
 
   // 自动化任务相关
   get_automation_scheduler_config: () => ({

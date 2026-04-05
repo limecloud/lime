@@ -1114,17 +1114,6 @@ pub fn run() {
             // API test commands (from app::commands)
             app_commands::get_available_models,
             app_commands::check_api_compatibility,
-            // Switch commands
-            commands::switch_cmd::get_switch_providers,
-            commands::switch_cmd::get_current_switch_provider,
-            commands::switch_cmd::add_switch_provider,
-            commands::switch_cmd::update_switch_provider,
-            commands::switch_cmd::delete_switch_provider,
-            commands::switch_cmd::switch_provider,
-            commands::switch_cmd::import_default_config,
-            commands::switch_cmd::read_live_provider_settings,
-            commands::switch_cmd::check_config_sync_status,
-            commands::switch_cmd::sync_from_external_config,
             // Config commands
             commands::config_cmd::get_config_status,
             commands::config_cmd::get_config_dir_path,

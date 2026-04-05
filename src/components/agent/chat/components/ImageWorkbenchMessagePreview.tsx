@@ -3,6 +3,7 @@ import { ArrowUpRight, LoaderCircle, Sparkles } from "lucide-react";
 import { emitImageWorkbenchFocus } from "@/lib/imageWorkbenchEvents";
 import { cn } from "@/lib/utils";
 import type { MessageImageWorkbenchPreview } from "../types";
+import { RenderableTaskImage } from "./RenderableTaskImage";
 
 interface ImageWorkbenchMessagePreviewProps {
   preview: MessageImageWorkbenchPreview;
@@ -157,6 +158,15 @@ function resolvePlaceholderLabel(
   return resolveStatusLabel(preview);
 }
 
+function resolveImageUnavailableLabel(
+  preview: MessageImageWorkbenchPreview,
+): string {
+  if (preview.status === "complete" || preview.status === "partial") {
+    return "图片暂时无法显示";
+  }
+  return resolvePlaceholderLabel(preview);
+}
+
 function shouldShowSourcePanel(preview: MessageImageWorkbenchPreview): boolean {
   return Boolean(
     preview.mode === "edit" ||
@@ -199,8 +209,6 @@ function resolveSourcePlaceholderLabel(
 export const ImageWorkbenchMessagePreview: React.FC<
   ImageWorkbenchMessagePreviewProps
 > = ({ preview }) => {
-  const hasImage = Boolean(preview.imageUrl?.trim());
-  const hasSourceImage = Boolean(preview.sourceImageUrl?.trim());
   const showSourcePanel = shouldShowSourcePanel(preview);
 
   return (
@@ -244,26 +252,27 @@ export const ImageWorkbenchMessagePreview: React.FC<
         <div className="px-4 pb-4">
           <div className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">
             <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
-              {hasImage ? (
-                <img
-                  src={preview.imageUrl ?? ""}
-                  alt={preview.prompt || "图片任务结果"}
-                  className="aspect-[16/10] h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex aspect-[16/10] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
-                  <div className="space-y-2">
-                    {preview.status === "running" ? (
-                      <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-sky-500" />
-                    ) : (
-                      <Sparkles className="mx-auto h-7 w-7 text-slate-400" />
-                    )}
-                    <div className="text-sm font-medium text-slate-700">
-                      {resolvePlaceholderLabel(preview)}
+              <RenderableTaskImage
+                src={preview.imageUrl}
+                alt={preview.prompt || "图片任务结果"}
+                className="aspect-[16/10] h-full w-full object-cover"
+                renderFallback={(reason) => (
+                  <div className="flex aspect-[16/10] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
+                    <div className="space-y-2">
+                      {reason === "empty" && preview.status === "running" ? (
+                        <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-sky-500" />
+                      ) : (
+                        <Sparkles className="mx-auto h-7 w-7 text-slate-400" />
+                      )}
+                      <div className="text-sm font-medium text-slate-700">
+                        {reason === "error"
+                          ? resolveImageUnavailableLabel(preview)
+                          : resolvePlaceholderLabel(preview)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              />
             </div>
             <div className="min-w-0">
               <div className="line-clamp-2 text-sm font-medium leading-6 text-slate-900">
@@ -300,20 +309,21 @@ export const ImageWorkbenchMessagePreview: React.FC<
                   </div>
                   <div className="mt-2 flex items-center gap-3">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      {hasSourceImage ? (
-                        <img
-                          src={preview.sourceImageUrl ?? ""}
-                          alt={
-                            preview.sourceImagePrompt ||
-                            resolveSourceLabel(preview.mode)
-                          }
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="px-2 text-center text-[11px] font-medium text-slate-400">
-                          {resolveSourcePlaceholderLabel(preview)}
-                        </span>
-                      )}
+                      <RenderableTaskImage
+                        src={preview.sourceImageUrl}
+                        alt={
+                          preview.sourceImagePrompt ||
+                          resolveSourceLabel(preview.mode)
+                        }
+                        className="h-full w-full object-cover"
+                        renderFallback={(reason) => (
+                          <span className="px-2 text-center text-[11px] font-medium text-slate-400">
+                            {reason === "error"
+                              ? `${resolveSourceLabel(preview.mode)}暂时无法显示`
+                              : resolveSourcePlaceholderLabel(preview)}
+                          </span>
+                        )}
+                      />
                     </div>
                     <div className="min-w-0">
                       <div className="line-clamp-2 text-xs font-medium leading-5 text-slate-700">

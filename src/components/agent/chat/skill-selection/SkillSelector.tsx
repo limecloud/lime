@@ -126,6 +126,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
           mode="mention"
           mentionQuery={query}
           builtinCommands={[] satisfies BuiltinInputCommand[]}
+          sceneCommands={[]}
           slashCommands={[]}
           mentionServiceSkills={mentionServiceSkills}
           filteredCharacters={[]}
@@ -135,6 +136,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
           onQueryChange={onQueryChange}
           onSelectBuiltinCommand={() => undefined}
           onSelectServiceSkill={(skill) => onSelectServiceSkill?.(skill)}
+          onSelectSceneCommand={() => undefined}
           onSelectSlashCommand={() => undefined}
           onSelectCharacter={() => undefined}
           onSelectInstalledSkill={onSelectInstalledSkill}

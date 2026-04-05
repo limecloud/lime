@@ -161,6 +161,189 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
+  it("应记录已删除的 provider-pool 旧模型库页面簇", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "provider-pool-model-registry-tabs",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/provider-pool/EnhancedModelsTab.tsx",
+      "src/components/provider-pool/ModelRegistryTab.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 provider-pool 独立凭证表单与 barrel 入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "provider-pool-standalone-credential-forms",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/provider-pool/credential-forms/AntigravityFormStandalone.tsx",
+      "src/components/provider-pool/credential-forms/ClaudeFormStandalone.tsx",
+      "src/components/provider-pool/credential-forms/GeminiFormStandalone.tsx",
+      "src/components/provider-pool/credential-forms/KiroFormStandalone.tsx",
+      "src/components/provider-pool/credential-forms/index.ts",
+    ]);
+  });
+
+  it("应记录已删除的 Agent Chat 固定后端 compat 配置壳", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "agent-chat-fixed-backend-config-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(["src/components/agent/chat/config.ts"]);
+  });
+
+  it("应记录已删除的稳定处理中提示组件与 Hook", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "stable-processing-notice-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/components/StableProcessingNotice.tsx",
+      "src/components/agent/chat/hooks/useStableProcessingNotice.ts",
+    ]);
+  });
+
+  it("应记录已删除的零入口 RadioGroup UI primitive", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "ui-radio-group-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(["src/components/ui/radio-group.tsx"]);
+  });
+
+  it("应记录已删除的零入口 Separator UI primitive", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "ui-separator-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(["src/components/ui/separator.tsx"]);
+  });
+
+  it("应记录已删除的前端 plugin-ui 渲染链", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "plugin-ui-frontend-runtime-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(
+      expect.arrayContaining([
+        "src/lib/plugin-ui/ComponentRegistry.ts",
+        "src/lib/plugin-ui/DataStore.ts",
+        "src/lib/plugin-ui/PluginUIContainer.tsx",
+        "src/lib/plugin-ui/PluginUIRenderer.tsx",
+        "src/lib/plugin-ui/SurfaceManager.ts",
+        "src/lib/plugin-ui/index.ts",
+        "src/lib/plugin-ui/usePluginUI.ts",
+      ]),
+    );
+  });
+
+  it("应记录已删除的零入口 Alert UI primitive", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "ui-alert-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(["src/components/ui/alert.tsx"]);
+  });
+
+  it("应记录已删除的旧 WebSocket 状态组件入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "websocket-status-widget-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/websocket/WebSocketStatus.tsx",
+    ]);
+  });
+
+  it("应记录已删除的旧 SubAgent 展示壳入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "subagent-progress-display-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/subagent/SubAgentProgress.tsx",
+      "src/components/subagent/index.ts",
+    ]);
+  });
+
+  it("应记录已删除的 OpenClaw Dashboard 内嵌 frame 旧入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "openclaw-dashboard-frame-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/openclaw/OpenClawDashboardFrame.tsx",
+    ]);
+  });
+
+  it("应记录已删除的电商差评回复旧前端页面与 API 网关", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "ecommerce-review-reply-frontend-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/solutions/ecommerce-review-reply/GuideStep.tsx",
+      "src/solutions/ecommerce-review-reply/Results.tsx",
+      "src/solutions/ecommerce-review-reply/Tasks.tsx",
+      "src/solutions/ecommerce-review-reply/index.tsx",
+      "src/lib/api/ecommerce-review-reply.ts",
+    ]);
+  });
+
+  it("应记录已删除的记忆反馈旧前端侧链", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "memory-feedback-frontend-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/memory/MemoryFeedback.tsx",
+      "src/components/memory/FeedbackStats.tsx",
+      "src/lib/api/memoryFeedback.ts",
+      "src/lib/api/memoryFeedback.test.ts",
+    ]);
+  });
+
   it("应记录已删除的旧问卷 A2UI 模块命名入口", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "legacy-questionnaire-a2ui-entry",
@@ -257,6 +440,44 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.allowedPaths).toEqual([]);
     expect(monitor?.targets).toEqual([
       "src/components/settings-v2/shared/language/LanguageSelector.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 ExperimentalBanner 旧提示组件入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "experimental-banner-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/ui/ExperimentalBanner.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 PanelLayout 旧分屏布局入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "panel-layout-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/layout/PanelLayout.tsx",
+    ]);
+  });
+
+  it("应收窄旧 SubAgent scheduler Hook 的 compat 白名单", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "team-subagent-scheduler-hook",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("compat");
+    expect(monitor?.allowedPaths).toEqual([
+      "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
     ]);
   });
 

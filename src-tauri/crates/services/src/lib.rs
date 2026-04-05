@@ -36,7 +36,6 @@
 //! - `model_service` - 模型服务
 //! - `prompt_service` - Prompt 服务
 //! - `mcp_service` - MCP 服务
-//! - `switch` - Provider 切换
 //! - `aster_session_store` - Aster 会话存储
 //! - `session_context_service` - 会话上下文服务
 //! - `ai_summary_service` - AI 摘要服务
@@ -77,8 +76,6 @@ pub mod model_registry_service;
 pub mod model_service;
 pub mod persona_service;
 pub mod prompt_service;
-pub mod switch;
-
 // 依赖其他 services 的服务
 pub mod ai_summary_service;
 pub mod project_context_builder;

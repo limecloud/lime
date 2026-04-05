@@ -9,7 +9,8 @@
 
 ## 文件索引
 
-- `screenshot-chat.tsx` - 截图对话悬浮窗口页面（独立 Tauri 窗口）
+- `smart-input.tsx` - 截图对话悬浮窗口页面（独立 Tauri 窗口）
+- `smart-input.css` - 截图对话悬浮窗口样式
 - `browser-runtime-debugger.tsx` - 浏览器运行时调试页面（可独立窗口打开）
 - `update-notification.tsx` - 更新提醒悬浮窗口页面（独立 Tauri 窗口，轻量 Toast 交互，支持 1/3/7 天稍后提醒）
 - `update-notification.css` - 更新提醒窗口样式（底部 Toast + 进入/退出动画）

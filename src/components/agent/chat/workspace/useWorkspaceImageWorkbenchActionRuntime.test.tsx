@@ -243,10 +243,6 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
         isThinking: true,
         toolCalls: [
           expect.objectContaining({
-            name: "skill",
-            status: "completed",
-          }),
-          expect.objectContaining({
             name: "limeCreateImageGenerationTask",
             status: "running",
           }),
