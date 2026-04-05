@@ -75,7 +75,6 @@ function imageGenDebugLog(...args: unknown[]): void {
   if (!isDebugFlagEnabled(PROVIDER_DEBUG_KEY)) {
     return;
   }
-  console.debug(...args);
 }
 
 function sanitizeMaterialName(value: string): string {
