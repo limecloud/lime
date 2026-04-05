@@ -12,7 +12,7 @@ describe("themeWorkbenchHelpers", () => {
       {
         id: "user-1",
         role: "user",
-        content: "/social_post_with_cover 请继续生成社媒稿",
+        content: "/content_post_with_cover 请继续生成社媒稿",
         timestamp: new Date("2026-03-24T15:00:00.000Z"),
       },
       {
@@ -27,7 +27,7 @@ describe("themeWorkbenchHelpers", () => {
             name: "write_file",
             arguments: JSON.stringify({
               payload: {
-                artifact_paths: ["social-posts\\final.md"],
+                artifact_paths: ["content-posts\\final.md"],
               },
             }),
             status: "completed",
@@ -48,7 +48,7 @@ describe("themeWorkbenchHelpers", () => {
     expect(workflowSteps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "写入 social-posts/final.md",
+          title: "写入 content-posts/final.md",
           status: "completed",
         }),
       ]),

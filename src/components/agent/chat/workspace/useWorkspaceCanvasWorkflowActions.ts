@@ -1,4 +1,9 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import {
+  useCallback,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
@@ -63,6 +68,7 @@ interface UseWorkspaceCanvasWorkflowActionsParams<
   projectName?: string;
   canvasState: CanvasStateUnion | null;
   contentId?: string | null;
+  selectedText?: string;
   onRunImageWorkbenchCommand: (
     params: RunImageWorkbenchCommandParams,
   ) => Promise<unknown>;
@@ -84,10 +90,7 @@ interface WorkspaceCanvasWorkflowActionsResult {
   ) => Promise<string>;
   handleSwitchBranchVersion: (versionId: string) => void;
   handleCreateVersionSnapshot: () => void;
-  handleSetBranchStatus: (
-    topicId: string,
-    status: TopicBranchStatus,
-  ) => void;
+  handleSetBranchStatus: (topicId: string, status: TopicBranchStatus) => void;
   handleAddImage: () => Promise<void>;
   handleImportDocument: () => Promise<void>;
 }
@@ -105,6 +108,7 @@ export function useWorkspaceCanvasWorkflowActions<
   projectName,
   canvasState,
   contentId,
+  selectedText,
   onRunImageWorkbenchCommand,
 }: UseWorkspaceCanvasWorkflowActionsParams<TToolPreferences>): WorkspaceCanvasWorkflowActionsResult {
   const handleDocumentThinkingEnabledChange = useCallback(
@@ -172,41 +176,48 @@ export function useWorkspaceCanvasWorkflowActions<
     async (payload: ArtifactBlockRewriteRunPayload) => {
       try {
         const request = buildArtifactBlockRewriteRequest(payload);
-        return await new Promise<ArtifactBlockRewriteCompletion>((resolve, reject) => {
-          void sendRef
-            .current(
-              [],
-              webSearchPreferenceRef.current,
-              thinkingEnabled,
-              request.prompt,
-              undefined,
-              undefined,
-              {
-                skipThemeSkillPrefix: true,
-                purpose: "style_rewrite",
-                requestMetadata: request.requestMetadata,
-                observer: {
-                  onComplete: (content) => {
-                    try {
-                      resolve(
-                        resolveArtifactBlockRewriteCompletion(payload, content),
-                      );
-                    } catch (error) {
-                      reject(
-                        error instanceof Error
-                          ? error
-                          : new Error(String(error)),
-                      );
-                    }
+        return await new Promise<ArtifactBlockRewriteCompletion>(
+          (resolve, reject) => {
+            void sendRef
+              .current(
+                [],
+                webSearchPreferenceRef.current,
+                thinkingEnabled,
+                request.prompt,
+                undefined,
+                undefined,
+                {
+                  skipThemeSkillPrefix: true,
+                  purpose: "style_rewrite",
+                  requestMetadata: request.requestMetadata,
+                  observer: {
+                    onComplete: (content) => {
+                      try {
+                        resolve(
+                          resolveArtifactBlockRewriteCompletion(
+                            payload,
+                            content,
+                          ),
+                        );
+                      } catch (error) {
+                        reject(
+                          error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                        );
+                      }
+                    },
+                    onError: (message) => reject(new Error(message)),
                   },
-                  onError: (message) => reject(new Error(message)),
                 },
-              },
-            )
-            .catch((error) => {
-              reject(error instanceof Error ? error : new Error(String(error)));
-            });
-        });
+              )
+              .catch((error) => {
+                reject(
+                  error instanceof Error ? error : new Error(String(error)),
+                );
+              });
+          },
+        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "发起当前块 AI 改写失败";
@@ -336,6 +347,7 @@ export function useWorkspaceCanvasWorkflowActions<
         canvasState,
         projectId,
         contentId: contentId ?? null,
+        selectedText,
       });
     } else {
       toast.info("当前画布暂未接入配图工作台");
@@ -360,6 +372,7 @@ export function useWorkspaceCanvasWorkflowActions<
     onRunImageWorkbenchCommand,
     projectId,
     projectName,
+    selectedText,
   ]);
 
   const handleImportDocument = useCallback(async () => {

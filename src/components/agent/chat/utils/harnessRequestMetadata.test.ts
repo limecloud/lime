@@ -105,7 +105,7 @@ describe("harnessRequestMetadata", () => {
           label: "legacy team blueprint",
         },
       },
-      theme: "document",
+      theme: "general",
       preferences: {
         webSearch: true,
         thinking: true,
@@ -116,7 +116,7 @@ describe("harnessRequestMetadata", () => {
     });
 
     expect(metadata).toMatchObject({
-      theme: "document",
+      theme: "general",
       preferences: {
         web_search: true,
         thinking: true,
@@ -146,7 +146,7 @@ describe("harnessRequestMetadata", () => {
 
   it("默认会话模式不应写入 gate_key", () => {
     const metadata = buildHarnessRequestMetadata({
-      theme: "document",
+      theme: "general",
       preferences: {
         webSearch: false,
         thinking: true,
@@ -162,7 +162,7 @@ describe("harnessRequestMetadata", () => {
 
   it("应透传当前发送用途，供后端统一决策运行时行为", () => {
     const metadata = buildHarnessRequestMetadata({
-      theme: "document",
+      theme: "general",
       turnPurpose: "content_review",
       preferences: {
         webSearch: false,

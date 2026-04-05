@@ -1,5 +1,7 @@
 export const IMAGE_WORKBENCH_REQUEST_EVENT = "lime:image-workbench-request";
 export const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
+export const IMAGE_WORKBENCH_TASK_ACTION_EVENT =
+  "lime:image-workbench-task-action";
 
 export type ImageWorkbenchExternalRequestSource = "workspace-right-rail";
 export type ImageWorkbenchExternalRequestTarget = "generate" | "cover";
@@ -22,6 +24,15 @@ export interface ImageWorkbenchExternalRequestDetail {
 
 export interface ImageWorkbenchFocusDetail {
   source?: ImageWorkbenchExternalRequestSource;
+  projectId?: string | null;
+  contentId?: string | null;
+}
+
+export type ImageWorkbenchTaskAction = "retry" | "cancel";
+
+export interface ImageWorkbenchTaskActionDetail {
+  action: ImageWorkbenchTaskAction;
+  taskId: string;
   projectId?: string | null;
   contentId?: string | null;
 }
@@ -64,9 +75,8 @@ export function onImageWorkbenchRequest(
       return;
     }
 
-    const detail = (
-      event as CustomEvent<ImageWorkbenchExternalRequestDetail>
-    ).detail;
+    const detail = (event as CustomEvent<ImageWorkbenchExternalRequestDetail>)
+      .detail;
     if (!detail || typeof detail.requestId !== "string") {
       return;
     }
@@ -112,5 +122,52 @@ export function onImageWorkbenchFocus(
   window.addEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handler);
   return () => {
     window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handler);
+  };
+}
+
+export function emitImageWorkbenchTaskAction(
+  detail: ImageWorkbenchTaskActionDetail,
+): void {
+  if (!hasWindow()) {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<ImageWorkbenchTaskActionDetail>(
+      IMAGE_WORKBENCH_TASK_ACTION_EVENT,
+      {
+        detail,
+      },
+    ),
+  );
+}
+
+export function onImageWorkbenchTaskAction(
+  listener: (detail: ImageWorkbenchTaskActionDetail) => void,
+): () => void {
+  if (!hasWindow()) {
+    return () => undefined;
+  }
+
+  const handler = (event: Event) => {
+    if (!(event instanceof CustomEvent)) {
+      return;
+    }
+
+    const detail = (event as CustomEvent<ImageWorkbenchTaskActionDetail>)
+      .detail;
+    if (
+      !detail ||
+      (detail.action !== "retry" && detail.action !== "cancel") ||
+      typeof detail.taskId !== "string"
+    ) {
+      return;
+    }
+    listener(detail);
+  };
+
+  window.addEventListener(IMAGE_WORKBENCH_TASK_ACTION_EVENT, handler);
+  return () => {
+    window.removeEventListener(IMAGE_WORKBENCH_TASK_ACTION_EVENT, handler);
   };
 }

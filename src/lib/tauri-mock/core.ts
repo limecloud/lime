@@ -3535,13 +3535,6 @@ const defaultMocks: Record<string, any> = {
       tasks: [buildMockMediaTaskOutput(args)],
     };
   },
-  retry_media_task_artifact: (args: any) =>
-    buildMockMediaTaskOutput(args, {
-      attempt_count: 2,
-      current_attempt_id: "attempt-2",
-      status: "pending_submit",
-      normalized_status: "pending",
-    }),
   cancel_media_task_artifact: (args: any) =>
     buildMockMediaTaskOutput(args, {
       status: "cancelled",

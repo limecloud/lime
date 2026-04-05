@@ -87,7 +87,8 @@ export function useWorkspaceThemeWorkbenchShellRuntime({
     onSidebarCollapsedChange:
       themeWorkbenchScaffoldRuntime.setThemeWorkbenchSidebarCollapsed,
     sidebar: {
-      socialMediaHarnessSummary: harnessInventoryRuntime.socialMediaHarnessSummary,
+      themeWorkbenchHarnessSummary:
+        harnessInventoryRuntime.themeWorkbenchHarnessSummary,
       harnessPanelVisible: contextHarnessRuntime.harnessPanelVisible,
       onToggleHarnessPanel: contextHarnessRuntime.handleToggleHarnessPanel,
       workflow: {

@@ -3,14 +3,14 @@
 //! 定义 Workspace 相关的数据结构和类型。
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::path::PathBuf;
 
 /// Workspace 唯一标识
 pub type WorkspaceId = String;
 
 /// Workspace 类型
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkspaceType {
     /// 持久化 workspace
@@ -20,60 +20,55 @@ pub enum WorkspaceType {
     Temporary,
     /// 通用对话
     General,
-    /// 社媒内容
-    #[serde(alias = "social")]
-    SocialMedia,
-    /// 知识探索
-    Knowledge,
-    /// 计划规划
-    Planning,
-    /// 办公文档（兼容旧 poster/music/novel 类型）
-    #[serde(alias = "poster", alias = "music", alias = "novel")]
-    Document,
-    /// 短视频（兼容旧 drama 类型）
-    #[serde(alias = "drama")]
-    Video,
+}
+
+impl<'de> Deserialize<'de> for WorkspaceType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::parse_current(&value).ok_or_else(|| {
+            de::Error::unknown_variant(&value, &["persistent", "temporary", "general"])
+        })
+    }
 }
 
 impl WorkspaceType {
+    fn parse_current(value: &str) -> Option<Self> {
+        match value {
+            "persistent" => Some(WorkspaceType::Persistent),
+            "temporary" => Some(WorkspaceType::Temporary),
+            "general" => Some(WorkspaceType::General),
+            _ => None,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             WorkspaceType::Persistent => "persistent",
             WorkspaceType::Temporary => "temporary",
             WorkspaceType::General => "general",
-            WorkspaceType::SocialMedia => "social-media",
-            WorkspaceType::Knowledge => "knowledge",
-            WorkspaceType::Planning => "planning",
-            WorkspaceType::Document => "document",
-            WorkspaceType::Video => "video",
         }
     }
 
-    pub fn parse(s: &str) -> Self {
-        match s {
-            "temporary" => WorkspaceType::Temporary,
-            "general" => WorkspaceType::General,
-            "social-media" | "social" => WorkspaceType::SocialMedia,
-            "knowledge" => WorkspaceType::Knowledge,
-            "planning" => WorkspaceType::Planning,
-            "poster" | "music" | "novel" => WorkspaceType::Document,
-            "document" => WorkspaceType::Document,
-            "video" | "drama" => WorkspaceType::Video,
-            _ => WorkspaceType::Persistent,
+    pub fn parse_persisted(s: &str) -> Self {
+        Self::parse_current(s).unwrap_or(WorkspaceType::Persistent)
+    }
+
+    pub fn parse_user_input(s: &str) -> Result<Self, String> {
+        if let Some(workspace_type) = Self::parse_current(s) {
+            return Ok(workspace_type);
         }
+
+        Err(format!(
+            "不支持的 workspace_type '{s}'，仅支持 persistent / temporary / general"
+        ))
     }
 
     /// 判断是否为项目类型
     pub fn is_project_type(&self) -> bool {
-        matches!(
-            self,
-            WorkspaceType::General
-                | WorkspaceType::SocialMedia
-                | WorkspaceType::Knowledge
-                | WorkspaceType::Planning
-                | WorkspaceType::Document
-                | WorkspaceType::Video
-        )
+        matches!(self, WorkspaceType::General)
     }
 }
 
@@ -360,100 +355,66 @@ mod tests {
         assert_eq!(WorkspaceType::Persistent.as_str(), "persistent");
         assert_eq!(WorkspaceType::Temporary.as_str(), "temporary");
         assert_eq!(WorkspaceType::General.as_str(), "general");
-        assert_eq!(WorkspaceType::SocialMedia.as_str(), "social-media");
-        assert_eq!(WorkspaceType::Knowledge.as_str(), "knowledge");
-        assert_eq!(WorkspaceType::Planning.as_str(), "planning");
-        assert_eq!(WorkspaceType::Document.as_str(), "document");
-        assert_eq!(WorkspaceType::Video.as_str(), "video");
     }
 
     #[test]
     fn test_workspace_type_from_str() {
         assert_eq!(
-            WorkspaceType::parse("persistent"),
+            WorkspaceType::parse_persisted("persistent"),
             WorkspaceType::Persistent
         );
-        assert_eq!(WorkspaceType::parse("temporary"), WorkspaceType::Temporary);
-        assert_eq!(WorkspaceType::parse("general"), WorkspaceType::General);
         assert_eq!(
-            WorkspaceType::parse("social-media"),
-            WorkspaceType::SocialMedia
+            WorkspaceType::parse_persisted("temporary"),
+            WorkspaceType::Temporary
         );
-        assert_eq!(WorkspaceType::parse("knowledge"), WorkspaceType::Knowledge);
-        assert_eq!(WorkspaceType::parse("planning"), WorkspaceType::Planning);
-        assert_eq!(WorkspaceType::parse("document"), WorkspaceType::Document);
-        assert_eq!(WorkspaceType::parse("video"), WorkspaceType::Video);
-    }
-
-    #[test]
-    fn test_legacy_type_migration() {
-        // 旧类型应该正确映射到新类型
-        assert_eq!(WorkspaceType::parse("poster"), WorkspaceType::Document);
-        assert_eq!(WorkspaceType::parse("music"), WorkspaceType::Document);
-        assert_eq!(WorkspaceType::parse("novel"), WorkspaceType::Document);
-        assert_eq!(WorkspaceType::parse("drama"), WorkspaceType::Video);
-        assert_eq!(WorkspaceType::parse("social"), WorkspaceType::SocialMedia);
+        assert_eq!(
+            WorkspaceType::parse_persisted("general"),
+            WorkspaceType::General
+        );
     }
 
     #[test]
     fn test_unknown_type_defaults_to_persistent() {
-        assert_eq!(WorkspaceType::parse("unknown"), WorkspaceType::Persistent);
-        assert_eq!(WorkspaceType::parse(""), WorkspaceType::Persistent);
-        assert_eq!(WorkspaceType::parse("invalid"), WorkspaceType::Persistent);
+        assert_eq!(
+            WorkspaceType::parse_persisted("unknown"),
+            WorkspaceType::Persistent
+        );
+        assert_eq!(
+            WorkspaceType::parse_persisted(""),
+            WorkspaceType::Persistent
+        );
+        assert_eq!(
+            WorkspaceType::parse_persisted("invalid"),
+            WorkspaceType::Persistent
+        );
     }
 
     #[test]
     fn test_is_project_type() {
-        // 用户级类型应该返回 true
         assert!(WorkspaceType::General.is_project_type());
-        assert!(WorkspaceType::SocialMedia.is_project_type());
-        assert!(WorkspaceType::Knowledge.is_project_type());
-        assert!(WorkspaceType::Planning.is_project_type());
-        assert!(WorkspaceType::Document.is_project_type());
-        assert!(WorkspaceType::Video.is_project_type());
-
-        // 系统级类型应该返回 false
         assert!(!WorkspaceType::Persistent.is_project_type());
         assert!(!WorkspaceType::Temporary.is_project_type());
     }
 
     #[test]
     fn test_serde_serialization() {
-        // 测试序列化为 kebab-case
-        let json = serde_json::to_string(&WorkspaceType::SocialMedia).unwrap();
-        assert_eq!(json, "\"social-media\"");
-
-        let json = serde_json::to_string(&WorkspaceType::Video).unwrap();
-        assert_eq!(json, "\"video\"");
-
         let json = serde_json::to_string(&WorkspaceType::Persistent).unwrap();
         assert_eq!(json, "\"persistent\"");
+
+        let json = serde_json::to_string(&WorkspaceType::General).unwrap();
+        assert_eq!(json, "\"general\"");
     }
 
     #[test]
     fn test_serde_deserialization() {
-        // 测试从 kebab-case 反序列化
-        let wt: WorkspaceType = serde_json::from_str("\"social-media\"").unwrap();
-        assert_eq!(wt, WorkspaceType::SocialMedia);
-        let wt: WorkspaceType = serde_json::from_str("\"social\"").unwrap();
-        assert_eq!(wt, WorkspaceType::SocialMedia);
-
-        let wt: WorkspaceType = serde_json::from_str("\"video\"").unwrap();
-        assert_eq!(wt, WorkspaceType::Video);
-        let wt: WorkspaceType = serde_json::from_str("\"drama\"").unwrap();
-        assert_eq!(wt, WorkspaceType::Video);
-
-        let wt: WorkspaceType = serde_json::from_str("\"document\"").unwrap();
-        assert_eq!(wt, WorkspaceType::Document);
-        let wt: WorkspaceType = serde_json::from_str("\"poster\"").unwrap();
-        assert_eq!(wt, WorkspaceType::Document);
-        let wt: WorkspaceType = serde_json::from_str("\"music\"").unwrap();
-        assert_eq!(wt, WorkspaceType::Document);
-        let wt: WorkspaceType = serde_json::from_str("\"novel\"").unwrap();
-        assert_eq!(wt, WorkspaceType::Document);
-
         let wt: WorkspaceType = serde_json::from_str("\"persistent\"").unwrap();
         assert_eq!(wt, WorkspaceType::Persistent);
+        let wt: WorkspaceType = serde_json::from_str("\"temporary\"").unwrap();
+        assert_eq!(wt, WorkspaceType::Temporary);
+        let wt: WorkspaceType = serde_json::from_str("\"general\"").unwrap();
+        assert_eq!(wt, WorkspaceType::General);
+        let err = serde_json::from_str::<WorkspaceType>("\"legacy-workspace\"").unwrap_err();
+        assert!(err.to_string().contains("unknown variant"));
     }
 
     #[test]
@@ -462,18 +423,19 @@ mod tests {
             WorkspaceType::Persistent,
             WorkspaceType::Temporary,
             WorkspaceType::General,
-            WorkspaceType::SocialMedia,
-            WorkspaceType::Knowledge,
-            WorkspaceType::Planning,
-            WorkspaceType::Document,
-            WorkspaceType::Video,
         ];
 
         for wt in types {
             let s = wt.as_str();
-            let parsed = WorkspaceType::parse(s);
+            let parsed = WorkspaceType::parse_persisted(s);
             assert_eq!(wt, parsed, "Roundtrip failed for {wt:?}");
         }
+    }
+
+    #[test]
+    fn test_parse_user_input_rejects_unknown_value() {
+        let error = WorkspaceType::parse_user_input("unknown").unwrap_err();
+        assert!(error.contains("仅支持 persistent / temporary / general"));
     }
 
     #[test]
@@ -484,16 +446,16 @@ mod tests {
 
     #[test]
     fn test_workspace_type_clone() {
-        let original = WorkspaceType::Video;
+        let original = WorkspaceType::General;
         let cloned = original.clone();
         assert_eq!(original, cloned);
     }
 
     #[test]
     fn test_workspace_type_debug() {
-        let wt = WorkspaceType::SocialMedia;
+        let wt = WorkspaceType::General;
         let debug_str = format!("{wt:?}");
-        assert_eq!(debug_str, "SocialMedia");
+        assert_eq!(debug_str, "General");
     }
 
     #[test]

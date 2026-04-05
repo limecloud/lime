@@ -4,6 +4,8 @@ import {
   appendImageToMarkdown,
   buildSectionSearchQuery,
   extractLevel2Sections,
+  insertMarkdownBlock,
+  resolveSectionTitleForSelection,
 } from "./autoImageInsert";
 
 describe("autoImageInsert", () => {
@@ -45,7 +47,9 @@ describe("autoImageInsert", () => {
     ]);
 
     expect(next).toContain("![交通图](https://img.example/traffic.jpg)");
-    expect(next).toContain("> 图片来源：[Pexels](https://img.example/page-traffic)");
+    expect(next).toContain(
+      "> 图片来源：[Pexels](https://img.example/page-traffic)",
+    );
   });
 
   it("appendImageToMarkdown 应避免重复插入", () => {
@@ -65,10 +69,73 @@ describe("autoImageInsert", () => {
     expect(once).toBe(twice);
   });
 
+  it("应根据选中文本推断所属小节", () => {
+    const markdown = `# 城市观察
+
+## 交通
+讨论交通现象
+
+## 建筑
+讨论建筑空间`;
+
+    expect(resolveSectionTitleForSelection(markdown, "讨论建筑空间")).toBe(
+      "建筑",
+    );
+  });
+
+  it("insertMarkdownBlock 应优先插入到目标小节而不是文末", () => {
+    const markdown = `# 城市观察
+
+## 交通
+讨论交通现象
+
+## 建筑
+讨论建筑空间`;
+
+    const next = insertMarkdownBlock(
+      markdown,
+      ["![建筑配图](https://img.example/building.jpg)"],
+      { sectionTitle: "建筑" },
+    );
+
+    expect(next.indexOf("## 建筑")).toBeLessThan(
+      next.indexOf("https://img.example/building.jpg"),
+    );
+    expect(next.indexOf("https://img.example/building.jpg")).toBeLessThan(
+      next.lastIndexOf("讨论建筑空间"),
+    );
+  });
+
+  it("insertMarkdownBlock 应优先插入到选中文本所在段落之后", () => {
+    const markdown = `# 城市观察
+
+## 建筑
+第一段介绍城市天际线。
+
+这里是被选中的关键段落，用于说明核心建筑特征。
+
+最后一段补充材料。`;
+
+    const next = insertMarkdownBlock(
+      markdown,
+      ["![建筑配图](https://img.example/building-closeup.jpg)"],
+      {
+        sectionTitle: "建筑",
+        anchorText: "这里是被选中的关键段落，用于说明核心建筑特征。",
+      },
+    );
+
+    expect(next.indexOf("关键段落")).toBeLessThan(
+      next.indexOf("https://img.example/building-closeup.jpg"),
+    );
+    expect(next.indexOf("https://img.example/building-closeup.jpg")).toBeLessThan(
+      next.indexOf("最后一段补充材料"),
+    );
+  });
+
   it("应生成包含主题和小节的检索词", () => {
     const query = buildSectionSearchQuery("城市夜景", "交通");
     expect(query).toContain("城市夜景");
     expect(query).toContain("交通");
   });
 });
-

@@ -53,7 +53,7 @@ vi.mock("qrcode", () => ({
   },
 }));
 
-vi.mock("@/components/settings-v2/system/channels/LegacyChannelsWorkbench", () => ({
+vi.mock("@/components/settings-v2/system/channels/ChannelsDebugWorkbench", () => ({
   ChannelsDebugWorkbench: () => <div data-testid="channels-debug-workbench" />,
 }));
 

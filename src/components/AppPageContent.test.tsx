@@ -23,6 +23,10 @@ vi.mock("./channels/ImConfigPage", () => ({
   ImConfigPage: () => <div data-testid="im-config-page" />,
 }));
 
+vi.mock("./workspace/video/VideoPage", () => ({
+  VideoPage: () => <div data-testid="video-page" />,
+}));
+
 vi.mock("./settings-v2", () => ({
   SettingsPageV2: () => <div data-testid="settings-page" />,
 }));
@@ -137,6 +141,13 @@ describe("AppPageContent", () => {
     await flushEffects();
 
     expect(container.querySelector('[data-testid="im-config-page"]')).not.toBeNull();
+  });
+
+  it("video 页面应渲染现役视频工作台入口", async () => {
+    const container = renderContent("video");
+    await flushEffects();
+
+    expect(container.querySelector('[data-testid="video-page"]')).not.toBeNull();
   });
 
   it("settings 页面应渲染设置页入口", async () => {

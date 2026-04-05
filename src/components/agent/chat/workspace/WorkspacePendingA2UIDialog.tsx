@@ -1,15 +1,12 @@
-import type {
-  A2UIFormData,
-  A2UIResponse,
-} from "@/lib/workspace/a2ui";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
 import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { A2UITaskCard } from "../components/A2UITaskCard";
 import {
   A2UISubmissionNotice,
   type A2UISubmissionNoticeData,
-} from "../components/Inputbar/components/A2UISubmissionNotice";
-import { useA2UISubmissionNotice } from "../components/Inputbar/hooks/useA2UISubmissionNotice";
-import { useStickyA2UIForm } from "../components/Inputbar/hooks/useStickyA2UIForm";
+} from "./A2UISubmissionNotice";
+import { useA2UISubmissionNotice } from "./useA2UISubmissionNotice";
+import { useStickyA2UIForm } from "./useStickyA2UIForm";
 import { readProgressiveA2UIProgressMeta } from "../utils/progressivePendingA2UI";
 
 interface WorkspacePendingA2UIDialogProps {

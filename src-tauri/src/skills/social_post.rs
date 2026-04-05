@@ -3,13 +3,17 @@ use chrono::Utc;
 use lime_agent::{build_write_tool_artifact_events, AgentToolResult};
 use tauri::{AppHandle, Emitter};
 
-const SOCIAL_POST_WITH_COVER_SKILL_NAME: &str = "social_post_with_cover";
-const SOCIAL_POST_OUTPUT_DIR: &str = "social-posts";
+pub(crate) const CONTENT_POST_WITH_COVER_SKILL_NAME: &str = "content_post_with_cover";
+pub(crate) const CONTENT_POST_OUTPUT_DIR: &str = "content-posts";
 const SOCIAL_POST_WRITE_TOOL_NAME: &str = "write_file";
-const SOCIAL_POST_EMPTY_FALLBACK_CONTENT: &str = "# 社媒文案\n\n（生成结果为空，请重试。）";
+const SOCIAL_POST_EMPTY_FALLBACK_CONTENT: &str = "# 内容主稿\n\n（生成结果为空，请重试。）";
 const SOCIAL_POST_FALLBACK_COVER_URL: &str = "cover-generation-failed";
 const SOCIAL_POST_FALLBACK_COVER_NOTE: &str = "封面图生成失败，可稍后仅重试配图。";
 const SOCIAL_POST_DEFAULT_IMAGE_SIZE: &str = "1024x1024";
+
+pub(crate) fn is_content_post_skill_name(skill_name: &str) -> bool {
+    skill_name == CONTENT_POST_WITH_COVER_SKILL_NAME
+}
 
 #[derive(Debug, Clone)]
 pub struct FinalizedSkillOutput {
@@ -94,7 +98,7 @@ fn normalize_social_post_output(
     execution_id: &str,
     raw_output: &str,
 ) -> Option<SocialSkillOutputEnvelope> {
-    if skill_name != SOCIAL_POST_WITH_COVER_SKILL_NAME {
+    if !is_content_post_skill_name(skill_name) {
         return None;
     }
 
@@ -328,7 +332,7 @@ fn build_social_post_file_path(user_input: &str, execution_id: &str) -> String {
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
     let slug = build_social_post_slug(user_input);
     let suffix = build_execution_suffix(execution_id);
-    format!("{SOCIAL_POST_OUTPUT_DIR}/{timestamp}-{slug}-{suffix}.md")
+    format!("{CONTENT_POST_OUTPUT_DIR}/{timestamp}-{slug}-{suffix}.md")
 }
 
 fn build_social_post_slug(user_input: &str) -> String {
@@ -393,7 +397,7 @@ fn build_social_write_tool_events(
         file_content,
         AgentToolResult {
             success: true,
-            output: format!("写入社媒文稿: {file_path}"),
+            output: format!("写入内容主稿: {file_path}"),
             error: None,
             images: None,
             metadata: None,
@@ -410,7 +414,7 @@ fn emit_social_write_file_events(
     let event_name = format!("skill-exec-{execution_id}");
     for event in build_social_write_tool_events(execution_id, file_path, file_content) {
         if let Err(err) = app_handle.emit(&event_name, &event) {
-            tracing::warn!("[execute_skill] 发送社媒写入事件失败: {}", err);
+            tracing::warn!("[execute_skill] 发送内容主稿写入事件失败: {}", err);
         }
     }
 }
@@ -420,9 +424,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_is_content_post_skill_name_only_accepts_current_name() {
+        assert!(is_content_post_skill_name(
+            CONTENT_POST_WITH_COVER_SKILL_NAME
+        ));
+        assert!(!is_content_post_skill_name("legacy_content_post"));
+    }
+
+    #[test]
     fn test_normalize_social_post_output_wraps_plain_markdown() {
         let normalized = normalize_social_post_output(
-            SOCIAL_POST_WITH_COVER_SKILL_NAME,
+            CONTENT_POST_WITH_COVER_SKILL_NAME,
             "春季上新",
             "exec123456",
             "# 标题\n\n正文内容",
@@ -431,30 +443,30 @@ mod tests {
 
         assert!(normalized
             .final_output
-            .contains("<write_file path=\"social-posts/"));
+            .contains("<write_file path=\"content-posts/"));
         assert!(normalized.final_output.contains("# 标题"));
         assert!(normalized.file_content.contains("# 标题"));
         assert!(normalized.file_content.contains("![封面图]("));
-        assert!(normalized.file_path.starts_with("social-posts/"));
+        assert!(normalized.file_path.starts_with("content-posts/"));
         assert!(normalized.file_path.ends_with(".md"));
     }
 
     #[test]
     fn test_normalize_social_post_output_keeps_existing_write_file_block() {
         let raw_output =
-            "<write_file path=\"social-posts/custom-post.md\">\n# 标题\n\n正文\n</write_file>";
+            "<write_file path=\"content-posts/custom-post.md\">\n# 标题\n\n正文\n</write_file>";
         let normalized = normalize_social_post_output(
-            SOCIAL_POST_WITH_COVER_SKILL_NAME,
+            CONTENT_POST_WITH_COVER_SKILL_NAME,
             "春季上新",
             "exec123456",
             raw_output,
         )
         .expect("should normalize");
 
-        assert_eq!(normalized.file_path, "social-posts/custom-post.md");
+        assert_eq!(normalized.file_path, "content-posts/custom-post.md");
         assert!(normalized
             .final_output
-            .contains("social-posts/custom-post.md"));
+            .contains("content-posts/custom-post.md"));
         assert!(normalized.file_content.contains("# 标题"));
         assert!(normalized.file_content.contains("![封面图]("));
     }
@@ -463,7 +475,7 @@ mod tests {
     fn test_normalize_social_post_output_injects_missing_path() {
         let raw_output = "前置说明\n<write_file>\n# 标题\n\n正文\n</write_file>\n后置说明";
         let normalized = normalize_social_post_output(
-            SOCIAL_POST_WITH_COVER_SKILL_NAME,
+            CONTENT_POST_WITH_COVER_SKILL_NAME,
             "spring launch",
             "exec123456",
             raw_output,
@@ -474,7 +486,7 @@ mod tests {
         assert!(normalized.final_output.contains("后置说明"));
         assert!(normalized
             .final_output
-            .contains("<write_file path=\"social-posts/"));
+            .contains("<write_file path=\"content-posts/"));
         assert!(normalized.file_content.contains("# 标题"));
         assert!(normalized.file_content.contains("![封面图]("));
     }
@@ -484,7 +496,7 @@ mod tests {
         let payloads = build_social_auxiliary_file_payloads(
             "exec123",
             "新品发布",
-            "social-posts/demo.md",
+            "content-posts/demo.md",
             "# 标题\n\n![封面图](https://img.example/cover.png)\n\n## 配图说明\n- 提示词：简洁科技风\n- 尺寸：1024x1024\n- 状态：成功\n- 备注：\n",
         );
 
@@ -499,9 +511,9 @@ mod tests {
 
     #[test]
     fn test_build_social_artifact_paths_should_expand_auxiliary_files() {
-        let paths = build_social_artifact_paths("social-posts/demo.md");
+        let paths = build_social_artifact_paths("content-posts/demo.md");
         assert_eq!(paths.len(), 3);
-        assert_eq!(paths[0], "social-posts/demo.md");
+        assert_eq!(paths[0], "content-posts/demo.md");
         assert!(paths[1].ends_with(".cover.json"));
         assert!(paths[2].ends_with(".publish-pack.json"));
     }
@@ -509,13 +521,13 @@ mod tests {
     #[test]
     fn test_build_social_write_tool_events_reuses_unified_artifact_emitter() {
         let events =
-            build_social_write_tool_events("exec123", "social-posts/demo.md", "# 标题\n\n正文");
+            build_social_write_tool_events("exec123", "content-posts/demo.md", "# 标题\n\n正文");
 
         assert_eq!(events.len(), 4);
 
         match &events[0] {
             RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
-                assert_eq!(artifact.file_path, "social-posts/demo.md");
+                assert_eq!(artifact.file_path, "content-posts/demo.md");
                 assert_eq!(
                     artifact
                         .metadata
@@ -537,7 +549,7 @@ mod tests {
 
         match &events[2] {
             RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
-                assert_eq!(artifact.file_path, "social-posts/demo.md");
+                assert_eq!(artifact.file_path, "content-posts/demo.md");
                 assert_eq!(
                     artifact
                         .metadata
@@ -566,7 +578,7 @@ mod tests {
                         .as_ref()
                         .and_then(|metadata| metadata.get("file_path"))
                         .and_then(serde_json::Value::as_str),
-                    Some("social-posts/demo.md")
+                    Some("content-posts/demo.md")
                 );
             }
             other => panic!("expected ToolEnd, got {other:?}"),

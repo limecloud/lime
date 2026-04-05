@@ -1,5 +1,7 @@
 use super::*;
-use lime_media_runtime::{write_task_artifact, MediaTaskType, TaskType, TaskWriteOptions};
+use lime_media_runtime::{
+    write_task_artifact, MediaTaskType, TaskRelationships, TaskType, TaskWriteOptions,
+};
 
 fn submit_creation_task_record(
     app_handle: &AppHandle,
@@ -20,6 +22,7 @@ fn submit_creation_task_record(
             output_path,
             artifact_dir: None,
             idempotency_key: None,
+            relationships: TaskRelationships::default(),
         },
     )
     .map_err(media_cli_bridge::tool_error_from_media_runtime)?;
@@ -146,7 +149,11 @@ impl Tool for LimeCreateBroadcastTaskTool {
 struct CoverTaskInput {
     prompt: String,
     #[serde(default)]
+    raw_text: Option<String>,
+    #[serde(default)]
     title: Option<String>,
+    #[serde(default)]
+    style: Option<String>,
     #[serde(default)]
     platform: Option<String>,
     #[serde(default)]
@@ -154,9 +161,19 @@ struct CoverTaskInput {
     #[serde(default)]
     image_url: Option<String>,
     #[serde(default)]
+    reference_image_url: Option<String>,
+    #[serde(default)]
     status: Option<String>,
     #[serde(default)]
     remark: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    project_id: Option<String>,
+    #[serde(default)]
+    content_id: Option<String>,
+    #[serde(default)]
+    entry_source: Option<String>,
     #[serde(default)]
     output_path: Option<String>,
 }
@@ -187,12 +204,19 @@ impl Tool for LimeCreateCoverTaskTool {
             "type": "object",
             "properties": {
                 "prompt": { "type": "string", "description": "封面提示词。" },
+                "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
                 "title": { "type": "string", "description": "任务标题（可选）。" },
+                "style": { "type": "string", "description": "视觉风格（可选）。" },
                 "platform": { "type": "string", "description": "目标平台（可选）。" },
                 "size": { "type": "string", "description": "尺寸（可选）。" },
                 "imageUrl": { "type": "string", "description": "生成后的封面 URL（可选）。" },
+                "referenceImageUrl": { "type": "string", "description": "参考图 URL（可选）。" },
                 "status": { "type": "string", "description": "状态（成功/失败，可选）。" },
                 "remark": { "type": "string", "description": "备注（可选）。" },
+                "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+                "projectId": { "type": "string", "description": "项目 ID（可选）。" },
+                "contentId": { "type": "string", "description": "内容 ID（可选）。" },
+                "entrySource": { "type": "string", "description": "入口来源（可选）。" },
                 "outputPath": { "type": "string", "description": "可选输出路径（相对工作目录）。" }
             },
             "required": ["prompt"],
@@ -219,13 +243,20 @@ impl Tool for LimeCreateCoverTaskTool {
         }
         let payload = serde_json::json!({
             "prompt": input.prompt,
+            "raw_text": input.raw_text,
             "model": "lime-cover-cli",
+            "style": input.style,
             "platform": input.platform,
             "size": input.size,
             "imageUrl": input.image_url,
+            "referenceImageUrl": input.reference_image_url,
             "usage": "cover",
             "status": input.status,
-            "remark": input.remark
+            "remark": input.remark,
+            "session_id": input.session_id,
+            "project_id": input.project_id,
+            "content_id": input.content_id,
+            "entry_source": input.entry_source
         });
         submit_media_generation_task_record(
             &self.app_handle,
@@ -337,13 +368,82 @@ struct ImageTaskInput {
     #[serde(default)]
     title: Option<String>,
     #[serde(default)]
+    mode: Option<String>,
+    #[serde(default)]
+    raw_text: Option<String>,
+    #[serde(default)]
     style: Option<String>,
     #[serde(default)]
     size: Option<String>,
     #[serde(default)]
+    aspect_ratio: Option<String>,
+    #[serde(default)]
     count: Option<u32>,
     #[serde(default)]
     usage: Option<String>,
+    #[serde(default)]
+    provider_id: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    project_id: Option<String>,
+    #[serde(default)]
+    content_id: Option<String>,
+    #[serde(default)]
+    entry_source: Option<String>,
+    #[serde(default)]
+    requested_target: Option<String>,
+    #[serde(default)]
+    slot_id: Option<String>,
+    #[serde(default)]
+    anchor_hint: Option<String>,
+    #[serde(default)]
+    anchor_section_title: Option<String>,
+    #[serde(default)]
+    anchor_text: Option<String>,
+    #[serde(default)]
+    target_output_id: Option<String>,
+    #[serde(default)]
+    target_output_ref_id: Option<String>,
+    #[serde(default)]
+    reference_images: Vec<String>,
+    #[serde(default)]
+    output_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscriptionTaskInput {
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    raw_text: Option<String>,
+    #[serde(default)]
+    source_url: Option<String>,
+    #[serde(default)]
+    source_path: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+    #[serde(default)]
+    output_format: Option<String>,
+    #[serde(default)]
+    speaker_labels: Option<bool>,
+    #[serde(default)]
+    timestamps: Option<bool>,
+    #[serde(default)]
+    provider_id: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    project_id: Option<String>,
+    #[serde(default)]
+    content_id: Option<String>,
+    #[serde(default)]
+    entry_source: Option<String>,
     #[serde(default)]
     output_path: Option<String>,
 }
@@ -375,10 +475,30 @@ impl Tool for LimeCreateImageTaskTool {
             "properties": {
                 "prompt": { "type": "string", "description": "图像提示词。" },
                 "title": { "type": "string", "description": "任务标题（可选）。" },
+                "mode": { "type": "string", "description": "任务模式 generate/edit/variation（可选）。" },
+                "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
                 "style": { "type": "string", "description": "风格（可选）。" },
                 "size": { "type": "string", "description": "尺寸（可选）。" },
+                "aspectRatio": { "type": "string", "description": "宽高比（可选）。" },
                 "count": { "type": "integer", "minimum": 1, "maximum": 20, "description": "生成数量（可选）。" },
                 "usage": { "type": "string", "description": "用途（可选）。" },
+                "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
+                "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+                "projectId": { "type": "string", "description": "项目 ID（可选）。" },
+                "contentId": { "type": "string", "description": "内容 ID（可选）。" },
+                "entrySource": { "type": "string", "description": "入口来源（可选）。" },
+                "requestedTarget": { "type": "string", "description": "目标类型 generate/cover（可选）。" },
+                "slotId": { "type": "string", "description": "正文插图 slot 绑定（可选）。" },
+                "anchorHint": { "type": "string", "description": "正文插图锚点提示（可选）。" },
+                "anchorSectionTitle": { "type": "string", "description": "正文插图小节标题（可选）。" },
+                "anchorText": { "type": "string", "description": "正文插图锚点文本（可选）。" },
+                "targetOutputId": { "type": "string", "description": "目标图片输出 ID（可选）。" },
+                "targetOutputRefId": { "type": "string", "description": "目标图片引用 ID（可选）。" },
+                "referenceImages": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "参考图 URL、文件路径或已物化的输入图片路径（可选）。"
+                },
                 "outputPath": { "type": "string", "description": "可选输出路径（相对工作目录）。" }
             },
             "required": ["prompt"],
@@ -405,11 +525,27 @@ impl Tool for LimeCreateImageTaskTool {
         }
         let payload = serde_json::json!({
             "prompt": input.prompt,
+            "mode": input.mode,
+            "raw_text": input.raw_text,
             "model": "lime-image-cli",
             "style": input.style,
             "size": input.size,
+            "aspect_ratio": input.aspect_ratio,
             "count": input.count,
-            "usage": input.usage
+            "usage": input.usage,
+            "provider_id": input.provider_id,
+            "session_id": input.session_id,
+            "project_id": input.project_id,
+            "content_id": input.content_id,
+            "entry_source": input.entry_source,
+            "requested_target": input.requested_target,
+            "slot_id": input.slot_id,
+            "anchor_hint": input.anchor_hint,
+            "anchor_section_title": input.anchor_section_title,
+            "anchor_text": input.anchor_text,
+            "target_output_id": input.target_output_id,
+            "target_output_ref_id": input.target_output_ref_id,
+            "reference_images": input.reference_images
         });
         submit_media_generation_task_record(
             &self.app_handle,
@@ -418,6 +554,108 @@ impl Tool for LimeCreateImageTaskTool {
             input.title,
             payload,
             Some("pending_submit".to_string()),
+            input.output_path.as_deref(),
+        )
+    }
+}
+
+#[derive(Clone)]
+struct LimeCreateTranscriptionTaskTool {
+    app_handle: AppHandle,
+}
+
+impl LimeCreateTranscriptionTaskTool {
+    fn new(app_handle: AppHandle) -> Self {
+        Self { app_handle }
+    }
+}
+
+#[async_trait]
+impl Tool for LimeCreateTranscriptionTaskTool {
+    fn name(&self) -> &str {
+        LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME
+    }
+
+    fn description(&self) -> &str {
+        "创建转写任务（transcription_generate）。"
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "prompt": { "type": "string", "description": "转写目标说明（可选）。" },
+                "title": { "type": "string", "description": "任务标题（可选）。" },
+                "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
+                "sourceUrl": { "type": "string", "description": "音频或视频 URL（可选）。" },
+                "sourcePath": { "type": "string", "description": "音频或视频本地路径（可选）。" },
+                "language": { "type": "string", "description": "目标语言（可选）。" },
+                "outputFormat": { "type": "string", "description": "输出格式，例如 txt/srt/vtt/markdown（可选）。" },
+                "speakerLabels": { "type": "boolean", "description": "是否区分说话人（可选）。" },
+                "timestamps": { "type": "boolean", "description": "是否带时间戳（可选）。" },
+                "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
+                "model": { "type": "string", "description": "模型名（可选）。" },
+                "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+                "projectId": { "type": "string", "description": "项目 ID（可选）。" },
+                "contentId": { "type": "string", "description": "内容 ID（可选）。" },
+                "entrySource": { "type": "string", "description": "入口来源（可选）。" },
+                "outputPath": { "type": "string", "description": "可选输出路径（相对工作目录）。" }
+            },
+            "additionalProperties": false,
+            "x-lime": {
+                "always_visible": true,
+                "tags": ["audio", "transcription", "task"],
+                "allowed_callers": ["assistant", "skill"]
+            }
+        })
+    }
+
+    async fn execute(
+        &self,
+        params: serde_json::Value,
+        context: &ToolContext,
+    ) -> Result<ToolResult, ToolError> {
+        let input: TranscriptionTaskInput = serde_json::from_value(params)
+            .map_err(|error| ToolError::invalid_params(format!("参数解析失败: {error}")))?;
+        let source_url = input
+            .source_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let source_path = input
+            .source_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if source_url.is_none() && source_path.is_none() {
+            return Err(ToolError::invalid_params(
+                "sourceUrl 或 sourcePath 至少需要提供一个".to_string(),
+            ));
+        }
+
+        let payload = serde_json::json!({
+            "prompt": input.prompt,
+            "raw_text": input.raw_text,
+            "source_url": source_url,
+            "source_path": source_path,
+            "language": input.language,
+            "output_format": input.output_format,
+            "speaker_labels": input.speaker_labels,
+            "timestamps": input.timestamps,
+            "provider_id": input.provider_id,
+            "model": input.model,
+            "session_id": input.session_id,
+            "project_id": input.project_id,
+            "content_id": input.content_id,
+            "entry_source": input.entry_source
+        });
+        submit_creation_task_record(
+            &self.app_handle,
+            context,
+            TaskType::TranscriptionGenerate,
+            input.title,
+            payload,
+            None,
             input.output_path.as_deref(),
         )
     }
@@ -432,9 +670,23 @@ struct UrlParseTaskInput {
     #[serde(default)]
     summary: Option<String>,
     #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    raw_text: Option<String>,
+    #[serde(default)]
     key_points: Option<Vec<String>>,
     #[serde(default)]
     extract_status: Option<String>,
+    #[serde(default)]
+    extract_goal: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    project_id: Option<String>,
+    #[serde(default)]
+    content_id: Option<String>,
+    #[serde(default)]
+    entry_source: Option<String>,
     #[serde(default)]
     output_path: Option<String>,
 }
@@ -467,8 +719,15 @@ impl Tool for LimeCreateUrlParseTaskTool {
                 "url": { "type": "string", "description": "目标 URL。" },
                 "title": { "type": "string", "description": "任务标题（可选）。" },
                 "summary": { "type": "string", "description": "摘要（可选）。" },
+                "prompt": { "type": "string", "description": "解析目标说明（可选）。" },
+                "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
                 "keyPoints": { "type": "array", "items": { "type": "string" }, "description": "关键要点（可选）。" },
                 "extractStatus": { "type": "string", "description": "提取状态（可选）。" },
+                "extractGoal": { "type": "string", "description": "抽取目标，如 summary / key_points / full_text（可选）。" },
+                "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+                "projectId": { "type": "string", "description": "项目 ID（可选）。" },
+                "contentId": { "type": "string", "description": "内容 ID（可选）。" },
+                "entrySource": { "type": "string", "description": "入口来源（可选）。" },
                 "outputPath": { "type": "string", "description": "可选输出路径（相对工作目录）。" }
             },
             "required": ["url"],
@@ -491,11 +750,30 @@ impl Tool for LimeCreateUrlParseTaskTool {
         if input.url.trim().is_empty() {
             return Err(ToolError::invalid_params("url 不能为空字符串".to_string()));
         }
+        let summary = input
+            .summary
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let extract_status = if summary.is_none()
+            && input.extract_status.as_deref().unwrap_or("ready").trim() == "ready"
+        {
+            Some("pending_extract".to_string())
+        } else {
+            input.extract_status
+        };
         let payload = serde_json::json!({
             "url": input.url,
-            "summary": input.summary,
+            "summary": summary,
+            "prompt": input.prompt,
+            "raw_text": input.raw_text,
             "keyPoints": input.key_points,
-            "extractStatus": input.extract_status
+            "extractStatus": extract_status,
+            "extractGoal": input.extract_goal,
+            "session_id": input.session_id,
+            "project_id": input.project_id,
+            "content_id": input.content_id,
+            "entry_source": input.entry_source
         });
         submit_creation_task_record(
             &self.app_handle,
@@ -702,6 +980,7 @@ impl Tool for LimeCreateVideoGenerationTaskTool {
                 output_path: None,
                 artifact_dir: None,
                 idempotency_key: None,
+                relationships: TaskRelationships::default(),
             },
         )
         .map_err(media_cli_bridge::tool_error_from_media_runtime)?;
@@ -737,6 +1016,11 @@ pub(super) fn register_creation_task_tools_to_registry(
         registry.register(Box::new(LimeCreateVideoGenerationTaskTool::new(
             db.clone(),
             api_key_provider_service.clone(),
+            app_handle.clone(),
+        )));
+    }
+    if !registry.contains(LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME) {
+        registry.register(Box::new(LimeCreateTranscriptionTaskTool::new(
             app_handle.clone(),
         )));
     }

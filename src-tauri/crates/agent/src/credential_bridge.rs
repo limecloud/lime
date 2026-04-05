@@ -23,7 +23,7 @@ use lime_services::provider_pool_service::ProviderPoolService;
 use std::sync::Arc;
 
 use crate::kiro_provider_adapter::LimeKiroProvider;
-use crate::provider_safety::wrap_provider_with_message_safety;
+use crate::provider_safety::wrap_provider_with_safety;
 
 /// 凭证桥接错误
 #[derive(Debug, Clone)]
@@ -59,6 +59,8 @@ impl std::error::Error for CredentialBridgeError {}
 pub struct AsterProviderConfig {
     /// Provider 名称 (openai, anthropic, google 等)
     pub provider_name: String,
+    /// Provider 选择器（优先保留前端 provider_id / pool provider_type）
+    pub provider_selector: Option<String>,
     /// 模型名称
     pub model_name: String,
     /// API Key
@@ -280,6 +282,7 @@ impl CredentialBridge {
 
         Ok(AsterProviderConfig {
             provider_name,
+            provider_selector: normalize_provider_selector(Some(provider_type_hint)),
             model_name: model.to_string(),
             api_key,
             base_url,
@@ -403,6 +406,17 @@ impl CredentialBridge {
 pub async fn create_aster_provider(
     config: &AsterProviderConfig,
 ) -> Result<Arc<dyn Provider>, CredentialBridgeError> {
+    let disable_default_fast_model = should_disable_provider_default_fast_model(config);
+
+    if disable_default_fast_model {
+        tracing::info!(
+            provider_name = %config.provider_name,
+            provider_selector = ?config.provider_selector,
+            model_name = %config.model_name,
+            "[CredentialBridge] 检测到 OpenAI 兼容非 OpenAI provider，已禁用默认 fast_model"
+        );
+    }
+
     if config.provider_name == "kiro" {
         let model_config = ModelConfig::new(&config.model_name).map_err(|e| {
             CredentialBridgeError::ProviderCreationFailed(format!("创建 ModelConfig 失败: {e}"))
@@ -421,7 +435,10 @@ pub async fn create_aster_provider(
             ))
         })?;
 
-        return Ok(wrap_provider_with_message_safety(Arc::new(provider)));
+        return Ok(wrap_provider_with_safety(
+            Arc::new(provider),
+            disable_default_fast_model,
+        ));
     }
 
     // 设置环境变量
@@ -435,10 +452,47 @@ pub async fn create_aster_provider(
     // 创建 Provider
     aster::providers::create(&config.provider_name, model_config)
         .await
-        .map(wrap_provider_with_message_safety)
+        .map(|provider| wrap_provider_with_safety(provider, disable_default_fast_model))
         .map_err(|e| {
             CredentialBridgeError::ProviderCreationFailed(format!("创建 Provider 失败: {e}"))
         })
+}
+
+fn normalize_provider_selector(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn normalize_provider_identifier(value: Option<&str>) -> Option<String> {
+    normalize_provider_selector(value).map(|value| value.to_ascii_lowercase())
+}
+
+fn is_first_party_openai_selector(selector: &str) -> bool {
+    matches!(selector, "openai" | "codex")
+}
+
+fn is_first_party_openai_base_url(base_url: &str) -> bool {
+    let normalized = base_url.trim().to_ascii_lowercase();
+    normalized.contains("openai.com")
+}
+
+fn should_disable_provider_default_fast_model(config: &AsterProviderConfig) -> bool {
+    if config.provider_name != "openai" || config.force_responses_api {
+        return false;
+    }
+
+    if let Some(base_url) = config.base_url.as_deref() {
+        if !is_first_party_openai_base_url(base_url) {
+            return true;
+        }
+    }
+
+    match normalize_provider_identifier(config.provider_selector.as_deref()) {
+        Some(selector) => !is_first_party_openai_selector(&selector),
+        None => false,
+    }
 }
 
 /// 设置 Provider 环境变量
@@ -685,6 +739,7 @@ mod tests {
 
         let config = AsterProviderConfig {
             provider_name: "openai".to_string(),
+            provider_selector: Some("codex".to_string()),
             model_name: "gpt-5.3-codex".to_string(),
             api_key: Some("test-key".to_string()),
             base_url: Some("https://example.com/openai".to_string()),
@@ -710,6 +765,54 @@ mod tests {
     fn test_credential_bridge_error_display() {
         let err = CredentialBridgeError::NoCredentials("test".to_string());
         assert!(err.to_string().contains("没有可用凭证"));
+    }
+
+    #[test]
+    fn test_should_disable_provider_default_fast_model_for_openai_compatible_provider() {
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("zhipuai".to_string()),
+            model_name: "glm-5".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://open.bigmodel.cn/api/paas/v4".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            credential_path: None,
+        };
+
+        assert!(should_disable_provider_default_fast_model(&config));
+    }
+
+    #[test]
+    fn test_should_keep_provider_default_fast_model_for_first_party_openai() {
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("openai".to_string()),
+            model_name: "gpt-4o".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://api.openai.com/v1".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            credential_path: None,
+        };
+
+        assert!(!should_disable_provider_default_fast_model(&config));
+    }
+
+    #[test]
+    fn test_should_keep_provider_default_fast_model_for_codex_responses_route() {
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("codex".to_string()),
+            model_name: "gpt-5.3-codex".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://example.com/openai".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: true,
+            credential_path: None,
+        };
+
+        assert!(!should_disable_provider_default_fast_model(&config));
     }
 
     #[test]
@@ -744,6 +847,7 @@ mod tests {
     fn test_set_provider_env_vars_anthropic_sets_host_and_base_url() {
         let config = AsterProviderConfig {
             provider_name: "anthropic".to_string(),
+            provider_selector: Some("anthropic".to_string()),
             model_name: "glm-4.7".to_string(),
             api_key: Some("test-key".to_string()),
             base_url: Some("https://open.bigmodel.cn/api/anthropic".to_string()),

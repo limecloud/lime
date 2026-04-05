@@ -35,19 +35,11 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/api/project", () => ({
-  USER_PROJECT_TYPES: ["general", "document", "video"],
+  USER_PROJECT_TYPES: ["general"],
   extractErrorMessage: mockExtractErrorMessage,
   getCreateProjectErrorMessage: mockGetCreateProjectErrorMessage,
-  getProjectTypeLabel: vi.fn((type: string) => {
-    if (type === "document") return "文档";
-    if (type === "video") return "视频";
-    return "通用";
-  }),
-  getProjectTypeIcon: vi.fn((type: string) => {
-    if (type === "document") return "📄";
-    if (type === "video") return "🎬";
-    return "📁";
-  }),
+  getProjectTypeLabel: vi.fn(() => "通用"),
+  getProjectTypeIcon: vi.fn(() => "📁"),
   getProjectByRootPath: mockGetProjectByRootPath,
   getWorkspaceProjectsRoot: mockGetWorkspaceProjectsRoot,
   resolveProjectRootPath: mockResolveProjectRootPath,
@@ -78,7 +70,7 @@ describe("CreateProjectDialog", () => {
         open: true,
         onOpenChange: vi.fn(),
         onSubmit: vi.fn(async () => undefined),
-        defaultType: "document",
+        defaultType: "general",
         defaultName: "研究手记",
       },
       mountedRoots,

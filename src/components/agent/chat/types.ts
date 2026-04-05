@@ -20,12 +20,22 @@ export interface MessageImage {
 export interface MessageImageWorkbenchPreview {
   taskId: string;
   prompt: string;
-  status: "running" | "complete" | "partial" | "failed";
+  mode?: "generate" | "edit" | "variation";
+  status: "running" | "complete" | "partial" | "failed" | "cancelled";
   projectId?: string | null;
   contentId?: string | null;
   imageUrl?: string | null;
   imageCount?: number;
+  sourceImageUrl?: string | null;
+  sourceImagePrompt?: string | null;
+  sourceImageRef?: string | null;
+  sourceImageCount?: number;
   size?: string;
+  phase?: string | null;
+  statusMessage?: string | null;
+  retryable?: boolean;
+  attemptCount?: number;
+  placeholderText?: string | null;
 }
 
 /**
@@ -192,7 +202,7 @@ export interface WriteArtifactContext {
 }
 
 export interface AgentRuntimeStatus {
-  phase: "preparing" | "routing" | "context" | "failed";
+  phase: "preparing" | "routing" | "context" | "failed" | "cancelled";
   title: string;
   detail: string;
   checkpoints?: string[];

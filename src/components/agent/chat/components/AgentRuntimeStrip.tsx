@@ -31,8 +31,6 @@ interface AgentRuntimeStripProps {
 
 const THEME_LABELS: Record<string, string> = {
   general: "通用对话",
-  knowledge: "知识探索",
-  planning: "计划规划",
 };
 
 interface CapabilityItem {

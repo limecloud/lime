@@ -7,7 +7,7 @@ import {
 describe("styleRuntime", () => {
   it("有选中文件内容时应优先使用该文件作为风格重写目标", () => {
     const result = extractStyleActionContent({
-      activeTheme: "document",
+      activeTheme: "general",
       generalCanvasState: {
         type: "document",
         filename: "general.md",
@@ -41,7 +41,7 @@ describe("styleRuntime", () => {
 
   it("应优先返回当前选中文件名", () => {
     const result = resolveStyleActionFileName({
-      activeTheme: "document",
+      activeTheme: "general",
       generalCanvasState: {
         type: "document",
         filename: "general.md",
@@ -75,7 +75,7 @@ describe("styleRuntime", () => {
 
   it("未选中文件时应回退到当前画布内容", () => {
     const result = extractStyleActionContent({
-      activeTheme: "document",
+      activeTheme: "general",
       generalCanvasState: {
         type: "document",
         filename: "general.md",

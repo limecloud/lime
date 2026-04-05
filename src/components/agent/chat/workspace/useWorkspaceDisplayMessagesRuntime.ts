@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { buildLiveTaskSnapshot } from "../hooks/agentChatShared";
 import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
-import { buildLegacyQuestionnaireA2UI } from "../utils/legacyQuestionnaireA2UI";
+import { buildCompatQuestionnaireA2UI } from "../utils/compatQuestionnaireA2UI";
 import { buildRuntimeTeamDispatchPreviewMessages } from "./runtimeTeamPreview";
 import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
 import {
@@ -44,7 +44,7 @@ function collapseLegacyQuestionnaireMessages(messages: Message[]): Message[] {
       return message;
     }
 
-    const legacyForm = buildLegacyQuestionnaireA2UI(message.content || "");
+    const legacyForm = buildCompatQuestionnaireA2UI(message.content || "");
     if (!legacyForm) {
       return message;
     }

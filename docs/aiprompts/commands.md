@@ -9,6 +9,10 @@
 - 新增、迁移、下线命令时，最低要同步哪些位置
 - 怎样避免 compat / deprecated 路径重新长出新表面
 
+如果本轮改动不仅涉及 Tauri 命令边界，还涉及 `@` / 产品型 `/`、聊天轻卡、右侧 viewer、`ServiceSkill` 场景或命令恢复主链，请同时阅读：
+
+- `docs/aiprompts/command-runtime.md`
+
 ## 推荐调用路径
 
 前端业务代码**不应直接散落 `invoke`**。
@@ -72,15 +76,17 @@
 
 这些命令统一产出 `.lime/tasks/<task_type>/*.json` artifact 与稳定 JSON 输出。仓库内现有 `lime_create_*_generation_task`、`social_generate_cover_image` 与相关 Tauri / agent tool 入口在兼容期内允许保留，但应继续委托同一套任务文件与输出契约，不要再长出第三套“媒体任务协议”。
 
-`Claw` 的 `@配图` 当前前端网关为 `src/lib/api/mediaTasks.ts`，统一承接：
+`Claw` 的图片任务当前需要分成两条已收敛主链：
+
+- Agent 驱动的图片命令：`@配图` / `@修图` / `@重绘` / `@image` / `/image` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送，不再预翻译为 `/image_generate ...`。聊天发送边界会把结构化 `image_task` 写入 `request_metadata.harness.image_skill_launch`，同时打开 `request_metadata.harness.allow_model_skills = true`。Rust 侧 `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs` 与 `src-tauri/src/commands/aster_agent_cmd/image_skill_launch.rs` 会物化 `skill-input-image://N` 引用，并给当前 turn 注入只允许首刀优先调用 `Skill(image_generate)` 的系统提示。后续默认 skill 继续优先走 `Bash -> lime media image generate --json`，CLI 不可用时再回退 `lime_create_image_generation_task`，最终仍只落到标准 task file。
+- 显式 task 动作：文稿 inline 配图、封面位、图片工作台编辑/变体、带引用图或带参考图的动作，继续通过 `src/lib/api/mediaTasks.ts` 承接：
 
 - `create_image_generation_task_artifact`
 - `get_media_task_artifact`
 - `list_media_task_artifacts`
-- `retry_media_task_artifact`
 - `cancel_media_task_artifact`
 
-这条命令只负责在当前项目根目录创建标准 `image_generate` task file，并写入 `session_id / project_id / content_id / entry_source / mode` 等上下文。聊天区动态占位、结果回填、刷新恢复都必须继续以 `.lime/tasks` 为唯一事实源，不允许重新回到前端直连图片服务。
+无论入口来自 slash skill 还是显式 task action，最终都只允许写入当前项目根目录下的标准 `image_generate` task file，并写入 `session_id / project_id / content_id / entry_source / mode` 等上下文。若当前来源是文稿 inline 配图，还会继续写入 `usage=document-inline`，并以 `relationships.slot_id` 作为正文占位块与后续任务回填的正式绑定字段；payload 中的 `slot_id` 仅保留兼容读取。若前端已经能推断目标小节，还应继续把 `anchor_section_title` 写入 task payload；若还能识别用户当前选中的具体段落，还应继续把裁剪后的 `anchor_text` 一并写入，用于正文占位图与最终图片的 paragraph 级原位落位。聊天区动态占位、正文占位替换、结果回填、刷新恢复都必须继续以 `.lime/tasks` 为唯一事实源，不允许重新回到前端直连图片服务。
 
 Workspace `Bash` 运行时在当前主链中应优先解析同名 `lime` 入口：开发态优先回落到 `cargo run -p lime-cli`，打包态优先使用随应用提供的 CLI 二进制。默认 skill 若已经切到 `Bash -> lime media ...`，仍应保留 compat tool 作为兜底，避免在 CLI 暂不可用时把用户流量打断。
 
@@ -90,7 +96,25 @@ Skill 执行链路同样遵循单一命令边界。当前前端入口为 `src/li
 - `list_executable_skills`
 - `get_skill_detail`
 
-这三条命令除了 Tauri `generate_handler!` 之外，也必须继续保持 DevBridge dispatcher 已桥接，避免浏览器模式、headless smoke 或 Playwright 续测时回退成 unknown command。
+其中 `execute_skill` 当前除了 `skillName / userInput`，也允许继续携带 `images` 与 `requestContext`。这条扩展仍服务带图片输入、显式 skill 执行或 compat 续接场景，但它已经不是 `Claw @配图` 纯文本命令的 current 主链。当前主链必须优先让 Agent 在原始用户消息上做分析，再由模型首刀调用 `Skill(image_generate)`，不要重新回到前端预翻 slash skill、前端直建图片任务或其它并行入口。
+
+`Claw` 的纯文本封面命令也应沿同一条 current 主链收敛：
+
+- Agent 驱动的封面命令：`@封面` / `@cover` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会把结构化 `cover_task` 写入 `request_metadata.harness.cover_skill_launch`，同时打开 `request_metadata.harness.allow_model_skills = true`。Rust 侧 `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs` 与 `src-tauri/src/commands/aster_agent_cmd/cover_skill_launch.rs` 会给当前 turn 注入只允许首刀优先调用 `Skill(cover_generate)` 的系统提示。后续默认 skill 继续优先走 `social_generate_cover_image + Bash -> lime task create cover --json`，CLI 不可用时再回退 `lime_create_cover_generation_task`，最终仍只允许落到标准 `cover_generate` task file。
+
+`Claw` 的纯文本视频命令也应沿相同心智收敛：
+
+- Agent 驱动的视频命令：`@视频` / `@video` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会把结构化 `video_task` 写入 `request_metadata.harness.video_skill_launch`，同时打开 `request_metadata.harness.allow_model_skills = true`。Rust 侧 `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs` 与 `src-tauri/src/commands/aster_agent_cmd/video_skill_launch.rs` 会给当前 turn 注入只允许首刀优先调用 `Skill(video_generate)` 的系统提示。后续默认 skill 继续优先走 `Bash -> lime media video generate --json`，CLI 不可用时再回退 `lime_create_video_generation_task` / `create_video_generation_task`，最终仍只允许落到标准 `video_generate` 任务主链。
+
+`Claw` 的纯文本转写命令也应沿同一条 current 主链收敛：
+
+- Agent 驱动的转写命令：`@转写` / `@transcribe` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会把结构化 `transcription_task` 写入 `request_metadata.harness.transcription_skill_launch`，同时打开 `request_metadata.harness.allow_model_skills = true`。Rust 侧 `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs` 与 `src-tauri/src/commands/aster_agent_cmd/transcription_skill_launch.rs` 会给当前 turn 注入只允许首刀优先调用 `Skill(transcription_generate)` 的系统提示。后续默认 skill 继续优先走 `Bash -> lime task create transcription --json`，CLI 不可用时再回退 `lime_create_transcription_task`，最终仍只允许落到标准 `transcription_generate` task file；若当前上下文缺少 `source_url` / `source_path`，允许 Agent 最多追问 1 个关键问题，但不能伪造“已完成转写”。
+
+`Claw` 的纯文本链接解析命令也应沿同一条 current 主链收敛：
+
+- Agent 驱动的链接解析命令：`@链接解析` / `@链接` / `@url_parse` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会把结构化 `url_parse_task` 写入 `request_metadata.harness.url_parse_skill_launch`，同时打开 `request_metadata.harness.allow_model_skills = true`。Rust 侧 `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs` 与 `src-tauri/src/commands/aster_agent_cmd/url_parse_skill_launch.rs` 会给当前 turn 注入只允许首刀优先调用 `Skill(url_parse)` 的系统提示。后续默认 skill 继续优先走 `Bash -> lime task create url-parse --json`，CLI 不可用时再回退 `lime_create_url_parse_task`，最终仍只允许落到标准 `url_parse` task file；若当前上下文缺少 URL，允许 Agent 最多追问 1 个关键问题，但不能伪造“链接已解析完成”。
+
+这五条命令除了 Tauri `generate_handler!` 之外，也必须继续保持 DevBridge dispatcher 已桥接，避免浏览器模式、headless smoke 或 Playwright 续测时回退成 unknown command。
 
 自动化设置链路同样遵循这条路径。当前主入口为 `src/lib/api/automation.ts`，统一承接：
 

@@ -16,11 +16,6 @@ import type {
   PageParams,
   SettingsPageParams,
 } from "@/types/page";
-import {
-  getThemeByWorkspacePage,
-  isThemeWorkspacePage,
-  type ThemeWorkspacePage,
-} from "@/types/page";
 import { SettingsPageV2 } from "./settings-v2";
 
 const PageWrapper = styled.div<{ $isActive: boolean }>`
@@ -71,6 +66,11 @@ const ImageGenPage = lazy(() =>
     default: module.ImageGenPage,
   })),
 );
+const VideoPage = lazy(() =>
+  import("./workspace/video/VideoPage").then((module) => ({
+    default: module.VideoPage,
+  })),
+);
 const AutomationPage = lazy(() =>
   import("./automation").then((module) => ({
     default: module.AutomationPage,
@@ -89,11 +89,6 @@ const OpenClawPage = lazy(() =>
 const SkillsWorkspacePage = lazy(() =>
   import("./skills").then((module) => ({
     default: module.SkillsWorkspacePage,
-  })),
-);
-const WorkbenchPage = lazy(() =>
-  import("./workspace").then((module) => ({
-    default: module.WorkbenchPage,
   })),
 );
 const BrowserRuntimeWorkspace = lazy(() =>
@@ -134,33 +129,6 @@ interface AppPageContentProps {
   onAgentHasMessagesChange: (hasMessages: boolean) => void;
 }
 
-function renderThemeWorkspace(
-  currentPage: ThemeWorkspacePage,
-  pageParams: PageParams,
-  onNavigate: (page: Page, params?: PageParams) => void,
-) {
-  const theme = getThemeByWorkspacePage(currentPage);
-  const agentPageParams = pageParams as AgentPageParams;
-
-  return (
-    <div key={currentPage} style={columnPageStyle}>
-      <WorkbenchPage
-        onNavigate={onNavigate}
-        projectId={agentPageParams.projectId}
-        contentId={agentPageParams.contentId}
-        theme={theme}
-        viewMode={agentPageParams.workspaceViewMode}
-        resetAt={agentPageParams.workspaceResetAt}
-        initialCreatePrompt={agentPageParams.workspaceCreatePrompt}
-        initialCreateSource={agentPageParams.workspaceCreateSource}
-        initialCreateFallbackTitle={
-          agentPageParams.workspaceCreateFallbackTitle
-        }
-      />
-    </div>
-  );
-}
-
 export function AppPageContent({
   currentPage,
   pageParams,
@@ -171,6 +139,14 @@ export function AppPageContent({
     return (
       <div style={columnPageStyle}>
         <ImageGenPage onNavigate={onNavigate} />
+      </div>
+    );
+  }
+
+  if (currentPage === "video") {
+    return (
+      <div style={columnPageStyle}>
+        <VideoPage />
       </div>
     );
   }
@@ -230,10 +206,6 @@ export function AppPageContent({
         />
       </div>
     );
-  }
-
-  if (isThemeWorkspacePage(currentPage)) {
-    return renderThemeWorkspace(currentPage, pageParams, onNavigate);
   }
 
   if (currentPage === "terminal") {
@@ -359,6 +331,7 @@ export function AppPageContent({
         <SettingsPageV2
           onNavigate={onNavigate}
           initialTab={(pageParams as SettingsPageParams).tab}
+          initialProviderView={(pageParams as SettingsPageParams).providerView}
         />
       </div>
     );

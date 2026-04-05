@@ -623,7 +623,7 @@ describe("AutomationSettings", () => {
               user_input: "重点关注新增热点与异常波动。",
             },
             harness: {
-              theme: "social-media",
+              theme: "general",
               content_id: "content-service-skill-1",
             },
           },
@@ -687,7 +687,7 @@ describe("AutomationSettings", () => {
           },
           content_id: "content-service-skill-run-1",
           harness: {
-            theme: "social-media",
+            theme: "general",
           },
         }),
         created_at: "2026-03-16T08:59:00Z",
@@ -739,7 +739,7 @@ describe("AutomationSettings", () => {
     expect(dialogText).toContain("定时任务");
     expect(dialogText).toContain("客户端执行");
     expect(dialogText).toContain("云目录");
-    expect(dialogText).toContain("工作主题: social-media");
+    expect(dialogText).toContain("工作主题: general");
     expect(dialogText).toContain("主稿绑定: content-service-skill-1");
     expect(dialogText).toContain("参数摘要");
     expect(dialogText).toContain("监测平台: X / Twitter");

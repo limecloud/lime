@@ -224,7 +224,7 @@ function getCategoryLabel(skill: Skill): string | null {
     media: "媒体",
     research: "调研",
     writing: "写作",
-    social: "社媒",
+    social: "内容",
   };
   return labels[category] ?? category;
 }

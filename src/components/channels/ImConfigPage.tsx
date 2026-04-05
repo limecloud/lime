@@ -49,7 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const ChannelsDebugWorkbench = lazy(() =>
-  import("@/components/settings-v2/system/channels/LegacyChannelsWorkbench").then(
+  import("@/components/settings-v2/system/channels/ChannelsDebugWorkbench").then(
     (module) => ({
       default: module.ChannelsDebugWorkbench,
     }),
@@ -2610,5 +2610,3 @@ export function ImConfigPage() {
     </>
   );
 }
-
-export default ImConfigPage;

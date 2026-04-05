@@ -115,6 +115,10 @@ export interface ExecuteSkillRequest {
   skillName: string;
   /** 用户输入 */
   userInput: string;
+  /** 图片输入（可选） */
+  images?: SkillExecutionImageInput[];
+  /** 结构化请求上下文（可选） */
+  requestContext?: Record<string, unknown>;
   /** Provider 覆盖 */
   providerOverride?: string;
   /** 模型覆盖 */
@@ -123,6 +127,11 @@ export interface ExecuteSkillRequest {
   executionId?: string;
   /** 会话 ID（用于上下文延续） */
   sessionId?: string;
+}
+
+export interface SkillExecutionImageInput {
+  data: string;
+  mediaType: string;
 }
 
 // ============================================================================

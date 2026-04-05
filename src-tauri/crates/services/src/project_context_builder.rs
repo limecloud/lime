@@ -185,7 +185,7 @@ impl ProjectContextBuilder {
         Ok(Workspace {
             id,
             name,
-            workspace_type: WorkspaceType::parse(&workspace_type_str),
+            workspace_type: WorkspaceType::parse_persisted(&workspace_type_str),
             root_path: PathBuf::from(root_path_str),
             is_default,
             created_at: chrono::DateTime::from_timestamp_millis(created_at_ms)

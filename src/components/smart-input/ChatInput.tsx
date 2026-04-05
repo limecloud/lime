@@ -6,9 +6,9 @@
 
 import React, { useRef } from "react";
 import { BaseComposer } from "@/components/input-kit";
-import { CharacterMention } from "@/components/agent/chat/components/Inputbar/components/CharacterMention";
-import { SkillBadge } from "@/components/agent/chat/components/Inputbar/components/SkillBadge";
-import { useActiveSkill } from "@/components/agent/chat/components/Inputbar/hooks/useActiveSkill";
+import { CharacterMention } from "@/components/agent/chat/skill-selection/CharacterMention";
+import { SkillBadge } from "@/components/agent/chat/skill-selection/SkillBadge";
+import { useActiveSkill } from "@/components/agent/chat/skill-selection/useActiveSkill";
 import type { ChatInputProps } from "./types";
 
 /**

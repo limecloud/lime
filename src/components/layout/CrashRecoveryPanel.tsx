@@ -25,6 +25,10 @@ import { cn } from "@/lib/utils";
 import { ClipboardPermissionGuideCard } from "@/components/settings-v2/system/shared/ClipboardPermissionGuideCard";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { notifyProjectRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
+import {
+  buildCrashRecoveryReloadUrl,
+  isModuleImportFailureErrorMessage,
+} from "./CrashRecoveryPanel.helpers";
 
 interface CrashRecoveryPanelProps {
   error: Error | null;
@@ -44,6 +48,10 @@ export function CrashRecoveryPanel({
   } | null>(null);
   const [showClipboardGuide, setShowClipboardGuide] = useState(false);
   const errorMessage = error?.message ?? "";
+  const isModuleImportFailure = useMemo(
+    () => isModuleImportFailureErrorMessage(errorMessage),
+    [errorMessage],
+  );
 
   const sceneTag =
     errorMessage.includes("Workspace 路径不存在") ||
@@ -270,6 +278,30 @@ export function CrashRecoveryPanel({
     }
   }, []);
 
+  const handleForceResourceReload = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+    setShowClipboardGuide(false);
+
+    try {
+      const reloadUrl = buildCrashRecoveryReloadUrl(
+        window.location.href,
+        `${Date.now()}`,
+      );
+      window.location.replace(reloadUrl);
+    } catch (err) {
+      setBusy(false);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "刷新资源失败",
+      });
+    }
+  }, []);
+
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-2xl rounded-xl border bg-card p-6 shadow-sm">
@@ -282,7 +314,9 @@ export function CrashRecoveryPanel({
               应用发生错误，已进入恢复模式
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              建议先复制或导出诊断信息，再点击“重试恢复”继续使用。
+              建议先复制或导出诊断信息，再点击
+              {isModuleImportFailure ? "“强制刷新资源”" : "“重试恢复”"}
+              继续使用。
             </p>
           </div>
         </div>
@@ -290,6 +324,20 @@ export function CrashRecoveryPanel({
         {error?.message && (
           <div className="mb-4 rounded-md border border-rose-200 bg-rose-50/70 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300">
             最近错误：{error.message}
+          </div>
+        )}
+
+        {isModuleImportFailure && (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+            检测到前端模块资源加载失败。请优先点击“强制刷新资源”，让应用重新请求最新模块；若仍反复出现，再清理
+            <code className="mx-1 rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">
+              node_modules/.vite
+            </code>
+            和
+            <code className="mx-1 rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">
+              node_modules/.vite-tauri
+            </code>
+            后重启。
           </div>
         )}
 
@@ -382,6 +430,20 @@ export function CrashRecoveryPanel({
           >
             打开下载目录
           </button>
+          {isModuleImportFailure ? (
+            <button
+              type="button"
+              onClick={handleForceResourceReload}
+              disabled={busy}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border border-blue-400 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 transition-colors dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300",
+                busy && "cursor-not-allowed opacity-50",
+              )}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              强制刷新资源
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onRetry}
@@ -392,7 +454,7 @@ export function CrashRecoveryPanel({
             )}
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            重试恢复
+            {isModuleImportFailure ? "仅重试恢复" : "重试恢复"}
           </button>
         </div>
       </div>

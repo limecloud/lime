@@ -37,7 +37,7 @@ describe("browserAssistPreheat", () => {
     const ensureBrowserAssistCanvas = vi.fn(async () => true);
 
     const started = preheatBrowserAssistInBackground({
-      activeTheme: "social-media",
+      activeTheme: "general",
       sourceText: "打开 https://example.com",
       ensureBrowserAssistCanvas,
     });

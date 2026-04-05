@@ -5,7 +5,3 @@
  */
 
 export { SettingsLayoutV2 as SettingsPageV2 } from "./_layout";
-export { SettingsSidebar } from "./_layout/SettingsSidebar";
-export { SettingHeader } from "./features/SettingHeader";
-export { useSettingsCategory } from "./hooks/useSettingsCategory";
-export type { CategoryItem, CategoryGroup } from "./hooks/useSettingsCategory";

@@ -21,16 +21,13 @@ import * as LucideIcons from "lucide-react";
 import { getPluginsForSurface, PluginUIInfo } from "@/lib/api/pluginUI";
 import {
   AgentPageParams,
-  LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
   Page,
   PageParams,
-  isThemeWorkspacePage,
 } from "@/types/page";
 import { getConfig } from "@/lib/api/appConfig";
 import {
   buildClawAgentParams,
   buildHomeAgentParams,
-  buildWorkspaceResetParams,
 } from "@/lib/workspace/navigation";
 import {
   DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
@@ -672,22 +669,12 @@ export function AppSidebar({
       return;
     }
 
-    if (isThemeWorkspacePage(item.page)) {
-      localStorage.setItem(LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY, item.page);
-    }
-
     const params: PageParams | undefined =
       item.id === "home-general"
         ? buildHomeAgentParams(item.params as AgentPageParams | undefined)
         : item.id === "claw"
           ? buildClawAgentParams(item.params as AgentPageParams | undefined)
-          : isThemeWorkspacePage(item.page)
-            ? buildWorkspaceResetParams(
-                item.params as AgentPageParams | undefined,
-                (item.params as AgentPageParams | undefined)
-                  ?.workspaceViewMode ?? "project-management",
-              )
-            : item.params;
+          : item.params;
 
     onNavigate(item.page, params);
   };

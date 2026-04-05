@@ -764,7 +764,7 @@ mod tests {
             .create_with_type(
                 "站点采集项目".to_string(),
                 workspace_root.path().join("site-adapter-project"),
-                WorkspaceType::Document,
+                WorkspaceType::General,
             )
             .expect("创建测试项目失败");
         let adapter = SiteAdapterDefinition {

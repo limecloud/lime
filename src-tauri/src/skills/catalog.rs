@@ -505,15 +505,15 @@ Invalid content
     }
 
     #[test]
-    fn test_bundled_social_post_with_cover_skill_contract() {
+    fn test_bundled_content_post_with_cover_skill_contract() {
         let skill_file = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources/default-skills/social_post_with_cover/SKILL.md");
+            .join("resources/default-skills/content_post_with_cover/SKILL.md");
 
         assert!(skill_file.exists());
         let content = std::fs::read_to_string(&skill_file).unwrap();
-        let skill = load_skill_from_file("social_post_with_cover", &skill_file).unwrap();
+        let skill = load_skill_from_file("content_post_with_cover", &skill_file).unwrap();
 
-        assert_eq!(skill.skill_name, "social_post_with_cover");
+        assert_eq!(skill.display_name, "content_post_with_cover");
         assert_eq!(skill.execution_mode, "workflow");
         assert_eq!(
             skill.workflow_ref,
@@ -530,7 +530,7 @@ Invalid content
             skill.metadata.get("lime_surface").map(String::as_str),
             Some("workbench")
         );
-        assert!(content.contains("<write_file") && content.contains("social-posts/"));
+        assert!(content.contains("<write_file") && content.contains("content-posts/"));
         assert!(!skill.disable_model_invocation);
         assert!(skill.standard_compliance.is_standard);
     }

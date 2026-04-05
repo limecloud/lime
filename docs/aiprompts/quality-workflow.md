@@ -20,6 +20,10 @@
 - 需要判断跑最小 smoke 还是交互型 E2E
 - 需要理解 `quality.yml` 为什么触发某些 CI 任务
 
+如果改动属于 `@` / 产品型 `/` / 轻卡 / viewer / `ServiceSkill` 场景主链，先补读：
+
+- `docs/aiprompts/command-runtime.md`
+
 ## 交付定义
 
 对 Lime 来说，“代码通过检查” 不等于 “产品可以交付”。
@@ -175,7 +179,10 @@ npm run bridge:health -- --timeout-ms 120000
 - 检查 harness metadata / execution runtime / 后端 request metadata 的关键字段是否漂移
 - 检查浏览器桥接 / mock 优先路径是否同步
 - 检查 `DevBridge` 是否可用
-- 检查 `Claw @配图` 是否仍然只创建 task file，而不是回流前端直连图片服务
+- 检查纯文本 `Claw @配图` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file` 主链，以及显式 task 动作是否仍然只写 task file，而不是回流前端直连图片服务
+- 检查纯文本 `Claw @封面` 是否已经走 `原始用户消息 -> harness.cover_skill_launch -> Agent 首刀 Skill(cover_generate) -> task file` 主链，而不是回流成普通图片命令或前端本地伪造结果
+- 检查纯文本 `Claw @转写` 是否已经走 `原始用户消息 -> harness.transcription_skill_launch -> Agent 首刀 Skill(transcription_generate) -> task file` 主链，而不是回流到前端直连旧 ASR 接口
+- 检查纯文本 `Claw @链接解析` 是否已经走 `原始用户消息 -> harness.url_parse_skill_launch -> Agent 首刀 Skill(url_parse) -> task file` 主链，而不是退回普通聊天总结
 
 高频场景：
 
@@ -195,7 +202,10 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
 - 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器、浏览器动作配置、扩展安装状态、打开 Chrome 扩展 / 远程调试页，或主动断开扩展连接
 - 修改 `get_model_registry_provider_ids`、Provider 模型映射或 `src-tauri/resources/models/index.json` 真相源读取语义
-- 修改 `create_image_generation_task_artifact`、`get_media_task_artifact`、`list_media_task_artifacts`、`retry_media_task_artifact`、`cancel_media_task_artifact`、`src/lib/api/mediaTasks.ts`，或调整 `Claw @配图 -> task file` 的异步图片任务主链
+- 修改 `create_image_generation_task_artifact`、`get_media_task_artifact`、`list_media_task_artifacts`、`cancel_media_task_artifact`、`src/lib/api/mediaTasks.ts`、`src/lib/api/skill-execution.ts`、`useWorkspaceSendActions`、`runtime_turn`，或调整 `Claw @配图 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file` 的异步图片任务主链
+- 修改 `@封面` parser、`useWorkspaceSendActions`、`runtime_turn`、`cover_skill_launch`、`lime task create cover`、`cover_generate` skill 或 `lime_create_cover_generation_task`，尤其是调整 `Claw @封面 -> harness.cover_skill_launch -> Agent 首刀 Skill(cover_generate) -> task file` 主链
+- 修改 `@转写` parser、`useWorkspaceSendActions`、`runtime_turn`、`transcription_skill_launch`、`lime task create transcription`、`transcription_generate` skill 或 `lime_create_transcription_task`，尤其是调整 `Claw @转写 -> harness.transcription_skill_launch -> Agent 首刀 Skill(transcription_generate) -> task file` 主链
+- 修改 `@链接解析` parser、`useWorkspaceSendActions`、`runtime_turn`、`url_parse_skill_launch`、`lime task create url-parse`、`url_parse` skill 或 `lime_create_url_parse_task`，尤其是调整 `Claw @链接解析 -> harness.url_parse_skill_launch -> Agent 首刀 Skill(url_parse) -> task file` 主链
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
@@ -204,8 +214,39 @@ npm run bridge:health -- --timeout-ms 120000
 如果本轮修改了 `Claw @配图` 或图片任务 artifact 回填语义，最低校验至少包含：
 
 - `npm run test:contracts`
+- `imageWorkbenchCommand`、`useWorkspaceSendActions`、受影响 skill / image task Hook 单测，以及 `aster_agent_cmd` 图片主链定向测试
+- 若本轮还改了显式 `execute_skill` 的 `images / requestContext` 透传或 compat 续接，额外覆盖 `skillCommand` 回归
 - 受影响的 `image task` / `image workbench` Hook 单测
 - `npm run verify:gui-smoke`
+
+如果本轮还修改了文稿 inline 配图占位逻辑，例如 `usage=document-inline`、`relationships.slot_id`、payload compat `slot_id`、`anchor_section_title`、`anchor_text`、正文占位块原位替换或文稿画布图片占位渲染，受影响回归至少要额外覆盖：
+
+- 文稿占位块插入
+- `relationships.slot_id` 绑定的原位替换
+- `anchor_section_title` 驱动的小节级插入
+- `anchor_text` 驱动的段落级插入
+- 失败 / 取消状态不误替换成成功图片
+
+如果本轮修改了 `Claw @封面` 或封面任务协议，最低校验至少包含：
+
+- `coverWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 封面主链定向测试
+- `lime-cli` 封面任务创建回归、受影响的默认 skill / tool catalog 测试
+- `npm run test:contracts`
+- `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @转写` 或转写任务协议，最低校验至少包含：
+
+- `transcriptionWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 转写主链定向测试
+- `lime-cli` 转写任务创建测试、`media-runtime` 任务类型回归、受影响的默认 skill / tool catalog 测试
+- `npm run test:contracts`
+- `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @链接解析` 或链接解析任务协议，最低校验至少包含：
+
+- `urlParseWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 链接解析主链定向测试
+- `lime-cli` 链接解析任务创建测试、受影响的默认 skill / tool catalog 测试
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
 
 如果本轮修改了 Provider 模型真相源或设置页中的“支持的模型”展示逻辑，还应额外确认：
 

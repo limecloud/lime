@@ -372,7 +372,9 @@ describe("StreamingRenderer", () => {
           toolCall: {
             id: "tool-process-group-interleaved",
             name: "functions.exec_command",
-            arguments: JSON.stringify({ cmd: "sed -n '1,120p' src/messages.tsx" }),
+            arguments: JSON.stringify({
+              cmd: "sed -n '1,120p' src/messages.tsx",
+            }),
             status: "completed",
             result: { success: true, output: "ok" },
             startTime: new Date("2026-03-25T10:03:00.000Z"),
@@ -433,9 +435,13 @@ describe("StreamingRenderer", () => {
     expect(
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeNull();
-    expect(container.querySelector('[data-testid="tool-call-item"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="tool-call-item"]'),
+    ).toBeNull();
     expect(container.querySelector("details")).toBeNull();
-    expect(container.querySelector('[data-testid="decision-panel"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="decision-panel"]'),
+    ).toBeNull();
     expect(container.textContent).toContain("最终回答内容");
   });
 
@@ -480,8 +486,12 @@ describe("StreamingRenderer", () => {
     expect(
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeNull();
-    expect(container.querySelector('[data-testid="tool-call-item"]')).toBeNull();
-    expect(container.querySelector('[data-testid="decision-panel"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="tool-call-item"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="decision-panel"]'),
+    ).toBeNull();
     expect(container.textContent).toContain("这里只保留最终正文。");
   });
 
@@ -582,7 +592,8 @@ describe("StreamingRenderer", () => {
       runtimeStatus: {
         phase: "routing",
         title: "当前服务较忙，稍后开始处理",
-        detail: "当前服务在同时处理过多请求时容易直接失败，系统已切换为更稳妥的顺序处理。",
+        detail:
+          "当前服务在同时处理过多请求时容易直接失败，系统已切换为更稳妥的顺序处理。",
         checkpoints: ["当前服务仅同时处理 1 条此类请求"],
         metadata: {
           concurrency_scope: "provider_global",
@@ -614,7 +625,9 @@ describe("StreamingRenderer", () => {
       container.querySelector('[data-testid="agent-runtime-status"]'),
     ).toBeTruthy();
     expect(container.textContent).toContain("正在搜索 GitHub");
-    expect(container.textContent).toContain("已经打开搜索页，准备补充筛选条件。");
+    expect(container.textContent).toContain(
+      "已经打开搜索页，准备补充筛选条件。",
+    );
     expect(container.textContent).toContain("浏览器已就绪");
   });
 
@@ -653,6 +666,28 @@ describe("StreamingRenderer", () => {
     ).toBeTruthy();
     expect(container.textContent).toContain("正在整理搜索结果");
     expect(container.textContent).toContain("页面内容已获取");
+  });
+
+  it("已取消的运行状态应显示中性文案，而不是失败态文案", () => {
+    const { container } = renderHarness({
+      content: "",
+      isStreaming: true,
+      runtimeStatus: {
+        phase: "cancelled",
+        title: "图片任务已取消",
+        detail: "任务已停止，不会继续生成新的图片结果。",
+        checkpoints: ["已保留当前任务记录", "可在图片画布重新生成"],
+      },
+      showRuntimeStatusInline: true,
+    });
+
+    const statusBlock = container.querySelector(
+      '[data-testid="agent-runtime-status"]',
+    );
+    expect(statusBlock).toBeTruthy();
+    expect(statusBlock?.textContent).toContain("已取消");
+    expect(statusBlock?.textContent).toContain("图片任务已取消");
+    expect(statusBlock?.textContent).not.toContain("需要处理");
   });
 
   it("思考内容进入流式阶段后应自动展开", () => {

@@ -367,5 +367,3 @@ export function ImageGenPage({ onNavigate }: ImageGenPageProps) {
     </PageLayout>
   );
 }
-
-export default ImageGenPage;

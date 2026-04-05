@@ -4,24 +4,10 @@
  * @module lib/workspace/workbenchContract
  */
 
-export const WORKBENCH_THEME_TYPES = [
-  "general",
-  "social-media",
-  "knowledge",
-  "planning",
-  "document",
-  "video",
-] as const;
+export const WORKBENCH_THEME_TYPES = ["general"] as const;
 
 export type ThemeType = (typeof WORKBENCH_THEME_TYPES)[number];
-export type ThemeCanvasType = Extract<ThemeType, "document" | "video">;
-
-const LEGACY_THEME_ALIASES: Record<string, ThemeType> = {
-  poster: "document",
-  music: "document",
-  novel: "document",
-  script: "video",
-};
+export type ThemeCanvasType = "document" | "video";
 
 export type CreationMode = "guided" | "fast" | "hybrid" | "framework";
 
@@ -50,11 +36,8 @@ export function normalizeThemeTypeOrNull(
   value?: string | null,
 ): ThemeType | null {
   const normalized = value?.trim().toLowerCase();
-  if (normalized && isThemeType(normalized)) {
+  if (normalized === "general") {
     return normalized;
-  }
-  if (normalized && normalized in LEGACY_THEME_ALIASES) {
-    return LEGACY_THEME_ALIASES[normalized];
   }
   return null;
 }
@@ -70,15 +53,13 @@ export function normalizeThemeType(value?: string | null): ThemeType {
 export function normalizeThemeCanvasType(
   value?: string | null,
 ): ThemeCanvasType | null {
-  const normalized = normalizeThemeTypeOrNull(value);
+  const normalized = value?.trim().toLowerCase();
   if (normalized === "document" || normalized === "video") {
     return normalized;
   }
   return null;
 }
 
-export function isSpecializedWorkbenchTheme(
-  theme: string,
-): theme is Exclude<ThemeType, "general"> {
-  return isThemeType(theme) && theme !== "general";
+export function isSpecializedWorkbenchTheme(_theme: string): boolean {
+  return false;
 }

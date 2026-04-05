@@ -953,7 +953,7 @@ mod tests {
             turn_id: Some("turn-2".to_string()),
             title_hint: Some("季度结论".to_string()),
             kind_hint: Some("analysis".to_string()),
-            theme: Some("knowledge".to_string()),
+            theme: Some("general".to_string()),
             source_policy: Some("required".to_string()),
             request_id: Some("artifact:demo".to_string()),
             target_block_id: None,

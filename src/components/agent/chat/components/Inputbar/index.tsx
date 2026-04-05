@@ -1,4 +1,5 @@
 import React from "react";
+import styled from "styled-components";
 import type { MessageImage } from "../../types";
 import type { Character } from "@/lib/api/memory";
 import type {
@@ -7,23 +8,38 @@ import type {
 } from "@/lib/api/agentRuntime";
 import type { TaskFile } from "../TaskFiles";
 import { InputbarComposerSection } from "./components/InputbarComposerSection";
-import { InputbarOverlayShell } from "./components/InputbarOverlayShell";
+import { HintRoutePopup } from "./components/HintRoutePopup";
+import { TaskFilesPanel } from "./components/TaskFilesPanel";
 import { InputbarSurface } from "./components/InputbarSurface";
-import type { SkillSelectionSourceProps } from "./components/skillSelectionBindings";
-import type { A2UISubmissionNoticeData } from "./components/A2UISubmissionNotice";
-import type {
-  A2UIResponse,
-  A2UIFormData,
-} from "@/lib/workspace/a2ui";
+import type { SkillSelectionSourceProps } from "../../skill-selection/skillSelectionBindings";
 import type {
   ThemeWorkbenchGateState,
   ThemeWorkbenchWorkflowStep,
-} from "./hooks/useThemeWorkbenchInputState";
+} from "../../utils/themeWorkbenchInputState";
 import { type InputbarToolStates } from "./hooks/useInputbarToolState";
 import { useInputbarController } from "./hooks/useInputbarController";
 import type { TeamDefinition } from "../../utils/teamDefinitions";
 import type { WorkspaceSettings } from "@/types/workspace";
 import type { AgentAccessMode } from "../../hooks/agentChatStorage";
+
+const SecondaryControlsRow = styled.div`
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  left: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 80;
+
+  > * {
+    pointer-events: auto;
+    max-width: 100%;
+  }
+`;
 
 interface InputbarProps extends SkillSelectionSourceProps {
   input: string;
@@ -39,11 +55,6 @@ interface InputbarProps extends SkillSelectionSourceProps {
   onStop?: () => void;
   isLoading: boolean;
   disabled?: boolean;
-  onClearMessages?: () => void;
-  /** 切换画布显示 */
-  onToggleCanvas?: () => void;
-  /** 画布是否打开 */
-  isCanvasOpen?: boolean;
   /** 任务文件列表 */
   taskFiles?: TaskFile[];
   /** 选中的文件 ID */
@@ -65,8 +76,6 @@ interface InputbarProps extends SkillSelectionSourceProps {
   model?: string;
   setModel?: (model: string) => void;
   executionRuntime?: AsterSessionExecutionRuntime | null;
-  isExecutionRuntimeActive?: boolean;
-  workspaceId?: string | null;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   setExecutionStrategy?: (
     strategy: "react" | "code_orchestrated" | "auto",
@@ -81,12 +90,6 @@ interface InputbarProps extends SkillSelectionSourceProps {
   themeWorkbenchGate?: ThemeWorkbenchGateState | null;
   workflowSteps?: ThemeWorkbenchWorkflowStep[];
   themeWorkbenchRunState?: "idle" | "auto_running" | "await_user_decision";
-  /** 待处理的 A2UI Form（显示在输入框上方） */
-  pendingA2UIForm?: A2UIResponse | null;
-  /** A2UI Form 提交回调 */
-  onA2UISubmit?: (formData: A2UIFormData) => void;
-  /** A2UI 表单已提交提示 */
-  a2uiSubmissionNotice?: A2UISubmissionNoticeData | null;
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
@@ -104,9 +107,6 @@ export const Inputbar: React.FC<InputbarProps> = ({
   onStop,
   isLoading,
   disabled,
-  onClearMessages,
-  onToggleCanvas,
-  isCanvasOpen = false,
   taskFiles = [],
   selectedFileId,
   taskFilesExpanded = false,
@@ -127,8 +127,6 @@ export const Inputbar: React.FC<InputbarProps> = ({
   model,
   setModel,
   executionRuntime,
-  isExecutionRuntimeActive,
-  workspaceId,
   executionStrategy,
   setExecutionStrategy,
   accessMode,
@@ -141,9 +139,6 @@ export const Inputbar: React.FC<InputbarProps> = ({
   themeWorkbenchGate,
   workflowSteps = [],
   themeWorkbenchRunState,
-  pendingA2UIForm,
-  onA2UISubmit,
-  a2uiSubmissionNotice,
   queuedTurns = [],
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
@@ -177,10 +172,6 @@ export const Inputbar: React.FC<InputbarProps> = ({
     themeWorkbenchQuickActions,
     themeWorkbenchQueueItems,
     renderThemeWorkbenchGeneratingPanel,
-    visiblePendingA2UIForm,
-    isPendingA2UIFormStale,
-    visibleA2UISubmissionNotice,
-    isA2UISubmissionNoticeVisible,
     skillSelection,
     setActiveBuiltinCommand,
   } = useInputbarController({
@@ -190,14 +181,11 @@ export const Inputbar: React.FC<InputbarProps> = ({
     onStop,
     isLoading,
     disabled,
-    onClearMessages,
-    onToggleCanvas,
     providerType,
     setProviderType,
     model,
     setModel,
     executionStrategy,
-    setExecutionStrategy,
     toolStates,
     onToolStatesChange,
     activeTheme,
@@ -205,8 +193,6 @@ export const Inputbar: React.FC<InputbarProps> = ({
     themeWorkbenchGate,
     workflowSteps,
     themeWorkbenchRunState,
-    pendingA2UIForm,
-    a2uiSubmissionNotice,
     onEnableSuggestedTeam,
     skills,
     serviceSkills,
@@ -224,24 +210,32 @@ export const Inputbar: React.FC<InputbarProps> = ({
       onDrop={handleDrop}
       onKeyDown={handleHintKeyDown}
     >
-      <InputbarOverlayShell
-        showHintPopup={showHintPopup}
-        hintRoutes={hintRoutes}
-        hintIndex={hintIndex}
-        onHintSelect={handleHintSelect}
-        taskFiles={taskFiles}
-        selectedFileId={selectedFileId}
-        taskFilesExpanded={taskFilesExpanded}
-        onToggleTaskFiles={onToggleTaskFiles}
-        onTaskFileClick={onTaskFileClick}
-        overlayAccessory={overlayAccessory}
-        submissionNotice={visibleA2UISubmissionNotice}
-        isSubmissionNoticeVisible={isA2UISubmissionNoticeVisible}
-        pendingA2UIForm={visiblePendingA2UIForm}
-        pendingA2UIFormStale={isPendingA2UIFormStale}
-        onA2UISubmit={onA2UISubmit}
-        fileInputRef={fileInputRef}
-        onFileSelect={handleFileSelect}
+      {showHintPopup ? (
+        <HintRoutePopup
+          routes={hintRoutes}
+          activeIndex={hintIndex}
+          onSelect={handleHintSelect}
+        />
+      ) : null}
+      {taskFiles.length > 0 || overlayAccessory ? (
+        <SecondaryControlsRow data-testid="inputbar-secondary-controls">
+          <TaskFilesPanel
+            files={taskFiles}
+            selectedFileId={selectedFileId}
+            expanded={taskFilesExpanded}
+            onToggle={onToggleTaskFiles}
+            onFileClick={onTaskFileClick}
+          />
+          {overlayAccessory}
+        </SecondaryControlsRow>
+      ) : null}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleFileSelect}
       />
       <InputbarComposerSection
         renderThemeWorkbenchGeneratingPanel={
@@ -261,7 +255,6 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onSelectTeam={onSelectTeam}
         teamWorkspaceSettings={teamWorkspaceSettings}
         onPersistCustomTeams={onPersistCustomTeams}
-        workspaceId={workspaceId}
         onSend={handleSend}
         onToolClick={handleToolClick}
         activeTools={activeTools}
@@ -270,14 +263,10 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onRemoveImage={handleRemoveImage}
         onPaste={handlePaste}
         isFullscreen={isFullscreen}
-        isCanvasOpen={isCanvasOpen}
         isThemeWorkbenchVariant={isThemeWorkbenchVariant}
         activeTheme={activeTheme}
-        providerType={providerType}
-        model={model}
         onManageProviders={onManageProviders}
         executionRuntime={executionRuntime}
-        isExecutionRuntimeActive={isExecutionRuntimeActive}
         accessMode={accessMode}
         setAccessMode={setAccessMode}
         setExecutionStrategy={setExecutionStrategy}

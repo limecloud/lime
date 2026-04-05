@@ -4,7 +4,7 @@
 
 use crate::app_paths;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Component, PathBuf};
 
 use chrono::Utc;
 
@@ -190,8 +190,11 @@ impl SessionFileStorage {
         // 确保会话存在
         self.get_or_create_session(session_id)?;
 
-        let files_dir = self.get_files_dir(session_id);
-        let file_path = files_dir.join(file_name);
+        let file_path = self.resolve_session_file_path(session_id, file_name)?;
+
+        if let Some(parent_dir) = file_path.parent() {
+            fs::create_dir_all(parent_dir).map_err(|e| format!("创建文件目录失败: {e}"))?;
+        }
 
         // 写入文件
         fs::write(&file_path, content).map_err(|e| format!("写入文件失败: {e}"))?;
@@ -219,14 +222,14 @@ impl SessionFileStorage {
 
     /// 读取会话文件内容
     pub fn read_file(&self, session_id: &str, file_name: &str) -> Result<String, String> {
-        let file_path = self.get_files_dir(session_id).join(file_name);
+        let file_path = self.resolve_session_file_path(session_id, file_name)?;
         fs::read_to_string(&file_path).map_err(|e| format!("读取文件失败: {e}"))
     }
 
     /// 解析会话文件的绝对路径
     pub fn resolve_file_path(&self, session_id: &str, file_name: &str) -> Result<String, String> {
         let files_dir = self.get_files_dir(session_id);
-        let file_path = files_dir.join(file_name);
+        let file_path = self.resolve_session_file_path(session_id, file_name)?;
 
         if !file_path.exists() {
             return Err("文件不存在".to_string());
@@ -248,7 +251,7 @@ impl SessionFileStorage {
 
     /// 删除会话文件
     pub fn delete_file(&self, session_id: &str, file_name: &str) -> Result<(), String> {
-        let file_path = self.get_files_dir(session_id).join(file_name);
+        let file_path = self.resolve_session_file_path(session_id, file_name)?;
         if file_path.exists() {
             fs::remove_file(&file_path).map_err(|e| format!("删除文件失败: {e}"))?;
             self.refresh_meta_stats(session_id)?;
@@ -367,6 +370,41 @@ impl SessionFileStorage {
         self.save_meta(session_id, &meta)
     }
 
+    fn resolve_session_file_path(
+        &self,
+        session_id: &str,
+        file_name: &str,
+    ) -> Result<PathBuf, String> {
+        let relative_path = Self::validate_relative_file_path(file_name)?;
+        Ok(self.get_files_dir(session_id).join(relative_path))
+    }
+
+    fn validate_relative_file_path(file_name: &str) -> Result<PathBuf, String> {
+        let relative_path = PathBuf::from(file_name);
+
+        if relative_path.as_os_str().is_empty() {
+            return Err("文件路径不能为空".to_string());
+        }
+
+        if relative_path.is_absolute() {
+            return Err("非法文件路径".to_string());
+        }
+
+        if relative_path.components().any(|component| {
+            matches!(
+                component,
+                Component::CurDir
+                    | Component::ParentDir
+                    | Component::RootDir
+                    | Component::Prefix(_)
+            )
+        }) {
+            return Err("非法文件路径".to_string());
+        }
+
+        Ok(relative_path)
+    }
+
     /// 根据文件扩展名检测文件类型
     fn detect_file_type(file_name: &str) -> String {
         let ext = file_name.rsplit('.').next().unwrap_or("").to_lowercase();
@@ -465,5 +503,43 @@ mod tests {
             .join("files")
             .join("demo.md");
         assert!(std::path::Path::new(&resolved).ends_with(&expected_suffix));
+    }
+
+    #[test]
+    fn test_save_nested_file_creates_parent_dirs() {
+        let (storage, temp_dir) = create_test_storage();
+        storage.create_session("test-session-6").unwrap();
+
+        let nested_file = ".lime/artifacts/thread-1/report.artifact.json";
+        storage
+            .save_file("test-session-6", nested_file, "{\"ok\":true}")
+            .unwrap();
+
+        let expected_path = temp_dir
+            .path()
+            .join("test-session-6")
+            .join("files")
+            .join(".lime")
+            .join("artifacts")
+            .join("thread-1")
+            .join("report.artifact.json");
+
+        assert!(expected_path.exists());
+        assert_eq!(
+            storage.read_file("test-session-6", nested_file).unwrap(),
+            "{\"ok\":true}"
+        );
+    }
+
+    #[test]
+    fn test_save_file_rejects_parent_dir_traversal() {
+        let (storage, _temp) = create_test_storage();
+        storage.create_session("test-session-7").unwrap();
+
+        let error = storage
+            .save_file("test-session-7", "../escape.txt", "content")
+            .unwrap_err();
+
+        assert!(error.contains("非法文件路径"));
     }
 }

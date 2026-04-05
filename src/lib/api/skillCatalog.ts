@@ -65,7 +65,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "GitHub",
     summary: "围绕仓库与 Issue 的只读研究技能，直接复用真实登录态抓线索。",
     entryHint: "先选一个 GitHub 技能，再补关键词或仓库名，结果会直接回流到当前工作区。",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 10,
   },
   {
@@ -73,7 +73,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "知乎",
     summary: "围绕热榜与内容检索的只读研究技能，适合快速做选题与观点线索扫描。",
     entryHint: "从热榜或关键词入口开始，先抓一轮线索，再回到 Claw 继续整理。",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 20,
   },
   {
@@ -81,7 +81,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "Linux.do",
     summary: "围绕社区分类与热门讨论的只读研究技能，适合跟踪开发者社区动态。",
     entryHint: "先确定是看分类还是看热门，再直接在真实社区页面采集结果。",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 30,
   },
   {
@@ -89,7 +89,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "Bilibili",
     summary: "围绕视频检索的只读站点技能，适合快速抓视频线索并回流到当前工作区。",
     entryHint: "先给检索词，再直接复用当前浏览器页面做一轮视频线索采集。",
-    themeTarget: "video",
+    themeTarget: "general",
     sort: 40,
   },
   {
@@ -97,7 +97,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "36Kr",
     summary: "围绕快讯和资讯流的只读站点技能，适合快速收集行业动态和新闻线索。",
     entryHint: "先确定主题范围，再直接采集快讯结果回到 Claw 继续整理。",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 50,
   },
   {
@@ -105,7 +105,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "什么值得买",
     summary: "围绕消费和商品检索的只读站点技能，适合快速抓价格、优惠与选品线索。",
     entryHint: "输入商品关键词后直接采集结果，再回到 Claw 做整理和对比。",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 60,
   },
   {
@@ -113,7 +113,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     title: "Yahoo Finance",
     summary: "围绕股票与行情摘要的只读站点技能，适合快速拉一轮金融研究线索。",
     entryHint: "输入股票代码后直接抓取行情摘要，再在工作区继续分析。",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 70,
   },
   {
@@ -125,7 +125,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     sort: 90,
   },
 ] as const;
-const SEEDED_SKILL_CATALOG_VERSION = "client-seed-skill-catalog-2026-03-30";
+const SEEDED_SKILL_CATALOG_VERSION = "client-seed-skill-catalog-2026-04-04";
 const SITE_GROUP_TITLE_OVERRIDES: Record<string, string> = {
   github: "GitHub",
   zhihu: "知乎",
@@ -276,7 +276,7 @@ function buildFallbackGroupPreset(groupKey: string): Omit<SkillCatalogGroup, "it
     title,
     summary: `围绕 ${title} 的只读站点技能入口，适合直接复用真实页面上下文采集结果。`,
     entryHint: `先进入 ${title} 技能组，再选择具体技能项开始采集。`,
-    themeTarget: "knowledge",
+    themeTarget: "general",
     sort: 80,
   };
 }

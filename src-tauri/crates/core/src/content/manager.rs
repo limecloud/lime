@@ -109,19 +109,13 @@ impl ContentManager {
         );
 
         let workspace_type = match workspace_type {
-            Ok(value) => WorkspaceType::parse(&value),
+            Ok(value) => WorkspaceType::parse_persisted(&value),
             Err(_) => return ContentType::Document,
         };
 
         match workspace_type {
-            WorkspaceType::Video => ContentType::Episode,
-            WorkspaceType::SocialMedia => ContentType::Post,
             WorkspaceType::General => ContentType::Content,
-            WorkspaceType::Document => ContentType::Document,
-            WorkspaceType::Knowledge
-            | WorkspaceType::Planning
-            | WorkspaceType::Persistent
-            | WorkspaceType::Temporary => ContentType::Document,
+            WorkspaceType::Persistent | WorkspaceType::Temporary => ContentType::Document,
         }
     }
 

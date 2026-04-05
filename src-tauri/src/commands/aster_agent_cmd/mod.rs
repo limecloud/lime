@@ -22,11 +22,11 @@ use crate::agent_tools::catalog::{
     browser_runtime_tool_prefix, build_mcp_extension_surface, workbench_tool_names,
     WorkspaceToolSurface, LIME_CREATE_BROADCAST_TASK_TOOL_NAME, LIME_CREATE_COVER_TASK_TOOL_NAME,
     LIME_CREATE_IMAGE_TASK_TOOL_NAME, LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME,
-    LIME_CREATE_TYPESETTING_TASK_TOOL_NAME, LIME_CREATE_URL_PARSE_TASK_TOOL_NAME,
-    LIME_CREATE_VIDEO_TASK_TOOL_NAME, LIME_SITE_INFO_TOOL_NAME, LIME_SITE_LIST_TOOL_NAME,
-    LIME_SITE_RECOMMEND_TOOL_NAME, LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME,
-    LIST_MCP_RESOURCES_TOOL_NAME, READ_MCP_RESOURCE_TOOL_NAME, SOCIAL_IMAGE_TOOL_NAME,
-    TOOL_SEARCH_TOOL_NAME,
+    LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME, LIME_CREATE_TYPESETTING_TASK_TOOL_NAME,
+    LIME_CREATE_URL_PARSE_TASK_TOOL_NAME, LIME_CREATE_VIDEO_TASK_TOOL_NAME,
+    LIME_SITE_INFO_TOOL_NAME, LIME_SITE_LIST_TOOL_NAME, LIME_SITE_RECOMMEND_TOOL_NAME,
+    LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME, LIST_MCP_RESOURCES_TOOL_NAME,
+    READ_MCP_RESOURCE_TOOL_NAME, SOCIAL_IMAGE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME,
 };
 #[cfg(test)]
 use crate::agent_tools::execution::build_workspace_shell_allow_pattern;
@@ -149,6 +149,7 @@ const SOCIAL_IMAGE_DEFAULT_SIZE: &str = "1024x1024";
 const SOCIAL_IMAGE_DEFAULT_RESPONSE_FORMAT: &str = "url";
 const AUTO_CONTINUE_PROMPT_MARKER: &str = "【自动续写策略】";
 const ELICITATION_CONTEXT_PROMPT_MARKER: &str = "【已收集的补充信息】";
+const IMAGE_SKILL_LAUNCH_PROMPT_MARKER: &str = "【图片技能启动】";
 const SERVICE_SKILL_LAUNCH_PROMPT_MARKER: &str = "【站点技能启动】";
 const SERVICE_SKILL_LAUNCH_PRELOAD_PROMPT_MARKER: &str = "【站点技能预执行结果】";
 const TEAM_PREFERENCE_PROMPT_MARKER: &str = "【Team 协作偏好】";
@@ -259,7 +260,9 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
 pub(crate) mod action_runtime;
 mod browser_assist;
 pub(crate) mod command_api;
+mod cover_skill_launch;
 mod dto;
+mod image_skill_launch;
 mod mcp_bridge;
 mod prompt_context;
 mod reply_runtime;
@@ -270,6 +273,9 @@ mod service_skill_launch;
 mod session_runtime;
 mod subagent_runtime;
 pub(crate) mod tool_runtime;
+mod transcription_skill_launch;
+mod url_parse_skill_launch;
+mod video_skill_launch;
 #[cfg(test)]
 use self::subagent_runtime::{
     build_subagent_customization_state, build_subagent_customization_system_prompt,
@@ -313,6 +319,7 @@ pub(crate) use command_api::{
     agent_runtime_update_session, agent_runtime_wait_subagents, aster_agent_configure_from_pool,
     aster_agent_configure_provider, aster_agent_init, aster_agent_reset, aster_agent_status,
 };
+pub(crate) use cover_skill_launch::merge_system_prompt_with_cover_skill_launch;
 #[allow(unused_imports)]
 pub(crate) use dto::{
     build_incidents, build_last_outcome, build_pending_requests, AgentRuntimeActionType,
@@ -331,6 +338,9 @@ pub(crate) use dto::{
     AgentRuntimeToolInventoryRequest, AgentRuntimeUpdateSessionRequest,
     AgentRuntimeWaitSubagentsRequest, AgentRuntimeWaitSubagentsResponse, AsterAgentStatus,
     AsterChatRequest, AutoContinuePayload, ConfigureFromPoolRequest, ConfigureProviderRequest,
+};
+pub(crate) use image_skill_launch::{
+    merge_system_prompt_with_image_skill_launch, prepare_image_skill_launch_request_metadata,
 };
 pub(crate) use mcp_bridge::{ensure_lime_mcp_servers_running, inject_mcp_extensions};
 #[cfg(test)]
@@ -399,6 +409,9 @@ pub(crate) use tool_runtime::{
     ensure_browser_mcp_tools_registered, ensure_creation_task_tools_registered,
     ensure_runtime_support_tools_registered, ensure_social_image_tool_registered,
 };
+pub(crate) use transcription_skill_launch::merge_system_prompt_with_transcription_skill_launch;
+pub(crate) use url_parse_skill_launch::merge_system_prompt_with_url_parse_skill_launch;
+pub(crate) use video_skill_launch::merge_system_prompt_with_video_skill_launch;
 
 pub async fn resume_persisted_runtime_queues_on_startup(
     app: AppHandle,

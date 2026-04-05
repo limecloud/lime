@@ -60,6 +60,8 @@ export async function maybeHandleSlashSkillBeforeSend(
     assistantMsgId,
     providerType: effectiveProviderType,
     model: effectiveModel || undefined,
+    images: preparedSend.skillRequest?.images ?? preparedSend.images,
+    requestContext: preparedSend.skillRequest?.requestContext,
     ensureSession: env.ensureSession,
     setMessages: env.setMessages,
     setIsSending: env.setIsSending,

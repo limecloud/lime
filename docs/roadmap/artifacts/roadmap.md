@@ -301,7 +301,7 @@ Lime 的高配版 Artifacts 应该明确采用：
 | `id` | Artifact 文档 ID |
 | `threadId` | 所属 thread |
 | `workspaceId` | 所属 workspace |
-| `theme` | 主题域，如 general / document / social-media |
+| `theme` | 主题域，当前统一为 general |
 | `kind` | `report / plan / brief / table / dashboard / canvas` |
 | `title` | 标题 |
 | `status` | `draft / streaming / ready / failed / archived` |
@@ -839,7 +839,7 @@ src-tauri/src/services/artifact_document_service.rs
 
 1. 不直接删除旧 Artifact 系统，先把它降级成兼容层。
 2. 不直接替换所有 Canvas，只先把通用报告类产物接到新 Workbench。
-3. 优先打通 `general/document/planning/knowledge` 四类高价值文本产物。
+3. 优先打通 `general` 主链下的高价值文本产物。
 4. 在协议稳定前，不急着让所有模型都严格产出结构化块。
 5. 不让 `blueprint` 直接接管 Artifact 主链，Blueprint 只作为可选 planning capability 接入。
 

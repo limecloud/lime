@@ -209,7 +209,7 @@ describe("useWorkspaceCanvasLayoutRuntime", () => {
     const suppressGeneralCanvasArtifactAutoOpen = vi.fn();
     const suppressBrowserAssistCanvasAutoOpen = vi.fn();
     const { render } = renderHook({
-      activeTheme: "social-media",
+      activeTheme: "general",
       isThemeWorkbench: true,
       hasPendingA2UIForm: true,
       layoutMode: "canvas",

@@ -37,7 +37,10 @@ vi.mock("@/lib/api/skill-execution", () => ({
   },
 }));
 
-import { tryExecuteSlashSkillCommand } from "./skillCommand";
+import {
+  parseSkillSlashCommand,
+  tryExecuteSlashSkillCommand,
+} from "./skillCommand";
 
 interface MessageStore {
   getMessages: () => Message[];
@@ -69,8 +72,8 @@ beforeEach(() => {
   mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
   mockListExecutableSkills.mockResolvedValue([
     {
-      name: "social_post_with_cover",
-      display_name: "social_post_with_cover",
+      name: "content_post_with_cover",
+      display_name: "content_post_with_cover",
       description: "social",
       execution_mode: "prompt",
       has_workflow: false,
@@ -84,6 +87,14 @@ afterEach(() => {
 });
 
 describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
+  it("不应再归一非当前 skill 名", () => {
+    expect(parseSkillSlashCommand("/legacy_content_post 写一版主稿"))
+      .toMatchObject({
+        skillName: "legacy_content_post",
+        userInput: "写一版主稿",
+      });
+  });
+
   it("当后端连续发出 write_file 工具事件时应写入主稿与辅助产物", async () => {
     const store = createMessageStore([buildBaseMessage()]);
     const onWriteFile = vi.fn();
@@ -117,35 +128,35 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
 
       emitWriteToolStart(
         "tool-main",
-        "social-posts/demo.md",
+        "content-posts/demo.md",
         "# 标题\n\n主稿正文",
       );
       emitWriteToolStart(
         "tool-cover",
-        "social-posts/demo.cover.json",
+        "content-posts/demo.cover.json",
         '{"cover_url":"https://example.com/cover.png","status":"成功"}',
       );
       emitWriteToolStart(
         "tool-pack",
-        "social-posts/demo.publish-pack.json",
-        '{"article_path":"social-posts/demo.md","cover_meta_path":"social-posts/demo.cover.json"}',
+        "content-posts/demo.publish-pack.json",
+        '{"article_path":"content-posts/demo.md","cover_meta_path":"content-posts/demo.cover.json"}',
       );
       streamHandler?.({ payload: { type: "final_done" } });
 
       return {
         success: true,
         output:
-          '<write_file path="social-posts/demo.md">\n# 标题\n\n主稿正文\n</write_file>',
+          '<write_file path="content-posts/demo.md">\n# 标题\n\n主稿正文\n</write_file>',
         steps_completed: [],
       };
     });
 
     const handled = await tryExecuteSlashSkillCommand({
       command: {
-        skillName: "social_post_with_cover",
+        skillName: "content_post_with_cover",
         userInput: "输出社媒文案",
       },
-      rawContent: "/social_post_with_cover 输出社媒文案",
+      rawContent: "/content_post_with_cover 输出社媒文案",
       assistantMsgId: "assistant-1",
       providerType: "anthropic",
       model: "claude-sonnet-4-20250514",
@@ -165,9 +176,9 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
     expect(onWriteFile).toHaveBeenCalledTimes(3);
 
     const writtenPaths = onWriteFile.mock.calls.map((call) => call[1]);
-    expect(writtenPaths).toContain("social-posts/demo.md");
-    expect(writtenPaths).toContain("social-posts/demo.cover.json");
-    expect(writtenPaths).toContain("social-posts/demo.publish-pack.json");
+    expect(writtenPaths).toContain("content-posts/demo.md");
+    expect(writtenPaths).toContain("content-posts/demo.cover.json");
+    expect(writtenPaths).toContain("content-posts/demo.publish-pack.json");
   });
 
   it("当 executeSkill.output 包含 write_file 时应覆盖流式旧内容", async () => {
@@ -182,7 +193,7 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       };
     });
 
-    const writeFileOutput = `<write_file path="social-posts/final.md">\n# 最终稿\n\n正文\n</write_file>`;
+    const writeFileOutput = `<write_file path="content-posts/final.md">\n# 最终稿\n\n正文\n</write_file>`;
     mockExecuteSkill.mockImplementation(async () => {
       streamHandler?.({ payload: { type: "text_delta", text: "流式旧内容" } });
       streamHandler?.({ payload: { type: "final_done" } });
@@ -195,10 +206,10 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
 
     const handled = await tryExecuteSlashSkillCommand({
       command: {
-        skillName: "social_post_with_cover",
+        skillName: "content_post_with_cover",
         userInput: "写一篇春季上新文案",
       },
-      rawContent: "/social_post_with_cover 写一篇春季上新文案",
+      rawContent: "/content_post_with_cover 写一篇春季上新文案",
       assistantMsgId: "assistant-1",
       providerType: "anthropic",
       model: "claude-sonnet-4-20250514",
@@ -240,7 +251,7 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
           type: "artifact_snapshot",
           artifact: {
             artifactId: "artifact-1",
-            filePath: "social-posts/live.md",
+            filePath: "content-posts/live.md",
             content: "# 实时稿",
             metadata: {
               complete: false,
@@ -255,17 +266,17 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       return {
         success: true,
         output:
-          '<write_file path="social-posts/live.md">\n# 实时稿\n</write_file>',
+          '<write_file path="content-posts/live.md">\n# 实时稿\n</write_file>',
         steps_completed: [],
       };
     });
 
     const handled = await tryExecuteSlashSkillCommand({
       command: {
-        skillName: "social_post_with_cover",
+        skillName: "content_post_with_cover",
         userInput: "实时写作",
       },
-      rawContent: "/social_post_with_cover 实时写作",
+      rawContent: "/content_post_with_cover 实时写作",
       assistantMsgId: "assistant-1",
       providerType: "anthropic",
       model: "claude-sonnet-4-20250514",
@@ -285,7 +296,7 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
     expect(onWriteFile).toHaveBeenCalledTimes(1);
     expect(onWriteFile).toHaveBeenCalledWith(
       "# 实时稿",
-      "social-posts/live.md",
+      "content-posts/live.md",
       expect.objectContaining({
         artifactId: "artifact-1",
         source: "artifact_snapshot",
@@ -306,10 +317,10 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
 
     const handled = await tryExecuteSlashSkillCommand({
       command: {
-        skillName: "social_post_with_cover",
+        skillName: "content_post_with_cover",
         userInput: "新品发布",
       },
-      rawContent: "/social_post_with_cover 新品发布",
+      rawContent: "/content_post_with_cover 新品发布",
       assistantMsgId: "assistant-1",
       providerType: "anthropic",
       model: "claude-sonnet-4-20250514",
@@ -331,7 +342,7 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
     const [contentArg, filePathArg] = onWriteFile.mock.calls[0];
     expect(contentArg).toBe("# 标题\n\n正文内容");
     expect(filePathArg).toMatch(
-      /^social-posts\/\d{8}-\d{6}-[a-z0-9-]+-[a-z0-9]{3,6}\.md$/,
+      /^content-posts\/\d{8}-\d{6}-[a-z0-9-]+-[a-z0-9]{3,6}\.md$/,
     );
   });
 
@@ -376,6 +387,168 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
 
     expect(handled).toBe(true);
     expect(onWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("图片 skill 返回媒体任务 metadata 时应直接挂载图片预览卡", async () => {
+    const store = createMessageStore([buildBaseMessage()]);
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+
+    mockListExecutableSkills.mockResolvedValueOnce([
+      {
+        name: "image_generate",
+        display_name: "image_generate",
+        description: "image",
+        execution_mode: "prompt",
+        has_workflow: false,
+      },
+    ]);
+    mockSafeListen.mockImplementation(async (_eventName, handler) => {
+      streamHandler = handler as (event: { payload: unknown }) => void;
+      return () => {
+        streamHandler = null;
+      };
+    });
+
+    mockExecuteSkill.mockImplementation(async () => {
+      streamHandler?.({
+        payload: {
+          type: "tool_start",
+          tool_id: "tool-image-1",
+          tool_name: "Bash",
+          arguments: JSON.stringify({
+            command:
+              "lime media image generate --prompt '春日咖啡馆插画' --size 1024x1024 --count 2 --json",
+          }),
+        },
+      });
+      streamHandler?.({
+        payload: {
+          type: "tool_end",
+          tool_id: "tool-image-1",
+          result: {
+            success: true,
+            output: "任务已提交",
+            metadata: {
+              task_id: "task-image-skill-1",
+              task_type: "image_generate",
+              task_family: "image",
+              status: "pending_submit",
+              artifact_path: ".lime/tasks/image_generate/task-image-skill-1.json",
+            },
+          },
+        },
+      });
+      streamHandler?.({ payload: { type: "final_done" } });
+
+      return {
+        success: true,
+        output:
+          "任务类型：image_generate\n任务 ID：task-image-skill-1\n状态：pending_submit",
+        steps_completed: [],
+      };
+    });
+
+    const handled = await tryExecuteSlashSkillCommand({
+      command: {
+        skillName: "image_generate",
+        userInput: "春日咖啡馆插画",
+      },
+      rawContent: "/image_generate 春日咖啡馆插画",
+      assistantMsgId: "assistant-1",
+      providerType: "openai",
+      model: "gpt-5.4",
+      ensureSession: async () => "session-1",
+      setMessages: store.setMessages,
+      setIsSending: vi.fn(),
+      setCurrentAssistantMsgId: vi.fn(),
+      setStreamUnlisten: vi.fn(),
+      setActiveSessionIdForStop: vi.fn(),
+      isExecutionCancelled: () => false,
+      playTypewriterSound: vi.fn(),
+      playToolcallSound: vi.fn(),
+    });
+
+    expect(handled).toBe(true);
+    expect(store.getMessages()[0]).toMatchObject({
+      imageWorkbenchPreview: {
+        taskId: "task-image-skill-1",
+        prompt: "春日咖啡馆插画",
+        status: "running",
+        phase: "queued",
+      },
+    });
+  });
+
+  it("slash skill 执行时应透传图片与结构化请求上下文", async () => {
+    const store = createMessageStore([buildBaseMessage()]);
+    mockListExecutableSkills.mockResolvedValueOnce([
+      {
+        name: "image_generate",
+        display_name: "image_generate",
+        description: "image",
+        execution_mode: "prompt",
+        has_workflow: false,
+      },
+    ]);
+    mockExecuteSkill.mockResolvedValue({
+      success: true,
+      output: "任务已提交",
+      steps_completed: [],
+    });
+
+    const handled = await tryExecuteSlashSkillCommand({
+      command: {
+        skillName: "image_generate",
+        userInput: "请基于参考图微调",
+      },
+      rawContent: "/image_generate 请基于参考图微调",
+      assistantMsgId: "assistant-ctx-1",
+      providerType: "openai",
+      model: "gpt-5.4",
+      images: [
+        {
+          data: "base64-image-1",
+          mediaType: "image/png",
+        },
+      ],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "edit",
+          reference_images: ["skill-input-image://1"],
+        },
+      },
+      ensureSession: async () => "session-ctx-1",
+      setMessages: store.setMessages,
+      setIsSending: vi.fn(),
+      setCurrentAssistantMsgId: vi.fn(),
+      setStreamUnlisten: vi.fn(),
+      setActiveSessionIdForStop: vi.fn(),
+      isExecutionCancelled: () => false,
+      playTypewriterSound: vi.fn(),
+      playToolcallSound: vi.fn(),
+    });
+
+    expect(handled).toBe(true);
+    expect(mockExecuteSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillName: "image_generate",
+        userInput: "请基于参考图微调",
+        images: [
+          {
+            data: "base64-image-1",
+            mediaType: "image/png",
+          },
+        ],
+        requestContext: {
+          kind: "image_task",
+          image_task: {
+            mode: "edit",
+            reference_images: ["skill-input-image://1"],
+          },
+        },
+      }),
+    );
   });
 });
 

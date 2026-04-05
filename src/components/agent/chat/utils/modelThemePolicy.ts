@@ -1,4 +1,5 @@
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
+import { normalizeThemeType } from "@/lib/workspace/workbenchContract";
 
 export interface ThemeModelFilterResult {
   models: EnhancedModelMetadata[];
@@ -96,17 +97,10 @@ function looksLikeChatModel(model: EnhancedModelMetadata): boolean {
   return !looksLikeImageGenerationModel(model);
 }
 
-const CHAT_THEME_IDS = new Set([
-  "social-media",
-  "document",
-  "video",
-]);
-
 export function filterModelsByTheme(
   theme: string | undefined,
   models: EnhancedModelMetadata[],
 ): ThemeModelFilterResult {
-  const normalizedTheme = theme?.toLowerCase() || "";
   if (models.length === 0) {
     return {
       models,
@@ -116,39 +110,16 @@ export function filterModelsByTheme(
     };
   }
 
-  if (normalizedTheme === "knowledge" || normalizedTheme === "planning") {
-    const reasoningModels = models.filter(
-      (model) => looksLikeChatModel(model) && model.capabilities.reasoning,
-    );
-
-    if (reasoningModels.length > 0) {
-      return {
-        models: reasoningModels,
-        usedFallback: false,
-        filteredOutCount: models.length - reasoningModels.length,
-        policyName: "reasoning-priority",
-      };
-    }
-
-    const chatModels = models.filter(looksLikeChatModel);
-    if (chatModels.length > 0) {
-      return {
-        models: chatModels,
-        usedFallback: false,
-        filteredOutCount: models.length - chatModels.length,
-        policyName: "chat-fallback",
-      };
-    }
-
+  if (!theme?.trim()) {
     return {
       models,
-      usedFallback: true,
+      usedFallback: false,
       filteredOutCount: 0,
-      policyName: "fallback-all",
+      policyName: "none",
     };
   }
 
-  if (CHAT_THEME_IDS.has(normalizedTheme)) {
+  if (normalizeThemeType(theme) === "general") {
     const chatModels = models.filter(looksLikeChatModel);
     if (chatModels.length > 0) {
       return {

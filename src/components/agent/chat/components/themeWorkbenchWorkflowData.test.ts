@@ -13,9 +13,9 @@ describe("themeWorkbenchWorkflowData", () => {
           execution_id: "exec-1",
           version_id: "version-1",
           stages: ["write_mode"],
-          artifact_paths: [" social-posts/demo.md "],
-          artifactPath: "social-posts\\demo-cover.png",
-          filePath: "social-posts/summary.md",
+          artifact_paths: [" content-posts/demo.md "],
+          artifactPath: "content-posts\\demo-cover.png",
+          filePath: "content-posts/summary.md",
         }),
       ),
     ).toEqual({
@@ -24,9 +24,9 @@ describe("themeWorkbenchWorkflowData", () => {
       versionId: "version-1",
       stages: ["write_mode"],
       artifactPaths: [
-        "social-posts/summary.md",
-        "social-posts/demo-cover.png",
-        "social-posts/demo.md",
+        "content-posts/summary.md",
+        "content-posts/demo-cover.png",
+        "content-posts/demo.md",
       ],
     });
   });
@@ -40,7 +40,7 @@ describe("themeWorkbenchWorkflowData", () => {
           status: "running",
           timeLabel: "10:30",
           runId: "run-1",
-          artifactPaths: [" social-posts/demo.md "],
+          artifactPaths: [" content-posts/demo.md "],
         },
         {
           id: "log-2",
@@ -48,9 +48,9 @@ describe("themeWorkbenchWorkflowData", () => {
           status: "completed",
           timeLabel: "10:31",
           runId: "run-1",
-          artifactPaths: ["social-posts/demo.md", "social-posts/demo-cover.png"],
+          artifactPaths: ["content-posts/demo.md", "content-posts/demo-cover.png"],
         },
       ])[0]?.artifactPaths,
-    ).toEqual(["social-posts/demo.md", "social-posts/demo-cover.png"]);
+    ).toEqual(["content-posts/demo.md", "content-posts/demo-cover.png"]);
   });
 });

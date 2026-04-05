@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use crate::commands::aster_agent_cmd::action_runtime::{
         build_runtime_action_scope, build_runtime_action_session_config,
     };
@@ -265,7 +266,7 @@ mod tests {
             "workspace_id": "workspace-test",
             "metadata": {
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                     "gate_key": "write_mode",
                     "run_title": "社媒初稿"
                 }
@@ -280,7 +281,7 @@ mod tests {
                 .and_then(|value| value.get("harness"))
                 .and_then(|value| value.get("theme"))
                 .and_then(serde_json::Value::as_str),
-            Some("social-media")
+            Some("general")
         );
     }
 
@@ -288,7 +289,7 @@ mod tests {
     fn test_resolve_runtime_chat_mode_prefers_explicit_chat_mode() {
         let metadata = serde_json::json!({
             "harness": {
-                "theme": "social-media",
+                "theme": "general",
                 "chat_mode": "general"
             }
         });
@@ -303,7 +304,7 @@ mod tests {
     fn test_resolve_runtime_chat_mode_falls_back_to_general_theme_group() {
         let metadata = serde_json::json!({
             "harness": {
-                "theme": "planning"
+                "theme": "general"
             }
         });
 
@@ -379,7 +380,7 @@ mod tests {
     fn test_should_enable_model_skill_tool_allows_theme_workbench() {
         let metadata = serde_json::json!({
             "harness": {
-                "theme": "social-media",
+                "theme": "general",
                 "session_mode": "theme_workbench"
             }
         });
@@ -391,7 +392,7 @@ mod tests {
     fn test_should_enable_model_skill_tool_respects_explicit_override() {
         let metadata = serde_json::json!({
             "harness": {
-                "theme": "social-media",
+                "theme": "general",
                 "session_mode": "theme_workbench",
                 "allow_model_skills": false
             }
@@ -1134,35 +1135,35 @@ mod tests {
     fn test_extract_artifact_path_from_tool_start_reads_write_file_path() {
         let path = extract_artifact_path_from_tool_start(
             "write_file",
-            Some(r##"{"path":"social-posts/demo.md","content":"# 标题"}"##),
+            Some(r##"{"path":"content-posts/demo.md","content":"# 标题"}"##),
             "/tmp/workspace",
         );
 
-        assert_eq!(path.as_deref(), Some("social-posts/demo.md"));
+        assert_eq!(path.as_deref(), Some("content-posts/demo.md"));
     }
 
     #[test]
     fn test_extract_artifact_path_from_tool_start_reads_nested_artifact_protocol_path() {
         let path = extract_artifact_path_from_tool_start(
             "write_file",
-            Some(r##"{"payload":{"artifact_paths":["social-posts\\nested.md"]}}"##),
+            Some(r##"{"payload":{"artifact_paths":["content-posts\\nested.md"]}}"##),
             "/tmp/workspace",
         );
 
-        assert_eq!(path.as_deref(), Some("social-posts/nested.md"));
+        assert_eq!(path.as_deref(), Some("content-posts/nested.md"));
     }
 
     #[test]
     fn test_resolve_social_run_artifact_descriptor_matches_social_draft() {
         let descriptor = resolve_social_run_artifact_descriptor(
-            "social-posts/draft.md",
+            "content-posts/draft.md",
             Some("write_mode"),
             Some("社媒初稿"),
         );
 
         assert_eq!(descriptor.artifact_type, "draft");
         assert_eq!(descriptor.stage, "drafting");
-        assert_eq!(descriptor.version_label, "社媒初稿");
+        assert_eq!(descriptor.version_label, "工作台初稿");
         assert!(!descriptor.is_auxiliary);
     }
 
@@ -1189,7 +1190,7 @@ mod tests {
                 system_prompt: None,
                 metadata: Some(serde_json::json!({
                     "harness": {
-                        "theme": "social-media",
+                        "theme": "general",
                         "gate_key": "write_mode"
                     }
                 })),
@@ -1212,10 +1213,10 @@ mod tests {
         );
         let mut observation = ChatRunObservation::default();
         observation.record_artifact_path(
-            "social-posts/draft.md".to_string(),
+            "content-posts/draft.md".to_string(),
             Some(&serde_json::json!({
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                     "gate_key": "write_mode"
                 }
             })),
@@ -1227,7 +1228,7 @@ mod tests {
             metadata
                 .get("artifact_paths")
                 .and_then(serde_json::Value::as_array),
-            Some(&vec![serde_json::json!("social-posts/draft.md")])
+            Some(&vec![serde_json::json!("content-posts/draft.md")])
         );
         assert_eq!(
             metadata
@@ -1243,7 +1244,7 @@ mod tests {
             metadata
                 .get("version_id")
                 .and_then(serde_json::Value::as_str),
-            Some("artifact:social-posts/draft.md")
+            Some("artifact:content-posts/draft.md")
         );
     }
 
@@ -1633,7 +1634,7 @@ mod tests {
                     metadata: Some(HashMap::from([(
                         "payload".to_string(),
                         serde_json::json!({
-                            "artifact_paths": [" /tmp/workspace/social-posts\\final.md "]
+                            "artifact_paths": [" /tmp/workspace/content-posts\\final.md "]
                         }),
                     )])),
                 },
@@ -1641,7 +1642,7 @@ mod tests {
             "/tmp/workspace",
             Some(&serde_json::json!({
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                     "gate_key": "write_mode"
                 }
             })),
@@ -1650,14 +1651,14 @@ mod tests {
 
         assert_eq!(
             observation.artifact_paths,
-            vec!["social-posts/final.md".to_string()]
+            vec!["content-posts/final.md".to_string()]
         );
         assert_eq!(
             observation
                 .primary_social_artifact
                 .as_ref()
                 .map(|artifact| artifact.source_file_name.as_str()),
-            Some("social-posts/final.md")
+            Some("content-posts/final.md")
         );
     }
 
@@ -1681,7 +1682,7 @@ mod tests {
             "/tmp/workspace",
             Some(&serde_json::json!({
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                     "gate_key": "write_mode"
                 }
             })),
@@ -1705,14 +1706,14 @@ mod tests {
                     images: None,
                     metadata: Some(HashMap::from([(
                         "output_file".to_string(),
-                        serde_json::json!("/tmp/workspace/social-posts/final.md"),
+                        serde_json::json!("/tmp/workspace/content-posts/final.md"),
                     )])),
                 },
             },
             "/tmp/workspace",
             Some(&serde_json::json!({
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                     "gate_key": "write_mode"
                 }
             })),
@@ -1721,14 +1722,14 @@ mod tests {
 
         assert_eq!(
             observation.artifact_paths,
-            vec!["social-posts/final.md".to_string()]
+            vec!["content-posts/final.md".to_string()]
         );
         assert_eq!(
             observation
                 .primary_social_artifact
                 .as_ref()
                 .map(|artifact| artifact.source_file_name.as_str()),
-            Some("social-posts/final.md")
+            Some("content-posts/final.md")
         );
     }
 
@@ -2069,6 +2070,286 @@ mod tests {
         assert!(merged.contains("严格 JSON 对象"));
         assert!(merged.contains("\"adapter_name\":\"github/search\""));
         assert!(merged.contains("不要再让用户额外确认"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_image_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "image_skill_launch": {
+                    "skill_name": "image_generate",
+                    "kind": "image_task",
+                    "image_task": {
+                        "mode": "edit",
+                        "prompt": "把这张海报改成更清爽的青柠风格",
+                        "raw_text": "@修图 #img-2 把这张海报改成更清爽的青柠风格",
+                        "size": "1024x1024",
+                        "reference_images": [
+                            "/tmp/lime/turn-inputs/session-1/turn-1/input-1.png"
+                        ]
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_image_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains(IMAGE_SKILL_LAUNCH_PROMPT_MARKER));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"image_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"image_task\":"));
+        assert!(merged.contains("不要伪造“图片已生成完成”"));
+        assert!(merged.contains("当前任务已经显式进入图片技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_cover_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "cover_skill_launch": {
+                    "skill_name": "cover_generate",
+                    "kind": "cover_task",
+                    "cover_task": {
+                        "prompt": "春日咖啡市集封面",
+                        "raw_text": "@封面 小红书 标题: 春日咖啡快闪 风格: 清新插画, 1:1 春日咖啡市集封面",
+                        "title": "春日咖啡快闪",
+                        "platform": "小红书",
+                        "size": "1:1",
+                        "style": "清新插画",
+                        "project_id": "project-1",
+                        "content_id": "content-1"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_cover_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_COVER_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"cover_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"cover_task\":"));
+        assert!(merged.contains("不要把封面任务退化成普通配图"));
+        assert!(merged.contains("当前任务已经显式进入封面技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_video_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "video_skill_launch": {
+                    "skill_name": "video_generate",
+                    "kind": "video_task",
+                    "video_task": {
+                        "prompt": "15 秒新品发布短视频",
+                        "raw_text": "@视频 15秒 新品发布短视频，16:9，720p",
+                        "duration": 15,
+                        "aspect_ratio": "16:9",
+                        "resolution": "720p"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_video_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_VIDEO_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"video_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"video_task\":"));
+        assert!(merged.contains("不要伪造“视频已生成完成”"));
+        assert!(merged.contains("当前任务已经显式进入视频技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_transcription_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "transcription_skill_launch": {
+                    "skill_name": "transcription_generate",
+                    "kind": "transcription_task",
+                    "transcription_task": {
+                        "prompt": "生成逐字稿",
+                        "raw_text": "@转写 https://example.com/interview.mp4 生成逐字稿 导出 srt",
+                        "source_url": "https://example.com/interview.mp4",
+                        "output_format": "srt",
+                        "timestamps": true,
+                        "speaker_labels": true
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_transcription_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_TRANSCRIPTION_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"transcription_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"transcription_task\":"));
+        assert!(merged.contains("不要伪造“转写已完成”"));
+        assert!(merged.contains("当前任务已经显式进入转写技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_url_parse_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "url_parse_skill_launch": {
+                    "skill_name": "url_parse",
+                    "kind": "url_parse_task",
+                    "url_parse_task": {
+                        "prompt": "整理成投资人可读摘要",
+                        "raw_text": "@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要",
+                        "url": "https://example.com/agent",
+                        "extract_goal": "key_points"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_url_parse_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_URL_PARSE_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"url_parse\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"url_parse_task\":"));
+        assert!(merged.contains("extractStatus 设为 pending_extract"));
+        assert!(merged.contains("当前任务已经显式进入链接解析技能主链"));
+    }
+
+    #[test]
+    fn test_prepare_image_skill_launch_request_metadata_materializes_input_refs() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let metadata = serde_json::json!({
+            "harness": {
+                "image_skill_launch": {
+                    "skill_name": "image_generate",
+                    "kind": "image_task",
+                    "image_task": {
+                        "prompt": "青柠主视觉",
+                        "reference_images": ["skill-input-image://1"],
+                        "skill_input_images": [
+                            {
+                                "ref": "skill-input-image://1",
+                                "media_type": "image/png",
+                                "source": "attachment"
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+        let images = [ImageInput {
+            data: STANDARD.encode("hello-image"),
+            media_type: "image/png".to_string(),
+        }];
+
+        let prepared = prepare_image_skill_launch_request_metadata(
+            temp_dir.path(),
+            "session-image",
+            "turn-image",
+            Some(&metadata),
+            Some(&images),
+        )
+        .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+        let launch = harness
+            .get("image_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("image skill launch");
+        let image_task = launch
+            .get("image_task")
+            .and_then(serde_json::Value::as_object)
+            .expect("image task");
+        let reference_image_path = image_task
+            .get("reference_images")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|items| items.first())
+            .and_then(serde_json::Value::as_str)
+            .expect("reference image path");
+        let skill_input_ref = image_task
+            .get("skill_input_images")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|items| items.first())
+            .and_then(serde_json::Value::as_object)
+            .and_then(|item| item.get("ref"))
+            .and_then(serde_json::Value::as_str)
+            .expect("skill input ref");
+
+        assert_eq!(reference_image_path, skill_input_ref);
+        assert!(reference_image_path.ends_with("input-1.png"));
+        assert!(Path::new(reference_image_path).exists());
+    }
+
+    #[test]
+    fn test_prepare_image_skill_launch_request_metadata_sets_workbench_chat_mode_without_images() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "image_skill_launch": {
+                    "skill_name": "image_generate",
+                    "kind": "image_task",
+                    "image_task": {
+                        "prompt": "青柠主视觉"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_image_skill_launch_request_metadata(
+            Path::new("/tmp"),
+            "session-image",
+            "turn-image",
+            Some(&metadata),
+            None,
+        )
+        .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
     }
 
     #[test]

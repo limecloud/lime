@@ -13,7 +13,6 @@ interface CreateAgentInputAdapterOptions {
   send: (options?: { textOverride?: string }) => void;
   stop?: () => void;
   attachments?: ComposerAttachment[];
-  showExecutionStrategy?: boolean;
 }
 
 export const createAgentInputAdapter = (
@@ -31,7 +30,6 @@ export const createAgentInputAdapter = (
     send,
     stop,
     attachments,
-    showExecutionStrategy = true,
   } = options;
 
   return {
@@ -55,7 +53,6 @@ export const createAgentInputAdapter = (
     ui: {
       showModelSelector: true,
       showToolBar: true,
-      showExecutionStrategy,
     },
   };
 };

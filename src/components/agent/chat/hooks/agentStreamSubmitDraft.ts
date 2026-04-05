@@ -37,6 +37,7 @@ export function buildQueuedRuntimeStatus(
 
 interface PrepareAgentStreamSubmitDraftOptions {
   content: string;
+  displayContent?: string;
   images: MessageImage[];
   skipUserMessage: boolean;
   expectingQueue: boolean;
@@ -56,6 +57,7 @@ export function prepareAgentStreamSubmitDraft(
 ) {
   const {
     content,
+    displayContent,
     images,
     skipUserMessage,
     expectingQueue,
@@ -78,7 +80,11 @@ export function prepareAgentStreamSubmitDraft(
     isThinking: true,
     contentParts: [],
     runtimeStatus: expectingQueue
-      ? buildQueuedRuntimeStatus(effectiveExecutionStrategy, content, webSearch)
+      ? buildQueuedRuntimeStatus(
+          effectiveExecutionStrategy,
+          displayContent ?? content,
+          webSearch,
+        )
       : assistantDraft?.initialRuntimeStatus ||
         buildInitialAgentRuntimeStatus({
           executionStrategy: effectiveExecutionStrategy,
@@ -95,7 +101,7 @@ export function prepareAgentStreamSubmitDraft(
     const userMsg: Message = {
       id: userMsgId as string,
       role: "user",
-      content,
+      content: displayContent ?? content,
       images: images.length > 0 ? images : undefined,
       timestamp: new Date(),
       purpose: messagePurpose,

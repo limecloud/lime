@@ -452,6 +452,17 @@ async fn execute_aster_chat_request(
         }
     };
     let workspace_root = ensured.root_path.to_string_lossy().to_string();
+    let resolved_turn_id = request
+        .turn_id
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    request.metadata = prepare_image_skill_launch_request_metadata(
+        Path::new(&workspace_root),
+        session_id,
+        &resolved_turn_id,
+        request.metadata.as_ref(),
+        request.images.as_deref(),
+    );
     let runtime_config = config_manager.config();
     apply_web_search_runtime_env(&runtime_config);
     let auto_continue_config = request
@@ -688,8 +699,54 @@ async fn execute_aster_chat_request(
         prompt_with_artifact.clone(),
     );
 
-    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+    let prompt_with_image_skill_launch = merge_system_prompt_with_image_skill_launch(
         prompt_with_artifact,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ImageSkillLaunch,
+        prompt_with_image_skill_launch.clone(),
+    );
+
+    let prompt_with_cover_skill_launch = merge_system_prompt_with_cover_skill_launch(
+        prompt_with_image_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::CoverSkillLaunch,
+        prompt_with_cover_skill_launch.clone(),
+    );
+
+    let prompt_with_video_skill_launch = merge_system_prompt_with_video_skill_launch(
+        prompt_with_cover_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::VideoSkillLaunch,
+        prompt_with_video_skill_launch.clone(),
+    );
+
+    let prompt_with_transcription_skill_launch =
+        merge_system_prompt_with_transcription_skill_launch(
+            prompt_with_video_skill_launch,
+            request.metadata.as_ref(),
+        );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::TranscriptionSkillLaunch,
+        prompt_with_transcription_skill_launch.clone(),
+    );
+
+    let prompt_with_url_parse_skill_launch = merge_system_prompt_with_url_parse_skill_launch(
+        prompt_with_transcription_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::UrlParseSkillLaunch,
+        prompt_with_url_parse_skill_launch.clone(),
+    );
+
+    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+        prompt_with_url_parse_skill_launch,
         request.metadata.as_ref(),
     );
     turn_input_builder.apply_prompt_stage(
@@ -972,10 +1029,6 @@ async fn execute_aster_chat_request(
         .primary_thread_id()
         .map(str::to_string)
         .unwrap_or_else(|| session_id.to_string());
-    let resolved_turn_id = request
-        .turn_id
-        .clone()
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let turn_state = TurnState::new(
         session_id,
         workspace_id.as_str(),
@@ -2378,7 +2431,7 @@ mod tests {
             system_prompt: None,
             metadata: Some(json!({
                 "harness": {
-                    "theme": "document",
+                    "theme": "general",
                     "session_mode": "theme_workbench",
                     "content_id": "content-1"
                 }
@@ -2549,7 +2602,7 @@ mod tests {
             system_prompt: None,
             metadata: Some(json!({
                 "harness": {
-                    "theme": "document",
+                    "theme": "general",
                     "session_mode": "theme_workbench"
                 }
             })),
@@ -2560,7 +2613,7 @@ mod tests {
 
         normalize_runtime_turn_request_metadata(
             &mut request,
-            Some("document"),
+            Some("general"),
             Some("theme_workbench"),
             None,
             None,
@@ -2572,7 +2625,7 @@ mod tests {
             normalized_metadata
                 .pointer("/harness/theme")
                 .and_then(Value::as_str),
-            Some("document")
+            Some("general")
         );
         assert_eq!(
             normalized_metadata
@@ -2627,7 +2680,7 @@ mod tests {
 
         normalize_runtime_turn_request_metadata(
             &mut request,
-            Some("social-media"),
+            Some("general"),
             Some("theme_workbench"),
             None,
             None,
@@ -2639,7 +2692,7 @@ mod tests {
             normalized_metadata
                 .pointer("/harness/theme")
                 .and_then(Value::as_str),
-            Some("social-media")
+            Some("general")
         );
         assert_eq!(
             normalized_metadata
@@ -2670,7 +2723,7 @@ mod tests {
             approval_policy: None,
             sandbox_policy: None,
             project_id: None,
-            workspace_id: "workspace-social".to_string(),
+            workspace_id: "workspace-general-fallback".to_string(),
             web_search: None,
             search_mode: None,
             execution_strategy: None,
@@ -2678,7 +2731,7 @@ mod tests {
             system_prompt: None,
             metadata: Some(json!({
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                     "session_mode": "theme_workbench",
                     "content_id": "content-social-1"
                 }
@@ -2690,7 +2743,7 @@ mod tests {
 
         normalize_runtime_turn_request_metadata(
             &mut request,
-            Some("social-media"),
+            Some("general"),
             Some("theme_workbench"),
             Some("write_mode"),
             Some("社媒初稿"),
@@ -3003,7 +3056,7 @@ mod tests {
         observation
             .lock()
             .expect("lock observation")
-            .record_artifact_path("social-posts/demo.md".to_string(), None);
+            .record_artifact_path("content-posts/demo.md".to_string(), None);
 
         assert!(should_skip_artifact_document_autopersist(
             &observation,
@@ -3017,7 +3070,7 @@ mod tests {
 
         assert!(!should_skip_artifact_document_autopersist(
             &observation,
-            "<write_file path=\"social-posts/demo.md\">内容</write_file>"
+            "<write_file path=\"content-posts/demo.md\">内容</write_file>"
         ));
     }
 }

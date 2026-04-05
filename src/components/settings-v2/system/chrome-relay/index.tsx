@@ -2591,5 +2591,3 @@ export function ChromeRelaySettings() {
     </div>
   );
 }
-
-export default ChromeRelaySettings;

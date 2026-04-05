@@ -76,7 +76,7 @@ function buildCloudCatalog(): SkillCatalog {
         summary: "把参考视频与文案提交到 OEM 云端执行，并把结果回流到本地工作区。",
         executionLocation: "cloud_required",
         defaultExecutorBinding: "cloud_scene",
-        themeTarget: "video",
+        themeTarget: "general",
         version: "tenant-2026-03-30",
         groupKey: "general",
         execution: {

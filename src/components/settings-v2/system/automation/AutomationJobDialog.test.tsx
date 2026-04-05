@@ -123,7 +123,7 @@ describe("AutomationJobDialog", () => {
               artifact_kind: "analysis",
             },
             harness: {
-              theme: "social-media",
+              theme: "general",
               session_mode: "theme_workbench",
               content_id: "content-1",
             },
@@ -157,7 +157,7 @@ describe("AutomationJobDialog", () => {
               artifact_kind: "analysis",
             }),
             harness: expect.objectContaining({
-              theme: "social-media",
+              theme: "general",
               session_mode: "theme_workbench",
               content_id: "content-1",
             }),

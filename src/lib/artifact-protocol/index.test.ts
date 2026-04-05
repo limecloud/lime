@@ -30,7 +30,7 @@ describe("artifact-protocol", () => {
     ],
     sources: [],
     metadata: {
-      theme: "knowledge",
+      theme: "general",
     },
   };
 

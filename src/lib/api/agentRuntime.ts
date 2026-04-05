@@ -534,8 +534,7 @@ export interface AgentRuntimeReviewDecision {
   notes: string;
 }
 
-export interface AgentRuntimeSaveReviewDecisionRequest
-  extends AgentRuntimeReviewDecision {
+export interface AgentRuntimeSaveReviewDecisionRequest extends AgentRuntimeReviewDecision {
   session_id: string;
 }
 
@@ -764,11 +763,7 @@ function normalizeReviewDecision(value: unknown): AgentRuntimeReviewDecision {
       readStringField(record, "riskLevel", "risk_level"),
     ),
     risk_tags: readStringListField(record, "riskTags", "risk_tags"),
-    human_reviewer: readStringField(
-      record,
-      "humanReviewer",
-      "human_reviewer",
-    ),
+    human_reviewer: readStringField(record, "humanReviewer", "human_reviewer"),
     reviewed_at: readOptionalStringField(record, "reviewedAt", "reviewed_at"),
     followup_actions: readStringListField(
       record,
@@ -1007,7 +1002,7 @@ export interface AgentRuntimeSpawnSubagentRequest {
   model?: string;
   run_in_background?: boolean;
   mode?: string;
-  isolation?: 'worktree' | 'remote' | string;
+  isolation?: "worktree" | "remote" | string;
   reasoning_effort?: string;
   fork_context?: boolean;
   blueprint_role_id?: string;
@@ -1112,6 +1107,10 @@ export interface CreateImageGenerationTaskArtifactRequest {
   contentId?: string;
   entrySource?: string;
   requestedTarget?: "generate" | "cover";
+  slotId?: string;
+  anchorHint?: string;
+  anchorSectionTitle?: string;
+  anchorText?: string;
   targetOutputId?: string;
   targetOutputRefId?: string;
   referenceImages?: string[];
@@ -1134,6 +1133,7 @@ export interface MediaTaskArtifactRecord {
   result?: unknown;
   last_error?: Record<string, unknown> | null;
   attempts?: Array<Record<string, unknown>>;
+  relationships?: Record<string, unknown>;
   progress?: Record<string, unknown>;
   ui_hints?: Record<string, unknown>;
 }
@@ -1510,7 +1510,9 @@ export async function getAgentRuntimeSession(
     child_subagent_sessions: Array.isArray(
       normalizedDetail?.child_subagent_sessions,
     )
-      ? normalizedDetail.child_subagent_sessions.map(normalizeSubagentSessionInfo)
+      ? normalizedDetail.child_subagent_sessions.map(
+          normalizeSubagentSessionInfo,
+        )
       : normalizedDetail?.child_subagent_sessions,
     subagent_parent_context: normalizeSubagentParentContext(
       normalizedDetail?.subagent_parent_context,
@@ -1649,12 +1651,6 @@ export async function listMediaTaskArtifacts(
   request: ListMediaTaskArtifactsRequest,
 ): Promise<ListMediaTaskArtifactsOutput> {
   return await safeInvoke("list_media_task_artifacts", { request });
-}
-
-export async function retryMediaTaskArtifact(
-  request: MediaTaskLookupRequest,
-): Promise<MediaTaskArtifactOutput> {
-  return await safeInvoke("retry_media_task_artifact", { request });
 }
 
 export async function cancelMediaTaskArtifact(

@@ -40,10 +40,7 @@ import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
 import { SoundProvider } from "./contexts/SoundProvider";
 import { ComponentDebugOverlay } from "./components/dev";
-import {
-  getThemeWorkspacePage,
-  WorkspaceTheme,
-} from "./types/page";
+import { buildClawAgentParams } from "./lib/workspace/navigation";
 import { toast } from "sonner";
 import { SettingsTabs } from "./types/settings";
 
@@ -129,11 +126,6 @@ function AppContent() {
   const _handleRequestRecommendation = useCallback(
     (shortLabel: string, fullPrompt: string, currentTheme: string) => {
       const themeLabels: Record<string, string> = {
-        "social-media": "社媒",
-        knowledge: "知识",
-        planning: "计划",
-        document: "文档",
-        video: "视频",
         general: "对话",
       };
 
@@ -164,20 +156,22 @@ function AppContent() {
     });
 
     if (pendingRecommendation) {
-      handleNavigate(getThemeWorkspacePage(type as WorkspaceTheme), {
-        projectId: project.id,
-        workspaceViewMode: "workspace",
-        workspaceCreatePrompt: pendingRecommendation.fullPrompt,
-        workspaceCreateSource: "workspace_prompt",
-        workspaceCreateFallbackTitle: name,
-      });
+      handleNavigate(
+        "agent",
+        buildClawAgentParams({
+          projectId: project.id,
+          initialUserPrompt: pendingRecommendation.fullPrompt,
+        }),
+      );
 
       setPendingRecommendation(null);
     } else if (isUserProjectType(type)) {
-      handleNavigate(getThemeWorkspacePage(type as WorkspaceTheme), {
-        projectId: project.id,
-        workspaceViewMode: "project-management",
-      });
+      handleNavigate(
+        "agent",
+        buildClawAgentParams({
+          projectId: project.id,
+        }),
+      );
     } else {
       handleNavigate("agent", {
         projectId: project.id,

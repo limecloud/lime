@@ -250,8 +250,3 @@ export function UpdateCheckSettings() {
     </div>
   );
 }
-
-// 保持向后兼容的导出（已废弃，返回 null）
-export function UpdateNotification() {
-  return null;
-}

@@ -206,7 +206,7 @@ beforeEach(() => {
     {
       id: "project-2",
       name: "竞品情报",
-      workspaceType: "knowledge",
+      workspaceType: "general",
       rootPath: "/tmp/project-2",
       isDefault: false,
       createdAt: 1,

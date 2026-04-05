@@ -1,16 +1,10 @@
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ChatToolPreferences } from "./chatToolPreferences";
 
-const GENERAL_AGENT_THEMES = new Set<string>([
-  "general",
-  "knowledge",
-  "planning",
-]);
+const GENERAL_AGENT_THEMES = new Set<string>(["general"]);
 
 const GENERAL_THEME_LABELS: Record<string, string> = {
   general: "通用对话",
-  knowledge: "知识探索",
-  planning: "计划规划",
 };
 
 export function isGeneralResearchTheme(theme?: string | null): boolean {
@@ -45,14 +39,6 @@ const GENERAL_THEME_GUIDANCE: Record<string, string[]> = {
   general: [
     "优先处理需求澄清、方案对比、快速总结、行动清单、日常决策与文本起草。",
     "能直接回答的问题直接回答，不要默认升级成调研项目或多阶段工作流。",
-  ],
-  knowledge: [
-    "优先解释概念、总结材料、搭建知识框架，并区分事实、推断与不确定性。",
-    "遇到最新进展、行业趋势、数据口径、论文结论等时效性内容时，优先核对时间与来源。",
-  ],
-  planning: [
-    "优先给出目标拆解、执行节奏、资源需求、风险提醒和下一步行动。",
-    "计划要可执行、可调整，默认给出优先级、时间粒度和验收标准。",
   ],
 };
 

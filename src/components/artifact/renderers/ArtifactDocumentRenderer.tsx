@@ -72,16 +72,6 @@ function getDocumentThemeLabel(theme: unknown): string | undefined {
   switch (normalizedTheme) {
     case "general":
       return "通用";
-    case "social-media":
-      return "社媒";
-    case "knowledge":
-      return "知识探索";
-    case "planning":
-      return "计划规划";
-    case "document":
-      return "办公文档";
-    case "video":
-      return "短视频";
     case "blog":
       return "博客";
     case "persistent":
@@ -89,7 +79,7 @@ function getDocumentThemeLabel(theme: unknown): string | undefined {
     case "temporary":
       return "临时";
     default:
-      return normalizedTheme;
+      return "通用";
   }
 }
 

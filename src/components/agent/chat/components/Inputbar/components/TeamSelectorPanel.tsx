@@ -41,10 +41,6 @@ import {
 interface TeamSelectorPanelProps {
   activeTheme?: string;
   input?: string;
-  workspaceId?: string | null;
-  providerType?: string;
-  model?: string;
-  executionStrategy?: "react" | "code_orchestrated" | "auto";
   selectedTeam?: TeamDefinition | null;
   onSelectTeam: (team: TeamDefinition | null) => void;
   workspaceSettings?: WorkspaceSettings | null;
@@ -298,10 +294,6 @@ function TeamCard({
 export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
   activeTheme,
   input,
-  workspaceId: _workspaceId,
-  providerType: _providerType,
-  model: _model,
-  executionStrategy: _executionStrategy,
   selectedTeam = null,
   onSelectTeam,
   workspaceSettings,

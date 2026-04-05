@@ -1,4 +1,7 @@
-use super::{args_or_default, get_string_arg, parse_nested_arg, require_app_handle};
+use super::{
+    args_or_default, get_string_arg, parse_nested_arg, parse_optional_nested_arg,
+    require_app_handle,
+};
 use crate::dev_bridge::DevBridgeState;
 use serde::de::DeserializeOwned;
 use serde_json::Value as JsonValue;
@@ -25,6 +28,7 @@ pub(super) async fn try_handle(
             | "agent_runtime_list_sessions"
             | "agent_runtime_get_session"
             | "agent_runtime_get_thread_read"
+            | "agent_runtime_get_tool_inventory"
             | "agent_runtime_replay_request"
             | "agent_runtime_update_session"
             | "agent_runtime_delete_session"
@@ -217,6 +221,24 @@ pub(super) async fn try_handle(
                     mcp_manager,
                     automation_state,
                     session_id,
+                )
+                .await?,
+            )?
+        }
+        "agent_runtime_get_tool_inventory" => {
+            let request = parse_optional_nested_arg::<
+                crate::commands::aster_agent_cmd::AgentRuntimeToolInventoryRequest,
+            >(&args_or_default(args), "request")?;
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
+
+            serde_json::to_value(
+                crate::commands::aster_agent_cmd::agent_runtime_get_tool_inventory(
+                    aster_state,
+                    config_manager,
+                    mcp_manager,
+                    request,
                 )
                 .await?,
             )?

@@ -1,9 +1,7 @@
 import { useCallback } from "react";
 import type { Skill } from "@/lib/api/skills";
 import type { MessageImage } from "../../../types";
-import type { BuiltinInputCommand } from "../components/builtinCommands";
-
-const SOCIAL_ARTICLE_SKILL_KEY = "social_post_with_cover";
+import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
 
 interface UseInputbarSendParams {
   input: string;
@@ -11,10 +9,8 @@ interface UseInputbarSendParams {
   webSearchEnabled: boolean;
   thinkingEnabled: boolean;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
-  activeTools: Record<string, boolean>;
   activeSkill: Skill | null;
   activeBuiltinCommand: BuiltinInputCommand | null;
-  activeTheme?: string;
   onSend: (
     images?: MessageImage[],
     webSearch?: boolean,
@@ -33,10 +29,8 @@ export function useInputbarSend({
   webSearchEnabled,
   thinkingEnabled,
   executionStrategy,
-  activeTools,
   activeSkill,
   activeBuiltinCommand,
-  activeTheme,
   onSend,
   clearPendingImages,
   clearActiveSkill,
@@ -49,9 +43,7 @@ export function useInputbarSend({
 
     const webSearch = webSearchEnabled;
     const thinking = thinkingEnabled;
-    let strategy =
-      executionStrategy ||
-      (activeTools["execution_strategy"] ? "code_orchestrated" : "react");
+    let strategy = executionStrategy || "react";
 
     if (webSearch && strategy !== "react") {
       strategy = "react";
@@ -62,12 +54,6 @@ export function useInputbarSend({
       textOverride = `${activeBuiltinCommand.commandPrefix} ${input}`.trim();
     } else if (activeSkill) {
       textOverride = `/${activeSkill.key} ${input}`.trim();
-    } else if (
-      activeTheme === "social-media" &&
-      input.trim() &&
-      !input.trimStart().startsWith("/")
-    ) {
-      textOverride = `/${SOCIAL_ARTICLE_SKILL_KEY} ${input}`.trim();
     }
 
     try {
@@ -90,8 +76,6 @@ export function useInputbarSend({
   }, [
     activeBuiltinCommand,
     activeSkill,
-    activeTheme,
-    activeTools,
     clearActiveBuiltinCommand,
     clearActiveSkill,
     clearPendingImages,

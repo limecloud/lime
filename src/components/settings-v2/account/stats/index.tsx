@@ -800,5 +800,3 @@ export function StatsSettings() {
     </div>
   );
 }
-
-export default StatsSettings;

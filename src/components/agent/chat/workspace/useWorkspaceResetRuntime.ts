@@ -119,27 +119,6 @@ export function useWorkspaceResetRuntime({
     setBrowserTaskPreflight,
   ]);
 
-  const handleClearMessages = useCallback(() => {
-    clearMessages();
-    setInput("");
-    setSelectedText("");
-    setBrowserTaskPreflight(null);
-    autoCollapsedTopicSidebarRef.current = false;
-    setShowSidebar(defaultTopicSidebarVisible);
-    resetWorkbenchSurface();
-    clearProjectSelectionRuntime();
-  }, [
-    autoCollapsedTopicSidebarRef,
-    clearMessages,
-    clearProjectSelectionRuntime,
-    defaultTopicSidebarVisible,
-    resetWorkbenchSurface,
-    setBrowserTaskPreflight,
-    setInput,
-    setSelectedText,
-    setShowSidebar,
-  ]);
-
   const handleBackHome = useCallback(() => {
     clearMessages({
       showToast: false,
@@ -255,7 +234,6 @@ export function useWorkspaceResetRuntime({
 
   return {
     handleBackHome,
-    handleClearMessages,
     resetTopicLocalState,
   };
 }

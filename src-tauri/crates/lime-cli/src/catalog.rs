@@ -11,6 +11,7 @@ AI Agent 技能:
 
 示例:
   lime task create image --prompt \"未来城市插图\" --size \"1024x1024\"
+  lime task create transcription --source-path \"/tmp/interview.wav\" --output-format srt
   lime task create broadcast --title \"播客摘要\" --content \"原文内容\"
   lime task list --family image --status running
   lime task status <task-id>
@@ -21,6 +22,7 @@ AI Agent 技能:
 pub const TASK_AFTER_HELP: &str = "\
 常用命令:
   lime task create image --prompt \"未来城市插图\"
+  lime task create transcription --source-url \"https://example.com/demo.mp4\"
   lime task create url-parse --url \"https://example.com\" --summary \"摘要\"
   lime task list --family image
   lime task list --type broadcast
@@ -67,6 +69,15 @@ pub const TASK_ENTRIES: &[TaskCatalogEntry] = &[
         skill_name: "video_generate",
         docs_dir: "src-tauri/resources/default-skills/video_generate",
         example: "lime task create video --prompt \"产品发布短视频\" --aspect-ratio 9:16",
+    },
+    TaskCatalogEntry {
+        command_name: "transcription",
+        task_type: TaskType::TranscriptionGenerate,
+        description: "创建音频或视频转写任务记录，不伪造已完成结果。",
+        skill_name: "transcription_generate",
+        docs_dir: "src-tauri/resources/default-skills/transcription_generate",
+        example:
+            "lime task create transcription --source-path \"/tmp/interview.wav\" --output-format srt",
     },
     TaskCatalogEntry {
         command_name: "broadcast",
@@ -152,6 +163,14 @@ pub const SKILL_ENTRIES: &[SkillCatalogEntry] = &[
         description: "视频任务编排技能。",
         recommended_command: "lime task create video --prompt \"...\" --aspect-ratio 9:16",
         skill_path: "src-tauri/resources/default-skills/video_generate/SKILL.md",
+        references: &[],
+    },
+    SkillCatalogEntry {
+        name: "transcription_generate",
+        description: "音频或视频转写任务技能。",
+        recommended_command:
+            "lime task create transcription --source-path \"/tmp/interview.wav\" --output-format srt",
+        skill_path: "src-tauri/resources/default-skills/transcription_generate/SKILL.md",
         references: &[],
     },
     SkillCatalogEntry {

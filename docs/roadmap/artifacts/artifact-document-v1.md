@@ -138,12 +138,7 @@ export interface ArtifactDocumentV1 {
 }
 
 export interface ArtifactDocumentMetaV1 {
-  theme?:
-    | "general"
-    | "document"
-    | "knowledge"
-    | "planning"
-    | "social-media";
+  theme?: "general";
   audience?: string;
   intent?: string;
   generatedBy?: "agent" | "user" | "automation";

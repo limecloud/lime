@@ -174,7 +174,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-b",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages,
       onSnapshot: (value) => {
         snapshot = value;
@@ -231,7 +231,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-dup-content",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages: [],
       onSnapshot: (value) => {
         snapshot = value;
@@ -266,7 +266,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-search",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages: [],
       onSnapshot: (value) => {
         snapshot = value;
@@ -312,7 +312,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-material",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages: [],
       onSnapshot: (value) => {
         snapshot = value;
@@ -356,7 +356,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-c",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages,
       onSnapshot: (value) => {
         snapshot = value;
@@ -383,14 +383,14 @@ describe("useThemeContextWorkspace", () => {
             name: "write_file",
             status: "completed",
             arguments: JSON.stringify({
-              file_path: "social-posts/demo.md",
+              file_path: "content-posts/demo.md",
             }),
             result: {
               success: true,
               output: JSON.stringify({
                 artifact_paths: [
-                  "social-posts/demo.md",
-                  "social-posts/demo.publish-pack.json",
+                  "content-posts/demo.md",
+                  "content-posts/demo.publish-pack.json",
                 ],
               }),
             },
@@ -404,7 +404,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-artifact-path",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages,
       onSnapshot: (value) => {
         snapshot = value;
@@ -413,8 +413,8 @@ describe("useThemeContextWorkspace", () => {
     await flushEffects(12);
 
     expect(snapshot!.activityLogs[0]?.artifactPaths).toEqual([
-      "social-posts/demo.md",
-      "social-posts/demo.publish-pack.json",
+      "content-posts/demo.md",
+      "content-posts/demo.publish-pack.json",
     ]);
   });
 
@@ -434,14 +434,14 @@ describe("useThemeContextWorkspace", () => {
             status: "completed",
             arguments: JSON.stringify({
               payload: {
-                filePath: "social-posts/draft.md",
+                filePath: "content-posts/draft.md",
               },
             }),
             result: {
               success: true,
               output: JSON.stringify({
                 result: {
-                  absolute_path: "/tmp/social-posts/final.md",
+                  absolute_path: "/tmp/content-posts/final.md",
                 },
               }),
             },
@@ -455,7 +455,7 @@ describe("useThemeContextWorkspace", () => {
     let snapshot: ThemeContextWorkspaceState | null = null;
     mountProbe({
       projectId: "project-artifact-nested-path",
-      activeTheme: "social-media",
+      activeTheme: "general",
       messages,
       onSnapshot: (value) => {
         snapshot = value;
@@ -464,8 +464,8 @@ describe("useThemeContextWorkspace", () => {
     await flushEffects(12);
 
     expect(snapshot!.activityLogs[0]?.artifactPaths).toEqual([
-      "social-posts/draft.md",
-      "/tmp/social-posts/final.md",
+      "content-posts/draft.md",
+      "/tmp/content-posts/final.md",
     ]);
   });
 });

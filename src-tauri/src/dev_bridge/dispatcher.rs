@@ -229,7 +229,7 @@ mod tests {
                 "request": {
                     "name": "社媒项目",
                     "rootPath": root_path.to_string_lossy().to_string(),
-                    "workspaceType": "social-media"
+                    "workspaceType": "general"
                 }
             })),
         )
@@ -238,7 +238,7 @@ mod tests {
         let created_id = created_value["id"].as_str().unwrap().to_string();
 
         assert_eq!(created_value["name"], "社媒项目");
-        assert_eq!(created_value["workspaceType"], "social-media");
+        assert_eq!(created_value["workspaceType"], "general");
 
         let list_value = handle_command(&state, "workspace_list", None)
             .await
@@ -262,7 +262,7 @@ mod tests {
                 "request": {
                     "name": "内容项目",
                     "rootPath": root_path.to_string_lossy().to_string(),
-                    "workspaceType": "social-media"
+                    "workspaceType": "general"
                 }
             })),
         )

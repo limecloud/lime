@@ -27,13 +27,14 @@
 6. **不要继续扩展 compat / deprecated 路径** - 新 API、新命令、新前端入口默认落在当前 `current` 主路径
 7. **协议改动必须同步四侧** - `safeInvoke(...)` / `invoke(...)`、`tauri::generate_handler!`、`agentCommandCatalog`、`mockPriorityCommands` / `defaultMocks` 必须保持一致
 8. **协议改动必须同步文档** - 至少同步更新 `docs/aiprompts/commands.md`、`docs/aiprompts/playwright-e2e.md`、`docs/aiprompts/quality-workflow.md`
-9. **用户可见 UI 改动必须补稳定回归** - 优先补现有 `*.test.tsx` 的关键文案、状态、交互断言；若已有 snapshot 机制，沿用现有机制
-10. **配置结构改动要成组更新** - schema、校验器、消费者、文档必须同步演进
-11. **依赖改动要同步锁文件** - 提交 `package-lock.json`、`src-tauri/Cargo.lock` 等实际锁文件；本仓库不适用 Bazel 规则
-12. **Rust 测试先小后大** - 先跑受影响 crate / 模块 / 定向测试，再决定是否跑全量 `cargo test`
-13. **控制 Rust 文件规模** - 新增模块尽量控制在 `500 LoC` 以内；文件接近 `800 LoC` 时，新功能优先拆新模块
-14. **不要继续放大历史大文件** - 现有超大文件属于历史包袱，但新增逻辑应优先拆边界，不继续堆叠
-15. **质量门禁保持单一主线** - `.github/workflows/quality.yml`、`scripts/quality-task-planner.mjs`、本地统一入口要保持一致
+9. **命令运行时改动先补设计包** - 新增或调整 `@` / 产品型 `/` / 轻卡 / viewer / `ServiceSkill` 场景时，先读 `docs/aiprompts/command-runtime.md`，并先补完整方案包再进入实现
+10. **用户可见 UI 改动必须补稳定回归** - 优先补现有 `*.test.tsx` 的关键文案、状态、交互断言；若已有 snapshot 机制，沿用现有机制
+11. **配置结构改动要成组更新** - schema、校验器、消费者、文档必须同步演进
+12. **依赖改动要同步锁文件** - 提交 `package-lock.json`、`src-tauri/Cargo.lock` 等实际锁文件；本仓库不适用 Bazel 规则
+13. **Rust 测试先小后大** - 先跑受影响 crate / 模块 / 定向测试，再决定是否跑全量 `cargo test`
+14. **控制 Rust 文件规模** - 新增模块尽量控制在 `500 LoC` 以内；文件接近 `800 LoC` 时，新功能优先拆新模块
+15. **不要继续放大历史大文件** - 现有超大文件属于历史包袱，但新增逻辑应优先拆边界，不继续堆叠
+16. **质量门禁保持单一主线** - `.github/workflows/quality.yml`、`scripts/quality-task-planner.mjs`、本地统一入口要保持一致
 
 ## 路线图主线护栏
 
@@ -58,6 +59,7 @@
 
 - **架构概览**：`docs/aiprompts/overview.md`
 - **工程质量**：`docs/aiprompts/quality-workflow.md`
+- **命令运行时**：`docs/aiprompts/command-runtime.md`
 - **治理收口**：`docs/aiprompts/governance.md`
 - **技能标准**：`docs/aiprompts/skill-standard.md`
 - **站点适配器标准**：`docs/aiprompts/site-adapter-standard.md`

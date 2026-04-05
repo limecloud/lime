@@ -26,7 +26,6 @@ export enum SettingsTabs {
 
   // 通用
   Appearance = "appearance",
-  ChatAppearance = "chat-appearance",
   Hotkeys = "hotkeys",
   Memory = "memory",
 
@@ -37,11 +36,9 @@ export enum SettingsTabs {
 
   // 系统
   McpServer = "mcp-server",
-  Channels = "channels",
   WebSearch = "web-search",
   Environment = "environment",
   ChromeRelay = "chrome-relay",
-  SecurityPerformance = "security-performance",
   Automation = "automation",
   ExecutionTracker = "execution-tracker",
 
@@ -89,7 +86,6 @@ export const SETTINGS_GROUPS: Record<SettingsGroupKey, SettingsTabs[]> = {
     SettingsTabs.WebSearch,
     SettingsTabs.Environment,
     SettingsTabs.ChromeRelay,
-    SettingsTabs.SecurityPerformance,
     SettingsTabs.Automation,
     SettingsTabs.ExecutionTracker,
 

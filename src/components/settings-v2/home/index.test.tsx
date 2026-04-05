@@ -22,6 +22,7 @@ const mounted: RenderResult[] = [];
 function renderPage(
   onTabChange = vi.fn(),
   onTabPrefetch?: (tab: SettingsTabs) => void,
+  onOpenCompanion?: () => void,
 ): RenderResult {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -32,6 +33,7 @@ function renderPage(
       <SettingsHomePage
         onTabChange={onTabChange}
         onTabPrefetch={onTabPrefetch}
+        onOpenCompanion={onOpenCompanion}
       />,
     );
   });
@@ -87,8 +89,8 @@ beforeEach(() => {
       title: "系统",
       items: [
         {
-          key: SettingsTabs.SecurityPerformance,
-          label: "安全与性能",
+          key: SettingsTabs.ChromeRelay,
+          label: "连接器",
           icon: ShieldCheck,
         },
       ],
@@ -123,7 +125,8 @@ describe("SettingsHomePage", () => {
     expect(text).toContain("系统");
     expect(text).toContain("外观");
     expect(text).toContain("AI 服务商");
-    expect(text).toContain("安全与性能");
+    expect(text).not.toContain("安全与性能");
+    expect(text).not.toContain("权限、稳定性与运行开关");
   });
 
   it("点击常用入口时应触发 tab 切换", () => {
@@ -152,5 +155,19 @@ describe("SettingsHomePage", () => {
     });
 
     expect(onTabPrefetch).toHaveBeenCalledWith(SettingsTabs.Appearance);
+  });
+
+  it("点击桌宠入口时应打开桌宠管理页", () => {
+    const onOpenCompanion = vi.fn();
+    const { container } = renderPage(vi.fn(), undefined, onOpenCompanion);
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("桌宠"),
+    );
+
+    act(() => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenCompanion).toHaveBeenCalledTimes(1);
   });
 });

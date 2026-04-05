@@ -1,3 +1,5 @@
+import type { Dispatch, SetStateAction } from "react";
+import { useCallback } from "react";
 import { useWorkspaceContextHarnessRuntime } from "./useWorkspaceContextHarnessRuntime";
 import { useWorkspaceHarnessInventoryRuntime } from "./useWorkspaceHarnessInventoryRuntime";
 import { useWorkspaceInputbarScenePresentation } from "./useWorkspaceInputbarScenePresentation";
@@ -25,7 +27,9 @@ type FloatingTeamWorkspaceDockParams =
 type GeneralWorkbenchDialogParams =
   InputbarPresentationParams["generalWorkbenchDialog"];
 type NavigationActions = ReturnType<typeof useWorkspaceNavigationActions>;
-type ContextHarnessRuntime = ReturnType<typeof useWorkspaceContextHarnessRuntime>;
+type ContextHarnessRuntime = ReturnType<
+  typeof useWorkspaceContextHarnessRuntime
+>;
 type HarnessInventoryRuntime = ReturnType<
   typeof useWorkspaceHarnessInventoryRuntime
 >;
@@ -59,9 +63,6 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   input: InputbarParams["input"];
   setInput: InputbarParams["setInput"];
   currentGate: InputbarParams["themeWorkbenchGate"];
-  pendingA2UIForm: InputbarParams["pendingA2UIForm"];
-  handleInputbarA2UISubmit: InputbarParams["onA2UISubmit"];
-  a2uiSubmissionNotice: InputbarParams["a2uiSubmissionNotice"];
   themeWorkbenchSidebarRuntime: ThemeWorkbenchSidebarRuntime;
   steps: InputbarParams["workflowSteps"];
   themeWorkbenchRunState: InputbarParams["themeWorkbenchRunState"];
@@ -72,8 +73,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   model: InputbarParams["model"];
   setModel: InputbarParams["setModel"];
   sessionExecutionRuntime: InputbarParams["executionRuntime"];
-  isExecutionRuntimeActive: InputbarParams["isExecutionRuntimeActive"];
-  projectId: InputbarParams["workspaceId"];
+  projectId: string | null | undefined;
   executionStrategy: InputbarParams["executionStrategy"];
   setExecutionStrategy: InputbarParams["setExecutionStrategy"];
   accessMode: InputbarParams["accessMode"];
@@ -83,8 +83,6 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   selectedTeam: InputbarParams["selectedTeam"];
   handleSelectTeam: InputbarParams["onSelectTeam"];
   handleEnableSuggestedTeam: InputbarParams["onEnableSuggestedTeam"];
-  handleClearMessages: InputbarParams["onClearMessages"];
-  handleToggleCanvas: InputbarParams["onToggleCanvas"];
   layoutMode: LayoutMode;
   handleTaskFileClick: InputbarParams["onTaskFileClick"];
   characters: InputbarParams["characters"];
@@ -92,7 +90,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   serviceSkills: InputbarParams["serviceSkills"];
   skillsLoading: InputbarParams["isSkillsLoading"];
   onSelectServiceSkill: InputbarParams["onSelectServiceSkill"];
-  setChatToolPreferences: InputbarParams["onToolStatesChange"];
+  setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
   handleNavigateToSkillSettings: InputbarParams["onNavigateToSettings"];
   handleRefreshSkills: InputbarParams["onRefreshSkills"];
   turns: GeneralWorkbenchDialogParams["turns"];
@@ -150,9 +148,6 @@ export function useWorkspaceInputbarSceneRuntime({
   input,
   setInput,
   currentGate,
-  pendingA2UIForm,
-  handleInputbarA2UISubmit,
-  a2uiSubmissionNotice,
   themeWorkbenchSidebarRuntime,
   steps,
   themeWorkbenchRunState,
@@ -163,7 +158,6 @@ export function useWorkspaceInputbarSceneRuntime({
   model,
   setModel,
   sessionExecutionRuntime,
-  isExecutionRuntimeActive,
   projectId,
   executionStrategy,
   setExecutionStrategy,
@@ -174,8 +168,6 @@ export function useWorkspaceInputbarSceneRuntime({
   selectedTeam,
   handleSelectTeam,
   handleEnableSuggestedTeam,
-  handleClearMessages,
-  handleToggleCanvas,
   layoutMode,
   handleTaskFileClick,
   characters,
@@ -219,6 +211,20 @@ export function useWorkspaceInputbarSceneRuntime({
   const resolvedQueuedTurns = queuedTurns ?? [];
   const resolvedChatToolPreferences =
     chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
+  const handleInputbarToolStatesChange = useCallback(
+    (
+      nextToolStates: Pick<
+        ChatToolPreferences,
+        "webSearch" | "thinking" | "subagent"
+      >,
+    ) => {
+      setChatToolPreferences((previous) => ({
+        ...previous,
+        ...nextToolStates,
+      }));
+    },
+    [setChatToolPreferences],
+  );
   const dockLayoutMode = layoutMode === "chat" ? "chat" : "chat-canvas";
 
   return useWorkspaceInputbarScenePresentation({
@@ -269,9 +275,6 @@ export function useWorkspaceInputbarSceneRuntime({
         setInput,
         variant: isThemeWorkbench ? "theme_workbench" : "default",
         themeWorkbenchGate: isThemeWorkbench ? currentGate : null,
-        pendingA2UIForm: pendingA2UIForm || null,
-        onA2UISubmit: handleInputbarA2UISubmit,
-        a2uiSubmissionNotice,
         workflowSteps: isThemeWorkbench
           ? themeWorkbenchSidebarRuntime.themeWorkbenchWorkflowSteps
           : steps,
@@ -284,8 +287,6 @@ export function useWorkspaceInputbarSceneRuntime({
         model,
         setModel,
         executionRuntime: sessionExecutionRuntime,
-        isExecutionRuntimeActive,
-        workspaceId: projectId,
         executionStrategy,
         setExecutionStrategy,
         accessMode,
@@ -296,17 +297,18 @@ export function useWorkspaceInputbarSceneRuntime({
         onSelectTeam: handleSelectTeam,
         onEnableSuggestedTeam: handleEnableSuggestedTeam,
         disabled: !projectId,
-        onClearMessages: handleClearMessages,
-        onToggleCanvas: handleToggleCanvas,
-        isCanvasOpen: layoutMode !== "chat",
         onTaskFileClick: handleTaskFileClick,
         characters,
         skills,
         serviceSkills,
         isSkillsLoading: skillsLoading,
         onSelectServiceSkill,
-        toolStates: resolvedChatToolPreferences,
-        onToolStatesChange: setChatToolPreferences,
+        toolStates: {
+          webSearch: resolvedChatToolPreferences.webSearch,
+          thinking: resolvedChatToolPreferences.thinking,
+          subagent: resolvedChatToolPreferences.subagent,
+        },
+        onToolStatesChange: handleInputbarToolStatesChange,
         onNavigateToSettings: handleNavigateToSkillSettings,
         onRefreshSkills: handleRefreshSkills,
         queuedTurns: resolvedQueuedTurns,

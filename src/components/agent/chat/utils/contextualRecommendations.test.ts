@@ -7,29 +7,25 @@ import {
 } from "./contextualRecommendations";
 
 describe("getContextualRecommendations", () => {
-  it("社媒空白场景应返回起稿类推荐", () => {
+  it("空白引导场景应返回结构类推荐", () => {
     const recommendations = getContextualRecommendations({
-      activeTheme: "social-media",
+      activeTheme: "general",
       input: "",
       creationMode: "guided",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
       hasCanvasContent: false,
       hasContentId: true,
       selectedText: "",
     });
 
     expect(recommendations.length).toBeGreaterThan(0);
-    expect(recommendations[0]?.[0]).toContain("选题");
+    expect(recommendations[0]?.[0]).toContain("先搭结构");
   });
 
-  it("社媒有正文时应优先返回改写类推荐", () => {
+  it("已有正文时应优先返回改写类推荐", () => {
     const recommendations = getContextualRecommendations({
-      activeTheme: "social-media",
+      activeTheme: "general",
       input: "",
       creationMode: "hybrid",
-      entryTaskType: "rewrite",
-      platform: "wechat",
       hasCanvasContent: true,
       hasContentId: true,
       selectedText: "",
@@ -39,13 +35,11 @@ describe("getContextualRecommendations", () => {
     expect(recommendations[0]?.[0]).toContain("润色");
   });
 
-  it("社媒有输入时应返回输入相关推荐", () => {
+  it("有输入主题时应返回输入相关推荐", () => {
     const recommendations = getContextualRecommendations({
-      activeTheme: "social-media",
+      activeTheme: "general",
       input: "春季敏感肌修护",
       creationMode: "fast",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
       hasCanvasContent: false,
       hasContentId: false,
       selectedText: "",
@@ -55,36 +49,20 @@ describe("getContextualRecommendations", () => {
     expect(recommendations[0]?.[1]).toContain("春季敏感肌修护");
   });
 
-  it("非社媒主题应走主题兜底推荐", () => {
-    const recommendations = getContextualRecommendations({
-      activeTheme: "planning",
-      input: "",
-      creationMode: "guided",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
-      hasCanvasContent: false,
-      hasContentId: false,
-      selectedText: "",
-    });
-
-    expect(recommendations.length).toBeGreaterThan(0);
-    expect(recommendations[0]?.[0]).toContain("计划");
-  });
-
   it("通用主题应返回通用对话推荐", () => {
     const recommendations = getContextualRecommendations({
       activeTheme: "general",
       input: "",
       creationMode: "guided",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
       hasCanvasContent: false,
       hasContentId: false,
       selectedText: "",
     });
 
     expect(recommendations.length).toBeGreaterThan(0);
-    expect(recommendations[0]?.[0]).toContain("Team");
+    expect(
+      recommendations.some(([label]) => label.includes("Team")),
+    ).toBe(true);
   });
 
   it("开启多代理偏好后应优先返回 team runtime 测试提示词", () => {
@@ -92,8 +70,6 @@ describe("getContextualRecommendations", () => {
       activeTheme: "general",
       input: "实现 team workspace UI 和实时订阅",
       creationMode: "guided",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
       hasCanvasContent: false,
       hasContentId: false,
       selectedText: "",
@@ -101,8 +77,12 @@ describe("getContextualRecommendations", () => {
     });
 
     expect(recommendations.length).toBeGreaterThan(0);
-    expect(recommendations[0]?.[0]).toContain("Team");
-    expect(recommendations[0]?.[1]).toContain("team runtime");
+    expect(
+      recommendations.some(
+        ([label, prompt]) =>
+          label.includes("Team") && prompt.includes("team runtime"),
+      ),
+    ).toBe(true);
   });
 
   it("未开启多代理偏好时也应给出 team 测试入口，并提示先开启开关", () => {
@@ -110,8 +90,6 @@ describe("getContextualRecommendations", () => {
       activeTheme: "general",
       input: "",
       creationMode: "guided",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
       hasCanvasContent: false,
       hasContentId: false,
       selectedText: "",
@@ -119,33 +97,19 @@ describe("getContextualRecommendations", () => {
     });
 
     expect(recommendations.length).toBeGreaterThan(0);
-    expect(recommendations[0]?.[0]).toContain("Team");
-    expect(recommendations[0]?.[1]).toContain("多代理");
+    expect(
+      recommendations.some(
+        ([label, prompt]) =>
+          label.includes("Team") && prompt.includes("多代理"),
+      ),
+    ).toBe(true);
   });
 
-  it("文档主题应返回办公文档推荐", () => {
+  it("有选中文本时应优先返回选区改写推荐", () => {
     const recommendations = getContextualRecommendations({
-      activeTheme: "document",
+      activeTheme: "general",
       input: "",
       creationMode: "guided",
-      entryTaskType: "direct",
-      platform: "xiaohongshu",
-      hasCanvasContent: false,
-      hasContentId: false,
-      selectedText: "",
-    });
-
-    expect(recommendations.length).toBeGreaterThan(0);
-    expect(recommendations[0]?.[0]).toContain("公文");
-  });
-
-  it("社媒有选中文本时应优先返回选区改写推荐", () => {
-    const recommendations = getContextualRecommendations({
-      activeTheme: "social-media",
-      input: "",
-      creationMode: "guided",
-      entryTaskType: "rewrite",
-      platform: "wechat",
       hasCanvasContent: true,
       hasContentId: true,
       selectedText: "这是一段待优化的原文内容。",

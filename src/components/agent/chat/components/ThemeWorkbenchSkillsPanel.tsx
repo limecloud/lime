@@ -10,6 +10,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Skill } from "@/lib/api/skills";
+import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
 
 type SkillGroupKey = "text" | "visual" | "audio" | "video" | "resource";
 type ThemeWorkbenchRunState = "idle" | "auto_running" | "await_user_decision";
@@ -182,15 +183,12 @@ function buildSkillFeatureProbe(skill: Skill): string {
 
 function pickRecommendedSkills(skills: Skill[], gateKey: string): Skill[] {
   const tagsByGate: Record<string, string[]> = {
-    topic_select: ["research", "social_post_with_cover"],
-    write_mode: ["social_post_with_cover", "typesetting", "cover"],
-    publish_confirm: ["typesetting", "cover", "social_post_with_cover"],
+    topic_select: ["research", CONTENT_POST_SKILL_KEY],
+    write_mode: [CONTENT_POST_SKILL_KEY, "typesetting", "cover"],
+    publish_confirm: ["typesetting", "cover", CONTENT_POST_SKILL_KEY],
   };
 
-  const preferredTags = tagsByGate[gateKey] || [
-    "social_post_with_cover",
-    "research",
-  ];
+  const preferredTags = tagsByGate[gateKey] || [CONTENT_POST_SKILL_KEY, "research"];
   const selected: Skill[] = [];
 
   preferredTags.forEach((tag) => {
@@ -239,10 +237,10 @@ export function ThemeWorkbenchSkillsPanel({
   const fallbackSkills: Skill[] = useMemo(
     () => [
       {
-        key: "social_post_with_cover",
-        name: "social_post_with_cover",
-        description: "社媒主稿与封面图生成",
-        directory: "social_post_with_cover",
+        key: CONTENT_POST_SKILL_KEY,
+        name: CONTENT_POST_SKILL_KEY,
+        description: "内容主稿与封面图生成",
+        directory: CONTENT_POST_SKILL_KEY,
         installed: true,
         sourceKind: "builtin",
       },

@@ -67,7 +67,10 @@ import {
   getStoredResourceProjectId,
   onResourceProjectChange,
 } from "@/lib/resourceProjectSelection";
-import { buildHomeAgentParams } from "@/lib/workspace/navigation";
+import {
+  buildClawAgentParams,
+  buildHomeAgentParams,
+} from "@/lib/workspace/navigation";
 import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { buildLayerMetrics } from "./memoryLayerMetrics";
 
@@ -1534,7 +1537,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 {!projectId ? (
                                   <button
                                     type="button"
-                                    onClick={() => onNavigate?.("projects")}
+                                    onClick={() =>
+                                      onNavigate?.("agent", buildHomeAgentParams())
+                                    }
                                     className={SECONDARY_BUTTON_CLASS_NAME}
                                   >
                                     去选择项目
@@ -1556,9 +1561,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        onNavigate?.("project-detail", {
-                                          projectId,
-                                        })
+                                        onNavigate?.(
+                                          "agent",
+                                          buildClawAgentParams({ projectId }),
+                                        )
                                       }
                                       className={SECONDARY_BUTTON_CLASS_NAME}
                                     >
@@ -1979,5 +1985,3 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     </div>
   );
 }
-
-export default MemoryPage;

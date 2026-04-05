@@ -812,6 +812,8 @@ function formatRuntimePhaseLabel(
       return "处理中";
     case "context":
       return "整理信息";
+    case "cancelled":
+      return "已取消";
     case "failed":
       return "需要处理";
     default:
@@ -3786,8 +3788,7 @@ export function HarnessStatusPanel({
                         <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
                           尚未导出外部分析交接。点击“一键复制给
                           AI”时会自动先导出再复制， 用于把当前 Lime
-                          证据链直接交给外部 Claude / Codex
-                          做诊断与最小修复。
+                          证据链直接交给外部 Claude / Codex 做诊断与最小修复。
                         </div>
                       )}
                     </div>

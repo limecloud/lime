@@ -27,8 +27,8 @@ import { cn } from "@/lib/utils";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { useOnboardingState } from "@/components/onboarding";
 import { useI18nPatch } from "@/i18n/I18nPatchProvider";
+import type { Language } from "@/i18n/text-map";
 import { useSoundContext } from "@/contexts/useSoundContext";
-import type { Language } from "../../shared/language/LanguageSelector";
 import { Switch } from "@/components/ui/switch";
 import {
   CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS,
@@ -803,5 +803,3 @@ export function AppearanceSettings() {
     </div>
   );
 }
-
-export default AppearanceSettings;

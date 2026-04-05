@@ -19,12 +19,9 @@ import {
   type TrayModelSelectedPayload,
 } from "@/lib/api/tray";
 import {
-  getThemeByWorkspacePage,
-  isThemeWorkspacePage,
   type AgentPageParams,
   type Page,
   type PageParams,
-  type ProjectDetailPageParams,
 } from "@/types/page";
 
 const LAST_PROJECT_ID_KEY = "agent_last_project_id";
@@ -72,40 +69,18 @@ function savePersistedProjectId(projectId: string): void {
 }
 
 function resolveActiveProjectId(page: Page, pageParams?: PageParams): string | null {
-  if (page === "agent") {
-    return normalizeProjectId((pageParams as AgentPageParams | undefined)?.projectId);
-  }
-
-  if (isThemeWorkspacePage(page)) {
-    return normalizeProjectId(
-      (pageParams as { projectId?: string } | undefined)?.projectId,
-    );
-  }
-
-  if (page === "project-detail") {
-    return normalizeProjectId(
-      (pageParams as ProjectDetailPageParams | undefined)?.projectId,
-    );
-  }
-
-  return null;
+  return page === "agent"
+    ? normalizeProjectId((pageParams as AgentPageParams | undefined)?.projectId)
+    : null;
 }
 
 function resolveActiveTheme(page: Page, pageParams?: PageParams): string | undefined {
-  if (isThemeWorkspacePage(page)) {
-    return getThemeByWorkspacePage(page);
+  if (page !== "agent") {
+    return undefined;
   }
 
-  if (page === "agent") {
-    const theme = (pageParams as AgentPageParams | undefined)?.theme;
-    return typeof theme === "string" && theme.trim() ? theme : undefined;
-  }
-
-  if (page === "project-detail") {
-    return (pageParams as ProjectDetailPageParams | undefined)?.workspaceTheme;
-  }
-
-  return undefined;
+  const theme = (pageParams as AgentPageParams | undefined)?.theme;
+  return typeof theme === "string" && theme.trim() ? theme : undefined;
 }
 
 function resolvePersistedModelPreference(projectId: string | null): {

@@ -510,5 +510,3 @@ export function CompanionCapabilityPreferencesCard() {
     </article>
   );
 }
-
-export default CompanionCapabilityPreferencesCard;

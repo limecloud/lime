@@ -5,7 +5,6 @@ import {
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,
   listMediaTaskArtifacts,
-  retryMediaTaskArtifact,
 } from "./mediaTasks";
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -71,7 +70,7 @@ describe("mediaTasks API", () => {
     );
   });
 
-  it("应通过统一网关读取、列出、重试和取消媒体任务 artifact", async () => {
+  it("应通过统一网关读取、列出和取消媒体任务 artifact", async () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce({
         success: true,
@@ -143,33 +142,6 @@ describe("mediaTasks API", () => {
         task_id: "task-image-2",
         task_type: "image_generate",
         task_family: "image",
-        status: "pending_submit",
-        normalized_status: "pending",
-        current_attempt_id: "attempt-2",
-        path: ".lime/tasks/image_generate/task-image-2.json",
-        absolute_path: "/workspace/.lime/tasks/image_generate/task-image-2.json",
-        artifact_path: ".lime/tasks/image_generate/task-image-2.json",
-        absolute_artifact_path:
-          "/workspace/.lime/tasks/image_generate/task-image-2.json",
-        reused_existing: false,
-        record: {
-          task_id: "task-image-2",
-          task_type: "image_generate",
-          task_family: "image",
-          payload: {
-            prompt: "读取任务",
-          },
-          status: "pending_submit",
-          normalized_status: "pending",
-          created_at: "2026-04-04T12:10:00Z",
-          retry_count: 1,
-        },
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        task_id: "task-image-2",
-        task_type: "image_generate",
-        task_family: "image",
         status: "cancelled",
         normalized_status: "cancelled",
         path: ".lime/tasks/image_generate/task-image-2.json",
@@ -209,15 +181,6 @@ describe("mediaTasks API", () => {
     ).resolves.toEqual(expect.objectContaining({ total: 1 }));
 
     await expect(
-      retryMediaTaskArtifact({
-        projectRootPath: "/workspace",
-        taskRef: "task-image-2",
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({ current_attempt_id: "attempt-2" }),
-    );
-
-    await expect(
       cancelMediaTaskArtifact({
         projectRootPath: "/workspace",
         taskRef: "task-image-2",
@@ -251,16 +214,6 @@ describe("mediaTasks API", () => {
     );
     expect(vi.mocked(safeInvoke)).toHaveBeenNthCalledWith(
       3,
-      "retry_media_task_artifact",
-      {
-        request: {
-          projectRootPath: "/workspace",
-          taskRef: "task-image-2",
-        },
-      },
-    );
-    expect(vi.mocked(safeInvoke)).toHaveBeenNthCalledWith(
-      4,
       "cancel_media_task_artifact",
       {
         request: {

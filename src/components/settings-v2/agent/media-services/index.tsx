@@ -370,5 +370,3 @@ export function MediaServicesSettings({
     </div>
   );
 }
-
-export default MediaServicesSettings;

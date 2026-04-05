@@ -40,14 +40,14 @@ export interface AuditedHotkeySection {
   hotkeys: AuditedHotkeyItem[];
 }
 
-export interface AuditedHotkeySummary {
+interface AuditedHotkeySummary {
   total: number;
   ready: number;
   attention: number;
   globalReady: number;
 }
 
-export interface AuditedHotkeyCatalog {
+interface AuditedHotkeyCatalog {
   sections: AuditedHotkeySection[];
   summary: AuditedHotkeySummary;
 }

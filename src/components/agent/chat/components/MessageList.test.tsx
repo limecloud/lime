@@ -40,12 +40,8 @@ const mockStreamingRenderer = vi.fn(
       data-testid="streaming-renderer"
       data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
       data-suppress-process-flow={suppressProcessFlow ? "yes" : "no"}
-      data-show-runtime-status-inline={
-        showRuntimeStatusInline ? "yes" : "no"
-      }
-      data-render-proposed-plan-blocks={
-        renderProposedPlanBlocks ? "yes" : "no"
-      }
+      data-show-runtime-status-inline={showRuntimeStatusInline ? "yes" : "no"}
+      data-render-proposed-plan-blocks={renderProposedPlanBlocks ? "yes" : "no"}
       data-show-content-block-actions={showContentBlockActions ? "yes" : "no"}
       data-has-on-quote-content={onQuoteContent ? "yes" : "no"}
     >
@@ -235,8 +231,8 @@ describe("MessageList", () => {
       '[data-testid="image-workbench-message-preview-task-1"]',
     ) as HTMLButtonElement | null;
 
-    expect(previewCard?.textContent).toContain("图片任务卡");
-    expect(previewCard?.textContent).toContain("点击查看图片画布");
+    expect(previewCard?.textContent).toContain("Image Generation");
+    expect(previewCard?.textContent).toContain("打开查看");
     expect(previewCard?.textContent).toContain("1024x1024");
 
     act(() => {
@@ -248,6 +244,49 @@ describe("MessageList", () => {
       contentId: "content-1",
     });
     window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+  });
+
+  it("修图任务消息卡应展示来源图区域与修图语义", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-edit-preview",
+        role: "assistant",
+        content: "修图任务已完成。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-edit-1",
+          prompt: "去掉背景里的广告牌，保留主体人物",
+          mode: "edit",
+          status: "complete",
+          imageUrl: "https://example.com/edited.png",
+          imageCount: 1,
+          sourceImageUrl: "https://example.com/source.png",
+          sourceImagePrompt: "原始街景海报",
+          sourceImageRef: "img-source-1",
+          sourceImageCount: 1,
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-edit-1"]',
+    );
+    const sourcePanel = container.querySelector(
+      '[data-testid="image-workbench-message-preview-source-task-edit-1"]',
+    );
+
+    expect(previewCard?.textContent).toContain("Image Editing");
+    expect(previewCard?.textContent).toContain("已修图");
+    expect(sourcePanel?.textContent).toContain("来源图");
+    expect(sourcePanel?.textContent).toContain("原始街景海报");
+    expect(sourcePanel?.textContent).toContain("img-source-1");
+    expect(
+      sourcePanel?.querySelector('img[src="https://example.com/source.png"]'),
+    ).toBeTruthy();
   });
 
   it("图片任务完成但图片仍在工作台时，不应继续显示生成中占位", () => {
@@ -275,8 +314,209 @@ describe("MessageList", () => {
     );
 
     expect(previewCard?.textContent).toContain("结果已同步");
-    expect(previewCard?.textContent).toContain("点击查看图片画布");
-    expect(previewCard?.textContent).not.toContain("正在生成预览");
+    expect(previewCard?.textContent).toContain("打开查看");
+    expect(previewCard?.textContent).not.toContain("图片任务卡");
+  });
+
+  it("失败的图片任务卡应收敛为静态状态卡，不再展示操作按钮", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-failed",
+        role: "assistant",
+        content: "图片任务失败。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-failed-1",
+          prompt: "青柠品牌 KV",
+          status: "failed",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-failed-1"]',
+    );
+
+    expect(previewCard?.textContent).toContain("生成失败");
+    expect(previewCard?.textContent).toContain("稍后重试");
+    expect(
+      container.querySelector(
+        '[data-testid="image-workbench-message-preview-action-task-failed-1-retry"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("生成中的图片任务卡应展示队列状态，但不再展示取消按钮", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-running",
+        role: "assistant",
+        content: "图片任务处理中。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-running-1",
+          prompt: "青柠宇航员海报",
+          status: "running",
+          phase: "queued",
+          statusMessage: "任务已进入队列，等待图片服务分配执行槽位。",
+          attemptCount: 2,
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    expect(container.textContent).toContain("等待队列");
+    expect(container.textContent).toContain(
+      "任务已进入队列，等待图片服务分配执行槽位。",
+    );
+    expect(container.textContent).toContain("第 2 次");
+    expect(
+      container.querySelector(
+        '[data-testid="image-workbench-message-preview-action-task-running-1-cancel"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("失败的图片任务卡应保留错误文案，但不再突出不可重试标签", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-failed-no-retry",
+        role: "assistant",
+        content: "图片任务失败。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-failed-no-retry",
+          prompt: "青柠品牌 KV",
+          status: "failed",
+          retryable: false,
+          statusMessage: "FAL 请求参数无效，请先调整配置。",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-failed-no-retry"]',
+    );
+
+    expect(previewCard?.textContent).toContain("生成失败");
+    expect(previewCard?.textContent).toContain(
+      "FAL 请求参数无效，请先调整配置。",
+    );
+    expect(previewCard?.textContent).not.toContain("不可重试");
+  });
+
+  it("已取消的图片任务卡应显示独立状态且不再展示重试按钮", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-cancelled",
+        role: "assistant",
+        content: "图片任务已取消。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-cancelled-1",
+          prompt: "青柠像素头像",
+          status: "cancelled",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-cancelled-1"]',
+    );
+
+    expect(previewCard?.textContent).toContain("已取消");
+    expect(previewCard?.textContent).toContain("任务已取消");
+    expect(previewCard?.textContent).toContain("打开查看");
+    expect(
+      container.querySelector(
+        '[data-testid="image-workbench-message-preview-action-task-cancelled-1-retry"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("图片任务卡点击后仍应打开右侧查看区，而不是丢失导航能力", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-cancelled-open",
+        role: "assistant",
+        content: "图片任务已取消。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-open-1",
+          prompt: "青柠像素头像",
+          status: "cancelled",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    let focusDetail: Record<string, unknown> | null = null;
+    const handleFocus = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+      focusDetail = event.detail as Record<string, unknown>;
+    };
+    window.addEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-open-1"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(focusDetail).toEqual({
+      projectId: "project-1",
+      contentId: "content-1",
+    });
+
+    window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+  });
+
+  it("图片任务卡默认不再渲染任何底部操作按钮", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-actions-hidden",
+        role: "assistant",
+        content: "图片任务处理中。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-actions-hidden",
+          prompt: "青柠宇航员海报",
+          status: "running",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    expect(
+      container.querySelectorAll(
+        '[data-testid^="image-workbench-message-preview-action-"]',
+      ).length,
+    ).toBe(0);
   });
 
   it("当前由聊天区底部承载的 assistant A2UI 不应继续在正文里内联渲染", () => {
@@ -891,9 +1131,9 @@ describe("MessageList", () => {
 
     expect(messageColumn?.className).toContain("max-w-[1040px]");
     expect(assistantBubble).not.toBeNull();
-    expect(window.getComputedStyle(assistantBubble as Element).maxWidth).toContain(
-      "1040px",
-    );
+    expect(
+      window.getComputedStyle(assistantBubble as Element).maxWidth,
+    ).toContain("1040px");
   });
 
   it("助手消息不应再渲染旧的继续处理标签或品牌头像", () => {
@@ -945,7 +1185,9 @@ describe("MessageList", () => {
 
     const container = render(messages);
 
-    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-renderer"]'),
+    ).toBeNull();
     const image = container.querySelector('img[alt="attachment"]');
     expect(image).toBeTruthy();
     expect(container.textContent).not.toContain("[Image #1]");
@@ -1083,13 +1325,15 @@ describe("MessageList", () => {
       ],
     });
 
-    const streaming = container.querySelector('[data-testid="streaming-renderer"]');
+    const streaming = container.querySelector(
+      '[data-testid="streaming-renderer"]',
+    );
     const leadingTimeline = container.querySelector(
       '[data-testid="agent-thread-timeline:leading"]',
     );
-    const artifactButton = Array.from(container.querySelectorAll("button")).find((node) =>
-      node.textContent?.includes("publish.md"),
-    );
+    const artifactButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((node) => node.textContent?.includes("publish.md"));
 
     expect(streaming).not.toBeNull();
     expect(artifactButton).toBeDefined();
@@ -1271,18 +1515,22 @@ describe("MessageList", () => {
       container.querySelectorAll('[data-testid="streaming-renderer"]'),
     );
     const timelineNodes = Array.from(
-      container.querySelectorAll('[data-testid="agent-thread-timeline:leading"]'),
+      container.querySelectorAll(
+        '[data-testid="agent-thread-timeline:leading"]',
+      ),
     );
 
     expect(streamingNodes).toHaveLength(2);
     expect(timelineNodes).toHaveLength(1);
     expect(
-      (streamingNodes[0] as Node).compareDocumentPosition(timelineNodes[0] as Node) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      (streamingNodes[0] as Node).compareDocumentPosition(
+        timelineNodes[0] as Node,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      (timelineNodes[0] as Node).compareDocumentPosition(streamingNodes[1] as Node) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      (timelineNodes[0] as Node).compareDocumentPosition(
+        streamingNodes[1] as Node,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       container.querySelector('[data-testid="agent-thread-reliability-panel"]'),
@@ -1343,9 +1591,7 @@ describe("MessageList", () => {
     });
 
     const timelineNodes = Array.from(
-      container.querySelectorAll(
-        '[data-testid^="agent-thread-timeline:"]',
-      ),
+      container.querySelectorAll('[data-testid^="agent-thread-timeline:"]'),
     );
 
     expect(

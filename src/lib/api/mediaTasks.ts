@@ -13,5 +13,4 @@ export {
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,
   listMediaTaskArtifacts,
-  retryMediaTaskArtifact,
 } from "./agentRuntime";

@@ -182,7 +182,7 @@ describe("useWorkspaceConversationSceneRuntime", () => {
 
   it("主题工作台场景不应再向外回写 stacked/split 布局状态", () => {
     const params = createBaseParams({
-      activeTheme: "social-media",
+      activeTheme: "general",
       isThemeWorkbench: true,
       isSpecializedThemeMode: true,
       layoutMode: "canvas",

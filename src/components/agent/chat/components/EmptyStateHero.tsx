@@ -258,7 +258,6 @@ interface EmptyStateHeroProps {
   features?: EmptyStateHeroFeature[];
   prioritySlot?: ReactNode;
   supportingSlot?: ReactNode;
-  themeTabs?: ReactNode;
   headerControls?: ReactNode;
 }
 
@@ -272,7 +271,6 @@ export function EmptyStateHero({
   features = [],
   prioritySlot,
   supportingSlot,
-  themeTabs,
   headerControls,
 }: EmptyStateHeroProps) {
   return (
@@ -313,8 +311,6 @@ export function EmptyStateHero({
                 ))}
               </div>
             ) : null}
-
-            {themeTabs ? <div className="flex w-full">{themeTabs}</div> : null}
           </LeadBlock>
 
           <CardsShell>

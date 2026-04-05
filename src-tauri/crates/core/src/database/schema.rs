@@ -1,5 +1,18 @@
 use rusqlite::Connection;
 
+const LEGACY_WORKSPACE_TYPE_MIGRATION_ALIASES: &[&str] = &[
+    "social",
+    "social-media",
+    "knowledge",
+    "planning",
+    "document",
+    "video",
+    "drama",
+    "poster",
+    "music",
+    "novel",
+];
+
 fn table_exists(conn: &Connection, table_name: &str) -> Result<bool, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT 1
@@ -878,16 +891,18 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     );
 
-    // Migration: 迁移旧的项目类型到新类型
-    // drama -> video, social -> social-media
-    let _ = conn.execute(
-        "UPDATE workspaces SET workspace_type = 'video' WHERE workspace_type = 'drama'",
-        [],
+    // Migration: 旧主题工作台项目统一回落到 general
+    let legacy_workspace_types = LEGACY_WORKSPACE_TYPE_MIGRATION_ALIASES
+        .iter()
+        .map(|value| format!("'{value}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let legacy_workspace_type_migration_sql = format!(
+        "UPDATE workspaces
+         SET workspace_type = 'general'
+         WHERE workspace_type IN ({legacy_workspace_types})"
     );
-    let _ = conn.execute(
-        "UPDATE workspaces SET workspace_type = 'social-media' WHERE workspace_type = 'social'",
-        [],
-    );
+    let _ = conn.execute(legacy_workspace_type_migration_sql.as_str(), []);
 
     // ============================================================================
     // 项目内容管理相关表

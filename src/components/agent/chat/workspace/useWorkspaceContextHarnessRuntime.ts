@@ -37,7 +37,6 @@ export function useWorkspaceContextHarnessRuntime({
   messages,
   providerType,
   model,
-  mappedTheme,
   isSending,
   projectMemory,
   harnessState,
@@ -74,7 +73,7 @@ export function useWorkspaceContextHarnessRuntime({
     ? harnessState.pendingApprovals.length
     : 0;
   const shouldAlwaysShowHarnessToggle =
-    workbenchEnabled && contextWorkspace.enabled && mappedTheme === "social-media";
+    workbenchEnabled && contextWorkspace.enabled;
   const hasHarnessActivity =
     workbenchEnabled &&
     (harnessPanelVisible ||

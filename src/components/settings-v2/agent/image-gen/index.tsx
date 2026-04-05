@@ -600,5 +600,3 @@ export function ImageGenSettings() {
     </div>
   );
 }
-
-export default ImageGenSettings;

@@ -16,6 +16,7 @@ pub enum TaskType {
     ImageGenerate,
     CoverGenerate,
     VideoGenerate,
+    TranscriptionGenerate,
     BroadcastGenerate,
     UrlParse,
     Typesetting,
@@ -28,6 +29,7 @@ impl TaskType {
             Self::ImageGenerate => "image_generate",
             Self::CoverGenerate => "cover_generate",
             Self::VideoGenerate => "video_generate",
+            Self::TranscriptionGenerate => "transcription_generate",
             Self::BroadcastGenerate => "broadcast_generate",
             Self::UrlParse => "url_parse",
             Self::Typesetting => "typesetting",
@@ -40,6 +42,7 @@ impl TaskType {
             Self::ImageGenerate => "image",
             Self::CoverGenerate => "cover",
             Self::VideoGenerate => "video",
+            Self::TranscriptionGenerate => "transcription",
             Self::BroadcastGenerate => "broadcast",
             Self::UrlParse => "url-parse",
             Self::Typesetting => "typesetting",
@@ -52,6 +55,7 @@ impl TaskType {
             Self::VideoGenerate => "queued",
             Self::ImageGenerate
             | Self::CoverGenerate
+            | Self::TranscriptionGenerate
             | Self::BroadcastGenerate
             | Self::UrlParse
             | Self::Typesetting
@@ -63,7 +67,10 @@ impl TaskType {
         match self {
             Self::ImageGenerate | Self::CoverGenerate => "image",
             Self::VideoGenerate => "video",
-            Self::BroadcastGenerate | Self::UrlParse | Self::Typesetting => "document",
+            Self::TranscriptionGenerate
+            | Self::BroadcastGenerate
+            | Self::UrlParse
+            | Self::Typesetting => "document",
             Self::ModalResourceSearch => "resource",
         }
     }
@@ -73,6 +80,7 @@ impl TaskType {
             Self::ImageGenerate,
             Self::CoverGenerate,
             Self::VideoGenerate,
+            Self::TranscriptionGenerate,
             Self::BroadcastGenerate,
             Self::UrlParse,
             Self::Typesetting,
@@ -89,6 +97,9 @@ impl FromStr for TaskType {
             "image" | "image_generate" => Ok(Self::ImageGenerate),
             "cover" | "cover_generate" => Ok(Self::CoverGenerate),
             "video" | "video_generate" => Ok(Self::VideoGenerate),
+            "transcription" | "transcribe" | "transcription_generate" => {
+                Ok(Self::TranscriptionGenerate)
+            }
             "broadcast" | "broadcast_generate" => Ok(Self::BroadcastGenerate),
             "url-parse" | "url_parse" | "urlparse" => Ok(Self::UrlParse),
             "typesetting" => Ok(Self::Typesetting),
@@ -479,6 +490,18 @@ pub struct TaskWriteOptions<'a> {
     pub output_path: Option<&'a str>,
     pub artifact_dir: Option<&'a str>,
     pub idempotency_key: Option<&'a str>,
+    pub relationships: TaskRelationships,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TaskArtifactPatch {
+    pub status: Option<String>,
+    pub result: Option<Option<Value>>,
+    pub last_error: Option<Option<TaskErrorRecord>>,
+    pub progress: Option<TaskProgress>,
+    pub ui_hints: Option<TaskUiHints>,
+    pub current_attempt_worker_id: Option<Option<String>>,
+    pub current_attempt_metrics: Option<Option<TaskAttemptMetrics>>,
 }
 
 fn is_safe_relative_path(path: &Path) -> bool {
@@ -571,7 +594,9 @@ fn task_family_for_type(task_type: &str) -> String {
             value if value.contains("image") || value.contains("cover") => "image".to_string(),
             value if value.contains("video") => "video".to_string(),
             value if value.contains("resource") => "resource".to_string(),
-            "broadcast_generate" | "url_parse" | "typesetting" => "document".to_string(),
+            "transcription_generate" | "broadcast_generate" | "url_parse" | "typesetting" => {
+                "document".to_string()
+            }
             _ => "automation".to_string(),
         })
 }
@@ -606,6 +631,9 @@ fn derive_task_summary(task_type: &str, title: Option<&str>, payload: &Value) ->
             let candidate = match task_type {
                 "image_generate" | "cover_generate" | "video_generate" => {
                     payload_string(payload, &["prompt", "usage"])
+                }
+                "transcription_generate" => {
+                    payload_string(payload, &["prompt", "source_path", "source_url"])
                 }
                 "broadcast_generate" | "typesetting" => {
                     payload_string(payload, &["content", "targetPlatform"])
@@ -922,6 +950,10 @@ fn normalize_status(status: &str) -> String {
     }
 }
 
+fn supports_idempotent_reuse(normalized_status: &str) -> bool {
+    matches!(normalized_status, "pending" | "queued" | "running")
+}
+
 fn normalize_mutation_status(status: &str) -> Result<String, MediaRuntimeError> {
     let normalized = status.trim().to_ascii_lowercase();
     let resolved = match normalized.as_str() {
@@ -1088,6 +1120,9 @@ fn find_task_record_by_idempotency_key(
             continue;
         }
         if record.idempotency_key.as_deref() != Some(idempotency_key) {
+            continue;
+        }
+        if !supports_idempotent_reuse(&record.normalized_status) {
             continue;
         }
 
@@ -1335,7 +1370,7 @@ pub fn write_task_artifact(
             input_snapshot: serde_json::json!({}),
             ..initial_attempt
         }],
-        relationships: TaskRelationships::default(),
+        relationships: options.relationships,
         progress: TaskProgress::default(),
         ui_hints: TaskUiHints::default(),
     };
@@ -1369,6 +1404,7 @@ pub fn write_media_task_artifact(
             output_path,
             artifact_dir,
             idempotency_key: None,
+            relationships: TaskRelationships::default(),
         },
     )
 }
@@ -1496,6 +1532,97 @@ pub fn update_task_status(
             current_attempt.result_snapshot = None;
         }
     }
+    write_task_record(&task_path, &record)?;
+    Ok(build_task_output(workspace_root, &task_path, record, false))
+}
+
+pub fn patch_task_artifact(
+    workspace_root: &Path,
+    task_ref: &str,
+    artifact_dir: Option<&str>,
+    patch: TaskArtifactPatch,
+) -> Result<TaskOutput, MediaRuntimeError> {
+    let task_path = resolve_task_reference_path(workspace_root, task_ref, artifact_dir)?;
+    let mut record = read_task_record(&task_path)?;
+    let occurred_at = Utc::now().to_rfc3339();
+    let mut should_refresh_progress = false;
+
+    if let Some(status) = patch.status.as_deref() {
+        let current_normalized_status = record.normalized_status.clone();
+        let next_status = normalize_mutation_status(status)?;
+        let next_normalized_status = normalize_status(&next_status);
+
+        if current_normalized_status == "succeeded" && next_normalized_status != "succeeded" {
+            return Err(MediaRuntimeError::InvalidState(
+                "已成功完成的任务不能再修改状态".to_string(),
+            ));
+        }
+        if current_normalized_status == "failed" && next_normalized_status == "running" {
+            return Err(MediaRuntimeError::InvalidState(
+                "失败任务请使用 retry 创建新尝试，不要直接改回 running".to_string(),
+            ));
+        }
+
+        if next_normalized_status != "failed" && patch.last_error.is_none() {
+            record.last_error = None;
+        }
+        record.updated_at = Some(occurred_at.clone());
+        apply_status_to_record(&mut record, &next_status, &occurred_at);
+        if let Some(index) = current_attempt_index(&record) {
+            let current_attempt = &mut record.attempts[index];
+            apply_status_to_attempt(current_attempt, &next_status, &occurred_at);
+            if next_normalized_status != "failed" && patch.last_error.is_none() {
+                current_attempt.error = None;
+            }
+            if matches!(next_normalized_status.as_str(), "partial" | "succeeded") {
+                current_attempt.result_snapshot = record.result.clone();
+            } else if next_normalized_status != "failed" {
+                current_attempt.result_snapshot = None;
+            }
+        }
+        should_refresh_progress = true;
+    }
+
+    if let Some(last_error) = patch.last_error {
+        record.last_error = last_error.clone();
+        if let Some(index) = current_attempt_index(&record) {
+            record.attempts[index].error = last_error;
+        }
+        should_refresh_progress = true;
+    }
+
+    if let Some(result) = patch.result {
+        record.result = result.clone();
+        if let Some(index) = current_attempt_index(&record) {
+            if matches!(record.normalized_status.as_str(), "partial" | "succeeded") {
+                record.attempts[index].result_snapshot = result;
+            }
+        }
+    }
+
+    if let Some(worker_id) = patch.current_attempt_worker_id {
+        if let Some(index) = current_attempt_index(&record) {
+            record.attempts[index].worker_id = worker_id;
+        }
+    }
+
+    if let Some(metrics) = patch.current_attempt_metrics {
+        if let Some(index) = current_attempt_index(&record) {
+            record.attempts[index].metrics = metrics;
+        }
+    }
+
+    if should_refresh_progress {
+        record.progress = derive_task_progress(&record.status, record.last_error.as_ref());
+    }
+    if let Some(progress) = patch.progress {
+        record.progress = progress;
+    }
+    if let Some(ui_hints) = patch.ui_hints {
+        record.ui_hints = ui_hints;
+    }
+
+    record.updated_at = Some(occurred_at.clone());
     write_task_record(&task_path, &record)?;
     Ok(build_task_output(workspace_root, &task_path, record, false))
 }
@@ -1672,6 +1799,33 @@ mod tests {
     }
 
     #[test]
+    fn write_task_artifact_supports_transcription_generate() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = write_task_artifact(
+            temp_dir.path(),
+            TaskType::TranscriptionGenerate,
+            None,
+            serde_json::json!({
+                "source_path": "/tmp/interview.wav",
+                "output_format": "srt"
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("write transcription task");
+
+        assert!(output
+            .path
+            .starts_with(".lime/tasks/transcription_generate/"));
+        assert_eq!(output.task_type, "transcription_generate");
+        assert_eq!(output.task_family, "document");
+        assert_eq!(output.status, "pending_submit");
+        assert_eq!(
+            output.ui_hints.open_action.as_deref(),
+            Some("open_task_panel")
+        );
+    }
+
+    #[test]
     fn write_task_artifact_reuses_idempotent_record() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let first = write_task_artifact(
@@ -1700,6 +1854,39 @@ mod tests {
 
         assert_eq!(first.task_id, second.task_id);
         assert!(second.reused_existing);
+    }
+
+    #[test]
+    fn write_task_artifact_does_not_reuse_cancelled_idempotent_record() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let cancelled = write_task_artifact(
+            temp_dir.path(),
+            TaskType::BroadcastGenerate,
+            Some("播客".to_string()),
+            serde_json::json!({ "content": "demo" }),
+            TaskWriteOptions {
+                status: Some("cancelled".to_string()),
+                idempotency_key: Some("broadcast-1"),
+                ..TaskWriteOptions::default()
+            },
+        )
+        .expect("write cancelled");
+
+        let created_again = write_task_artifact(
+            temp_dir.path(),
+            TaskType::BroadcastGenerate,
+            Some("播客".to_string()),
+            serde_json::json!({ "content": "demo" }),
+            TaskWriteOptions {
+                idempotency_key: Some("broadcast-1"),
+                ..TaskWriteOptions::default()
+            },
+        )
+        .expect("write again");
+
+        assert_ne!(cancelled.task_id, created_again.task_id);
+        assert!(!created_again.reused_existing);
+        assert_eq!(created_again.normalized_status, "pending");
     }
 
     #[test]

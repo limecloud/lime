@@ -7,7 +7,7 @@ import type { ActionRequired } from "../types";
 import {
   buildActionRequestSubmissionPayload,
 } from "../utils/actionRequestA2UI";
-import { buildLegacyQuestionnaireSubmissionPayload } from "../utils/legacyQuestionnaireA2UI";
+import { buildCompatQuestionnaireSubmissionPayload } from "../utils/compatQuestionnaireA2UI";
 
 interface UseWorkspaceA2UISubmitActionsParams {
   handlePermissionResponseWithBrowserPreflight: (
@@ -78,7 +78,7 @@ export function useWorkspaceA2UISubmitActions({
       }
 
       if (pendingLegacyQuestionnaireA2UIForm) {
-        const submissionPayload = buildLegacyQuestionnaireSubmissionPayload(
+        const submissionPayload = buildCompatQuestionnaireSubmissionPayload(
           pendingLegacyQuestionnaireA2UIForm,
           effectiveFormData,
         );

@@ -110,8 +110,8 @@ export function useWorkspaceHarnessInventoryRuntime({
     void refreshToolInventory();
   }, [enabled, harnessPanelVisible, refreshToolInventory]);
 
-  const socialMediaHarnessSummary = useMemo(() => {
-    if (!enabled || !isThemeWorkbench || mappedTheme !== "social-media") {
+  const themeWorkbenchHarnessSummary = useMemo(() => {
+    if (!enabled || !isThemeWorkbench) {
       return null;
     }
 
@@ -149,7 +149,6 @@ export function useWorkspaceHarnessInventoryRuntime({
     enabled,
     harnessPendingCount,
     isThemeWorkbench,
-    mappedTheme,
     themeWorkbenchActiveQueueItem,
     themeWorkbenchBackendRunState?.latest_terminal,
     themeWorkbenchBackendRunState?.updated_at,
@@ -161,6 +160,6 @@ export function useWorkspaceHarnessInventoryRuntime({
     toolInventoryLoading,
     toolInventoryError,
     refreshToolInventory,
-    socialMediaHarnessSummary,
+    themeWorkbenchHarnessSummary,
   };
 }

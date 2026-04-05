@@ -126,7 +126,7 @@ describe("useWorkspaceThemeWorkbenchSidebarRuntime", () => {
       source: "skill",
       source_ref: null,
       started_at: "2026-03-24T14:00:00.000Z",
-      filePath: "social-posts/demo.md",
+      filePath: "content-posts/demo.md",
     } as unknown as ThemeWorkbenchRunTodoItem;
     const latestTerminal = {
       run_id: "run-terminal",
@@ -137,7 +137,7 @@ describe("useWorkspaceThemeWorkbenchSidebarRuntime", () => {
       source_ref: null,
       started_at: "2026-03-24T14:00:01.000Z",
       finished_at: "2026-03-24T14:00:03.000Z",
-      artifactPath: "social-posts\\demo-cover.png",
+      artifactPath: "content-posts\\demo-cover.png",
     } as unknown as ThemeWorkbenchRunTerminalItem;
     const backendRunState = {
       run_state: "auto_running",
@@ -156,11 +156,11 @@ describe("useWorkspaceThemeWorkbenchSidebarRuntime", () => {
         expect.arrayContaining([
           expect.objectContaining({
             runId: "run-queue",
-            artifactPaths: ["social-posts/demo.md"],
+            artifactPaths: ["content-posts/demo.md"],
           }),
           expect.objectContaining({
             runId: "run-terminal",
-            artifactPaths: ["social-posts/demo-cover.png"],
+            artifactPaths: ["content-posts/demo-cover.png"],
           }),
         ]),
       );

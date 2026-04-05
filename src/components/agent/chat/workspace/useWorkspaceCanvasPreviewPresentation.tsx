@@ -18,7 +18,7 @@ import {
   revealPathInFinder,
 } from "@/lib/api/fileSystem";
 import type { Artifact } from "@/lib/artifact/types";
-import { ImageWorkbenchCanvas } from "../components/ImageWorkbenchCanvas";
+import { ImageTaskViewer } from "../components/ImageTaskViewer";
 import type {
   CanvasWorkbenchDefaultPreview,
   CanvasWorkbenchPreviewTarget,
@@ -48,7 +48,7 @@ type ArtifactPreviewBaseProps = Omit<
   | "stackedWorkbenchTrigger"
   | "onArtifactDocumentControllerChange"
 >;
-type ImageWorkbenchCanvasProps = ComponentProps<typeof ImageWorkbenchCanvas>;
+type ImageWorkbenchCanvasProps = ComponentProps<typeof ImageTaskViewer>;
 type GeneralCanvasPanelProps = Omit<
   ComponentProps<typeof GeneralCanvasPanel>,
   "toolbarActions"
@@ -479,6 +479,7 @@ export function useWorkspaceCanvasPreviewPresentation({
         <WorkspaceLiveCanvasPreview
           currentImageWorkbenchActive={imageWorkbench.active}
           imageWorkbenchProps={imageWorkbenchCanvasProps}
+          onCloseCanvas={artifactPreview.onCloseCanvas}
           canvasRenderTheme={defaultPreview.canvasRenderTheme}
           liveArtifact={artifactPreview.currentCanvasArtifact}
           hasDisplayedLiveArtifact={Boolean(
@@ -495,6 +496,7 @@ export function useWorkspaceCanvasPreviewPresentation({
     [
       artifactPreview.currentCanvasArtifact,
       artifactPreview.displayedCanvasArtifact,
+      artifactPreview.onCloseCanvas,
       canvasFactoryProps,
       canvasLoadingLabel,
       defaultPreview.canvasRenderTheme,

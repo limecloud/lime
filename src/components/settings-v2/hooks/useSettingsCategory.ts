@@ -21,7 +21,6 @@ import {
   Search,
   Variable,
   Monitor,
-  ShieldCheck,
   Activity,
   FlaskConical,
   Code,
@@ -160,11 +159,6 @@ export function useSettingsCategory(): CategoryGroup[] {
           key: SettingsTabs.ChromeRelay,
           label: t("settings.tab.chromeRelay", "连接器"),
           icon: Monitor,
-        },
-        {
-          key: SettingsTabs.SecurityPerformance,
-          label: t("settings.tab.securityPerformance", "安全与性能"),
-          icon: ShieldCheck,
         },
         {
           key: SettingsTabs.Automation,

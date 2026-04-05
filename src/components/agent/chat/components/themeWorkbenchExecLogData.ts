@@ -132,8 +132,9 @@ function buildRunEntry(
 ): ExecLogEntry {
   const timestamp = buildTimestampFromActivityTimeLabel(group.timeLabel);
   const skillLog = group.logs.find((log) => log.source === "skill");
-  const sourceRef =
+  const rawSourceRef =
     group.logs.find((log) => log.sourceRef?.trim())?.sourceRef?.trim() || null;
+  const sourceRef = rawSourceRef;
   const skillDetail = sourceRef ? skillDetailMap[sourceRef] || null : null;
   const skillName =
     skillDetail?.display_name?.trim() || skillLog?.name || group.source || "";

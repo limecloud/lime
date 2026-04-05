@@ -6,21 +6,21 @@ import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import {
   createSkillSelectionProps,
   type SkillSelectionProps,
-} from "./Inputbar/components/skillSelectionBindings";
+} from "../skill-selection/skillSelectionBindings";
 
 vi.mock("./ChatModelSelector", () => ({
   ChatModelSelector: () => <div data-testid="empty-state-model-selector" />,
 }));
 
-vi.mock("./Inputbar/components/CharacterMention", () => ({
+vi.mock("../skill-selection/CharacterMention", () => ({
   CharacterMention: () => <div data-testid="empty-state-character-mention" />,
 }));
 
-vi.mock("./Inputbar/components/SkillBadge", () => ({
+vi.mock("../skill-selection/SkillBadge", () => ({
   SkillBadge: () => <div data-testid="empty-state-skill-badge" />,
 }));
 
-vi.mock("./Inputbar/components/SkillSelector", () => ({
+vi.mock("../skill-selection/SkillSelector", () => ({
   SkillSelector: () => <div data-testid="empty-state-skill-selector" />,
 }));
 
@@ -149,30 +149,11 @@ function renderPanel(
     setExecutionStrategy: vi.fn(),
     onManageProviders: vi.fn(),
     isGeneralTheme: false,
-    isEntryTheme: false,
-    entryTaskType: "direct",
-    entryTaskTypes: [],
-    getEntryTaskTemplate: vi.fn(),
-    entryTemplate: {
-      type: "direct",
-      label: "直接写作",
-      description: "直接按需求写作",
-      pattern: "{input}",
-      slots: [],
-    },
-    entryPreview: "",
-    entrySlotValues: {},
-    onEntryTaskTypeChange: vi.fn(),
-    onEntrySlotChange: vi.fn(),
     characters: [],
     skillSelection: createSkillSelection(),
     showCreationModeSelector: false,
     creationMode: "guided",
     onCreationModeChange: vi.fn(),
-    platform: "xiaohongshu",
-    setPlatform: vi.fn(),
-    depth: "deep",
-    setDepth: vi.fn(),
     thinkingEnabled: false,
     onThinkingEnabledChange: vi.fn(),
     subagentEnabled: false,
@@ -225,30 +206,11 @@ function renderStatefulPanel(
         setExecutionStrategy={vi.fn()}
         onManageProviders={vi.fn()}
         isGeneralTheme
-        isEntryTheme={false}
-        entryTaskType="direct"
-        entryTaskTypes={[]}
-        getEntryTaskTemplate={vi.fn()}
-        entryTemplate={{
-          type: "direct",
-          label: "直接写作",
-          description: "直接按需求写作",
-          pattern: "{input}",
-          slots: [],
-        }}
-        entryPreview=""
-        entrySlotValues={{}}
-        onEntryTaskTypeChange={vi.fn()}
-        onEntrySlotChange={vi.fn()}
         characters={[]}
         skillSelection={createSkillSelection()}
         showCreationModeSelector={false}
         creationMode="guided"
         onCreationModeChange={vi.fn()}
-        platform="xiaohongshu"
-        setPlatform={vi.fn()}
-        depth="deep"
-        setDepth={vi.fn()}
         thinkingEnabled={false}
         onThinkingEnabledChange={vi.fn()}
         subagentEnabled={subagentEnabled}
@@ -296,6 +258,19 @@ describe("EmptyStateComposerPanel", () => {
     expect(
       container.querySelector('[data-testid="empty-state-skill-selector"]'),
     ).toBeTruthy();
+  });
+
+  it("首页空态输入区应使用新的浮层输入壳，而不是旧默认输入壳", () => {
+    const container = renderPanel({
+      isGeneralTheme: true,
+    });
+
+    const composer = container.querySelector(
+      '[data-testid="inputbar-core-container"]',
+    ) as HTMLDivElement | null;
+
+    expect(composer).toBeTruthy();
+    expect(composer?.className).toContain("floating-composer");
   });
 
   it("通用对话且存在站点型 service skill 时不应再展示首页专属提示按钮", () => {

@@ -238,12 +238,15 @@ impl SkillService {
                 continue;
             }
 
-            for entry in fs::read_dir(&root.path)
+            let mut entries = fs::read_dir(&root.path)
                 .with_context(|| {
                     format!("Failed to read skills directory {}", root.path.display())
                 })?
                 .flatten()
-            {
+                .collect::<Vec<_>>();
+            entries.sort_by_key(|entry| entry.file_name().to_string_lossy().to_string());
+
+            for entry in entries {
                 if !entry.path().is_dir() {
                     continue;
                 }
@@ -1079,12 +1082,12 @@ mod tests {
 
     #[test]
     fn resource_marker_should_extract_skill_dir_and_resource_dir() {
-        let path = Path::new("repo-main/social_post_with_cover/references/workflow.json");
+        let path = Path::new("repo-main/content_post_with_cover/references/workflow.json");
         let marker = SkillService::skill_resource_marker_from_archive_path(path);
         assert_eq!(
             marker,
             Some((
-                "social_post_with_cover".to_string(),
+                "content_post_with_cover".to_string(),
                 "references".to_string()
             ))
         );
@@ -1093,7 +1096,7 @@ mod tests {
     #[test]
     fn inspect_skill_dir_should_collect_standard_metadata_and_workflow_state() {
         let temp_dir = TempDir::new().unwrap();
-        let skill_dir = temp_dir.path().join("social_post_with_cover");
+        let skill_dir = temp_dir.path().join("content_post_with_cover");
         let references_dir = skill_dir.join("references");
         std::fs::create_dir_all(&references_dir).unwrap();
         std::fs::write(

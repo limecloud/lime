@@ -23,9 +23,9 @@ import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CreationMode } from "../components/types";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 import {
-  resolveHomeShellWorkspaceEntry,
-  type HomeShellEnterWorkspacePayload,
-} from "../homeShellEntry";
+  resolveWorkspaceEntry,
+  type WorkspaceEntryPayload,
+} from "../workspaceEntry";
 import { composeServiceSkillPrompt } from "../service-skills/promptComposer";
 import {
   buildServiceSkillAutomationAgentTurnPayloadContext,
@@ -251,8 +251,8 @@ export function useWorkspaceServiceSkillEntryActions({
   const currentContentId = contentId?.trim() || null;
 
   const navigateToServiceSkillWorkspace = useCallback(
-    (payload: HomeShellEnterWorkspacePayload): boolean => {
-      const payloadWithSelectedTeamMetadata: HomeShellEnterWorkspacePayload = {
+    (payload: WorkspaceEntryPayload): boolean => {
+      const payloadWithSelectedTeamMetadata: WorkspaceEntryPayload = {
         ...payload,
         initialRequestMetadata: attachSelectedTeamToRequestMetadata(
           payload.initialRequestMetadata,
@@ -273,7 +273,7 @@ export function useWorkspaceServiceSkillEntryActions({
           },
         ),
       };
-      const resolved = resolveHomeShellWorkspaceEntry({
+      const resolved = resolveWorkspaceEntry({
         projectId: currentProjectId,
         activeTheme,
         creationMode,
@@ -357,7 +357,7 @@ export function useWorkspaceServiceSkillEntryActions({
         contentId?: string | null;
         projectId?: string | null;
       },
-    ): Promise<HomeShellEnterWorkspacePayload> => {
+    ): Promise<WorkspaceEntryPayload> => {
       const normalizedProjectId = normalizeProjectId(
         options?.projectId ?? currentProjectId,
       );
@@ -420,7 +420,7 @@ export function useWorkspaceServiceSkillEntryActions({
         | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
         | null,
       options?: ServiceSkillLaunchOptions,
-    ): Promise<HomeShellEnterWorkspacePayload> => {
+    ): Promise<WorkspaceEntryPayload> => {
       if (!isServiceSkillExecutableAsSiteAdapter(skill)) {
         throw new Error("当前技能未绑定站点执行能力");
       }
@@ -487,7 +487,7 @@ export function useWorkspaceServiceSkillEntryActions({
     async (
       skill: ServiceSkillHomeItem,
       run: ServiceSkillRun,
-    ): Promise<HomeShellEnterWorkspacePayload | null> => {
+    ): Promise<WorkspaceEntryPayload | null> => {
       const seed = buildServiceSkillWorkspaceSeed(
         skill,
         skill.themeTarget ?? activeTheme,
@@ -650,7 +650,7 @@ export function useWorkspaceServiceSkillEntryActions({
           return;
         }
 
-        let workspacePayload: HomeShellEnterWorkspacePayload;
+        let workspacePayload: WorkspaceEntryPayload;
         try {
           workspacePayload = await prepareServiceSkillSiteWorkspacePayload(
             skill,
@@ -716,7 +716,7 @@ export function useWorkspaceServiceSkillEntryActions({
           }
 
           if (run.status === "success") {
-            let workspacePayload: HomeShellEnterWorkspacePayload | null = null;
+            let workspacePayload: WorkspaceEntryPayload | null = null;
             let workspaceErrorMessage: string | null = null;
 
             try {
@@ -775,7 +775,7 @@ export function useWorkspaceServiceSkillEntryActions({
         );
       }
 
-      let workspacePayload: HomeShellEnterWorkspacePayload;
+      let workspacePayload: WorkspaceEntryPayload;
       try {
         workspacePayload = await prepareServiceSkillWorkspacePayload(
           skill,
@@ -948,7 +948,7 @@ export function useWorkspaceServiceSkillEntryActions({
         });
         recordServiceSkillUsage(pendingLaunch.usage);
 
-        let workspacePayload: HomeShellEnterWorkspacePayload;
+        let workspacePayload: WorkspaceEntryPayload;
         try {
           workspacePayload = await prepareServiceSkillWorkspacePayload(
             pendingLaunch.skill,

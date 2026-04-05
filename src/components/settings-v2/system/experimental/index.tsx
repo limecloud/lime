@@ -1213,5 +1213,3 @@ export function ExperimentalSettings() {
     </div>
   );
 }
-
-export default ExperimentalSettings;

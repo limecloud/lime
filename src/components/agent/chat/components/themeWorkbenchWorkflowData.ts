@@ -57,9 +57,7 @@ function normalizeArtifactPaths(raw?: string[]): string[] {
   if (!Array.isArray(raw)) {
     return [];
   }
-  return raw
-    .map((path) => path.trim())
-    .filter((path) => path.length > 0);
+  return raw.map((path) => path.trim()).filter((path) => path.length > 0);
 }
 
 function mergeArtifactPaths(current: string[], incoming?: string[]): string[] {
@@ -115,6 +113,9 @@ function formatCreationTaskTypeLabel(taskType: string): string {
   const normalized = taskType.trim().toLowerCase();
   if (normalized === "video_generate") {
     return "视频生成";
+  }
+  if (normalized === "transcription_generate") {
+    return "转写任务";
   }
   if (normalized === "broadcast_generate") {
     return "播客整理";
@@ -194,11 +195,15 @@ export function formatThemeWorkbenchStageLabel(raw: string): string {
   return raw;
 }
 
-export function formatThemeWorkbenchStagesLabel(stages: string[]): string | null {
+export function formatThemeWorkbenchStagesLabel(
+  stages: string[],
+): string | null {
   if (stages.length === 0) {
     return null;
   }
-  return stages.map((stage) => formatThemeWorkbenchStageLabel(stage)).join(" → ");
+  return stages
+    .map((stage) => formatThemeWorkbenchStageLabel(stage))
+    .join(" → ");
 }
 
 export function buildThemeWorkbenchActivityLogGroups(
@@ -233,7 +238,10 @@ export function buildThemeWorkbenchActivityLogGroups(
     }
 
     existingGroup.logs.push(log);
-    existingGroup.status = mergeActivityStatus(existingGroup.status, log.status);
+    existingGroup.status = mergeActivityStatus(
+      existingGroup.status,
+      log.status,
+    );
     if (!existingGroup.source && log.source) {
       existingGroup.source = log.source;
     }

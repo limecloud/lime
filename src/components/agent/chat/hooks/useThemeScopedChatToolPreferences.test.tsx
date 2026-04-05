@@ -113,13 +113,13 @@ describe("useThemeScopedChatToolPreferences", () => {
     );
     saveChatToolPreferences(
       { webSearch: false, thinking: true, task: true, subagent: true },
-      "social-media",
+      "general",
     );
 
     const harness = mountHook("general");
 
     try {
-      harness.rerender("social-media");
+      harness.rerender("general");
       expect(harness.getValue().chatToolPreferences).toEqual({
         webSearch: false,
         thinking: true,
@@ -138,7 +138,7 @@ describe("useThemeScopedChatToolPreferences", () => {
 
       expect(
         JSON.parse(
-          localStorage.getItem("lime.chat.tool_preferences.social-media.v3") ||
+          localStorage.getItem("lime.chat.tool_preferences.general.v3") ||
             "null",
         ),
       ).toEqual({

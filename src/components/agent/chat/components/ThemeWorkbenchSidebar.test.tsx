@@ -130,7 +130,7 @@ function renderSidebar(
     activityLogs: [
       {
         id: "log-1",
-        name: "social_post_with_cover",
+        name: "content_post_with_cover",
         status: "completed",
         timeLabel: "10:30",
         applyTarget: "封面/插图",
@@ -138,14 +138,14 @@ function renderSidebar(
         gateKey: "write_mode",
         runId: "run-abcdef123456",
         source: "skill",
-        sourceRef: "social_post_with_cover",
+        sourceRef: "content_post_with_cover",
       },
     ],
     skillDetailMap: {
-      social_post_with_cover: {
-        name: "social_post_with_cover",
+      content_post_with_cover: {
+        name: "content_post_with_cover",
         display_name: "社媒主稿与封面",
-        description: "生成社媒主稿，并补齐封面素材。",
+        description: "生成内容主稿，并补齐封面素材。",
         execution_mode: "prompt",
         has_workflow: true,
         workflow_steps: [
@@ -345,8 +345,8 @@ describe("ThemeWorkbenchSidebar", () => {
     }
 
     expect(container.textContent).toContain("技能：社媒主稿与封面");
-    expect(container.textContent).toContain("生成社媒主稿，并补齐封面素材。");
-    expect(container.textContent).toContain("技能标识：social_post_with_cover");
+    expect(container.textContent).toContain("生成内容主稿，并补齐封面素材。");
+    expect(container.textContent).toContain("技能标识：content_post_with_cover");
   });
 
   it("执行日志应支持展开技能详情", () => {
@@ -770,7 +770,7 @@ describe("ThemeWorkbenchSidebar", () => {
           runId: "rungrp01",
           gateKey: "topic_select",
           source: "skill",
-          artifactPaths: ["social-posts/research.md"],
+          artifactPaths: ["content-posts/research.md"],
           inputSummary: "{\"topic\":\"AI\"}",
           outputSummary: "已完成选题调研",
         },
@@ -809,7 +809,7 @@ describe("ThemeWorkbenchSidebar", () => {
     expect(container.textContent).toContain("research_topic");
     expect(container.textContent).toContain("write_file");
     expect(container.textContent).toContain("技能：research_topic");
-    expect(container.textContent).toContain("修改：social-posts/research.md");
+    expect(container.textContent).toContain("修改：content-posts/research.md");
     expect(container.textContent).toContain("输入：{\"topic\":\"AI\"}");
     expect(container.textContent).toContain("输出：已完成选题调研");
     const runButtons = Array.from(container.querySelectorAll("button")).filter(
@@ -857,7 +857,7 @@ describe("ThemeWorkbenchSidebar", () => {
       activeRunDetail: {
         id: "run-detail-1",
         source: "skill",
-        source_ref: "social_post_with_cover",
+        source_ref: "content_post_with_cover",
         session_id: "session-1",
         status: "running",
         started_at: "2026-03-06T01:02:03Z",
@@ -899,7 +899,7 @@ describe("ThemeWorkbenchSidebar", () => {
       activeRunDetail: {
         id: "run-copy-1",
         source: "skill",
-        source_ref: "social_post_with_cover",
+        source_ref: "content_post_with_cover",
         session_id: "session-copy",
         status: "success",
         started_at: "2026-03-06T01:02:03Z",
@@ -965,7 +965,7 @@ describe("ThemeWorkbenchSidebar", () => {
       activeRunDetail: {
         id: "run-artifact-1",
         source: "skill",
-        source_ref: "social_post_with_cover",
+        source_ref: "content_post_with_cover",
         session_id: "session-artifact",
         status: "success",
         started_at: "2026-03-06T02:00:03Z",
@@ -979,8 +979,8 @@ describe("ThemeWorkbenchSidebar", () => {
           version_id: "ver-artifact-1",
           stages: ["topic_select", "write_mode", "publish_confirm"],
           artifact_paths: [
-            "social-posts/demo.md",
-            "social-posts/demo.publish-pack.json",
+            "content-posts/demo.md",
+            "content-posts/demo.publish-pack.json",
           ],
         }),
         created_at: "2026-03-06T02:00:03Z",
@@ -1010,14 +1010,14 @@ describe("ThemeWorkbenchSidebar", () => {
     expect(container.textContent).toContain("执行ID：exec-artifact-1");
     expect(container.textContent).toContain("版本ID：ver-artifact-1");
     expect(container.textContent).toContain("阶段：选题闸门 → 写作闸门 → 发布闸门");
-    expect(container.textContent).toContain("social-posts/demo.md");
-    expect(container.textContent).toContain("social-posts/demo.publish-pack.json");
+    expect(container.textContent).toContain("content-posts/demo.md");
+    expect(container.textContent).toContain("content-posts/demo.publish-pack.json");
 
     const copyArtifactButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
         button
           .getAttribute("aria-label")
-          ?.startsWith("复制产物路径-social-posts/demo.md"),
+          ?.startsWith("复制产物路径-content-posts/demo.md"),
     );
     expect(copyArtifactButton).toBeTruthy();
     if (copyArtifactButton) {
@@ -1026,13 +1026,13 @@ describe("ThemeWorkbenchSidebar", () => {
       });
     }
 
-    expect(mockWriteClipboardText).toHaveBeenCalledWith("social-posts/demo.md");
+    expect(mockWriteClipboardText).toHaveBeenCalledWith("content-posts/demo.md");
 
     const revealArtifactButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
         button
           .getAttribute("aria-label")
-          ?.startsWith("定位产物路径-social-posts/demo.md"),
+          ?.startsWith("定位产物路径-content-posts/demo.md"),
     );
     expect(revealArtifactButton).toBeTruthy();
     if (revealArtifactButton) {
@@ -1042,14 +1042,14 @@ describe("ThemeWorkbenchSidebar", () => {
     }
     expect(mockRevealSessionFileInFinder).toHaveBeenCalledWith(
       "session-artifact",
-      "social-posts/demo.md",
+      "content-posts/demo.md",
     );
 
     const openArtifactButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
         button
           .getAttribute("aria-label")
-          ?.startsWith("打开产物路径-social-posts/demo.md"),
+          ?.startsWith("打开产物路径-content-posts/demo.md"),
     );
     expect(openArtifactButton).toBeTruthy();
     if (openArtifactButton) {
@@ -1059,7 +1059,7 @@ describe("ThemeWorkbenchSidebar", () => {
     }
     expect(mockOpenSessionFileWithDefaultApp).toHaveBeenCalledWith(
       "session-artifact",
-      "social-posts/demo.md",
+      "content-posts/demo.md",
     );
   });
 
@@ -1068,7 +1068,7 @@ describe("ThemeWorkbenchSidebar", () => {
       activityLogs: [
         {
           id: "log-run-artifact-1",
-          name: "social_post_with_cover",
+          name: "content_post_with_cover",
           status: "completed",
           timeLabel: "11:20",
           applyTarget: "主稿内容",
@@ -1076,7 +1076,7 @@ describe("ThemeWorkbenchSidebar", () => {
           runId: "run-artifact-group-1",
           executionId: "exec-artifact-group-1",
           sessionId: "session-group",
-          artifactPaths: ["social-posts/group.md"],
+          artifactPaths: ["content-posts/group.md"],
           gateKey: "write_mode",
           source: "skill",
         },
@@ -1105,7 +1105,7 @@ describe("ThemeWorkbenchSidebar", () => {
       (button) =>
         button
           .getAttribute("aria-label")
-          ?.startsWith("定位活动产物路径-social-posts/group.md"),
+          ?.startsWith("定位活动产物路径-content-posts/group.md"),
     );
     expect(revealArtifactButton).toBeTruthy();
     if (revealArtifactButton) {
@@ -1115,14 +1115,14 @@ describe("ThemeWorkbenchSidebar", () => {
     }
     expect(mockRevealSessionFileInFinder).toHaveBeenCalledWith(
       "session-group",
-      "social-posts/group.md",
+      "content-posts/group.md",
     );
 
     const openArtifactButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
         button
           .getAttribute("aria-label")
-          ?.startsWith("打开活动产物路径-social-posts/group.md"),
+          ?.startsWith("打开活动产物路径-content-posts/group.md"),
     );
     expect(openArtifactButton).toBeTruthy();
     if (openArtifactButton) {
@@ -1132,7 +1132,7 @@ describe("ThemeWorkbenchSidebar", () => {
     }
     expect(mockOpenSessionFileWithDefaultApp).toHaveBeenCalledWith(
       "session-group",
-      "social-posts/group.md",
+      "content-posts/group.md",
     );
   });
 
@@ -1203,7 +1203,7 @@ describe("ThemeWorkbenchSidebar", () => {
         activeRunDetail: {
           id: "run-error-path",
           source: "skill",
-          source_ref: "social_post_with_cover",
+          source_ref: "content_post_with_cover",
           session_id: "session-error",
           status: "success",
           started_at: "2026-03-06T02:10:03Z",
@@ -1212,7 +1212,7 @@ describe("ThemeWorkbenchSidebar", () => {
           error_code: null,
           error_message: null,
           metadata: JSON.stringify({
-            artifact_paths: ["social-posts/error.md"],
+            artifact_paths: ["content-posts/error.md"],
           }),
           created_at: "2026-03-06T02:10:03Z",
           updated_at: "2026-03-06T02:10:08Z",
@@ -1242,7 +1242,7 @@ describe("ThemeWorkbenchSidebar", () => {
       ).find((button) =>
         button
           .getAttribute("aria-label")
-          ?.startsWith("定位产物路径-social-posts/error.md"),
+          ?.startsWith("定位产物路径-content-posts/error.md"),
       );
       expect(revealArtifactButton).toBeTruthy();
       if (revealArtifactButton) {

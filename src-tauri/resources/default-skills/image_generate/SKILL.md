@@ -21,11 +21,12 @@ metadata:
 
 - 先判断是否属于封面需求；封面需求请转 `cover_generate`。
 - 提示词必须包含主体、场景、风格，不要空泛。
-- 若用户给了参考素材，需体现在参数中。
-- 优先调用 `Bash` 执行 `lime task create image --json` 创建任务。
+- 若调用方在结构化上下文里提供了 `image_task`，必须优先复用其中的 `mode`、`reference_images`、`target_output_*`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target` 等字段，不要擅自丢失。
+- 若用户给了参考素材，需体现在参数中；若 `reference_images` 已经是文件路径、URL 或输入图片物化路径，直接原样透传。
+- 优先调用 `Bash` 执行 `lime media image generate --json` 创建任务；如当前环境只提供 `task create` 入口，也可使用 `lime task create image --json`。
 - 若当前环境暂时无法执行 `lime` CLI，再回退到 `lime_create_image_generation_task`。
 - 任务结果必须兼容 `lime task create image --json` 的任务文件契约。
-- `payload` 中至少包含：`prompt`、`style`、`size`、`count`、`usage`。
+- `payload` 中至少包含：`prompt`、`style`、`size`、`count`、`usage`；如有上下文，还应携带 `mode`、`reference_images`、`target_output_id`、`target_output_ref_id`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target`。
 
 ## 输出格式（固定）
 

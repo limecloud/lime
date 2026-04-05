@@ -4,7 +4,7 @@ import type {
   ServiceSkillArtifactKind,
   ServiceSkillItem,
 } from "@/lib/api/serviceSkills";
-import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
+import { normalizeThemeType } from "@/lib/workspace/workbenchContract";
 
 export interface ServiceSkillWorkspaceSeed {
   title: string;
@@ -50,13 +50,14 @@ export function buildServiceSkillWorkspaceSeed(
   fallbackTheme?: string | null,
 ): ServiceSkillWorkspaceSeed | null {
   const targetTheme = skill.themeTarget ?? fallbackTheme ?? null;
-  if (!targetTheme || !isSpecializedWorkbenchTheme(targetTheme)) {
+  if (!targetTheme) {
     return null;
   }
+  const normalizedTheme = normalizeThemeType(targetTheme);
 
   return {
     title: skill.title.trim() || "技能工作稿",
-    contentType: getDefaultContentTypeForProject(targetTheme as ProjectType),
+    contentType: getDefaultContentTypeForProject(normalizedTheme as ProjectType),
     requestMetadata: shouldSeedArtifactDraft(skill)
       ? resolveServiceSkillArtifactRequestMetadata(skill.defaultArtifactKind)
       : undefined,
@@ -67,7 +68,7 @@ export function buildServiceSkillWorkspaceSeed(
         title: skill.title,
         runnerType: skill.runnerType,
         executionLocation: skill.executionLocation,
-        themeTarget: targetTheme,
+        themeTarget: normalizedTheme,
         artifactKind: skill.defaultArtifactKind ?? null,
       },
     },

@@ -12,7 +12,7 @@ const MOCK_SKILL: ServiceSkillItem = {
   id: "daily-trend-briefing",
   title: "每日趋势摘要",
   summary: "围绕指定平台与关键词输出趋势摘要。",
-  category: "社媒运营",
+  category: "内容运营",
   outputHint: "趋势摘要 + 调度建议",
   source: "cloud_catalog",
   runnerType: "scheduled",

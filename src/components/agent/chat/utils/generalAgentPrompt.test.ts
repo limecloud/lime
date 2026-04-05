@@ -9,15 +9,14 @@ import {
 describe("generalAgentPrompt", () => {
   it("应识别通用对话主题", () => {
     expect(isGeneralResearchTheme("general")).toBe(true);
-    expect(isGeneralResearchTheme("knowledge")).toBe(true);
-    expect(isGeneralResearchTheme("planning")).toBe(true);
-    expect(isGeneralResearchTheme("social-media")).toBe(false);
+    expect(isGeneralResearchTheme(" custom-theme ")).toBe(false);
+    expect(isGeneralResearchTheme(undefined)).toBe(false);
   });
 
   it("工作台模式应优先返回 workbench", () => {
     expect(resolveAgentChatMode("general", true)).toBe("workbench");
     expect(resolveAgentChatMode("general", false)).toBe("general");
-    expect(resolveAgentChatMode("social-media", false)).toBe("agent");
+    expect(resolveAgentChatMode("custom-theme", false)).toBe("agent");
   });
 
   it("通用主题 Prompt 应避免编程和落盘默认倾向", () => {
@@ -48,22 +47,21 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("每轮最多只保留 1 个最关键问题");
   });
 
-  it("知识主题 Prompt 应强调事实与时效性", () => {
-    const prompt = buildGeneralAgentSystemPrompt("knowledge");
+  it("通用主题 Prompt 应回落到统一的主题说明", () => {
+    const prompt = buildGeneralAgentSystemPrompt("general");
 
-    expect(prompt).toContain("知识探索");
-    expect(prompt).toContain("区分事实、推断与不确定性");
-    expect(prompt).toContain("优先核对时间与来源");
+    expect(prompt).toContain("当前主题：通用对话");
+    expect(prompt).toContain("优先处理需求澄清");
+    expect(prompt).toContain("不要一上来就走重链路");
     expect(prompt).toContain("3-4 组 WebSearch 扩搜");
   });
 
-  it("计划主题 Prompt 应强调执行节奏与风险", () => {
-    const prompt = buildGeneralAgentSystemPrompt("planning");
+  it("通用主题 Prompt 仍应强调执行升级与团队协作边界", () => {
+    const prompt = buildGeneralAgentSystemPrompt("general");
 
-    expect(prompt).toContain("计划规划");
-    expect(prompt).toContain("执行节奏");
-    expect(prompt).toContain("风险提醒");
-    expect(prompt).toContain("验收标准");
+    expect(prompt).toContain("计划执行");
+    expect(prompt).toContain("多代理");
+    expect(prompt).toContain("如果进入计划执行或 Team 协作");
     expect(prompt).toContain("主对话负责解释分工");
   });
 

@@ -14,13 +14,8 @@
 export type WorkspaceType =
   | "persistent" // 持久化项目
   | "temporary" // 临时项目
-  | "social-media" // 社交媒体
   | "blog" // 博客
-  | "general" // 通用
-  | "knowledge" // 知识探索
-  | "planning" // 计划规划
-  | "document" // 办公文档
-  | "video"; // 短视频
+  | "general"; // 通用
 
 /**
  * Workspace 类型显示名称映射
@@ -28,13 +23,8 @@ export type WorkspaceType =
 export const WorkspaceTypeLabels: Record<WorkspaceType, string> = {
   persistent: "持久化",
   temporary: "临时",
-  "social-media": "社交媒体",
   blog: "博客",
   general: "通用",
-  knowledge: "知识探索",
-  planning: "计划规划",
-  document: "办公文档",
-  video: "短视频",
 };
 
 /** 媒体生成偏好设置 */

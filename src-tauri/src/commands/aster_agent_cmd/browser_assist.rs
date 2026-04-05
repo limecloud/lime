@@ -222,7 +222,7 @@ pub(crate) fn resolve_runtime_chat_mode(
     }
 
     match extract_harness_string(request_metadata, &["theme", "harness_theme"]).as_deref() {
-        Some("general" | "knowledge" | "planning") => RuntimeChatMode::General,
+        Some("general") => RuntimeChatMode::General,
         _ => RuntimeChatMode::Agent,
     }
 }

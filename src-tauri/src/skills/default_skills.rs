@@ -7,14 +7,18 @@ use std::path::PathBuf;
 use lime_core::app_paths;
 use lime_core::models::parse_skill_manifest_from_content;
 use lime_core::models::{
-    BROADCAST_GENERATE_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
-    IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY, MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
-    RESEARCH_SKILL_DIRECTORY, SITE_SEARCH_SKILL_DIRECTORY, SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
-    TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY, VIDEO_GENERATE_SKILL_DIRECTORY,
+    BROADCAST_GENERATE_SKILL_DIRECTORY, CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
+    COVER_GENERATE_SKILL_DIRECTORY, IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY,
+    MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY, RESEARCH_SKILL_DIRECTORY, SITE_SEARCH_SKILL_DIRECTORY,
+    TRANSCRIPTION_GENERATE_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY,
+    VIDEO_GENERATE_SKILL_DIRECTORY,
 };
 
 const VIDEO_GENERATE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/video_generate/SKILL.md");
+
+const TRANSCRIPTION_GENERATE_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/transcription_generate/SKILL.md");
 
 const BROADCAST_GENERATE_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/broadcast_generate/SKILL.md");
@@ -49,11 +53,11 @@ const BUNDLED_SITE_ADAPTER_INDEX_CONTENT: &str =
 const TYPESETTING_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/typesetting/SKILL.md");
 
-const SOCIAL_POST_WITH_COVER_SKILL_CONTENT: &str =
-    include_str!("../../resources/default-skills/social_post_with_cover/SKILL.md");
+const CONTENT_POST_WITH_COVER_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/content_post_with_cover/SKILL.md");
 
-const SOCIAL_POST_WITH_COVER_WORKFLOW_CONTENT: &str =
-    include_str!("../../resources/default-skills/social_post_with_cover/references/workflow.json");
+const CONTENT_POST_WITH_COVER_WORKFLOW_CONTENT: &str =
+    include_str!("../../resources/default-skills/content_post_with_cover/references/workflow.json");
 
 #[derive(Clone, Copy)]
 struct BundledSkillFile {
@@ -68,9 +72,9 @@ struct BundledSkillDefinition {
     extra_files: &'static [BundledSkillFile],
 }
 
-const SOCIAL_POST_WITH_COVER_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
+const CONTENT_POST_WITH_COVER_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
     relative_path: "references/workflow.json",
-    content: SOCIAL_POST_WITH_COVER_WORKFLOW_CONTENT,
+    content: CONTENT_POST_WITH_COVER_WORKFLOW_CONTENT,
 }];
 
 const SITE_SEARCH_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
@@ -78,11 +82,16 @@ const SITE_SEARCH_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
     content: SITE_SEARCH_ADAPTER_CATALOG_CONTENT,
 }];
 
-fn default_skills() -> [BundledSkillDefinition; 11] {
+fn default_skills() -> [BundledSkillDefinition; 12] {
     [
         BundledSkillDefinition {
             directory: VIDEO_GENERATE_SKILL_DIRECTORY,
             skill_content: VIDEO_GENERATE_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
+            skill_content: TRANSCRIPTION_GENERATE_SKILL_CONTENT,
             extra_files: &[],
         },
         BundledSkillDefinition {
@@ -131,9 +140,9 @@ fn default_skills() -> [BundledSkillDefinition; 11] {
             extra_files: &[],
         },
         BundledSkillDefinition {
-            directory: SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
-            skill_content: SOCIAL_POST_WITH_COVER_SKILL_CONTENT,
-            extra_files: SOCIAL_POST_WITH_COVER_EXTRA_FILES,
+            directory: CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
+            skill_content: CONTENT_POST_WITH_COVER_SKILL_CONTENT,
+            extra_files: CONTENT_POST_WITH_COVER_EXTRA_FILES,
         },
     ]
 }
@@ -234,10 +243,10 @@ mod tests {
         let temp = tempfile::tempdir().expect("create temp dir");
         let skills_root = skills_root_from_base(temp.path());
         let installed = ensure_default_local_skills_in_dir(&skills_root).expect("install");
-        assert!(installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY.to_string()));
+        assert!(installed.contains(&CONTENT_POST_WITH_COVER_SKILL_DIRECTORY.to_string()));
 
         let skill_md_path = skills_root
-            .join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY)
+            .join(CONTENT_POST_WITH_COVER_SKILL_DIRECTORY)
             .join("SKILL.md");
         assert!(skill_md_path.exists());
     }
@@ -246,7 +255,7 @@ mod tests {
     fn should_not_overwrite_existing_skill() {
         let temp = tempfile::tempdir().expect("create temp dir");
         let skills_root = skills_root_from_base(temp.path());
-        let skill_dir = skills_root.join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY);
+        let skill_dir = skills_root.join(CONTENT_POST_WITH_COVER_SKILL_DIRECTORY);
         fs::create_dir_all(&skill_dir).expect("create skill dir");
         let skill_md_path = skill_dir.join("SKILL.md");
         // 无版本号的自定义内容不应被覆盖
@@ -255,7 +264,7 @@ mod tests {
 
         let installed = ensure_default_local_skills_in_dir(&skills_root).expect("install");
         assert!(
-            !installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY.to_string()),
+            !installed.contains(&CONTENT_POST_WITH_COVER_SKILL_DIRECTORY.to_string()),
             "无版本信息的已存在 skill 不应被重新安装"
         );
 
@@ -267,16 +276,16 @@ mod tests {
     fn should_upgrade_skill_when_newer_version_available() {
         let temp = tempfile::tempdir().expect("create temp dir");
         let skills_root = skills_root_from_base(temp.path());
-        let skill_dir = skills_root.join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY);
+        let skill_dir = skills_root.join(CONTENT_POST_WITH_COVER_SKILL_DIRECTORY);
         fs::create_dir_all(&skill_dir).expect("create skill dir");
         let skill_md_path = skill_dir.join("SKILL.md");
         // 旧版本内容
-        let old_content = "---\nname: social_post_with_cover\nversion: 1.0.0\n---\nold content";
+        let old_content = "---\nname: content_post_with_cover\nversion: 1.0.0\n---\nold content";
         fs::write(&skill_md_path, old_content).expect("write old skill");
 
         let installed = ensure_default_local_skills_in_dir(&skills_root).expect("install");
         assert!(
-            installed.contains(&SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY.to_string()),
+            installed.contains(&CONTENT_POST_WITH_COVER_SKILL_DIRECTORY.to_string()),
             "内置版本更新时应自动升级"
         );
 
@@ -303,18 +312,19 @@ mod tests {
 
     #[test]
     fn should_embed_social_image_tool_contract_in_default_skill() {
-        assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT
+        assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT
             .contains("allowed-tools: social_generate_cover_image, search_query"));
-        assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("lime_surface: workbench"));
-        assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("**配图说明**"));
-        assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("状态：{成功/失败}"));
-        assert!(SOCIAL_POST_WITH_COVER_SKILL_CONTENT.contains("lime_workflow_ref"));
-        assert!(SOCIAL_POST_WITH_COVER_WORKFLOW_CONTENT.contains("\"id\": \"research\""));
+        assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT.contains("**配图说明**"));
+        assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT.contains("状态：{成功/失败}"));
+        assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT.contains("lime_workflow_ref"));
+        assert!(CONTENT_POST_WITH_COVER_WORKFLOW_CONTENT.contains("\"id\": \"research\""));
     }
 
     #[test]
     fn should_embed_core_default_skills() {
         assert!(VIDEO_GENERATE_SKILL_CONTENT.contains("name: video_generate"));
+        assert!(TRANSCRIPTION_GENERATE_SKILL_CONTENT.contains("name: transcription_generate"));
         assert!(BROADCAST_GENERATE_SKILL_CONTENT.contains("name: broadcast_generate"));
         assert!(COVER_GENERATE_SKILL_CONTENT.contains("name: cover_generate"));
         assert!(COVER_GENERATE_SKILL_CONTENT.contains(
@@ -327,7 +337,8 @@ mod tests {
         assert!(IMAGE_GENERATE_SKILL_CONTENT
             .contains("allowed-tools: Bash, lime_create_image_generation_task"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT
-            .contains("优先调用 `Bash` 执行 `lime task create image --json` 创建任务。"));
+            .contains("优先调用 `Bash` 执行 `lime media image generate --json` 创建任务"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("也可使用 `lime task create image --json`"));
         assert!(LIBRARY_SKILL_CONTENT.contains("name: library"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("name: url_parse"));
         assert!(RESEARCH_SKILL_CONTENT.contains("name: research"));
@@ -336,6 +347,7 @@ mod tests {
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`zhihu/hot`"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("name: typesetting"));
         assert!(VIDEO_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(TRANSCRIPTION_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(BROADCAST_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(COVER_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(MODAL_RESOURCE_SEARCH_SKILL_CONTENT.contains("lime_surface: workbench"));
@@ -354,7 +366,7 @@ mod tests {
         ensure_default_local_skills_in_dir(&skills_root).expect("install");
 
         let workflow_path = skills_root
-            .join(SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY)
+            .join(CONTENT_POST_WITH_COVER_SKILL_DIRECTORY)
             .join("references")
             .join("workflow.json");
         assert!(workflow_path.exists());

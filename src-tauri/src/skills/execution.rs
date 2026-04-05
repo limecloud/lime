@@ -3,13 +3,19 @@
 //! prompt/workflow 纯逻辑已下沉到 `lime-agent`，
 //! 本模块只保留 Tauri emitter 与错误码映射。
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use lime_agent::{
     artifact_protocol::extend_unique_artifact_protocol_paths,
     execute_skill_prompt as execute_agent_skill_prompt,
     execute_skill_workflow as execute_agent_skill_workflow, AgentEvent as RuntimeAgentEvent,
-    AsterAgentState, SkillEventEmitter, SkillExecutionError, SkillWorkflowExecution,
+    AsterAgentState, SkillEventEmitter, SkillExecutionError, SkillInputImage, SkillPromptExecution,
+    SkillWorkflowExecution,
 };
 use lime_skills::{ExecutionCallback, LoadedSkillDefinition};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -29,14 +35,186 @@ use super::runtime::{
 };
 use super::social_post::finalize_skill_output;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillExecutionImageInput {
+    pub data: String,
+    pub media_type: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct SkillExecutionRequest {
     pub skill_name: String,
     pub user_input: String,
+    pub images: Vec<SkillExecutionImageInput>,
+    pub request_context: Option<Value>,
     pub provider_override: Option<String>,
     pub model_override: Option<String>,
     pub execution_id: Option<String>,
     pub session_id: Option<String>,
+}
+
+const SKILL_INPUT_IMAGE_REF_PREFIX: &str = "skill-input-image://";
+
+fn build_skill_input_image_ref(index: usize) -> String {
+    format!("{SKILL_INPUT_IMAGE_REF_PREFIX}{}", index + 1)
+}
+
+fn extension_for_media_type(media_type: &str) -> &'static str {
+    match media_type.trim().to_ascii_lowercase().as_str() {
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        "image/bmp" => "bmp",
+        "image/tiff" => "tiff",
+        "image/svg+xml" => "svg",
+        _ => "png",
+    }
+}
+
+fn resolve_skill_input_artifact_root(
+    db: &DbConnection,
+    session_id: &str,
+    execution_id: &str,
+) -> PathBuf {
+    let working_dir = lime_agent::get_session_sync(db, session_id)
+        .ok()
+        .and_then(|session| session.working_dir)
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| std::env::temp_dir().join("lime-skill-inputs"));
+
+    working_dir
+        .join(".lime")
+        .join("skill-inputs")
+        .join(execution_id)
+}
+
+fn persist_skill_input_images(
+    root: &Path,
+    images: &[SkillExecutionImageInput],
+) -> Vec<Option<String>> {
+    if images.is_empty() {
+        return Vec::new();
+    }
+
+    if let Err(error) = fs::create_dir_all(root) {
+        tracing::warn!(
+            "[execute_skill] 创建 skill 输入图片目录失败 path={}: {}",
+            root.display(),
+            error
+        );
+        return vec![None; images.len()];
+    }
+
+    images
+        .iter()
+        .enumerate()
+        .map(|(index, image)| {
+            let file_name = format!(
+                "input-{}.{}",
+                index + 1,
+                extension_for_media_type(&image.media_type)
+            );
+            let file_path = root.join(file_name);
+            let bytes = match STANDARD.decode(&image.data) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    tracing::warn!(
+                        "[execute_skill] 解码 skill 输入图片失败 ref={} media_type={}: {}",
+                        build_skill_input_image_ref(index),
+                        image.media_type,
+                        error
+                    );
+                    return None;
+                }
+            };
+            match fs::write(&file_path, bytes) {
+                Ok(_) => Some(file_path.to_string_lossy().to_string()),
+                Err(error) => {
+                    tracing::warn!(
+                        "[execute_skill] 写入 skill 输入图片失败 path={}: {}",
+                        file_path.display(),
+                        error
+                    );
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+fn replace_skill_context_image_refs(value: &mut Value, materialized_paths: &[Option<String>]) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                replace_skill_context_image_refs(item, materialized_paths);
+            }
+        }
+        Value::Object(record) => {
+            for item in record.values_mut() {
+                replace_skill_context_image_refs(item, materialized_paths);
+            }
+        }
+        Value::String(text) => {
+            let normalized = text.trim();
+            if let Some(index_text) = normalized.strip_prefix(SKILL_INPUT_IMAGE_REF_PREFIX) {
+                if let Ok(index) = index_text.parse::<usize>() {
+                    if let Some(Some(path)) = materialized_paths.get(index.saturating_sub(1)) {
+                        *value = Value::String(path.clone());
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn prepare_skill_request_context(
+    db: &DbConnection,
+    session_id: &str,
+    execution_id: &str,
+    request_context: Option<Value>,
+    images: &[SkillExecutionImageInput],
+) -> Option<Value> {
+    let mut request_context = request_context?;
+    let image_root = resolve_skill_input_artifact_root(db, session_id, execution_id);
+    let materialized_paths = persist_skill_input_images(&image_root, images);
+
+    if !materialized_paths.is_empty() {
+        replace_skill_context_image_refs(&mut request_context, &materialized_paths);
+    }
+
+    Some(request_context)
+}
+
+fn build_skill_user_input(user_input: &str, request_context: Option<&Value>) -> String {
+    let normalized_user_input = user_input.trim();
+    if let Some(request_context) = request_context {
+        let serialized_context = serde_json::to_string_pretty(request_context)
+            .unwrap_or_else(|_| request_context.to_string());
+        if normalized_user_input.is_empty() {
+            return format!(
+                "以下是调用方提供的结构化上下文，请严格按字段含义执行：\n```json\n{serialized_context}\n```"
+            );
+        }
+
+        return format!(
+            "以下是调用方提供的结构化上下文，请严格按字段含义执行：\n```json\n{serialized_context}\n```\n\n用户原始输入：\n{normalized_user_input}"
+        );
+    }
+
+    normalized_user_input.to_string()
+}
+
+fn build_skill_images(images: &[SkillExecutionImageInput]) -> Vec<SkillInputImage> {
+    images
+        .iter()
+        .map(|image| SkillInputImage {
+            data: image.data.clone(),
+            media_type: image.media_type.clone(),
+        })
+        .collect()
 }
 
 fn ensure_skill_error_code(code: &str, message: &str) -> String {
@@ -133,6 +311,8 @@ pub async fn execute_named_skill(
     let SkillExecutionRequest {
         skill_name,
         user_input,
+        images,
+        request_context,
         provider_override,
         model_override,
         execution_id,
@@ -143,6 +323,11 @@ pub async fn execute_named_skill(
     let session_id = session_id.unwrap_or_else(|| format!("skill-exec-{}", Uuid::new_v4()));
     let tracker = ExecutionTracker::new(db.clone());
     let provider_selection = Arc::new(Mutex::new(None));
+    let prepared_request_context =
+        prepare_skill_request_context(db, &session_id, &execution_id, request_context, &images);
+    let effective_user_input =
+        build_skill_user_input(&user_input, prepared_request_context.as_ref());
+    let skill_images = build_skill_images(&images);
     let start_metadata = build_skill_run_start_metadata(
         skill_name.as_str(),
         execution_id.as_str(),
@@ -155,7 +340,8 @@ pub async fn execute_named_skill(
     let skill_name_for_run = skill_name.clone();
     let execution_id_for_run = execution_id.clone();
     let session_id_for_run = session_id.clone();
-    let user_input_for_run = user_input.clone();
+    let user_input_for_run = effective_user_input.clone();
+    let skill_images_for_run = skill_images.clone();
     let provider_override_for_run = provider_override.clone();
     let model_override_for_run = model_override.clone();
     let skill_name_for_finalize = skill_name.clone();
@@ -212,6 +398,7 @@ pub async fn execute_named_skill(
                     &aster_state,
                     &skill,
                     &user_input_for_run,
+                    &skill_images_for_run,
                     &execution_id_for_run,
                     &session_id_for_run,
                     &prepared.callback,
@@ -242,6 +429,7 @@ pub async fn execute_skill_prompt(
     aster_state: &AsterAgentState,
     skill: &LoadedSkillDefinition,
     user_input: &str,
+    images: &[SkillInputImage],
     execution_id: &str,
     session_id: &str,
     callback: &TauriExecutionCallback,
@@ -251,15 +439,16 @@ pub async fn execute_skill_prompt(
     callback_adapter.on_step_start("main", &skill.display_name, 1, 1);
 
     let mut result = map_execution_result(
-        execute_agent_skill_prompt(
+        execute_agent_skill_prompt(SkillPromptExecution {
             aster_state,
             skill,
             user_input,
+            images,
             execution_id,
             session_id,
             memory_prompt,
-            create_skill_event_emitter(app_handle),
-        )
+            emitter: create_skill_event_emitter(app_handle),
+        })
         .await
         .map_err(map_execution_error)?,
     );
@@ -299,6 +488,7 @@ pub async fn execute_skill_workflow(
     aster_state: &AsterAgentState,
     skill: &LoadedSkillDefinition,
     user_input: &str,
+    images: &[SkillInputImage],
     execution_id: &str,
     session_id: &str,
     callback: &TauriExecutionCallback,
@@ -309,6 +499,7 @@ pub async fn execute_skill_workflow(
         aster_state,
         skill,
         user_input,
+        images,
         execution_id,
         session_id,
         callback: &callback_adapter,
@@ -325,6 +516,7 @@ pub async fn execute_skill_definition(
     aster_state: &AsterAgentState,
     skill: &LoadedSkillDefinition,
     user_input: &str,
+    images: &[SkillInputImage],
     execution_id: &str,
     session_id: &str,
     callback: &TauriExecutionCallback,
@@ -336,6 +528,7 @@ pub async fn execute_skill_definition(
             aster_state,
             skill,
             user_input,
+            images,
             execution_id,
             session_id,
             callback,
@@ -348,6 +541,7 @@ pub async fn execute_skill_definition(
             aster_state,
             skill,
             user_input,
+            images,
             execution_id,
             session_id,
             callback,

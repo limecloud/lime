@@ -17,6 +17,7 @@
 - `overview.md` - 项目架构总览与模块分层
 - `governance.md` - 新旧并存治理、迁移收口、禁止回流
 - `quality-workflow.md` - 本地校验、GUI smoke、契约检查、CI 门禁
+- `command-runtime.md` - `@` / `/` / 轻卡 / viewer / 功能方案包实施手册
 - `skill-standard.md` - 统一技能标准、skill / adapter / runtime binding 边界
 - `site-adapter-standard.md` - 站点适配器标准、来源导入边界、运行时收敛规则
 - `project-heatmap.md` - 仓库热力图与治理候选分析
@@ -54,6 +55,7 @@
 
 - **改 UI / 页面结构**：先读 `design-language.md`，再看 `quality-workflow.md`
 - **改 Tauri 命令 / Bridge / mock**：先读 `commands.md`，再看 `quality-workflow.md`
+- **改 `@` / `/` / 轻卡 / viewer / ServiceSkill 场景**：先读 `command-runtime.md`
 - **改 Claw 技能 / Service Skill / 统一 Skills 标准**：先读 `skill-standard.md`
 - **改站点适配器 / 导入外部 adapter**：先读 `site-adapter-standard.md`，再看 `quality-workflow.md`
 - **改 Workspace / GUI 壳 / 主路径**：先读 `workspace.md`、`quality-workflow.md`、`playwright-e2e.md`

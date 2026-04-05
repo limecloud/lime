@@ -22,7 +22,7 @@ pub fn format_request_count(count: u64) -> String {
 ///
 /// # 示例输出
 /// - "◉ Claw 模型：Claude / claude-sonnet-4-5"
-/// - "◉ Claw 模型：Claude / claude-sonnet-4-5 · 社媒内容"
+/// - "◉ Claw 模型：Claude / claude-sonnet-4-5 · 内容创作"
 /// - "◉ Claw 模型：未同步"
 pub fn format_current_model_status(
     provider_label: &str,
@@ -88,8 +88,8 @@ mod tests {
 
     #[test]
     fn test_format_current_model_status_with_theme() {
-        let status = format_current_model_status("Claude", "claude-sonnet-4-5", Some("社媒内容"));
-        assert_eq!(status, "◉ Claw 模型：Claude / claude-sonnet-4-5 · 社媒内容");
+        let status = format_current_model_status("Claude", "claude-sonnet-4-5", Some("内容创作"));
+        assert_eq!(status, "◉ Claw 模型：Claude / claude-sonnet-4-5 · 内容创作");
     }
 
     #[test]

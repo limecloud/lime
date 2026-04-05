@@ -18,11 +18,6 @@ fn default_project_icon(workspace_type: &WorkspaceType) -> Option<String> {
     Some(
         match workspace_type {
             WorkspaceType::General => "💬",
-            WorkspaceType::SocialMedia => "📱",
-            WorkspaceType::Knowledge => "🔍",
-            WorkspaceType::Planning => "📅",
-            WorkspaceType::Document => "📄",
-            WorkspaceType::Video => "🎬",
             WorkspaceType::Persistent | WorkspaceType::Temporary => "📁",
         }
         .to_string(),
@@ -31,37 +26,27 @@ fn default_project_icon(workspace_type: &WorkspaceType) -> Option<String> {
 
 fn workspace_type_query_values(workspace_type: &WorkspaceType) -> &'static [&'static str] {
     match workspace_type {
-        WorkspaceType::SocialMedia => &["social-media", "social"],
-        WorkspaceType::Document => &["document", "poster", "music", "novel"],
-        WorkspaceType::Video => &["video", "drama"],
         WorkspaceType::Persistent => &["persistent"],
         WorkspaceType::Temporary => &["temporary"],
         WorkspaceType::General => &["general"],
-        WorkspaceType::Knowledge => &["knowledge"],
-        WorkspaceType::Planning => &["planning"],
     }
 }
 
 fn normalize_workspace_icon(
-    workspace_type_str: &str,
     workspace_type: &WorkspaceType,
     icon: Option<String>,
 ) -> Option<String> {
-    let legacy_default_icon = match workspace_type_str {
-        "poster" => Some("🖼️"),
-        "music" => Some("🎵"),
-        "novel" => Some("📖"),
-        "drama" => Some("🎬"),
-        "social" => Some("📱"),
-        _ => None,
-    };
+    const LEGACY_DEFAULT_PROJECT_ICONS: &[&str] = &["🖼️", "🎵", "📖", "🎬", "📱", "🔍", "📅"];
 
-    match (legacy_default_icon, icon) {
-        (_, None) => default_project_icon(workspace_type),
-        (Some(legacy_icon), Some(icon)) if icon == legacy_icon => {
+    match icon {
+        None => default_project_icon(workspace_type),
+        Some(icon)
+            if matches!(workspace_type, WorkspaceType::General)
+                && LEGACY_DEFAULT_PROJECT_ICONS.contains(&icon.as_str()) =>
+        {
             default_project_icon(workspace_type)
         }
-        (_, Some(icon)) => Some(icon),
+        Some(icon) => Some(icon),
     }
 }
 
@@ -275,7 +260,7 @@ impl WorkspaceManager {
             .prepare(
                 "SELECT id, name, workspace_type, root_path, is_default, settings_json, created_at, updated_at, icon, color, is_favorite, is_archived, tags_json
                  FROM workspaces
-                 WHERE workspace_type IN ('general', 'social', 'social-media', 'poster', 'music', 'novel', 'document', 'drama', 'video', 'knowledge', 'planning')
+                 WHERE workspace_type = 'general'
                  ORDER BY updated_at DESC",
             )
             .map_err(|e| format!("准备查询失败: {e}"))?;
@@ -521,8 +506,8 @@ impl WorkspaceManager {
         let tags: Vec<String> = tags_json
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
-        let workspace_type = WorkspaceType::parse(&workspace_type_str);
-        let icon = normalize_workspace_icon(&workspace_type_str, &workspace_type, icon);
+        let workspace_type = WorkspaceType::parse_persisted(&workspace_type_str);
+        let icon = normalize_workspace_icon(&workspace_type, icon);
 
         Ok(Workspace {
             id,
@@ -550,41 +535,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn legacy_workspace_type_query_values_should_include_compat_aliases() {
+    fn workspace_type_query_values_should_only_return_current_surface() {
         assert_eq!(
-            workspace_type_query_values(&WorkspaceType::Document),
-            &["document", "poster", "music", "novel"]
+            workspace_type_query_values(&WorkspaceType::General),
+            &["general"]
         );
         assert_eq!(
-            workspace_type_query_values(&WorkspaceType::Video),
-            &["video", "drama"]
+            workspace_type_query_values(&WorkspaceType::Persistent),
+            &["persistent"]
         );
         assert_eq!(
-            workspace_type_query_values(&WorkspaceType::SocialMedia),
-            &["social-media", "social"]
+            workspace_type_query_values(&WorkspaceType::Temporary),
+            &["temporary"]
         );
     }
 
     #[test]
     fn normalize_workspace_icon_should_map_legacy_defaults_to_current_surface() {
         assert_eq!(
-            normalize_workspace_icon("poster", &WorkspaceType::Document, Some("🖼️".to_string())),
-            Some("📄".to_string())
+            normalize_workspace_icon(&WorkspaceType::General, Some("🖼️".to_string())),
+            Some("💬".to_string())
         );
         assert_eq!(
-            normalize_workspace_icon("music", &WorkspaceType::Document, None),
-            Some("📄".to_string())
+            normalize_workspace_icon(&WorkspaceType::General, None),
+            Some("💬".to_string())
         );
         assert_eq!(
-            normalize_workspace_icon("novel", &WorkspaceType::Document, Some("📖".to_string())),
-            Some("📄".to_string())
+            normalize_workspace_icon(&WorkspaceType::General, Some("📖".to_string())),
+            Some("💬".to_string())
         );
     }
 
     #[test]
     fn normalize_workspace_icon_should_preserve_custom_icon() {
         assert_eq!(
-            normalize_workspace_icon("poster", &WorkspaceType::Document, Some("⭐".to_string())),
+            normalize_workspace_icon(&WorkspaceType::General, Some("⭐".to_string())),
             Some("⭐".to_string())
         );
     }

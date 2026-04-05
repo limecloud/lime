@@ -6,7 +6,6 @@
  * _Requirements: 8.1, 9.7, 14.1, 14.2, 14.3, 14.4, 14.5, 15.1, 15.2, 15.3, 15.4_
  */
 
-export { TerminalPage } from "./TerminalPage";
 export { TerminalView } from "./TerminalView";
 export { TerminalSearch } from "./TerminalSearch";
 export { TerminalContextMenu } from "./TerminalContextMenu";

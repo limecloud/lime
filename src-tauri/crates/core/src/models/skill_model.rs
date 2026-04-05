@@ -22,6 +22,7 @@ const LEGACY_LIME_TOP_LEVEL_FIELDS: &[&str] = &[
 ];
 
 pub const VIDEO_GENERATE_SKILL_DIRECTORY: &str = "video_generate";
+pub const TRANSCRIPTION_GENERATE_SKILL_DIRECTORY: &str = "transcription_generate";
 pub const BROADCAST_GENERATE_SKILL_DIRECTORY: &str = "broadcast_generate";
 pub const COVER_GENERATE_SKILL_DIRECTORY: &str = "cover_generate";
 pub const MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY: &str = "modal_resource_search";
@@ -31,10 +32,11 @@ pub const URL_PARSE_SKILL_DIRECTORY: &str = "url_parse";
 pub const RESEARCH_SKILL_DIRECTORY: &str = "research";
 pub const SITE_SEARCH_SKILL_DIRECTORY: &str = "site_search";
 pub const TYPESETTING_SKILL_DIRECTORY: &str = "typesetting";
-pub const SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY: &str = "social_post_with_cover";
+pub const CONTENT_POST_WITH_COVER_SKILL_DIRECTORY: &str = "content_post_with_cover";
 
-pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 11] = [
+pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 12] = [
     VIDEO_GENERATE_SKILL_DIRECTORY,
+    TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
     BROADCAST_GENERATE_SKILL_DIRECTORY,
     COVER_GENERATE_SKILL_DIRECTORY,
     MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
@@ -44,7 +46,7 @@ pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 11] = [
     RESEARCH_SKILL_DIRECTORY,
     SITE_SEARCH_SKILL_DIRECTORY,
     TYPESETTING_SKILL_DIRECTORY,
-    SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY,
+    CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
 ];
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -563,7 +565,7 @@ mod tests {
         assert!(is_default_lime_skill(VIDEO_GENERATE_SKILL_DIRECTORY));
         assert!(is_default_lime_skill(SITE_SEARCH_SKILL_DIRECTORY));
         assert!(is_default_lime_skill(
-            SOCIAL_POST_WITH_COVER_SKILL_DIRECTORY
+            CONTENT_POST_WITH_COVER_SKILL_DIRECTORY
         ));
         assert!(!is_default_lime_skill("custom-skill"));
     }

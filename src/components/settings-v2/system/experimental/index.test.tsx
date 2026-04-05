@@ -151,7 +151,7 @@ vi.mock("../shared/WorkspaceRepairHistoryCard", () => ({
   WorkspaceRepairHistoryCard: () => <div>工作区自愈占位</div>,
 }));
 
-import ExperimentalSettings from ".";
+import { ExperimentalSettings } from ".";
 
 interface Mounted {
   container: HTMLDivElement;

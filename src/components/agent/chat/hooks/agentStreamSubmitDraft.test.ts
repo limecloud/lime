@@ -90,4 +90,34 @@ describe("agentStreamSubmitDraft", () => {
     expect(assistantMsg.runtimeStatus?.detail).toContain("空白输入");
     expect(isSending).toBe(false);
   });
+
+  it("displayContent 应只影响用户可见文案，不影响底层执行内容", () => {
+    let messages: Message[] = [];
+    let isSending = false;
+
+    prepareAgentStreamSubmitDraft({
+      content: "/image_generate 生成 春日咖啡馆插画",
+      displayContent: "@配图 生成 春日咖啡馆插画",
+      images: [],
+      skipUserMessage: false,
+      expectingQueue: false,
+      assistantMsgId: "assistant-3",
+      userMsgId: "user-3",
+      effectiveExecutionStrategy: "react",
+      webSearch: false,
+      thinking: false,
+      setMessages: createStateSetter(() => messages, (value) => {
+        messages = value;
+      }),
+      setIsSending: createStateSetter(() => isSending, (value) => {
+        isSending = value;
+      }),
+    });
+
+    expect(messages[0]).toMatchObject({
+      id: "user-3",
+      content: "@配图 生成 春日咖啡馆插画",
+    });
+    expect(isSending).toBe(true);
+  });
 });

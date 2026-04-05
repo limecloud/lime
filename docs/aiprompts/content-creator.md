@@ -192,12 +192,7 @@ const handleWriteFile = useWorkspaceWriteFileAction(...);
 | 主题         | 说明     | 文件体系                                          |
 | ------------ | -------- | ------------------------------------------------- |
 | general      | 通用对话 | 无固定文件                                        |
-| social-media | 社媒内容 | brief.md → draft.md → article.md                  |
-| poster       | 图文海报 | brief.md → copywriting.md → design.md             |
-| music        | 歌词曲谱 | song-spec.md → lyrics-draft.md → lyrics-final.txt |
-| video        | 短视频   | brief.md → outline.md → script.md                 |
-| novel        | 小说创作 | brief.md → outline.md → chapter.md                |
-| document     | 办公文档 | brief.md → outline.md → draft.md                  |
+| current      | 现役口径 | 旧社媒 / 文档 / 规划等主题已统一回落到 general    |
 
 ## 创作模式
 

@@ -16,7 +16,7 @@ export const LEGACY_BROWSER_AUTOMATION_NOTICE =
   "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除旧任务，并改建为 Agent 对话任务。";
 export const LEGACY_BROWSER_AUTOMATION_STATUS = "已下线";
 
-export type AutomationBadgeVariant =
+type AutomationBadgeVariant =
   | "default"
   | "secondary"
   | "destructive"

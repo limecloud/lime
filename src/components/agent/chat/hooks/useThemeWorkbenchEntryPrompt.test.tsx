@@ -46,7 +46,7 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
 
   let hookValue: ReturnType<typeof useThemeWorkbenchEntryPrompt> | null = null;
   let currentProps: HookProps = {
-    activeTheme: "social-media",
+    activeTheme: "general",
     contentId: "content-1",
     sessionId: "session-1",
     isThemeWorkbench: true,
@@ -125,18 +125,18 @@ describe("useThemeWorkbenchEntryPrompt", () => {
   it("主题工作台初始意图应先进入预填提示态", async () => {
     const harness = mountHook({
       initialDispatchKey: "initial-dispatch",
-      initialUserPrompt: "请先生成社媒主稿",
+      initialUserPrompt: "请先生成内容主稿",
     });
 
     try {
       await flushEffects();
       expect(harness.onHydrateInitialPrompt).toHaveBeenCalledWith(
-        "请先生成社媒主稿",
+        "请先生成内容主稿",
         "initial-dispatch",
       );
       expect(harness.getValue().themeWorkbenchEntryPrompt).toMatchObject({
         kind: "initial_prompt",
-        prompt: "请先生成社媒主稿",
+        prompt: "请先生成内容主稿",
       });
     } finally {
       harness.unmount();
@@ -146,7 +146,7 @@ describe("useThemeWorkbenchEntryPrompt", () => {
   it("启用自动执行时不应进入预填提示态", async () => {
     const harness = mountHook({
       initialDispatchKey: "initial-dispatch",
-      initialUserPrompt: "请先生成社媒主稿",
+      initialUserPrompt: "请先生成内容主稿",
       autoRunInitialPromptOnMount: true,
     });
 
@@ -190,7 +190,7 @@ describe("useThemeWorkbenchEntryPrompt", () => {
 
     function TestComponent() {
       hookValueRef.current = useThemeWorkbenchEntryPrompt({
-        activeTheme: "social-media",
+        activeTheme: "general",
         contentId: "content-1",
         sessionId: "session-1",
         isThemeWorkbench: true,

@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { ArtifactBlockRewriteCompletion } from "./artifactWorkbenchRewrite";
 import { useWorkspaceCanvasWorkflowActions } from "./useWorkspaceCanvasWorkflowActions";
 
@@ -100,6 +101,7 @@ function renderHook(props?: Partial<HookProps>) {
     projectName: "董事会项目",
     canvasState: null,
     contentId: "content-1",
+    selectedText: "",
     onRunImageWorkbenchCommand: vi.fn(),
   };
 
@@ -153,16 +155,54 @@ afterEach(() => {
 });
 
 describe("useWorkspaceCanvasWorkflowActions", () => {
+  it("文稿配图入口应根据当前选中文本推断目标小节", async () => {
+    const onRunImageWorkbenchCommand = vi.fn().mockResolvedValue(undefined);
+    const { render, getValue } = renderHook({
+      canvasState: createInitialDocumentState(`# 标题
+
+## 开场
+这是开场内容。
+
+## 核心观点
+这里是被选中的关键段落，用于说明主结论。
+
+## 收尾
+这里是结尾。`),
+      selectedText: "这里是被选中的关键段落，用于说明主结论。",
+      onRunImageWorkbenchCommand,
+    });
+
+    await render();
+
+    await act(async () => {
+      await getValue().handleAddImage();
+    });
+
+    expect(onRunImageWorkbenchCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applyTarget: expect.objectContaining({
+          kind: "canvas-insert",
+          canvasType: "document",
+          anchorHint: "section_end",
+          sectionTitle: "核心观点",
+          anchorText: "这里是被选中的关键段落，用于说明主结论。",
+        }),
+      }),
+    );
+  });
+
   it("应通过统一发送主线发起当前块 AI 改写，并附带 rewrite metadata", async () => {
-    const sendCurrent = vi.fn().mockImplementation(async (...args: unknown[]) => {
-      const sendOptions = args[6] as
-        | {
-            observer?: {
-              onComplete?: (content: string) => void;
-            };
-          }
-        | undefined;
-      sendOptions?.observer?.onComplete?.(`{
+    const sendCurrent = vi
+      .fn()
+      .mockImplementation(async (...args: unknown[]) => {
+        const sendOptions = args[6] as
+          | {
+              observer?: {
+                onComplete?: (content: string) => void;
+              };
+            }
+          | undefined;
+        sendOptions?.observer?.onComplete?.(`{
         "type": "artifact_rewrite_patch",
         "artifactId": "artifact-document:artifact:analysis:board-review",
         "targetBlockId": "body-1",
@@ -174,8 +214,8 @@ describe("useWorkspaceCanvasWorkflowActions", () => {
           "content": "AI 改写后的正文"
         }
       }`);
-      return true;
-    });
+        return true;
+      });
     const { render, getValue } = renderHook({
       sendRef: {
         current: sendCurrent,
@@ -238,7 +278,8 @@ describe("useWorkspaceCanvasWorkflowActions", () => {
             artifact_kind: "analysis",
             artifact_request_id: "artifact:analysis:board-review",
             artifact_target_block_id: "body-1",
-            artifact_rewrite_instruction: "请压缩冗余表达，适合董事会快速阅读。",
+            artifact_rewrite_instruction:
+              "请压缩冗余表达，适合董事会快速阅读。",
             source_policy: "required",
             workbench_surface: "right_panel",
           },

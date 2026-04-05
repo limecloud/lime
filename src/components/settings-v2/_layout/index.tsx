@@ -17,7 +17,7 @@ import {
 import styled from "styled-components";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsTabs } from "@/types/settings";
-import { Page, PageParams } from "@/types/page";
+import { Page, PageParams, type SettingsProviderView } from "@/types/page";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { SettingsHomePage } from "../home";
@@ -31,11 +31,6 @@ const AppearanceSettings = lazy(() =>
 const MemorySettings = lazy(() =>
   import("../general/memory").then((module) => ({
     default: module.MemorySettings,
-  })),
-);
-const SecurityPerformanceSettings = lazy(() =>
-  import("../system/security-performance").then((module) => ({
-    default: module.SecurityPerformanceSettings,
   })),
 );
 const AutomationSettings = lazy(() =>
@@ -242,22 +237,6 @@ const LoadingPanel = styled.div`
   line-height: 1.6;
 `;
 
-function SettingsChannelsRedirect({
-  onNavigate,
-}: {
-  onNavigate?: (page: Page, params?: PageParams) => void;
-}) {
-  useEffect(() => {
-    onNavigate?.("channels");
-  }, [onNavigate]);
-
-  return (
-    <PlaceholderPage>
-      <p>渠道管理已迁移到「能力 {"->"} IM 配置」</p>
-    </PlaceholderPage>
-  );
-}
-
 function SettingsContentFallback({ label }: { label: string }) {
   return <LoadingPanel>{label}</LoadingPanel>;
 }
@@ -273,16 +252,37 @@ function withSettingsContentFallback(
   );
 }
 
-function normalizeSettingsTab(tab: SettingsTabs): SettingsTabs {
-  return tab === SettingsTabs.ChatAppearance ? SettingsTabs.Appearance : tab;
+const ACTIVE_SETTINGS_TABS = new Set<SettingsTabs>([
+  SettingsTabs.Home,
+  SettingsTabs.Profile,
+  SettingsTabs.Stats,
+  SettingsTabs.Appearance,
+  SettingsTabs.Hotkeys,
+  SettingsTabs.Memory,
+  SettingsTabs.Providers,
+  SettingsTabs.Skills,
+  SettingsTabs.MediaServices,
+  SettingsTabs.McpServer,
+  SettingsTabs.WebSearch,
+  SettingsTabs.Environment,
+  SettingsTabs.ChromeRelay,
+  SettingsTabs.Automation,
+  SettingsTabs.ExecutionTracker,
+  SettingsTabs.Experimental,
+  SettingsTabs.Developer,
+  SettingsTabs.About,
+]);
+
+function resolveActiveSettingsTab(tab?: SettingsTabs): SettingsTabs {
+  if (!tab || !ACTIVE_SETTINGS_TABS.has(tab)) {
+    return SettingsTabs.Home;
+  }
+  return tab;
 }
 
 function preloadSettingsTab(tab: SettingsTabs): Promise<unknown> | null {
-  const normalizedTab = normalizeSettingsTab(tab);
-
-  switch (normalizedTab) {
+  switch (resolveActiveSettingsTab(tab)) {
     case SettingsTabs.Home:
-    case SettingsTabs.Channels:
       return null;
     case SettingsTabs.Profile:
       return Promise.all([
@@ -316,8 +316,6 @@ function preloadSettingsTab(tab: SettingsTabs): Promise<unknown> | null {
       return import("../system/environment");
     case SettingsTabs.ChromeRelay:
       return import("../system/chrome-relay");
-    case SettingsTabs.SecurityPerformance:
-      return import("../system/security-performance");
     case SettingsTabs.Automation:
       return import("../system/automation");
     case SettingsTabs.ExecutionTracker:
@@ -347,6 +345,8 @@ function renderSettingsContent(
   onTabChange: (tab: SettingsTabs) => void,
   onTabPrefetch?: (tab: SettingsTabs) => void,
   onNavigate?: (page: Page, params?: PageParams) => void,
+  initialProviderView?: SettingsProviderView,
+  onOpenCompanion?: () => void,
 ): ReactNode {
   const hasManagedAccountProfile = Boolean(resolveOemCloudRuntimeContext());
 
@@ -356,6 +356,7 @@ function renderSettingsContent(
         <SettingsHomePage
           onTabChange={onTabChange}
           onTabPrefetch={onTabPrefetch}
+          onOpenCompanion={onOpenCompanion}
         />
       );
 
@@ -401,6 +402,7 @@ function renderSettingsContent(
       return withSettingsContentFallback(
         <CloudProviderSettings
           onOpenProfile={() => onTabChange(SettingsTabs.Profile)}
+          initialView={initialProviderView}
         />,
         "正在加载 AI 服务商设置...",
       );
@@ -424,9 +426,6 @@ function renderSettingsContent(
         "正在加载 MCP 服务器...",
       );
 
-    case SettingsTabs.Channels:
-      return <SettingsChannelsRedirect onNavigate={onNavigate} />;
-
     case SettingsTabs.WebSearch:
       return withSettingsContentFallback(
         <WebSearchSettings />,
@@ -443,12 +442,6 @@ function renderSettingsContent(
       return withSettingsContentFallback(
         <ChromeRelaySettings />,
         "正在加载连接器设置...",
-      );
-
-    case SettingsTabs.SecurityPerformance:
-      return withSettingsContentFallback(
-        <SecurityPerformanceSettings />,
-        "正在加载安全与性能设置...",
       );
 
     case SettingsTabs.Automation:
@@ -499,59 +492,51 @@ function renderSettingsContent(
 interface SettingsLayoutV2Props {
   onNavigate?: (page: Page, params?: PageParams) => void;
   initialTab?: SettingsTabs;
+  initialProviderView?: SettingsProviderView;
 }
 
-const WIDE_CONTENT_TABS = new Set<SettingsTabs>([
-  SettingsTabs.Home,
-  SettingsTabs.Profile,
-  SettingsTabs.Stats,
-  SettingsTabs.Appearance,
-  SettingsTabs.ChatAppearance,
-  SettingsTabs.Hotkeys,
-  SettingsTabs.Memory,
-  SettingsTabs.Providers,
-  SettingsTabs.Skills,
-  SettingsTabs.MediaServices,
-  SettingsTabs.Automation,
-  SettingsTabs.McpServer,
-  SettingsTabs.SecurityPerformance,
-  SettingsTabs.Developer,
-  SettingsTabs.WebSearch,
-  SettingsTabs.Environment,
-  SettingsTabs.ChromeRelay,
-  SettingsTabs.ExecutionTracker,
-  SettingsTabs.Experimental,
-  SettingsTabs.About,
-]);
+const WIDE_CONTENT_TABS = ACTIVE_SETTINGS_TABS;
 
 export function SettingsLayoutV2({
   onNavigate,
   initialTab,
+  initialProviderView,
 }: SettingsLayoutV2Props) {
   const [activeTab, setActiveTab] = useState<SettingsTabs>(
-    normalizeSettingsTab(initialTab ?? SettingsTabs.Home),
+    resolveActiveSettingsTab(initialTab),
   );
+  const [activeProviderView, setActiveProviderView] = useState<
+    SettingsProviderView | undefined
+  >(initialProviderView);
   const contentContainerRef = useRef<HTMLElement | null>(null);
   const prefetchedTabsRef = useRef<Set<SettingsTabs>>(new Set());
 
   const handleTabChange = useCallback((tab: SettingsTabs) => {
-    setActiveTab(normalizeSettingsTab(tab));
+    const nextTab = resolveActiveSettingsTab(tab);
+    setActiveTab(nextTab);
+    if (nextTab !== SettingsTabs.Providers) {
+      setActiveProviderView(undefined);
+    }
+  }, []);
+
+  const handleOpenCompanion = useCallback(() => {
+    setActiveTab(SettingsTabs.Providers);
+    setActiveProviderView("companion");
   }, []);
 
   const handleTabPrefetch = useCallback((tab: SettingsTabs) => {
-    const normalizedTab = normalizeSettingsTab(tab);
-    if (prefetchedTabsRef.current.has(normalizedTab)) {
+    if (prefetchedTabsRef.current.has(tab)) {
       return;
     }
 
-    const preloadTask = preloadSettingsTab(normalizedTab);
+    const preloadTask = preloadSettingsTab(tab);
     if (!preloadTask) {
       return;
     }
 
-    prefetchedTabsRef.current.add(normalizedTab);
+    prefetchedTabsRef.current.add(tab);
     void preloadTask.catch(() => {
-      prefetchedTabsRef.current.delete(normalizedTab);
+      prefetchedTabsRef.current.delete(tab);
     });
   }, []);
 
@@ -560,10 +545,21 @@ export function SettingsLayoutV2({
   }, [onNavigate]);
 
   useEffect(() => {
-    if (initialTab) {
-      setActiveTab(normalizeSettingsTab(initialTab));
-    }
+    setActiveTab(resolveActiveSettingsTab(initialTab));
   }, [initialTab]);
+
+  useEffect(() => {
+    if (!initialTab && !initialProviderView) {
+      return;
+    }
+
+    if ((initialTab ?? SettingsTabs.Providers) === SettingsTabs.Providers) {
+      setActiveProviderView(initialProviderView);
+      return;
+    }
+
+    setActiveProviderView(undefined);
+  }, [initialProviderView, initialTab]);
 
   useEffect(() => {
     contentContainerRef.current?.scrollTo?.({ top: 0, behavior: "auto" });
@@ -589,6 +585,8 @@ export function SettingsLayoutV2({
               handleTabChange,
               handleTabPrefetch,
               onNavigate,
+              activeProviderView,
+              handleOpenCompanion,
             )}
           </ContentWrapper>
         </ContentContainer>
@@ -596,5 +594,3 @@ export function SettingsLayoutV2({
     </>
   );
 }
-
-export default SettingsLayoutV2;

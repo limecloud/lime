@@ -27,7 +27,7 @@ function createProject(overrides: Partial<Project>): Project {
 }
 
 describe("getAvailableProjects", () => {
-  it("workspaceType 为 general 时只保留默认项目和通用项目", () => {
+  it("workspaceType 为 general 时保留所有未归档的 general 项目，并把默认项目置顶", () => {
     const projects = [
       createProject({
         id: "default",
@@ -43,16 +43,20 @@ describe("getAvailableProjects", () => {
       createProject({
         id: "social-1",
         name: "社媒项目",
-        workspaceType: "social-media",
+        workspaceType: "general",
       }),
     ];
 
     const result = getAvailableProjects(projects, "general");
 
-    expect(result.map((project) => project.id)).toEqual(["default", "general-1"]);
+    expect(result.map((project) => project.id)).toEqual([
+      "default",
+      "general-1",
+      "social-1",
+    ]);
   });
 
-  it("workspaceType 为其他类型时保留该类型和默认项目，并排除归档", () => {
+  it("workspaceType 为 general 时应排除归档项目", () => {
     const projects = [
       createProject({
         id: "default",
@@ -63,12 +67,12 @@ describe("getAvailableProjects", () => {
       createProject({
         id: "social-1",
         name: "社媒项目 A",
-        workspaceType: "social-media",
+        workspaceType: "general",
       }),
       createProject({
         id: "social-archived",
         name: "社媒项目归档",
-        workspaceType: "social-media",
+        workspaceType: "general",
         isArchived: true,
       }),
       createProject({
@@ -78,9 +82,13 @@ describe("getAvailableProjects", () => {
       }),
     ];
 
-    const result = getAvailableProjects(projects, "social-media");
+    const result = getAvailableProjects(projects, "general");
 
-    expect(result.map((project) => project.id)).toEqual(["default", "social-1"]);
+    expect(result.map((project) => project.id)).toEqual([
+      "default",
+      "social-1",
+      "general-1",
+    ]);
   });
 
   it("未提供 workspaceType 时返回全部未归档项目，默认项目置顶", () => {
@@ -88,7 +96,7 @@ describe("getAvailableProjects", () => {
       createProject({
         id: "social-1",
         name: "社媒项目",
-        workspaceType: "social-media",
+        workspaceType: "general",
       }),
       createProject({
         id: "default",

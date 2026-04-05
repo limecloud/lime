@@ -6,8 +6,8 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 use lime_media_runtime::{
     list_task_outputs, load_task_output, retry_task_artifact, update_task_status,
-    write_task_artifact, MediaRuntimeError, MediaTaskErrorOutput, TaskType, TaskWriteOptions,
-    DEFAULT_ARTIFACT_ROOT,
+    write_task_artifact, MediaRuntimeError, MediaTaskErrorOutput, TaskRelationships, TaskType,
+    TaskWriteOptions, DEFAULT_ARTIFACT_ROOT,
 };
 use serde_json::{json, Value};
 
@@ -75,6 +75,7 @@ enum TaskCreateSubcommand {
     Image(ImageGenerateArgs),
     Cover(CoverGenerateArgs),
     Video(VideoGenerateArgs),
+    Transcription(TranscriptionGenerateArgs),
     Broadcast(BroadcastGenerateArgs),
     #[command(name = "url-parse")]
     UrlParse(UrlParseArgs),
@@ -163,15 +164,47 @@ struct ImageGenerateArgs {
     #[arg(long)]
     title: Option<String>,
     #[arg(long)]
+    mode: Option<String>,
+    #[arg(long = "raw-text")]
+    raw_text: Option<String>,
+    #[arg(long)]
     model: Option<String>,
     #[arg(long)]
     style: Option<String>,
     #[arg(long)]
     size: Option<String>,
+    #[arg(long = "aspect-ratio")]
+    aspect_ratio: Option<String>,
     #[arg(long)]
     count: Option<u32>,
     #[arg(long)]
     usage: Option<String>,
+    #[arg(long = "provider-id")]
+    provider_id: Option<String>,
+    #[arg(long = "session-id")]
+    session_id: Option<String>,
+    #[arg(long = "project-id")]
+    project_id: Option<String>,
+    #[arg(long = "content-id")]
+    content_id: Option<String>,
+    #[arg(long = "entry-source")]
+    entry_source: Option<String>,
+    #[arg(long = "requested-target")]
+    requested_target: Option<String>,
+    #[arg(long = "slot-id")]
+    slot_id: Option<String>,
+    #[arg(long = "anchor-hint")]
+    anchor_hint: Option<String>,
+    #[arg(long = "anchor-section-title")]
+    anchor_section_title: Option<String>,
+    #[arg(long = "anchor-text")]
+    anchor_text: Option<String>,
+    #[arg(long = "target-output-id")]
+    target_output_id: Option<String>,
+    #[arg(long = "target-output-ref-id")]
+    target_output_ref_id: Option<String>,
+    #[arg(long = "reference-image")]
+    reference_images: Vec<String>,
     #[command(flatten)]
     output: SharedTaskWriteArgs,
 }
@@ -180,6 +213,8 @@ struct ImageGenerateArgs {
 struct CoverGenerateArgs {
     #[arg(long)]
     prompt: String,
+    #[arg(long = "raw-text")]
+    raw_text: Option<String>,
     #[arg(long)]
     title: Option<String>,
     #[arg(long)]
@@ -196,6 +231,14 @@ struct CoverGenerateArgs {
     reference_image_url: Option<String>,
     #[arg(long)]
     usage: Option<String>,
+    #[arg(long = "session-id")]
+    session_id: Option<String>,
+    #[arg(long = "project-id")]
+    project_id: Option<String>,
+    #[arg(long = "content-id")]
+    content_id: Option<String>,
+    #[arg(long = "entry-source")]
+    entry_source: Option<String>,
     #[command(flatten)]
     output: SharedTaskWriteArgs,
 }
@@ -233,6 +276,42 @@ struct VideoGenerateArgs {
 }
 
 #[derive(Debug, Args, Clone)]
+struct TranscriptionGenerateArgs {
+    #[arg(long)]
+    prompt: Option<String>,
+    #[arg(long)]
+    title: Option<String>,
+    #[arg(long = "raw-text")]
+    raw_text: Option<String>,
+    #[arg(long = "source-url")]
+    source_url: Option<String>,
+    #[arg(long = "source-path")]
+    source_path: Option<String>,
+    #[arg(long)]
+    language: Option<String>,
+    #[arg(long = "output-format")]
+    output_format: Option<String>,
+    #[arg(long = "speaker-labels")]
+    speaker_labels: Option<bool>,
+    #[arg(long)]
+    timestamps: Option<bool>,
+    #[arg(long = "provider-id")]
+    provider_id: Option<String>,
+    #[arg(long)]
+    model: Option<String>,
+    #[arg(long = "session-id")]
+    session_id: Option<String>,
+    #[arg(long = "project-id")]
+    project_id: Option<String>,
+    #[arg(long = "content-id")]
+    content_id: Option<String>,
+    #[arg(long = "entry-source")]
+    entry_source: Option<String>,
+    #[command(flatten)]
+    output: SharedTaskWriteArgs,
+}
+
+#[derive(Debug, Args, Clone)]
 struct BroadcastGenerateArgs {
     #[arg(long)]
     content: String,
@@ -255,11 +334,25 @@ struct UrlParseArgs {
     #[arg(long)]
     title: Option<String>,
     #[arg(long)]
-    summary: String,
+    summary: Option<String>,
     #[arg(long = "key-point")]
     key_points: Vec<String>,
     #[arg(long = "extract-status", default_value = "ready")]
     extract_status: String,
+    #[arg(long)]
+    prompt: Option<String>,
+    #[arg(long = "raw-text")]
+    raw_text: Option<String>,
+    #[arg(long = "extract-goal")]
+    extract_goal: Option<String>,
+    #[arg(long = "session-id")]
+    session_id: Option<String>,
+    #[arg(long = "project-id")]
+    project_id: Option<String>,
+    #[arg(long = "content-id")]
+    content_id: Option<String>,
+    #[arg(long = "entry-source")]
+    entry_source: Option<String>,
     #[command(flatten)]
     output: SharedTaskWriteArgs,
 }
@@ -307,6 +400,7 @@ enum MediaSubcommand {
     Image(ImageCommand),
     Cover(CoverCommand),
     Video(VideoCommand),
+    Transcription(TranscriptionCommand),
 }
 
 #[derive(Debug, Args)]
@@ -325,6 +419,17 @@ struct CoverCommand {
 struct VideoCommand {
     #[command(subcommand)]
     command: VideoSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum TranscriptionSubcommand {
+    Generate(TranscriptionGenerateArgs),
+}
+
+#[derive(Debug, Args)]
+struct TranscriptionCommand {
+    #[command(subcommand)]
+    command: TranscriptionSubcommand,
 }
 
 #[derive(Debug, Subcommand)]
@@ -503,6 +608,7 @@ fn run_task_create_command(command: TaskCreateCommand) -> Result<Value, MediaRun
         TaskCreateSubcommand::Image(args) => create_image_task(args),
         TaskCreateSubcommand::Cover(args) => create_cover_task(args),
         TaskCreateSubcommand::Video(args) => create_video_task(args),
+        TaskCreateSubcommand::Transcription(args) => create_transcription_task(args),
         TaskCreateSubcommand::Broadcast(args) => create_broadcast_task(args),
         TaskCreateSubcommand::UrlParse(args) => create_url_parse_task(args),
         TaskCreateSubcommand::Typesetting(args) => create_typesetting_task(args),
@@ -520,6 +626,9 @@ fn run_media_command(command: MediaCommand) -> Result<Value, MediaRuntimeError> 
         },
         MediaSubcommand::Video(video) => match video.command {
             VideoSubcommand::Generate(args) => create_video_task(args),
+        },
+        MediaSubcommand::Transcription(transcription) => match transcription.command {
+            TranscriptionSubcommand::Generate(args) => create_transcription_task(args),
         },
     }
 }
@@ -614,11 +723,27 @@ fn create_image_task(args: ImageGenerateArgs) -> Result<Value, MediaRuntimeError
         args.title,
         json!({
             "prompt": args.prompt,
+            "mode": args.mode,
+            "raw_text": args.raw_text,
             "model": args.model,
             "style": args.style,
             "size": args.size,
+            "aspect_ratio": args.aspect_ratio,
             "count": args.count,
             "usage": args.usage,
+            "provider_id": args.provider_id,
+            "session_id": args.session_id,
+            "project_id": args.project_id,
+            "content_id": args.content_id,
+            "entry_source": args.entry_source,
+            "requested_target": args.requested_target,
+            "slot_id": args.slot_id,
+            "anchor_hint": args.anchor_hint,
+            "anchor_section_title": args.anchor_section_title,
+            "anchor_text": args.anchor_text,
+            "target_output_id": args.target_output_id,
+            "target_output_ref_id": args.target_output_ref_id,
+            "reference_images": args.reference_images,
         }),
         task_write_options(&args.output),
     )?;
@@ -633,6 +758,7 @@ fn create_cover_task(args: CoverGenerateArgs) -> Result<Value, MediaRuntimeError
         args.title,
         json!({
             "prompt": args.prompt,
+            "raw_text": args.raw_text,
             "model": args.model,
             "style": args.style,
             "platform": args.platform,
@@ -640,6 +766,10 @@ fn create_cover_task(args: CoverGenerateArgs) -> Result<Value, MediaRuntimeError
             "imageUrl": args.image_url,
             "referenceImageUrl": args.reference_image_url,
             "usage": args.usage.or(Some("cover".to_string())),
+            "session_id": args.session_id,
+            "project_id": args.project_id,
+            "content_id": args.content_id,
+            "entry_source": args.entry_source,
         }),
         task_write_options(&args.output),
     )?;
@@ -665,6 +795,50 @@ fn create_video_task(args: VideoGenerateArgs) -> Result<Value, MediaRuntimeError
             "seed": args.seed,
             "generateAudio": args.generate_audio,
             "cameraFixed": args.camera_fixed,
+        }),
+        task_write_options(&args.output),
+    )?;
+    Ok(json!(output))
+}
+
+fn create_transcription_task(args: TranscriptionGenerateArgs) -> Result<Value, MediaRuntimeError> {
+    let workspace_root = resolve_workspace_root(args.output.workspace.clone())?;
+    let source_url = args
+        .source_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let source_path = args
+        .source_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if source_url.is_none() && source_path.is_none() {
+        return Err(MediaRuntimeError::InvalidParams(
+            "source_url 或 source_path 至少需要提供一个".to_string(),
+        ));
+    }
+
+    let output = write_task_artifact(
+        &workspace_root,
+        TaskType::TranscriptionGenerate,
+        args.title,
+        json!({
+            "prompt": args.prompt,
+            "raw_text": args.raw_text,
+            "source_url": source_url,
+            "source_path": source_path,
+            "language": args.language,
+            "output_format": args.output_format,
+            "speaker_labels": args.speaker_labels,
+            "timestamps": args.timestamps,
+            "provider_id": args.provider_id,
+            "model": args.model,
+            "session_id": args.session_id,
+            "project_id": args.project_id,
+            "content_id": args.content_id,
+            "entry_source": args.entry_source,
         }),
         task_write_options(&args.output),
     )?;
@@ -700,20 +874,32 @@ fn create_url_parse_task(args: UrlParseArgs) -> Result<Value, MediaRuntimeError>
             "url 不能为空字符串".to_string(),
         ));
     }
-    if args.summary.trim().is_empty() {
-        return Err(MediaRuntimeError::InvalidParams(
-            "summary 不能为空字符串".to_string(),
-        ));
-    }
+    let summary = args
+        .summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let extract_status = if summary.is_none() && args.extract_status.trim() == "ready" {
+        "pending_extract".to_string()
+    } else {
+        args.extract_status
+    };
     let output = write_task_artifact(
         &workspace_root,
         TaskType::UrlParse,
         args.title,
         json!({
             "url": args.url,
-            "summary": args.summary,
+            "summary": summary,
             "keyPoints": args.key_points,
-            "extractStatus": args.extract_status,
+            "extractStatus": extract_status,
+            "prompt": args.prompt,
+            "raw_text": args.raw_text,
+            "extractGoal": args.extract_goal,
+            "session_id": args.session_id,
+            "project_id": args.project_id,
+            "content_id": args.content_id,
+            "entry_source": args.entry_source,
         }),
         task_write_options(&args.output),
     )?;
@@ -786,6 +972,7 @@ fn task_write_options(args: &SharedTaskWriteArgs) -> TaskWriteOptions<'_> {
         output_path: args.output.as_deref(),
         artifact_dir: args.artifact_dir.as_deref(),
         idempotency_key: args.idempotency_key.as_deref(),
+        relationships: TaskRelationships::default(),
     }
 }
 
@@ -884,16 +1071,118 @@ mod tests {
     }
 
     #[test]
+    fn create_image_task_preserves_extended_context_fields() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = create_image_task(ImageGenerateArgs {
+            prompt: "城市夜景".to_string(),
+            title: Some("夜景修图".to_string()),
+            mode: Some("edit".to_string()),
+            raw_text: Some("@配图 编辑 #img-2 去掉角标".to_string()),
+            model: Some("fal-ai/nano-banana-pro".to_string()),
+            style: Some("写实".to_string()),
+            size: Some("1024x1024".to_string()),
+            aspect_ratio: Some("1:1".to_string()),
+            count: Some(1),
+            usage: Some("claw-image-workbench".to_string()),
+            provider_id: Some("fal".to_string()),
+            session_id: Some("session-1".to_string()),
+            project_id: Some("project-1".to_string()),
+            content_id: Some("content-1".to_string()),
+            entry_source: Some("at_image_command".to_string()),
+            requested_target: Some("generate".to_string()),
+            slot_id: Some("slot-1".to_string()),
+            anchor_hint: Some("section_end".to_string()),
+            anchor_section_title: Some("核心观点".to_string()),
+            anchor_text: Some("这里是核心观点段落。".to_string()),
+            target_output_id: Some("task-image-1:output:1".to_string()),
+            target_output_ref_id: Some("img-2".to_string()),
+            reference_images: vec![
+                "https://example.com/image-2.png".to_string(),
+                "/tmp/input-1.png".to_string(),
+            ],
+            output: SharedTaskWriteArgs {
+                workspace: Some(temp_dir.path().to_path_buf()),
+                output: None,
+                artifact_dir: None,
+                idempotency_key: None,
+                json: true,
+            },
+        })
+        .expect("create image");
+
+        assert_eq!(output["record"]["payload"]["mode"], "edit");
+        assert_eq!(output["record"]["payload"]["target_output_ref_id"], "img-2");
+        assert_eq!(
+            output["record"]["payload"]["reference_images"],
+            json!(["https://example.com/image-2.png", "/tmp/input-1.png"])
+        );
+    }
+
+    #[test]
+    fn create_transcription_task_preserves_source_and_format_fields() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = create_transcription_task(TranscriptionGenerateArgs {
+            prompt: Some("生成逐字稿".to_string()),
+            title: Some("会议转写".to_string()),
+            raw_text: Some("@转写 /tmp/interview.wav 生成逐字稿".to_string()),
+            source_url: None,
+            source_path: Some("/tmp/interview.wav".to_string()),
+            language: Some("zh".to_string()),
+            output_format: Some("srt".to_string()),
+            speaker_labels: Some(true),
+            timestamps: Some(true),
+            provider_id: None,
+            model: None,
+            session_id: Some("session-1".to_string()),
+            project_id: Some("project-1".to_string()),
+            content_id: Some("content-1".to_string()),
+            entry_source: Some("at_transcription_command".to_string()),
+            output: SharedTaskWriteArgs {
+                workspace: Some(temp_dir.path().to_path_buf()),
+                output: None,
+                artifact_dir: None,
+                idempotency_key: None,
+                json: true,
+            },
+        })
+        .expect("create transcription");
+
+        assert_eq!(
+            output["record"]["payload"]["source_path"],
+            "/tmp/interview.wav"
+        );
+        assert_eq!(output["record"]["payload"]["output_format"], "srt");
+        assert_eq!(output["record"]["payload"]["speaker_labels"], true);
+        assert_eq!(output["record"]["payload"]["timestamps"], true);
+    }
+
+    #[test]
     fn task_list_returns_created_items() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let _ = create_image_task(ImageGenerateArgs {
             prompt: "城市".to_string(),
             title: None,
+            mode: None,
+            raw_text: None,
             model: None,
             style: None,
             size: None,
+            aspect_ratio: None,
             count: None,
             usage: None,
+            provider_id: None,
+            session_id: None,
+            project_id: None,
+            content_id: None,
+            entry_source: None,
+            requested_target: None,
+            slot_id: None,
+            anchor_hint: None,
+            anchor_section_title: None,
+            anchor_text: None,
+            target_output_id: None,
+            target_output_ref_id: None,
+            reference_images: Vec::new(),
             output: SharedTaskWriteArgs {
                 workspace: Some(temp_dir.path().to_path_buf()),
                 output: None,
@@ -931,11 +1220,27 @@ mod tests {
         let _ = create_image_task(ImageGenerateArgs {
             prompt: "城市".to_string(),
             title: None,
+            mode: None,
+            raw_text: None,
             model: None,
             style: None,
             size: None,
+            aspect_ratio: None,
             count: None,
             usage: None,
+            provider_id: None,
+            session_id: None,
+            project_id: None,
+            content_id: None,
+            entry_source: None,
+            requested_target: None,
+            slot_id: None,
+            anchor_hint: None,
+            anchor_section_title: None,
+            anchor_text: None,
+            target_output_id: None,
+            target_output_ref_id: None,
+            reference_images: Vec::new(),
             output: SharedTaskWriteArgs {
                 workspace: Some(temp_dir.path().to_path_buf()),
                 output: None,
@@ -948,9 +1253,16 @@ mod tests {
         let _ = create_url_parse_task(UrlParseArgs {
             url: "https://example.com".to_string(),
             title: None,
-            summary: "摘要".to_string(),
+            summary: Some("摘要".to_string()),
             key_points: Vec::new(),
             extract_status: "ready".to_string(),
+            prompt: None,
+            raw_text: None,
+            extract_goal: None,
+            session_id: None,
+            project_id: None,
+            content_id: None,
+            entry_source: None,
             output: SharedTaskWriteArgs {
                 workspace: Some(temp_dir.path().to_path_buf()),
                 output: None,
@@ -980,6 +1292,43 @@ mod tests {
 
         assert_eq!(output["total"], 1);
         assert_eq!(output["tasks"][0]["task_family"], "image");
+    }
+
+    #[test]
+    fn create_url_parse_task_without_summary_should_fallback_to_pending_extract() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = create_url_parse_task(UrlParseArgs {
+            url: "https://example.com/post".to_string(),
+            title: None,
+            summary: None,
+            key_points: Vec::new(),
+            extract_status: "ready".to_string(),
+            prompt: Some("提取重点".to_string()),
+            raw_text: Some("@链接解析 https://example.com/post 提取重点".to_string()),
+            extract_goal: Some("key_points".to_string()),
+            session_id: Some("session-1".to_string()),
+            project_id: Some("project-1".to_string()),
+            content_id: Some("content-1".to_string()),
+            entry_source: Some("at_url_parse_command".to_string()),
+            output: SharedTaskWriteArgs {
+                workspace: Some(temp_dir.path().to_path_buf()),
+                output: None,
+                artifact_dir: None,
+                idempotency_key: None,
+                json: true,
+            },
+        })
+        .expect("create url parse task");
+
+        assert_eq!(output["status"], "pending_submit");
+        assert_eq!(
+            output["record"]["payload"]["extractStatus"],
+            "pending_extract"
+        );
+        assert_eq!(
+            output["record"]["payload"]["entry_source"],
+            "at_url_parse_command"
+        );
     }
 
     #[test]

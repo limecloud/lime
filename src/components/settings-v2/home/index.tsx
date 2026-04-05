@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Blocks,
+  Bot,
   Brain,
   Image as ImageIcon,
   Palette,
@@ -20,6 +21,7 @@ import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
 interface SettingsHomePageProps {
   onTabChange: (tab: SettingsTabs) => void;
   onTabPrefetch?: (tab: SettingsTabs) => void;
+  onOpenCompanion?: () => void;
 }
 
 type DisplayGroupKey = Exclude<SettingsGroupKey, SettingsGroupKey.Overview>;
@@ -64,7 +66,7 @@ const groupMeta: Record<
     icon: Brain,
   },
   system: {
-    description: "连接器、渠道、MCP、环境变量与安全性能设置。",
+    description: "连接器、MCP、环境变量与运行治理设置。",
     accentClassName:
       "from-amber-200/65 via-white to-white",
     iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
@@ -102,16 +104,12 @@ const quickAccessMeta: Partial<
     description: "集中管理图片、视频与语音默认策略",
     icon: ImageIcon,
   },
-  [SettingsTabs.SecurityPerformance]: {
-    title: "安全与性能",
-    description: "权限、稳定性与运行开关",
-    icon: ShieldCheck,
-  },
 };
 
 export function SettingsHomePage({
   onTabChange,
   onTabPrefetch,
+  onOpenCompanion,
 }: SettingsHomePageProps) {
   const groups = useSettingsCategory();
 
@@ -227,6 +225,29 @@ export function SettingsHomePage({
                   </button>
                 );
               })}
+              {onOpenCompanion ? (
+                <button
+                  type="button"
+                  onMouseEnter={() => onTabPrefetch?.(SettingsTabs.Providers)}
+                  onMouseDown={() => onTabPrefetch?.(SettingsTabs.Providers)}
+                  onFocus={() => onTabPrefetch?.(SettingsTabs.Providers)}
+                  onClick={() => onOpenCompanion()}
+                  className="group rounded-[22px] border border-white/90 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-700">
+                      <Bot className="h-5 w-5" />
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
+                  </div>
+                  <p className="mt-4 text-base font-semibold text-slate-900">
+                    桌宠
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    开启桌宠、安装引导与连接诊断
+                  </p>
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -300,5 +321,3 @@ export function SettingsHomePage({
     </div>
   );
 }
-
-export default SettingsHomePage;

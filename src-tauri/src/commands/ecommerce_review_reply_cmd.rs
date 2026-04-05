@@ -81,6 +81,8 @@ pub async fn execute_ecommerce_review_reply(
         SkillExecutionRequest {
             skill_name: "ecommerce-review-reply".to_string(),
             user_input,
+            images: Vec::new(),
+            request_context: None,
             provider_override: Some("anthropic".to_string()),
             model_override: request.model,
             execution_id: request.execution_id,

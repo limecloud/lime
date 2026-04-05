@@ -45,12 +45,10 @@ vi.mock("@/lib/api/project", () => ({
   listProjects: () => mockListProjects(),
   getDefaultContentTypeForProject: (projectType: string) => {
     switch (projectType) {
-      case "social-media":
+      case "general":
         return "post";
       case "video":
         return "episode";
-      case "knowledge":
-      case "general":
       default:
         return "document";
     }
@@ -125,7 +123,7 @@ function createBrowserServiceSkill(): ServiceSkillHomeItem {
     defaultExecutorBinding: "browser_assist",
     executionLocation: "client_default",
     defaultArtifactKind: "analysis",
-    themeTarget: "knowledge",
+    themeTarget: "general",
     version: "seed-v1",
     readinessRequirements: {
       requiresBrowser: true,
@@ -170,14 +168,14 @@ function createScheduledServiceSkill(): ServiceSkillHomeItem {
     id: "daily-trend-briefing",
     title: "每日趋势摘要",
     summary: "围绕指定平台与关键词输出趋势摘要。",
-    category: "社媒运营",
+    category: "内容运营",
     outputHint: "趋势摘要 + 调度建议",
     source: "cloud_catalog",
     runnerType: "scheduled",
     defaultExecutorBinding: "automation_job",
     executionLocation: "client_default",
     defaultArtifactKind: "analysis",
-    themeTarget: "social-media",
+    themeTarget: "general",
     version: "seed-v1",
     slotSchema: [
       {
@@ -228,7 +226,7 @@ function createCloudServiceSkill(): ServiceSkillHomeItem {
     defaultExecutorBinding: "cloud_scene",
     executionLocation: "cloud_required",
     defaultArtifactKind: "brief",
-    themeTarget: "video",
+    themeTarget: "general",
     version: "seed-v1",
     slotSchema: [
       {
@@ -555,7 +553,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     });
 
     const { render, getValue } = renderHook({
-      activeTheme: "video",
+      activeTheme: "general",
       onNavigate,
       recordServiceSkillUsage,
     });
@@ -579,14 +577,14 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       expect.objectContaining({
         project_id: "project-1",
         title: "云端视频配音",
-        content_type: "episode",
+        content_type: "post",
         body: "# 云端视频配音\n\n第一版成稿",
         metadata: expect.objectContaining({
           source: "service_skill",
           serviceSkill: expect.objectContaining({
             id: "cloud-video-dubbing",
             executionLocation: "cloud_required",
-            themeTarget: "video",
+            themeTarget: "general",
           }),
           cloudRun: expect.objectContaining({
             id: "service-skill-run-cloud-1",
@@ -602,7 +600,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       expect.objectContaining({
         projectId: "project-1",
         contentId: "content-created-by-service-skill",
-        theme: "video",
+        theme: "general",
         initialCreationMode: "guided",
         initialRequestMetadata: {
           artifact: {
@@ -651,7 +649,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
-        theme: "social-media",
+        theme: "general",
         initialRequestMetadata: {
           artifact: {
             artifact_mode: "draft",
@@ -771,7 +769,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
               user_input: "请结合当前上下文继续",
             }),
             harness: expect.objectContaining({
-              theme: "social-media",
+              theme: "general",
               session_mode: "theme_workbench",
               content_id: "content-current",
             }),
@@ -793,7 +791,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       expect.objectContaining({
         projectId: "project-1",
         contentId: "content-current",
-        theme: "social-media",
+        theme: "general",
         initialCreationMode: "guided",
         initialUserPrompt: expect.stringContaining("[技能任务] 每日趋势摘要"),
         autoRunInitialPromptOnMount: true,

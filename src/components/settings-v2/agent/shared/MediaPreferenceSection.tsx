@@ -9,12 +9,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export interface MediaPreferenceSectionModelOption {
+interface MediaPreferenceSectionModelOption {
   value: string;
   label: string;
 }
 
-export interface MediaPreferenceSectionProviderOption {
+interface MediaPreferenceSectionProviderOption {
   value: string;
   label: string;
 }
@@ -174,5 +174,3 @@ export function MediaPreferenceSection({
     </div>
   );
 }
-
-export default MediaPreferenceSection;

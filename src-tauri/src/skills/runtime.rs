@@ -17,7 +17,10 @@ use std::path::Path;
 
 use super::execution::SkillExecutionResult;
 use super::execution_callback::TauriExecutionCallback;
-use super::social_post::infer_theme_workbench_gate_key;
+use super::social_post::{infer_theme_workbench_gate_key, is_content_post_skill_name};
+
+#[cfg(test)]
+use super::social_post::CONTENT_POST_WITH_COVER_SKILL_NAME;
 
 #[derive(Debug, Clone)]
 pub struct SkillProviderSelection {
@@ -40,8 +43,6 @@ const FALLBACK_TOOL_CAPABLE_PROVIDERS: &[(&str, &str)] = &[
     ("openai", "gpt-4o"),
     ("gemini", "gemini-2.0-flash"),
 ];
-const SOCIAL_POST_WITH_COVER_SKILL_NAME: &str = "social_post_with_cover";
-
 fn build_skill_memory_prompt(
     db: &DbConnection,
     config_manager: &GlobalConfigManagerState,
@@ -273,8 +274,8 @@ fn build_success_metadata(
         metadata["requested_model"] = serde_json::json!(model_override);
     }
 
-    if skill_name == SOCIAL_POST_WITH_COVER_SKILL_NAME {
-        metadata["workflow"] = serde_json::json!("social_content_pipeline_v1");
+    if is_content_post_skill_name(skill_name) {
+        metadata["workflow"] = serde_json::json!("content_pipeline_v1");
         metadata["version_id"] = serde_json::json!(execution_id);
         metadata["stages"] = serde_json::json!(["topic_select", "write_mode", "publish_confirm"]);
         metadata["artifact_paths"] = serde_json::json!(artifact_paths);
@@ -377,13 +378,13 @@ mod tests {
             output: Some("纯文本输出，不含 write_file block".to_string()),
             error: None,
             artifact_paths: vec![
-                "social-posts/demo.md".to_string(),
-                "social-posts/demo.cover.json".to_string(),
-                "social-posts/demo.publish-pack.json".to_string(),
+                "content-posts/demo.md".to_string(),
+                "content-posts/demo.cover.json".to_string(),
+                "content-posts/demo.publish-pack.json".to_string(),
             ],
             steps_completed: vec![StepResult {
                 step_id: "main".to_string(),
-                step_name: "social_post_with_cover".to_string(),
+                step_name: "content_post_with_cover".to_string(),
                 success: true,
                 output: Some("done".to_string()),
                 error: None,
@@ -391,7 +392,7 @@ mod tests {
         });
 
         let decision = build_skill_run_finish_decision(
-            SOCIAL_POST_WITH_COVER_SKILL_NAME,
+            CONTENT_POST_WITH_COVER_SKILL_NAME,
             "exec-1",
             None,
             None,
@@ -403,9 +404,9 @@ mod tests {
         assert_eq!(
             metadata["artifact_paths"],
             serde_json::json!([
-                "social-posts/demo.md",
-                "social-posts/demo.cover.json",
-                "social-posts/demo.publish-pack.json"
+                "content-posts/demo.md",
+                "content-posts/demo.cover.json",
+                "content-posts/demo.publish-pack.json"
             ])
         );
     }

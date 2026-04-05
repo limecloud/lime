@@ -1,4 +1,5 @@
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import type { SlashSkillRequest } from "./agentChatShared";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { BrowserPreflightState, BrowserTaskRequirement, MessageImage } from "../types";
 
@@ -13,6 +14,8 @@ export interface HandleSendOptions {
   observer?: HandleSendObserver;
   requestMetadata?: Record<string, unknown>;
   toolPreferencesOverride?: ChatToolPreferences;
+  displayContent?: string;
+  skillRequest?: SlashSkillRequest;
 }
 
 export interface BrowserTaskPreflight {

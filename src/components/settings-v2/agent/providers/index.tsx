@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { ProviderPoolPage } from "@/components/provider-pool";
+import { openUrl } from "@/components/openclaw/openUrl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   formatOemCloudAccessModeLabel,
@@ -32,6 +33,7 @@ import {
   launchCompanionPet,
   listenCompanionPetStatus,
   sendCompanionPetCommand,
+  type CompanionLaunchPetResult,
   type CompanionPetStatus,
 } from "@/lib/api/companion";
 import { subscribeProviderDataChanged } from "@/lib/providerDataEvents";
@@ -39,12 +41,15 @@ import {
   loadCompanionProviderOverview,
   type CompanionProviderOverviewPayload,
 } from "@/lib/provider/companionProviderOverview";
+import type { SettingsProviderView } from "@/types/page";
 import { cn } from "@/lib/utils";
 import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPreferencesCard";
 
 const SURFACE_CLASS_NAME =
   "rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5";
 const DEFAULT_COMPANION_ENDPOINT = "ws://127.0.0.1:45554/companion/pet";
+const LIME_PET_RELEASES_URL =
+  "https://github.com/limecloud/lime-pet/releases/latest";
 
 function SessionValueCard(props: {
   label: string;
@@ -136,6 +141,25 @@ function formatCompanionError(error: unknown): string {
   return "未知错误";
 }
 
+function shouldShowCompanionInstallGuide(
+  result: CompanionLaunchPetResult,
+): boolean {
+  if (result.launched || result.resolved_path) {
+    return false;
+  }
+
+  const message = result.message?.trim() ?? "";
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes("未找到 Lime Pet 可执行产物") ||
+    message.includes("请先安装桌宠应用") ||
+    message.includes("未安装桌宠应用")
+  );
+}
+
 function formatCompanionCapabilityLabel(capability: string): string {
   switch (capability) {
     case "provider-overview":
@@ -200,6 +224,7 @@ function CompanionProviderBridgeCard() {
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [refreshingStatus, setRefreshingStatus] = useState(false);
   const [launchingPet, setLaunchingPet] = useState(false);
+  const [installPromptVisible, setInstallPromptVisible] = useState(false);
   const [syncingPreview, setSyncingPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -312,6 +337,12 @@ function CompanionProviderBridgeCard() {
     };
   }, []);
 
+  useEffect(() => {
+    if (status?.connected) {
+      setInstallPromptVisible(false);
+    }
+  }, [status?.connected]);
+
   const refreshStatus = async () => {
     setActionFeedback(null);
     setRefreshingStatus(true);
@@ -349,18 +380,22 @@ function CompanionProviderBridgeCard() {
     setLaunchingPet(true);
     try {
       const result = await launchCompanionPet();
+      const shouldPromptInstall = shouldShowCompanionInstallGuide(result);
+      setInstallPromptVisible(shouldPromptInstall);
+
       if (result.launched) {
         setActionFeedback({
           tone: "success",
           message:
-            result.message || "已请求启动 Lime Pet，请等待桌宠建立连接。",
+            result.message || "已请求开启桌宠，请等待 Lime Pet 建立连接。",
         });
       } else {
         setActionFeedback({
           tone: "error",
-          message:
-            result.message ||
-            "当前没有可用的 Lime Pet 可执行产物，请先安装桌宠应用。",
+          message: shouldPromptInstall
+            ? "当前设备还没有安装 Lime Pet，请先安装桌宠应用后再开启。"
+            : result.message ||
+              "当前没有可用的 Lime Pet 可执行产物，请先安装桌宠应用。",
         });
       }
 
@@ -470,7 +505,7 @@ function CompanionProviderBridgeCard() {
     if (!connected) {
       return {
         label: "等待桌宠连接",
-        hint: "Companion 已监听，可点击“启动 Lime Pet”或检查桌宠是否已连上本地入口。",
+        hint: "Companion 已监听，可点击“开启桌宠”或检查桌宠是否已连上本地入口。",
       };
     }
     if (!supportsProviderOverview) {
@@ -541,7 +576,7 @@ function CompanionProviderBridgeCard() {
       return "先让 Lime 完整启动 Companion 宿主，再连接桌宠。";
     }
     if (!connected) {
-      return "点击“启动 Lime Pet”，或检查桌宠是否已连接到本地 Companion 地址。";
+      return "点击“开启桌宠”，或检查桌宠是否已连接到本地 Companion 地址。";
     }
     if (!supportsProviderOverview) {
       return "先让桌宠在 ready 事件里声明 provider-overview 能力，再尝试同步摘要。";
@@ -803,6 +838,33 @@ function CompanionProviderBridgeCard() {
             <NoticeBar tone="error" message={previewError} />
           ) : null}
 
+          {installPromptVisible ? (
+            <div
+              className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm shadow-slate-950/5"
+              data-testid="companion-install-guide"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-amber-900">
+                    还没有安装 Lime Pet
+                  </p>
+                  <p className="text-sm leading-6 text-amber-800">
+                    先安装桌宠客户端，再回到这里点击“开启桌宠”，Lime 会继续负责本地 Companion 宿主与状态同步。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void openUrl(LIME_PET_RELEASES_URL)}
+                  className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 transition hover:border-amber-400 hover:bg-amber-100/40"
+                  data-testid="companion-install-button"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  下载安装 Lime Pet
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {actionFeedback ? (
             <NoticeBar
               tone={actionFeedback.tone}
@@ -839,7 +901,7 @@ function CompanionProviderBridgeCard() {
             ) : (
               <Bot className="h-4 w-4" />
             )}
-            {connected ? "重新打开桌宠" : "启动 Lime Pet"}
+            {connected ? "重新打开桌宠" : "开启桌宠"}
           </button>
         </div>
       </div>
@@ -909,7 +971,7 @@ function resolveDisplayOfferState(
   return "available_subscribe_required";
 }
 
-type ProviderWorkspaceView = "settings" | "cloud" | "companion";
+type ProviderWorkspaceView = SettingsProviderView;
 
 const PROVIDER_WORKSPACE_VIEW_META: Array<{
   value: ProviderWorkspaceView;
@@ -947,9 +1009,11 @@ function isLimeBrandedHub(hubProviderName: string | null | undefined): boolean {
 
 export interface CloudProviderSettingsProps {
   onOpenProfile?: () => void;
+  initialView?: ProviderWorkspaceView;
 }
 
 export function CloudProviderSettings(props: CloudProviderSettingsProps) {
+  const { initialView } = props;
   const {
     runtime,
     configuredTarget,
@@ -1007,7 +1071,10 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
         PROVIDER_WORKSPACE_VIEW_META.find((item) => item.value === view)!,
     );
   }, [isLimeBrand, isOemRuntime, showProviderSettingsEntry]);
-  const defaultView = workspaceViews[0]?.value ?? "cloud";
+  const defaultView =
+    initialView && workspaceViews.some((item) => item.value === initialView)
+      ? initialView
+      : workspaceViews[0]?.value ?? "cloud";
   const [activeView, setActiveView] =
     useState<ProviderWorkspaceView>(defaultView);
 
@@ -1016,6 +1083,16 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       setActiveView(defaultView);
     }
   }, [activeView, defaultView, workspaceViews]);
+
+  useEffect(() => {
+    if (!initialView) {
+      return;
+    }
+
+    if (workspaceViews.some((item) => item.value === initialView)) {
+      setActiveView(initialView);
+    }
+  }, [initialView, workspaceViews]);
 
   useEffect(() => {
     if (!session || selectedOffer || loadingDetail || offers.length === 0) {
@@ -1591,5 +1668,3 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     </div>
   );
 }
-
-export default CloudProviderSettings;

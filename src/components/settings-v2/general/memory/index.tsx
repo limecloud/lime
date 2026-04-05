@@ -1450,5 +1450,3 @@ export function MemorySettings() {
     </div>
   );
 }
-
-export default MemorySettings;

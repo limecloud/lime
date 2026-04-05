@@ -1732,7 +1732,6 @@ pub fn run() {
             commands::media_task_cmd::create_image_generation_task_artifact,
             commands::media_task_cmd::get_media_task_artifact,
             commands::media_task_cmd::list_media_task_artifacts,
-            commands::media_task_cmd::retry_media_task_artifact,
             commands::media_task_cmd::cancel_media_task_artifact,
             // Gallery material commands
             commands::gallery_material_cmd::create_gallery_material_metadata,

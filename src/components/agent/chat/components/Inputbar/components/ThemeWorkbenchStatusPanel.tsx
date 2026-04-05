@@ -1,16 +1,22 @@
 import { useState } from "react";
-import { ChevronDown, Loader2, Clock3, AlertCircle, Sparkles } from "lucide-react";
+import {
+  ChevronDown,
+  Loader2,
+  Clock3,
+  AlertCircle,
+  Sparkles,
+} from "lucide-react";
 import styled from "styled-components";
 import type {
   ThemeWorkbenchGateState,
   ThemeWorkbenchQuickAction,
   ThemeWorkbenchWorkflowStep,
-} from "../hooks/useThemeWorkbenchInputState";
+} from "../../../utils/themeWorkbenchInputState";
 
 interface ThemeWorkbenchStatusPanelProps {
   gate?: ThemeWorkbenchGateState | null;
-  quickActions?: ThemeWorkbenchQuickAction[];
-  queueItems?: ThemeWorkbenchWorkflowStep[];
+  quickActions: ThemeWorkbenchQuickAction[];
+  queueItems: ThemeWorkbenchWorkflowStep[];
   renderGeneratingPanel: boolean;
   onQuickAction: (prompt: string) => void;
   onStop?: () => void;
@@ -292,8 +298,8 @@ const StopGlyph = styled.span`
 
 export function ThemeWorkbenchStatusPanel({
   gate,
-  quickActions = [],
-  queueItems = [],
+  quickActions,
+  queueItems,
   renderGeneratingPanel,
   onQuickAction,
   onStop,

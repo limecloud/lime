@@ -12,6 +12,21 @@ fn get_optional_string_arg(args: &JsonValue, primary: &str, secondary: &str) -> 
         .map(ToString::to_string)
 }
 
+fn get_optional_images_arg(
+    args: &JsonValue,
+) -> Result<Option<Vec<crate::skills::SkillExecutionImageInput>>, DynError> {
+    let Some(value) = args.get("images").cloned() else {
+        return Ok(None);
+    };
+    Ok(Some(serde_json::from_value(value)?))
+}
+
+fn get_optional_request_context_arg(args: &JsonValue) -> Option<JsonValue> {
+    args.get("requestContext")
+        .cloned()
+        .or_else(|| args.get("request_context").cloned())
+}
+
 pub(super) async fn try_handle(
     state: &DevBridgeState,
     cmd: &str,
@@ -153,6 +168,13 @@ pub(super) async fn try_handle(
                 .or_else(|_| get_string_arg(&args, "skill_name", "skillName"))?;
             let user_input = get_string_arg(&args, "userInput", "user_input")
                 .or_else(|_| get_string_arg(&args, "user_input", "userInput"))?;
+            let images = get_optional_images_arg(&args)?;
+            let request_context = get_optional_request_context_arg(&args);
+            let provider_override =
+                get_optional_string_arg(&args, "providerOverride", "provider_override");
+            let model_override = get_optional_string_arg(&args, "modelOverride", "model_override");
+            let execution_id = get_optional_string_arg(&args, "executionId", "execution_id");
+            let session_id = get_optional_string_arg(&args, "sessionId", "session_id");
             let db = app_handle.state::<crate::database::DbConnection>();
             let api_key_provider_service =
                 app_handle
@@ -168,10 +190,12 @@ pub(super) async fn try_handle(
                     aster_state,
                     skill_name,
                     user_input,
-                    get_optional_string_arg(&args, "providerOverride", "provider_override"),
-                    get_optional_string_arg(&args, "modelOverride", "model_override"),
-                    get_optional_string_arg(&args, "executionId", "execution_id"),
-                    get_optional_string_arg(&args, "sessionId", "session_id"),
+                    images,
+                    request_context,
+                    provider_override,
+                    model_override,
+                    execution_id,
+                    session_id,
                 )
                 .await
                 .map_err(|e| format!("执行 Skill 失败: {e}"))?,

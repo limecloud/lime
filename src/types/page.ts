@@ -11,53 +11,13 @@
 import type { SettingsTabs } from "./settings";
 
 export type WorkspaceTheme =
-  | "general"
-  | "social-media"
-  | "knowledge"
-  | "planning"
-  | "document"
-  | "video";
-
-export type ThemeWorkspacePage =
-  | "workspace-general"
-  | "workspace-social-media"
-  | "workspace-knowledge"
-  | "workspace-planning"
-  | "workspace-document"
-  | "workspace-video";
-
-export const LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY =
-  "lime:last-theme-workspace-page";
-
-export const THEME_WORKSPACE_PAGE_MAP: Record<
-  WorkspaceTheme,
-  ThemeWorkspacePage
-> = {
-  general: "workspace-general",
-  "social-media": "workspace-social-media",
-  knowledge: "workspace-knowledge",
-  planning: "workspace-planning",
-  document: "workspace-document",
-  video: "workspace-video",
-};
-
-export const WORKSPACE_PAGE_THEME_MAP: Record<
-  ThemeWorkspacePage,
-  WorkspaceTheme
-> = {
-  "workspace-general": "general",
-  "workspace-social-media": "social-media",
-  "workspace-knowledge": "knowledge",
-  "workspace-planning": "planning",
-  "workspace-document": "document",
-  "workspace-video": "video",
-};
+  | "general";
 
 export type Page =
   | "openclaw"
   | "agent"
   | "skills"
-  | ThemeWorkspacePage
+  | "video"
   | "image-gen"
   | "automation"
   | "channels"
@@ -72,34 +32,7 @@ export type Page =
   | "files"
   | "web"
   | "image-analysis"
-  | "projects"
-  | "project-detail"
   | `plugin:${string}`;
-
-export function isThemeWorkspacePage(page: Page): page is ThemeWorkspacePage {
-  return page in WORKSPACE_PAGE_THEME_MAP;
-}
-
-export function getThemeWorkspacePage(
-  theme: WorkspaceTheme,
-): ThemeWorkspacePage {
-  return THEME_WORKSPACE_PAGE_MAP[theme];
-}
-
-export function getThemeByWorkspacePage(
-  page: ThemeWorkspacePage,
-): WorkspaceTheme {
-  return WORKSPACE_PAGE_THEME_MAP[page];
-}
-
-export function getDefaultThemeWorkspacePage(): ThemeWorkspacePage {
-  return THEME_WORKSPACE_PAGE_MAP.general;
-}
-
-export type WorkspaceViewMode =
-  | "project-management"
-  | "workspace"
-  | "project-detail";
 
 export type OpenClawSubpage =
   | "install"
@@ -154,34 +87,19 @@ export interface AgentPageParams {
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   /** 首页点击触发的新会话标记（时间戳） */
   newChatAt?: number;
-  /** 主题工作台重置标记（时间戳） */
-  workspaceResetAt?: number;
-  /** 工作台视图模式（仅主题工作台使用） */
-  workspaceViewMode?: WorkspaceViewMode;
-  /** 进入主题工作台时，预填并触发“创建前确认”提示词 */
-  workspaceCreatePrompt?: string;
-  /** 创建确认来源（用于策略路由与埋点） */
-  workspaceCreateSource?:
-    | "workspace_prompt"
-    | "quick_create"
-    | "project_created";
-  /** 创建确认建议标题（可选） */
-  workspaceCreateFallbackTitle?: string;
-}
-
-/**
- * 项目详情页参数
- */
-export interface ProjectDetailPageParams {
-  projectId: string;
-  workspaceTheme?: WorkspaceTheme;
 }
 
 /**
  * 设置页面参数
  */
+export type SettingsProviderView =
+  | "settings"
+  | "cloud"
+  | "companion";
+
 export interface SettingsPageParams {
   tab?: SettingsTabs;
+  providerView?: SettingsProviderView;
 }
 
 export type MemoryPageSection =
@@ -236,7 +154,6 @@ export type PageParams =
   | AgentPageParams
   | AutomationPageParams
   | BrowserRuntimePageParams
-  | ProjectDetailPageParams
   | SettingsPageParams
   | OpenClawPageParams
   | MemoryPageParams

@@ -3219,7 +3219,7 @@ mod tests {
             .create_with_type(
                 "站点采集项目".to_string(),
                 workspace_root.path().join("site-capability-project"),
-                WorkspaceType::Document,
+                WorkspaceType::General,
             )
             .expect("创建测试项目失败");
         let request = SaveSiteAdapterResultRequest {
@@ -3352,7 +3352,7 @@ mod tests {
                 workspace_root
                     .path()
                     .join("site-capability-auto-save-project"),
-                WorkspaceType::Document,
+                WorkspaceType::General,
             )
             .expect("创建测试项目失败");
         let request = RunSiteAdapterRequest {
@@ -3528,7 +3528,7 @@ mod tests {
                 workspace_root
                     .path()
                     .join("site-capability-current-content-project"),
-                WorkspaceType::Document,
+                WorkspaceType::General,
             )
             .expect("创建测试项目失败");
         let manager = ContentManager::new(db.clone());
@@ -3634,7 +3634,7 @@ mod tests {
                 workspace_root
                     .path()
                     .join("site-capability-current-content-auto-save"),
-                WorkspaceType::Document,
+                WorkspaceType::General,
             )
             .expect("创建测试项目失败");
         let manager = ContentManager::new(db.clone());

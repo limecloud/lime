@@ -2517,7 +2517,7 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     const harness = mountHook(workspaceId);
 
     mockParseSkillSlashCommand.mockReturnValue({
-      skillName: "social_post_with_cover",
+      skillName: "content_post_with_cover",
       userInput: "写一篇春季新品文案",
     });
     mockTryExecuteSlashSkillCommand.mockResolvedValue(true);
@@ -2528,7 +2528,7 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
         await harness
           .getValue()
           .sendMessage(
-            "/social_post_with_cover 写一篇春季新品文案",
+            "/content_post_with_cover 写一篇春季新品文案",
             [],
             false,
             false,
@@ -2538,7 +2538,7 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
       });
 
       expect(mockParseSkillSlashCommand).toHaveBeenCalledWith(
-        "/social_post_with_cover 写一篇春季新品文案",
+        "/content_post_with_cover 写一篇春季新品文案",
       );
       expect(mockTryExecuteSlashSkillCommand).toHaveBeenCalledTimes(1);
       expect(mockSubmitAgentRuntimeTurn).not.toHaveBeenCalled();
@@ -2552,7 +2552,7 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     const harness = mountHook(workspaceId);
 
     mockParseSkillSlashCommand.mockReturnValue({
-      skillName: "social_post_with_cover",
+      skillName: "content_post_with_cover",
       userInput: "写一篇春季新品文案",
     });
     mockTryExecuteSlashSkillCommand.mockResolvedValue(false);
@@ -2563,7 +2563,7 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
         await harness
           .getValue()
           .sendMessage(
-            "/social_post_with_cover 写一篇春季新品文案",
+            "/content_post_with_cover 写一篇春季新品文案",
             [],
             false,
             false,
@@ -5994,7 +5994,7 @@ describe("useAsterAgentChat 兼容接口", () => {
             {
               requestMetadata: {
                 harness: {
-                  theme: "document",
+                  theme: "general",
                   session_mode: "theme_workbench",
                 },
               },
@@ -6011,7 +6011,6 @@ describe("useAsterAgentChat 兼容接口", () => {
           } | null
         )?.harness,
       ).toEqual({
-        theme: "document",
         session_mode: "theme_workbench",
       });
     } finally {

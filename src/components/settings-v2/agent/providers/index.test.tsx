@@ -14,6 +14,7 @@ const {
   mockSubscribeProviderDataChanged,
   mockGetConfig,
   mockSaveConfig,
+  mockOpenUrl,
 } = vi.hoisted(() => ({
   mockUseOemCloudAccess: vi.fn(),
   mockFormatOemCloudDateTime: vi.fn((value?: string) => `fmt:${value ?? ""}`),
@@ -26,6 +27,7 @@ const {
   mockSubscribeProviderDataChanged: vi.fn(),
   mockGetConfig: vi.fn(),
   mockSaveConfig: vi.fn(),
+  mockOpenUrl: vi.fn(),
 }));
 
 vi.mock("@/components/provider-pool", () => ({
@@ -64,6 +66,10 @@ vi.mock("@/lib/api/appConfig", () => ({
 vi.mock("@/lib/providerDataEvents", () => ({
   subscribeProviderDataChanged: (...args: unknown[]) =>
     mockSubscribeProviderDataChanged(...args),
+}));
+
+vi.mock("@/components/openclaw/openUrl", () => ({
+  openUrl: (...args: unknown[]) => mockOpenUrl(...args),
 }));
 
 vi.mock("@/hooks/useOemCloudAccess", () => ({
@@ -241,7 +247,12 @@ function createApiKeyProviders() {
   ];
 }
 
-async function renderPage(props: { onOpenProfile?: () => void } = {}) {
+async function renderPage(
+  props: {
+    onOpenProfile?: () => void;
+    initialView?: "settings" | "cloud" | "companion";
+  } = {},
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -644,7 +655,16 @@ describe("CloudProviderSettings", () => {
     expect(text).toContain("桌宠语音播报");
   });
 
-  it("点击启动桌宠后应调用 launch 接口并展示启动反馈", async () => {
+  it("带 initialView=companion 时应默认打开桌宠管理页", async () => {
+    const { container } = await renderPage({ initialView: "companion" });
+
+    expect(
+      container.querySelector('[data-testid="companion-provider-card"]'),
+    ).not.toBeNull();
+    expect(container.textContent ?? "").toContain("Lime Pet Companion");
+  });
+
+  it("点击开启桌宠后应调用 launch 接口并展示启动反馈", async () => {
     mockGetCompanionPetStatus
       .mockResolvedValueOnce(createPetStatus())
       .mockResolvedValueOnce(
@@ -664,7 +684,7 @@ describe("CloudProviderSettings", () => {
     });
 
     await act(async () => {
-      findButton(container, "启动 Lime Pet").dispatchEvent(
+      findButton(container, "开启桌宠").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
       await Promise.resolve();
@@ -672,7 +692,47 @@ describe("CloudProviderSettings", () => {
     });
 
     expect(mockLaunchCompanionPet).toHaveBeenCalledTimes(1);
-    expect(container.textContent ?? "").toContain("已请求启动 Lime Pet");
+    expect(container.textContent ?? "").toContain("已请求开启桌宠");
+  });
+
+  it("未安装桌宠时应展示安装引导并支持一键打开下载页", async () => {
+    mockLaunchCompanionPet.mockResolvedValue({
+      launched: false,
+      resolved_path: null,
+      endpoint: "ws://127.0.0.1:45554/companion/pet",
+      message:
+        "未找到 Lime Pet 可执行产物，请先安装桌宠应用或通过 app_path 显式指定。",
+    });
+    mockGetCompanionPetStatus
+      .mockResolvedValueOnce(createPetStatus())
+      .mockResolvedValueOnce(createPetStatus());
+
+    const { container } = await renderPage({ initialView: "companion" });
+
+    await act(async () => {
+      findButton(container, "开启桌宠").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="companion-install-guide"]'),
+    ).not.toBeNull();
+    expect(container.textContent ?? "").toContain("还没有安装 Lime Pet");
+    expect(container.textContent ?? "").toContain("下载安装 Lime Pet");
+
+    await act(async () => {
+      findButton(container, "下载安装 Lime Pet").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(mockOpenUrl).toHaveBeenCalledWith(
+      "https://github.com/limecloud/lime-pet/releases/latest",
+    );
   });
 
   it("桌宠已连接且支持 provider 概览时，应允许手动同步摘要", async () => {

@@ -28,6 +28,7 @@ describe("workbenchPreview", () => {
     WorkspaceLiveCanvasPreview({
       currentImageWorkbenchActive: false,
       imageWorkbenchProps: {} as never,
+      onCloseCanvas: vi.fn(),
       canvasRenderTheme: "general",
       liveArtifact: artifact,
       hasDisplayedLiveArtifact: true,

@@ -11,10 +11,3 @@ export {
   type ActivityLog,
   type ActivityLogScope,
 } from "@/lib/workspace/activityLogger";
-
-export {
-  resolveSocialMediaArtifactDescriptor,
-  type SocialMediaArtifactDescriptor,
-  type SocialMediaArtifactType,
-  type SocialMediaHarnessStage,
-} from "@/lib/workspace/socialMediaHarness";

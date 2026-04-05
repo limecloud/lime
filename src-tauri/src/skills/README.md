@@ -12,7 +12,7 @@
 | `llm_provider.rs` | 桥接层（纯逻辑已迁移到 `crates/skills/src/lime_llm_provider.rs`） |
 | `execution_callback.rs` | TauriExecutionCallback 实现（保留在主 crate） |
 | `runtime.rs` | skill 执行前置准备、provider fallback、run metadata 投影边界 |
-| `social_post.rs` | `social_post_with_cover` 的后处理与产物事件投影 |
+| `social_post.rs` | `content_post_with_cover` 的后处理与产物事件投影 |
 
 ## Skills 集成架构
 
@@ -97,7 +97,7 @@ skills/
 │   ├── provider fallback 与统一 memory prompt
 │   └── skill run start/finish metadata 投影
 ├── social_post.rs
-│   ├── social_post_with_cover 结果标准化
+│   ├── content_post_with_cover 结果标准化
 │   └── 社媒产物 Tool/Artifact 事件补投影
 ├── llm_provider.rs (桥接)
 │   └── crates/skills/src/lime_llm_provider.rs
@@ -129,7 +129,7 @@ commands/skill_cmd.rs
 - 按 `skill_name` 执行、execution tracker 包装与场景命令复用统一收口到 `skills/execution.rs`
 - prompt/workflow 的执行、session 构建、流事件桥接统一收口到 `lime-agent::skill_execution`
 - skill 执行前的 agent/tool 初始化、provider fallback 与 execution tracker metadata 统一收口到 `skills/runtime.rs`
-- `social_post_with_cover` 的结果标准化与补充 Artifact 事件统一收口到 `skills/social_post.rs`
+- `content_post_with_cover` 的结果标准化与补充 Artifact 事件统一收口到 `skills/social_post.rs`
 - 服务层和执行层共用 `SkillService::inspect_*` inspection 结果作为标准合规事实源，并向前端暴露标准合规状态与资源摘要
 - 无效 Skill 仍可在管理页中看到检查结果，但不会进入运行时自动加载和可执行列表
 - 管理链路支持创建最小标准 Skill 脚手架，新建结果会立即经过统一 inspection 校验

@@ -207,7 +207,6 @@ export function buildWorkspaceEmptyStateProps({
       : (theme) => {
           onThemeChange?.(theme);
         },
-    showThemeTabs: false,
     hasCanvasContent,
     hasContentId,
     selectedText,

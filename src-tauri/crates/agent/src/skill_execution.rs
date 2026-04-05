@@ -25,6 +25,12 @@ pub struct StepResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillInputImage {
+    pub data: String,
+    pub media_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillExecutionResult {
     pub success: bool,
     pub output: Option<String>,
@@ -38,9 +44,21 @@ pub struct SkillWorkflowExecution<'a> {
     pub aster_state: &'a AsterAgentState,
     pub skill: &'a LoadedSkillDefinition,
     pub user_input: &'a str,
+    pub images: &'a [SkillInputImage],
     pub execution_id: &'a str,
     pub session_id: &'a str,
     pub callback: &'a dyn ExecutionCallback,
+    pub memory_prompt: Option<&'a str>,
+    pub emitter: SkillEventEmitter,
+}
+
+pub struct SkillPromptExecution<'a> {
+    pub aster_state: &'a AsterAgentState,
+    pub skill: &'a LoadedSkillDefinition,
+    pub user_input: &'a str,
+    pub images: &'a [SkillInputImage],
+    pub execution_id: &'a str,
+    pub session_id: &'a str,
     pub memory_prompt: Option<&'a str>,
     pub emitter: SkillEventEmitter,
 }
@@ -108,6 +126,14 @@ fn build_prompt_system_prompt(skill_markdown: &str, memory_prompt: Option<&str>)
     } else {
         skill_markdown.to_string()
     }
+}
+
+fn build_user_message(user_input: &str, images: &[SkillInputImage]) -> Message {
+    let mut user_message = Message::user().with_text(user_input);
+    for image in images {
+        user_message = user_message.with_image(image.data.clone(), image.media_type.clone());
+    }
+    user_message
 }
 
 async fn stream_skill_session(
@@ -182,6 +208,7 @@ pub async fn execute_skill_workflow(
         aster_state,
         skill,
         user_input,
+        images,
         execution_id,
         session_id,
         callback,
@@ -228,7 +255,7 @@ pub async fn execute_skill_workflow(
             .include_context_trace(true)
             .build();
         let step_input = build_step_input(user_input, &accumulated_context, idx == 0);
-        let user_message = Message::user().with_text(&step_input);
+        let user_message = build_user_message(&step_input, images);
 
         let reply = stream_skill_session(
             aster_state,
@@ -303,14 +330,18 @@ pub async fn execute_skill_workflow(
 }
 
 pub async fn execute_skill_prompt(
-    aster_state: &AsterAgentState,
-    skill: &LoadedSkillDefinition,
-    user_input: &str,
-    execution_id: &str,
-    session_id: &str,
-    memory_prompt: Option<&str>,
-    emitter: SkillEventEmitter,
+    request: SkillPromptExecution<'_>,
 ) -> Result<SkillExecutionResult, SkillExecutionError> {
+    let SkillPromptExecution {
+        aster_state,
+        skill,
+        user_input,
+        images,
+        execution_id,
+        session_id,
+        memory_prompt,
+        emitter,
+    } = request;
     let event_name = format!("skill-exec-{execution_id}");
     let session_config = SessionConfigBuilder::new(session_id)
         .system_prompt(build_prompt_system_prompt(
@@ -319,7 +350,7 @@ pub async fn execute_skill_prompt(
         ))
         .include_context_trace(true)
         .build();
-    let user_message = Message::user().with_text(user_input);
+    let user_message = build_user_message(user_input, images);
     let reply = stream_skill_session(
         aster_state,
         session_id,

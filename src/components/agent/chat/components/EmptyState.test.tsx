@@ -6,7 +6,6 @@ import { EmptyState } from "./EmptyState";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
-import { composeEntryPrompt } from "../utils/entryPromptComposer";
 
 const { mockGetConfig } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(async () => ({})),
@@ -33,25 +32,12 @@ vi.mock("./ChatModelSelector", () => ({
   ChatModelSelector: () => <div data-testid="chat-model-selector" />,
 }));
 
-vi.mock("../utils/entryPromptComposer", () => ({
-  composeEntryPrompt: vi.fn(() => ""),
-  createDefaultEntrySlotValues: vi.fn(() => ({})),
-  formatEntryTaskPreview: vi.fn(() => ""),
-  getEntryTaskTemplate: vi.fn(() => ({
-    slots: [],
-    description: "",
-    label: "",
-  })),
-  SOCIAL_MEDIA_ENTRY_TASKS: [],
-  validateEntryTaskSlots: vi.fn(() => ({ valid: true, missing: [] })),
-}));
-
 vi.mock("../utils/contextualRecommendations", () => ({
   buildRecommendationPrompt: vi.fn((fullPrompt: string) => fullPrompt),
   getContextualRecommendations: vi.fn(() => []),
 }));
 
-vi.mock("./Inputbar/components/CharacterMention", () => ({
+vi.mock("../skill-selection/CharacterMention", () => ({
   CharacterMention: (props: {
     characters?: Character[];
     skills?: Skill[];
@@ -66,7 +52,7 @@ vi.mock("./Inputbar/components/CharacterMention", () => ({
   },
 }));
 
-vi.mock("./Inputbar/components/SkillSelector", () => ({
+vi.mock("../skill-selection/SkillSelector", () => ({
   SkillSelector: () => <div data-testid="skill-selector-stub" />,
 }));
 
@@ -251,7 +237,7 @@ function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
 }
 
 describe("EmptyState", () => {
-  it("新建任务首页不应再显示旧 Claw 首页品牌文案", async () => {
+  it("新建任务首页应恢复 slogan，而不是任务引导标题", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
     });
@@ -261,9 +247,9 @@ describe("EmptyState", () => {
     });
 
     expect(container.textContent).toContain("新建任务");
-    expect(container.textContent).toContain("开始一个新任务");
-    expect(container.textContent).not.toContain("青柠一下，灵感即来");
-    expect(container.textContent).not.toContain("CLAW WORKSPACE");
+    expect(container.textContent).toContain("青柠一下，灵感即来");
+    expect(container.textContent).toContain("从一句想法，到成稿、成图、成片、成事。");
+    expect(container.textContent).not.toContain("开始一个新任务");
   });
 
   it("通用首页应展示推荐方案并替换旧快速启动内容", async () => {
@@ -279,12 +265,36 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("推荐方案");
     expect(container.textContent).toContain("浏览器协助办事");
     expect(container.textContent).toContain("网页研究简报");
-    expect(container.textContent).toContain("社媒主稿生成");
+    expect(container.textContent).toContain("内容主稿生成");
     expect(container.textContent).toContain("前端概念方案");
     expect(container.textContent).toContain("演示提纲草案");
     expect(container.textContent).toContain("多代理拆任务");
     expect(container.textContent).not.toContain("生成配图");
     expect(container.textContent).not.toContain("Team 冒烟测试");
+  });
+
+  it("通用首页能力卡应继续渲染 4 张能力占位图", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      onLaunchBrowserAssist: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const expectedAlts = [
+      "技能能力卡占位图",
+      "自动化能力卡占位图",
+      "多代理协作能力卡占位图",
+      "浏览器工作台能力卡占位图",
+    ];
+
+    for (const alt of expectedAlts) {
+      const image = container.querySelector(`img[alt="${alt}"]`);
+      expect(image).toBeTruthy();
+      expect(image?.getAttribute("src")).toBeTruthy();
+    }
   });
 
   it("点击网页研究简报应开启联网搜索并记录最近使用", async () => {
@@ -301,7 +311,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="home-recommended-web-research-brief"]',
+      '[data-testid="entry-recommended-web-research-brief"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -316,7 +326,7 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("最近使用");
   });
 
-  it("点击社媒主稿生成应切换到社媒主题并写入起始动作", async () => {
+  it("点击内容主稿生成应直接写入起始动作，不再切换旧主题", async () => {
     const setInput = vi.fn<(value: string) => void>();
     const onThemeChange = vi.fn<(theme: string) => void>();
     const container = renderEmptyState({
@@ -330,7 +340,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="home-recommended-social-post-starter"]',
+      '[data-testid="entry-recommended-social-post-starter"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -338,9 +348,9 @@ describe("EmptyState", () => {
       card?.click();
     });
 
-    expect(onThemeChange).toHaveBeenCalledWith("social-media");
+    expect(onThemeChange).not.toHaveBeenCalled();
     expect(setInput).toHaveBeenCalledWith(
-      "请先帮我起草一版社媒内容首稿：明确目标受众、平台语境、标题方向、正文结构和可继续扩写的角度。",
+      "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构和可继续扩写的角度。",
     );
   });
 
@@ -358,7 +368,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="home-recommended-browser-assist-task"]',
+      '[data-testid="entry-recommended-browser-assist-task"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -387,7 +397,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="home-recommended-team-breakdown"]',
+      '[data-testid="entry-recommended-team-breakdown"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -463,7 +473,7 @@ describe("EmptyState", () => {
         summary: "围绕指定平台与关键词输出趋势摘要。",
         entryHint: "把平台和关键词给我，我先整理一份趋势报告。",
         aliases: ["趋势报告"],
-        category: "社媒运营",
+        category: "内容运营",
         outputHint: "趋势摘要 + 调度建议",
         source: "cloud_catalog",
         runnerType: "scheduled",
@@ -653,7 +663,7 @@ describe("EmptyState", () => {
     expect(onWebSearchEnabledChange).toHaveBeenCalledWith(true);
   });
 
-  it("社媒主题发送时应默认走 social_post_with_cover skill", async () => {
+  it("通用首页发送时不应自动注入任何历史默认 skill", async () => {
     const onSend =
       vi.fn<
         (
@@ -662,10 +672,9 @@ describe("EmptyState", () => {
           images?: unknown[],
         ) => void
       >();
-    vi.mocked(composeEntryPrompt).mockReturnValue("请输出一篇新品社媒文案");
-
     const container = renderEmptyState({
-      activeTheme: "social-media",
+      input: "请输出一篇新品发布文案",
+      activeTheme: "general",
       onSend,
     });
     await act(async () => {
@@ -682,17 +691,16 @@ describe("EmptyState", () => {
     });
 
     expect(onSend).toHaveBeenCalledWith(
-      "/social_post_with_cover 请输出一篇新品社媒文案",
+      "请输出一篇新品发布文案",
       "react",
       undefined,
     );
   });
 
-  it("即使存在历史配置字段，社媒主题仍应自动注入默认 skill", async () => {
+  it("即使存在历史配置字段，通用首页也不再自动注入默认 skill", async () => {
     mockGetConfig.mockImplementation(async () => ({
       chat_appearance: {},
     }));
-    vi.mocked(composeEntryPrompt).mockReturnValue("请输出一篇用户访谈纪要");
 
     const onSend =
       vi.fn<
@@ -701,9 +709,10 @@ describe("EmptyState", () => {
           executionStrategy?: "react" | "code_orchestrated" | "auto",
           images?: unknown[],
         ) => void
-      >();
+    >();
     const container = renderEmptyState({
-      activeTheme: "social-media",
+      input: "请输出一篇用户访谈纪要",
+      activeTheme: "general",
       onSend,
     });
     await act(async () => {
@@ -720,13 +729,13 @@ describe("EmptyState", () => {
     });
 
     expect(onSend).toHaveBeenCalledWith(
-      "/social_post_with_cover 请输出一篇用户访谈纪要",
+      "请输出一篇用户访谈纪要",
       "react",
       undefined,
     );
   });
 
-  it("社媒主题手动选择 skill 时应优先使用手动 skill", async () => {
+  it("手动选择 skill 后发送时仍应优先使用手动 skill", async () => {
     const onSend =
       vi.fn<
         (
@@ -735,18 +744,18 @@ describe("EmptyState", () => {
           images?: unknown[],
         ) => void
       >();
-    vi.mocked(composeEntryPrompt).mockReturnValue("请输出一篇品牌故事");
     const skill: Skill = {
-      key: "custom-social-skill",
-      name: "custom-social-skill",
+      key: "custom-writing-skill",
+      name: "custom-writing-skill",
       description: "desc",
-      directory: "custom-social-skill",
+      directory: "custom-writing-skill",
       installed: true,
       sourceKind: "builtin",
     };
 
     const container = renderEmptyState({
-      activeTheme: "social-media",
+      input: "请输出一篇品牌故事",
+      activeTheme: "general",
       onSend,
       skills: [skill],
     });
@@ -772,7 +781,7 @@ describe("EmptyState", () => {
     });
 
     expect(onSend).toHaveBeenCalledWith(
-      "/custom-social-skill 请输出一篇品牌故事",
+      "/custom-writing-skill 请输出一篇品牌故事",
       "react",
       undefined,
     );
@@ -852,19 +861,4 @@ describe("EmptyState", () => {
     expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
   });
 
-  it("应允许外部覆盖 supportingSlot", async () => {
-    const container = renderEmptyState({
-      supportingSlotOverride: (
-        <div data-testid="custom-supporting-slot">自定义入口层</div>
-      ),
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(
-      container.querySelector('[data-testid="custom-supporting-slot"]'),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("自定义入口层");
-  });
 });

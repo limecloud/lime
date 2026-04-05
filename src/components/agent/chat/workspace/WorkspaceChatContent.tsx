@@ -14,11 +14,8 @@ import {
   EntryBannerClose,
   MessageViewport,
 } from "./WorkspaceStyles";
-import type {
-  A2UIFormData,
-  A2UIResponse,
-} from "@/lib/workspace/a2ui";
-import type { A2UISubmissionNoticeData } from "../components/Inputbar/components/A2UISubmissionNotice";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
+import type { A2UISubmissionNoticeData } from "./A2UISubmissionNotice";
 
 interface WorkspaceChatContentProps {
   entryBannerVisible: boolean;

@@ -40,7 +40,7 @@ function mountHook(initialProps?: Partial<HookHarnessProps>): HookHarness {
     contentId: "content-1",
     initialDispatchKey: "dispatch-1",
     consumedInitialPromptKey: null,
-    mappedTheme: "social-media",
+    mappedTheme: "general",
     isBrowserAssistReady: true,
     ...initialProps,
   };
@@ -49,7 +49,7 @@ function mountHook(initialProps?: Partial<HookHarnessProps>): HookHarness {
     hookValue = useThemeWorkbenchSendBoundary({
       ...currentProps,
       initialUserImages: [],
-      socialArticleSkillKey: "social_post_with_cover",
+      socialArticleSkillKey: "content_post_with_cover",
       onConsumeInitialPrompt,
       onResetConsumedInitialPrompt,
       onClearEntryPrompt,
@@ -106,7 +106,7 @@ describe("useThemeWorkbenchSendBoundary", () => {
     vi.clearAllMocks();
   });
 
-  it("应识别社媒主题工作台的首条意图消费与技能前缀", () => {
+  it("应识别内容主题工作台的首条意图消费", () => {
     const harness = mountHook();
 
     try {
@@ -114,9 +114,7 @@ describe("useThemeWorkbenchSendBoundary", () => {
         sourceText: "请生成今天的社媒主稿",
       });
 
-      expect(boundary.sourceText).toBe(
-        "/social_post_with_cover 请生成今天的社媒主稿",
-      );
+      expect(boundary.sourceText).toBe("请生成今天的社媒主稿");
       expect(boundary.shouldConsumePendingThemeWorkbenchInitialPrompt).toBe(
         true,
       );

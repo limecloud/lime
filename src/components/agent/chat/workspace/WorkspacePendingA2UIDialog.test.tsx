@@ -21,17 +21,17 @@ vi.mock("../components/A2UITaskCard", () => ({
   A2UITaskCard: (props?: unknown) => mockA2UITaskCard(props),
 }));
 
-vi.mock("../components/Inputbar/components/A2UISubmissionNotice", () => ({
+vi.mock("./A2UISubmissionNotice", () => ({
   A2UISubmissionNotice: (props?: {
     notice?: { title?: string; summary?: string };
   }) => mockSubmissionNotice(props),
 }));
 
-vi.mock("../components/Inputbar/hooks/useStickyA2UIForm", () => ({
+vi.mock("./useStickyA2UIForm", () => ({
   useStickyA2UIForm: (props: unknown) => mockUseStickyA2UIForm(props),
 }));
 
-vi.mock("../components/Inputbar/hooks/useA2UISubmissionNotice", () => ({
+vi.mock("./useA2UISubmissionNotice", () => ({
   useA2UISubmissionNotice: (props: unknown) =>
     mockUseA2UISubmissionNotice(props),
 }));

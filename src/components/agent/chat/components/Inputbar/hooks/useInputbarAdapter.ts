@@ -14,9 +14,6 @@ interface UseInputbarAdapterParams {
   handleSend: () => void;
   onStop?: () => void;
   pendingImages: MessageImage[];
-  setExecutionStrategy?: (
-    strategy: "react" | "code_orchestrated" | "auto",
-  ) => void;
 }
 
 const NOOP_SET_PROVIDER_TYPE = (_type: string) => {};
@@ -34,7 +31,6 @@ export function useInputbarAdapter({
   handleSend,
   onStop,
   pendingImages,
-  setExecutionStrategy,
 }: UseInputbarAdapterParams) {
   return useMemo(
     () =>
@@ -50,7 +46,6 @@ export function useInputbarAdapter({
         send: () => handleSend(),
         stop: onStop,
         attachments: pendingImages,
-        showExecutionStrategy: Boolean(setExecutionStrategy),
       }),
     [
       disabled,
@@ -61,7 +56,6 @@ export function useInputbarAdapter({
       onStop,
       pendingImages,
       providerType,
-      setExecutionStrategy,
       setInput,
       setModel,
       setProviderType,

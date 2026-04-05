@@ -3,10 +3,17 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsTabs } from "@/types/settings";
 
-const { mockSettingsSidebar, mockPreloadDeveloperDefaultSections } =
+const {
+  mockSettingsSidebar,
+  mockPreloadDeveloperDefaultSections,
+  mockCloudProviderSettings,
+  mockSettingsHomePage,
+} =
   vi.hoisted(() => ({
     mockSettingsSidebar: vi.fn(),
     mockPreloadDeveloperDefaultSections: vi.fn(),
+    mockCloudProviderSettings: vi.fn(),
+    mockSettingsHomePage: vi.fn(),
   }));
 
 const { mockResolveOemCloudRuntimeContext } = vi.hoisted(() => ({
@@ -34,9 +41,6 @@ vi.mock("../general/appearance", () => ({
 }));
 vi.mock("../general/memory", () => ({
   MemorySettings: () => <div>memory</div>,
-}));
-vi.mock("../system/security-performance", () => ({
-  SecurityPerformanceSettings: () => <div>security</div>,
 }));
 vi.mock("../system/automation", () => ({
   AutomationSettings: () => <div>automation</div>,
@@ -75,13 +79,13 @@ vi.mock("../account/user-center-session", () => ({
   UserCenterSessionSettings: () => <div>USER_CENTER_SESSION</div>,
 }));
 vi.mock("../agent/providers", () => ({
-  CloudProviderSettings: () => <div>providers</div>,
+  CloudProviderSettings: (props: unknown) => {
+    mockCloudProviderSettings(props);
+    return <div>providers</div>;
+  },
 }));
 vi.mock("@/components/mcp", () => ({
   McpPanel: () => <div>mcp</div>,
-}));
-vi.mock("../system/channels", () => ({
-  ChannelsSettings: () => <div>channels</div>,
 }));
 vi.mock("../system/environment", () => ({
   EnvironmentSettings: () => <div>environment</div>,
@@ -93,7 +97,10 @@ vi.mock("../system/chrome-relay", () => ({
   ChromeRelaySettings: () => <div>chrome-relay</div>,
 }));
 vi.mock("../home", () => ({
-  SettingsHomePage: () => <div>home</div>,
+  SettingsHomePage: (props: unknown) => {
+    mockSettingsHomePage(props);
+    return <div>home</div>;
+  },
 }));
 vi.mock("@/lib/api/oemCloudRuntime", () => ({
   resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
@@ -111,6 +118,7 @@ const mounted: Mounted[] = [];
 function renderComponent(
   initialTab: SettingsTabs,
   onNavigate?: (page: string) => void,
+  initialProviderView?: "settings" | "cloud" | "companion",
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -120,6 +128,7 @@ function renderComponent(
     root.render(
       <SettingsLayoutV2
         initialTab={initialTab}
+        initialProviderView={initialProviderView}
         onNavigate={onNavigate as any}
       />,
     );
@@ -153,6 +162,8 @@ afterEach(() => {
   vi.clearAllMocks();
   mockSettingsSidebar.mockReset();
   mockPreloadDeveloperDefaultSections.mockReset();
+  mockCloudProviderSettings.mockReset();
+  mockSettingsHomePage.mockReset();
 
   while (mounted.length > 0) {
     const current = mounted.pop();
@@ -188,17 +199,6 @@ describe("SettingsLayoutV2 Profile Tab", () => {
     expect(text).toContain("USER_CENTER_SESSION");
     expect(text).toContain("PROFILE_SETTINGS");
     expect(text).not.toContain("个人资料");
-  });
-});
-
-describe("SettingsLayoutV2 Channels Redirect", () => {
-  it("旧的设置渠道入口应跳转到能力里的 IM 配置", async () => {
-    const onNavigate = vi.fn();
-
-    renderComponent(SettingsTabs.Channels, onNavigate);
-    await flushEffects();
-
-    expect(onNavigate).toHaveBeenCalledWith("channels");
   });
 });
 
@@ -248,5 +248,15 @@ describe("SettingsLayoutV2 Developer Tab", () => {
     });
 
     expect(mockPreloadDeveloperDefaultSections).toHaveBeenCalledTimes(1);
+  });
+
+  it("直达服务商页的桌宠子视图时，应把初始视图透传给服务商设置页", async () => {
+    renderComponent(SettingsTabs.Providers, undefined, "companion");
+    await flushEffects();
+
+    expect(mockCloudProviderSettings).toHaveBeenCalled();
+    expect(mockCloudProviderSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+      initialView: "companion",
+    });
   });
 });

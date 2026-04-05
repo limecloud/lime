@@ -77,7 +77,7 @@ const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 const MOCK_SKILL: ServiceSkillHomeItem = {
   id: "short-video-script-replication",
   skillType: "service",
-  title: "复制短视频脚本",
+  title: "复制视频脚本",
   summary: "围绕参考视频的结构和节奏，输出一版可继续加工的脚本。",
   category: "视频创作",
   outputHint: "脚本大纲 + 镜头节奏",
@@ -94,7 +94,7 @@ const MOCK_SKILL: ServiceSkillHomeItem = {
   runnerType: "instant",
   defaultExecutorBinding: "agent_turn",
   executionLocation: "client_default",
-  themeTarget: "video",
+  themeTarget: "general",
   version: "seed-v1",
   slotSchema: [
     {

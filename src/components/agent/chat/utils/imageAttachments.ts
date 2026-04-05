@@ -71,6 +71,23 @@ function parseDataUrl(dataUrl: string): {
   };
 }
 
+export function readMessageImageFromDataUrl(dataUrl: string): MessageImage {
+  const { mediaType, base64Data } = parseDataUrl(dataUrl);
+  if (!mediaType) {
+    throw new Error("unsupported_image_type");
+  }
+
+  return {
+    data: base64Data,
+    mediaType,
+  };
+}
+
+export function buildMessageImageDataUrl(image: MessageImage): string {
+  const normalizedMediaType = normalizeImageMimeType(image.mediaType) || "image/png";
+  return `data:${normalizedMediaType};base64,${image.data}`;
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

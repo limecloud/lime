@@ -293,6 +293,7 @@ impl AsterAgentState {
 
         let provider = create_aster_provider(&AsterProviderConfig {
             provider_name: config.provider_name.clone(),
+            provider_selector: config.provider_selector.clone(),
             model_name: config.model_name.clone(),
             api_key: config.api_key.clone(),
             base_url: config.base_url.clone(),

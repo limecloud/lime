@@ -15,16 +15,18 @@ metadata:
 
 ## 工作目标
 
-围绕用户提供的 URL 产出“可阅读、可引用、可继续加工”的文本结果。
+围绕用户提供的 URL 产出“可阅读、可引用、可继续加工”的文本结果，或至少创建一个可恢复、可继续执行的 `url_parse` 任务。
 
 ## 执行规则
 
-- 先校验 URL 是否完整可读；不完整时先提示补全。
-- 若当前会话存在可用抓取工具，则优先工具抓取；否则明确降级为“基于用户提供内容整理”。
+- 若结构化上下文里已有 `url_parse_task`，必须优先复用其中的 `url`、`prompt`、`extract_goal`、`raw_text`、`session_id`、`project_id`、`content_id`、`entry_source` 等字段。
+- 先校验 URL 是否完整可读；不完整时最多追问 1 个关键问题。
+- 如果当前回合能快速抓取并整理网页内容，可以直接创建 `extractStatus=ready` 的任务，并写入 `summary` / `keyPoints`。
+- 如果当前回合无法稳定抓取正文，也必须创建真实任务，并把 `extractStatus` 设为 `pending_extract`；不要停留在纯聊天解释，更不要伪造“已解析完成”。
 - 提炼时区分“原文信息”与“你的归纳”，避免混淆。
 - 优先调用 `Bash` 执行 `lime task create url-parse --json` 创建任务。
 - 若当前环境暂时无法执行 `lime` CLI，再回退到 `lime_create_url_parse_task`。
-- `payload` 中至少包含：`url`、`summary`、`keyPoints`、`extractStatus`。
+- `payload` 中至少包含：`url`、`extractStatus`；若已经完成内容整理，再补 `summary`、`keyPoints`。
 
 ## 输出格式（固定）
 

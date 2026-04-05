@@ -1,7 +1,7 @@
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY } from "@/types/page";
+import { buildClawAgentParams } from "@/lib/workspace/navigation";
 import { useAppNavigation } from "./useAppNavigation";
 
 interface ProbeProps {
@@ -65,40 +65,36 @@ describe("useAppNavigation", () => {
     await flushEffects();
   }
 
-  it("projects 跳转应复用保存的主题工作台页", async () => {
-    window.localStorage.setItem(
-      LAST_THEME_WORKSPACE_PAGE_STORAGE_KEY,
-      "workspace-document",
-    );
+  it("初始化时应落在新建任务主链", async () => {
     await renderProbe();
 
-    await act(async () => {
-      latestNavigation?.handleNavigate("projects", {
-        projectId: "project-1",
-      });
-    });
-
-    expect(latestNavigation?.currentPage).toBe("workspace-document");
-    expect(latestNavigation?.pageParams).toEqual({
-      projectId: "project-1",
-      workspaceViewMode: "project-management",
+    expect(latestNavigation?.currentPage).toBe("agent");
+    expect(latestNavigation?.pageParams).toMatchObject({
+      agentEntry: "new-task",
+      immersiveHome: false,
+      theme: "general",
+      lockTheme: false,
     });
   });
 
-  it("project-detail 跳转应保留工作台上下文参数", async () => {
+  it("agent 跳转应直接保留现役参数", async () => {
     await renderProbe();
 
     await act(async () => {
-      latestNavigation?.handleNavigate("project-detail", {
+      latestNavigation?.handleNavigate("agent", buildClawAgentParams({
         projectId: "project-2",
-        workspaceTheme: "video",
-      });
+        initialUserPrompt: "继续整理当前项目",
+      }));
     });
 
-    expect(latestNavigation?.currentPage).toBe("workspace-video");
+    expect(latestNavigation?.currentPage).toBe("agent");
     expect(latestNavigation?.pageParams).toEqual({
       projectId: "project-2",
-      workspaceViewMode: "workspace",
+      initialUserPrompt: "继续整理当前项目",
+      agentEntry: "claw",
+      immersiveHome: false,
+      theme: "general",
+      lockTheme: false,
     });
   });
 

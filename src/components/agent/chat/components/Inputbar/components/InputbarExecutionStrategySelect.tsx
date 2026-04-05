@@ -9,7 +9,6 @@ import {
 
 interface InputbarExecutionStrategySelectProps {
   isFullscreen?: boolean;
-  isThemeWorkbenchVariant?: boolean;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   setExecutionStrategy?: (
     strategy: "react" | "code_orchestrated" | "auto",
@@ -19,11 +18,8 @@ interface InputbarExecutionStrategySelectProps {
 export const InputbarExecutionStrategySelect: React.FC<
   InputbarExecutionStrategySelectProps
 > = (props) => {
-  const {
-    isFullscreen = false,
-    executionStrategy,
-    setExecutionStrategy,
-  } = props;
+  const { isFullscreen = false, executionStrategy, setExecutionStrategy } =
+    props;
 
   if (isFullscreen || !setExecutionStrategy) {
     return null;

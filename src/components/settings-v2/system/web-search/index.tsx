@@ -1323,5 +1323,3 @@ export function WebSearchSettings() {
     </div>
   );
 }
-
-export default WebSearchSettings;

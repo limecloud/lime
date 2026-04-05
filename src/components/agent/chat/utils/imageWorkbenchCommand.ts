@@ -1,8 +1,15 @@
+export type ImageWorkbenchCommandTrigger =
+  | "@配图"
+  | "@修图"
+  | "@重绘"
+  | "@image"
+  | "/image";
+
 export type ImageWorkbenchCommandMode = "generate" | "edit" | "variation";
 
 export interface ParsedImageWorkbenchCommand {
   rawText: string;
-  trigger: "@配图" | "@image" | "/image";
+  trigger: ImageWorkbenchCommandTrigger;
   body: string;
   mode: ImageWorkbenchCommandMode;
   prompt: string;
@@ -13,19 +20,25 @@ export interface ParsedImageWorkbenchCommand {
 }
 
 const IMAGE_COMMAND_PREFIX_REGEX =
-  /^\s*(@配图|@image|\/image)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@配图|@修图|@重绘|@image|\/image)(?:\s+|$)([\s\S]*)$/i;
 const TARGET_REF_REGEX = /#(img-[a-z0-9_-]+)/i;
 const SIZE_REGEX = /\b(\d{3,4}x\d{3,4})\b/i;
 const ASPECT_RATIO_REGEX =
   /\b(1:1|16:9|9:16|4:3|3:4|3:2|2:3|21:9|4:5|5:4)\b/i;
 
-function normalizeTrigger(value: string): "@配图" | "@image" | "/image" {
+function normalizeTrigger(value: string): ImageWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
   if (normalized === "@image") {
     return "@image";
   }
   if (normalized === "/image") {
     return "/image";
+  }
+  if (normalized === "@修图") {
+    return "@修图";
+  }
+  if (normalized === "@重绘") {
+    return "@重绘";
   }
   return "@配图";
 }
@@ -55,9 +68,16 @@ function extractCount(body: string): number {
 }
 
 function resolveMode(
+  trigger: ImageWorkbenchCommandTrigger,
   normalizedBody: string,
   targetRef?: string,
 ): ImageWorkbenchCommandMode {
+  if (trigger === "@修图") {
+    return "edit";
+  }
+  if (trigger === "@重绘") {
+    return "variation";
+  }
   if (/^(编辑|edit|修改)(?:\s|$|[:：])/i.test(normalizedBody)) {
     return "edit";
   }
@@ -128,7 +148,7 @@ export function parseImageWorkbenchCommand(
   const body = (matched[2] || "").trim();
   const targetRef = body.match(TARGET_REF_REGEX)?.[1];
   const normalizedBody = body.trim();
-  const mode = resolveMode(normalizedBody, targetRef);
+  const mode = resolveMode(trigger, normalizedBody, targetRef);
   const { size, aspectRatio } = resolveSize(normalizedBody);
 
   return {
@@ -142,4 +162,39 @@ export function parseImageWorkbenchCommand(
     aspectRatio,
     targetRef,
   };
+}
+
+export function shouldRouteImageWorkbenchCommandToSkill(input: {
+  parsedCommand: ParsedImageWorkbenchCommand;
+  attachedImageCount?: number;
+}): boolean {
+  const { parsedCommand, attachedImageCount = 0 } = input;
+  return (
+    parsedCommand.trigger !== "@修图" &&
+    parsedCommand.mode === "generate" &&
+    !parsedCommand.targetRef &&
+    attachedImageCount === 0
+  );
+}
+
+export function buildImageGenerateSkillSlashCommand(
+  parsedCommand: ParsedImageWorkbenchCommand,
+): string {
+  const normalizedBody = parsedCommand.body.trim();
+  if (!normalizedBody) {
+    return "/image_generate";
+  }
+  if (
+    parsedCommand.mode === "edit" &&
+    !/^(编辑|edit|修改)(?:\s|$|[:：])/i.test(normalizedBody)
+  ) {
+    return `/image_generate 编辑 ${normalizedBody}`;
+  }
+  if (
+    parsedCommand.mode === "variation" &&
+    !/^(重绘|变体|variation|variant)(?:\s|$|[:：])/i.test(normalizedBody)
+  ) {
+    return `/image_generate 重绘 ${normalizedBody}`;
+  }
+  return `/image_generate ${normalizedBody}`;
 }

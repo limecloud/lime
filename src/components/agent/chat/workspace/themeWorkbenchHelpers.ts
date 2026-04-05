@@ -13,12 +13,15 @@ import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import { parseSkillSlashCommand } from "../hooks/skillCommand";
+import {
+  CONTENT_POST_SKILL_KEY,
+} from "../utils/contentPostSkill";
 import type { Message } from "../types";
 import type { TaskFile } from "../components/TaskFiles";
 
 export const THEME_WORKBENCH_DOCUMENT_META_KEY = "theme_workbench_document_v1";
 export const MAX_PERSISTED_DOCUMENT_VERSIONS = 40;
-export const SOCIAL_ARTICLE_SKILL_KEY = "social_post_with_cover";
+export const SOCIAL_ARTICLE_SKILL_KEY = CONTENT_POST_SKILL_KEY;
 export const THEME_WORKBENCH_ACTIVE_RUN_MAX_AGE_MS = 45 * 1000;
 export const THEME_WORKBENCH_HISTORY_PAGE_SIZE = 20;
 
@@ -194,7 +197,10 @@ function resolveThemeWorkbenchToolTaskTitle(toolCall: ToolCallState): string {
   if (normalized.includes("bash") || normalized.includes("shell")) {
     const commandValue = resolveThemeWorkbenchTextArg(args, ["command", "cmd"]);
     const commandProbe = commandValue.toLowerCase();
-    if (commandProbe.includes("lime media image generate")) {
+    if (
+      commandProbe.includes("lime media image generate") ||
+      commandProbe.includes("lime task create image")
+    ) {
       return "提交配图任务";
     }
     if (commandProbe.includes("lime media cover generate")) {
@@ -236,7 +242,7 @@ function resolveThemeWorkbenchPrimaryTaskTitle(
   detail?: SkillDetailInfo | null,
 ): string {
   if (skillName === SOCIAL_ARTICLE_SKILL_KEY) {
-    return "生成社媒主稿";
+    return "生成内容主稿";
   }
 
   const displayName = detail?.display_name?.trim();

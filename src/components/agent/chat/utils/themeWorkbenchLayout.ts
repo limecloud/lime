@@ -1,4 +1,4 @@
-import type { ThemeWorkbenchGateState } from "../components/Inputbar/hooks/useThemeWorkbenchInputState";
+import type { ThemeWorkbenchGateState } from "./themeWorkbenchInputState";
 
 interface ResolveFloatingChromeInsetParams {
   showFloatingInputOverlay: boolean;
@@ -7,8 +7,7 @@ interface ResolveFloatingChromeInsetParams {
   gateStatus?: ThemeWorkbenchGateState["status"];
 }
 
-interface ResolveLayoutBottomSpacingParams
-  extends ResolveFloatingChromeInsetParams {
+interface ResolveLayoutBottomSpacingParams extends ResolveFloatingChromeInsetParams {
   contextWorkspaceEnabled: boolean;
 }
 

@@ -66,6 +66,11 @@ pub enum TurnPromptAugmentationStageKind {
     WebSearch,
     RequestToolPolicy,
     Artifact,
+    ImageSkillLaunch,
+    CoverSkillLaunch,
+    VideoSkillLaunch,
+    TranscriptionSkillLaunch,
+    UrlParseSkillLaunch,
     ServiceSkillLaunch,
     ServiceSkillLaunchPreload,
     Elicitation,
@@ -468,7 +473,7 @@ mod tests {
             .set_effective_user_message("请继续分析")
             .set_include_context_trace(true)
             .set_turn_context_metadata_from_value(Some(&json!({
-                "theme": "planning",
+                "theme": "general",
                 "task_mode_enabled": true
             })))
             .set_thread_id("thread-1")

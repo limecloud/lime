@@ -242,6 +242,7 @@ lime/
 
 ### 配置、服务与数据
 - [commands.md](commands.md) - Tauri 命令
+- [command-runtime.md](command-runtime.md) - 命令运行时、`@` / `/`、轻卡与 viewer 实施规则
 - [site-adapter-standard.md](site-adapter-standard.md) - 站点适配器标准与外部来源接入边界
 - [services.md](services.md) - 业务服务
 - [database.md](database.md) - 数据库层

@@ -10,7 +10,6 @@ import {
   StyledTextarea,
   BottomBar,
   LeftSection,
-  RightSection,
   SendButton,
   SecondaryActionButton,
   DragHandle,
@@ -55,21 +54,15 @@ interface InputbarCoreProps {
   isLoading?: boolean;
   disabled?: boolean;
   activeTools: Record<string, boolean>;
-  executionStrategy?: "react" | "code_orchestrated" | "auto";
-  showExecutionStrategy?: boolean;
   onToolClick: (tool: string) => void;
   pendingImages?: MessageImage[];
   onRemoveImage?: (index: number) => void;
   onPaste?: (e: React.ClipboardEvent) => void;
   isFullscreen?: boolean;
-  /** 画布是否打开 */
-  isCanvasOpen?: boolean;
   /** Textarea ref（用于 CharacterMention） */
   textareaRef?: React.RefObject<HTMLTextAreaElement>;
   /** 输入框底栏左侧扩展区域 */
   leftExtra?: React.ReactNode;
-  /** 输入框底栏右侧扩展区域 */
-  rightExtra?: React.ReactNode;
   /** 输入框内部顶部扩展区域（textarea 上方） */
   topExtra?: React.ReactNode;
   /** 输入框提示文案 */
@@ -81,7 +74,6 @@ interface InputbarCoreProps {
   /** 视觉风格 */
   visualVariant?: "default" | "floating";
   activeTheme?: string;
-  allowEmptySend?: boolean;
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
@@ -95,24 +87,19 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   isLoading = false,
   disabled = false,
   activeTools,
-  executionStrategy,
-  showExecutionStrategy = false,
   onToolClick,
   pendingImages = [],
   onRemoveImage,
   onPaste,
   isFullscreen = false,
-  isCanvasOpen = false,
   textareaRef: externalTextareaRef,
   leftExtra,
-  rightExtra,
   topExtra,
   placeholder,
   toolMode = "default",
   showDragHandle = true,
   visualVariant = "default",
   activeTheme,
-  allowEmptySend = false,
   queuedTurns = [],
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
@@ -180,14 +167,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   const leftSectionClassName = shouldCollapseFloatingTools
     ? "floating-collapsed"
     : "";
-  const rightSectionClassName = shouldUseCompactFloatingComposer
-    ? "floating-collapsed"
-    : "";
   const shouldRenderMetaBar =
     !shouldUseCompactFloatingComposer &&
-    (Boolean(leftExtra) ||
-      Boolean(rightExtra) ||
-      (toolMode === "default" && !shouldCollapseFloatingTools));
+    (Boolean(leftExtra) || (toolMode === "default" && !shouldCollapseFloatingTools));
   const dictationButtonTitle = isDictationProcessing
     ? dictationState === "polishing"
       ? "语音润色中"
@@ -270,7 +252,6 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       onEscape={() => onToolClick("fullscreen")}
       allowSendWhileLoading
       rows={isTextareaExpanded ? 6 : 1}
-      allowEmptySend={allowEmptySend}
       placeholder={
         placeholder ||
         (isFullscreen
@@ -431,20 +412,11 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                       <InputbarTools
                         onToolClick={onToolClick}
                         activeTools={activeTools}
-                        executionStrategy={executionStrategy}
-                        showExecutionStrategy={showExecutionStrategy}
                         toolMode={toolMode}
-                        isCanvasOpen={isCanvasOpen}
                         activeTheme={activeTheme}
                       />
                     ) : null}
                   </LeftSection>
-
-                  {rightExtra ? (
-                    <RightSection className={rightSectionClassName}>
-                      <MetaSlot>{rightExtra}</MetaSlot>
-                    </RightSection>
-                  ) : null}
                 </BottomBar>
               ) : null}
             </InputBarContainer>

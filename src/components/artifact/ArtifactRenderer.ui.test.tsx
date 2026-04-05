@@ -162,7 +162,7 @@ describe("ArtifactRenderer 空内容态", () => {
           ],
           sources: [],
           metadata: {
-            theme: "knowledge",
+            theme: "general",
           },
         }),
         status: "complete",
@@ -223,7 +223,7 @@ describe("ArtifactRenderer 空内容态", () => {
             ],
             sources: [],
             metadata: {
-              theme: "knowledge",
+              theme: "general",
             },
           },
           language: "json",
@@ -288,7 +288,7 @@ describe("ArtifactRenderer 空内容态", () => {
             },
           ],
           metadata: {
-            theme: "knowledge",
+            theme: "general",
             audience: "产品与工程负责人",
             intent: "技术选型",
           },
@@ -313,7 +313,7 @@ describe("ArtifactRenderer 空内容态", () => {
     expect(container.textContent).toContain("来源附录");
     expect(container.textContent).toContain("OpenAI Blog");
     expect(container.textContent).toContain("主题 知识探索");
-    expect(container.textContent).not.toContain("主题 knowledge");
+    expect(container.textContent).not.toContain("主题 general");
     expect(container.querySelector("#artifact-block-hero-1")).not.toBeNull();
   });
 
@@ -343,7 +343,7 @@ describe("ArtifactRenderer 空内容态", () => {
       ],
       sources: [],
       metadata: {
-        theme: "knowledge",
+        theme: "general",
       },
     });
 
@@ -385,7 +385,7 @@ describe("ArtifactRenderer 空内容态", () => {
       ],
       sources: [],
       metadata: {
-        theme: "document",
+        theme: "general",
       },
     });
 

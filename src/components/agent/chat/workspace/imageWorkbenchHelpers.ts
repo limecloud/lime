@@ -1,16 +1,24 @@
+import type {
+  AgentToolCallState,
+  AgentToolExecutionResult,
+} from "@/lib/api/agentProtocol";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { PlatformType } from "@/lib/workspace/workbenchCanvas";
 import type {
   CanvasImageInsertAnchorHint,
   CanvasImageTargetType,
 } from "@/lib/canvasImageInsertBus";
-import type { Message, MessageImage } from "../types";
+import {
+  normalizeSelectionAnchorText,
+  resolveSectionTitleForSelection,
+} from "@/components/workspace/document/utils/autoImageInsert";
+import type { ContentPart, Message, MessageImage } from "../types";
 import type {
   ImageWorkbenchOutputView,
   ImageWorkbenchTaskMode,
   ImageWorkbenchTaskView,
   ImageWorkbenchViewport,
-} from "../components/ImageWorkbenchCanvas";
+} from "../components/imageWorkbenchTypes";
 
 export interface ImageWorkbenchTask extends ImageWorkbenchTaskView {
   sessionId: string;
@@ -28,6 +36,8 @@ export type ImageWorkbenchApplyTarget =
       kind: "canvas-insert";
       canvasType: CanvasImageTargetType;
       anchorHint?: CanvasImageInsertAnchorHint;
+      sectionTitle?: string | null;
+      anchorText?: string | null;
       projectId?: string | null;
       contentId?: string | null;
       actionLabel: string;
@@ -60,8 +70,244 @@ export function createInitialSessionImageWorkbenchState(): SessionImageWorkbench
   };
 }
 
-export function resolveImageWorkbenchAssistantMessageId(taskId: string): string {
+export function resolveImageWorkbenchAssistantMessageId(
+  taskId: string,
+): string {
   return `image-workbench:${taskId}:assistant`;
+}
+
+type ImageWorkbenchMessageStatus =
+  | "running"
+  | "complete"
+  | "partial"
+  | "failed"
+  | "cancelled";
+
+interface BuildImageWorkbenchProcessDescriptorParams {
+  taskId: string;
+  prompt: string;
+  mode: ImageWorkbenchTaskMode;
+  status: ImageWorkbenchMessageStatus;
+  rawText?: string;
+  count?: number;
+  successCount?: number;
+  size?: string;
+  imageUrl?: string | null;
+  failureMessage?: string | null;
+  startedAt: Date;
+  endedAt?: Date;
+}
+
+function resolveImageWorkbenchModeLabel(mode: ImageWorkbenchTaskMode): string {
+  if (mode === "edit") {
+    return "图片编辑";
+  }
+  if (mode === "variation") {
+    return "图片重绘";
+  }
+  return "图片生成";
+}
+
+function resolveImageWorkbenchSkillLabel(mode: ImageWorkbenchTaskMode): string {
+  if (mode === "edit") {
+    return "图片编辑技能";
+  }
+  if (mode === "variation") {
+    return "图片重绘技能";
+  }
+  return "配图技能";
+}
+
+function resolveImageWorkbenchCommandLabel(mode: ImageWorkbenchTaskMode): string {
+  if (mode === "edit") {
+    return "@修图";
+  }
+  if (mode === "variation") {
+    return "@重绘";
+  }
+  return "@配图";
+}
+
+function resolveImageWorkbenchProgressLabel(mode: ImageWorkbenchTaskMode): string {
+  if (mode === "edit") {
+    return "修图";
+  }
+  if (mode === "variation") {
+    return "重绘";
+  }
+  return "配图";
+}
+
+function resolveImageWorkbenchActionVerb(mode: ImageWorkbenchTaskMode): string {
+  if (mode === "edit") {
+    return "梳理来源图与编辑要求，再通过图片编辑技能提交异步修图任务";
+  }
+  if (mode === "variation") {
+    return "梳理参考图与重绘要求，再通过图片重绘技能提交异步图片任务";
+  }
+  return "梳理画面主题、尺寸和出图数量，再通过配图技能提交异步图片任务";
+}
+
+function formatToolArguments(value: Record<string, unknown>): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function resolveImageWorkbenchAnalysisText(
+  params: BuildImageWorkbenchProcessDescriptorParams,
+): string {
+  const prompt = collapseWhitespace(params.prompt) || "当前图片任务";
+  const actionLabel = resolveImageWorkbenchProgressLabel(params.mode);
+  switch (params.status) {
+    case "running":
+      return `我先按你的描述${resolveImageWorkbenchActionVerb(params.mode)}：${prompt}`;
+    case "complete":
+      return `我已按当前描述完成一轮${actionLabel}，并把结果同步回对话：${prompt}`;
+    case "partial":
+      return `我已按当前描述完成一轮${actionLabel}，但这次只拿到了部分结果：${prompt}`;
+    case "cancelled":
+      return `这轮${actionLabel}任务已经停止，当前不会继续生成新的结果：${prompt}`;
+    case "failed":
+    default:
+      return `我已经按当前描述提交过一轮${actionLabel}，但这次没有拿到可用结果：${prompt}`;
+  }
+}
+
+function buildImageWorkbenchSkillToolCall(
+  params: BuildImageWorkbenchProcessDescriptorParams,
+): AgentToolCallState {
+  const endedAt = params.endedAt ?? params.startedAt;
+  const prompt = collapseWhitespace(params.prompt) || "当前图片任务";
+  const rawText =
+    collapseWhitespace(params.rawText || "") ||
+    `${resolveImageWorkbenchCommandLabel(params.mode)} ${
+      params.mode === "variation" ? "重绘 " : params.mode === "generate" ? "生成 " : ""
+    }${prompt}`.trim();
+
+  return {
+    id: `${params.taskId}:skill`,
+    name: "skill",
+    arguments: formatToolArguments({
+      name: resolveImageWorkbenchSkillLabel(params.mode),
+      command: rawText,
+      prompt,
+    }),
+    status: "completed",
+    result: {
+      success: true,
+      output:
+        params.status === "running"
+          ? `已完成${resolveImageWorkbenchProgressLabel(params.mode)}需求解析，正在提交异步图片任务。`
+          : `已完成${resolveImageWorkbenchProgressLabel(params.mode)}需求解析，并保留本轮执行上下文。`,
+    },
+    startTime: params.startedAt,
+    endTime: endedAt,
+  };
+}
+
+function resolveImageWorkbenchTaskToolStatus(
+  status: ImageWorkbenchMessageStatus,
+): AgentToolCallState["status"] {
+  if (status === "running") {
+    return "running";
+  }
+  if (status === "failed") {
+    return "failed";
+  }
+  return "completed";
+}
+
+function buildImageWorkbenchTaskToolResult(
+  params: BuildImageWorkbenchProcessDescriptorParams,
+): AgentToolExecutionResult | undefined {
+  if (params.status === "running") {
+    return undefined;
+  }
+
+  const successCount =
+    params.successCount ??
+    (params.status === "complete" ? params.count || 1 : undefined);
+  const images =
+    params.imageUrl && (params.status === "complete" || params.status === "partial")
+      ? [{ src: params.imageUrl, origin: "tool_payload" as const }]
+      : undefined;
+
+  switch (params.status) {
+    case "complete":
+      return {
+        success: true,
+        output: `图片任务已完成，返回 ${successCount || 1} 张结果。`,
+        images,
+      };
+    case "partial":
+      return {
+        success: true,
+        output: `图片任务已完成部分结果，当前返回 ${successCount || 0} 张图片。`,
+        images,
+      };
+    case "cancelled":
+      return {
+        success: true,
+        output: "图片任务已取消，当前不会继续生成新的结果。",
+      };
+    case "failed":
+    default:
+      return {
+        success: false,
+        output: params.failureMessage?.trim() || "图片任务执行失败，未返回可用结果。",
+        error: params.failureMessage?.trim() || "图片任务执行失败",
+      };
+  }
+}
+
+function buildImageWorkbenchTaskToolCall(
+  params: BuildImageWorkbenchProcessDescriptorParams,
+): AgentToolCallState {
+  const prompt = collapseWhitespace(params.prompt) || "当前图片任务";
+  const status = resolveImageWorkbenchTaskToolStatus(params.status);
+
+  return {
+    id: `${params.taskId}:task`,
+    name: "limeCreateImageGenerationTask",
+    arguments: formatToolArguments({
+      prompt,
+      mode: params.mode,
+      count: params.count || 1,
+      size: params.size || undefined,
+      taskId: params.taskId,
+    }),
+    status,
+    result: buildImageWorkbenchTaskToolResult(params),
+    startTime: params.startedAt,
+    endTime: status === "running" ? undefined : params.endedAt ?? params.startedAt,
+  };
+}
+
+export function buildImageWorkbenchProcessDescriptor(
+  params: BuildImageWorkbenchProcessDescriptorParams,
+): {
+  toolCalls: AgentToolCallState[];
+  contentParts: ContentPart[];
+} {
+  const skillToolCall = buildImageWorkbenchSkillToolCall(params);
+  const taskToolCall = buildImageWorkbenchTaskToolCall(params);
+
+  return {
+    toolCalls: [skillToolCall, taskToolCall],
+    contentParts: [
+      {
+        type: "text",
+        text: resolveImageWorkbenchAnalysisText(params),
+      },
+      {
+        type: "tool_use",
+        toolCall: skillToolCall,
+      },
+      {
+        type: "tool_use",
+        toolCall: taskToolCall,
+      },
+    ],
+  };
 }
 
 export function buildImageWorkbenchDispatchMessages(params: {
@@ -76,12 +322,17 @@ export function buildImageWorkbenchDispatchMessages(params: {
   contentId?: string | null;
 }): Message[] {
   const timestamp = new Date();
-  const modeLabel =
-    params.mode === "edit"
-      ? "图片编辑"
-      : params.mode === "variation"
-        ? "图片变体"
-        : "图片生成";
+  const modeLabel = resolveImageWorkbenchModeLabel(params.mode);
+  const processDescriptor = buildImageWorkbenchProcessDescriptor({
+    taskId: params.taskId,
+    prompt: params.prompt,
+    mode: params.mode,
+    status: "running",
+    rawText: params.rawText,
+    count: params.count,
+    size: params.size,
+    startedAt: timestamp,
+  });
 
   return [
     {
@@ -97,6 +348,8 @@ export function buildImageWorkbenchDispatchMessages(params: {
       content: `已创建${modeLabel}任务，正在准备 ${params.count} 张结果。`,
       timestamp: new Date(timestamp.getTime() + 1),
       isThinking: true,
+      toolCalls: processDescriptor.toolCalls,
+      contentParts: processDescriptor.contentParts,
       imageWorkbenchPreview: {
         taskId: params.taskId,
         prompt: params.prompt,
@@ -130,16 +383,29 @@ export function buildImageWorkbenchCompletionMessage(params: {
   size?: string;
 }): Message {
   const timestamp = new Date();
-  const modeLabel =
-    params.mode === "edit"
-      ? "图片编辑"
-      : params.mode === "variation"
-        ? "图片变体"
-        : "图片生成";
+  const modeLabel = resolveImageWorkbenchModeLabel(params.mode);
   const detail =
     params.failedCount > 0
       ? `${modeLabel}完成 ${params.successCount} 张，失败 ${params.failedCount} 张。`
       : `${modeLabel}已完成，共生成 ${params.successCount} 张。`;
+  const previewStatus =
+    params.successCount === 0
+      ? "failed"
+      : params.failedCount > 0
+        ? "partial"
+        : "complete";
+  const processDescriptor = buildImageWorkbenchProcessDescriptor({
+    taskId: params.taskId,
+    prompt: params.prompt,
+    mode: params.mode,
+    status: previewStatus,
+    count: params.successCount + params.failedCount,
+    successCount: params.successCount,
+    size: params.size,
+    imageUrl: params.imageUrl ?? null,
+    startedAt: timestamp,
+    endedAt: timestamp,
+  });
 
   return {
     id: resolveImageWorkbenchAssistantMessageId(params.taskId),
@@ -147,15 +413,12 @@ export function buildImageWorkbenchCompletionMessage(params: {
     content: detail,
     timestamp,
     isThinking: false,
+    toolCalls: processDescriptor.toolCalls,
+    contentParts: processDescriptor.contentParts,
     imageWorkbenchPreview: {
       taskId: params.taskId,
       prompt: params.prompt,
-      status:
-        params.successCount === 0
-          ? "failed"
-          : params.failedCount > 0
-            ? "partial"
-            : "complete",
+      status: previewStatus,
       projectId: params.projectId ?? null,
       contentId: params.contentId ?? null,
       imageUrl: params.imageUrl ?? null,
@@ -175,12 +438,17 @@ export function buildImageWorkbenchFailureMessage(params: {
   size?: string;
 }): Message {
   const timestamp = new Date();
-  const modeLabel =
-    params.mode === "edit"
-      ? "图片编辑"
-      : params.mode === "variation"
-        ? "图片变体"
-        : "图片生成";
+  const modeLabel = resolveImageWorkbenchModeLabel(params.mode);
+  const processDescriptor = buildImageWorkbenchProcessDescriptor({
+    taskId: params.taskId,
+    prompt: params.prompt,
+    mode: params.mode,
+    status: "failed",
+    size: params.size,
+    failureMessage: params.failureMessage,
+    startedAt: timestamp,
+    endedAt: timestamp,
+  });
 
   return {
     id: resolveImageWorkbenchAssistantMessageId(params.taskId),
@@ -188,6 +456,8 @@ export function buildImageWorkbenchFailureMessage(params: {
     content: `${modeLabel}失败：${params.failureMessage}`,
     timestamp,
     isThinking: false,
+    toolCalls: processDescriptor.toolCalls,
+    contentParts: processDescriptor.contentParts,
     imageWorkbenchPreview: {
       taskId: params.taskId,
       prompt: params.prompt,
@@ -331,6 +601,7 @@ export function buildDefaultCanvasImageApplyTarget(params: {
   canvasState: CanvasStateUnion | null;
   projectId?: string | null;
   contentId?: string | null;
+  selectedText?: string | null;
 }): ImageWorkbenchApplyTarget | null {
   if (!params.canvasState) {
     return null;
@@ -341,6 +612,11 @@ export function buildDefaultCanvasImageApplyTarget(params: {
       kind: "canvas-insert",
       canvasType: "document",
       anchorHint: "section_end",
+      sectionTitle: resolveSectionTitleForSelection(
+        params.canvasState.content,
+        params.selectedText,
+      ),
+      anchorText: normalizeSelectionAnchorText(params.selectedText),
       projectId: params.projectId ?? null,
       contentId: params.contentId ?? null,
       actionLabel: "插入文稿",
@@ -356,6 +632,7 @@ export function resolveScopedImageWorkbenchApplyTarget(params: {
   projectId?: string | null;
   contentId?: string | null;
   requestedTarget?: "generate" | "cover";
+  selectedText?: string | null;
 }): ImageWorkbenchApplyTarget | null {
   if (
     params.requestedTarget === "cover" &&

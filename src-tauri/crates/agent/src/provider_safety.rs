@@ -10,8 +10,14 @@ use rmcp::model::Tool;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-pub(crate) fn wrap_provider_with_message_safety(provider: Arc<dyn Provider>) -> Arc<dyn Provider> {
-    Arc::new(MessageSafeProvider { inner: provider })
+pub(crate) fn wrap_provider_with_safety(
+    provider: Arc<dyn Provider>,
+    disable_default_fast_model: bool,
+) -> Arc<dyn Provider> {
+    Arc::new(ProviderSafety {
+        inner: provider,
+        disable_default_fast_model,
+    })
 }
 
 fn normalize_provider_messages(messages: &[Message]) -> Vec<Message> {
@@ -84,12 +90,26 @@ fn normalize_provider_messages(messages: &[Message]) -> Vec<Message> {
     normalized_messages
 }
 
-struct MessageSafeProvider {
+fn normalize_provider_model_config(
+    model_config: &ModelConfig,
+    disable_default_fast_model: bool,
+) -> ModelConfig {
+    if !disable_default_fast_model || model_config.fast_model.is_none() {
+        return model_config.clone();
+    }
+
+    let mut normalized = model_config.clone();
+    normalized.fast_model = None;
+    normalized
+}
+
+struct ProviderSafety {
     inner: Arc<dyn Provider>,
+    disable_default_fast_model: bool,
 }
 
 #[async_trait]
-impl Provider for MessageSafeProvider {
+impl Provider for ProviderSafety {
     fn metadata() -> ProviderMetadata
     where
         Self: Sized,
@@ -109,13 +129,23 @@ impl Provider for MessageSafeProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let normalized_messages = normalize_provider_messages(messages);
+        let normalized_model_config =
+            normalize_provider_model_config(model_config, self.disable_default_fast_model);
         self.inner
-            .complete_with_model(model_config, system, &normalized_messages, tools)
+            .complete_with_model(
+                &normalized_model_config,
+                system,
+                &normalized_messages,
+                tools,
+            )
             .await
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
+        normalize_provider_model_config(
+            &self.inner.get_model_config(),
+            self.disable_default_fast_model,
+        )
     }
 
     fn retry_config(&self) -> RetryConfig {
@@ -178,10 +208,17 @@ impl Provider for MessageSafeProvider {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_provider_messages;
+    use super::{
+        normalize_provider_messages, normalize_provider_model_config, wrap_provider_with_safety,
+    };
     use aster::conversation::message::{Message, MessageContent};
-    use rmcp::model::{CallToolRequestParam, CallToolResult, ErrorCode, ErrorData};
+    use aster::model::ModelConfig;
+    use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use aster::providers::errors::ProviderError;
+    use async_trait::async_trait;
+    use rmcp::model::{CallToolRequestParam, CallToolResult, ErrorCode, ErrorData, Tool};
     use rmcp::object;
+    use std::sync::{Arc, Mutex};
 
     fn valid_tool_response() -> CallToolResult {
         CallToolResult {
@@ -220,6 +257,117 @@ mod tests {
         let normalized = normalize_provider_messages(&messages);
 
         assert_eq!(normalized, messages);
+    }
+
+    #[test]
+    fn normalize_provider_model_config_should_strip_fast_model_when_disabled() {
+        let model_config = ModelConfig::new("glm-5")
+            .expect("create model config")
+            .with_fast("gpt-4o-mini".to_string());
+
+        let normalized = normalize_provider_model_config(&model_config, true);
+
+        assert_eq!(normalized.model_name, "glm-5");
+        assert_eq!(normalized.fast_model, None);
+    }
+
+    #[test]
+    fn normalize_provider_model_config_should_preserve_fast_model_when_allowed() {
+        let model_config = ModelConfig::new("gpt-4o")
+            .expect("create model config")
+            .with_fast("gpt-4o-mini".to_string());
+
+        let normalized = normalize_provider_model_config(&model_config, false);
+
+        assert_eq!(normalized.fast_model.as_deref(), Some("gpt-4o-mini"));
+    }
+
+    #[derive(Clone)]
+    struct RecordingProvider {
+        model_config: ModelConfig,
+        seen_models: Arc<Mutex<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl Provider for RecordingProvider {
+        fn metadata() -> ProviderMetadata
+        where
+            Self: Sized,
+        {
+            ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "recording"
+        }
+
+        async fn complete_with_model(
+            &self,
+            model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            self.seen_models
+                .lock()
+                .expect("record model config")
+                .push(model_config.model_name.clone());
+            Ok((
+                Message::assistant().with_text("ok"),
+                ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn wrap_provider_with_safety_should_disable_fast_model_for_complete_fast() {
+        let seen_models = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(RecordingProvider {
+            model_config: ModelConfig::new("glm-5")
+                .expect("create model config")
+                .with_fast("gpt-4o-mini".to_string()),
+            seen_models: seen_models.clone(),
+        });
+
+        let wrapped = wrap_provider_with_safety(provider, true);
+        let messages = [Message::user().with_text("hi")];
+        let result = wrapped.complete_fast("", &messages, &[]);
+
+        assert!(result.await.is_ok());
+        assert_eq!(
+            seen_models.lock().expect("read seen models").as_slice(),
+            ["glm-5"]
+        );
+        assert_eq!(wrapped.get_model_config().fast_model, None);
+    }
+
+    #[tokio::test]
+    async fn wrap_provider_with_safety_should_preserve_fast_model_when_not_disabled() {
+        let seen_models = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(RecordingProvider {
+            model_config: ModelConfig::new("gpt-4o")
+                .expect("create model config")
+                .with_fast("gpt-4o-mini".to_string()),
+            seen_models: seen_models.clone(),
+        });
+
+        let wrapped = wrap_provider_with_safety(provider, false);
+        let messages = [Message::user().with_text("hi")];
+        let result = wrapped.complete_fast("", &messages, &[]);
+
+        assert!(result.await.is_ok());
+        assert_eq!(
+            seen_models.lock().expect("read seen models").as_slice(),
+            ["gpt-4o-mini"]
+        );
+        assert_eq!(
+            wrapped.get_model_config().fast_model.as_deref(),
+            Some("gpt-4o-mini")
+        );
     }
 
     #[test]

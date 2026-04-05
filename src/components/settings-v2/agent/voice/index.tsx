@@ -715,5 +715,3 @@ export function VoiceSettings() {
     </div>
   );
 }
-
-export default VoiceSettings;

@@ -254,16 +254,6 @@ export function getBuiltinTeamProfileOption(
 }
 
 export function resolveDefaultTeamPresetId(theme?: string | null): string {
-  switch (theme?.trim().toLowerCase()) {
-    case "knowledge":
-    case "planning":
-    case "document":
-      return "research-team";
-    case "social-media":
-    case "video":
-      return "content-creation-team";
-    case "general":
-    default:
-      return "code-triage-team";
-  }
+  void theme;
+  return "code-triage-team";
 }

@@ -23,7 +23,7 @@ use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
 use crate::skills::{
     execute_named_skill, get_skill_detail_info, list_executable_skill_catalog, ExecutableSkillInfo,
-    SkillDetailInfo, SkillExecutionRequest, SkillExecutionResult,
+    SkillDetailInfo, SkillExecutionImageInput, SkillExecutionRequest, SkillExecutionResult,
 };
 
 // ============================================================================
@@ -62,6 +62,8 @@ pub async fn execute_skill(
     aster_state: State<'_, AsterAgentState>,
     skill_name: String,
     user_input: String,
+    images: Option<Vec<SkillExecutionImageInput>>,
+    request_context: Option<serde_json::Value>,
     provider_override: Option<String>,
     model_override: Option<String>,
     execution_id: Option<String>,
@@ -76,6 +78,8 @@ pub async fn execute_skill(
         SkillExecutionRequest {
             skill_name,
             user_input,
+            images: images.unwrap_or_default(),
+            request_context,
             provider_override,
             model_override,
             execution_id,

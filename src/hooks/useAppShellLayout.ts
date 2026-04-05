@@ -1,5 +1,4 @@
 import type { AgentPageParams, Page, PageParams } from "@/types/page";
-import { isThemeWorkspacePage } from "@/types/page";
 
 export interface AppShellLayoutState {
   shouldHideSidebarForAgent: boolean;
@@ -26,7 +25,6 @@ export function getAppShellLayoutState(params: {
     params.currentPage !== "tools" &&
     params.currentPage !== "plugins" &&
     params.currentPage !== "resources" &&
-    !isThemeWorkspacePage(params.currentPage) &&
     !shouldHideSidebarForAgent;
 
   return {

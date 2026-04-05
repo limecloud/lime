@@ -82,7 +82,7 @@ impl Tool for SocialGenerateCoverImageTool {
     }
 
     fn description(&self) -> &str {
-        "为社媒文章生成封面图，内部复用 Lime 的 /v1/images/generations 能力。"
+        "为内容主稿生成封面图，内部复用 Lime 的 /v1/images/generations 能力。"
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -111,11 +111,11 @@ impl Tool for SocialGenerateCoverImageTool {
             "additionalProperties": false,
             "x-lime": {
                 "always_visible": true,
-                "tags": ["image", "social-media", "cover"],
+                "tags": ["image", "general", "cover"],
                 "allowed_callers": ["assistant", "skill"],
                 "input_examples": [
                     {
-                        "prompt": "科技感蓝紫渐变背景，一位年轻创作者在笔记本前沉思，暖色轮廓光，简洁社媒封面风格",
+                        "prompt": "科技感蓝紫渐变背景，一位年轻创作者在笔记本前沉思，暖色轮廓光，简洁内容封面风格",
                         "size": "1024x1024"
                     }
                 ]

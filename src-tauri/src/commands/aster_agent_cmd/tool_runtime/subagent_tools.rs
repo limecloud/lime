@@ -587,13 +587,63 @@ fn build_agent_control_tool_config(
         }))
 }
 
+fn remove_duplicate_current_surface_agent_tool(registry: &mut aster::tools::ToolRegistry) {
+    registry.unregister("Agent");
+}
+
 pub(super) fn register_subagent_runtime_tools(
     registry: &mut aster::tools::ToolRegistry,
     runtime: SubagentControlRuntime,
 ) {
     registry.register(Box::new(SubAgentTaskTool::new(runtime.clone())));
     aster::tools::register_agent_control_tools(registry, &build_agent_control_tool_config(runtime));
+    // 本地联调中的 Aster current surface 会在 Agent::list_tools() 里额外注入一份 `Agent`。
+    // 如果这里继续保留 registry 侧的同名 `Agent`，provider 在格式化 tools 时会直接报重名。
+    // 保留 registry 侧的 SendMessage，并把 current-surface `Agent` 统一交给 Aster 自身处理。
+    remove_duplicate_current_surface_agent_tool(registry);
     registry.register(Box::new(aster::tools::TeamCreateTool::new()));
     registry.register(Box::new(aster::tools::TeamDeleteTool::new()));
     registry.register(Box::new(aster::tools::ListPeersTool::new()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_remove_duplicate_current_surface_agent_tool_keeps_send_message() {
+        let mut registry = aster::tools::ToolRegistry::new();
+        let spawn_callback: aster::tools::SpawnAgentCallback = Arc::new(|request| {
+            Box::pin(async move {
+                Ok(aster::tools::SpawnAgentResponse {
+                    agent_id: request.parent_session_id,
+                    nickname: None,
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+        });
+        let send_input_callback: aster::tools::SendInputCallback = Arc::new(|request| {
+            Box::pin(async move {
+                Ok(aster::tools::SendInputResponse {
+                    submission_id: request.id,
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+        });
+
+        aster::tools::register_agent_control_tools(
+            &mut registry,
+            &aster::tools::AgentControlToolConfig::new()
+                .with_spawn_agent_callback(spawn_callback)
+                .with_send_input_callback(send_input_callback),
+        );
+
+        assert!(registry.contains("Agent"));
+        assert!(registry.contains("SendMessage"));
+
+        remove_duplicate_current_surface_agent_tool(&mut registry);
+
+        assert!(!registry.contains("Agent"));
+        assert!(registry.contains("SendMessage"));
+    }
 }

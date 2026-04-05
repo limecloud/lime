@@ -48,7 +48,7 @@ describe("messageArtifacts.buildArtifactFromWrite", () => {
       ],
       sources: [],
       metadata: {
-        theme: "knowledge",
+        theme: "general",
       },
     };
 

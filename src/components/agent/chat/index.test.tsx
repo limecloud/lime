@@ -42,6 +42,7 @@ const {
   mockEmptyState,
   mockInputbar,
   mockMessageList,
+  mockWorkspacePendingA2UIDialog,
   mockExecutionRunGetThemeWorkbenchState,
   mockExecutionRunListThemeWorkbenchHistory,
   mockExecutionRunGet,
@@ -103,6 +104,9 @@ const {
   ),
   mockMessageList: vi.fn((_props?: Record<string, unknown>) => (
     <div data-testid="message-list" />
+  )),
+  mockWorkspacePendingA2UIDialog: vi.fn((_props?: Record<string, unknown>) => (
+    <div data-testid="workspace-pending-a2ui-dialog" />
   )),
   mockExecutionRunGetThemeWorkbenchState: vi.fn(),
   mockExecutionRunListThemeWorkbenchHistory: vi.fn(),
@@ -209,30 +213,27 @@ vi.mock("@/lib/workspace/workbenchWorkflow", () => ({
   }),
 }));
 
-vi.mock(
-  "@/lib/workspace/workbenchUi",
-  () => ({
-    LayoutTransition: ({
-      mode,
-      chatContent,
-      canvasContent,
-    }: {
-      mode: string;
-      chatContent: ReactNode;
-      canvasContent: ReactNode;
-    }) => (
-      <div data-testid="layout-transition" data-mode={mode}>
-        <div data-testid="layout-chat" hidden={mode === "canvas"}>
-          {chatContent}
-        </div>
-        <div data-testid="layout-canvas" hidden={mode !== "canvas"}>
-          {canvasContent}
-        </div>
+vi.mock("@/lib/workspace/workbenchUi", () => ({
+  LayoutTransition: ({
+    mode,
+    chatContent,
+    canvasContent,
+  }: {
+    mode: string;
+    chatContent: ReactNode;
+    canvasContent: ReactNode;
+  }) => (
+    <div data-testid="layout-transition" data-mode={mode}>
+      <div data-testid="layout-chat" hidden={mode === "canvas"}>
+        {chatContent}
       </div>
-    ),
-    StepProgress: () => <div data-testid="step-progress" />,
-  }),
-);
+      <div data-testid="layout-canvas" hidden={mode !== "canvas"}>
+        {canvasContent}
+      </div>
+    </div>
+  ),
+  StepProgress: () => <div data-testid="step-progress" />,
+}));
 
 vi.mock("./components/ChatNavbar", () => ({
   ChatNavbar: ({
@@ -482,6 +483,11 @@ vi.mock("./components/Inputbar", () => ({
 
 vi.mock("./components/EmptyState", () => ({
   EmptyState: (props?: { input?: string }) => mockEmptyState(props),
+}));
+
+vi.mock("./workspace/WorkspacePendingA2UIDialog", () => ({
+  WorkspacePendingA2UIDialog: (props: Record<string, unknown>) =>
+    mockWorkspacePendingA2UIDialog(props),
 }));
 
 vi.mock("./components/CanvasWorkbenchLayout", () => ({
@@ -1055,7 +1061,7 @@ beforeEach(() => {
   });
   mockExecutionRunGet.mockResolvedValue(null);
   mockSkillExecutionGetDetail.mockResolvedValue({
-    name: "social_post_with_cover",
+    name: "content_post_with_cover",
     display_name: "社媒主稿与封面",
     description: "生成社媒内容",
     execution_mode: "prompt",
@@ -1185,6 +1191,7 @@ beforeEach(() => {
     workspaceHarnessEnabled: true,
   });
   mockInputbar.mockClear();
+  mockWorkspacePendingA2UIDialog.mockClear();
   mockUseTopicBranchBoard.mockReturnValue({
     branchItems: [
       {
@@ -1652,7 +1659,9 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(10);
 
-    expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="empty-state"]'),
+    ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
     ).toBeNull();
@@ -1670,7 +1679,7 @@ describe("AgentChatPage 通用工作台", () => {
     );
     mockGetProject.mockResolvedValue({
       ...createProject("project-document-home"),
-      workspaceType: "document",
+      workspaceType: "general",
     });
 
     const container = renderPage({
@@ -1680,7 +1689,9 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(10);
 
-    expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="empty-state"]'),
+    ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
     ).toBeNull();
@@ -3333,7 +3344,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-social",
       contentId: "content-social",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(10);
@@ -3352,7 +3363,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-document",
       contentId: "content-document",
-      theme: "document",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(10);
@@ -3374,7 +3385,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-intent",
       contentId: "content-social-intent",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
       initialUserPrompt,
       onInitialUserPromptConsumed,
@@ -3396,7 +3407,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      `/social_post_with_cover ${initialUserPrompt}`,
+      `/content_post_with_cover ${initialUserPrompt}`,
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);
@@ -3409,7 +3420,7 @@ describe("AgentChatPage 自动引导", () => {
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
           }),
         }),
       }),
@@ -3431,7 +3442,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-intent-autorun",
       contentId: "content-social-intent-autorun",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
       initialUserPrompt,
       autoRunInitialPromptOnMount: true,
@@ -3442,7 +3453,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      `/social_post_with_cover ${initialUserPrompt}`,
+      `/content_post_with_cover ${initialUserPrompt}`,
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);
@@ -3452,7 +3463,7 @@ describe("AgentChatPage 自动引导", () => {
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
             session_mode: "theme_workbench",
           }),
         }),
@@ -3478,7 +3489,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-social-context",
       contentId: "content-social-context",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
       initialUserPrompt,
       onInitialUserPromptConsumed: vi.fn(),
@@ -3493,7 +3504,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      `/social_post_with_cover [生效上下文]\n1. [素材] 品牌手册\n\n${initialUserPrompt}`,
+      `/content_post_with_cover [生效上下文]\n1. [素材] 品牌手册\n\n${initialUserPrompt}`,
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);
@@ -3506,7 +3517,7 @@ describe("AgentChatPage 自动引导", () => {
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
             session_mode: "theme_workbench",
           }),
         }),
@@ -3562,7 +3573,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-social-selected-model",
       contentId: "content-social-selected-model",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
       initialUserPrompt,
       onInitialUserPromptConsumed,
@@ -3582,7 +3593,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      `/social_post_with_cover ${initialUserPrompt}`,
+      `/content_post_with_cover ${initialUserPrompt}`,
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);
@@ -3595,7 +3606,7 @@ describe("AgentChatPage 自动引导", () => {
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
           }),
         }),
       }),
@@ -3635,7 +3646,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-resume",
       contentId: "content-social-resume",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(14);
@@ -3650,7 +3661,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      "/social_post_with_cover 请基于当前文稿与最近一次未完成的运行继续推进。任务标题：撰写主稿。优先衔接“写作推进”阶段。不要从头开始，先概括已有进度，再继续执行。",
+      "/content_post_with_cover 请基于当前文稿与最近一次未完成的运行继续推进。任务标题：撰写主稿。优先衔接“写作推进”阶段。不要从头开始，先概括已有进度，再继续执行。",
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);
@@ -3663,7 +3674,7 @@ describe("AgentChatPage 自动引导", () => {
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
             session_mode: "theme_workbench",
           }),
         }),
@@ -3703,7 +3714,7 @@ describe("AgentChatPage 自动引导", () => {
     const harness = mountPage({
       projectId: "project-bootstrap-preview",
       contentId: "content-bootstrap-preview",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
       initialUserPrompt: "请直接开始处理这个任务",
     });
@@ -3746,7 +3757,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-canvas-first",
       contentId: "content-social-canvas-first",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(10);
@@ -3812,7 +3823,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-canvas-sync",
       contentId: "content-social-canvas-sync",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
 
@@ -3845,7 +3856,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-layout",
       contentId: "content-social-layout",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(10);
@@ -3873,7 +3884,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-delayed-intent",
       contentId: "content-theme-delayed-intent",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
       initialUserPrompt: undefined,
       onInitialUserPromptConsumed,
@@ -3893,7 +3904,7 @@ describe("AgentChatPage 自动引导", () => {
         <AgentChatPage
           projectId="project-theme-delayed-intent"
           contentId="content-theme-delayed-intent"
-          theme="social-media"
+          theme="general"
           lockTheme={true}
           initialUserPrompt="请基于当前上下文直接开始生成首版社媒主稿。"
           onInitialUserPromptConsumed={onInitialUserPromptConsumed}
@@ -3916,7 +3927,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     const sendCall = getSendMessageCall();
     expect(sendCall.content).toBe(
-      "/social_post_with_cover 请基于当前上下文直接开始生成首版社媒主稿。",
+      "/content_post_with_cover 请基于当前上下文直接开始生成首版社媒主稿。",
     );
     expect(sendCall.images).toEqual([]);
     expect(sendCall.webSearch).toBe(false);
@@ -3929,7 +3940,7 @@ describe("AgentChatPage 自动引导", () => {
       expect.objectContaining({
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
             session_mode: "theme_workbench",
           }),
         }),
@@ -3949,7 +3960,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-no-legacy-guide",
       contentId: "content-theme-no-legacy-guide",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4049,7 +4060,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-success",
       contentId: "content-theme-success",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(16);
@@ -4105,7 +4116,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-error",
       contentId: "content-theme-error",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(16);
@@ -4151,7 +4162,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-artifact-guard",
       contentId: "content-theme-artifact-guard",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4167,11 +4178,11 @@ describe("AgentChatPage 自动引导", () => {
     act(() => {
       latestMessageListProps?.onWriteFile?.(
         "# 主稿标题\n\n这是主稿正文。",
-        "social-posts/demo-post.md",
+        "content-posts/demo-post.md",
       );
       latestMessageListProps?.onWriteFile?.(
         '{"pipeline":["topic_select","write_mode","publish_confirm"]}',
-        "social-posts/demo-post.publish-pack.json",
+        "content-posts/demo-post.publish-pack.json",
       );
     });
     await flushEffects(16);
@@ -4206,7 +4217,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(latestInputbarProps?.taskFiles).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "social-posts/demo-post.md",
+          name: "content-posts/demo-post.md",
           type: "document",
         }),
       ]),
@@ -4251,7 +4262,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-corrupted-markdown",
       contentId: "content-theme-corrupted-markdown",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4265,10 +4276,10 @@ describe("AgentChatPage 自动引导", () => {
     act(() => {
       latestMessageListProps?.onWriteFile?.(
         JSON.stringify({
-          article_path: "social-posts/demo-post.md",
+          article_path: "content-posts/demo-post.md",
           pipeline: ["topic_select", "write_mode", "publish_confirm"],
         }),
-        "social-posts/demo-post.md",
+        "content-posts/demo-post.md",
       );
     });
     await flushEffects(16);
@@ -4292,7 +4303,7 @@ describe("AgentChatPage 自动引导", () => {
 
     expect(
       latestInputbarProps?.taskFiles?.some(
-        (file) => file.name === "social-posts/demo-post.md",
+        (file) => file.name === "content-posts/demo-post.md",
       ),
     ).toBe(false);
   });
@@ -4320,7 +4331,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-fallback-version",
       contentId: "content-theme-fallback-version",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4336,7 +4347,7 @@ describe("AgentChatPage 自动引导", () => {
     act(() => {
       latestMessageListProps?.onWriteFile?.(
         "# 新主稿标题\n\n这是在队列未就绪时写入的主稿。",
-        "social-posts/local-fallback.md",
+        "content-posts/local-fallback.md",
       );
     });
     await flushEffects(16);
@@ -4347,12 +4358,12 @@ describe("AgentChatPage 自动引导", () => {
       | { topics?: Array<{ id: string }>; currentTopicId?: string | null }
       | undefined;
     expect(latestTopicBranchCall?.currentTopicId).toBe(
-      "artifact:social-posts/local-fallback.md",
+      "artifact:content-posts/local-fallback.md",
     );
     expect(latestTopicBranchCall?.topics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "artifact:social-posts/local-fallback.md",
+          id: "artifact:content-posts/local-fallback.md",
         }),
       ]),
     );
@@ -4400,7 +4411,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-harness-metadata",
       contentId: "content-theme-harness-metadata",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4414,7 +4425,7 @@ describe("AgentChatPage 自动引导", () => {
     act(() => {
       latestMessageListProps?.onWriteFile?.(
         "# 主稿标题\n\n这是用于验证 harness 语义的主稿。",
-        "social-posts/demo-post.md",
+        "content-posts/demo-post.md",
       );
     });
     await flushEffects(16);
@@ -4430,7 +4441,7 @@ describe("AgentChatPage 自动引导", () => {
         }
       | undefined;
     const writtenFile = latestInputbarProps?.taskFiles?.find(
-      (file) => file.name === "social-posts/demo-post.md",
+      (file) => file.name === "content-posts/demo-post.md",
     );
 
     expect(writtenFile?.metadata).toMatchObject({
@@ -4481,7 +4492,7 @@ describe("AgentChatPage 自动引导", () => {
             {
               id: "user-1",
               role: "user",
-              content: "/social_post_with_cover 请生成一篇 AI 眼镜的社媒稿",
+              content: "/content_post_with_cover 请生成一篇 AI 眼镜的社媒稿",
               timestamp: new Date("2026-03-06T10:00:00.000Z"),
             },
             {
@@ -4494,7 +4505,7 @@ describe("AgentChatPage 自动引导", () => {
                 {
                   id: "tool-write-1",
                   name: "write_file",
-                  arguments: JSON.stringify({ path: "social-posts/final.md" }),
+                  arguments: JSON.stringify({ path: "content-posts/final.md" }),
                   status: "completed",
                   startTime: new Date("2026-03-06T10:00:01.500Z"),
                   endTime: new Date("2026-03-06T10:00:02.000Z"),
@@ -4532,7 +4543,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-real-steps",
       contentId: "content-theme-real-steps",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4546,9 +4557,9 @@ describe("AgentChatPage 自动引导", () => {
 
     expect(workflowSteps).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "生成社媒主稿", status: "completed" }),
+        expect.objectContaining({ title: "生成内容主稿", status: "completed" }),
         expect.objectContaining({
-          title: "写入 social-posts/final.md",
+          title: "写入 content-posts/final.md",
           status: "completed",
         }),
         expect.objectContaining({
@@ -4581,7 +4592,7 @@ describe("AgentChatPage 自动引导", () => {
             {
               id: "user-err-1",
               role: "user",
-              content: "/social_post_with_cover 请生成一篇 AI 眼镜的社媒稿",
+              content: "/content_post_with_cover 请生成一篇 AI 眼镜的社媒稿",
               timestamp: new Date("2026-03-06T10:10:00.000Z"),
             },
             {
@@ -4594,7 +4605,7 @@ describe("AgentChatPage 自动引导", () => {
                 {
                   id: "tool-write-ok",
                   name: "write_file",
-                  arguments: JSON.stringify({ path: "social-posts/final.md" }),
+                  arguments: JSON.stringify({ path: "content-posts/final.md" }),
                   status: "completed",
                   startTime: new Date("2026-03-06T10:10:01.500Z"),
                   endTime: new Date("2026-03-06T10:10:02.000Z"),
@@ -4633,7 +4644,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-step-status",
       contentId: "content-theme-step-status",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4647,7 +4658,7 @@ describe("AgentChatPage 自动引导", () => {
 
     expect(workflowSteps).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "生成社媒主稿", status: "completed" }),
+        expect.objectContaining({ title: "生成内容主稿", status: "completed" }),
         expect.objectContaining({
           title: "生成封面图（1024x1024）",
           status: "error",
@@ -4677,7 +4688,7 @@ describe("AgentChatPage 自动引导", () => {
             {
               id: "user-2",
               role: "user",
-              content: "/social_post_with_cover 请整理 Rokid Glasses 的亮点",
+              content: "/content_post_with_cover 请整理 Rokid Glasses 的亮点",
               timestamp: new Date("2026-03-06T11:00:00.000Z"),
             },
             {
@@ -4732,7 +4743,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-search-browser",
       contentId: "content-theme-search-browser",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4779,7 +4790,7 @@ describe("AgentChatPage 自动引导", () => {
             {
               id: "user-3",
               role: "user",
-              content: "/social_post_with_cover 请继续完善并导出发布版",
+              content: "/content_post_with_cover 请继续完善并导出发布版",
               timestamp: new Date("2026-03-06T12:00:00.000Z"),
             },
             {
@@ -4840,7 +4851,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-browser-bash",
       contentId: "content-theme-browser-bash",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4895,7 +4906,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-gate-priority",
       contentId: "content-theme-gate-priority",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -4957,7 +4968,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-theme-run-map",
       contentId: "content-theme-run-map",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -5025,7 +5036,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-theme-run-history",
       contentId: "content-theme-run-history",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -5117,7 +5128,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-theme-load-history",
       contentId: "content-theme-load-history",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -5178,7 +5189,7 @@ describe("AgentChatPage 自动引导", () => {
     renderPage({
       projectId: "project-theme-chat-command",
       contentId: "content-theme-chat-command",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -5199,7 +5210,7 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-harness-idle",
       contentId: "content-social-harness-idle",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
@@ -5208,7 +5219,7 @@ describe("AgentChatPage 自动引导", () => {
       '[data-testid="chat-navbar"]',
     ) as HTMLElement | null;
     const harnessCard = container.querySelector(
-      '[data-testid="social-harness-card"]',
+      '[data-testid="theme-workbench-harness-card"]',
     ) as HTMLElement | null;
     const sidebar = container.querySelector(
       '[data-testid="theme-workbench-sidebar"]',
@@ -5220,7 +5231,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(harnessCard?.getAttribute("data-run-state")).toBe("idle");
     expect(harnessCard?.getAttribute("data-layout")).toBe("icon");
     expect(sidebar?.contains(harnessCard as Node)).toBe(true);
-    expect(harnessCard?.textContent).toContain("社媒 Harness");
+    expect(harnessCard?.textContent).toContain("工作台 Harness");
     expect(harnessCard?.textContent).toContain("编排待启动");
     expect(
       document.body.querySelector('[data-testid="harness-status-panel"]'),
@@ -5245,8 +5256,8 @@ describe("AgentChatPage 自动引导", () => {
           title: "生成社媒初稿",
           gate_key: "write_mode",
           artifact_paths: [
-            "social-posts/demo-post.md",
-            "social-posts/demo-cover.png",
+            "content-posts/demo-post.md",
+            "content-posts/demo-cover.png",
           ],
           status: "running",
           source: "skill",
@@ -5261,13 +5272,13 @@ describe("AgentChatPage 自动引导", () => {
     const container = renderPage({
       projectId: "project-social-harness-running",
       contentId: "content-social-harness-running",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(12);
 
     const harnessCard = container.querySelector(
-      '[data-testid="social-harness-card"]',
+      '[data-testid="theme-workbench-harness-card"]',
     ) as HTMLElement | null;
     const sidebar = container.querySelector(
       '[data-testid="theme-workbench-sidebar"]',
@@ -5282,10 +5293,10 @@ describe("AgentChatPage 自动引导", () => {
     expect(harnessCard?.textContent).toContain("生成社媒初稿");
     expect(harnessCard?.textContent).toContain("2 个产物");
     expect(
-      layoutChat?.querySelector('[data-testid="social-harness-card"]'),
+      layoutChat?.querySelector('[data-testid="theme-workbench-harness-card"]'),
     ).toBeNull();
 
-    clickButton(container, "social-harness-toggle");
+    clickButton(container, "theme-workbench-harness-toggle");
     await flushEffects(2);
 
     const navbar = container.querySelector(
@@ -5320,7 +5331,7 @@ describe("AgentChatPage 视频主题工作台", () => {
     const container = renderPage({
       projectId: "project-video",
       contentId: "content-video",
-      theme: "video",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(10);
@@ -5372,7 +5383,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
     const container = renderPage({
       projectId: "project-theme-a2ui",
       contentId: "content-theme-a2ui",
-      theme: "social-media",
+      theme: "general",
       lockTheme: true,
     });
     await flushEffects(10);
@@ -5386,15 +5397,16 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
       container.querySelector('[data-testid="theme-workbench-sidebar"]'),
     ).toBeNull();
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | {
-          pendingA2UIForm?: {
-            data?: Record<string, unknown>;
-          } | null;
-        }
-      | undefined;
+    const latestPendingDialogProps =
+      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              data?: Record<string, unknown>;
+            } | null;
+          }
+        | undefined;
 
-    expect(latestInputbarProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       questionCount: 1,
     });
@@ -5475,18 +5487,19 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
       "已整理为补充信息表单，请在输入区完成填写。",
     );
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | {
-          pendingA2UIForm?: {
-            data?: Record<string, unknown>;
-            components?: Array<Record<string, unknown>>;
-          } | null;
-          onA2UISubmit?: (formData: Record<string, unknown>) => void;
-        }
-      | undefined;
+    const latestPendingDialogProps =
+      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              data?: Record<string, unknown>;
+              components?: Array<Record<string, unknown>>;
+            } | null;
+            onA2UISubmit?: (formData: Record<string, unknown>) => void;
+          }
+        | undefined;
 
-    expect(latestInputbarProps?.pendingA2UIForm).toBeTruthy();
-    expect(latestInputbarProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingDialogProps?.pendingA2UIForm).toBeTruthy();
+    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       questionCount: 1,
       governance: expect.objectContaining({
@@ -5494,7 +5507,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
         deferredQuestionCount: 3,
       }),
     });
-    expect(latestInputbarProps?.pendingA2UIForm?.components || []).toEqual(
+    expect(latestPendingDialogProps?.pendingA2UIForm?.components || []).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "ChoicePicker",
@@ -5502,7 +5515,9 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
         }),
       ]),
     );
-    expect(latestInputbarProps?.pendingA2UIForm?.components || []).not.toEqual(
+    expect(
+      latestPendingDialogProps?.pendingA2UIForm?.components || [],
+    ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           label: "这次最想达成的目标是什么？",
@@ -5517,7 +5532,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
     );
 
     const componentIdByLabel = Object.fromEntries(
-      (latestInputbarProps?.pendingA2UIForm?.components || [])
+      (latestPendingDialogProps?.pendingA2UIForm?.components || [])
         .filter(
           (component) =>
             (component.component === "ChoicePicker" ||
@@ -5529,7 +5544,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
     );
 
     act(() => {
-      latestInputbarProps?.onA2UISubmit?.({
+      latestPendingDialogProps?.onA2UISubmit?.({
         [componentIdByLabel["这次内容主要面向谁？"]]: ["客户"],
       });
     });
@@ -5648,16 +5663,17 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "已整理为补充信息表单，请在输入区完成填写。",
     );
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | {
-          pendingA2UIForm?: {
-            data?: Record<string, unknown>;
-            components?: Array<Record<string, unknown>>;
-          } | null;
-        }
-      | undefined;
+    const latestPendingDialogProps =
+      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              data?: Record<string, unknown>;
+              components?: Array<Record<string, unknown>>;
+            } | null;
+          }
+        | undefined;
 
-    expect(latestInputbarProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       sectionCount: 1,
       questionCount: 1,
@@ -5667,7 +5683,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       }),
     });
     expect(
-      (latestInputbarProps?.pendingA2UIForm?.components || []).some(
+      (latestPendingDialogProps?.pendingA2UIForm?.components || []).some(
         (component) =>
           component.component === "TextField" &&
           component.label === "请提供您希望我研究的具体主题",
@@ -5752,16 +5768,17 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "已整理为补充信息表单，请在输入区完成填写。",
     );
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | {
-          pendingA2UIForm?: {
-            data?: Record<string, unknown>;
-            components?: Array<Record<string, unknown>>;
-          } | null;
-        }
-      | undefined;
+    const latestPendingDialogProps =
+      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              data?: Record<string, unknown>;
+              components?: Array<Record<string, unknown>>;
+            } | null;
+          }
+        | undefined;
 
-    expect(latestInputbarProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       sectionCount: 1,
       questionCount: 1,
@@ -5770,7 +5787,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
         deferredQuestionCount: 2,
       }),
     });
-    expect(latestInputbarProps?.pendingA2UIForm?.components || []).toEqual(
+    expect(latestPendingDialogProps?.pendingA2UIForm?.components || []).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "TextField",
@@ -5779,11 +5796,13 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       ]),
     );
     expect(
-      (latestInputbarProps?.pendingA2UIForm?.components || []).filter(
+      (latestPendingDialogProps?.pendingA2UIForm?.components || []).filter(
         (component) => component.component === "TextField",
       ),
     ).toHaveLength(1);
-    expect(latestInputbarProps?.pendingA2UIForm?.components || []).not.toEqual(
+    expect(
+      latestPendingDialogProps?.pendingA2UIForm?.components || [],
+    ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "TextField",
@@ -5973,14 +5992,15 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "为了继续推进，我需要你先补充以下信息",
     );
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | {
-          pendingA2UIForm?: {
-            id?: string;
-          } | null;
-        }
-      | undefined;
-    expect(latestInputbarProps?.pendingA2UIForm?.id).toBe(
+    const latestPendingDialogProps =
+      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              id?: string;
+            } | null;
+          }
+        | undefined;
+    expect(latestPendingDialogProps?.pendingA2UIForm?.id).toBe(
       "action-request-req-action-required",
     );
   });
@@ -6056,19 +6076,20 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
     });
     await flushEffects(10);
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | {
-          pendingA2UIForm?: {
-            id?: string;
-          } | null;
-          a2uiSubmissionNotice?: {
-            title?: string;
-            summary?: string;
-          } | null;
-        }
-      | undefined;
+    const latestPendingDialogProps =
+      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              id?: string;
+            } | null;
+            a2uiSubmissionNotice?: {
+              title?: string;
+              summary?: string;
+            } | null;
+          }
+        | undefined;
 
-    expect(latestInputbarProps?.pendingA2UIForm ?? null).toBeNull();
-    expect(latestInputbarProps?.a2uiSubmissionNotice ?? null).toBeNull();
+    expect(latestPendingDialogProps?.pendingA2UIForm ?? null).toBeNull();
+    expect(latestPendingDialogProps?.a2uiSubmissionNotice ?? null).toBeNull();
   });
 });

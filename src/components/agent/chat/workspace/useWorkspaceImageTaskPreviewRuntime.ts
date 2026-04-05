@@ -1,10 +1,16 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { listDirectory, readFilePreview } from "@/lib/api/fileBrowser";
+import type { MediaTaskArtifactOutput } from "@/lib/api/mediaTasks";
 import { safeListen } from "@/lib/dev-bridge";
 import { resolveAbsoluteWorkspacePath } from "./workspacePath";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import {
+  replaceDocumentImageTaskPlaceholderWithImage,
+  upsertDocumentImageTaskPlaceholder,
+} from "@/components/workspace/document/utils/imageTaskPlaceholder";
 import type { Message, MessageImageWorkbenchPreview } from "../types";
 import {
+  buildImageWorkbenchProcessDescriptor,
   resolveImageWorkbenchAssistantMessageId,
   resolveScopedImageWorkbenchApplyTarget,
   type ImageWorkbenchOutput,
@@ -39,6 +45,10 @@ interface CreationTaskSubmittedPayload {
   content_id?: string;
   entry_source?: string;
   requested_target?: string;
+  slot_id?: string;
+  anchor_hint?: string;
+  anchor_section_title?: string;
+  anchor_text?: string;
 }
 
 interface TrackedImageTask {
@@ -51,7 +61,7 @@ interface TrackedImageTask {
   polling: boolean;
 }
 
-interface ParsedImageTaskSnapshot {
+export interface ParsedImageTaskSnapshot {
   taskId: string;
   message: Message;
   task: ImageWorkbenchTask;
@@ -65,7 +75,9 @@ interface UseWorkspaceImageTaskPreviewRuntimeParams {
   projectId?: string | null;
   contentId?: string | null;
   projectRootPath?: string | null;
+  restoreFromWorkspace?: boolean;
   canvasState: CanvasStateUnion | null;
+  setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   setChatMessages: Dispatch<SetStateAction<Message[]>>;
   updateCurrentImageWorkbenchState: (
     updater: (
@@ -127,6 +139,118 @@ function readPositiveNumber(
     }
   }
   return undefined;
+}
+
+function readBoolean(
+  candidates: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+): boolean | undefined {
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    for (const key of keys) {
+      const value = candidate[key];
+      if (typeof value === "boolean") {
+        return value;
+      }
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === "true") {
+          return true;
+        }
+        if (normalized === "false") {
+          return false;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function readStringArray(
+  candidates: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+): string[] {
+  const values: string[] = [];
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    for (const key of keys) {
+      const value = candidate[key];
+      if (!Array.isArray(value)) {
+        continue;
+      }
+      for (const item of value) {
+        if (typeof item !== "string") {
+          continue;
+        }
+        const trimmed = item.trim();
+        if (!trimmed || values.includes(trimmed)) {
+          continue;
+        }
+        values.push(trimmed);
+      }
+      if (values.length > 0) {
+        return values;
+      }
+    }
+  }
+  return values;
+}
+
+function normalizeRenderableImageUrl(value?: string | null): string | null {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+  if (
+    normalized.toLowerCase().startsWith("data:image/") ||
+    normalized.startsWith("blob:") ||
+    normalized.startsWith("file://") ||
+    /^https?:\/\//i.test(normalized)
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+function resolveTaskSlotId(
+  taskRecord: Record<string, unknown>,
+): string | undefined {
+  return readString(
+    [asRecord(taskRecord.relationships), asRecord(taskRecord.payload)],
+    ["slot_id", "slotId"],
+  );
+}
+
+function resolveTaskAnchorSectionTitle(
+  taskRecord: Record<string, unknown>,
+): string | undefined {
+  return readString(
+    [asRecord(taskRecord.payload)],
+    ["anchor_section_title", "anchorSectionTitle"],
+  );
+}
+
+function resolveTaskAnchorText(
+  taskRecord: Record<string, unknown>,
+): string | undefined {
+  return readString(
+    [asRecord(taskRecord.payload)],
+    ["anchor_text", "anchorText"],
+  );
+}
+
+function isDocumentInlineTaskRecord(
+  taskRecord: Record<string, unknown>,
+): boolean {
+  const payload = asRecord(taskRecord.payload);
+  return (
+    readString([payload], ["usage"]) === "document-inline" ||
+    Boolean(resolveTaskSlotId(taskRecord))
+  );
 }
 
 function normalizeTaskFamily(
@@ -193,6 +317,7 @@ function matchesRuntimeEventContext(params: {
   const payloadSessionId = normalizeTaskRef(params.payload.session_id);
   const payloadProjectId = normalizeTaskRef(params.payload.project_id);
   const payloadContentId = normalizeTaskRef(params.payload.content_id);
+  let matchedScopedContext = false;
 
   if (
     normalizedSessionId &&
@@ -200,6 +325,9 @@ function matchesRuntimeEventContext(params: {
     payloadSessionId !== normalizedSessionId
   ) {
     return false;
+  }
+  if (normalizedSessionId && payloadSessionId === normalizedSessionId) {
+    matchedScopedContext = true;
   }
   if (
     normalizedProjectId &&
@@ -215,14 +343,25 @@ function matchesRuntimeEventContext(params: {
   ) {
     return false;
   }
+  if (normalizedContentId && payloadContentId === normalizedContentId) {
+    matchedScopedContext = true;
+  }
+
+  if (normalizedSessionId || normalizedContentId) {
+    return matchedScopedContext;
+  }
 
   return true;
 }
 
-function resolveTaskRecordTimestamp(taskRecord: Record<string, unknown>): number {
+function resolveTaskRecordTimestamp(
+  taskRecord: Record<string, unknown>,
+): number {
   const timestampRaw =
-    readString([taskRecord], ["updated_at", "updatedAt", "created_at", "createdAt"]) ||
-    "";
+    readString(
+      [taskRecord],
+      ["updated_at", "updatedAt", "created_at", "createdAt"],
+    ) || "";
   const timestamp = Date.parse(timestampRaw);
   return Number.isFinite(timestamp) ? timestamp : Date.now();
 }
@@ -264,6 +403,7 @@ function shouldRestoreImageTaskRecord(params: {
   const normalizedSessionId = normalizeTaskRef(params.sessionId);
   const normalizedProjectId = normalizeTaskRef(params.projectId);
   const normalizedContentId = normalizeTaskRef(params.contentId);
+  let matchedScopedContext = false;
 
   if (
     normalizedSessionId &&
@@ -288,10 +428,14 @@ function shouldRestoreImageTaskRecord(params: {
   }
 
   if (normalizedSessionId && metadata.sessionId === normalizedSessionId) {
-    return true;
+    matchedScopedContext = true;
   }
   if (normalizedContentId && metadata.contentId === normalizedContentId) {
-    return true;
+    matchedScopedContext = true;
+  }
+
+  if (normalizedSessionId || normalizedContentId) {
+    return matchedScopedContext;
   }
   if (normalizedProjectId && metadata.projectId === normalizedProjectId) {
     return true;
@@ -387,6 +531,75 @@ function sanitizePreviewPrompt(value?: string): string {
   return trimmed;
 }
 
+export function syncDocumentInlineImageTask(params: {
+  taskRecord: Record<string, unknown>;
+  taskId: string;
+  outputs: ImageWorkbenchOutput[];
+  setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
+}): void {
+  if (!isDocumentInlineTaskRecord(params.taskRecord)) {
+    return;
+  }
+
+  const payload = asRecord(params.taskRecord.payload);
+  const prompt =
+    sanitizePreviewPrompt(readString([payload], ["prompt"])) || "配图任务";
+  const slotId = resolveTaskSlotId(params.taskRecord);
+  const anchorSectionTitle = resolveTaskAnchorSectionTitle(params.taskRecord);
+  const anchorText = resolveTaskAnchorText(params.taskRecord);
+  const normalizedStatus = normalizeTaskStatus(
+    readString([params.taskRecord], ["normalized_status", "status"]),
+  );
+  const firstOutputUrl = params.outputs[0]?.url?.trim();
+
+  params.setCanvasState((previous) => {
+    if (!previous || previous.type !== "document") {
+      return previous;
+    }
+
+    let nextContent = previous.content;
+    if (
+      (normalizedStatus === "succeeded" || normalizedStatus === "partial") &&
+      firstOutputUrl
+    ) {
+      nextContent = replaceDocumentImageTaskPlaceholderWithImage(
+        previous.content,
+        {
+          taskId: params.taskId,
+          slotId,
+          anchorSectionTitle,
+          anchorText,
+          prompt,
+          imageUrl: firstOutputUrl,
+        },
+      );
+    } else {
+      nextContent = upsertDocumentImageTaskPlaceholder(previous.content, {
+        taskId: params.taskId,
+        slotId,
+        anchorSectionTitle,
+        anchorText,
+        prompt,
+        status:
+          normalizedStatus === "failed"
+            ? "failed"
+            : normalizedStatus === "cancelled"
+              ? "cancelled"
+              : "running",
+      });
+    }
+
+    if (nextContent === previous.content) {
+      return previous;
+    }
+
+    return {
+      ...previous,
+      content: nextContent,
+    };
+  });
+}
+
 function normalizeTaskModeValue(
   value?: string,
 ): ImageWorkbenchTask["mode"] | undefined {
@@ -415,7 +628,7 @@ function resolveTaskLabel(
     case "edit":
       return "图片编辑任务";
     case "variation":
-      return "图片变体任务";
+      return "图片重绘任务";
     case "generate":
     default:
       return normalizedType.includes("image") ? "图片任务" : "媒体任务";
@@ -459,8 +672,9 @@ function resolvePreviewStatus(
       return "partial";
     case "succeeded":
       return "complete";
-    case "failed":
     case "cancelled":
+      return "cancelled";
+    case "failed":
       return "failed";
     case "pending":
     case "queued":
@@ -470,7 +684,9 @@ function resolvePreviewStatus(
   }
 }
 
-function resolveWorkbenchStatus(normalizedStatus: string): ImageWorkbenchTask["status"] {
+function resolveWorkbenchStatus(
+  normalizedStatus: string,
+): ImageWorkbenchTask["status"] {
   switch (normalizedStatus) {
     case "pending":
     case "queued":
@@ -481,8 +697,9 @@ function resolveWorkbenchStatus(normalizedStatus: string): ImageWorkbenchTask["s
       return "partial";
     case "succeeded":
       return "complete";
-    case "failed":
     case "cancelled":
+      return "cancelled";
+    case "failed":
       return "error";
     default:
       return "routing";
@@ -503,8 +720,11 @@ function resolvePreviewMessageContent(params: {
       return params.successCount > 0
         ? `${label}已完成，共生成 ${params.successCount} 张。`
         : `${label}已完成。`;
-    case "failed":
     case "cancelled":
+      return params.failureMessage
+        ? `${label}已取消：${params.failureMessage}`
+        : `${label}已取消。`;
+    case "failed":
       return params.failureMessage
         ? `${label}失败：${params.failureMessage}`
         : `${label}失败。`;
@@ -516,6 +736,36 @@ function resolvePreviewMessageContent(params: {
     default:
       return `${label}已创建，正在准备执行。`;
   }
+}
+
+function resolvePendingProgressPhase(status?: string): string {
+  switch (normalizeTaskStatus(status)) {
+    case "partial":
+      return "partial";
+    case "succeeded":
+      return "succeeded";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+    case "queued":
+      return "queued";
+    case "running":
+      return "running";
+    case "pending":
+    default:
+      return "pending_submit";
+  }
+}
+
+function resolveTaskProgressPhase(
+  progressRecord: Record<string, unknown> | null,
+  normalizedStatus: string,
+): string | null {
+  return (
+    readString([progressRecord], ["phase"]) ||
+    resolvePendingProgressPhase(normalizedStatus)
+  );
 }
 
 function resolveAttemptRecord(
@@ -606,13 +856,10 @@ function appendImageOutputSeed(
 
   const url = readString([record], ["url", "src", "imageUrl", "image_url"]);
   const prompt = readString([record], ["prompt", "revised_prompt", "title"]);
-  const providerName = readString([record], [
-    "providerName",
-    "provider_name",
-    "provider",
-    "providerId",
-    "provider_id",
-  ]);
+  const providerName = readString(
+    [record],
+    ["providerName", "provider_name", "provider", "providerId", "provider_id"],
+  );
   const modelName = readString([record], ["modelName", "model_name", "model"]);
   const size = readString([record], ["size", "resolution"]);
 
@@ -661,6 +908,10 @@ function buildParsedImageTaskSnapshot(params: {
   canvasState: CanvasStateUnion | null;
 }): ParsedImageTaskSnapshot | null {
   const payload = asRecord(params.taskRecord.payload);
+  const targetOutputSummary = asRecord(payload?.target_output_summary);
+  const progressRecord = asRecord(params.taskRecord.progress);
+  const uiHintsRecord = asRecord(params.taskRecord.ui_hints);
+  const lastErrorRecord = asRecord(params.taskRecord.last_error);
   const currentAttempt = resolveAttemptRecord(params.taskRecord);
   const currentAttemptResult = currentAttempt?.result_snapshot;
   const resultValue = params.taskRecord.result;
@@ -673,53 +924,77 @@ function buildParsedImageTaskSnapshot(params: {
   );
   const prompt = sanitizePreviewPrompt(
     readString(
-      [payload, params.taskRecord, asRecord(params.taskRecord.ui_hints)],
+      [payload, params.taskRecord, uiHintsRecord],
       ["prompt", "summary", "title", "placeholder_text", "placeholderText"],
     ) || "",
   );
-  const fallbackProviderName = readString([currentAttempt, payload], [
-    "provider",
-    "providerName",
-    "provider_name",
-    "providerId",
-    "provider_id",
-  ]);
-  const fallbackModelName = readString([currentAttempt, payload], [
-    "model",
-    "modelName",
-    "model_name",
-  ]);
+  const fallbackProviderName = readString(
+    [currentAttempt, payload],
+    ["provider", "providerName", "provider_name", "providerId", "provider_id"],
+  );
+  const fallbackModelName = readString(
+    [currentAttempt, payload],
+    ["model", "modelName", "model_name"],
+  );
   const fallbackSize = readString([payload], ["size", "resolution"]);
-  const requestedCount = readPositiveNumber([payload], [
-    "count",
-    "imageCount",
-    "image_count",
-  ]);
+  const requestedCount = readPositiveNumber(
+    [payload],
+    ["count", "imageCount", "image_count"],
+  );
+  const targetOutputId = readString(
+    [payload],
+    ["target_output_id", "targetOutputId"],
+  );
+  const targetOutputRefId = readString(
+    [payload],
+    ["target_output_ref_id", "targetOutputRefId"],
+  );
+  const referenceImages = readStringArray(
+    [payload],
+    ["reference_images", "referenceImages"],
+  );
+  const sourceImageUrl =
+    normalizeRenderableImageUrl(
+      readString(
+        [targetOutputSummary],
+        ["url", "src", "imageUrl", "image_url"],
+      ),
+    ) ?? normalizeRenderableImageUrl(referenceImages[0]);
+  const sourceImagePrompt = sanitizePreviewPrompt(
+    readString([targetOutputSummary], ["prompt", "summary", "title"]) || "",
+  );
+  const sourceImageCount =
+    referenceImages.length > 0
+      ? referenceImages.length
+      : targetOutputId || targetOutputRefId
+        ? 1
+        : undefined;
   const expectedCount = requestedCount || 1;
   const taskMode = resolveTaskMode(params.taskType, params.taskRecord);
   const taskLabel = resolveTaskLabel(params.taskType, taskMode);
   const lastError =
-    readString(
-      [asRecord(params.taskRecord.last_error), asRecord(params.taskRecord.progress)],
-      ["message"],
-    ) ||
+    readString([lastErrorRecord, progressRecord], ["message"]) ||
     (typeof params.taskRecord.last_error === "string"
       ? params.taskRecord.last_error.trim()
       : undefined);
 
   const outputSeeds: ParsedImageOutputSeed[] = [];
   const seenUrls = new Set<string>();
-  [resultValue, currentAttemptResult, payload?.imageUrl, payload?.image_url].forEach(
-    (candidate) =>
-      appendImageOutputSeed(
-        outputSeeds,
-        seenUrls,
-        candidate,
-        prompt,
-        fallbackProviderName,
-        fallbackModelName,
-        fallbackSize,
-      ),
+  [
+    resultValue,
+    currentAttemptResult,
+    payload?.imageUrl,
+    payload?.image_url,
+  ].forEach((candidate) =>
+    appendImageOutputSeed(
+      outputSeeds,
+      seenUrls,
+      candidate,
+      prompt,
+      fallbackProviderName,
+      fallbackModelName,
+      fallbackSize,
+    ),
   );
 
   const applyTarget = resolveScopedImageWorkbenchApplyTarget({
@@ -729,8 +1004,10 @@ function buildParsedImageTaskSnapshot(params: {
     requestedTarget: resolveTaskRequestedTarget(params.taskType),
   });
   const createdAtRaw =
-    readString([params.taskRecord], ["updated_at", "updatedAt", "created_at", "createdAt"]) ||
-    new Date().toISOString();
+    readString(
+      [params.taskRecord],
+      ["updated_at", "updatedAt", "created_at", "createdAt"],
+    ) || new Date().toISOString();
   const createdAt = Number.isNaN(Date.parse(createdAtRaw))
     ? Date.now()
     : Date.parse(createdAtRaw);
@@ -745,24 +1022,38 @@ function buildParsedImageTaskSnapshot(params: {
     providerName: output.providerName,
     modelName: output.modelName,
     size: output.size,
-    parentOutputId: null,
+    parentOutputId: targetOutputId ?? null,
     resourceSaved: false,
     applyTarget,
   }));
   const successCount = outputs.length;
   const previewStatus = resolvePreviewStatus(normalizedStatus);
+  const attemptCount = Array.isArray(params.taskRecord.attempts)
+    ? params.taskRecord.attempts.length
+    : undefined;
   const preview: MessageImageWorkbenchPreview = {
     taskId: params.taskId,
     prompt: prompt || `${taskLabel}进行中`,
+    mode: taskMode,
     status: previewStatus,
     projectId: params.projectId ?? null,
     contentId: params.contentId ?? null,
     imageUrl: outputs[0]?.url ?? null,
     imageCount:
-      previewStatus === "running"
-        ? requestedCount
-        : successCount || undefined,
+      previewStatus === "running" ? requestedCount : successCount || undefined,
+    sourceImageUrl,
+    sourceImagePrompt: sourceImagePrompt || null,
+    sourceImageRef: targetOutputRefId ?? null,
+    sourceImageCount,
     size: fallbackSize,
+    phase: resolveTaskProgressPhase(progressRecord, normalizedStatus),
+    statusMessage:
+      readString([progressRecord], ["message"]) || lastError || null,
+    retryable: readBoolean([lastErrorRecord], ["retryable"]),
+    attemptCount,
+    placeholderText:
+      readString([uiHintsRecord], ["placeholder_text", "placeholderText"]) ||
+      null,
   };
 
   const runtimeStatus =
@@ -774,20 +1065,53 @@ function buildParsedImageTaskSnapshot(params: {
               : ("routing" as const),
           title: `${taskLabel}进行中`,
           detail:
-            readString([asRecord(params.taskRecord.progress)], ["message"]) ||
+            readString([progressRecord], ["message"]) ||
             (prompt
               ? `正在处理：${prompt}`
               : "任务已提交到异步队列，结果会自动回填。"),
           checkpoints: ["创建任务文件", "轮询任务状态", "回填图片结果"],
         }
-      : previewStatus === "failed"
+      : previewStatus === "cancelled"
         ? {
-            phase: "failed" as const,
-            title: `${taskLabel}失败`,
-            detail: lastError || "任务未返回可用结果。",
-            checkpoints: ["检查任务文件", "查看失败详情", "可在图片画布继续排查"],
+            phase: "cancelled" as const,
+            title: `${taskLabel}已取消`,
+            detail: lastError || "任务已停止，不会继续生成新的图片结果。",
+            checkpoints: [
+              "已保留当前任务记录",
+              "可在图片画布重新生成",
+              "如需继续可补充新的说明",
+            ],
           }
-        : undefined;
+        : previewStatus === "failed"
+          ? {
+              phase: "failed" as const,
+              title: `${taskLabel}失败`,
+              detail: lastError || "任务未返回可用结果。",
+              checkpoints: [
+                "检查任务文件",
+                "查看失败详情",
+                "可在图片画布继续排查",
+              ],
+            }
+          : undefined;
+  const messageTimestamp = new Date(createdAt);
+  const processDescriptor = buildImageWorkbenchProcessDescriptor({
+    taskId: params.taskId,
+    prompt: prompt || `${taskLabel}进行中`,
+    mode: taskMode,
+    status: previewStatus,
+    rawText:
+      readString([payload], ["raw_text", "rawText"]) ||
+      readString([params.taskRecord], ["summary"]) ||
+      undefined,
+    count: requestedCount,
+    successCount,
+    size: fallbackSize,
+    imageUrl: outputs[0]?.url ?? null,
+    failureMessage: lastError,
+    startedAt: messageTimestamp,
+    endedAt: previewStatus === "running" ? undefined : messageTimestamp,
+  });
 
   return {
     taskId: params.taskId,
@@ -800,8 +1124,10 @@ function buildParsedImageTaskSnapshot(params: {
         successCount,
         failureMessage: lastError,
       }),
-      timestamp: new Date(createdAt),
+      timestamp: messageTimestamp,
       isThinking: previewStatus === "running",
+      toolCalls: processDescriptor.toolCalls,
+      contentParts: processDescriptor.contentParts,
       imageWorkbenchPreview: preview,
       runtimeStatus,
     },
@@ -814,7 +1140,12 @@ function buildParsedImageTaskSnapshot(params: {
       rawText: prompt || `${taskLabel}进行中`,
       expectedCount,
       outputIds: outputs.map((output) => output.id),
-      targetOutputId: null,
+      targetOutputId: targetOutputId ?? null,
+      targetOutputRefId: targetOutputRefId ?? null,
+      sourceImageUrl,
+      sourceImagePrompt: sourceImagePrompt || null,
+      sourceImageRef: targetOutputRefId ?? null,
+      sourceImageCount,
       createdAt,
       failureMessage: lastError,
       hookImageIds: outputs.map((output) => output.hookImageId),
@@ -843,6 +1174,7 @@ function buildPendingImageTaskSnapshot(params: {
     payload: params.payload || {},
   });
   const taskLabel = resolveTaskLabel(params.taskType, taskMode);
+  const startedAt = new Date();
   return (
     buildParsedImageTaskSnapshot({
       taskRecord: {
@@ -852,8 +1184,10 @@ function buildPendingImageTaskSnapshot(params: {
         normalized_status: normalizeTaskStatus(params.status),
         payload: params.payload || {},
         progress: {
+          phase: resolvePendingProgressPhase(params.status),
           message:
-            params.progressMessage || "任务已提交到异步队列，正在同步任务状态。",
+            params.progressMessage ||
+            "任务已提交到异步队列，正在同步任务状态。",
         },
         created_at: new Date().toISOString(),
       },
@@ -868,14 +1202,27 @@ function buildPendingImageTaskSnapshot(params: {
         id: resolveImageWorkbenchAssistantMessageId(params.taskId),
         role: "assistant",
         content: `${taskLabel}已创建，正在准备执行。`,
-        timestamp: new Date(),
+        timestamp: startedAt,
         isThinking: true,
+        ...buildImageWorkbenchProcessDescriptor({
+          taskId: params.taskId,
+          prompt: `${taskLabel}进行中`,
+          mode: taskMode,
+          status: "running",
+          count: 1,
+          startedAt,
+        }),
         imageWorkbenchPreview: {
           taskId: params.taskId,
           prompt: `${taskLabel}进行中`,
+          mode: taskMode,
           status: "running",
           projectId: params.projectId ?? null,
           contentId: params.contentId ?? null,
+          phase: resolvePendingProgressPhase(params.status),
+          statusMessage:
+            params.progressMessage ||
+            "任务已提交到异步队列，正在同步任务状态。",
         },
       },
       task: {
@@ -904,7 +1251,50 @@ function buildPendingImageTaskSnapshot(params: {
   );
 }
 
-function upsertPreviewMessage(messages: Message[], nextMessage: Message): Message[] {
+export function buildImageTaskSnapshotFromArtifactOutput(params: {
+  artifact: MediaTaskArtifactOutput;
+  projectId?: string | null;
+  contentId?: string | null;
+  canvasState: CanvasStateUnion | null;
+}): ParsedImageTaskSnapshot | null {
+  const record =
+    params.artifact.record &&
+    typeof params.artifact.record === "object" &&
+    !Array.isArray(params.artifact.record)
+      ? (params.artifact.record as Record<string, unknown>)
+      : null;
+
+  if (record) {
+    return (
+      buildParsedImageTaskSnapshot({
+        taskRecord: record,
+        taskId: params.artifact.task_id,
+        taskType: params.artifact.task_type,
+        projectId: params.projectId ?? null,
+        contentId: params.contentId ?? null,
+        canvasState: params.canvasState,
+      }) || null
+    );
+  }
+
+  if (!params.artifact.task_id || !params.artifact.task_type) {
+    return null;
+  }
+
+  return buildPendingImageTaskSnapshot({
+    taskId: params.artifact.task_id,
+    taskType: params.artifact.task_type,
+    status: params.artifact.status,
+    projectId: params.projectId ?? null,
+    contentId: params.contentId ?? null,
+    canvasState: params.canvasState,
+  });
+}
+
+function upsertPreviewMessage(
+  messages: Message[],
+  nextMessage: Message,
+): Message[] {
   const nextMessages = [...messages];
   const existingIndex = nextMessages.findIndex(
     (message) => message.id === nextMessage.id,
@@ -913,21 +1303,47 @@ function upsertPreviewMessage(messages: Message[], nextMessage: Message): Messag
     nextMessages[existingIndex] = nextMessage;
     return nextMessages;
   }
+
+  const nextTaskId = nextMessage.imageWorkbenchPreview?.taskId;
+  if (nextTaskId) {
+    const taskMatchedIndex = nextMessages.findIndex(
+      (message) =>
+        message.role === "assistant" &&
+        message.imageWorkbenchPreview?.taskId === nextTaskId,
+    );
+    if (taskMatchedIndex >= 0) {
+      const existingMessage = nextMessages[taskMatchedIndex];
+      nextMessages[taskMatchedIndex] = {
+        ...existingMessage,
+        imageWorkbenchPreview: {
+          ...(existingMessage.imageWorkbenchPreview || {}),
+          ...nextMessage.imageWorkbenchPreview,
+        },
+        runtimeStatus:
+          nextMessage.runtimeStatus ?? existingMessage.runtimeStatus,
+      };
+      return nextMessages;
+    }
+  }
+
   nextMessages.push(nextMessage);
   return nextMessages;
 }
 
-function mergeImageTaskSnapshot(
+export function mergeImageTaskSnapshot(
   current: SessionImageWorkbenchState,
   snapshot: ParsedImageTaskSnapshot,
 ): SessionImageWorkbenchState {
-  const previousTask = current.tasks.find((task) => task.id === snapshot.taskId);
+  const previousTask = current.tasks.find(
+    (task) => task.id === snapshot.taskId,
+  );
   const previousOutputs = current.outputs.filter(
     (output) => output.taskId === snapshot.taskId,
   );
   const preservedSelectedOutputId = current.outputs.find(
     (output) =>
-      output.id === current.selectedOutputId && output.taskId === snapshot.taskId,
+      output.id === current.selectedOutputId &&
+      output.taskId === snapshot.taskId,
   )?.id;
   const mergedOutputs = snapshot.outputs.map((output) => {
     const previousOutput = previousOutputs.find(
@@ -968,7 +1384,9 @@ export function useWorkspaceImageTaskPreviewRuntime({
   projectId,
   contentId,
   projectRootPath,
+  restoreFromWorkspace = true,
   canvasState,
+  setCanvasState,
   setChatMessages,
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageTaskPreviewRuntimeParams) {
@@ -1057,6 +1475,12 @@ export function useWorkspaceImageTaskPreviewRuntime({
         updateCurrentImageWorkbenchState((current) =>
           mergeImageTaskSnapshot(current, snapshot),
         );
+        syncDocumentInlineImageTask({
+          taskRecord: parsed,
+          taskId,
+          outputs: snapshot.outputs,
+          setCanvasState,
+        });
 
         if (snapshot.terminal) {
           trackedTasks.delete(taskId);
@@ -1075,7 +1499,8 @@ export function useWorkspaceImageTaskPreviewRuntime({
     };
 
     const restoreTrackedTasksFromWorkspace = async () => {
-      const currentProjectRootPath = runtimeContextRef.current.projectRootPath?.trim();
+      const currentProjectRootPath =
+        runtimeContextRef.current.projectRootPath?.trim();
       if (!currentProjectRootPath || cancelled) {
         return;
       }
@@ -1089,6 +1514,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
 
       const restoredSnapshots: Array<{
         snapshot: ParsedImageTaskSnapshot;
+        taskRecord: Record<string, unknown>;
         absolutePath: string;
         taskType: string;
         taskFamily: string;
@@ -1123,7 +1549,12 @@ export function useWorkspaceImageTaskPreviewRuntime({
             taskType || "",
             readString([parsed], ["task_family", "taskFamily"]),
           );
-          if (!taskId || !taskType || taskFamily !== "image" || seenTaskIds.has(taskId)) {
+          if (
+            !taskId ||
+            !taskType ||
+            taskFamily !== "image" ||
+            seenTaskIds.has(taskId)
+          ) {
             continue;
           }
 
@@ -1142,6 +1573,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
           seenTaskIds.add(taskId);
           restoredSnapshots.push({
             snapshot,
+            taskRecord: parsed,
             absolutePath: candidatePath,
             taskType,
             taskFamily,
@@ -1156,13 +1588,16 @@ export function useWorkspaceImageTaskPreviewRuntime({
       }
 
       const selectedSnapshots = restoredSnapshots
-        .sort((left, right) => right.snapshot.updatedAt - left.snapshot.updatedAt)
+        .sort(
+          (left, right) => right.snapshot.updatedAt - left.snapshot.updatedAt,
+        )
         .slice(0, IMAGE_TASK_RESTORE_LIMIT)
         .reverse();
 
       setChatMessages((previous) =>
         selectedSnapshots.reduce(
-          (messages, item) => upsertPreviewMessage(messages, item.snapshot.message),
+          (messages, item) =>
+            upsertPreviewMessage(messages, item.snapshot.message),
           previous,
         ),
       );
@@ -1172,6 +1607,14 @@ export function useWorkspaceImageTaskPreviewRuntime({
           current,
         ),
       );
+      selectedSnapshots.forEach((item) => {
+        syncDocumentInlineImageTask({
+          taskRecord: item.taskRecord,
+          taskId: item.snapshot.taskId,
+          outputs: item.snapshot.outputs,
+          setCanvasState,
+        });
+      });
 
       for (const item of selectedSnapshots) {
         if (item.snapshot.terminal) {
@@ -1190,91 +1633,129 @@ export function useWorkspaceImageTaskPreviewRuntime({
       }
     };
 
-    safeListen<CreationTaskSubmittedPayload>(
-      IMAGE_TASK_EVENT_NAME,
-      (event) => {
-        if (cancelled) {
-          return;
-        }
+    safeListen<CreationTaskSubmittedPayload>(IMAGE_TASK_EVENT_NAME, (event) => {
+      if (cancelled) {
+        return;
+      }
 
-        const payload = event.payload || {};
-        const taskId = payload.task_id?.trim();
-        const taskType = payload.task_type?.trim();
-        const taskFamily = normalizeTaskFamily(taskType || "", payload.task_family);
-        const matchesRuntimeContext = matchesRuntimeEventContext({
-          payload,
-          sessionId: runtimeContextRef.current.sessionId,
-          projectId: runtimeContextRef.current.projectId,
-          contentId: runtimeContextRef.current.contentId,
-        });
-        if (!matchesRuntimeContext) {
-          return;
-        }
-        const artifactPath =
-          payload.path?.trim() || payload.absolute_path?.trim() || "";
-        const pendingSnapshot =
-          taskId && taskType && taskFamily === "image"
-            ? buildPendingImageTaskSnapshot({
-                taskId,
-                taskType,
-                status: payload.status,
-                payload: {
-                  prompt: payload.prompt,
-                  size: payload.size,
-                  mode: payload.mode,
-                  raw_text: payload.raw_text,
-                  count:
-                    typeof payload.count === "number" ? payload.count : undefined,
-                  session_id: payload.session_id,
-                  project_id: payload.project_id,
-                  content_id: payload.content_id,
-                  entry_source: payload.entry_source,
-                  requested_target: payload.requested_target,
-                },
-                progressMessage: payload.reused_existing
-                  ? "已复用现有图片任务，正在同步最新状态。"
-                  : "任务已提交到异步队列，正在同步任务状态。",
-                projectId:
-                  payload.project_id || runtimeContextRef.current.projectId,
-                contentId:
-                  payload.content_id || runtimeContextRef.current.contentId,
-                canvasState: runtimeContextRef.current.canvasState,
-              })
-            : null;
-        if (pendingSnapshot) {
-          setChatMessages((previous) =>
-            upsertPreviewMessage(previous, pendingSnapshot.message),
-          );
-          updateCurrentImageWorkbenchState((current) =>
-            mergeImageTaskSnapshot(current, pendingSnapshot),
-          );
-        }
-        const absolutePath = resolveAbsoluteWorkspacePath(
-          runtimeContextRef.current.projectRootPath,
-          payload.absolute_path?.trim() || artifactPath,
+      const payload = event.payload || {};
+      const taskId = payload.task_id?.trim();
+      const taskType = payload.task_type?.trim();
+      const taskFamily = normalizeTaskFamily(
+        taskType || "",
+        payload.task_family,
+      );
+      const matchesRuntimeContext = matchesRuntimeEventContext({
+        payload,
+        sessionId: runtimeContextRef.current.sessionId,
+        projectId: runtimeContextRef.current.projectId,
+        contentId: runtimeContextRef.current.contentId,
+      });
+      if (!matchesRuntimeContext) {
+        return;
+      }
+      const artifactPath =
+        payload.path?.trim() || payload.absolute_path?.trim() || "";
+      const pendingSnapshot =
+        taskId && taskType && taskFamily === "image"
+          ? buildPendingImageTaskSnapshot({
+              taskId,
+              taskType,
+              status: payload.status,
+              payload: {
+                prompt: payload.prompt,
+                size: payload.size,
+                mode: payload.mode,
+                raw_text: payload.raw_text,
+                count:
+                  typeof payload.count === "number" ? payload.count : undefined,
+                session_id: payload.session_id,
+                project_id: payload.project_id,
+                content_id: payload.content_id,
+                entry_source: payload.entry_source,
+                requested_target: payload.requested_target,
+                slot_id: payload.slot_id,
+                anchor_hint: payload.anchor_hint,
+                anchor_section_title: payload.anchor_section_title,
+                anchor_text: payload.anchor_text,
+              },
+              progressMessage: payload.reused_existing
+                ? "已复用现有图片任务，正在同步最新状态。"
+                : "任务已提交到异步队列，正在同步任务状态。",
+              projectId:
+                payload.project_id || runtimeContextRef.current.projectId,
+              contentId:
+                payload.content_id || runtimeContextRef.current.contentId,
+              canvasState: runtimeContextRef.current.canvasState,
+            })
+          : null;
+      if (pendingSnapshot) {
+        setChatMessages((previous) =>
+          upsertPreviewMessage(previous, pendingSnapshot.message),
         );
-
-        if (!taskId || !taskType || taskFamily !== "image" || !absolutePath) {
-          return;
-        }
-
-        const previousTracked = trackedTasks.get(taskId);
-        if (previousTracked && previousTracked.timerId !== null) {
-          window.clearTimeout(previousTracked.timerId);
-        }
-        trackedTasks.set(taskId, {
+        updateCurrentImageWorkbenchState((current) =>
+          mergeImageTaskSnapshot(current, pendingSnapshot),
+        );
+        syncDocumentInlineImageTask({
+          taskRecord: {
+            task_id: taskId,
+            task_type: taskType,
+            status: payload.status || "pending_submit",
+            normalized_status: normalizeTaskStatus(payload.status),
+            relationships: payload.slot_id
+              ? {
+                  slot_id: payload.slot_id,
+                }
+              : undefined,
+            payload: {
+              prompt: payload.prompt,
+              size: payload.size,
+              mode: payload.mode,
+              raw_text: payload.raw_text,
+              count:
+                typeof payload.count === "number" ? payload.count : undefined,
+              session_id: payload.session_id,
+              project_id: payload.project_id,
+              content_id: payload.content_id,
+              entry_source: payload.entry_source,
+              requested_target: payload.requested_target,
+              slot_id: payload.slot_id,
+              anchor_hint: payload.anchor_hint,
+              anchor_section_title: payload.anchor_section_title,
+              anchor_text: payload.anchor_text,
+              usage: payload.slot_id ? "document-inline" : undefined,
+            },
+          },
           taskId,
-          taskType,
-          taskFamily,
-          artifactPath,
-          absolutePath,
-          timerId: null,
-          polling: false,
+          outputs: pendingSnapshot.outputs,
+          setCanvasState,
         });
+      }
+      const absolutePath = resolveAbsoluteWorkspacePath(
+        runtimeContextRef.current.projectRootPath,
+        payload.absolute_path?.trim() || artifactPath,
+      );
 
-        void syncTaskFile(taskId);
-      },
-    )
+      if (!taskId || !taskType || taskFamily !== "image" || !absolutePath) {
+        return;
+      }
+
+      const previousTracked = trackedTasks.get(taskId);
+      if (previousTracked && previousTracked.timerId !== null) {
+        window.clearTimeout(previousTracked.timerId);
+      }
+      trackedTasks.set(taskId, {
+        taskId,
+        taskType,
+        taskFamily,
+        artifactPath,
+        absolutePath,
+        timerId: null,
+        polling: false,
+      });
+
+      void syncTaskFile(taskId);
+    })
       .then((dispose) => {
         if (cancelled) {
           void dispose();
@@ -1286,7 +1767,9 @@ export function useWorkspaceImageTaskPreviewRuntime({
         console.warn("[AgentChatPage] 监听图片任务事件失败:", error);
       });
 
-    void restoreTrackedTasksFromWorkspace();
+    if (restoreFromWorkspace) {
+      void restoreTrackedTasksFromWorkspace();
+    }
 
     return () => {
       cancelled = true;
@@ -1302,7 +1785,9 @@ export function useWorkspaceImageTaskPreviewRuntime({
     };
   }, [
     projectRootPath,
+    restoreFromWorkspace,
     sessionId,
+    setCanvasState,
     setChatMessages,
     updateCurrentImageWorkbenchState,
   ]);

@@ -140,7 +140,8 @@ pub async fn workspace_create(
 
     let workspace_type = request
         .workspace_type
-        .map(|t| WorkspaceType::parse(&t))
+        .map(|t| WorkspaceType::parse_user_input(&t))
+        .transpose()?
         .unwrap_or_default();
 
     let root_path = PathBuf::from(&request.root_path);

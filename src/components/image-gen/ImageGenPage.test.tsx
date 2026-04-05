@@ -180,7 +180,7 @@ vi.mock("./useImageGen", async () => {
   };
 });
 
-import ImageGenPage from "./ImageGenPage";
+import { ImageGenPage } from "./ImageGenPage";
 
 const mountedRoots: MountedRoot[] = [];
 

@@ -67,11 +67,18 @@ export interface AssistantDraftState {
   waitingRuntimeStatus?: AgentRuntimeStatus;
 }
 
+export interface SlashSkillRequest {
+  images?: MessageImage[];
+  requestContext?: Record<string, unknown>;
+}
+
 export interface SendMessageOptions {
   purpose?: Message["purpose"];
   observer?: SendMessageObserver;
   requestMetadata?: Record<string, unknown>;
   assistantDraft?: AssistantDraftState;
+  displayContent?: string;
+  skillRequest?: SlashSkillRequest;
 }
 
 export interface WorkspacePathMissingState {

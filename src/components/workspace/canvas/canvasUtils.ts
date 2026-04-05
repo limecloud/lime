@@ -24,20 +24,14 @@ export type CanvasType = "document" | "video";
 
 /**
  * 主题到画布类型的映射
- * 所有当前主题都支持画布，只有视频使用专用画布
+ * 当前工作台主题统一收口到 general，并默认使用文档画布
  *
  * 设计原则：
- * - 所有主题都可以触发画布（当检测到 <write_file> 标签时）
- * - 文字类主题统一使用 document 画布
- * - 视频主题使用专用 video 画布
+ * - 当前工作台统一使用 document 画布
+ * - video 画布只作为独立媒体画布能力保留，不再由旧主题驱动
  */
 const THEME_TO_CANVAS_TYPE: Record<ThemeType, CanvasType | null> = {
-  general: "document", // 通用对话也支持文档画布
-  "social-media": "document",
-  knowledge: "document", // 知识探索支持文档画布
-  planning: "document", // 计划规划支持文档画布
-  document: "document",
-  video: "video",
+  general: "document",
 };
 
 /**

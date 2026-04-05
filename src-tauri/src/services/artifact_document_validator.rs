@@ -1879,7 +1879,7 @@ mod tests {
             turn_id: Some("turn-1".to_string()),
             title_hint: Some("默认标题".to_string()),
             kind_hint: Some("analysis".to_string()),
-            theme: Some("knowledge".to_string()),
+            theme: Some("general".to_string()),
             source_policy: Some("required".to_string()),
             request_id: Some("artifact:test".to_string()),
             target_block_id: None,
@@ -2009,7 +2009,7 @@ mod tests {
         context.source_policy = Some("none".to_string());
 
         let outcome = validate_or_fallback_artifact_document(
-            "{\n  \"schemaVersion\": \"artifact_document.v1\",\n  \"kind\": \"analysis\",\n  \"title\": \"结构化报告\",\n  \"status\": \"ready\",\n  \"blocks\": [\n    { \"type\": \"hero_summary\", \"summary\": \"摘要\" }\n  ],\n  \"sources\": [],\n  \"metadata\": {\n    \"theme\": \"knowledge\"\n  }\n",
+            "{\n  \"schemaVersion\": \"artifact_document.v1\",\n  \"kind\": \"analysis\",\n  \"title\": \"结构化报告\",\n  \"status\": \"ready\",\n  \"blocks\": [\n    { \"type\": \"hero_summary\", \"summary\": \"摘要\" }\n  ],\n  \"sources\": [],\n  \"metadata\": {\n    \"theme\": \"general\"\n  }\n",
             &context,
         );
 

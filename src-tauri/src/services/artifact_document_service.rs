@@ -1251,7 +1251,7 @@ mod tests {
                 "artifact_kind": "analysis",
                 "source_policy": "required",
                 "artifact_request_id": "artifact:analysis:demo",
-                "theme": "knowledge"
+                "theme": "general"
             })),
         }
     }
@@ -1445,7 +1445,7 @@ mod tests {
             .create_with_type(
                 "自动化项目".to_string(),
                 workspace_root.clone(),
-                WorkspaceType::Document,
+                WorkspaceType::General,
             )
             .expect("workspace should create");
         let manager = ContentManager::new(db.clone());
@@ -1689,7 +1689,7 @@ mod tests {
             "source_policy": "required",
             "artifact_request_id": "artifact:analysis:demo",
             "artifact_target_block_id": "body-1",
-            "theme": "knowledge"
+            "theme": "general"
         }));
 
         let first = serde_json::json!({
@@ -1750,7 +1750,7 @@ mod tests {
             "source_policy": "required",
             "artifact_request_id": "artifact:analysis:demo",
             "artifact_target_block_id": "body-1",
-            "theme": "knowledge"
+            "theme": "general"
         }));
 
         let first = serde_json::json!({
@@ -1805,7 +1805,7 @@ mod tests {
             "source_policy": "required",
             "artifact_request_id": "artifact:analysis:demo",
             "artifact_target_block_id": "body-1",
-            "theme": "knowledge"
+            "theme": "general"
         }));
 
         let first = serde_json::json!({
@@ -1882,7 +1882,7 @@ mod tests {
             "source_policy": "required",
             "artifact_request_id": "artifact:analysis:demo",
             "artifact_target_block_id": "body-1",
-            "theme": "knowledge"
+            "theme": "general"
         }));
 
         let first = serde_json::json!({
@@ -1949,7 +1949,7 @@ mod tests {
             "source_policy": "required",
             "artifact_request_id": "artifact:analysis:demo",
             "artifact_target_block_id": "body-1",
-            "theme": "knowledge"
+            "theme": "general"
         }));
 
         let first = serde_json::json!({

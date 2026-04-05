@@ -51,14 +51,14 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   let currentProps: HookProps = {
     enabled: true,
     chatMode: "agent",
-    mappedTheme: "social-media",
+    mappedTheme: "general",
     harnessPanelVisible: false,
     harnessRequestMetadata: {},
     isThemeWorkbench: true,
     themeWorkbenchRunState: "auto_running",
     currentGate: {
       title: "写作闸门",
-      description: "生成社媒初稿",
+      description: "生成首版草稿",
     },
     themeWorkbenchBackendRunState: null,
     themeWorkbenchActiveQueueItem: null,
@@ -121,14 +121,14 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
   it("应通过 artifact protocol 统计活动队列项中的产物数量", () => {
     const activeQueueItem = {
       run_id: "run-1",
-      title: "生成社媒初稿",
+      title: "生成首版草稿",
       gate_key: "write_mode",
       status: "running",
       source: "skill",
       source_ref: null,
       started_at: "2026-03-24T14:00:00.000Z",
-      filePath: "social-posts/demo.md",
-      artifactPath: "social-posts\\demo-cover.png",
+      filePath: "content-posts/demo.md",
+      artifactPath: "content-posts\\demo-cover.png",
     } as unknown as ThemeWorkbenchRunTodoItem;
 
     const harness = mountHook({
@@ -137,9 +137,9 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     });
 
     try {
-      expect(harness.getValue().socialMediaHarnessSummary).toMatchObject({
+      expect(harness.getValue().themeWorkbenchHarnessSummary).toMatchObject({
         runState: "auto_running",
-        runTitle: "生成社媒初稿",
+        runTitle: "生成首版草稿",
         artifactCount: 2,
         pendingCount: 2,
       });
@@ -158,7 +158,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
       source_ref: null,
       started_at: "2026-03-24T14:00:00.000Z",
       finished_at: "2026-03-24T14:00:08.000Z",
-      outputPath: "social-posts/final.md",
+      outputPath: "content-posts/final.md",
     } as unknown as ThemeWorkbenchRunTerminalItem;
     const backendRunState = {
       run_state: "auto_running",
@@ -182,7 +182,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     });
 
     try {
-      expect(harness.getValue().socialMediaHarnessSummary?.artifactCount).toBe(1);
+      expect(harness.getValue().themeWorkbenchHarnessSummary?.artifactCount).toBe(1);
     } finally {
       harness.unmount();
     }
@@ -201,7 +201,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
 
       expect(mockGetAgentRuntimeToolInventory).not.toHaveBeenCalled();
       expect(harness.getValue().toolInventory).toBeNull();
-      expect(harness.getValue().socialMediaHarnessSummary).toBeNull();
+      expect(harness.getValue().themeWorkbenchHarnessSummary).toBeNull();
     } finally {
       harness.unmount();
     }

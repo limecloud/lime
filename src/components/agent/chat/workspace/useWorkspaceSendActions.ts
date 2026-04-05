@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import { parseCoverWorkbenchCommand } from "../utils/coverWorkbenchCommand";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
+import { parseTranscriptionWorkbenchCommand } from "../utils/transcriptionWorkbenchCommand";
+import { parseUrlParseWorkbenchCommand } from "../utils/urlParseWorkbenchCommand";
+import { parseVideoWorkbenchCommand } from "../utils/videoWorkbenchCommand";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
 import {
   matchAutoLaunchSiteSkillFromText,
@@ -37,12 +41,263 @@ import type { Character } from "@/lib/api/memory";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
+import type { ImageWorkbenchSkillRequest } from "./useWorkspaceImageWorkbenchActionRuntime";
 
 type ExecutionStrategy = "react" | "code_orchestrated" | "auto";
 type SetStringState = (value: string) => void;
 type ParsedImageWorkbenchCommand = NonNullable<
   ReturnType<typeof parseImageWorkbenchCommand>
 >;
+type ParsedCoverWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseCoverWorkbenchCommand>
+>;
+type ParsedVideoWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseVideoWorkbenchCommand>
+>;
+type ParsedTranscriptionWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseTranscriptionWorkbenchCommand>
+>;
+type ParsedUrlParseWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseUrlParseWorkbenchCommand>
+>;
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function buildModelSkillLaunchRequestMetadata(params: {
+  existingMetadata: Record<string, unknown> | undefined;
+  requestContext: Record<string, unknown>;
+  launchKey:
+    | "image_skill_launch"
+    | "cover_skill_launch"
+    | "video_skill_launch"
+    | "transcription_skill_launch"
+    | "url_parse_skill_launch";
+  requestContextKey:
+    | "image_task"
+    | "cover_task"
+    | "video_task"
+    | "transcription_task"
+    | "url_parse_task";
+  defaultKind:
+    | "image_task"
+    | "cover_task"
+    | "video_task"
+    | "transcription_task"
+    | "url_parse_task";
+  skillName:
+    | "image_generate"
+    | "cover_generate"
+    | "video_generate"
+    | "transcription_generate"
+    | "url_parse";
+}): Record<string, unknown> {
+  const scopedRequestContext = asRecord(
+    params.requestContext[params.requestContextKey],
+  );
+  const existingHarness = asRecord(params.existingMetadata?.harness);
+
+  return {
+    ...(params.existingMetadata || {}),
+    harness: {
+      ...(existingHarness || {}),
+      allow_model_skills: true,
+      [params.launchKey]: {
+        skill_name: params.skillName,
+        kind:
+          typeof params.requestContext.kind === "string"
+            ? params.requestContext.kind
+            : params.defaultKind,
+        ...(scopedRequestContext
+          ? {
+              [params.requestContextKey]: scopedRequestContext,
+            }
+          : { request_context: params.requestContext }),
+      },
+    },
+  };
+}
+
+function buildImageSkillLaunchRequestMetadata(
+  existingMetadata: Record<string, unknown> | undefined,
+  requestContext: Record<string, unknown>,
+): Record<string, unknown> {
+  return buildModelSkillLaunchRequestMetadata({
+    existingMetadata,
+    requestContext,
+    launchKey: "image_skill_launch",
+    requestContextKey: "image_task",
+    defaultKind: "image_task",
+    skillName: "image_generate",
+  });
+}
+
+function buildCoverSkillLaunchRequestMetadata(
+  existingMetadata: Record<string, unknown> | undefined,
+  requestContext: Record<string, unknown>,
+): Record<string, unknown> {
+  return buildModelSkillLaunchRequestMetadata({
+    existingMetadata,
+    requestContext,
+    launchKey: "cover_skill_launch",
+    requestContextKey: "cover_task",
+    defaultKind: "cover_task",
+    skillName: "cover_generate",
+  });
+}
+
+function buildVideoSkillLaunchRequestMetadata(
+  existingMetadata: Record<string, unknown> | undefined,
+  requestContext: Record<string, unknown>,
+): Record<string, unknown> {
+  return buildModelSkillLaunchRequestMetadata({
+    existingMetadata,
+    requestContext,
+    launchKey: "video_skill_launch",
+    requestContextKey: "video_task",
+    defaultKind: "video_task",
+    skillName: "video_generate",
+  });
+}
+
+function buildTranscriptionSkillLaunchRequestMetadata(
+  existingMetadata: Record<string, unknown> | undefined,
+  requestContext: Record<string, unknown>,
+): Record<string, unknown> {
+  return buildModelSkillLaunchRequestMetadata({
+    existingMetadata,
+    requestContext,
+    launchKey: "transcription_skill_launch",
+    requestContextKey: "transcription_task",
+    defaultKind: "transcription_task",
+    skillName: "transcription_generate",
+  });
+}
+
+function buildUrlParseSkillLaunchRequestMetadata(
+  existingMetadata: Record<string, unknown> | undefined,
+  requestContext: Record<string, unknown>,
+): Record<string, unknown> {
+  return buildModelSkillLaunchRequestMetadata({
+    existingMetadata,
+    requestContext,
+    launchKey: "url_parse_skill_launch",
+    requestContextKey: "url_parse_task",
+    defaultKind: "url_parse_task",
+    skillName: "url_parse",
+  });
+}
+
+function buildVideoSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedVideoWorkbenchCommand;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Record<string, unknown> | null {
+  if (!params.projectId) {
+    toast.error("请先选择项目后再开始生成视频");
+    return null;
+  }
+
+  const prompt = params.parsedCommand.prompt.trim();
+  if (!prompt) {
+    toast.error("请补充清晰的视频描述后再提交");
+    return null;
+  }
+
+  return {
+    kind: "video_task",
+    video_task: {
+      prompt,
+      raw_text: params.rawText,
+      duration: params.parsedCommand.duration,
+      aspect_ratio: params.parsedCommand.aspectRatio,
+      resolution: params.parsedCommand.resolution,
+      project_id: params.projectId,
+      content_id: params.contentId || undefined,
+      entry_source: "at_video_command",
+    },
+  };
+}
+
+function buildCoverSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedCoverWorkbenchCommand;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Record<string, unknown> | null {
+  const prompt =
+    params.parsedCommand.prompt.trim() ||
+    params.parsedCommand.title?.trim() ||
+    "";
+  if (!prompt) {
+    toast.error("请补充封面主题或视觉描述后再提交");
+    return null;
+  }
+
+  return {
+    kind: "cover_task",
+    cover_task: {
+      raw_text: params.rawText,
+      prompt,
+      title: params.parsedCommand.title,
+      platform: params.parsedCommand.platform,
+      size: params.parsedCommand.size,
+      style: params.parsedCommand.style,
+      project_id: params.projectId || undefined,
+      content_id: params.contentId || undefined,
+      entry_source: "at_cover_command",
+    },
+  };
+}
+
+function buildTranscriptionSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedTranscriptionWorkbenchCommand;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Record<string, unknown> {
+  return {
+    kind: "transcription_task",
+    transcription_task: {
+      raw_text: params.rawText,
+      prompt: params.parsedCommand.prompt || undefined,
+      source_url: params.parsedCommand.sourceUrl,
+      source_path: params.parsedCommand.sourcePath,
+      language: params.parsedCommand.language,
+      output_format: params.parsedCommand.outputFormat,
+      speaker_labels: params.parsedCommand.speakerLabels,
+      timestamps: params.parsedCommand.timestamps,
+      project_id: params.projectId || undefined,
+      content_id: params.contentId || undefined,
+      entry_source: "at_transcription_command",
+    },
+  };
+}
+
+function buildUrlParseSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedUrlParseWorkbenchCommand;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Record<string, unknown> {
+  return {
+    kind: "url_parse_task",
+    url_parse_task: {
+      raw_text: params.rawText,
+      prompt: params.parsedCommand.prompt || undefined,
+      url: params.parsedCommand.url,
+      extract_goal: params.parsedCommand.extractGoal,
+      project_id: params.projectId || undefined,
+      content_id: params.contentId || undefined,
+      entry_source: "at_url_parse_command",
+    },
+  };
+}
 
 interface UseWorkspaceSendActionsParams {
   input: string;
@@ -103,15 +358,16 @@ interface UseWorkspaceSendActionsParams {
   handleAutoLaunchMatchedSiteSkill: (
     match: AutoMatchedSiteSkill<ServiceSkillHomeItem>,
   ) => Promise<void>;
-  handleImageWorkbenchCommand: (input: {
+  resolveImageWorkbenchSkillRequest: (input: {
     rawText: string;
     parsedCommand: ParsedImageWorkbenchCommand;
     images: MessageImage[];
-  }) => Promise<boolean>;
+  }) => ImageWorkbenchSkillRequest | null;
 }
 
 interface WorkspaceResolvedSendState {
   sourceText: string;
+  dispatchText: string;
   sendBoundary: ThemeWorkbenchSendBoundaryState;
   effectiveToolPreferences: ChatToolPreferences;
   effectiveWebSearch?: boolean;
@@ -184,7 +440,7 @@ export function useWorkspaceSendActions({
   setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
   handleAutoLaunchMatchedSiteSkill,
-  handleImageWorkbenchCommand,
+  resolveImageWorkbenchSkillRequest,
 }: UseWorkspaceSendActionsParams) {
   const [submissionPreview, setSubmissionPreview] =
     useState<SubmissionPreviewSnapshot | null>(null);
@@ -203,12 +459,13 @@ export function useWorkspaceSendActions({
       if (!sourceText.trim() && (!images || images.length === 0)) {
         return { kind: "done", result: false };
       }
-
+      let effectiveImages = images || [];
       const sendBoundary = resolveSendBoundary({
         sourceText,
         sendOptions,
       });
       sourceText = sendBoundary.sourceText;
+      let dispatchText = sourceText;
 
       const effectiveToolPreferences =
         sendOptions?.toolPreferencesOverride ?? chatToolPreferences;
@@ -237,13 +494,124 @@ export function useWorkspaceSendActions({
           ? parseImageWorkbenchCommand(sourceText)
           : null;
       if (parsedImageWorkbenchCommand) {
-        return {
-          kind: "done",
-          result: await handleImageWorkbenchCommand({
-            rawText: sourceText,
-            parsedCommand: parsedImageWorkbenchCommand,
-            images: images || [],
-          }),
+        const skillRequest = resolveImageWorkbenchSkillRequest({
+          rawText: sourceText,
+          parsedCommand: parsedImageWorkbenchCommand,
+          images: effectiveImages,
+        });
+        if (!skillRequest) {
+          return { kind: "done", result: false };
+        }
+        effectiveImages =
+          skillRequest.images.length > 0
+            ? skillRequest.images
+            : effectiveImages;
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildImageSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            skillRequest.requestContext,
+          ),
+        };
+      }
+
+      const parsedCoverWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand
+          ? parseCoverWorkbenchCommand(sourceText)
+          : null;
+      if (parsedCoverWorkbenchCommand) {
+        const requestContext = buildCoverSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedCoverWorkbenchCommand,
+          projectId,
+          contentId,
+        });
+        if (!requestContext) {
+          return { kind: "done", result: false };
+        }
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildCoverSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+      }
+
+      const parsedVideoWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand
+          ? parseVideoWorkbenchCommand(sourceText)
+          : null;
+      if (parsedVideoWorkbenchCommand) {
+        const requestContext = buildVideoSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedVideoWorkbenchCommand,
+          projectId,
+          contentId,
+        });
+        if (!requestContext) {
+          return { kind: "done", result: false };
+        }
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildVideoSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+      }
+
+      const parsedTranscriptionWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand
+          ? parseTranscriptionWorkbenchCommand(sourceText)
+          : null;
+      if (parsedTranscriptionWorkbenchCommand) {
+        const requestContext = buildTranscriptionSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedTranscriptionWorkbenchCommand,
+          projectId,
+          contentId,
+        });
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildTranscriptionSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+      }
+
+      const parsedUrlParseWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand
+          ? parseUrlParseWorkbenchCommand(sourceText)
+          : null;
+      if (parsedUrlParseWorkbenchCommand) {
+        const requestContext = buildUrlParseSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedUrlParseWorkbenchCommand,
+          projectId,
+          contentId,
+        });
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildUrlParseSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
         };
       }
 
@@ -306,7 +674,7 @@ export function useWorkspaceSendActions({
       let text: string;
       try {
         text = await buildWorkspaceSendText({
-          sourceText,
+          sourceText: dispatchText,
           contextWorkspace,
           mentionedCharacters,
           sendOptions,
@@ -322,8 +690,9 @@ export function useWorkspaceSendActions({
         kind: "ready",
         plan: {
           sourceText,
+          dispatchText,
           text,
-          images: images || [],
+          images: effectiveImages,
           sendBoundary,
           effectiveToolPreferences,
           effectiveWebSearch,
@@ -338,11 +707,12 @@ export function useWorkspaceSendActions({
     [
       activeTheme,
       chatToolPreferences,
+      contentId,
       contextWorkspace,
       ensureBrowserAssistCanvas,
       executionStrategy,
       handleAutoLaunchMatchedSiteSkill,
-      handleImageWorkbenchCommand,
+      resolveImageWorkbenchSkillRequest,
       input,
       maybeStartBrowserTaskPreflight,
       mentionedCharacters,
@@ -357,6 +727,7 @@ export function useWorkspaceSendActions({
     async (plan: WorkspaceSendPlan): Promise<boolean> => {
       const {
         sourceText,
+        dispatchText,
         text,
         images,
         sendBoundary,
@@ -415,6 +786,10 @@ export function useWorkspaceSendActions({
         });
         const nextSendOptions: HandleSendOptions = {
           ...(sendOptions || {}),
+          displayContent:
+            dispatchText !== sourceText
+              ? sourceText
+              : sendOptions?.displayContent,
           requestMetadata: nextRequestMetadata,
         };
 

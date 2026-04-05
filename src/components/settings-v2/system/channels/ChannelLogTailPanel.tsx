@@ -333,5 +333,3 @@ export function ChannelLogTailPanel() {
     </div>
   );
 }
-
-export default ChannelLogTailPanel;

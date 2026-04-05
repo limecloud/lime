@@ -56,7 +56,6 @@
 ## 文件索引
 
 - `index.ts` - 模块导出
-- `TerminalPage.tsx` - 终端页面组件（多标签页管理）
 - `TerminalWorkspace.tsx` - 终端工作区组件（分块布局 + 小部件栏 + AI 面板）
 - `TerminalPanel.tsx` - 独立终端面板组件（用于分块布局）
 - `TerminalView.tsx` - 终端视图组件（使用 Jotai 原子状态）

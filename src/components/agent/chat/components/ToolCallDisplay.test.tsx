@@ -587,7 +587,7 @@ describe("ToolCallDisplay", () => {
       name: "write_file",
       arguments: JSON.stringify({
         payload: {
-          artifact_paths: ["social-posts\\final.md"],
+          artifact_paths: ["content-posts\\final.md"],
         },
       }),
       status: "completed",

@@ -70,7 +70,7 @@ describe("SkillScaffoldDialog", () => {
     );
     fillTextInput(
       findInputById(document.body, "skill-scaffold-name"),
-      "社媒发帖提纲",
+      "内容发布提纲",
     );
     fillTextInput(
       findInputById(document.body, "skill-scaffold-description"),
@@ -83,7 +83,7 @@ describe("SkillScaffoldDialog", () => {
     expect(onCreate).toHaveBeenCalledWith({
       target: "project",
       directory: "social-post-outline",
-      name: "社媒发帖提纲",
+      name: "内容发布提纲",
       description: "帮助用户快速整理发帖思路。",
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);

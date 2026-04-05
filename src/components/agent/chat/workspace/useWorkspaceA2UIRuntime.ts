@@ -8,7 +8,7 @@ import {
   buildActionRequestA2UI,
   isActionRequestA2UICompatible,
 } from "../utils/actionRequestA2UI";
-import { buildLegacyQuestionnaireA2UI } from "../utils/legacyQuestionnaireA2UI";
+import { buildCompatQuestionnaireA2UI } from "../utils/compatQuestionnaireA2UI";
 import {
   buildProgressiveA2UIStepForm,
   hasMeaningfulProgressiveA2UIAnswers,
@@ -208,7 +208,7 @@ export function useWorkspaceA2UIRuntime({
         return null;
       }
 
-      const form = buildLegacyQuestionnaireA2UI(message.content || "");
+      const form = buildCompatQuestionnaireA2UI(message.content || "");
       if (!form) {
         return null;
       }

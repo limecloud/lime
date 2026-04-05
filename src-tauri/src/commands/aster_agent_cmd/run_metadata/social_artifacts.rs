@@ -257,7 +257,7 @@ fn extract_artifact_paths_from_tool_result_metadata(
 
 fn should_track_social_artifact(request_metadata: Option<&serde_json::Value>, path: &str) -> bool {
     if extract_harness_string(request_metadata, &["theme", "harness_theme"])
-        .map(|theme| theme == "social-media")
+        .map(|theme| theme == "general")
         .unwrap_or(false)
     {
         return true;
@@ -397,14 +397,14 @@ fn resolve_social_stage_label(stage: &str) -> String {
         "polishing" => "润色优化".to_string(),
         "adapting" => "平台适配".to_string(),
         "publish_prep" => "发布准备".to_string(),
-        _ => "社媒创作".to_string(),
+        _ => "工作台创作".to_string(),
     }
 }
 
 fn resolve_social_version_label(artifact_type: &str, platform: Option<&str>) -> String {
     match artifact_type {
         "brief" => "需求简报".to_string(),
-        "draft" => "社媒初稿".to_string(),
+        "draft" => "工作台初稿".to_string(),
         "polished" => "润色成稿".to_string(),
         "platform_variant" => match platform {
             Some("xiaohongshu") => "平台适配 · 小红书".to_string(),
@@ -414,7 +414,7 @@ fn resolve_social_version_label(artifact_type: &str, platform: Option<&str>) -> 
         },
         "cover_meta" => "封面配置".to_string(),
         "publish_package" => "发布包".to_string(),
-        _ => "社媒产物".to_string(),
+        _ => "工作台产物".to_string(),
     }
 }
 
@@ -437,7 +437,7 @@ pub(in crate::commands::aster_agent_cmd) fn resolve_social_run_artifact_descript
     };
 
     SocialRunArtifactDescriptor {
-        artifact_id: format!("social-media:{}:{}", artifact_type, artifact_suffix),
+        artifact_id: format!("general:{}:{}", artifact_type, artifact_suffix),
         artifact_type: artifact_type.clone(),
         stage: stage.clone(),
         stage_label: resolve_social_stage_label(stage.as_str()),
@@ -475,7 +475,7 @@ pub(in crate::commands::aster_agent_cmd) fn build_chat_run_finish_metadata(
     }
 
     if let Some(artifact) = observation.primary_social_artifact.as_ref() {
-        with_string_field(&mut metadata, "harness_theme", Some("social-media"));
+        with_string_field(&mut metadata, "harness_theme", Some("general"));
         with_string_field(
             &mut metadata,
             "artifact_id",

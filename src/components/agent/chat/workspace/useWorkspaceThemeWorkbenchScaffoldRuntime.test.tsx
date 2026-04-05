@@ -51,7 +51,7 @@ function renderHook(props?: Partial<HookProps>) {
 
   const defaultProps: HookProps = {
     isThemeWorkbench: true,
-    mappedTheme: "social-media",
+    mappedTheme: "general",
     sessionId: "session-theme-1",
     projectId: "project-theme-1",
     canvasState: null,

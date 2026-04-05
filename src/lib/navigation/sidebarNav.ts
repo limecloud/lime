@@ -17,11 +17,12 @@ import {
 } from "lucide-react";
 import {
   type AgentPageParams,
-  getThemeWorkspacePage,
   type OpenClawPageParams,
   type Page,
   type PageParams,
+  type SettingsPageParams,
 } from "@/types/page";
+import { SettingsTabs } from "@/types/settings";
 import {
   buildClawAgentParams,
   buildHomeAgentParams,
@@ -71,14 +72,7 @@ const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
 ];
 
 const WORKSPACE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  {
-    id: "video",
-    label: "视频",
-    icon: Video,
-    page: getThemeWorkspacePage("video"),
-    params: { workspaceViewMode: "workspace" },
-    isActive: (currentPage) => currentPage === getThemeWorkspacePage("video"),
-  },
+  { id: "video", label: "视频", icon: Video, page: "video" },
   { id: "image-gen", label: "插图", icon: Image, page: "image-gen" },
 ];
 
@@ -139,11 +133,32 @@ const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     isActive: (currentPage) => currentPage === "openclaw",
   },
   {
+    id: "companion",
+    label: "桌宠",
+    icon: Bot,
+    page: "settings",
+    params: {
+      tab: SettingsTabs.Providers,
+      providerView: "companion",
+    } as SettingsPageParams,
+    isActive: (currentPage, currentParams) =>
+      currentPage === "settings" &&
+      (currentParams as SettingsPageParams | undefined)?.providerView ===
+        "companion",
+    configurable: false,
+  },
+  {
     id: "settings",
     label: "设置",
     icon: Settings,
     page: "settings",
-    isActive: (currentPage) => currentPage === "settings",
+    params: {
+      tab: SettingsTabs.Home,
+    } as SettingsPageParams,
+    isActive: (currentPage, currentParams) =>
+      currentPage === "settings" &&
+      (currentParams as SettingsPageParams | undefined)?.providerView !==
+        "companion",
     configurable: false,
   },
 ];

@@ -10,43 +10,11 @@ import type { ThemeType } from "@/lib/workspace/workbenchContract";
  * 根据主题类型获取文件名到步骤索引的映射
  * 不同类型的工作流使用不同的文件名映射
  *
- * 映射关系与 useWorkflow.ts 中的步骤定义保持一致：
- * - social-media: 3-4 步（brief → draft → article → adapted）
- * - video: 3-5 步（brief → outline → storyboard → script → script-final）
- * - document: 3-4 步（brief → outline → draft → article）
- * - general/knowledge/planning: 无工作流
+ * 当前工作台主题已统一为 general，不再维护旧主题专属文件映射。
  */
 export function getFileToStepMap(theme: ThemeType): Record<string, number> {
-  switch (theme) {
-    case "social-media":
-      return {
-        "brief.md": 0, // 明确需求
-        "draft.md": 1, // 创作内容
-        "article.md": 2, // 润色优化（引导模式）
-        "adapted.md": 3, // 平台适配（引导模式）
-      };
-
-    case "video":
-      return {
-        "brief.md": 0, // 明确需求
-        "outline.md": 1, // 剧情大纲
-        "storyboard.md": 2, // 分镜设计
-        "script.md": 3, // 撰写剧本
-        "script-final.md": 4, // 润色优化
-      };
-
-    case "document":
-      return {
-        "brief.md": 0, // 明确需求
-        "outline.md": 1, // 文档大纲
-        "draft.md": 2, // 撰写内容
-        "article.md": 3, // 润色优化
-      };
-
-    // general, knowledge, planning 不需要映射（无工作流）
-    default:
-      return {};
-  }
+  void theme;
+  return {};
 }
 
 /**

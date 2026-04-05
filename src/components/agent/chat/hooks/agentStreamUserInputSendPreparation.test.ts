@@ -101,6 +101,41 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(isSending).toBe(true);
   });
 
+  it("displayContent 应透传给用户消息草稿", () => {
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000101")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000102");
+
+    let messages: Message[] = [];
+    let isSending = false;
+    const env = {
+      ...createEnv(),
+      setMessages: createStateSetter(() => messages, (value) => {
+        messages = value;
+      }),
+      setIsSending: createStateSetter(() => isSending, (value) => {
+        isSending = value;
+      }),
+    };
+
+    prepareAgentStreamUserInputSend({
+      content: "/image_generate 生成 春日咖啡馆插画",
+      images: [],
+      skipUserMessage: false,
+      options: {
+        displayContent: "@配图 生成 春日咖啡馆插画",
+      },
+      env,
+    });
+
+    expect(messages[0]).toMatchObject({
+      id: "00000000-0000-0000-0000-000000000102",
+      role: "user",
+      content: "@配图 生成 春日咖啡馆插画",
+    });
+    expect(isSending).toBe(true);
+  });
+
   it("有 active stream 时应进入 queue 模式，并允许 model override", () => {
     vi.spyOn(crypto, "randomUUID")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000003");

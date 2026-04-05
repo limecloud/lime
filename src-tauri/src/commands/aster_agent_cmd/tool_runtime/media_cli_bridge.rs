@@ -39,6 +39,15 @@ fn read_payload_u64(payload: &serde_json::Value, keys: &[&str]) -> Option<u64> {
     None
 }
 
+fn read_output_slot_id(output: &MediaTaskOutput) -> Option<String> {
+    output
+        .record
+        .relationships
+        .slot_id
+        .clone()
+        .or_else(|| read_payload_string(&output.record.payload, &["slot_id", "slotId"]))
+}
+
 pub(crate) fn tool_error_from_media_runtime(error: MediaRuntimeError) -> ToolError {
     match error {
         MediaRuntimeError::InvalidParams(message) => ToolError::invalid_params(message),
@@ -73,6 +82,10 @@ pub(crate) fn emit_media_creation_task_event(app_handle: &AppHandle, output: &Me
         "content_id": read_payload_string(payload_record, &["content_id", "contentId"]),
         "entry_source": read_payload_string(payload_record, &["entry_source", "entrySource"]),
         "requested_target": read_payload_string(payload_record, &["requested_target", "requestedTarget"]),
+        "slot_id": read_output_slot_id(output),
+        "anchor_hint": read_payload_string(payload_record, &["anchor_hint", "anchorHint"]),
+        "anchor_section_title": read_payload_string(payload_record, &["anchor_section_title", "anchorSectionTitle"]),
+        "anchor_text": read_payload_string(payload_record, &["anchor_text", "anchorText"]),
     });
 
     if let Err(error) = app_handle.emit(CREATION_TASK_EVENT_NAME, &payload) {

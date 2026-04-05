@@ -190,7 +190,7 @@ function buildFallbackTitle(
   query: string,
   mode: ThemeContextSearchMode,
 ): string {
-  const suffix = mode === "social" ? "社媒搜索上下文" : "网络搜索上下文";
+  const suffix = mode === "social" ? "专题搜索上下文" : "网络搜索上下文";
   return `${query.trim()} · ${suffix}`;
 }
 

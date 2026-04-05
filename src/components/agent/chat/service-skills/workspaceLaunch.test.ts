@@ -9,13 +9,13 @@ function createSkill(
     id: "daily-trend-briefing",
     title: "每日趋势摘要",
     summary: "围绕指定平台输出趋势摘要。",
-    category: "社媒运营",
+    category: "内容运营",
     outputHint: "趋势摘要",
     source: "cloud_catalog",
     runnerType: "scheduled",
     defaultExecutorBinding: "automation_job",
     executionLocation: "client_default",
-    themeTarget: "social-media",
+    themeTarget: "general",
     version: "seed-v1",
     slotSchema: [],
     ...overrides,
@@ -32,7 +32,7 @@ describe("service skill workspace launch", () => {
 
     expect(seed).toEqual({
       title: "每日趋势摘要",
-      contentType: "post",
+      contentType: "content",
       requestMetadata: {
         artifact: {
           artifact_mode: "draft",
@@ -47,7 +47,7 @@ describe("service skill workspace launch", () => {
           title: "每日趋势摘要",
           runnerType: "scheduled",
           executionLocation: "client_default",
-          themeTarget: "social-media",
+          themeTarget: "general",
           artifactKind: "analysis",
         },
       },
@@ -63,7 +63,7 @@ describe("service skill workspace launch", () => {
         runnerType: "instant",
         defaultExecutorBinding: "browser_assist",
         defaultArtifactKind: "analysis",
-        themeTarget: "knowledge",
+        themeTarget: "general",
         siteCapabilityBinding: {
           adapterName: "github/search",
           autoRun: true,
@@ -75,7 +75,7 @@ describe("service skill workspace launch", () => {
 
     expect(seed).toEqual({
       title: "GitHub 仓库线索检索",
-      contentType: "document",
+      contentType: "content",
       requestMetadata: undefined,
       metadata: {
         source: "service_skill",
@@ -84,18 +84,18 @@ describe("service skill workspace launch", () => {
           title: "GitHub 仓库线索检索",
           runnerType: "instant",
           executionLocation: "client_default",
-          themeTarget: "knowledge",
+          themeTarget: "general",
           artifactKind: "analysis",
         },
       },
     });
   });
 
-  it("非内容工作区主题不应强制生成内容种子", () => {
+  it("缺少主题目标时不应强制生成内容种子", () => {
     expect(
       buildServiceSkillWorkspaceSeed(
         createSkill({
-          themeTarget: "general",
+          themeTarget: undefined,
           defaultArtifactKind: "brief",
         }),
       ),

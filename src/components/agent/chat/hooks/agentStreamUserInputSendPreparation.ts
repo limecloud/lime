@@ -2,6 +2,7 @@ import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type {
   AssistantDraftState,
   SendMessageObserver,
+  SendMessageOptions,
   SessionModelPreference,
 } from "./agentChatShared";
 import type { Message, MessageImage } from "../types";
@@ -32,12 +33,7 @@ interface PrepareAgentStreamUserInputSendOptions {
   modelOverride?: string;
   autoContinue?: import("@/lib/api/agentRuntime").AutoContinueRequestPayload;
   systemPrompt?: string;
-  options?: {
-    purpose?: Message["purpose"];
-    observer?: SendMessageObserver;
-    requestMetadata?: Record<string, unknown>;
-    assistantDraft?: AssistantDraftState;
-  };
+  options?: SendMessageOptions;
   env: AgentStreamUserInputSendPreparationEnv;
 }
 
@@ -57,6 +53,7 @@ export interface PreparedAgentStreamUserInputSend {
   observer?: SendMessageObserver;
   requestMetadata?: Record<string, unknown>;
   assistantDraft?: AssistantDraftState;
+  skillRequest?: SendMessageOptions["skillRequest"];
   expectingQueue: boolean;
   assistantMsgId: string;
   userMsgId: string | null;
@@ -92,6 +89,8 @@ export function prepareAgentStreamUserInputSend(
   const requestMetadata = sendOptions?.requestMetadata;
   const messagePurpose = sendOptions?.purpose;
   const assistantDraft = sendOptions?.assistantDraft;
+  const displayContent = sendOptions?.displayContent;
+  const skillRequest = sendOptions?.skillRequest;
   const expectingQueue =
     Boolean(env.activeStreamRef.current) ||
     env.getQueuedTurnsCount() > 0 ||
@@ -100,6 +99,7 @@ export function prepareAgentStreamUserInputSend(
   const userMsgId = skipUserMessage ? null : crypto.randomUUID();
   const { assistantMsg } = prepareAgentStreamSubmitDraft({
     content,
+    displayContent,
     images,
     skipUserMessage,
     expectingQueue,
@@ -130,6 +130,7 @@ export function prepareAgentStreamUserInputSend(
     observer,
     requestMetadata,
     assistantDraft,
+    skillRequest,
     expectingQueue,
     assistantMsgId,
     userMsgId,

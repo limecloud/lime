@@ -11,7 +11,7 @@ import {
   type ThemeWorkbenchRunTodoItem,
 } from "@/lib/api/executionRun";
 import { subscribeDocumentEditorFocus } from "@/lib/documentEditorFocusEvents";
-import type { ThemeWorkbenchGateState } from "../components/Inputbar/hooks/useThemeWorkbenchInputState";
+import type { ThemeWorkbenchGateState } from "../utils/themeWorkbenchInputState";
 import type { ActionRequired } from "../types";
 import {
   THEME_WORKBENCH_ACTIVE_RUN_MAX_AGE_MS,

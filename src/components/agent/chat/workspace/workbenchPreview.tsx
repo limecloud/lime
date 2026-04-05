@@ -13,7 +13,7 @@ import {
 } from "@/components/general-chat/bridge";
 import type { Artifact } from "@/lib/artifact/types";
 import type { CanvasWorkbenchDefaultPreview } from "../components/CanvasWorkbenchLayout";
-import { ImageWorkbenchCanvas } from "../components/ImageWorkbenchCanvas";
+import { ImageTaskViewer } from "../components/ImageTaskViewer";
 import { TeamWorkspaceBoard } from "../components/TeamWorkspaceBoard";
 import { ArtifactWorkbenchShell } from "./ArtifactWorkbenchShell";
 import { hasRenderableGeneralCanvasPreview } from "./generalCanvasPreviewState";
@@ -234,7 +234,8 @@ export function ArtifactWorkbenchPreview({
 
 interface WorkspaceLiveCanvasPreviewProps {
   currentImageWorkbenchActive: boolean;
-  imageWorkbenchProps: ComponentProps<typeof ImageWorkbenchCanvas>;
+  imageWorkbenchProps: ComponentProps<typeof ImageTaskViewer>;
+  onCloseCanvas: () => void;
   canvasRenderTheme: ThemeType;
   liveArtifact: Artifact | null;
   hasDisplayedLiveArtifact: boolean;
@@ -260,6 +261,7 @@ interface WorkspaceLiveCanvasPreviewProps {
 export function WorkspaceLiveCanvasPreview({
   currentImageWorkbenchActive,
   imageWorkbenchProps,
+  onCloseCanvas,
   canvasRenderTheme,
   liveArtifact,
   hasDisplayedLiveArtifact,
@@ -272,7 +274,11 @@ export function WorkspaceLiveCanvasPreview({
 }: WorkspaceLiveCanvasPreviewProps) {
   if (currentImageWorkbenchActive) {
     return wrapPreviewWithWorkbenchTrigger(
-      <ImageWorkbenchCanvas {...imageWorkbenchProps} />,
+      <div className="flex h-full min-h-0 flex-col pt-4">
+        <div className="min-h-0 flex-1">
+          <ImageTaskViewer {...imageWorkbenchProps} onClose={onCloseCanvas} />
+        </div>
+      </div>,
       stackedWorkbenchTrigger,
     );
   }

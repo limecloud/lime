@@ -18,7 +18,7 @@ pub use catalog::{
 };
 pub use execution::{
     execute_named_skill, execute_skill_definition, execute_skill_prompt, execute_skill_workflow,
-    SkillExecutionRequest, SkillExecutionResult, StepResult,
+    SkillExecutionImageInput, SkillExecutionRequest, SkillExecutionResult, StepResult,
 };
 pub use runtime::{
     build_skill_run_finish_decision, build_skill_run_start_metadata, prepare_skill_execution,

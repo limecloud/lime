@@ -157,7 +157,7 @@ interface ServiceSkillCatalogResponseEnvelope {
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
 export const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
-const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-03-30";
+const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-04";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
   { value: "xiaohongshu", label: "小红书" },
@@ -384,7 +384,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       entryHint:
         "给我参考帖子和要保留的信息，我先拆结构，再产出一版可继续改的轮播帖。",
       aliases: ["复刻轮播帖", "轮播帖", "小红书轮播", "轮播复刻"],
-      category: "社媒内容",
+      category: "内容创作",
       outputHint: "轮播结构 + 文案初稿",
       triggerHints: [
         "已经有参考轮播帖，希望快速拆结构并生成一版同风格内容时使用。",
@@ -414,7 +414,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       outputDestination: "结果会写回当前工作区中的内容草稿，方便继续改写和发布。",
       surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
       promptTemplateKey: "replication",
-      themeTarget: "social-media",
+      themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
         {
@@ -458,7 +458,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       id: "short-video-script-replication",
       skillKey: "short-video-script-replication",
       skillType: "service",
-      title: "复制短视频脚本",
+      title: "复制视频脚本",
       summary: "围绕参考视频的结构和节奏，输出一版可直接继续加工的脚本。",
       entryHint:
         "把参考视频链接、平台和想改的地方给我，我先按原结构拆一版可继续加工的脚本。",
@@ -493,7 +493,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       outputDestination: "结果会写回当前工作区中的脚本草稿，方便继续补镜头与口播。",
       surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
       promptTemplateKey: "replication",
-      themeTarget: "video",
+      themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
         {
@@ -567,7 +567,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "按文章内容生成一版适合 Bilibili 讲解视频的分镜结构。",
       ],
       outputDestination: "结果会写回当前工作区中的提纲文档，方便继续补正文和分镜。",
-      themeTarget: "knowledge",
+      themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
         {
@@ -630,7 +630,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "参考这段素材，输出一版日文配音文本和字幕说明。",
       ],
       outputDestination: "结果会写回当前工作区中的配音稿，方便继续进入配音与剪辑流程。",
-      themeTarget: "video",
+      themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
         {
@@ -673,7 +673,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       entryHint:
         "把平台、行业关键词和时间范围给我，我先整理一份趋势报告，再补定时追踪建议。",
       aliases: ["趋势摘要", "趋势报告", "热点摘要", "每日趋势"],
-      category: "社媒运营",
+      category: "内容运营",
       outputHint: "趋势摘要 + 调度建议",
       triggerHints: [
         "想先做一版趋势摘要，再决定是否开启定时跟踪时使用。",
@@ -704,7 +704,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "首轮结果会进入当前工作区；后续执行结果会同步到任务中心与对应项目内容。",
       surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
       promptTemplateKey: "trend_briefing",
-      themeTarget: "social-media",
+      themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
         {
@@ -759,7 +759,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       entryHint:
         "给我参考账号、目标平台和增长目标，我先出复制策略、发布节奏和后续跟踪指标。",
       aliases: ["账号增长", "自动增长", "涨粉", "账号表现"],
-      category: "社媒运营",
+      category: "内容运营",
       outputHint: "增长策略 + 发布节奏 + 跟踪指标",
       triggerHints: [
         "想先产出增长策略，再持续观察账号表现时使用。",
@@ -790,7 +790,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "首轮策略会写回当前工作区；后续跟踪结果会持续回流到任务中心与项目内容。",
       surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
       promptTemplateKey: "account_growth",
-      themeTarget: "social-media",
+      themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
         {

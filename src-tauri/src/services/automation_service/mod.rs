@@ -1482,7 +1482,7 @@ mod tests {
                         "user_input": "关注增长最快的话题"
                     },
                     "harness": {
-                        "theme": "social-media"
+                        "theme": "general"
                     }
                 }
             }),
@@ -1526,10 +1526,7 @@ mod tests {
             metadata.pointer("/service_skill/user_input"),
             Some(&json!("关注增长最快的话题"))
         );
-        assert_eq!(
-            metadata.pointer("/harness/theme"),
-            Some(&json!("social-media"))
-        );
+        assert_eq!(metadata.pointer("/harness/theme"), Some(&json!("general")));
         assert_eq!(
             metadata.pointer("/harness/content_id"),
             Some(&json!("content-1"))
@@ -1584,7 +1581,7 @@ mod tests {
             web_search: false,
             request_metadata: Some(json!({
                 "harness": {
-                    "theme": "social-media",
+                    "theme": "general",
                 }
             })),
             content_id: Some("   ".to_string()),

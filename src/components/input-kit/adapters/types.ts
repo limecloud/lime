@@ -11,6 +11,5 @@ export interface ChatInputAdapter {
   ui: {
     showModelSelector: boolean;
     showToolBar: boolean;
-    showExecutionStrategy?: boolean;
   };
 }

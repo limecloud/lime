@@ -590,17 +590,17 @@ mod tests {
     fn derive_run_artifact_paths_should_parse_non_empty_paths() {
         let run = sample_run_with_metadata(Some(serde_json::json!({
             "artifact_paths": [
-                "social-posts/demo.md",
+                "content-posts/demo.md",
                 " ",
-                "social-posts/demo.cover.json"
+                "content-posts/demo.cover.json"
             ],
         })));
 
         assert_eq!(
             derive_run_artifact_paths(&run),
             vec![
-                "social-posts/demo.md".to_string(),
-                "social-posts/demo.cover.json".to_string(),
+                "content-posts/demo.md".to_string(),
+                "content-posts/demo.cover.json".to_string(),
             ]
         );
     }
@@ -608,7 +608,7 @@ mod tests {
     #[test]
     fn derive_run_gate_key_should_support_social_stage_fallback() {
         let run = sample_run_with_metadata(Some(serde_json::json!({
-            "harness_theme": "social-media",
+            "harness_theme": "general",
             "stage": "publish_prep"
         })));
 
@@ -618,7 +618,7 @@ mod tests {
     #[test]
     fn derive_run_title_should_prefer_social_version_label() {
         let run = sample_run_with_metadata(Some(serde_json::json!({
-            "harness_theme": "social-media",
+            "harness_theme": "general",
             "version_label": "社媒初稿"
         })));
 
@@ -628,12 +628,12 @@ mod tests {
     #[test]
     fn derive_run_artifact_paths_should_fallback_to_source_file_name() {
         let run = sample_run_with_metadata(Some(serde_json::json!({
-            "source_file_name": "social-posts/demo.md"
+            "source_file_name": "content-posts/demo.md"
         })));
 
         assert_eq!(
             derive_run_artifact_paths(&run),
-            vec!["social-posts/demo.md".to_string()]
+            vec!["content-posts/demo.md".to_string()]
         );
     }
 
@@ -641,18 +641,18 @@ mod tests {
     fn derive_run_artifact_paths_should_recurse_nested_artifact_protocol_metadata() {
         let run = sample_run_with_metadata(Some(serde_json::json!({
             "payload": {
-                "artifact_paths": ["social-posts\\nested.md"]
+                "artifact_paths": ["content-posts\\nested.md"]
             },
             "result": {
-                "absolute_path": " /tmp\\social-posts\\final.md "
+                "absolute_path": " /tmp\\content-posts\\final.md "
             }
         })));
 
         assert_eq!(
             derive_run_artifact_paths(&run),
             vec![
-                "social-posts/nested.md".to_string(),
-                "/tmp/social-posts/final.md".to_string(),
+                "content-posts/nested.md".to_string(),
+                "/tmp/content-posts/final.md".to_string(),
             ]
         );
     }

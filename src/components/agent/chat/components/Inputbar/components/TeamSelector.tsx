@@ -1,15 +1,10 @@
-import React, {
-  Suspense,
-  lazy,
-  useMemo,
-  useState,
-} from "react";
+import React, { Suspense, lazy, useState } from "react";
 import { Users } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { WorkspaceSettings } from "@/types/workspace";
 import type { TeamDefinition } from "../../../utils/teamDefinitions";
-import { useIdleModulePreload } from "./useIdleModulePreload";
+import { useIdleModulePreload } from "../../../skill-selection/useIdleModulePreload";
 
 const preloadTeamSelectorPanel = () => import("./TeamSelectorPanel");
 
@@ -21,33 +16,21 @@ const TeamSelectorPanel = lazy(async () => {
 interface TeamSelectorProps {
   activeTheme?: string;
   input?: string;
-  workspaceId?: string | null;
-  providerType?: string;
-  model?: string;
-  executionStrategy?: "react" | "code_orchestrated" | "auto";
   autoOpenToken?: number | null;
   selectedTeam?: TeamDefinition | null;
   onSelectTeam: (team: TeamDefinition | null) => void;
   workspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
-  triggerLabel?: string;
-  className?: string;
 }
 
 export const TeamSelector: React.FC<TeamSelectorProps> = ({
   activeTheme,
   input,
-  workspaceId,
-  providerType,
-  model,
-  executionStrategy,
   autoOpenToken = null,
   selectedTeam = null,
   onSelectTeam,
   workspaceSettings,
   onPersistCustomTeams,
-  triggerLabel = "配置 Team",
-  className,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -62,12 +45,9 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
     setOpen(true);
   }, [autoOpenToken]);
 
-  const resolvedLabel = useMemo(() => {
-    if (!selectedTeam?.label?.trim()) {
-      return triggerLabel;
-    }
-    return `Team · ${selectedTeam.label.trim()}`;
-  }, [selectedTeam?.label, triggerLabel]);
+  const resolvedLabel = selectedTeam?.label?.trim()
+    ? `Team · ${selectedTeam.label.trim()}`
+    : "配置 Team";
 
   const selectedRoleCount = selectedTeam?.roles.length || 0;
 
@@ -84,7 +64,6 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
           selectedTeam
             ? "border-sky-300 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
             : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900",
-          className,
         )}
       >
         <Users className="h-3.5 w-3.5" />
@@ -109,10 +88,6 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
               <TeamSelectorPanel
                 activeTheme={activeTheme}
                 input={input}
-                workspaceId={workspaceId}
-                providerType={providerType}
-                model={model}
-                executionStrategy={executionStrategy}
                 selectedTeam={selectedTeam}
                 workspaceSettings={workspaceSettings}
                 onPersistCustomTeams={onPersistCustomTeams}

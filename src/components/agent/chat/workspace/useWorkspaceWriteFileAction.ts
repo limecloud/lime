@@ -7,7 +7,6 @@ import {
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
-import { resolveSocialMediaArtifactDescriptor } from "@/lib/workspace/workbenchRuntime";
 import type { ThemeType, LayoutMode } from "@/lib/workspace/workbenchContract";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
@@ -233,14 +232,6 @@ export function useWorkspaceWriteFileAction({
         currentGateKey === "publish_confirm"
           ? currentGateKey
           : undefined;
-      const socialArtifact =
-        mappedTheme === "social-media"
-          ? resolveSocialMediaArtifactDescriptor({
-              fileName,
-              gateKey: socialGateKey,
-              runTitle: activeRunDescription,
-            })
-          : null;
       const isPrimaryArtifact =
         !isThemeWorkbench || isThemeWorkbenchPrimaryDocumentArtifact(fileName);
       const shouldApplyToMainDocument =
@@ -249,20 +240,15 @@ export function useWorkspaceWriteFileAction({
         (!isThemeWorkbench || currentGateKey !== "topic_select");
       const effectiveDocumentVersionId =
         activeRunVersionId ||
-        ((isThemeWorkbench || mappedTheme === "social-media") &&
-        shouldApplyToMainDocument
+        (isThemeWorkbench && shouldApplyToMainDocument
           ? `artifact:${fileName}`
           : null);
-      const effectiveVersionDescription =
-        socialArtifact?.versionLabel || activeRunDescription;
+      const effectiveVersionDescription = activeRunDescription;
       const baseVersionMetadata =
-        socialArtifact && shouldApplyToMainDocument
+        shouldApplyToMainDocument
           ? {
-              artifactId: socialArtifact.artifactId,
-              artifactType: socialArtifact.artifactType,
-              stage: socialArtifact.stage,
-              platform: socialArtifact.platform,
               sourceFileName: fileName,
+              gateKey: socialGateKey,
               runId: activeRunVersionId || undefined,
               correlationId:
                 effectiveDocumentVersionId || activeRunVersionId || undefined,
@@ -340,46 +326,34 @@ export function useWorkspaceWriteFileAction({
         });
       }
 
-      if (socialArtifact && hasTaskFileChanged) {
+      if (baseVersionMetadata && hasTaskFileChanged) {
+        const stageLogKey = effectiveDocumentVersionId || fileName;
         activityLogger.log({
           eventType: existingTaskFile ? "file_update" : "file_create",
           status: "success",
-          title: `${existingTaskFile ? "更新" : "生成"}${socialArtifact.versionLabel}`,
+          title: `${existingTaskFile ? "更新" : "生成"}${effectiveVersionDescription}`,
           description: fileName,
           workspaceId: projectId || undefined,
           sessionId: sessionId || undefined,
           source: "aster-chat",
           correlationId:
             effectiveDocumentVersionId || activeRunVersionId || fileName,
-          metadata: {
-            ...baseVersionMetadata,
-            stageLabel: socialArtifact.stageLabel,
-            isAuxiliary: socialArtifact.isAuxiliary,
-          },
+          metadata: baseVersionMetadata,
         });
 
-        const stageLogKey = `${
-          effectiveDocumentVersionId || socialArtifact.artifactId
-        }:${socialArtifact.stage}`;
-        if (
-          !socialArtifact.isAuxiliary &&
-          socialStageLogRef.current[stageLogKey] !== socialArtifact.stage
-        ) {
-          socialStageLogRef.current[stageLogKey] = socialArtifact.stage;
+        if (socialStageLogRef.current[stageLogKey] !== effectiveVersionDescription) {
+          socialStageLogRef.current[stageLogKey] = effectiveVersionDescription;
           activityLogger.log({
             eventType: "step_complete",
             status: "success",
-            title: socialArtifact.stageLabel,
-            description: `${socialArtifact.versionLabel}已进入版本链`,
+            title: effectiveVersionDescription,
+            description: `${fileName} 已进入当前版本链`,
             workspaceId: projectId || undefined,
             sessionId: sessionId || undefined,
             source: "aster-chat",
             correlationId:
               effectiveDocumentVersionId || activeRunVersionId || fileName,
-            metadata: {
-              ...baseVersionMetadata,
-              stageLabel: socialArtifact.stageLabel,
-            },
+            metadata: baseVersionMetadata,
           });
         }
       }
@@ -408,12 +382,10 @@ export function useWorkspaceWriteFileAction({
             type: nextFileType,
             content,
             updatedAt: now,
-            metadata: socialArtifact
+            metadata: baseVersionMetadata
               ? {
                   ...(existing.metadata || {}),
                   ...baseVersionMetadata,
-                  stageLabel: socialArtifact.stageLabel,
-                  versionLabel: socialArtifact.versionLabel,
                 }
               : existing.metadata,
           };
@@ -430,13 +402,7 @@ export function useWorkspaceWriteFileAction({
           version: 1,
           createdAt: now,
           updatedAt: now,
-          metadata: socialArtifact
-            ? {
-                ...baseVersionMetadata,
-                stageLabel: socialArtifact.stageLabel,
-                versionLabel: socialArtifact.versionLabel,
-              }
-            : undefined,
+          metadata: baseVersionMetadata,
         };
         setSelectedFileId(newFile.id);
         return [...previous, newFile];
@@ -457,26 +423,13 @@ export function useWorkspaceWriteFileAction({
           logWorkspaceWriteInfo("[AgentChatPage] 创建新文档状态");
           const initialDocumentState = createInitialDocumentState(content);
           if (!effectiveDocumentVersionId) {
-            if (!socialArtifact) {
-              return initialDocumentState;
-            }
-            return {
-              ...initialDocumentState,
-              platform:
-                socialArtifact.platform || initialDocumentState.platform,
-              versions: initialDocumentState.versions.map((version) => ({
-                ...version,
-                description: effectiveVersionDescription,
-                metadata: baseVersionMetadata,
-              })),
-            };
+            return initialDocumentState;
           }
-          if (!isThemeWorkbench && mappedTheme !== "social-media") {
+          if (!isThemeWorkbench) {
             return initialDocumentState;
           }
           return {
             ...initialDocumentState,
-            platform: socialArtifact?.platform || initialDocumentState.platform,
             versions: [
               {
                 id: effectiveDocumentVersionId,
@@ -512,7 +465,6 @@ export function useWorkspaceWriteFileAction({
             return {
               ...previous,
               content,
-              platform: socialArtifact?.platform || previous.platform,
               versions: nextVersions,
               currentVersionId: effectiveDocumentVersionId,
             };
@@ -544,7 +496,6 @@ export function useWorkspaceWriteFileAction({
           return {
             ...previous,
             content,
-            platform: socialArtifact?.platform || previous.platform,
             versions: nextVersions,
             currentVersionId: effectiveDocumentVersionId,
           };
@@ -554,7 +505,6 @@ export function useWorkspaceWriteFileAction({
         return {
           ...previous,
           content,
-          platform: socialArtifact?.platform || previous.platform,
         };
       });
 

@@ -6,7 +6,6 @@ import { Inputbar } from "./index";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
-import type { A2UIResponse } from "@/lib/workspace/a2ui";
 
 const mockCharacterMention =
   vi.fn<
@@ -22,7 +21,6 @@ const mockInputbarCore = vi.fn(
     onToolClick?: (tool: string) => void;
     activeTools?: Record<string, boolean>;
     onSend?: () => void;
-    rightExtra?: React.ReactNode;
     leftExtra?: React.ReactNode;
     topExtra?: React.ReactNode;
     placeholder?: string;
@@ -57,7 +55,6 @@ const mockInputbarCore = vi.fn(
         发送
       </button>
       <div data-testid="left-extra">{props.leftExtra}</div>
-      <div data-testid="right-extra">{props.rightExtra}</div>
       <div data-testid="top-extra">{props.topExtra}</div>
     </div>
   ),
@@ -68,7 +65,6 @@ vi.mock("./components/InputbarCore", () => ({
     onToolClick?: (tool: string) => void;
     activeTools?: Record<string, boolean>;
     onSend?: () => void;
-    rightExtra?: React.ReactNode;
     leftExtra?: React.ReactNode;
     topExtra?: React.ReactNode;
     placeholder?: string;
@@ -76,7 +72,7 @@ vi.mock("./components/InputbarCore", () => ({
   }) => mockInputbarCore(props),
 }));
 
-vi.mock("./components/CharacterMention", () => ({
+vi.mock("../../skill-selection/CharacterMention", () => ({
   CharacterMention: (props: {
     characters?: Character[];
     skills?: Skill[];
@@ -92,7 +88,7 @@ vi.mock("../TaskFiles", () => ({
   TaskFileList: () => <div data-testid="task-file-list" />,
 }));
 
-vi.mock("./hooks/useActiveSkill", () => ({
+vi.mock("../../skill-selection/useActiveSkill", () => ({
   useActiveSkill: () => ({
     activeSkill: null,
     setActiveSkill: vi.fn(),
@@ -120,7 +116,7 @@ vi.mock("./hooks/useActiveSkill", () => ({
   }),
 }));
 
-vi.mock("./components/SkillBadge", () => ({
+vi.mock("../../skill-selection/SkillBadge", () => ({
   SkillBadge: () => <div data-testid="skill-badge" />,
 }));
 
@@ -189,7 +185,6 @@ vi.mock("@/components/input-kit", () => ({
     ui: {
       showModelSelector: true,
       showToolBar: true,
-      showExecutionStrategy: true,
     },
   }),
 }));
@@ -257,35 +252,6 @@ function renderInputbar(
     rerender: render,
   };
 }
-
-function createPendingA2UIForm(): A2UIResponse {
-  return {
-    id: "a2ui-pending",
-    version: "1.0",
-    root: "root",
-    data: {},
-    components: [
-      {
-        id: "title",
-        component: "Text",
-        text: "请确认开始方式",
-        variant: "body",
-      },
-      {
-        id: "root",
-        component: "Column",
-        children: ["title"],
-        gap: 12,
-        align: "stretch",
-      },
-    ],
-    submitAction: {
-      label: "继续处理",
-      action: { name: "submit" },
-    },
-  } as A2UIResponse;
-}
-
 describe("Inputbar", () => {
   it("即使角色和技能为空，也应挂载 CharacterMention", async () => {
     const { container } = renderInputbar();
@@ -334,6 +300,64 @@ describe("Inputbar", () => {
     expect(latestCall.onSelectServiceSkill).toBe(onSelectServiceSkill);
   });
 
+  it("应把任务文件与额外浮层控件放进同一条输入栏 overlay row", async () => {
+    const { container } = renderInputbar({
+      taskFiles: [
+        {
+          id: "file-1",
+          name: "notes.md",
+          type: "document",
+          version: 1,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ],
+      overlayAccessory: (
+        <button type="button" data-testid="team-inline-toggle">
+          查看协作进展 · 2
+        </button>
+      ),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const row = container.querySelector<HTMLElement>(
+      '[data-testid="inputbar-secondary-controls"]',
+    );
+    expect(row).toBeTruthy();
+    expect(getComputedStyle(row as HTMLElement).position).toBe("absolute");
+    expect(getComputedStyle(row as HTMLElement).pointerEvents).toBe("none");
+    expect(getComputedStyle(row as HTMLElement).zIndex).toBe("80");
+    expect(
+      row?.querySelector('[data-testid="task-files-panel-area"]'),
+    ).toBeTruthy();
+    expect(
+      row?.querySelector('[data-testid="team-inline-toggle"]'),
+    ).toBeTruthy();
+
+    const fileInput = container.querySelector(
+      'input[type="file"][accept="image/*"]',
+    ) as HTMLInputElement | null;
+    expect(fileInput).toBeTruthy();
+    expect(fileInput?.multiple).toBe(true);
+  });
+
+  it("没有任务文件和额外控件时不应渲染 overlay row", async () => {
+    const { container } = renderInputbar({
+      taskFiles: [],
+      overlayAccessory: null,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-secondary-controls"]'),
+    ).toBeNull();
+  });
   it("工作区输入区应保留技能下拉，但与 @ 面板共用同一技能数据源", async () => {
     const { container } = renderInputbar({
       activeTheme: "general",
@@ -415,9 +439,7 @@ describe("Inputbar", () => {
 
     expect(planToggle).toBeTruthy();
     expect(accessSelect).toBeTruthy();
-    expect(
-      container.querySelector('select[aria-label="执行模式"]'),
-    ).toBeNull();
+    expect(container.querySelector('select[aria-label="执行模式"]')).toBeNull();
 
     act(() => {
       planToggle?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -467,7 +489,6 @@ describe("Inputbar", () => {
     expect(onToolStatesChange).toHaveBeenCalledWith({
       webSearch: true,
       thinking: false,
-      task: false,
       subagent: false,
     });
   });
@@ -475,12 +496,12 @@ describe("Inputbar", () => {
   it("通用聊天态复杂任务应显示 Team 建议并支持开启多代理", async () => {
     const onToolStatesChange = vi.fn();
     const { container } = renderInputbar({
-      input: "请拆分这个多代理调试任务，分别分析、实现、验证，再由主线程汇总结论。",
+      input:
+        "请拆分这个多代理调试任务，分别分析、实现、验证，再由主线程汇总结论。",
       activeTheme: "general",
       toolStates: {
         webSearch: false,
         thinking: false,
-        task: false,
         subagent: false,
       },
       onToolStatesChange,
@@ -499,13 +520,14 @@ describe("Inputbar", () => {
     expect(enableTeamButton).toBeTruthy();
 
     act(() => {
-      enableTeamButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      enableTeamButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     expect(onToolStatesChange).toHaveBeenCalledWith({
       webSearch: false,
       thinking: false,
-      task: false,
       subagent: true,
     });
   });
@@ -516,7 +538,6 @@ describe("Inputbar", () => {
       toolStates: {
         webSearch: false,
         thinking: false,
-        task: false,
         subagent: false,
       },
     });
@@ -534,7 +555,6 @@ describe("Inputbar", () => {
       toolStates: {
         webSearch: false,
         thinking: false,
-        task: false,
         subagent: true,
       },
     });
@@ -555,7 +575,6 @@ describe("Inputbar", () => {
       toolStates: {
         webSearch: false,
         thinking: false,
-        task: false,
         subagent: false,
       },
       onToolStatesChange,
@@ -582,7 +601,6 @@ describe("Inputbar", () => {
     expect(onToolStatesChange).toHaveBeenCalledWith({
       webSearch: false,
       thinking: false,
-      task: false,
       subagent: true,
     });
   });
@@ -627,7 +645,6 @@ describe("Inputbar", () => {
       toolStates: {
         webSearch: false,
         thinking: false,
-        task: false,
         subagent: false,
       },
     });
@@ -650,10 +667,10 @@ describe("Inputbar", () => {
     expect(container.textContent).toContain("当前任务更适合 Team 协作");
   });
 
-  it("社媒主题默认应自动注入 social_post_with_cover skill", async () => {
+  it("内容主题默认发送时不应再注入旧 skill 前缀", async () => {
     const onSend = vi.fn();
     const { container } = renderInputbar({
-      activeTheme: "social-media",
+      activeTheme: "general",
       input: "写一篇春季上新种草文案",
       onSend,
     });
@@ -676,7 +693,7 @@ describe("Inputbar", () => {
       undefined,
       false,
       false,
-      "/social_post_with_cover 写一篇春季上新种草文案",
+      undefined,
       "react",
     );
   });
@@ -684,7 +701,7 @@ describe("Inputbar", () => {
   it("社媒主题输入 slash 命令时不应重复注入默认 skill", async () => {
     const onSend = vi.fn();
     const { container } = renderInputbar({
-      activeTheme: "social-media",
+      activeTheme: "general",
       input: "/custom_skill 写一篇品牌故事",
       onSend,
     });
@@ -909,39 +926,5 @@ describe("Inputbar", () => {
       container.querySelector('[data-testid="inputbar-core"]'),
     ).toBeTruthy();
     expect(container.textContent).not.toContain("正在生成中");
-  });
-
-  it("pending A2UI 与提交提示不应再由 Inputbar 浮层承载", async () => {
-    const pendingForm = createPendingA2UIForm();
-    const { container, rerender } = renderInputbar({
-      pendingA2UIForm: pendingForm,
-      a2uiSubmissionNotice: {
-        title: "补充信息已确认",
-        summary: "已继续处理。",
-      },
-      onA2UISubmit: vi.fn(),
-    });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).not.toContain("继续处理");
-    expect(container.textContent).not.toContain("同步中");
-    expect(container.textContent).not.toContain("补充信息已确认");
-
-    rerender({
-      pendingA2UIForm: null,
-      a2uiSubmissionNotice: null,
-      onA2UISubmit: vi.fn(),
-    });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).not.toContain("继续处理");
-    expect(container.textContent).not.toContain("同步中");
-    expect(container.textContent).not.toContain("补充信息已确认");
   });
 });

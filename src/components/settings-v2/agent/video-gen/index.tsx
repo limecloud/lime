@@ -228,5 +228,3 @@ export function VideoGenSettings() {
     </div>
   );
 }
-
-export default VideoGenSettings;

@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Square,
 } from "lucide-react";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { MarkdownRenderer } from "./MarkdownRenderer";
@@ -163,7 +164,9 @@ const ThinkingBlock: React.FC<ThinkingBlockProps> = ({
             }
           }}
         >
-          <div className={cn("flex items-start", grouped ? "gap-2.5" : "gap-3")}>
+          <div
+            className={cn("flex items-start", grouped ? "gap-2.5" : "gap-3")}
+          >
             <span
               className={cn(
                 "shrink-0 rounded-full",
@@ -529,9 +532,10 @@ const StreamingText: React.FC<StreamingTextProps> = memo(
         ? STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS
         : 0,
       {
-        maxWait: isStreaming && containsStructuredContent
-          ? STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS
-          : undefined,
+        maxWait:
+          isStreaming && containsStructuredContent
+            ? STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS
+            : undefined,
       },
     );
     const parsedSourceText =
@@ -686,7 +690,9 @@ type StreamingProcessEntry =
       actionRequired: ActionRequired;
     };
 
-function buildStreamingProcessSummary(entries: StreamingProcessEntry[]): string {
+function buildStreamingProcessSummary(
+  entries: StreamingProcessEntry[],
+): string {
   const toolCount = entries.filter((entry) => entry.kind === "tool").length;
   const messageCount = entries.length - toolCount;
   const summaryParts = [`${toolCount} 个工具调用`];
@@ -823,13 +829,16 @@ const RUNTIME_PHASE_LABELS: Record<AgentRuntimeStatus["phase"], string> = {
   routing: "处理中",
   context: "整理信息中",
   failed: "需要处理",
+  cancelled: "已取消",
 };
 
 function normalizeRuntimeStatusLine(value?: string | null): string {
   return (value || "").trim().replace(/\s+/g, " ");
 }
 
-function buildRuntimeStatusSupportingLines(status: AgentRuntimeStatus): string[] {
+function buildRuntimeStatusSupportingLines(
+  status: AgentRuntimeStatus,
+): string[] {
   const lines: string[] = [];
   const normalizedTitle = normalizeRuntimeStatusLine(status.title);
   const normalizedDetail = normalizeRuntimeStatusLine(status.detail);
@@ -857,12 +866,14 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
   status,
 }) => {
   const failed = status.phase === "failed";
+  const cancelled = status.phase === "cancelled";
   const sequentialProtection =
     !failed &&
+    !cancelled &&
     status.metadata?.concurrency_scope === "provider_global" &&
     status.metadata?.retryable_overload;
   const supportingLines = buildRuntimeStatusSupportingLines(status);
-  const ToneIcon = failed ? AlertTriangle : Loader2;
+  const ToneIcon = failed ? AlertTriangle : cancelled ? Square : Loader2;
 
   return (
     <div
@@ -871,7 +882,9 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
         "rounded-xl border px-3.5 py-2.5",
         failed
           ? "border-rose-200 bg-rose-50/80"
-          : "border-border/60 bg-slate-50",
+          : cancelled
+            ? "border-slate-200 bg-slate-50"
+            : "border-border/60 bg-slate-50",
       )}
     >
       <div className="flex items-start gap-2.5">
@@ -879,7 +892,11 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
           <ToneIcon
             className={cn(
               "h-4 w-4",
-              failed ? "text-rose-600" : "animate-spin text-sky-600",
+              failed
+                ? "text-rose-600"
+                : cancelled
+                  ? "text-slate-500"
+                  : "animate-spin text-sky-600",
             )}
           />
         </div>
@@ -888,7 +905,11 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
             <div
               className={cn(
                 "min-w-0 text-sm font-medium leading-6",
-                failed ? "text-rose-900" : "text-slate-800",
+                failed
+                  ? "text-rose-900"
+                  : cancelled
+                    ? "text-slate-700"
+                    : "text-slate-800",
               )}
             >
               {status.title}
@@ -898,7 +919,9 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
                 "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none",
                 failed
                   ? "border-rose-200 bg-white text-rose-700"
-                  : "border-slate-200 bg-white text-slate-500",
+                  : cancelled
+                    ? "border-slate-200 bg-white text-slate-600"
+                    : "border-slate-200 bg-white text-slate-500",
               )}
             >
               {RUNTIME_PHASE_LABELS[status.phase]}
@@ -916,7 +939,11 @@ const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
                   key={line}
                   className={cn(
                     "text-xs leading-5",
-                    failed ? "text-rose-700" : "text-slate-500",
+                    failed
+                      ? "text-rose-700"
+                      : cancelled
+                        ? "text-slate-600"
+                        : "text-slate-500",
                   )}
                 >
                   {line}
@@ -974,9 +1001,9 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
       (request: ActionRequired) =>
         !(
           suppressedActionRequestId === request.requestId ||
-          promoteActionRequestsToA2UI &&
-          request.status === "pending" &&
-          isActionRequestA2UICompatible(request)
+          (promoteActionRequestsToA2UI &&
+            request.status === "pending" &&
+            isActionRequestA2UICompatible(request))
         ),
       [promoteActionRequestsToA2UI, suppressedActionRequestId],
     );
@@ -1004,9 +1031,10 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         ? STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS
         : 0,
       {
-        maxWait: isStreaming && containsStructuredContent
-          ? STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS
-          : undefined,
+        maxWait:
+          isStreaming && containsStructuredContent
+            ? STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS
+            : undefined,
       },
     );
     const parsedVisibleText =
@@ -1148,16 +1176,16 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     const shouldShowCursor = isStreaming && showCursor && !hasRunningTools;
 
     const renderWriteFileIndicator = React.useCallback(
-      (
-        part: WriteFileMessagePart,
-        key: string,
-      ) => {
-        const fileContent = typeof part.content === "string" ? part.content : "";
+      (part: WriteFileMessagePart, key: string) => {
+        const fileContent =
+          typeof part.content === "string" ? part.content : "";
         return (
           <div
             key={key}
             className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/70"
-            onClick={() => part.filePath && onFileClick?.(part.filePath, fileContent)}
+            onClick={() =>
+              part.filePath && onFileClick?.(part.filePath, fileContent)
+            }
           >
             <FileText className="h-4 w-4" />
             <span>写入</span>
@@ -1204,11 +1232,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     );
 
     const renderProcessEntry = React.useCallback(
-      (
-        entry: StreamingProcessEntry,
-        grouped: boolean,
-        groupMarker: string,
-      ) => {
+      (entry: StreamingProcessEntry, grouped: boolean, groupMarker: string) => {
         if (entry.kind === "thinking") {
           return (
             <ThinkingBlock
@@ -1265,7 +1289,9 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           return null;
         }
 
-        const toolCount = entries.filter((entry) => entry.kind === "tool").length;
+        const toolCount = entries.filter(
+          (entry) => entry.kind === "tool",
+        ).length;
         if (toolCount > 0 && entries.length > 1) {
           return (
             <StreamingProcessGroup
@@ -1387,7 +1413,8 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           return null;
         }
 
-        const partParsed = interleavedParsedContent[index] || EMPTY_PARSE_RESULT;
+        const partParsed =
+          interleavedParsedContent[index] || EMPTY_PARSE_RESULT;
         const isLastPart = index === interleavedContentParts.length - 1;
         const lastStreamingPartIndex = isLastPart
           ? partParsed.parts.length - 1
@@ -1527,7 +1554,10 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           return;
         }
 
-        if (!suppressProcessFlow && shouldRenderInlineActionRequest(part.actionRequired)) {
+        if (
+          !suppressProcessFlow &&
+          shouldRenderInlineActionRequest(part.actionRequired)
+        ) {
           processBuffer.push({
             kind: "action",
             id: part.actionRequired.requestId,
@@ -1583,9 +1613,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
       });
     }
     const shouldShowRuntimeStatus =
-      showRuntimeStatusInline &&
-      Boolean(runtimeStatus) &&
-      isStreaming;
+      showRuntimeStatusInline && Boolean(runtimeStatus) && isStreaming;
 
     return (
       <div className="flex flex-col gap-2">

@@ -1,6 +1,6 @@
 import React from "react";
 import { ImagePlus, X } from "lucide-react";
-import type { BuiltinInputCommand } from "./builtinCommands";
+import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
 
 interface BuiltinCommandBadgeProps {
   command: BuiltinInputCommand;

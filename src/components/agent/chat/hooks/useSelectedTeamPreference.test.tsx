@@ -94,7 +94,7 @@ describe("useSelectedTeamPreference", () => {
     ) as TeamDefinition;
 
     persistSelectedTeam(engineeringTeam, "general");
-    persistSelectedTeam(researchTeam, "knowledge");
+    persistSelectedTeam(researchTeam, "general");
 
     const harness = mountHook("general");
 
@@ -102,7 +102,7 @@ describe("useSelectedTeamPreference", () => {
       await flushEffects();
       expect(harness.getValue().selectedTeam?.id).toBe("code-triage-team");
 
-      harness.rerender("knowledge");
+      harness.rerender("general");
       await flushEffects();
 
       expect(harness.getValue().selectedTeam?.id).toBe("research-team");
@@ -110,7 +110,7 @@ describe("useSelectedTeamPreference", () => {
         id: "code-triage-team",
         source: "builtin",
       });
-      expect(loadSelectedTeamReference("knowledge")).toEqual({
+      expect(loadSelectedTeamReference("general")).toEqual({
         id: "research-team",
         source: "builtin",
       });
@@ -119,7 +119,7 @@ describe("useSelectedTeamPreference", () => {
         harness.getValue().setSelectedTeam(null);
       });
 
-      expect(loadSelectedTeamReference("knowledge")).toBeNull();
+      expect(loadSelectedTeamReference("general")).toBeNull();
       expect(loadSelectedTeamReference("general")).toEqual({
         id: "code-triage-team",
         source: "builtin",

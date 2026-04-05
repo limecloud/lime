@@ -103,9 +103,6 @@ fn extract_artifact_string(artifact: &Map<String, Value>, keys: &[&str]) -> Opti
 
 fn infer_artifact_kind(theme: &str) -> Option<&'static str> {
     match theme.trim().to_ascii_lowercase().as_str() {
-        "document" => Some("report"),
-        "knowledge" => Some("analysis"),
-        "planning" => Some("plan"),
         "general" => Some("brief"),
         _ => None,
     }
@@ -300,7 +297,7 @@ mod tests {
     fn should_infer_theme_workbench_artifact_defaults_from_harness() {
         let metadata = json!({
             "harness": {
-                "theme": "document",
+                "theme": "general",
                 "session_mode": "theme_workbench",
                 "content_id": "content-1"
             }
@@ -326,7 +323,7 @@ mod tests {
             normalized
                 .pointer("/artifact/artifact_kind")
                 .and_then(Value::as_str),
-            Some("report")
+            Some("brief")
         );
         assert_eq!(
             normalized
@@ -338,7 +335,7 @@ mod tests {
             normalized
                 .pointer("/artifact/source_policy")
                 .and_then(Value::as_str),
-            Some("required")
+            Some("preferred")
         );
         assert_eq!(
             normalized
@@ -358,7 +355,7 @@ mod tests {
     fn should_skip_auto_draft_when_turn_purpose_is_present() {
         let metadata = json!({
             "harness": {
-                "theme": "document",
+                "theme": "general",
                 "session_mode": "theme_workbench",
                 "turn_purpose": "content_review",
                 "content_id": "content-1"
@@ -382,7 +379,7 @@ mod tests {
     fn should_preserve_explicit_artifact_and_fill_missing_source_policy() {
         let metadata = json!({
             "harness": {
-                "theme": "knowledge",
+                "theme": "general",
                 "session_mode": "default"
             },
             "artifact": {
@@ -424,7 +421,7 @@ mod tests {
     fn should_backfill_content_id_before_infer_artifact_request_id() {
         let metadata = json!({
             "harness": {
-                "theme": "document",
+                "theme": "general",
                 "session_mode": "theme_workbench"
             }
         });
@@ -463,7 +460,7 @@ mod tests {
 
         let normalized = normalize_request_metadata_with_artifact_defaults(
             Some(metadata),
-            Some("document"),
+            Some("general"),
             Some("theme_workbench"),
             None,
             None,
@@ -473,7 +470,7 @@ mod tests {
 
         assert_eq!(
             normalized.pointer("/harness/theme").and_then(Value::as_str),
-            Some("document")
+            Some("general")
         );
         assert_eq!(
             normalized
@@ -493,7 +490,7 @@ mod tests {
     fn should_backfill_gate_key_and_run_title_when_missing() {
         let metadata = json!({
             "harness": {
-                "theme": "social-media",
+                "theme": "general",
                 "session_mode": "theme_workbench",
                 "content_id": "content-social-1"
             }

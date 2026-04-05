@@ -5,9 +5,14 @@
  */
 
 import React, { useState, memo } from "react";
+import { parseDocumentImageTaskPlaceholderSrc } from "../utils/imageTaskPlaceholder";
 
 /** 从 img URL 中提取 multimodel 格式的提示词 */
 function extractPendingPrompt(src: string): string | null {
+  const imageTaskPlaceholder = parseDocumentImageTaskPlaceholderSrc(src);
+  if (imageTaskPlaceholder) {
+    return imageTaskPlaceholder.prompt;
+  }
   // 【img:model:prompt】 格式
   const match = src.match(/【img:[^:]+:(.+?)】/);
   if (match) {
@@ -34,6 +39,7 @@ function isPlaceholderUrl(src: string): boolean {
   if (src === "cover-generation-failed") return true;
   if (src.startsWith("【img:")) return true;
   if (src.startsWith("pending-cover://")) return true;
+  if (parseDocumentImageTaskPlaceholderSrc(src)) return true;
   return false;
 }
 
@@ -68,13 +74,37 @@ export const CoverImagePlaceholder: React.FC<CoverImagePlaceholderProps> = memo(
     const [retrying, setRetrying] = useState(false);
     const [retryError, setRetryError] = useState<string | null>(null);
 
+    const imageTaskPlaceholder = src
+      ? parseDocumentImageTaskPlaceholderSrc(src)
+      : null;
     const isPlaceholder = isPlaceholderUrl(src || "");
     const pendingPrompt = src ? extractPendingPrompt(src) : null;
     const showPlaceholder = isPlaceholder || failed;
-    const isFailed = src === "cover-generation-failed" || failed;
+    const isImageTaskPlaceholder = Boolean(imageTaskPlaceholder);
+    const isFailed =
+      imageTaskPlaceholder?.status === "failed" ||
+      src === "cover-generation-failed" ||
+      failed;
+    const isCancelled = imageTaskPlaceholder?.status === "cancelled";
+    const titleText = isImageTaskPlaceholder
+      ? isFailed
+        ? "配图生成失败"
+        : isCancelled
+          ? "配图任务已取消"
+          : "配图生成中"
+      : isFailed
+        ? "封面图生成失败"
+        : "封面图待生成";
+    const helperText = isImageTaskPlaceholder
+      ? isFailed
+        ? "这张配图暂未生成成功，可在聊天区图片任务卡继续处理。"
+        : isCancelled
+          ? "任务已停止，聊天区和图片工作台会保留当前记录。"
+          : "任务正在执行中，完成后会自动替换为真实图片。"
+      : null;
 
     const handleRetry = () => {
-      if (!pendingPrompt || retrying) return;
+      if (!pendingPrompt || retrying || isImageTaskPlaceholder) return;
       setRetrying(true);
       setRetryError(null);
       try {
@@ -152,7 +182,7 @@ export const CoverImagePlaceholder: React.FC<CoverImagePlaceholderProps> = memo(
             marginTop: 2,
           }}
         >
-          {isFailed ? "封面图生成失败" : "封面图待生成"}
+          {titleText}
         </span>
 
         {/* 提示词 */}
@@ -170,6 +200,20 @@ export const CoverImagePlaceholder: React.FC<CoverImagePlaceholderProps> = memo(
           </span>
         )}
 
+        {helperText ? (
+          <span
+            style={{
+              marginTop: 2,
+              fontSize: 11,
+              color: "hsl(215.4 16.3% 46.9%)",
+              lineHeight: 1.6,
+              maxWidth: 420,
+            }}
+          >
+            {helperText}
+          </span>
+        ) : null}
+
         {/* 错误提示 */}
         {retryError && (
           <span
@@ -185,7 +229,7 @@ export const CoverImagePlaceholder: React.FC<CoverImagePlaceholderProps> = memo(
         )}
 
         {/* 重新生成按钮 */}
-        {pendingPrompt && (
+        {pendingPrompt && !isImageTaskPlaceholder && (
           <button
             type="button"
             disabled={retrying}

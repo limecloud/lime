@@ -6,10 +6,10 @@ import type {
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
 import type { MessageImage } from "../../../types";
-import { CharacterMention } from "./CharacterMention";
+import { CharacterMention } from "../../../skill-selection/CharacterMention";
 import { InputbarCore } from "./InputbarCore";
-import { SkillSelector } from "./SkillSelector";
-import type { BuiltinInputCommand } from "./builtinCommands";
+import { SkillSelector } from "../../../skill-selection/SkillSelector";
+import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
 import { TeamSelector } from "./TeamSelector";
 import { ThemeWorkbenchStatusPanel } from "./ThemeWorkbenchStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
@@ -22,13 +22,13 @@ import type { WorkspaceSettings } from "@/types/workspace";
 import {
   buildSkillSelectionBindings,
   type SkillSelectionProps,
-} from "./skillSelectionBindings";
+} from "../../../skill-selection/skillSelectionBindings";
 import type { AgentAccessMode } from "../../../hooks/agentChatStorage";
 import type {
   ThemeWorkbenchGateState,
   ThemeWorkbenchQuickAction,
   ThemeWorkbenchWorkflowStep,
-} from "../hooks/useThemeWorkbenchInputState";
+} from "../../../utils/themeWorkbenchInputState";
 
 interface InputbarComposerSectionProps {
   renderThemeWorkbenchGeneratingPanel: boolean;
@@ -46,9 +46,6 @@ interface InputbarComposerSectionProps {
   onSelectTeam?: (team: TeamDefinition | null) => void;
   teamWorkspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
-  workspaceId?: string | null;
-  providerType?: string;
-  model?: string;
   onSend: () => void;
   onToolClick: (tool: string) => void;
   activeTools: Record<string, boolean>;
@@ -57,12 +54,10 @@ interface InputbarComposerSectionProps {
   onRemoveImage: (index: number) => void;
   onPaste: (event: React.ClipboardEvent) => void;
   isFullscreen: boolean;
-  isCanvasOpen: boolean;
   isThemeWorkbenchVariant: boolean;
   activeTheme?: string;
   onManageProviders?: () => void;
   executionRuntime?: AsterSessionExecutionRuntime | null;
-  isExecutionRuntimeActive?: boolean;
   accessMode?: AgentAccessMode;
   setAccessMode?: (mode: AgentAccessMode) => void;
   setExecutionStrategy?: (
@@ -92,9 +87,6 @@ export const InputbarComposerSection: React.FC<
   onSelectTeam,
   teamWorkspaceSettings,
   onPersistCustomTeams,
-  workspaceId,
-  providerType,
-  model,
   onSend,
   onToolClick,
   activeTools,
@@ -103,7 +95,6 @@ export const InputbarComposerSection: React.FC<
   onRemoveImage,
   onPaste,
   isFullscreen,
-  isCanvasOpen,
   isThemeWorkbenchVariant,
   activeTheme,
   onManageProviders,
@@ -198,15 +189,10 @@ export const InputbarComposerSection: React.FC<
         disabled={inputAdapter.state.disabled}
         onToolClick={handleToolAction}
         activeTools={activeTools}
-        executionStrategy={executionStrategy}
-        showExecutionStrategy={false}
-        pendingImages={
-          currentPendingImages
-        }
+        pendingImages={currentPendingImages}
         onRemoveImage={onRemoveImage}
         onPaste={onPaste}
         isFullscreen={isFullscreen}
-        isCanvasOpen={isCanvasOpen}
         placeholder={
           isThemeWorkbenchVariant
             ? themeWorkbenchGate?.status === "waiting"
@@ -232,10 +218,6 @@ export const InputbarComposerSection: React.FC<
                 <TeamSelector
                   activeTheme={activeTheme}
                   input={input}
-                  workspaceId={workspaceId}
-                  providerType={providerType}
-                  model={model}
-                  executionStrategy={executionStrategy}
                   autoOpenToken={teamSelectorAutoOpenToken}
                   selectedTeam={selectedTeam}
                   workspaceSettings={teamWorkspaceSettings}
@@ -246,21 +228,21 @@ export const InputbarComposerSection: React.FC<
             ) : null}
             <InputbarExecutionStrategySelect
               isFullscreen={isFullscreen}
-              isThemeWorkbenchVariant={isThemeWorkbenchVariant}
               executionStrategy={executionStrategy}
               setExecutionStrategy={setExecutionStrategy}
             />
-            <InputbarModelExtra
-              isFullscreen={isFullscreen}
-              isThemeWorkbenchVariant={isThemeWorkbenchVariant}
-              providerType={inputAdapter.model?.providerType}
-              setProviderType={inputAdapter.actions.setProviderType}
-              model={inputAdapter.model?.model}
-              setModel={inputAdapter.actions.setModel}
-              activeTheme={activeTheme}
-              onManageProviders={onManageProviders}
-              executionRuntime={executionRuntime}
-            />
+            {!isThemeWorkbenchVariant ? (
+              <InputbarModelExtra
+                isFullscreen={isFullscreen}
+                providerType={inputAdapter.model?.providerType}
+                setProviderType={inputAdapter.actions.setProviderType}
+                model={inputAdapter.model?.model}
+                setModel={inputAdapter.actions.setModel}
+                activeTheme={activeTheme}
+                onManageProviders={onManageProviders}
+                executionRuntime={executionRuntime}
+              />
+            ) : null}
             <InputbarAccessModeSelect
               isFullscreen={isFullscreen}
               accessMode={accessMode}

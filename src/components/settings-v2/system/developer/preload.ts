@@ -17,7 +17,7 @@ const developerDeferredLoaders: Record<
   "clipboard-guide": () => import("../shared/ClipboardPermissionGuideCard"),
 };
 
-export function preloadDeveloperSection(section: DeveloperDeferredSection) {
+function preloadDeveloperSection(section: DeveloperDeferredSection) {
   return developerDeferredLoaders[section]();
 }
 

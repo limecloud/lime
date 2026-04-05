@@ -67,14 +67,18 @@
       "id": "claw-home-shell-preference-hook",
       "classification": "dead-candidate",
       "description": "已删除的旧 Claw 首页壳偏好恢复 Hook",
-      "targets": ["src/components/agent/chat/hooks/useHomeShellAgentPreferences.ts"],
+      "targets": [
+        "src/components/agent/chat/hooks/useHomeShellAgentPreferences.ts"
+      ],
       "allowedPaths": []
     },
     {
       "id": "claw-home-shell-project-memory-hook",
       "classification": "dead-candidate",
       "description": "已删除的旧 Claw 首页项目记忆 Hook",
-      "targets": ["src/components/agent/chat/hooks/useHomeShellProjectMemory.ts"],
+      "targets": [
+        "src/components/agent/chat/hooks/useHomeShellProjectMemory.ts"
+      ],
       "allowedPaths": []
     },
     {
@@ -115,6 +119,59 @@
       "allowedPaths": []
     },
     {
+      "id": "inputbar-overlay-shell-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Inputbar overlay 壳组件与独立测试入口",
+      "targets": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarOverlayShell.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarOverlayShell.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-a2ui-overlay-bridge-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的 Inputbar A2UI 浮层壳与过渡显示状态 Hook，当前统一由 WorkspacePendingA2UIDialog 承载",
+      "targets": [
+        "src/components/agent/chat/components/Inputbar/components/A2UIFloatingForm.tsx",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarDisplayState.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-a2ui-dialog-helper-entry",
+      "classification": "dead-candidate",
+      "description": "已迁出 Inputbar 目录的 A2UI 对话框提示组件与粘滞状态 Hook，当前统一收口到 workspace A2UI 对话框边界",
+      "targets": [
+        "src/components/agent/chat/components/Inputbar/components/A2UISubmissionNotice.tsx",
+        "src/components/agent/chat/components/Inputbar/hooks/useA2UISubmissionNotice.ts",
+        "src/components/agent/chat/components/Inputbar/hooks/useStickyA2UIForm.ts",
+        "src/components/agent/chat/components/Inputbar/hooks/useA2UISubmissionNotice.test.tsx",
+        "src/components/agent/chat/components/Inputbar/hooks/useStickyA2UIForm.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-theme-workbench-input-state-entry",
+      "classification": "dead-candidate",
+      "description": "已迁出 Inputbar 目录的主题工作台输入状态 helper 与测试，当前统一收口到 chat/utils/themeWorkbenchInputState",
+      "targets": [
+        "src/components/agent/chat/components/Inputbar/hooks/useThemeWorkbenchInputState.ts",
+        "src/components/agent/chat/components/Inputbar/hooks/useThemeWorkbenchInputState.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-entry-task-prompt-composer-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧首页 entry task prompt composer 与测试入口，当前首页统一收敛到通用输入主链",
+      "targets": [
+        "src/components/agent/chat/utils/entryPromptComposer.ts",
+        "src/components/agent/chat/utils/entryPromptComposer.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "heartbeat-api-gateway",
       "classification": "dead-candidate",
       "description": "已删除的旧 heartbeat 前端 API 入口",
@@ -133,6 +190,59 @@
       "classification": "dead-candidate",
       "description": "已删除的旧助理服务设置页入口",
       "targets": ["src/components/settings-v2/agent/assistant/index.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-chat-appearance-page-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧设置聊天外观兼容页入口",
+      "targets": ["src/components/settings-v2/general/chat-appearance/index.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-channels-wrapper-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧设置渠道包装页入口与测试，当前渠道能力统一停留在独立 IM 配置页面",
+      "targets": [
+        "src/components/settings-v2/system/channels/index.tsx",
+        "src/components/settings-v2/system/channels/index.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-channels-legacy-list-surfaces",
+      "classification": "dead-candidate",
+      "description": "已删除的旧设置渠道列表页、弹窗与按钮组件，当前渠道设置事实源统一停留在 ChannelsDebugWorkbench",
+      "targets": [
+        "src/components/settings-v2/system/channels/AIChannelsList.tsx",
+        "src/components/settings-v2/system/channels/NotificationChannelsList.tsx",
+        "src/components/settings-v2/system/channels/ConnectionTestButton.tsx",
+        "src/components/settings-v2/system/channels/SendTestMessageButton.tsx",
+        "src/components/settings-v2/system/channels/DeleteChannelDialog.tsx",
+        "src/components/settings-v2/system/channels/AIChannelFormModal.tsx",
+        "src/components/settings-v2/system/channels/NotificationChannelFormModal.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-proxy-page-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧设置代理配置页入口",
+      "targets": ["src/components/settings-v2/system/proxy/index.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-header-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 settings-v2 通用页头组件入口",
+      "targets": ["src/components/settings-v2/features/SettingHeader.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-language-selector-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧共享语言切换组件入口，当前语言设置统一停留在 Appearance 页面事实源",
+      "targets": ["src/components/settings-v2/shared/language/LanguageSelector.tsx"],
       "allowedPaths": []
     },
     {
@@ -200,7 +310,6 @@
         "src/components/content-creator/workflows/poster/PosterWorkflowPanel.tsx",
         "src/components/content-creator/workflows/poster/ecommerce-promo.ts",
         "src/components/content-creator/workflows/poster/brand-image.ts",
-        "src/components/content-creator/workflows/poster/social-media.ts",
         "src/components/content-creator/workflows/poster/types.ts"
       ],
       "allowedPaths": []
@@ -213,16 +322,39 @@
       "allowedPaths": []
     },
     {
-      "id": "content-creator-social-media-template-module",
+      "id": "workspace-selector-entry",
       "classification": "dead-candidate",
-      "description": "已删除的 content-creator 社媒模板孤岛模块",
+      "description": "已删除的独立 WorkspaceSelector 组件入口，当前 workspace 主链不再暴露旧下拉选择器",
+      "targets": ["src/components/workspace/WorkspaceSelector.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "channels-legacy-debug-workbench-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的 LegacyChannelsWorkbench 旧文件路径，当前统一收口到 ChannelsDebugWorkbench",
       "targets": [
-        "src/components/content-creator/templates/social-media/index.ts",
-        "src/components/content-creator/templates/social-media/trending-topic.ts",
-        "src/components/content-creator/templates/social-media/industry-analysis.ts",
-        "src/components/content-creator/templates/social-media/tech-sharing.ts",
-        "src/components/content-creator/templates/social-media/product-launch.ts",
-        "src/components/content-creator/templates/social-media/visual-content.ts"
+        "src/components/settings-v2/system/channels/LegacyChannelsWorkbench.tsx",
+        "src/components/settings-v2/system/channels/LegacyChannelsWorkbench.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "api-compatibility-gateway-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的 API compatibility 前端网关入口，当前前端主链不再暴露旧兼容性检查代理",
+      "targets": [
+        "src/lib/api/apiCompatibility.ts",
+        "src/lib/api/apiCompatibility.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "legacy-questionnaire-a2ui-entry",
+      "classification": "dead-candidate",
+      "description": "已收口到 compatQuestionnaireA2UI 的旧问卷 A2UI 模块命名",
+      "targets": [
+        "src/components/agent/chat/utils/legacyQuestionnaireA2UI.ts",
+        "src/components/agent/chat/utils/legacyQuestionnaireA2UI.test.ts"
       ],
       "allowedPaths": []
     },
@@ -697,18 +829,14 @@
       "id": "agent-chat-timeline-flow-demo",
       "classification": "dead-candidate",
       "description": "已删除的聊天时间线演示组件",
-      "targets": [
-        "src/components/agent/chat/components/TimelineFlowDemo.tsx"
-      ],
+      "targets": ["src/components/agent/chat/components/TimelineFlowDemo.tsx"],
       "allowedPaths": []
     },
     {
       "id": "agent-chat-legacy-project-selector",
       "classification": "dead-candidate",
       "description": "已删除的聊天目录旧项目选择器",
-      "targets": [
-        "src/components/agent/chat/components/ProjectSelector.tsx"
-      ],
+      "targets": ["src/components/agent/chat/components/ProjectSelector.tsx"],
       "allowedPaths": []
     },
     {
@@ -758,6 +886,33 @@
       "allowedPaths": [
         "src/hooks/useSubAgentScheduler.ts",
         "src/components/agent/chat/utils/compatSubagentRuntime.ts"
+      ]
+    },
+    {
+      "id": "team-subagent-runtime-compat-bridge",
+      "classification": "compat",
+      "description": "聊天内的旧 SubAgent runtime 兼容桥只允许停留在当前 compat 展示层",
+      "targets": [
+        "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
+        "src/components/agent/chat/utils/compatSubagentRuntime.ts"
+      ],
+      "allowedPaths": [
+        "src/components/agent/chat/AgentChatWorkspace.tsx",
+        "src/components/agent/chat/components/AgentRuntimeStrip.tsx",
+        "src/components/agent/chat/components/HarnessStatusPanel.tsx",
+        "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
+        "src/components/agent/chat/utils/subagentTimeline.ts"
+      ]
+    },
+    {
+      "id": "legacy-questionnaire-a2ui-compat-bridge",
+      "classification": "compat",
+      "description": "旧问卷转 A2UI 兼容桥只允许停留在 workspace A2UI 展示与提交边界",
+      "targets": ["src/components/agent/chat/utils/compatQuestionnaireA2UI.ts"],
+      "allowedPaths": [
+        "src/components/agent/chat/workspace/useWorkspaceDisplayMessagesRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceA2UIRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceA2UISubmitActions.ts"
       ]
     }
   ],
@@ -1121,6 +1276,93 @@
       "allowedPaths": []
     },
     {
+      "id": "settings-chat-appearance-legacy-tab",
+      "classification": "dead-candidate",
+      "description": "设置中心不允许恢复旧 chat-appearance 兼容 tab，聊天外观应继续收敛到 Appearance 主入口",
+      "patterns": [
+        "ChatAppearance = \"chat-appearance\"",
+        "SettingsTabs.ChatAppearance",
+        "ChatAppearanceSettings",
+        "normalizeSettingsTab("
+      ],
+      "includePathPrefixes": [
+        "src/types/settings.ts",
+        "src/components/settings-v2/_layout/index.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-channels-legacy-tab",
+      "classification": "dead-candidate",
+      "description": "设置中心不允许恢复旧 channels tab 与壳层跳转兼容，渠道入口应继续停留在独立 channels 页面",
+      "patterns": [
+        "Channels = \"channels\"",
+        "SettingsTabs.Channels",
+        "SettingsChannelsRedirect"
+      ],
+      "includePathPrefixes": [
+        "src/types/settings.ts",
+        "src/components/settings-v2/_layout/index.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-update-notification-compat-export",
+      "classification": "dead-candidate",
+      "description": "实验设置页不允许恢复旧 UpdateNotification compat 空导出，更新提醒窗口应继续停留在独立页面主链",
+      "patterns": [
+        "export function UpdateNotification()",
+        "保持向后兼容的导出（已废弃，返回 null）"
+      ],
+      "includePathPrefixes": [
+        "src/components/settings-v2/system/experimental/UpdateCheckSettings.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-language-selector-legacy-surface",
+      "classification": "dead-candidate",
+      "description": "设置中心不允许恢复旧共享 LanguageSelector 组件与类型依赖，语言切换事实源应继续停留在 Appearance 页面内部",
+      "patterns": [
+        "shared/language/LanguageSelector",
+        "export function LanguageSelector(",
+        "type { Language } from \"../../shared/language/LanguageSelector\""
+      ],
+      "includePathPrefixes": [
+        "src/components/settings-v2/general/appearance/index.tsx",
+        "src/components/settings-v2/shared/language/LanguageSelector.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "channels-debug-workbench-legacy-form-reserve",
+      "classification": "dead-candidate",
+      "description": "ChannelsDebugWorkbench 不允许恢复仅用于占位的旧表单重连预留数组，渠道表单逻辑应继续停留在现役工作台主链",
+      "patterns": [
+        "_legacyChannelFormsReservedForReconnect",
+        "void _legacyChannelFormsReservedForReconnect"
+      ],
+      "includePathPrefixes": [
+        "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "channels-debug-workbench-legacy-inline-forms",
+      "classification": "dead-candidate",
+      "description": "ChannelsDebugWorkbench 不允许恢复已零调用的旧 Telegram / Discord / 微信 / 飞书内联表单壳，渠道配置应继续收敛在当前工作台现役入口",
+      "patterns": [
+        "function TelegramForm(",
+        "function DiscordForm(",
+        "function WechatForm(",
+        "function FeishuForm("
+      ],
+      "includePathPrefixes": [
+        "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "stores-root-barrel-imports",
       "classification": "dead-candidate",
       "description": "已零引用的 @/stores 根 barrel 回流",
@@ -1205,6 +1447,55 @@
       "allowedPaths": []
     },
     {
+      "id": "inputbar-a2ui-dialog-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 不允许恢复 pendingA2UIForm/onA2UISubmit/a2uiSubmissionNotice 透传，A2UI 表单统一由 WorkspacePendingA2UIDialog 承载",
+      "patterns": [],
+      "regexPatterns": [
+        "\\bpendingA2UIForm\\s*\\?:",
+        "\\bonA2UISubmit\\s*\\?:",
+        "\\ba2uiSubmissionNotice\\s*\\?:"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/index.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workspace-pending-a2ui-dialog-inputbar-imports",
+      "classification": "dead-candidate",
+      "description": "WorkspacePendingA2UIDialog 不允许继续从 Inputbar 目录导入 A2UI 对话框 helper，必须直连 workspace 边界",
+      "patterns": [
+        "../components/Inputbar/components/A2UISubmissionNotice",
+        "../components/Inputbar/hooks/useA2UISubmissionNotice",
+        "../components/Inputbar/hooks/useStickyA2UIForm"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.tsx",
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "theme-workbench-input-state-inputbar-imports",
+      "classification": "dead-candidate",
+      "description": "主题工作台状态类型与 helper 不允许继续从 Inputbar/hooks 导入，必须改走 chat/utils/themeWorkbenchInputState",
+      "patterns": [
+        "../components/Inputbar/hooks/useThemeWorkbenchInputState",
+        "./hooks/useThemeWorkbenchInputState",
+        "../hooks/useThemeWorkbenchInputState"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/components/Inputbar/components/ThemeWorkbenchStatusPanel.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchRuntime.ts",
+        "src/components/agent/chat/utils/themeWorkbenchLayout.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "empty-state-composer-flat-skill-prop-contract",
       "classification": "dead-candidate",
       "description": "EmptyStateComposerPanel 不允许恢复扁平 skill props 契约，必须只消费共享 skillSelection",
@@ -1226,16 +1517,65 @@
       "allowedPaths": []
     },
     {
+      "id": "skill-selection-inputbar-imports",
+      "classification": "dead-candidate",
+      "description": "共享技能选择能力不允许继续从 Inputbar 旧目录导入，必须统一走 chat/skill-selection",
+      "patterns": [
+        "./Inputbar/components/CharacterMention",
+        "./Inputbar/components/SkillBadge",
+        "./Inputbar/components/SkillSelector",
+        "./Inputbar/components/skillSelectionBindings",
+        "./Inputbar/components/skillSelectionDisplay",
+        "./Inputbar/components/builtinCommands",
+        "./Inputbar/hooks/useActiveSkill",
+        "@/components/agent/chat/components/Inputbar/components/CharacterMention",
+        "@/components/agent/chat/components/Inputbar/components/SkillBadge",
+        "@/components/agent/chat/components/Inputbar/components/SkillSelector",
+        "@/components/agent/chat/components/Inputbar/components/skillSelectionBindings",
+        "@/components/agent/chat/components/Inputbar/components/skillSelectionDisplay",
+        "@/components/agent/chat/components/Inputbar/components/builtinCommands",
+        "@/components/agent/chat/components/Inputbar/hooks/useActiveSkill",
+        "../components/SkillBadge",
+        "../components/skillSelectionBindings",
+        "../components/builtinCommands",
+        "./useActiveSkill",
+        "./CharacterMention",
+        "./SkillSelector",
+        "./skillSelectionBindings",
+        "./builtinCommands",
+        "./useIdleModulePreload"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx",
+        "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+        "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx",
+        "src/components/agent/chat/components/EmptyState.test.tsx",
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/components/Inputbar/index.test.tsx",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts",
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+        "src/components/agent/chat/components/Inputbar/components/BuiltinCommandBadge.tsx",
+        "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx",
+        "src/components/smart-input/ChatInput.tsx",
+        "src/components/workspace/video/PromptInput.tsx",
+        "src/components/image-gen/tabs/AiImageGenTab.tsx",
+        "src/components/terminal/ai/TerminalAIInput.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "skill-selection-direct-construction-runtime-usage",
       "classification": "dead-candidate",
       "description": "运行时代码不允许绕过 useActiveSkill 直接构造 createSkillSelectionProps，必须收敛到共享激活态边界",
       "patterns": ["createSkillSelectionProps("],
       "includePathPrefixes": [
-        "src/components/agent/chat/components"
+        "src/components/agent/chat/components",
+        "src/components/agent/chat/skill-selection"
       ],
       "allowedPaths": [
-        "src/components/agent/chat/components/Inputbar/components/skillSelectionBindings.ts",
-        "src/components/agent/chat/components/Inputbar/hooks/useActiveSkill.ts"
+        "src/components/agent/chat/skill-selection/skillSelectionBindings.ts",
+        "src/components/agent/chat/skill-selection/useActiveSkill.ts"
       ]
     },
     {
@@ -1265,7 +1605,399 @@
       ],
       "includePathPrefixes": [
         "src/components/agent/chat/components/EmptyState.tsx",
-        "src/components/agent/chat/components/Inputbar/components/SkillSelector.tsx"
+        "src/components/agent/chat/skill-selection/SkillSelector.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-legacy-entry-task-runtime-usage",
+      "classification": "dead-candidate",
+      "description": "首页与推荐层不允许恢复旧 entry task 主题发送链，必须统一走当前通用输入与推荐主链",
+      "patterns": [
+        "ENTRY_THEME_ID",
+        "SOCIAL_MEDIA_ENTRY_TASKS",
+        "composeEntryPrompt(",
+        "createDefaultEntrySlotValues(",
+        "formatEntryTaskPreview(",
+        "validateEntryTaskSlots(",
+        "getEntryTaskTemplate("
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx",
+        "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+        "src/components/agent/chat/utils/contextualRecommendations.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-legacy-entry-task-type-contract",
+      "classification": "dead-candidate",
+      "description": "首页组件类型定义不允许恢复旧 entry task type/template/slot 契约",
+      "patterns": [
+        "export type EntryTaskType",
+        "export interface EntryTaskSlotDefinition",
+        "export interface EntryTaskTemplate",
+        "export type EntryTaskSlotValues"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/types.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-execution-strategy-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 输入主链不允许恢复已失活的 showExecutionStrategy 兼容 props 与适配契约，Plan 切换必须继续走独立选择器主链",
+      "patterns": [
+        "showExecutionStrategy"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarCore.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarTools.tsx",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarAdapter.ts",
+        "src/components/input-kit/adapters/agentAdapter.ts",
+        "src/components/input-kit/adapters/types.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-dead-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 家族不允许恢复已失活的 isCanvasOpen / isExecutionRuntimeActive 空透传，画布与运行时状态必须留在各自主边界",
+      "patterns": [
+        "isCanvasOpen",
+        "isExecutionRuntimeActive"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/AgentChatWorkspace.tsx",
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarCore.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarTools.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-local-tool-toggle-runtime",
+      "classification": "dead-candidate",
+      "description": "Inputbar hooks 不允许恢复已删除的 execution_strategy / canvas 本地 toggle 兜底链，Plan 与画布入口必须继续停留在现役独立边界",
+      "patterns": [
+        "case \"execution_strategy\"",
+        "case \"canvas\"",
+        "activeTools[\"execution_strategy\"]",
+        "onToggleCanvas"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarToolState.ts",
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
+        "src/components/agent/chat/AgentChatWorkspace.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "team-selector-legacy-context-prop-callsite",
+      "classification": "dead-candidate",
+      "description": "Inputbar 与 EmptyState 不允许继续向 TeamSelector 透传已失活的 workspaceId 上下文 props",
+      "patterns": [
+        "workspaceId={workspaceId}"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "team-selector-panel-legacy-runtime-context-props",
+      "classification": "dead-candidate",
+      "description": "TeamSelector 与 TeamSelectorPanel 不允许恢复未消费的 providerType/model/executionStrategy/workspaceId 旧运行时上下文透传",
+      "patterns": [
+        "providerType={providerType}",
+        "model={model}",
+        "executionStrategy={executionStrategy}",
+        "workspaceId?: string | null;",
+        "providerType?: string;",
+        "model?: string;",
+        "executionStrategy?: \"react\" | \"code_orchestrated\" | \"auto\";"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx",
+        "src/components/agent/chat/components/Inputbar/components/TeamSelectorPanel.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "team-selector-legacy-trigger-surface",
+      "classification": "dead-candidate",
+      "description": "TeamSelector 不允许恢复旧 triggerLabel/className 自定义触发表面，当前按钮文案与样式必须继续留在组件事实源内部",
+      "patterns": [],
+      "regexPatterns": ["\\btriggerLabel\\s*\\?:", "\\bclassName\\s*\\?:"],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-workspace-context-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 与 workspace scene runtime 不允许恢复已失活的 workspaceId 输入区上下文透传，workspace 语义必须继续停留在 workspace 当前边界",
+      "patterns": [
+        "workspaceId?: string | null;",
+        "projectId: InputbarParams[\"workspaceId\"];"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-task-tool-state-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 输入区不允许继续持有已迁出的 task 工具状态契约，Plan 偏好必须停留在会话级偏好边界",
+      "patterns": [
+        "task: false",
+        "task: true",
+        "task?: boolean;",
+        "toolStates?.task",
+        "next.task",
+        "prev.task",
+        "taskEnabled"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarToolState.ts",
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/components/Inputbar/index.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-dead-tool-action-runtime",
+      "classification": "dead-candidate",
+      "description": "Inputbar 工具状态 runtime 不允许恢复已删除的 clear/new_topic/quick_action 本地工具分支，当前输入区只保留现役工具动作",
+      "patterns": [
+        "case \"clear\"",
+        "case \"new_topic\"",
+        "case \"quick_action\""
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarToolState.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-legacy-clear-messages-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 与 workspace scene runtime 不允许恢复已失活的 onClearMessages 旧透传链，清空会话逻辑必须继续停留在当前 reset runtime 边界",
+      "patterns": [
+        "onClearMessages?: () => void;",
+        "onClearMessages: handleClearMessages,",
+        "handleClearMessages: InputbarParams[\"onClearMessages\"];"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/index.tsx",
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
+        "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
+        "src/components/agent/chat/AgentChatWorkspace.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-model-extra-legacy-variant-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "Inputbar 模型额外面板不允许继续透传 isThemeWorkbenchVariant 旧分支 props，主题工作台展示判断应停留在父层组合边界",
+      "patterns": [
+        "isThemeWorkbenchVariant?: boolean;",
+        "isThemeWorkbenchVariant={isThemeWorkbenchVariant}",
+        "isThemeWorkbenchVariant = false,"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarModelExtra.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "skill-selector-legacy-trigger-surface",
+      "classification": "dead-candidate",
+      "description": "SkillSelector 不允许恢复旧 triggerLabel / className 自定义触发表面，技能入口按钮样式与文案应继续停留在当前组件事实源",
+      "patterns": [
+        "triggerLabel?: string;",
+        "className?: string;",
+        "triggerLabel = \"技能\",",
+        "className,"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/skill-selection/SkillSelector.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-model-extra-legacy-setter-fallback",
+      "classification": "dead-candidate",
+      "description": "InputbarModelExtra 不允许恢复旧 setProviderType / setModel 可选兜底与 NOOP fallback，模型切换动作应继续停留在现役输入状态边界",
+      "patterns": [
+        "setProviderType?: (type: string) => void;",
+        "setModel?: (model: string) => void;",
+        "const NOOP_SET_PROVIDER_TYPE = (_type: string) => {};",
+        "const NOOP_SET_MODEL = (_model: string) => {};",
+        "setProviderType={setProviderType || NOOP_SET_PROVIDER_TYPE}",
+        "setModel={setModel || NOOP_SET_MODEL}"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarModelExtra.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-tools-legacy-optional-state-props",
+      "classification": "dead-candidate",
+      "description": "InputbarTools 不允许恢复旧 onToolClick / activeTools 可选兜底，工具栏状态应继续停留在现役 InputbarCore 调度边界",
+      "patterns": [
+        "onToolClick?: (tool: string) => void;",
+        "activeTools?: Record<string, boolean>;",
+        "activeTools = {}",
+        "onToolClick?.(\"thinking\")",
+        "onToolClick?.(\"web_search\")",
+        "onToolClick?.(\"subagent_mode\")"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarTools.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-vision-notice-legacy-optional-model-props",
+      "classification": "dead-candidate",
+      "description": "InputbarVisionCapabilityNotice 不允许恢复旧 providerType / model 可选 props，视觉能力提示应继续只消费现役已解析模型上下文",
+      "patterns": [
+        "providerType?: string;",
+        "model?: string;",
+        "Boolean(providerType?.trim())",
+        "Boolean(model?.trim())",
+        "if (!shouldInspectCapability || !model?.trim())"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarVisionCapabilityNotice.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "theme-workbench-status-panel-legacy-array-fallbacks",
+      "classification": "dead-candidate",
+      "description": "ThemeWorkbenchStatusPanel 不允许恢复旧 quickActions / queueItems 默认空数组 fallback，主题工作台状态面板应继续只消费现役输入状态派生结果",
+      "patterns": [
+        "quickActions?: ThemeWorkbenchQuickAction[];",
+        "queueItems?: ThemeWorkbenchWorkflowStep[];",
+        "quickActions = []",
+        "queueItems = []"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/ThemeWorkbenchStatusPanel.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-core-legacy-allow-empty-send-prop",
+      "classification": "dead-candidate",
+      "description": "InputbarCore 不允许恢复零调用的 allowEmptySend 输入区透传，发送可用性判断应继续收敛在现役输入主链",
+      "patterns": [
+        "allowEmptySend?: boolean;",
+        "allowEmptySend={allowEmptySend}",
+        "allowEmptySend = false,"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarCore.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "inputbar-core-legacy-right-extra-slot",
+      "classification": "dead-candidate",
+      "description": "InputbarCore 不允许恢复零调用的 rightExtra 右侧插槽透传，当前输入区元信息扩展应继续收敛在现役左侧组合边界",
+      "patterns": [
+        "rightExtra?: React.ReactNode;",
+        "Boolean(rightExtra)",
+        "<MetaSlot>{rightExtra}</MetaSlot>"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarCore.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-legacy-theme-tabs-surface",
+      "classification": "dead-candidate",
+      "description": "首页空态不允许恢复旧主题 tabs 壳与 showThemeTabs 透传，当前首页主链不再暴露这层旧导航",
+      "patterns": [
+        "showThemeTabs",
+        "themeTabs={"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx",
+        "src/components/agent/chat/components/EmptyStateHero.tsx",
+        "src/components/agent/chat/workspace/chatSurfaceProps.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-legacy-project-selector-overrides",
+      "classification": "dead-candidate",
+      "description": "首页空态不允许继续暴露仅首页层持有的旧项目选择器扩展口，项目目录检查与延后加载策略应收口在 ProjectSelector 当前边界",
+      "patterns": [
+        "skipProjectSelectorWorkspaceReadyCheck",
+        "deferProjectSelectorListLoad",
+        "skipDefaultWorkspaceReadyCheck={",
+        "deferProjectListLoad={"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-supporting-slot-override-surface",
+      "classification": "dead-candidate",
+      "description": "首页空态不允许恢复 supportingSlotOverride 测试注入口，支持面板应继续由当前首页主链统一决定",
+      "patterns": [
+        "supportingSlotOverride"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx",
+        "src/components/agent/chat/components/EmptyState.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-legacy-model-selector-preload-prop-bridge",
+      "classification": "dead-candidate",
+      "description": "首页空态不允许恢复只在首页链路自转的模型选择器预加载 props 透传，当前统一依赖 ChatModelSelector 默认行为",
+      "patterns": [
+        "modelSelectorBackgroundPreload",
+        "backgroundPreload={backgroundPreload}"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx",
+        "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarModelExtra.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "empty-state-legacy-config-load-strategy-prop",
+      "classification": "dead-candidate",
+      "description": "首页空态不允许恢复无调用方的 configLoadStrategy 时序开关，配置读取应继续停留在当前默认加载路径",
+      "patterns": [
+        "configLoadStrategy",
+        "scheduleDeferredConfigLoad"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components/EmptyState.tsx"
       ],
       "allowedPaths": []
     },

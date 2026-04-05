@@ -84,12 +84,10 @@ export function useWorkspaceThemeWorkbenchScaffoldRuntime({
     setThemeWorkbenchCreationTaskEvents,
   ] = useState<ThemeWorkbenchCreationTaskEvent[]>([]);
 
-  const shouldUseCompactThemeWorkbench =
-    isThemeWorkbench && mappedTheme === "video";
+  const shouldUseCompactThemeWorkbench = false;
   const shouldSkipThemeWorkbenchAutoGuideWithoutPrompt =
     isThemeWorkbench && shouldUseCompactThemeWorkbench;
-  const enableThemeWorkbenchPanelCollapse =
-    isThemeWorkbench && mappedTheme === "social-media";
+  const enableThemeWorkbenchPanelCollapse = false;
 
   useEffect(() => {
     if (!isThemeWorkbench) {

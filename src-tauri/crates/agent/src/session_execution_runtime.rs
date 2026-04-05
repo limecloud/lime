@@ -770,6 +770,7 @@ mod tests {
         SessionExecutionRuntimeRecentTeamSelection, SessionExecutionRuntimeSource,
     };
     use aster::model::ModelConfig;
+    use aster::session::ExtensionState;
     use aster::session::{
         Session, SessionRuntimeSnapshot, ThreadRuntime, ThreadRuntimeSnapshot, TurnContextOverride,
         TurnOutputSchemaRuntime, TurnOutputSchemaSource, TurnOutputSchemaStrategy, TurnRuntime,
@@ -1168,7 +1169,7 @@ mod tests {
                 metadata: std::collections::HashMap::from([(
                     "harness".to_string(),
                     json!({
-                        "theme": "social-media",
+                        "theme": "general",
                         "session_mode": "theme_workbench",
                         "gate_key": "write_mode",
                         "run_title": "社媒初稿",
@@ -1200,7 +1201,7 @@ mod tests {
             build_session_execution_runtime("session-harness", None, None, Some(&snapshot), None)
                 .expect("runtime");
 
-        assert_eq!(runtime.recent_theme.as_deref(), Some("social-media"));
+        assert_eq!(runtime.recent_theme.as_deref(), Some("general"));
         assert_eq!(
             runtime.recent_session_mode.as_deref(),
             Some("theme_workbench")

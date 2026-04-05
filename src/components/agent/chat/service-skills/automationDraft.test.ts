@@ -10,14 +10,14 @@ const SCHEDULED_SKILL: ServiceSkillItem = {
   id: "daily-trend-briefing",
   title: "每日趋势摘要",
   summary: "围绕指定平台与关键词输出趋势摘要。",
-  category: "社媒运营",
+  category: "内容运营",
   outputHint: "趋势摘要 + 调度建议",
   source: "cloud_catalog",
   runnerType: "scheduled",
   defaultExecutorBinding: "automation_job",
   executionLocation: "client_default",
   defaultArtifactKind: "analysis",
-  themeTarget: "social-media",
+  themeTarget: "general",
   version: "seed-v1",
   slotSchema: [
     {
@@ -113,7 +113,7 @@ describe("service skill automation draft", () => {
           user_input: "重点关注新增热点与异常波动。",
         }),
         harness: expect.objectContaining({
-          theme: "social-media",
+          theme: "general",
           session_mode: "theme_workbench",
           run_title: "每日趋势摘要",
         }),
@@ -144,7 +144,7 @@ describe("service skill automation draft", () => {
             user_input: null,
           }),
           harness: expect.objectContaining({
-            theme: "social-media",
+            theme: "general",
             session_mode: "theme_workbench",
             content_id: "content-1",
           }),

@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import type { useThemeContextWorkspace } from "../hooks";
-import { SocialMediaHarnessCard } from "../components/SocialMediaHarnessCard";
+import { ThemeWorkbenchHarnessCard } from "../components/ThemeWorkbenchHarnessCard";
 import { ThemeWorkbenchSidebarSection } from "./ThemeWorkbenchSidebarSection";
 
 type ThemeWorkbenchSidebarSectionProps = ComponentProps<
@@ -11,8 +11,8 @@ type ThemeWorkbenchSidebarWorkflowProps =
 type ThemeWorkbenchSidebarHistoryProps = NonNullable<
   ThemeWorkbenchSidebarSectionProps["historyProps"]
 >;
-type SocialMediaHarnessSummary = Pick<
-  ComponentProps<typeof SocialMediaHarnessCard>,
+type ThemeWorkbenchHarnessSummary = Pick<
+  ComponentProps<typeof ThemeWorkbenchHarnessCard>,
   | "runState"
   | "stageTitle"
   | "stageDescription"
@@ -29,10 +29,10 @@ interface WorkspaceThemeSidebarProps {
   onRequestCollapse: NonNullable<
     ThemeWorkbenchSidebarSectionProps["onRequestCollapse"]
   >;
-  socialMediaHarnessSummary: SocialMediaHarnessSummary | null;
+  themeWorkbenchHarnessSummary: ThemeWorkbenchHarnessSummary | null;
   harnessPanelVisible: boolean;
   onToggleHarnessPanel: NonNullable<
-    ComponentProps<typeof SocialMediaHarnessCard>["onToggleHarnessPanel"]
+    ComponentProps<typeof ThemeWorkbenchHarnessCard>["onToggleHarnessPanel"]
   >;
   workflow: {
     branchItems: ThemeWorkbenchSidebarWorkflowProps["branchItems"];
@@ -65,7 +65,7 @@ export function WorkspaceThemeSidebar({
   isThemeWorkbench,
   enablePanelCollapse,
   onRequestCollapse,
-  socialMediaHarnessSummary,
+  themeWorkbenchHarnessSummary,
   harnessPanelVisible,
   onToggleHarnessPanel,
   workflow,
@@ -74,15 +74,15 @@ export function WorkspaceThemeSidebar({
   history,
 }: WorkspaceThemeSidebarProps) {
   const headerActionSlot =
-    isThemeWorkbench && socialMediaHarnessSummary ? (
-      <SocialMediaHarnessCard
-        runState={socialMediaHarnessSummary.runState}
-        stageTitle={socialMediaHarnessSummary.stageTitle}
-        stageDescription={socialMediaHarnessSummary.stageDescription}
-        runTitle={socialMediaHarnessSummary.runTitle}
-        artifactCount={socialMediaHarnessSummary.artifactCount}
-        updatedAt={socialMediaHarnessSummary.updatedAt}
-        pendingCount={socialMediaHarnessSummary.pendingCount}
+    isThemeWorkbench && themeWorkbenchHarnessSummary ? (
+      <ThemeWorkbenchHarnessCard
+        runState={themeWorkbenchHarnessSummary.runState}
+        stageTitle={themeWorkbenchHarnessSummary.stageTitle}
+        stageDescription={themeWorkbenchHarnessSummary.stageDescription}
+        runTitle={themeWorkbenchHarnessSummary.runTitle}
+        artifactCount={themeWorkbenchHarnessSummary.artifactCount}
+        updatedAt={themeWorkbenchHarnessSummary.updatedAt}
+        pendingCount={themeWorkbenchHarnessSummary.pendingCount}
         harnessPanelVisible={harnessPanelVisible}
         layout="icon"
         onToggleHarnessPanel={onToggleHarnessPanel}

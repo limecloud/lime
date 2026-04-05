@@ -2,9 +2,9 @@ import React, { memo, KeyboardEvent, useMemo, useRef } from "react";
 import styled from "styled-components";
 import { Sparkles } from "lucide-react";
 import { VideoCanvasState } from "./types";
-import { CharacterMention } from "@/components/agent/chat/components/Inputbar/components/CharacterMention";
-import { SkillBadge } from "@/components/agent/chat/components/Inputbar/components/SkillBadge";
-import { useActiveSkill } from "@/components/agent/chat/components/Inputbar/hooks/useActiveSkill";
+import { CharacterMention } from "@/components/agent/chat/skill-selection/CharacterMention";
+import { SkillBadge } from "@/components/agent/chat/skill-selection/SkillBadge";
+import { useActiveSkill } from "@/components/agent/chat/skill-selection/useActiveSkill";
 import type { Skill } from "@/lib/api/skills";
 
 interface PromptInputProps {

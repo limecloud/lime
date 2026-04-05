@@ -1,4 +1,4 @@
-import type { AgentPageParams, WorkspaceViewMode } from "@/types/page";
+import type { AgentPageParams } from "@/types/page";
 
 export function buildHomeAgentParams(
   overrides: Partial<AgentPageParams> = {},
@@ -22,16 +22,5 @@ export function buildClawAgentParams(
     immersiveHome: overrides.immersiveHome ?? false,
     theme: overrides.theme ?? "general",
     lockTheme: overrides.lockTheme ?? false,
-  };
-}
-
-export function buildWorkspaceResetParams(
-  overrides: Partial<AgentPageParams> = {},
-  workspaceViewMode: WorkspaceViewMode = "project-management",
-): AgentPageParams {
-  return {
-    ...overrides,
-    workspaceViewMode,
-    workspaceResetAt: Date.now(),
   };
 }

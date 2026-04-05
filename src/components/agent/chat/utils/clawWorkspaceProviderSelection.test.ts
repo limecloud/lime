@@ -121,7 +121,7 @@ describe("resolveClawWorkspaceProviderSelection", () => {
     const result = await resolveClawWorkspaceProviderSelection({
       currentProviderType: "custom-social-provider",
       currentModel: "legacy-model",
-      theme: "social-media",
+      theme: "general",
     });
 
     expect(result).toEqual({
@@ -152,7 +152,7 @@ describe("resolveClawWorkspaceProviderSelection", () => {
     const result = await resolveClawWorkspaceProviderSelection({
       currentProviderType: "custom-social-provider",
       currentModel: null,
-      theme: "social-media",
+      theme: "general",
     });
 
     expect(result).toEqual({

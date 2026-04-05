@@ -181,11 +181,45 @@ npm run test:contracts
 ### Claw `@配图` 异步任务验证
 
 1. 在 `Claw` 对话框输入 `@配图 生成 ...`
-2. 确认聊天区先出现运行中占位卡，不会自动展开图片画布
-3. 等待 task file 回流后，确认同一条卡片被替换为成功或失败状态，而不是额外再插一条前端本地伪造结果
-4. 刷新页面或切换会话再返回原话题，确认最近图片任务会从 `.lime/tasks` 恢复
-5. 如手动打开图片画布，确认任务卡状态与聊天区一致
-6. 如当前界面已暴露任务控制入口，确认 `get/list/retry/cancel` 仍然只经由 `src/lib/api/mediaTasks.ts -> task file` 主链，不会回流前端直连图片服务
+2. 确认聊天区先进入 skill 执行态，并能看到 `image_generate` 相关工具轨迹，而不是前端静默直接创建任务
+3. 如当前环境走 `Bash -> lime media image generate --json`，确认工具标题与结果摘要对应这条 CLI 主链；CLI 不可用时，才允许回退 `lime_create_image_generation_task`
+4. 等待 task file 回流后，确认同一条卡片被替换为成功或失败状态，而不是额外再插一条前端本地伪造结果
+5. 刷新页面或切换会话再返回原话题，确认最近图片任务会从 `.lime/tasks` 恢复
+6. 如手动打开右侧查看器，确认任务卡状态与聊天区一致，且不会自动展开独立图片画布
+7. 如当前界面已暴露任务控制入口，确认 `get/list/retry/cancel` 仍然只经由 task file 主链，不会回流前端直连图片服务
+8. 如果任务来自文稿工具栏的 inline 配图，确认正文先出现占位图块，task file 成功回填后同一位置被真实图片替换，而不是在正文末尾额外追加第二张图
+9. 刷新页面后再次返回该文稿，确认 inline 配图仍能通过 task file 中的 `relationships.slot_id` 恢复并原位替换，不依赖前端内存状态
+10. 如果当前文稿已有明确小节并且用户在某一节内发起配图，确认占位图与最终图片会优先落到 `anchor_section_title` 指向的小节，而不是默认追加到全文末尾
+11. 如果用户是在某个具体段落上发起配图，确认占位图与最终图片会优先落到 `anchor_text` 对应段落之后，而不是只落到该小节顶部
+
+### Claw `@封面` 异步任务验证
+
+1. 在 `Claw` 对话框输入 `@封面 小红书 标题: 春日咖啡快闪 风格: 清新插画, 1:1 春日咖啡市集封面`
+2. 确认聊天区先进入 skill 执行态，并能看到 `cover_generate` 相关工具轨迹，而不是前端静默直接创建任务
+3. 如当前环境走 `social_generate_cover_image + Bash -> lime task create cover --json`，确认工具标题与结果摘要对应这条封面任务主链；CLI 不可用时，才允许回退 `lime_create_cover_generation_task`
+4. 等待任务回流后，确认同一条结果只展示真实 task file 状态，不会额外再插一条前端本地伪造“封面已生成”
+5. 如当前界面已暴露右侧查看区或任务卡，确认其状态与聊天轻卡一致，且任务类型显示为 `cover_generate` / 封面任务
+6. 刷新页面或切换会话再返回原话题，确认最近封面任务仍可从 `.lime/tasks` 恢复
+7. 如当前上下文带 `contentId`，确认封面任务写回或查看入口仍绑定当前主稿，而不是漂移成普通图片任务
+
+### Claw `@转写` 异步任务验证
+
+1. 在 `Claw` 对话框输入 `@转写 https://example.com/interview.mp4 生成逐字稿`
+2. 确认聊天区先进入 skill 执行态，并能看到 `transcription_generate` 相关工具轨迹，而不是前端静默直接调用旧 `transcribe_audio`
+3. 如当前环境走 `Bash -> lime task create transcription --json`，确认工具标题与结果摘要对应这条 CLI 主链；CLI 不可用时，才允许回退 `lime_create_transcription_task`
+4. 等待任务回流后，确认同一条结果只展示真实 task file 状态，不会额外再插一条前端本地伪造“转写已完成”
+5. 如果输入里没有 `source_url` / `source_path`，确认 Agent 最多只追问 1 个关键问题请求补充来源，而不是直接创建空任务或伪造完成态
+6. 刷新页面或切换会话再返回原话题，确认最近转写任务仍可从 `.lime/tasks` 恢复
+7. 如当前界面已暴露任务控制入口，确认 `get/list/retry/cancel` 仍然只经由 task file 主链，不会回流前端旧 ASR 接口
+
+### Claw `@链接解析` 异步任务验证
+
+1. 在 `Claw` 对话框输入 `@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要`
+2. 确认聊天区先进入 skill 执行态，并能看到 `url_parse` 相关工具轨迹，而不是前端静默退回普通总结
+3. 如当前环境走 `Bash -> lime task create url-parse --json`，确认工具标题与结果摘要对应这条 CLI 主链；CLI 不可用时，才允许回退 `lime_create_url_parse_task`
+4. 如果当前回合无法即时抓取正文，也必须看到真实 `url_parse` task file 被创建，且 `extractStatus` 为 `pending_extract`，而不是停留在口头解释
+5. 如果输入里没有 URL，确认 Agent 最多只追问 1 个关键问题请求补充链接，而不是直接创建空任务或伪造完成态
+6. 刷新页面或切换会话再返回原话题，确认最近链接解析任务仍可从 `.lime/tasks` 恢复
 
 ### Slash Skill / Skill 执行验证
 

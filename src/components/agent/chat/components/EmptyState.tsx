@@ -2,40 +2,27 @@ import React, { useState, useEffect, useMemo } from "react";
 import styled, { keyframes } from "styled-components";
 import {
   Lightbulb,
-  Video,
-  FileText,
-  PenTool,
-  BrainCircuit,
-  CalendarRange,
   Globe,
   ListChecks,
   Settings2,
   Workflow,
 } from "lucide-react";
 import { getConfig } from "@/lib/api/appConfig";
-import type { CreationMode, EntryTaskSlotValues, EntryTaskType } from "./types";
+import type { CreationMode } from "./types";
 import { CREATION_MODE_CONFIG } from "./constants";
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import { toast } from "sonner";
-import {
-  composeEntryPrompt,
-  createDefaultEntrySlotValues,
-  formatEntryTaskPreview,
-  getEntryTaskTemplate,
-  SOCIAL_MEDIA_ENTRY_TASKS,
-  validateEntryTaskSlots,
-} from "../utils/entryPromptComposer";
 import {
   buildRecommendationPrompt,
   getContextualRecommendations,
   isTeamRuntimeRecommendation,
 } from "../utils/contextualRecommendations";
 import {
-  listHomeRecommendedSolutions,
-  recordHomeRecommendedSolutionUsage,
-  type HomeRecommendedSolutionItem,
-} from "../utils/homeRecommendedSolutions";
+  listEntryRecommendedSolutions,
+  recordEntryRecommendedSolutionUsage,
+  type EntryRecommendedSolutionItem,
+} from "../utils/entryRecommendedSolutions";
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateHero } from "./EmptyStateHero";
 import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
@@ -43,12 +30,9 @@ import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
   EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
   EMPTY_STATE_SECONDARY_ACTION_BUTTON_CLASSNAME,
-  EMPTY_STATE_THEME_TABS_CONTAINER_CLASSNAME,
-  getEmptyStateThemeTabClassName,
-  getEmptyStateThemeTabIconClassName,
 } from "./emptyStateSurfaceTokens";
-import { useActiveSkill } from "./Inputbar/hooks/useActiveSkill";
-import type { SkillSelectionSourceProps } from "./Inputbar/components/skillSelectionBindings";
+import { useActiveSkill } from "../skill-selection/useActiveSkill";
+import type { SkillSelectionSourceProps } from "../skill-selection/skillSelectionBindings";
 import type { Character } from "@/lib/api/memory";
 import type { WorkspaceSettings } from "@/types/workspace";
 import type { MessageImage } from "../types";
@@ -62,45 +46,15 @@ import {
 import {
   getActiveSkillDisplayLabel,
   getSkillSelectionSummaryLabel,
-} from "./Inputbar/components/skillSelectionDisplay";
+} from "../skill-selection/skillSelectionDisplay";
 import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
 } from "../service-skills/siteSkillExamplePrompts";
-
-// Import Assets
-import capabilitySkillsPlaceholder from "@/assets/claw-home/capability-skills-placeholder.svg";
-import capabilityAutomationsPlaceholder from "@/assets/claw-home/capability-automations-placeholder.svg";
-import capabilityAgentTeamsPlaceholder from "@/assets/claw-home/capability-agent-teams-placeholder.svg";
-import capabilityBrowserAssistPlaceholder from "@/assets/claw-home/capability-browser-assist-placeholder.svg";
-import type { ModelSelectorProps } from "@/components/input-kit";
-
-const SOCIAL_ARTICLE_SKILL_KEY = "social_post_with_cover";
-const CONFIG_LOAD_IDLE_TIMEOUT_MS = 1_500;
-const CONFIG_LOAD_FALLBACK_DELAY_MS = 180;
-
-function scheduleDeferredConfigLoad(task: () => void): () => void {
-  if (typeof window === "undefined") {
-    task();
-    return () => undefined;
-  }
-
-  if (typeof window.requestIdleCallback === "function") {
-    const idleId = window.requestIdleCallback(() => task(), {
-      timeout: CONFIG_LOAD_IDLE_TIMEOUT_MS,
-    });
-    return () => {
-      if (typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
-      }
-    };
-  }
-
-  const timeoutId = window.setTimeout(task, CONFIG_LOAD_FALLBACK_DELAY_MS);
-  return () => {
-    window.clearTimeout(timeoutId);
-  };
-}
+import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skills-placeholder.svg?url";
+import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-placeholder.svg?url";
+import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-placeholder.svg?url";
+import capabilityBrowserAssistPlaceholder from "@/assets/entry-surface/capability-browser-assist-placeholder.svg?url";
 
 const contentReveal = keyframes`
   from {
@@ -145,8 +99,6 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   activeTheme?: string;
   /** 主题变更回调 */
   onThemeChange?: (theme: string) => void;
-  /** 是否显示主题切换 Tabs */
-  showThemeTabs?: boolean;
   /** 推荐标签点击回调 */
   onRecommendationClick?: (shortLabel: string, fullPrompt: string) => void;
   providerType: string;
@@ -186,54 +138,15 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   onProjectChange?: (projectId: string) => void;
   /** 打开设置 */
   onOpenSettings?: () => void;
-  /** 是否跳过首页项目选择器的默认项目目录检查 */
-  skipProjectSelectorWorkspaceReadyCheck?: boolean;
-  /** 是否延后首页项目列表加载到展开时 */
-  deferProjectSelectorListLoad?: boolean;
-  /** 模型选择器后台预加载策略 */
-  modelSelectorBackgroundPreload?: ModelSelectorProps["backgroundPreload"];
-  /** 配置读取策略 */
-  configLoadStrategy?: "immediate" | "idle";
-  /** 覆盖默认支持面板 */
-  supportingSlotOverride?: React.ReactNode;
 }
 
-const ENTRY_THEME_ID = "social-media";
-
-// Scenarios Configuration - 与 ProjectType 统一
-const ALL_CATEGORIES = [
-  {
-    id: "general",
-    label: "通用对话",
-    icon: <Globe className="w-4 h-4" />,
-  },
-  {
-    id: "social-media",
-    label: "社媒内容",
-    icon: <PenTool className="w-4 h-4" />,
-  },
-  {
-    id: "knowledge",
-    label: "知识探索",
-    icon: <BrainCircuit className="w-4 h-4" />,
-  },
-  {
-    id: "planning",
-    label: "计划规划",
-    icon: <CalendarRange className="w-4 h-4" />,
-  },
-  { id: "document", label: "办公文档", icon: <FileText className="w-4 h-4" /> },
-  { id: "video", label: "短视频", icon: <Video className="w-4 h-4" /> },
-];
+const GENERAL_CATEGORY_LABEL = "通用对话";
 
 // 需要显示创作模式选择器的主题
-const CREATION_THEMES = ["social-media", "document", "video"];
+const CREATION_THEMES: string[] = [];
 
-// 主题对应的图标
 const THEME_ICONS: Record<string, string> = {
-  "social-media": "✨",
-  knowledge: "🔍",
-  planning: "📅",
+  general: "✨",
 };
 
 const THEME_WORKBENCH_COPY: Record<
@@ -245,36 +158,11 @@ const THEME_WORKBENCH_COPY: Record<
   }
 > = {
   general: {
-    title: "开始一个新任务",
+    title: "青柠一下，灵感即来",
     description:
-      "把目标、上下文和限制告诉我，我会围绕当前任务持续推进，而不是只回答一次。",
+      "从一句想法，到成稿、成图、成片、成事。",
     supportingDescription:
-      "你可以直接输入需求，也可以先挂载技能、开启联网搜索或浏览器工作台，再开始执行。",
-  },
-  "social-media": {
-    title: "社媒内容工作台",
-    description:
-      "把选题、平台适配、正文生成和后续改写放在同一条会话里，减少来回切页和重复输入。",
-  },
-  video: {
-    title: "短视频脚本工作台",
-    description:
-      "围绕一个视频目标持续生成钩子、分镜、口播和封面文案，让脚本迭代留在上下文里。",
-  },
-  document: {
-    title: "办公文档工作台",
-    description:
-      "把会议纪要、汇报提纲、邮件草稿与正式文稿组织在一起，便于后续继续补充和润色。",
-  },
-  knowledge: {
-    title: "知识探索工作台",
-    description:
-      "把搜索、阅读、提炼、总结和观点整理放在一个持续上下文中，降低研究过程中的信息丢失。",
-  },
-  planning: {
-    title: "规划拆解工作台",
-    description:
-      "围绕目标持续拆分计划、整理约束和产出行动清单，让方案迭代更像项目推进而不是单轮问答。",
+      "Claw 工作台会围绕一个目标持续对话、检索网页、补充素材，并把结果沉淀到右侧画布，而不是只停留在一次性提问。",
   },
 };
 
@@ -294,7 +182,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onCreationModeChange,
   activeTheme = "general",
   onThemeChange,
-  showThemeTabs = false,
   onRecommendationClick,
   providerType,
   setProviderType,
@@ -332,11 +219,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   projectId = null,
   onProjectChange,
   onOpenSettings,
-  skipProjectSelectorWorkspaceReadyCheck = false,
-  deferProjectSelectorListLoad = false,
-  modelSelectorBackgroundPreload = "immediate",
-  configLoadStrategy = "immediate",
-  supportingSlotOverride,
 }) => {
   const { wrapTextWithSkill, buildSkillSelection } = useActiveSkill();
   const skillSelection = buildSkillSelection({
@@ -365,10 +247,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     appendSelectedTextToRecommendation,
     setAppendSelectedTextToRecommendation,
   ] = useState(true);
-  const [homeRecommendedSolutionsVersion, setHomeRecommendedSolutionsVersion] =
+  const [entryRecommendedSolutionsVersion, setEntryRecommendedSolutionsVersion] =
     useState(0);
 
-  // 加载配置
   useEffect(() => {
     const loadConfigPreferences = async () => {
       try {
@@ -378,29 +259,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             ?.append_selected_text_to_recommendation ?? true,
         );
       } catch (e) {
-        console.error("加载首页配置失败:", e);
+        console.error("加载入口配置失败:", e);
       }
     };
-    let cancelPendingLoad: () => void = () => undefined;
+    void loadConfigPreferences();
 
-    if (configLoadStrategy === "idle") {
-      cancelPendingLoad = scheduleDeferredConfigLoad(() => {
-        void loadConfigPreferences();
-      });
-    } else {
-      void loadConfigPreferences();
-    }
-
-    // 监听配置变更事件
     const handleConfigChange = () => {
-      if (configLoadStrategy === "idle") {
-        cancelPendingLoad();
-        cancelPendingLoad = scheduleDeferredConfigLoad(() => {
-          void loadConfigPreferences();
-        });
-        return;
-      }
-
       void loadConfigPreferences();
     };
     window.addEventListener(
@@ -413,31 +277,20 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         "chat-appearance-config-changed",
         handleConfigChange,
       );
-      cancelPendingLoad();
     };
-  }, [configLoadStrategy]);
-
-  // 过滤后的主题列表
-  const categories = ALL_CATEGORIES;
+  }, []);
 
   // 使用外部传入的 activeTheme，如果有 onThemeChange 则使用受控模式
   const handleThemeChange = (theme: string) => {
     if (onThemeChange) {
-      onThemeChange(theme);
+      onThemeChange(theme === "general" ? theme : "general");
     }
   };
 
   // 判断当前主题是否需要显示创作模式选择器
   const showCreationModeSelector = CREATION_THEMES.includes(activeTheme);
 
-  // Local state for parameters (Mocking visual state)
-  const [platform, setPlatform] = useState("xiaohongshu");
-  const [depth, setDepth] = useState("deep");
   const [pendingImages, setPendingImages] = useState<MessageImage[]>([]);
-  const [entryTaskType, setEntryTaskType] = useState<EntryTaskType>("direct");
-  const [entrySlotValues, setEntrySlotValues] = useState<EntryTaskSlotValues>(
-    () => createDefaultEntrySlotValues("direct"),
-  );
   const isGeneralTheme = isGeneralResearchTheme(activeTheme);
 
   const wrapTextWithDefaultSkill = (text: string) => {
@@ -445,38 +298,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     if (wrappedByActiveSkill !== text) {
       return wrappedByActiveSkill;
     }
-    if (activeTheme === "social-media" && !text.trimStart().startsWith("/")) {
-      return `/${SOCIAL_ARTICLE_SKILL_KEY} ${text}`.trim();
-    }
     return text;
   };
-
-  const isEntryTheme = activeTheme === ENTRY_THEME_ID;
-
-  useEffect(() => {
-    if (!isEntryTheme) {
-      return;
-    }
-
-    if (!SOCIAL_MEDIA_ENTRY_TASKS.includes(entryTaskType)) {
-      setEntryTaskType("direct");
-      setEntrySlotValues(createDefaultEntrySlotValues("direct"));
-    }
-  }, [isEntryTheme, entryTaskType]);
-
-  useEffect(() => {
-    setEntrySlotValues(createDefaultEntrySlotValues(entryTaskType));
-  }, [entryTaskType]);
-
-  const entryTemplate = useMemo(
-    () => getEntryTaskTemplate(entryTaskType),
-    [entryTaskType],
-  );
-
-  const entryPreview = useMemo(
-    () => formatEntryTaskPreview(entryTaskType, entrySlotValues),
-    [entryTaskType, entrySlotValues],
-  );
 
   const recommendationSelectedText = appendSelectedTextToRecommendation
     ? selectedText
@@ -487,8 +310,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       activeTheme,
       input,
       creationMode,
-      entryTaskType,
-      platform,
       hasCanvasContent,
       hasContentId,
       selectedText: recommendationSelectedText,
@@ -498,20 +319,18 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     activeTheme,
     input,
     creationMode,
-    entryTaskType,
-    platform,
     hasCanvasContent,
     hasContentId,
     recommendationSelectedText,
     subagentEnabled,
   ]);
 
-  const homeRecommendedSolutions = useMemo(
+  const entryRecommendedSolutions = useMemo(
     () => {
-      void homeRecommendedSolutionsVersion;
-      return listHomeRecommendedSolutions();
+      void entryRecommendedSolutionsVersion;
+      return listEntryRecommendedSolutions();
     },
-    [homeRecommendedSolutionsVersion],
+    [entryRecommendedSolutionsVersion],
   );
 
   const selectedTextPreview = useMemo(() => {
@@ -526,13 +345,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       ? `${normalized.slice(0, 56).trim()}…`
       : normalized;
   }, [recommendationSelectedText]);
-
-  const handleEntrySlotChange = (key: string, value: string) => {
-    setEntrySlotValues((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -579,50 +391,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   };
 
   const handleSend = () => {
-    if (!input.trim() && !isEntryTheme && pendingImages.length === 0) return;
+    if (!input.trim() && pendingImages.length === 0) return;
     const imagesToSend = pendingImages.length > 0 ? pendingImages : undefined;
 
-    if (isEntryTheme) {
-      const validation = validateEntryTaskSlots(entryTaskType, entrySlotValues);
-      if (!validation.valid) {
-        const missingFields = validation.missing
-          .map((slot) => slot.label)
-          .join("、");
-        toast.error(`请先填写：${missingFields}`);
-        return;
-      }
-
-      const composedPrompt = composeEntryPrompt({
-        taskType: entryTaskType,
-        slotValues: entrySlotValues,
-        userInput: input,
-        activeTheme,
-        creationMode,
-        context: {
-          platform: getPlatformLabel(platform),
-        },
-      });
-
-      onSend(
-        wrapTextWithDefaultSkill(composedPrompt),
-        executionStrategy,
-        imagesToSend,
-      );
-      setPendingImages([]);
-      clearSelectedSkill?.();
-      return;
-    }
-
-    let prefix = "";
-    if (activeTheme === "social-media") prefix = `[社媒创作: ${platform}] `;
-    if (activeTheme === "video") prefix = `[视频脚本] `;
-    if (activeTheme === "document") prefix = `[办公文档] `;
-    if (activeTheme === "knowledge")
-      prefix = `[知识探索: ${depth === "deep" ? "深度" : "快速"}] `;
-    if (activeTheme === "planning") prefix = `[计划规划] `;
-
     onSend(
-      wrapTextWithDefaultSkill(prefix + input),
+      wrapTextWithDefaultSkill(input),
       executionStrategy,
       imagesToSend,
     );
@@ -633,43 +406,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const planEnabled = executionStrategy === "code_orchestrated";
   const executionModeLabel = planEnabled ? "Plan 已开启" : "直接执行";
 
-  const activeCategory =
-    ALL_CATEGORIES.find((category) => category.id === activeTheme) ||
-    ALL_CATEGORIES[0];
   const workbenchCopy =
     THEME_WORKBENCH_COPY[activeTheme] || THEME_WORKBENCH_COPY.general;
 
   // Dynamic Placeholder
   const getPlaceholder = () => {
-    switch (activeTheme) {
-      case "knowledge":
-        return "想了解什么？我可以帮你深度搜索、解析概念或总结长文...";
-      case "planning":
-        return "告诉我你的目标，无论是旅行计划、职业规划还是活动筹备...";
-      case "social-media":
-        return "输入主题，帮你创作小红书爆款文案、公众号文章...";
-      case "video":
-        return "输入视频主题，生成分镜脚本和口播文案...";
-      case "document":
-        return "输入需求，生成周报、汇报PPT大纲或商务邮件...";
-      case "general":
-        return hasAutoLaunchSiteSkill
-          ? `直接说一句话，例如：${siteSkillAutoLaunchExample}`
-          : "有什么我可以帮你的？";
-      default:
-        return "输入你的想法...";
-    }
-  };
-
-  // Helper to get platform label
-  const getPlatformLabel = (val: string) => {
-    if (val === "xiaohongshu") return "小红书";
-    if (val === "wechat") return "公众号";
-    if (val === "zhihu") return "知乎";
-    if (val === "toutiao") return "今日头条";
-    if (val === "juejin") return "掘金";
-    if (val === "csdn") return "CSDN";
-    return val;
+    return hasAutoLaunchSiteSkill
+      ? `直接说一句话，例如：${siteSkillAutoLaunchExample}`
+      : "有什么我可以帮你的？";
   };
 
   const handleApplyRecommendation = (
@@ -695,11 +439,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     setInput(promptWithSelection);
   };
 
-  const handleApplyHomeRecommendedSolution = (
-    solution: HomeRecommendedSolutionItem,
+  const handleApplyEntryRecommendedSolution = (
+    solution: EntryRecommendedSolutionItem,
   ) => {
-    recordHomeRecommendedSolutionUsage(solution.id);
-    setHomeRecommendedSolutionsVersion((previous) => previous + 1);
+    recordEntryRecommendedSolutionUsage(solution.id);
+    setEntryRecommendedSolutionsVersion((previous) => previous + 1);
 
     if (solution.shouldEnableWebSearch && !webSearchEnabled) {
       onWebSearchEnabledChange?.(true);
@@ -725,29 +469,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     setInput(promptWithSelection);
   };
 
-  const themeTabs = showThemeTabs ? (
-    <div className={EMPTY_STATE_THEME_TABS_CONTAINER_CLASSNAME}>
-      {categories.map((cat) => (
-        <button
-          key={cat.id}
-          type="button"
-          className={getEmptyStateThemeTabClassName(activeTheme === cat.id)}
-          aria-pressed={activeTheme === cat.id}
-          onClick={() => handleThemeChange(cat.id)}
-        >
-          <span
-            className={getEmptyStateThemeTabIconClassName(
-              activeTheme === cat.id,
-            )}
-          >
-            {cat.icon}
-          </span>
-          {cat.label}
-        </button>
-      ))}
-    </div>
-  ) : null;
-
   const workspaceBadges = useMemo(() => {
     const badges: Array<{
       key: string;
@@ -756,7 +477,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     }> = [
       {
         key: "theme",
-        label: activeCategory.label,
+        label: GENERAL_CATEGORY_LABEL,
         tone: "slate",
       },
       {
@@ -771,22 +492,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         key: "creation-mode",
         label: CREATION_MODE_CONFIG[creationMode].name,
         tone: "emerald",
-      });
-    }
-
-    if (activeTheme === "social-media") {
-      badges.push({
-        key: "platform",
-        label: getPlatformLabel(platform),
-        tone: "amber",
-      });
-    }
-
-    if (activeTheme === "knowledge") {
-      badges.push({
-        key: "depth",
-        label: depth === "deep" ? "深度解析" : "快速概览",
-        tone: "amber",
       });
     }
 
@@ -808,12 +513,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     return badges.slice(0, 5);
   }, [
-    activeCategory.label,
-    activeTheme,
     creationMode,
-    depth,
     executionModeLabel,
-    platform,
     showCreationModeSelector,
     webSearchEnabled,
     activeSkillDisplayLabel,
@@ -931,18 +632,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         description:
           "遇到登录、验证码或复杂网页操作时，可切换到浏览器工作台继续完成任务。",
       });
-    } else if (activeTheme === "social-media") {
-      features.push({
-        key: "platform-fit",
-        title: "平台语境适配",
-        description: `当前按 ${getPlatformLabel(platform)} 组织任务，更适合做平台口吻和结构优化。`,
-      });
-    } else if (activeTheme === "knowledge") {
-      features.push({
-        key: "research",
-        title: "研究深度可调",
-        description: `当前为${depth === "deep" ? "深度解析" : "快速概览"}模式，可按任务成本调节研究粒度。`,
-      });
     } else {
       features.push({
         key: "quick-start",
@@ -954,13 +643,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     return features;
   }, [
-    activeTheme,
-    depth,
     hasCanvasContent,
     hasContentId,
     isGeneralTheme,
     onLaunchBrowserAssist,
-    platform,
   ]);
 
   const quickActionItems = useMemo(
@@ -1042,32 +728,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       setProviderType={setProviderType}
       model={model}
       setModel={setModel}
-      workspaceId={projectId}
       executionStrategy={executionStrategy}
       setExecutionStrategy={setExecutionStrategy}
       accessMode={accessMode}
       setAccessMode={setAccessMode}
       onManageProviders={onManageProviders}
-      modelSelectorBackgroundPreload={modelSelectorBackgroundPreload}
       isGeneralTheme={isGeneralTheme}
-      isEntryTheme={isEntryTheme}
-      entryTaskType={entryTaskType}
-      entryTaskTypes={SOCIAL_MEDIA_ENTRY_TASKS}
-      getEntryTaskTemplate={getEntryTaskTemplate}
-      entryTemplate={entryTemplate}
-      entryPreview={entryPreview}
-      entrySlotValues={entrySlotValues}
-      onEntryTaskTypeChange={setEntryTaskType}
-      onEntrySlotChange={handleEntrySlotChange}
       characters={characters}
       skillSelection={skillSelection}
       showCreationModeSelector={showCreationModeSelector}
       creationMode={creationMode}
       onCreationModeChange={onCreationModeChange}
-      platform={platform}
-      setPlatform={setPlatform}
-      depth={depth}
-      setDepth={setDepth}
       thinkingEnabled={thinkingEnabled}
       onThinkingEnabledChange={onThinkingEnabledChange}
       subagentEnabled={subagentEnabled}
@@ -1105,7 +776,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <EmptyStateQuickActions
       title="推荐方案"
       description="先选一个方案，Claw 会自动进入对应工作模式并带好起始动作。"
-      items={homeRecommendedSolutions.map((solution) => ({
+      items={entryRecommendedSolutions.map((solution) => ({
         key: solution.id,
         title: solution.title,
         description: solution.summary,
@@ -1115,15 +786,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         outputHint: solution.outputHint,
         statusLabel: solution.statusLabel,
         statusTone: solution.statusTone,
-        testId: `home-recommended-${solution.id}`,
+        testId: `entry-recommended-${solution.id}`,
       }))}
       embedded
       onAction={(item) => {
-        const solution = homeRecommendedSolutions.find(
+        const solution = entryRecommendedSolutions.find(
           (candidate) => candidate.id === item.key,
         );
         if (solution) {
-          handleApplyHomeRecommendedSolution(solution);
+          handleApplyEntryRecommendedSolution(solution);
         }
       }}
     />
@@ -1142,10 +813,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           enableManagement={activeTheme === "general"}
           density="compact"
           chrome="embedded"
-          skipDefaultWorkspaceReadyCheck={
-            skipProjectSelectorWorkspaceReadyCheck
-          }
-          deferProjectListLoad={deferProjectSelectorListLoad}
           className="min-w-[180px] max-w-[260px]"
         />
         {onOpenSettings ? (
@@ -1175,7 +842,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <PageContainer>
       <ContentWrapper>
         <EmptyStateHero
-          eyebrow={activeTheme === "general" ? "新建任务" : "主题工作台"}
+          eyebrow="新建任务"
           title={workbenchCopy.title}
           description={workbenchCopy.description}
           supportingDescription={workbenchCopy.supportingDescription}
@@ -1184,12 +851,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           features={workspaceFeatures}
           prioritySlot={composerPanel}
           supportingSlot={
-            supportingSlotOverride ??
-            (isGeneralTheme
+            isGeneralTheme
               ? generalRecommendedSolutionsPanel
-              : defaultQuickActionsPanel)
+              : defaultQuickActionsPanel
           }
-          themeTabs={themeTabs}
           headerControls={headerControls}
         />
       </ContentWrapper>

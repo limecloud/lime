@@ -624,5 +624,3 @@ export function UserCenterSessionSettings() {
     </section>
   );
 }
-
-export default UserCenterSessionSettings;

@@ -18,7 +18,7 @@ const PRESET_PATTERNS: Record<
   feishu: "FeishuGateway",
 };
 
-export interface BuildRegexResult {
+interface BuildRegexResult {
   regex: RegExp | null;
   error: string | null;
 }

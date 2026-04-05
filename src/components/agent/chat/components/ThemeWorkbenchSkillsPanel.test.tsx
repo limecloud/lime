@@ -36,10 +36,10 @@ function renderPanel(
   const defaultProps: React.ComponentProps<typeof ThemeWorkbenchSkillsPanel> = {
     skills: [
       {
-        key: "social_post_with_cover",
-        name: "social_post_with_cover",
-        description: "社媒文案与封面生成",
-        directory: "social_post_with_cover",
+        key: "content_post_with_cover",
+        name: "content_post_with_cover",
+        description: "内容文案与封面生成",
+        directory: "content_post_with_cover",
         installed: true,
         sourceKind: "builtin",
       },
@@ -116,7 +116,7 @@ describe("ThemeWorkbenchSkillsPanel", () => {
     expect(container.textContent).toContain("版本快照");
     expect(container.textContent).toContain("待决策");
     expect(container.textContent).toContain("research");
-    expect(container.textContent).toContain("social_post_with_cover");
+    expect(container.textContent).toContain("content_post_with_cover");
   });
 
   it("点击推荐技能应触发 onTriggerSkill 回调", () => {

@@ -199,19 +199,6 @@ export const LeftSection = styled.div`
   }
 `;
 
-export const RightSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-
-  &.floating-collapsed {
-    display: none;
-  }
-`;
-
 export const MetaSlot = styled.div`
   display: flex;
   align-items: center;

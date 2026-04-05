@@ -130,7 +130,8 @@ pub use session_update::{
 };
 pub use skill_execution::{
     execute_skill_prompt, execute_skill_workflow, SkillEventEmitter, SkillExecutionError,
-    SkillExecutionResult, SkillWorkflowExecution, StepResult,
+    SkillExecutionResult, SkillInputImage, SkillPromptExecution, SkillWorkflowExecution,
+    StepResult,
 };
 pub use subagent_control::{
     derive_subagent_runtime_status_kind, load_subagent_runtime_status, read_subagent_control_state,

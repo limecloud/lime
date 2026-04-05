@@ -55,11 +55,6 @@ let lastSyncedTrayPayloadFingerprint: string | null = null;
 
 const THEME_LABEL_MAP: Record<string, string> = {
   general: "通用对话",
-  "social-media": "社媒内容",
-  knowledge: "知识探索",
-  planning: "计划规划",
-  document: "办公文档",
-  video: "短视频",
 };
 
 function getTrayPayloadSignature(

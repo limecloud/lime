@@ -29,7 +29,8 @@ pub(super) fn try_handle(
             let manager = workspace_manager(state)?;
             let workspace_type = request
                 .workspace_type
-                .map(|workspace_type| WorkspaceType::parse(&workspace_type))
+                .map(|workspace_type| WorkspaceType::parse_user_input(&workspace_type))
+                .transpose()?
                 .unwrap_or_default();
             let root_path = PathBuf::from(&request.root_path);
             ensure_valid_workspace_root(&root_path)?;

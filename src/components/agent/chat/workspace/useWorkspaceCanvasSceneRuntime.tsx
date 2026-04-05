@@ -211,7 +211,9 @@ export function useWorkspaceCanvasSceneRuntime({
         onSizeChange: imageWorkbenchGenerationRuntime.setSelectedSize,
         generating: imageWorkbenchHasPendingTasks,
         savingToResource: imageWorkbenchGenerationRuntime.savingToResource,
-        onStopGeneration: undefined,
+        onStopGeneration: imageWorkbenchHasPendingTasks
+          ? imageWorkbenchActionRuntime.handleStopImageWorkbenchGeneration
+          : undefined,
         onViewportChange:
           imageWorkbenchActionRuntime.handleImageWorkbenchViewportChange,
         onSelectOutput:

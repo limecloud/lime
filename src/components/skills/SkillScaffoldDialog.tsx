@@ -167,7 +167,7 @@ export function SkillScaffoldDialog({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="社媒发帖提纲"
+              placeholder="内容发布提纲"
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
             />
           </div>

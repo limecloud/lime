@@ -125,6 +125,7 @@ describe("AppSidebar", () => {
     await flushEffects();
 
     expect(container.textContent).toContain("能力");
+    expect(container.textContent).toContain("视频");
     expect(container.textContent).toContain("技能");
     expect(container.textContent).toContain("自动化");
     expect(container.textContent).toContain("IM 配置");

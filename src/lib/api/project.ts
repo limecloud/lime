@@ -13,27 +13,14 @@ import type { WorkspaceSettings } from "@/types/workspace";
 /** 系统级类型（不在 UI 中显示） */
 export type SystemType = "persistent" | "temporary";
 
-/** 用户级类型（统一后的 9 种） */
-export type UserType =
-  | "general" // 通用对话 💬
-  | "social-media" // 社媒内容 📱
-  | "knowledge" // 知识探索 🔍
-  | "planning" // 计划规划 📅
-  | "document" // 办公文档 📄
-  | "video"; // 短视频 🎬
+/** 用户级类型（现役入口已收口为 general） */
+export type UserType = "general";
 
 /** 项目类型（系统级 + 用户级） */
 export type ProjectType = SystemType | UserType;
 
 /** 用户可选的项目类型列表 */
-export const USER_PROJECT_TYPES: UserType[] = [
-  "general",
-  "social-media",
-  "knowledge",
-  "planning",
-  "document",
-  "video",
-];
+export const USER_PROJECT_TYPES: UserType[] = ["general"];
 
 /** 项目类型配置 */
 export interface ProjectTypeConfig {
@@ -64,36 +51,6 @@ export const TYPE_CONFIGS: Record<ProjectType, ProjectTypeConfig> = {
     icon: "💬",
     defaultContentType: "content",
     canvasType: null,
-  },
-  "social-media": {
-    label: "社媒内容",
-    icon: "📱",
-    defaultContentType: "post",
-    canvasType: "document",
-  },
-  knowledge: {
-    label: "知识探索",
-    icon: "🔍",
-    defaultContentType: "document",
-    canvasType: null,
-  },
-  planning: {
-    label: "计划规划",
-    icon: "📅",
-    defaultContentType: "document",
-    canvasType: null,
-  },
-  document: {
-    label: "办公文档",
-    icon: "📄",
-    defaultContentType: "document",
-    canvasType: "document",
-  },
-  video: {
-    label: "短视频",
-    icon: "🎬",
-    defaultContentType: "episode",
-    canvasType: "video",
   },
 };
 
@@ -138,7 +95,7 @@ export interface Project {
 export type RawProject = Partial<Project> & {
   id: string;
   name: string;
-  workspace_type?: ProjectType;
+  workspace_type?: ProjectType | string;
   root_path?: string;
   is_default?: boolean;
   created_at?: number;

@@ -1,0 +1,131 @@
+use super::*;
+
+const VIDEO_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_VIDEO_SKILL_LAUNCH_HINT>>";
+
+fn extract_object_string(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn truncate_prompt_text(value: String, max_chars: usize) -> String {
+    let total_chars = value.chars().count();
+    if total_chars <= max_chars {
+        return value;
+    }
+
+    let truncated = value.chars().take(max_chars).collect::<String>();
+    format!("{truncated}...(已截断，原始长度 {total_chars} 字)")
+}
+
+pub(crate) fn merge_system_prompt_with_video_skill_launch(
+    base_prompt: Option<String>,
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    let Some(launch_prompt) = build_video_skill_launch_system_prompt(request_metadata) else {
+        return base_prompt;
+    };
+
+    match base_prompt {
+        Some(base) => {
+            if base.contains(VIDEO_SKILL_LAUNCH_PROMPT_MARKER) {
+                Some(base)
+            } else if base.trim().is_empty() {
+                Some(launch_prompt)
+            } else {
+                Some(format!("{base}\n\n{launch_prompt}"))
+            }
+        }
+        None => Some(launch_prompt),
+    }
+}
+
+fn build_video_skill_launch_system_prompt(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    let launch = extract_harness_nested_object(
+        request_metadata,
+        &["video_skill_launch", "videoSkillLaunch"],
+    )?;
+    let kind = extract_object_string(launch, &["kind"]).unwrap_or_else(|| "video_task".to_string());
+    if kind != "video_task" {
+        return None;
+    }
+
+    let skill_name = extract_object_string(launch, &["skill_name", "skillName"])
+        .unwrap_or_else(|| "video_generate".to_string());
+    let video_task = launch
+        .get("video_task")
+        .and_then(serde_json::Value::as_object)?;
+    let raw_text = extract_object_string(video_task, &["raw_text", "rawText"]);
+    let prompt = extract_object_string(video_task, &["prompt"]);
+    let duration = video_task
+        .get("duration")
+        .and_then(serde_json::Value::as_i64);
+    let aspect_ratio = extract_object_string(video_task, &["aspect_ratio", "aspectRatio"]);
+    let resolution = extract_object_string(video_task, &["resolution"]);
+    let provider_id = extract_object_string(video_task, &["provider_id", "providerId"]);
+    let model = extract_object_string(video_task, &["model"]);
+    let entry_source = extract_object_string(video_task, &["entry_source", "entrySource"])
+        .unwrap_or_else(|| "at_video_command".to_string());
+    let args_payload = serde_json::json!({
+        "user_input": raw_text
+            .clone()
+            .or(prompt.clone())
+            .unwrap_or_else(|| "请根据当前要求执行视频任务".to_string()),
+        "video_task": serde_json::Value::Object(video_task.clone()),
+    });
+    let args_json = truncate_prompt_text(
+        serde_json::to_string(&args_payload).unwrap_or_else(|_| "{}".to_string()),
+        4_000,
+    );
+    let video_task_json = truncate_prompt_text(
+        serde_json::to_string(video_task).unwrap_or_else(|_| "{}".to_string()),
+        4_000,
+    );
+
+    let mut lines = vec![
+        VIDEO_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
+        "- 当前回合来自视频技能启动，不要把它当成普通聊天回答。".to_string(),
+        "- 先快速归纳用户目标，然后立刻把任务交给 Skill 工具；不要停留在泛泛解释。".to_string(),
+        format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
+        "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
+        format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        "- Skill 执行后，优先沿 video_generate skill 的 Bash / task file 主链提交异步任务；只有 Skill 明确不可用时，才允许直接回退到 lime_create_video_generation_task / create_video_generation_task。".to_string(),
+        "- 不要伪造“视频已生成完成”；在 task file 真正返回结果前，只能汇报任务已提交、排队或执行中。".to_string(),
+        format!("- 当前视频任务上下文(JSON)：{video_task_json}"),
+        format!("- 当前入口来源：{entry_source}。"),
+    ];
+
+    if let Some(value) = prompt.as_deref() {
+        lines.push(format!("- 当前用户目标：{value}"));
+    }
+    if let Some(value) = duration {
+        lines.push(format!("- 当前目标时长：{value} 秒。"));
+    }
+    if let Some(value) = aspect_ratio.as_deref() {
+        lines.push(format!("- 当前宽高比：{value}。"));
+    }
+    if let Some(value) = resolution.as_deref() {
+        lines.push(format!("- 当前清晰度：{value}。"));
+    }
+    if let Some(value) = provider_id.as_deref() {
+        lines.push(format!("- 当前首选 provider_id：{value}。"));
+    }
+    if let Some(value) = model.as_deref() {
+        lines.push(format!("- 当前首选模型：{value}。"));
+    }
+
+    lines.push(
+        "- 当前任务已经显式进入视频技能主链，不要再要求用户额外确认“是否开始生成视频”。"
+            .to_string(),
+    );
+
+    Some(lines.join("\n"))
+}

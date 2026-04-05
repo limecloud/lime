@@ -1271,7 +1271,7 @@ mod tests {
             model: Some("gpt-5.4".to_string()),
             metadata: std::collections::HashMap::from([(
                 "theme".to_string(),
-                Value::String("planning".to_string()),
+                Value::String("general".to_string()),
             )]),
             ..TurnContextOverride::default()
         };
@@ -1283,7 +1283,7 @@ mod tests {
         assert_eq!(merged.model.as_deref(), Some("gpt-5.4"));
         assert_eq!(
             merged.metadata.get("theme").and_then(Value::as_str),
-            Some("planning")
+            Some("general")
         );
         assert!(merged.output_schema.is_some());
         assert_eq!(

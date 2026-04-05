@@ -980,7 +980,7 @@ mod tests {
                     (
                         "payload".to_string(),
                         serde_json::json!({
-                            "artifact_paths": ["social-posts\\final.md"]
+                            "artifact_paths": ["content-posts\\final.md"]
                         }),
                     ),
                 ])),
@@ -990,14 +990,14 @@ mod tests {
         let extras = emitter.process_event(&mut tool_end);
 
         assert_eq!(extras.len(), 1);
-        assert_snapshot(&extras[0], "social-posts/final.md", "", true);
+        assert_snapshot(&extras[0], "content-posts/final.md", "", true);
 
         match &tool_end {
             RuntimeAgentEvent::ToolEnd { result, .. } => {
                 let metadata = result.metadata.as_ref().expect("tool_end metadata");
                 assert_eq!(
                     metadata.get("path").and_then(Value::as_str),
-                    Some("social-posts/final.md")
+                    Some("content-posts/final.md")
                 );
                 assert_eq!(
                     metadata.get("artifact_id").and_then(Value::as_str),

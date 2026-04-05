@@ -88,16 +88,7 @@ export function buildThemeWorkbenchSendBoundaryState({
     isThemeWorkbench && !sendOptions?.purpose;
 
   let nextSourceText = sourceText;
-
-  if (
-    isThemeWorkbench &&
-    mappedTheme === "social-media" &&
-    nextSourceText.trim() &&
-    !nextSourceText.trimStart().startsWith("/") &&
-    !sendOptions?.skipThemeSkillPrefix
-  ) {
-    nextSourceText = `/${socialArticleSkillKey} ${nextSourceText}`.trim();
-  }
+  void socialArticleSkillKey;
 
   const browserRequirementMatch =
     mappedTheme === "general" && !sendOptions?.purpose

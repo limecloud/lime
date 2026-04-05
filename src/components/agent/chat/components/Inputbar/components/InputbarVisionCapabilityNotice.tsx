@@ -6,18 +6,15 @@ import { resolveVisionModel } from "@/lib/model/visionModelResolver";
 import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
 
 interface InputbarVisionCapabilityNoticeProps {
-  providerType?: string;
-  model?: string;
+  providerType: string;
+  model: string;
   hasPendingImages: boolean;
 }
 
 export const InputbarVisionCapabilityNotice: React.FC<
   InputbarVisionCapabilityNoticeProps
 > = ({ providerType, model, hasPendingImages }) => {
-  const shouldInspectCapability =
-    hasPendingImages &&
-    Boolean(providerType?.trim()) &&
-    Boolean(model?.trim());
+  const shouldInspectCapability = hasPendingImages;
 
   const { providers, loading: providersLoading } = useConfiguredProviders({
     autoLoad: shouldInspectCapability,
@@ -47,7 +44,7 @@ export const InputbarVisionCapabilityNotice: React.FC<
   );
 
   const warningMessage = useMemo(() => {
-    if (!shouldInspectCapability || !model?.trim()) {
+    if (!shouldInspectCapability || !model.trim()) {
       return null;
     }
     if (providersLoading || modelsLoading || !selectedProvider) {

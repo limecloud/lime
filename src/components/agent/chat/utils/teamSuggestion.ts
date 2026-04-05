@@ -160,6 +160,7 @@ function inferSuggestedRoles(
   normalizedInput: string,
   activeTheme?: string,
 ): SuggestedTeamRole[] {
+  void activeTheme;
   if (
     /team runtime|team|多代理|子代理|父子线程|subagent|agent|sendmessage|teamcreate|teamdelete|listpeers|explorer|executor|orchestrator/i.test(
       normalizedInput,
@@ -177,14 +178,12 @@ function inferSuggestedRoles(
   }
 
   if (
-    activeTheme === "knowledge" ||
     /研究|调研|资料|对比|结论|趋势|分析/i.test(normalizedInput)
   ) {
     return ["researcher", "planner", "reviewer"];
   }
 
   if (
-    activeTheme === "document" ||
     /文档|邮件|方案|汇报|提纲|草稿|写作/i.test(normalizedInput)
   ) {
     return ["planner", "writer", "reviewer"];
@@ -197,6 +196,7 @@ function inferSuggestedPresetId(
   normalizedInput: string,
   activeTheme?: string,
 ): string {
+  void activeTheme;
   if (
     /bug|报错|修复|代码|工程|仓库|repo|前端|后端|rust|react|tauri|测试|联调|重构/i.test(
       normalizedInput,
@@ -206,9 +206,6 @@ function inferSuggestedPresetId(
   }
 
   if (
-    activeTheme === "knowledge" ||
-    activeTheme === "planning" ||
-    activeTheme === "document" ||
     /研究|调研|资料|对比|结论|趋势|分析|文档|方案/i.test(normalizedInput)
   ) {
     return "research-team";
@@ -281,22 +278,8 @@ export function getTeamSuggestion({
     score += 0.08;
   }
 
-  if (
-    ["general", "knowledge", "planning", "document"].includes(
-      activeTheme?.trim().toLowerCase() ?? "",
-    ) &&
-    score > 0
-  ) {
+  if (activeTheme?.trim().toLowerCase() === "general" && score > 0) {
     score += 0.04;
-  }
-
-  if (
-    ["social-media", "video"].includes(
-      activeTheme?.trim().toLowerCase() ?? "",
-    ) &&
-    !explicitTeamIntent
-  ) {
-    score -= 0.08;
   }
 
   if (

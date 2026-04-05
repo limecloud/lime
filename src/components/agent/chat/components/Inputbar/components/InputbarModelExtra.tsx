@@ -1,29 +1,22 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import type { ModelSelectorProps } from "@/components/input-kit";
 import type { AsterSessionExecutionRuntime } from "@/lib/api/agentRuntime";
 import { ChatModelSelector } from "../../ChatModelSelector";
 import { getOutputSchemaRuntimeLabel } from "../../../utils/sessionExecutionRuntime";
 
 interface InputbarModelExtraProps {
   isFullscreen?: boolean;
-  isThemeWorkbenchVariant?: boolean;
   providerType?: string;
-  setProviderType?: (type: string) => void;
+  setProviderType: (type: string) => void;
   model?: string;
-  setModel?: (model: string) => void;
+  setModel: (model: string) => void;
   activeTheme?: string;
   onManageProviders?: () => void;
   executionRuntime?: AsterSessionExecutionRuntime | null;
-  backgroundPreload?: ModelSelectorProps["backgroundPreload"];
 }
-
-const NOOP_SET_PROVIDER_TYPE = (_type: string) => {};
-const NOOP_SET_MODEL = (_model: string) => {};
 
 export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
   isFullscreen = false,
-  isThemeWorkbenchVariant = false,
   providerType,
   setProviderType,
   model,
@@ -31,9 +24,8 @@ export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
   activeTheme,
   onManageProviders,
   executionRuntime = null,
-  backgroundPreload,
 }) => {
-  if (isFullscreen || isThemeWorkbenchVariant || !providerType || !model) {
+  if (isFullscreen || !providerType || !model) {
     return null;
   }
 
@@ -45,14 +37,13 @@ export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
     <div className="flex items-center flex-wrap gap-2">
       <ChatModelSelector
         providerType={providerType}
-        setProviderType={setProviderType || NOOP_SET_PROVIDER_TYPE}
+        setProviderType={setProviderType}
         model={model}
-        setModel={setModel || NOOP_SET_MODEL}
+        setModel={setModel}
         activeTheme={activeTheme}
         compactTrigger
         popoverSide="top"
         onManageProviders={onManageProviders}
-        backgroundPreload={backgroundPreload}
       />
       {outputSchemaLabel ? (
         <Badge

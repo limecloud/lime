@@ -40,7 +40,7 @@ function createModel(
 }
 
 describe("modelThemePolicy", () => {
-  it("knowledge 主题应优先保留推理聊天模型", () => {
+  it("general 主题应优先保留推理聊天模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),
       createModel("deepseek-reasoner", {
@@ -56,7 +56,7 @@ describe("modelThemePolicy", () => {
       createModel("deepseek-chat"),
     ];
 
-    const result = filterModelsByTheme("knowledge", models);
+    const result = filterModelsByTheme("general", models);
 
     expect(result.usedFallback).toBe(false);
     expect(result.models.map((model) => model.id)).toEqual([
@@ -65,28 +65,28 @@ describe("modelThemePolicy", () => {
     expect(result.policyName).toBe("reasoning-priority");
   });
 
-  it("knowledge 主题在无推理模型时应回退到聊天模型", () => {
+  it("general 主题在无推理模型时应回退到聊天模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),
       createModel("deepseek-chat"),
       createModel("text-embedding-3-large"),
     ];
 
-    const result = filterModelsByTheme("knowledge", models);
+    const result = filterModelsByTheme("general", models);
 
     expect(result.usedFallback).toBe(false);
     expect(result.models.map((model) => model.id)).toEqual(["deepseek-chat"]);
     expect(result.policyName).toBe("chat-fallback");
   });
 
-  it("social-media 主题应过滤掉图像和非聊天模型", () => {
+  it("general 主题应过滤掉图像和非聊天模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),
       createModel("text-embedding-3-large"),
       createModel("gpt-4o"),
     ];
 
-    const result = filterModelsByTheme("social-media", models);
+    const result = filterModelsByTheme("general", models);
 
     expect(result.usedFallback).toBe(false);
     expect(result.models.map((model) => model.id)).toEqual(["gpt-4o"]);

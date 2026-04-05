@@ -57,7 +57,11 @@ import {
   ensureWorkspaceReady,
   type Project,
 } from "@/lib/api/project";
-import { createImageGenerationTaskArtifact } from "@/lib/api/mediaTasks";
+import {
+  cancelMediaTaskArtifact,
+  createImageGenerationTaskArtifact,
+  getMediaTaskArtifact,
+} from "@/lib/api/mediaTasks";
 import { updateAgentRuntimeSession } from "@/lib/api/agentRuntime";
 import {
   getProjectMemory,
@@ -747,10 +751,7 @@ export function AgentChatWorkspace({
           theme,
           workspaceType: p.workspaceType,
         });
-        if (
-          !shouldPreserveEntryThemeOnHome &&
-          (!lockTheme || !initialTheme)
-        ) {
+        if (!shouldPreserveEntryThemeOnHome && (!lockTheme || !initialTheme)) {
           setActiveTheme(theme);
         }
 
@@ -1285,8 +1286,13 @@ export function AgentChatWorkspace({
     clearPreparedRuntimeTeamState();
     clearRuntimeTeamDispatchPreview();
   }, [clearPreparedRuntimeTeamState, clearRuntimeTeamDispatchPreview]);
+  const localImageWorkbenchSessionKeyRef = useRef(
+    `__local_image_workbench__:${Date.now().toString(36)}:${Math.random()
+      .toString(36)
+      .slice(2, 8)}`,
+  );
   const imageWorkbenchSessionKey = useMemo(
-    () => sessionId?.trim() || "__local_image_workbench__",
+    () => sessionId?.trim() || localImageWorkbenchSessionKeyRef.current,
     [sessionId],
   );
   const currentImageWorkbenchState = useMemo(
@@ -1865,8 +1871,9 @@ export function AgentChatWorkspace({
         selectedTeamDescription: selectedTeam?.description,
         selectedTeamSummary,
         selectedTeamRoles: selectedTeam?.roles,
-        teamMemoryShadow:
-          buildTeamMemoryShadowRequestMetadata(resolvedTeamMemoryShadowSnapshot),
+        teamMemoryShadow: buildTeamMemoryShadowRequestMetadata(
+          resolvedTeamMemoryShadowSnapshot,
+        ),
       }),
     [
       effectiveChatToolPreferences.subagent,
@@ -2050,8 +2057,7 @@ export function AgentChatWorkspace({
     setCreationMode,
     setTaskFiles,
   });
-  const { handleClearMessages, handleBackHome, resetTopicLocalState } =
-    useWorkspaceResetRuntime({
+  const { handleBackHome, resetTopicLocalState } = useWorkspaceResetRuntime({
       clearMessages,
       clearRuntimeTeamState,
       clearProjectSelectionRuntime,
@@ -2125,8 +2131,11 @@ export function AgentChatWorkspace({
 
   const imageWorkbenchActionRuntime = useWorkspaceImageWorkbenchActionRuntime({
     appendLocalDispatchMessages,
+    canvasState,
+    cancelImageTask: cancelMediaTaskArtifact,
     contentId,
     createImageGenerationTask: createImageGenerationTaskArtifact,
+    getImageTask: getMediaTaskArtifact,
     currentImageWorkbenchState,
     imageWorkbenchSelectedModelId,
     imageWorkbenchSelectedProviderId,
@@ -2141,7 +2150,8 @@ export function AgentChatWorkspace({
     setMentionedCharacters,
     updateCurrentImageWorkbenchState,
   });
-  const { handleImageWorkbenchCommand } = imageWorkbenchActionRuntime;
+  const { handleImageWorkbenchCommand, resolveImageWorkbenchSkillRequest } =
+    imageWorkbenchActionRuntime;
   const workspaceServiceSkillEntryActions =
     useWorkspaceServiceSkillEntryActions({
       activeTheme,
@@ -2206,7 +2216,7 @@ export function AgentChatWorkspace({
     ensureBrowserAssistCanvas,
     handleAutoLaunchMatchedSiteSkill:
       workspaceServiceSkillEntryActions.handleAutoLaunchMatchedSiteSkill,
-    handleImageWorkbenchCommand,
+    resolveImageWorkbenchSkillRequest,
   });
 
   const {
@@ -2268,6 +2278,7 @@ export function AgentChatWorkspace({
     projectName: project?.name,
     canvasState,
     contentId,
+    selectedText,
     onRunImageWorkbenchCommand: handleImageWorkbenchCommand,
   });
   const { handleInputbarA2UISubmit } = useWorkspaceA2UISubmitActions({
@@ -2335,6 +2346,15 @@ export function AgentChatWorkspace({
         isSending ||
         queuedTurns.length > 0 ||
         Boolean(browserTaskPreflight)));
+  const shouldRestoreImageTasksFromWorkspace = !(
+    agentEntry === "new-task" &&
+    !contentId &&
+    !hasDisplayMessages &&
+    !isSending &&
+    queuedTurns.length === 0 &&
+    !browserTaskPreflight &&
+    !isBootstrapDispatchPending
+  );
 
   const handleCanvasSelectionTextChange = useCallback((text: string) => {
     const normalized = text.trim().replace(/\s+/g, " ");
@@ -2622,11 +2642,13 @@ export function AgentChatWorkspace({
   });
 
   useWorkspaceImageTaskPreviewRuntime({
-    sessionId,
+    sessionId: imageWorkbenchSessionKey,
     projectId,
     contentId,
     projectRootPath: project?.rootPath || null,
+    restoreFromWorkspace: shouldRestoreImageTasksFromWorkspace,
     canvasState,
+    setCanvasState,
     setChatMessages,
     updateCurrentImageWorkbenchState,
   });
@@ -2730,7 +2752,6 @@ export function AgentChatWorkspace({
     model,
     setModel,
     sessionExecutionRuntime: executionRuntime,
-    isExecutionRuntimeActive: Boolean(activeExecutionRuntime),
     projectId: projectId ?? null,
     executionStrategy,
     setExecutionStrategy,
@@ -2741,8 +2762,6 @@ export function AgentChatWorkspace({
     selectedTeam,
     handleSelectTeam,
     handleEnableSuggestedTeam,
-    handleClearMessages,
-    handleToggleCanvas,
     layoutMode,
     handleTaskFileClick,
     characters: projectMemory?.characters || [],

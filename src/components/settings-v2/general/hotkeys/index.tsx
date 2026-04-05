@@ -379,5 +379,3 @@ export function HotkeysSettings() {
     </div>
   );
 }
-
-export default HotkeysSettings;

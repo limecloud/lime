@@ -1,28 +1,25 @@
 import React, { useMemo, useRef, useState } from "react";
-import type { A2UISubmissionNoticeData } from "../components/A2UISubmissionNotice";
 import { BuiltinCommandBadge } from "../components/BuiltinCommandBadge";
-import { SkillBadge } from "../components/SkillBadge";
-import { useActiveSkill } from "./useActiveSkill";
+import { SkillBadge } from "../../../skill-selection/SkillBadge";
+import { useActiveSkill } from "../../../skill-selection/useActiveSkill";
 import { useHintRoutes } from "./useHintRoutes";
 import { useImageAttachments } from "./useImageAttachments";
 import { useInputbarAdapter } from "./useInputbarAdapter";
-import { useInputbarDisplayState } from "./useInputbarDisplayState";
 import { useInputbarSend } from "./useInputbarSend";
-import { useStickyA2UIForm } from "./useStickyA2UIForm";
 import {
   useInputbarToolState,
   type InputbarToolStates,
 } from "./useInputbarToolState";
-import type { SkillSelectionSourceProps } from "../components/skillSelectionBindings";
+import type { SkillSelectionSourceProps } from "../../../skill-selection/skillSelectionBindings";
 import type {
   ThemeWorkbenchGateState,
   ThemeWorkbenchWorkflowStep,
-} from "./useThemeWorkbenchInputState";
+} from "../../../utils/themeWorkbenchInputState";
+import { useThemeWorkbenchInputState } from "../../../utils/themeWorkbenchInputState";
 import { TeamSuggestionBar } from "@/components/agent/chat/components/TeamSuggestionBar";
-import type { A2UIResponse } from "@/lib/workspace/a2ui";
 import { getTeamSuggestion } from "@/components/agent/chat/utils/teamSuggestion";
 import type { MessageImage } from "../../../types";
-import type { BuiltinInputCommand } from "../components/builtinCommands";
+import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
 
 interface UseInputbarControllerParams {
   input: string;
@@ -37,16 +34,11 @@ interface UseInputbarControllerParams {
   onStop?: () => void;
   isLoading: boolean;
   disabled?: boolean;
-  onClearMessages?: () => void;
-  onToggleCanvas?: () => void;
   providerType?: string;
   setProviderType?: (type: string) => void;
   model?: string;
   setModel?: (model: string) => void;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
-  setExecutionStrategy?: (
-    strategy: "react" | "code_orchestrated" | "auto",
-  ) => void;
   toolStates?: Partial<InputbarToolStates>;
   onToolStatesChange?: (states: InputbarToolStates) => void;
   activeTheme?: string;
@@ -54,8 +46,6 @@ interface UseInputbarControllerParams {
   themeWorkbenchGate?: ThemeWorkbenchGateState | null;
   workflowSteps?: ThemeWorkbenchWorkflowStep[];
   themeWorkbenchRunState?: "idle" | "auto_running" | "await_user_decision";
-  pendingA2UIForm?: A2UIResponse | null;
-  a2uiSubmissionNotice?: A2UISubmissionNoticeData | null;
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
 }
 
@@ -66,14 +56,11 @@ export function useInputbarController({
   onStop,
   isLoading,
   disabled,
-  onClearMessages,
-  onToggleCanvas,
   providerType,
   setProviderType,
   model,
   setModel,
   executionStrategy,
-  setExecutionStrategy,
   toolStates,
   onToolStatesChange,
   activeTheme,
@@ -81,8 +68,6 @@ export function useInputbarController({
   themeWorkbenchGate,
   workflowSteps = [],
   themeWorkbenchRunState,
-  pendingA2UIForm,
-  a2uiSubmissionNotice,
   onEnableSuggestedTeam,
   skills,
   serviceSkills,
@@ -92,7 +77,7 @@ export function useInputbarController({
   onImportSkill,
   onRefreshSkills,
 }: UseInputbarControllerParams & SkillSelectionSourceProps) {
-  const { activeSkill, setActiveSkill, clearActiveSkill, buildSkillSelection } =
+  const { activeSkill, clearActiveSkill, buildSkillSelection } =
     useActiveSkill();
   const [activeBuiltinCommand, setActiveBuiltinCommand] =
     useState<BuiltinInputCommand | null>(null);
@@ -116,18 +101,11 @@ export function useInputbarController({
     setSubagentEnabled,
     isFullscreen,
     thinkingEnabled,
-    taskEnabled,
     subagentEnabled,
     webSearchEnabled,
   } = useInputbarToolState({
     toolStates,
     onToolStatesChange,
-    executionStrategy,
-    setExecutionStrategy,
-    setInput,
-    onClearMessages,
-    onToggleCanvas,
-    clearPendingImages,
     openFileDialog,
   });
 
@@ -149,10 +127,8 @@ export function useInputbarController({
     webSearchEnabled,
     thinkingEnabled,
     executionStrategy,
-    activeTools,
     activeSkill,
     activeBuiltinCommand,
-    activeTheme,
     onSend,
     clearPendingImages,
     clearActiveSkill,
@@ -171,31 +147,18 @@ export function useInputbarController({
     handleSend,
     onStop,
     pendingImages,
-    setExecutionStrategy,
   });
 
   const {
     themeWorkbenchQuickActions,
     themeWorkbenchQueueItems,
     renderThemeWorkbenchGeneratingPanel,
-    visibleA2UISubmissionNotice,
-    isA2UISubmissionNoticeVisible,
-  } = useInputbarDisplayState({
+  } = useThemeWorkbenchInputState({
     isThemeWorkbenchVariant,
     themeWorkbenchGate,
     workflowSteps,
     themeWorkbenchRunState,
     isSending: inputAdapter.state.isSending,
-    pendingA2UIForm: Boolean(pendingA2UIForm),
-    a2uiSubmissionNotice,
-  });
-
-  const {
-    visibleForm: visiblePendingA2UIForm,
-    isStale: isPendingA2UIFormStale,
-  } = useStickyA2UIForm({
-    form: pendingA2UIForm,
-    clearImmediately: Boolean(a2uiSubmissionNotice),
   });
 
   const [dismissedTeamSuggestionKey, setDismissedTeamSuggestionKey] = useState<
@@ -285,31 +248,15 @@ export function useInputbarController({
     handleSend,
     inputAdapter,
     topExtra,
-    taskEnabled,
-    subagentEnabled,
-    thinkingEnabled,
-    webSearchEnabled,
     themeWorkbenchQuickActions,
     themeWorkbenchQueueItems,
     renderThemeWorkbenchGeneratingPanel,
-    visiblePendingA2UIForm,
-    isPendingA2UIFormStale,
-    visibleA2UISubmissionNotice,
-    isA2UISubmissionNoticeVisible,
     skillSelection,
-    activeSkill,
-    setActiveSkill: (skill: Parameters<typeof setActiveSkill>[0]) => {
-      setActiveBuiltinCommand(null);
-      setActiveSkill(skill);
-    },
-    clearActiveSkill,
-    activeBuiltinCommand,
     setActiveBuiltinCommand: (command: BuiltinInputCommand | null) => {
       if (command) {
         clearActiveSkill();
       }
       setActiveBuiltinCommand(command);
     },
-    clearActiveBuiltinCommand: () => setActiveBuiltinCommand(null),
   };
 }
