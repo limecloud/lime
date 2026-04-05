@@ -6,7 +6,6 @@ import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import {
   buildStepProgressProps,
   buildTeamWorkspaceDockProps,
-  buildWorkspaceMessageListProps,
 } from "./chatSurfaceProps";
 import type { TeamWorkbenchSurfaceProps } from "./teamWorkbenchPresentation";
 
@@ -24,7 +23,6 @@ interface UseWorkspaceConversationScenePresentationParams {
     | "projectId"
     | "canvasWorkbenchLayoutProps"
     | "stepProgressProps"
-    | "messageListProps"
     | "teamWorkspaceDockProps"
   > & {
     projectId: string | null | undefined;
@@ -69,7 +67,6 @@ export function useWorkspaceConversationScenePresentation({
   canvasWorkbenchLayout,
 }: UseWorkspaceConversationScenePresentationParams): WorkspaceConversationScenePresentationResult {
   const stepProgressProps = buildStepProgressProps(stepProgress);
-  const messageListProps = buildWorkspaceMessageListProps(messageList);
   const teamWorkspaceDockProps = buildTeamWorkspaceDockProps(teamWorkspaceDock);
   const workspaceAlertVisible = Boolean(
     workspaceAlert.workspacePathMissing || workspaceAlert.workspaceHealthError,
@@ -86,7 +83,7 @@ export function useWorkspaceConversationScenePresentation({
       <WorkspaceConversationScene
         {...scene}
         stepProgressProps={stepProgressProps}
-        messageListProps={messageListProps}
+        messageListProps={messageList}
         teamWorkspaceDockProps={teamWorkspaceDockProps}
         workspaceAlertVisible={workspaceAlertVisible}
         projectId={scene.projectId ?? null}

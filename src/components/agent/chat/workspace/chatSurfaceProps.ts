@@ -44,11 +44,6 @@ export function buildStepProgressProps({
   };
 }
 
-export function buildWorkspaceMessageListProps(
-  params: ComponentProps<typeof MessageList>,
-): ComponentProps<typeof MessageList> {
-  return params;
-}
 
 interface BuildTeamWorkspaceDockPropsParams {
   enabled: boolean;
