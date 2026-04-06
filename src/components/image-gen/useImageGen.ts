@@ -75,6 +75,8 @@ function imageGenDebugLog(...args: unknown[]): void {
   if (!isDebugFlagEnabled(PROVIDER_DEBUG_KEY)) {
     return;
   }
+
+  console.debug("[image-gen]", ...args);
 }
 
 function sanitizeMaterialName(value: string): string {

@@ -73,6 +73,31 @@ async function flushEffects() {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const button = Array.from(container.querySelectorAll("button")).find((item) =>
     item.textContent?.includes(text),
@@ -137,6 +162,30 @@ describe("ExecutionTrackerSettings", () => {
     expect(text).toContain("查看约定");
     expect(text).toContain("session-alpha");
     expect(text).toContain("workflow:publish");
+  });
+
+  it("应把执行轨迹补充说明收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、来源引用和错误信息，再决定是否继续下钻到单条详情。",
+    );
+    expect(getBodyText()).not.toContain(
+      "打开后会按固定周期静默同步，便于持续观察近期执行状态。",
+    );
+
+    const heroTip = await hoverTip("执行轨迹工作台说明");
+    expect(getBodyText()).toContain(
+      "这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、来源引用和错误信息，再决定是否继续下钻到单条详情。",
+    );
+    await leaveTip(heroTip);
+
+    const autoRefreshTip = await hoverTip("自动刷新说明");
+    expect(getBodyText()).toContain(
+      "打开后会按固定周期静默同步，便于持续观察近期执行状态。",
+    );
+    await leaveTip(autoRefreshTip);
   });
 
   it("点击详情后应加载并展示执行详情", async () => {

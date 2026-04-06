@@ -25,7 +25,7 @@ import type { Artifact } from "@/lib/artifact/types";
 /**
  * ErrorFallbackRenderer Props
  */
-export interface ErrorFallbackRendererProps {
+interface ErrorFallbackRendererProps {
   /** 发生错误的 Artifact */
   artifact: Artifact;
   /** 错误对象 */
@@ -315,5 +315,3 @@ export const ErrorFallbackRenderer: React.FC<ErrorFallbackRendererProps> = memo(
 );
 
 ErrorFallbackRenderer.displayName = "ErrorFallbackRenderer";
-
-export default ErrorFallbackRenderer;

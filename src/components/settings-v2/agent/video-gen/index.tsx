@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Film, CheckCircle2, AlertCircle } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { cn } from "@/lib/utils";
@@ -158,10 +159,14 @@ export function VideoGenSettings() {
     <div className="space-y-5 max-w-[980px]">
       <div className={NOTICE_CARD_CLASS}>
         <Film className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-        <p>
-          这里配置的是全局默认视频服务。未在项目中单独覆盖时，视频素材与 AI
-          视频任务都会优先使用这里的 Provider / 模型。
-        </p>
+        <div className="flex items-center gap-2">
+          <span>全局默认视频服务说明已收纳</span>
+          <WorkbenchInfoTip
+            ariaLabel="全局默认视频服务说明"
+            content="这里配置的是全局默认视频服务。未在项目中单独覆盖时，视频素材与 AI 视频任务都会优先使用这里的 Provider / 模型。"
+            tone="slate"
+          />
+        </div>
       </div>
 
       <MediaPreferenceSection

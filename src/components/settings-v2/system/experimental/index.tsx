@@ -29,6 +29,7 @@ import {
   FolderOpen,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import {
   getConfig,
@@ -60,7 +61,7 @@ import { applyCrashReportingSettings } from "@/lib/crashReporting";
 import {
   buildCrashDiagnosticPayload,
   collectRuntimeSnapshotForDiagnostic,
-  collectThemeWorkbenchDocumentStateForDiagnostic,
+  collectGeneralWorkbenchDocumentStateForDiagnostic,
   copyCrashDiagnosticJsonToClipboard,
   copyCrashDiagnosticToClipboard,
   DEFAULT_CRASH_REPORTING_CONFIG,
@@ -127,8 +128,12 @@ function ExperimentalPanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
       </div>
@@ -149,11 +154,17 @@ function SummaryStat({
 }) {
   return (
     <div className="rounded-[22px] border border-slate-200/80 bg-slate-50 p-4">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -509,7 +520,7 @@ export function ExperimentalSettings() {
     const [
       logs,
       persistedLogs,
-      themeWorkbenchDocumentState,
+      generalWorkbenchDocumentState,
       serverDiagnostics,
       logStorageDiagnostics,
       windowsStartupDiagnostics,
@@ -517,7 +528,7 @@ export function ExperimentalSettings() {
     ] = await Promise.all([
       getLogs(),
       getPersistedLogsTail(200),
-      collectThemeWorkbenchDocumentStateForDiagnostic(),
+      collectGeneralWorkbenchDocumentStateForDiagnostic(),
       getServerDiagnostics().catch(() => null),
       getLogStorageDiagnostics().catch(() => null),
       getWindowsStartupDiagnostics().catch(() => null),
@@ -528,7 +539,7 @@ export function ExperimentalSettings() {
       logs,
       persistedLogTail: persistedLogs,
       collectionNotes: runtimeSnapshotResult.collectionNotes,
-      themeWorkbenchDocumentState,
+      generalWorkbenchDocumentState,
       serverDiagnostics,
       logStorageDiagnostics,
       windowsStartupDiagnostics,

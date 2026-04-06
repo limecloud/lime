@@ -17,7 +17,7 @@ use std::path::Path;
 
 use super::execution::SkillExecutionResult;
 use super::execution_callback::TauriExecutionCallback;
-use super::social_post::{infer_theme_workbench_gate_key, is_content_post_skill_name};
+use super::social_post::{infer_general_workbench_gate_key, is_content_post_skill_name};
 
 #[cfg(test)]
 use super::social_post::CONTENT_POST_WITH_COVER_SKILL_NAME;
@@ -243,7 +243,7 @@ pub fn build_skill_run_start_metadata(
     serde_json::json!({
         "execution_id": execution_id,
         "skill_name": skill_name,
-        "gate_key": infer_theme_workbench_gate_key(skill_name, user_input),
+        "gate_key": infer_general_workbench_gate_key(skill_name, user_input),
         "provider_override": provider_override,
         "model_override": model_override,
     })

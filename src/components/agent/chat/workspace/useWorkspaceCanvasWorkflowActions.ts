@@ -138,7 +138,7 @@ export function useWorkspaceCanvasWorkflowActions<
           fast_mode_enabled: payload.settings.fastModeEnabled,
           continuation_length: payload.settings.continuationLength,
           sensitivity: payload.settings.sensitivity,
-          source: "theme_workbench_document_auto_continue",
+          source: "general_workbench_document_auto_continue",
         },
       );
     },

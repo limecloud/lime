@@ -91,6 +91,8 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
     executionStrategy?: "react" | "code_orchestrated" | "auto",
     images?: MessageImage[],
   ) => void;
+  isLoading?: boolean;
+  disabled?: boolean;
   /** 创作模式 */
   creationMode?: CreationMode;
   /** 创作模式变更回调 */
@@ -219,6 +221,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   projectId = null,
   onProjectChange,
   onOpenSettings,
+  isLoading = false,
+  disabled = false,
 }) => {
   const { wrapTextWithSkill, buildSkillSelection } = useActiveSkill();
   const skillSelection = buildSkillSelection({
@@ -292,6 +296,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   const [pendingImages, setPendingImages] = useState<MessageImage[]>([]);
   const isGeneralTheme = isGeneralResearchTheme(activeTheme);
+  const isComposerBusy = isLoading || disabled;
 
   const wrapTextWithDefaultSkill = (text: string) => {
     const wrappedByActiveSkill = wrapTextWithSkill(text);
@@ -391,7 +396,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   };
 
   const handleSend = () => {
-    if (!input.trim() && pendingImages.length === 0) return;
+    if (isComposerBusy || (!input.trim() && pendingImages.length === 0)) {
+      return;
+    }
     const imagesToSend = pendingImages.length > 0 ? pendingImages : undefined;
 
     onSend(
@@ -733,6 +740,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       accessMode={accessMode}
       setAccessMode={setAccessMode}
       onManageProviders={onManageProviders}
+      isLoading={isComposerBusy}
+      disabled={isComposerBusy}
       isGeneralTheme={isGeneralTheme}
       characters={characters}
       skillSelection={skillSelection}

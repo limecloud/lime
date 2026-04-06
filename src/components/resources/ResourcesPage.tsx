@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   Dialog,
   DialogContent,
@@ -826,12 +827,16 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                     FILE LIBRARY
                   </span>
                   <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                      文件与资料
-                    </h1>
-                    <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                      在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                        文件与资料
+                      </h1>
+                      <WorkbenchInfoTip
+                        ariaLabel="资料库工作台说明"
+                        content="在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。"
+                        tone="mint"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -952,12 +957,16 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {card.title}
-                          </p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            {card.description}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-800">
+                              {card.title}
+                            </p>
+                            <WorkbenchInfoTip
+                              ariaLabel={`${card.title}说明`}
+                              content={card.description}
+                              tone="slate"
+                            />
+                          </div>
                         </div>
                         <div
                           className={cn(
@@ -987,12 +996,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
             <aside className="space-y-4">
               <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
                 <div className="px-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    资料分类
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                    <span>资料分类</span>
+                    <WorkbenchInfoTip
+                      ariaLabel="资料分类说明"
+                      content="在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。"
+                      tone="slate"
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-4 space-y-2">
@@ -1052,12 +1063,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
                 <div className="flex items-start justify-between gap-3 px-1">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      资料库
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      资料库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                      <span>资料库</span>
+                      <WorkbenchInfoTip
+                        ariaLabel="资料库切换说明"
+                        content="资料库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <Button
                     type="button"
@@ -1299,12 +1312,16 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 <div className="border-b border-slate-200/80 px-5 py-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold tracking-tight text-slate-900">
-                        内容列表
-                      </h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        按当前目录或分类范围展示内容，支持直接打开、重命名、删除与移动内容。
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+                          内容列表
+                        </h3>
+                        <WorkbenchInfoTip
+                          ariaLabel="内容列表说明"
+                          content="按当前目录或分类范围展示内容，支持直接打开、重命名、删除与移动内容。"
+                          tone="slate"
+                        />
+                      </div>
                     </div>
                     <Badge
                       variant="outline"

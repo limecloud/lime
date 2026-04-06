@@ -32,7 +32,7 @@ import {
 /**
  * Canvas 适配器 Props
  */
-export interface CanvasAdapterProps {
+interface CanvasAdapterProps {
   /** 要渲染的 Artifact 对象 */
   artifact: Artifact;
   /** 是否处于流式生成状态 */
@@ -232,5 +232,3 @@ export const CanvasAdapter: React.FC<CanvasAdapterProps> = memo(
 );
 
 CanvasAdapter.displayName = "CanvasAdapter";
-
-export default CanvasAdapter;

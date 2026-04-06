@@ -202,7 +202,6 @@ interface WorkspaceBrowserAssistRuntimeResult {
   browserAssistSessionState: BrowserAssistSessionState | null;
   siteSkillExecutionState: SiteSkillExecutionState | null;
   isBrowserAssistReady: boolean;
-  isBrowserAssistCanvasVisible: boolean;
   currentBrowserAssistScopeKey: string | null;
   ensureBrowserAssistCanvas: EnsureBrowserAssistCanvasHandler;
   handleOpenBrowserAssistInCanvas: () => Promise<void>;
@@ -374,8 +373,6 @@ export function useWorkspaceBrowserAssistRuntime({
     () => hasActiveBrowserAssistSession(browserAssistSessionState),
     [browserAssistSessionState],
   );
-
-  const isBrowserAssistCanvasVisible = false;
 
   const openBrowserAssistCanvas = useCallback(
     (_artifactId = GENERAL_BROWSER_ASSIST_ARTIFACT_ID) => {
@@ -1471,7 +1468,6 @@ export function useWorkspaceBrowserAssistRuntime({
     browserAssistSessionState,
     siteSkillExecutionState,
     isBrowserAssistReady,
-    isBrowserAssistCanvasVisible,
     currentBrowserAssistScopeKey,
     ensureBrowserAssistCanvas,
     handleOpenBrowserAssistInCanvas,

@@ -9,7 +9,8 @@ use crate::database::DbConnection;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-pub(crate) const THEME_WORKBENCH_DOCUMENT_META_KEY: &str = "theme_workbench_document_v1";
+pub(crate) const GENERAL_WORKBENCH_DOCUMENT_META_KEY: &str = "general_workbench_document_v1";
+pub(crate) const LEGACY_GENERAL_WORKBENCH_DOCUMENT_META_KEY: &str = "theme_workbench_document_v1";
 
 /// 内容列表项（用于前端展示）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,7 +81,7 @@ impl From<Content> for ContentDetail {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThemeWorkbenchVersionState {
+pub struct GeneralWorkbenchVersionState {
     pub id: String,
     pub created_at: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,24 +92,25 @@ pub struct ThemeWorkbenchVersionState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThemeWorkbenchDocumentState {
+pub struct GeneralWorkbenchDocumentState {
     pub content_id: String,
     pub current_version_id: String,
     pub version_count: usize,
-    pub versions: Vec<ThemeWorkbenchVersionState>,
+    pub versions: Vec<GeneralWorkbenchVersionState>,
 }
 
 fn is_valid_topic_branch_status(status: &str) -> bool {
     matches!(status, "in_progress" | "pending" | "merged" | "candidate")
 }
 
-pub(crate) fn parse_theme_workbench_document_state(
+pub(crate) fn parse_general_workbench_document_state(
     content_id: &str,
     metadata: Option<&serde_json::Value>,
-) -> Option<ThemeWorkbenchDocumentState> {
+) -> Option<GeneralWorkbenchDocumentState> {
     let metadata = metadata?.as_object()?;
     let raw = metadata
-        .get(THEME_WORKBENCH_DOCUMENT_META_KEY)?
+        .get(GENERAL_WORKBENCH_DOCUMENT_META_KEY)
+        .or_else(|| metadata.get(LEGACY_GENERAL_WORKBENCH_DOCUMENT_META_KEY))?
         .as_object()?;
 
     let versions_raw = raw.get("versions")?.as_array()?;
@@ -127,7 +129,7 @@ pub(crate) fn parse_theme_workbench_document_state(
         .cloned()
         .unwrap_or_default();
 
-    let versions: Vec<ThemeWorkbenchVersionState> = versions_raw
+    let versions: Vec<GeneralWorkbenchVersionState> = versions_raw
         .iter()
         .filter_map(|version| {
             let version_obj = version.as_object()?;
@@ -158,7 +160,7 @@ pub(crate) fn parse_theme_workbench_document_state(
                 .filter(|value| is_valid_topic_branch_status(value))
                 .map(ToString::to_string);
 
-            Some(ThemeWorkbenchVersionState {
+            Some(GeneralWorkbenchVersionState {
                 is_current: id == current_version_id,
                 id,
                 created_at,
@@ -179,7 +181,7 @@ pub(crate) fn parse_theme_workbench_document_state(
         return None;
     }
 
-    Some(ThemeWorkbenchDocumentState {
+    Some(GeneralWorkbenchDocumentState {
         content_id: content_id.to_string(),
         current_version_id,
         version_count: versions.len(),
@@ -270,16 +272,16 @@ pub async fn content_get(
     Ok(content.map(|c| c.into()))
 }
 
-/// 获取主题工作台文稿版本状态（从 content.metadata 解析）
+/// 获取工作区文稿版本状态（从 content.metadata 解析）
 #[tauri::command]
-pub async fn content_get_theme_workbench_document_state(
+pub async fn content_get_general_workbench_document_state(
     db: State<'_, DbConnection>,
     id: String,
-) -> Result<Option<ThemeWorkbenchDocumentState>, String> {
+) -> Result<Option<GeneralWorkbenchDocumentState>, String> {
     let manager = ContentManager::new(db.inner().clone());
     let content = manager.get(&id)?;
     Ok(content
-        .and_then(|item| parse_theme_workbench_document_state(&item.id, item.metadata.as_ref())))
+        .and_then(|item| parse_general_workbench_document_state(&item.id, item.metadata.as_ref())))
 }
 
 /// 列出项目的所有内容
@@ -357,12 +359,15 @@ pub async fn content_stats(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_theme_workbench_document_state, THEME_WORKBENCH_DOCUMENT_META_KEY};
+    use super::{
+        parse_general_workbench_document_state, GENERAL_WORKBENCH_DOCUMENT_META_KEY,
+        LEGACY_GENERAL_WORKBENCH_DOCUMENT_META_KEY,
+    };
 
     #[test]
-    fn test_parse_theme_workbench_document_state_success() {
+    fn test_parse_general_workbench_document_state_success() {
         let metadata = serde_json::json!({
-          THEME_WORKBENCH_DOCUMENT_META_KEY: {
+          GENERAL_WORKBENCH_DOCUMENT_META_KEY: {
             "currentVersionId": "v2",
             "versions": [
               { "id": "v1", "createdAt": 1700000000000_i64, "description": "初稿" },
@@ -375,7 +380,7 @@ mod tests {
           }
         });
 
-        let parsed = parse_theme_workbench_document_state("content-1", Some(&metadata))
+        let parsed = parse_general_workbench_document_state("content-1", Some(&metadata))
             .expect("should parse");
         assert_eq!(parsed.content_id, "content-1");
         assert_eq!(parsed.current_version_id, "v2");
@@ -385,9 +390,9 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_theme_workbench_document_state_rejects_invalid_current_version() {
+    fn test_parse_general_workbench_document_state_rejects_invalid_current_version() {
         let metadata = serde_json::json!({
-          THEME_WORKBENCH_DOCUMENT_META_KEY: {
+          GENERAL_WORKBENCH_DOCUMENT_META_KEY: {
             "currentVersionId": "v-not-exists",
             "versions": [
               { "id": "v1", "createdAt": 1700000000000_i64, "description": "初稿" }
@@ -396,6 +401,22 @@ mod tests {
           }
         });
 
-        assert!(parse_theme_workbench_document_state("content-1", Some(&metadata)).is_none());
+        assert!(parse_general_workbench_document_state("content-1", Some(&metadata)).is_none());
+    }
+
+    #[test]
+    fn test_parse_general_workbench_document_state_accepts_legacy_alias_key() {
+        let metadata = serde_json::json!({
+          LEGACY_GENERAL_WORKBENCH_DOCUMENT_META_KEY: {
+            "currentVersionId": "v1",
+            "versions": [
+              { "id": "v1", "createdAt": 1700000000000_i64, "description": "初稿" }
+            ]
+          }
+        });
+
+        let parsed = parse_general_workbench_document_state("content-1", Some(&metadata))
+            .expect("should parse");
+        assert_eq!(parsed.current_version_id, "v1");
     }
 }

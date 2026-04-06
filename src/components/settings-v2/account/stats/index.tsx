@@ -14,6 +14,7 @@ import {
   RefreshCw,
   TrendingUp,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import {
   getDailyUsageTrends,
@@ -139,7 +140,13 @@ function SegmentCard({
           >
             {title}
           </span>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
+          <div>
+            <WorkbenchInfoTip
+              ariaLabel={`${title}区段说明`}
+              content={description}
+              tone="slate"
+            />
+          </div>
         </div>
         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
           {messages} 条消息
@@ -300,13 +307,16 @@ export function StatsSettings() {
                 USAGE SNAPSHOT
               </span>
               <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  观察最近的使用强度
-                </p>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，
-                  方便快速判断近期是否进入高频使用状态。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                    观察最近的使用强度
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="使用统计总览说明"
+                    content="将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，方便快速判断近期是否进入高频使用状态。"
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -351,9 +361,14 @@ export function StatsSettings() {
                 </span>
               </div>
 
-              <p className="text-xs leading-5 text-slate-500">
-                {selectedRange.description}
-              </p>
+              <div className="flex items-center gap-2 text-xs leading-5 text-slate-500">
+                <span>当前统计口径说明已收纳</span>
+                <WorkbenchInfoTip
+                  ariaLabel="当前统计口径说明"
+                  content={selectedRange.description}
+                  tone="slate"
+                />
+              </div>
             </div>
 
             <article className="flex h-full flex-col rounded-[26px] border border-white/90 bg-white/84 p-5 shadow-sm shadow-slate-950/5 backdrop-blur-[2px]">
@@ -362,10 +377,12 @@ export function StatsSettings() {
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <TrendingUp className="h-4 w-4 text-sky-600" />
                     当前观察
+                    <WorkbenchInfoTip
+                      ariaLabel="当前观察说明"
+                      content="用一个摘要面板快速查看这段时间的主要节奏。"
+                      tone="slate"
+                    />
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    用一个摘要面板快速查看这段时间的主要节奏。
-                  </p>
                 </div>
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                   {selectedRange.label}
@@ -439,10 +456,12 @@ export function StatsSettings() {
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <BarChart3 className="h-4 w-4 text-sky-600" />
                     阶段概览
+                    <WorkbenchInfoTip
+                      ariaLabel="阶段概览说明"
+                      content="按今日、本月与累计三个区段拆解对话量、Token 消耗和估算时长。"
+                      tone="slate"
+                    />
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    按今日、本月与累计三个区段拆解对话量、Token 消耗和估算时长。
-                  </p>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
                   3 个区段
@@ -492,14 +511,16 @@ export function StatsSettings() {
               <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <Brain className="h-4 w-4 text-emerald-600" />
-                      模型使用排行
-                    </div>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      查看当前区间内最常使用的模型与使用占比。
-                    </p>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Brain className="h-4 w-4 text-emerald-600" />
+                    模型使用排行
+                    <WorkbenchInfoTip
+                      ariaLabel="模型使用排行说明"
+                      content="查看当前区间内最常使用的模型与使用占比。"
+                      tone="slate"
+                    />
                   </div>
+                </div>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                     {modelUsage.length} 个模型
                   </span>
@@ -598,10 +619,12 @@ export function StatsSettings() {
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <Coins className="h-4 w-4 text-emerald-600" />
                     每日使用趋势
+                    <WorkbenchInfoTip
+                      ariaLabel="每日使用趋势说明"
+                      content={`观察 ${selectedRange.label} 内每日 Token 波动，识别高峰与低谷。`}
+                      tone="slate"
+                    />
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    观察 {selectedRange.label} 内每日 Token 波动，识别高峰与低谷。
-                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
@@ -718,10 +741,12 @@ export function StatsSettings() {
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <CalendarDays className="h-4 w-4 text-sky-600" />
                     活跃度日历
+                    <WorkbenchInfoTip
+                      ariaLabel="活跃度日历说明"
+                      content="以最近 35 天的活跃热度查看调用分布，颜色越深表示 Token 越多。"
+                      tone="slate"
+                    />
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    以最近 35 天的活跃热度查看调用分布，颜色越深表示 Token 越多。
-                  </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                   <span>少</span>

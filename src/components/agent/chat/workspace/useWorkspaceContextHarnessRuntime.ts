@@ -7,7 +7,7 @@ import { collectConversationSkillNames } from "../utils/harnessSkills";
 import {
   loadPersistedBoolean,
   savePersistedBoolean,
-} from "./themeWorkbenchHelpers";
+} from "./generalWorkbenchHelpers";
 
 const HARNESS_PANEL_VISIBILITY_KEY = "lime.chat.harness-panel.visible.v1";
 
@@ -64,7 +64,8 @@ export function useWorkspaceContextHarnessRuntime({
     model,
   });
   const workbenchEnabled = enabled;
-  const isThemeWorkbench = contextWorkspace.enabled;
+  const generalWorkbenchContextEnabled =
+    contextWorkspace.generalWorkbenchEnabled;
   const harnessSkillNames = useMemo(
     () => (workbenchEnabled ? collectConversationSkillNames(messages) : []),
     [messages, workbenchEnabled],
@@ -73,7 +74,7 @@ export function useWorkspaceContextHarnessRuntime({
     ? harnessState.pendingApprovals.length
     : 0;
   const shouldAlwaysShowHarnessToggle =
-    workbenchEnabled && contextWorkspace.enabled;
+    workbenchEnabled && generalWorkbenchContextEnabled;
   const hasHarnessActivity =
     workbenchEnabled &&
     (harnessPanelVisible ||
@@ -121,7 +122,7 @@ export function useWorkspaceContextHarnessRuntime({
               .map((item) => item.name)
               .filter((name) => !!name.trim())
               .slice(0, 4),
-            contextEnabled: contextWorkspace.enabled,
+            contextEnabled: generalWorkbenchContextEnabled,
           }
         : {
             skillsCount: 0,
@@ -133,7 +134,7 @@ export function useWorkspaceContextHarnessRuntime({
             contextEnabled: false,
           },
     [
-      contextWorkspace.enabled,
+      generalWorkbenchContextEnabled,
       contextWorkspace.sidebarContextItems,
       harnessSkillNames,
       projectMemory?.characters.length,
@@ -167,7 +168,8 @@ export function useWorkspaceContextHarnessRuntime({
   return {
     contextWorkspace,
     workbenchEnabled,
-    isThemeWorkbench,
+    generalWorkbenchContextEnabled,
+    isThemeWorkbench: generalWorkbenchContextEnabled,
     harnessPanelVisible,
     setHarnessPanelVisible,
     harnessPendingCount,

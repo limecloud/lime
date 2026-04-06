@@ -7,10 +7,12 @@ use std::path::PathBuf;
 use lime_core::app_paths;
 use lime_core::models::parse_skill_manifest_from_content;
 use lime_core::models::{
-    BROADCAST_GENERATE_SKILL_DIRECTORY, CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
-    COVER_GENERATE_SKILL_DIRECTORY, IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY,
-    MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY, RESEARCH_SKILL_DIRECTORY, SITE_SEARCH_SKILL_DIRECTORY,
-    TRANSCRIPTION_GENERATE_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY,
+    ANALYSIS_SKILL_DIRECTORY, BROADCAST_GENERATE_SKILL_DIRECTORY,
+    CONTENT_POST_WITH_COVER_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
+    IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY, MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
+    PDF_READ_SKILL_DIRECTORY, REPORT_GENERATE_SKILL_DIRECTORY, RESEARCH_SKILL_DIRECTORY,
+    SITE_SEARCH_SKILL_DIRECTORY, SUMMARY_SKILL_DIRECTORY, TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
+    TRANSLATION_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY,
     VIDEO_GENERATE_SKILL_DIRECTORY,
 };
 
@@ -40,8 +42,22 @@ const URL_PARSE_SKILL_CONTENT: &str =
 const RESEARCH_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/research/SKILL.md");
 
+const REPORT_GENERATE_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/report_generate/SKILL.md");
+
 const SITE_SEARCH_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/site_search/SKILL.md");
+
+const PDF_READ_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/pdf_read/SKILL.md");
+
+const SUMMARY_SKILL_CONTENT: &str = include_str!("../../resources/default-skills/summary/SKILL.md");
+
+const TRANSLATION_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/translation/SKILL.md");
+
+const ANALYSIS_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/analysis/SKILL.md");
 
 const SITE_SEARCH_ADAPTER_CATALOG_CONTENT: &str =
     include_str!("../../resources/default-skills/site_search/references/adapter-catalog.md");
@@ -82,7 +98,7 @@ const SITE_SEARCH_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
     content: SITE_SEARCH_ADAPTER_CATALOG_CONTENT,
 }];
 
-fn default_skills() -> [BundledSkillDefinition; 12] {
+fn default_skills() -> [BundledSkillDefinition; 17] {
     [
         BundledSkillDefinition {
             directory: VIDEO_GENERATE_SKILL_DIRECTORY,
@@ -130,9 +146,34 @@ fn default_skills() -> [BundledSkillDefinition; 12] {
             extra_files: &[],
         },
         BundledSkillDefinition {
+            directory: REPORT_GENERATE_SKILL_DIRECTORY,
+            skill_content: REPORT_GENERATE_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
             directory: SITE_SEARCH_SKILL_DIRECTORY,
             skill_content: SITE_SEARCH_SKILL_CONTENT,
             extra_files: SITE_SEARCH_EXTRA_FILES,
+        },
+        BundledSkillDefinition {
+            directory: PDF_READ_SKILL_DIRECTORY,
+            skill_content: PDF_READ_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: SUMMARY_SKILL_DIRECTORY,
+            skill_content: SUMMARY_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: TRANSLATION_SKILL_DIRECTORY,
+            skill_content: TRANSLATION_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: ANALYSIS_SKILL_DIRECTORY,
+            skill_content: ANALYSIS_SKILL_CONTENT,
+            extra_files: &[],
         },
         BundledSkillDefinition {
             directory: TYPESETTING_SKILL_DIRECTORY,
@@ -342,7 +383,13 @@ mod tests {
         assert!(LIBRARY_SKILL_CONTENT.contains("name: library"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("name: url_parse"));
         assert!(RESEARCH_SKILL_CONTENT.contains("name: research"));
+        assert!(REPORT_GENERATE_SKILL_CONTENT.contains("name: report_generate"));
+        assert!(REPORT_GENERATE_SKILL_CONTENT.contains("allowed-tools: search_query"));
         assert!(SITE_SEARCH_SKILL_CONTENT.contains("name: site_search"));
+        assert!(PDF_READ_SKILL_CONTENT.contains("name: pdf_read"));
+        assert!(PDF_READ_SKILL_CONTENT.contains("allowed-tools: list_directory, read_file"));
+        assert!(SUMMARY_SKILL_CONTENT.contains("name: summary"));
+        assert!(SUMMARY_SKILL_CONTENT.contains("allowed-tools: list_directory, read_file"));
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`github/search`"));
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`zhihu/hot`"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("name: typesetting"));
@@ -356,7 +403,10 @@ mod tests {
         assert!(LIBRARY_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(RESEARCH_SKILL_CONTENT.contains("lime_surface: chat"));
+        assert!(REPORT_GENERATE_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(SITE_SEARCH_SKILL_CONTENT.contains("lime_surface: chat"));
+        assert!(PDF_READ_SKILL_CONTENT.contains("lime_surface: chat"));
+        assert!(SUMMARY_SKILL_CONTENT.contains("lime_surface: chat"));
     }
 
     #[test]

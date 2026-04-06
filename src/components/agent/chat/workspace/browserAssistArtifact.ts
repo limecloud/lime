@@ -1,18 +1,7 @@
 import type { Artifact } from "@/lib/artifact/types";
-import type { TaskStatusReason } from "../hooks/agentChatShared";
 import { mergeArtifacts } from "../utils/messageArtifacts";
 
 export const GENERAL_BROWSER_ASSIST_ARTIFACT_ID = "browser-assist:general";
-
-export function isResumableBrowserTaskReason(
-  statusReason?: TaskStatusReason,
-): boolean {
-  return (
-    statusReason === "browser_launching" ||
-    statusReason === "browser_awaiting_user" ||
-    statusReason === "browser_failed"
-  );
-}
 
 function shouldPreserveGeneralArtifact(artifact: Artifact): boolean {
   return artifact.meta.persistOutsideMessages === true;

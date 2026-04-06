@@ -24,6 +24,7 @@ interface UseWorkspaceConversationScenePresentationParams {
     | "canvasWorkbenchLayoutProps"
     | "stepProgressProps"
     | "teamWorkspaceDockProps"
+    | "messageListProps"
   > & {
     projectId: string | null | undefined;
   };

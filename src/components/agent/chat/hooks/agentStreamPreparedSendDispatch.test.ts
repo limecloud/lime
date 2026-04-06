@@ -55,6 +55,9 @@ const preparedSend: PreparedAgentStreamUserInputSend = {
 
 describe("agentStreamPreparedSendDispatch", () => {
   function createEnv(): AgentStreamPreparedSendEnv {
+    const runPreparedSubmit = vi.fn(
+      async <T,>(task: () => Promise<T>) => task(),
+    ) as unknown as AgentStreamPreparedSendEnv["runPreparedSubmit"];
     return {
       runtime: {} as never,
       ensureSession: async () => "session-1",
@@ -65,6 +68,8 @@ describe("agentStreamPreparedSendDispatch", () => {
       sessionIdRef: { current: null } as MutableRefObject<string | null>,
       getQueuedTurnsCount: () => 0,
       isThreadBusy: () => false,
+      hasPendingPreparedSubmit: () => false,
+      runPreparedSubmit,
       getRequiredWorkspaceId: () => "workspace-1",
       getSyncedSessionModelPreference: () => null,
       getSyncedSessionExecutionStrategy: (_sessionId) => "react",
@@ -106,12 +111,14 @@ describe("agentStreamPreparedSendDispatch", () => {
 
   it("slash preflight 未处理时继续普通 user_input submit", async () => {
     vi.mocked(maybeHandleSlashSkillBeforeSend).mockResolvedValueOnce(false);
+    const env = createEnv();
 
     await dispatchPreparedAgentStreamSend({
       preparedSend,
-      env: createEnv(),
+      env,
     });
 
+    expect(vi.mocked(env.runPreparedSubmit)).toHaveBeenCalledTimes(1);
     expect(submitAgentStreamUserInput).toHaveBeenCalledWith(
       expect.objectContaining({ preparedSend }),
     );

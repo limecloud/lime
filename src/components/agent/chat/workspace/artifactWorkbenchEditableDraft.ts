@@ -83,7 +83,7 @@ export function normalizeStringArray(value: unknown): string[] {
     .filter((item): item is string => Boolean(item));
 }
 
-export function resolveRichTextContent(block: ArtifactDocumentBlock): string {
+function resolveRichTextContent(block: ArtifactDocumentBlock): string {
   return (
     normalizeText(block.contentFormat === "markdown" ? block.content : undefined) ||
     normalizeText(block.markdown) ||
@@ -96,7 +96,7 @@ export function resolveRichTextContent(block: ArtifactDocumentBlock): string {
   );
 }
 
-export function resolveCalloutContent(block: ArtifactDocumentBlock): string {
+function resolveCalloutContent(block: ArtifactDocumentBlock): string {
   return (
     normalizeText(block.body) ||
     normalizeText(block.content) ||
@@ -184,7 +184,7 @@ function resolveChecklistDraftLine(
   };
 }
 
-export function resolveChecklistDraftValue(block: ArtifactDocumentBlock): string {
+function resolveChecklistDraftValue(block: ArtifactDocumentBlock): string {
   if (!Array.isArray(block.items)) {
     return "";
   }
@@ -246,7 +246,7 @@ function normalizeMetricDraftTone(
   }
 }
 
-export function resolveMetricDraftValue(block: ArtifactDocumentBlock): string {
+function resolveMetricDraftValue(block: ArtifactDocumentBlock): string {
   const items = Array.isArray(block.metrics)
     ? block.metrics
     : Array.isArray(block.items)
@@ -313,11 +313,11 @@ export function parseMetricDraftItems(
   return items;
 }
 
-export function resolveTableColumnsDraftValue(block: ArtifactDocumentBlock): string {
+function resolveTableColumnsDraftValue(block: ArtifactDocumentBlock): string {
   return Array.isArray(block.columns) ? block.columns.join(" | ") : "";
 }
 
-export function resolveTableRowsDraftValue(block: ArtifactDocumentBlock): string {
+function resolveTableRowsDraftValue(block: ArtifactDocumentBlock): string {
   if (!Array.isArray(block.rows)) {
     return "";
   }

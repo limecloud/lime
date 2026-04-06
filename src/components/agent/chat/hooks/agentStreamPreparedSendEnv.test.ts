@@ -26,6 +26,8 @@ describe("createAgentStreamPreparedSendEnv", () => {
       providerTypeRef: { current: "openai" } as MutableRefObject<string>,
       modelRef: { current: "gpt-5.4" } as MutableRefObject<string>,
       sessionIdRef: { current: "session-1" } as MutableRefObject<string | null>,
+      hasPendingPreparedSubmit: () => false,
+      runPreparedSubmit: async (task) => task(),
       getRequiredWorkspaceId: () => "workspace-1",
       getSyncedSessionModelPreference: () => null,
       getSyncedSessionExecutionStrategy: () => "react",

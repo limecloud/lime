@@ -1,47 +1,47 @@
 import type { ComponentProps, ReactNode } from "react";
 import { PanelLeftOpen } from "lucide-react";
 import { ChatSidebar } from "../components/ChatSidebar";
-import { PageContainer, ThemeWorkbenchLeftExpandButton } from "./WorkspaceStyles";
+import { PageContainer, GeneralWorkbenchLeftExpandButton } from "./WorkspaceStyles";
 
 interface WorkspacePageShellProps {
   compactChrome: boolean;
   isThemeWorkbench: boolean;
-  themeWorkbenchSidebarNode: ReactNode;
+  generalWorkbenchSidebarNode: ReactNode;
   showChatPanel: boolean;
   showSidebar: boolean;
   chatSidebarProps: ComponentProps<typeof ChatSidebar> | null;
-  showThemeWorkbenchLeftExpandButton: boolean;
-  onExpandThemeWorkbenchSidebar: () => void;
+  showGeneralWorkbenchLeftExpandButton: boolean;
+  onExpandGeneralWorkbenchSidebar: () => void;
   mainAreaNode: ReactNode;
 }
 
 export function WorkspacePageShell({
   compactChrome,
   isThemeWorkbench,
-  themeWorkbenchSidebarNode,
+  generalWorkbenchSidebarNode,
   showChatPanel,
   showSidebar,
   chatSidebarProps,
-  showThemeWorkbenchLeftExpandButton,
-  onExpandThemeWorkbenchSidebar,
+  showGeneralWorkbenchLeftExpandButton,
+  onExpandGeneralWorkbenchSidebar,
   mainAreaNode,
 }: WorkspacePageShellProps) {
   return (
     <PageContainer $compact={compactChrome}>
       {isThemeWorkbench ? (
-        themeWorkbenchSidebarNode
+        generalWorkbenchSidebarNode
       ) : showChatPanel && showSidebar && chatSidebarProps ? (
         <ChatSidebar {...chatSidebarProps} />
       ) : null}
-      {showThemeWorkbenchLeftExpandButton ? (
-        <ThemeWorkbenchLeftExpandButton
+      {showGeneralWorkbenchLeftExpandButton ? (
+        <GeneralWorkbenchLeftExpandButton
           type="button"
           aria-label="展开上下文侧栏"
-          onClick={onExpandThemeWorkbenchSidebar}
+          onClick={onExpandGeneralWorkbenchSidebar}
           title="展开上下文侧栏"
         >
           <PanelLeftOpen size={14} />
-        </ThemeWorkbenchLeftExpandButton>
+        </GeneralWorkbenchLeftExpandButton>
       ) : null}
 
       {mainAreaNode}

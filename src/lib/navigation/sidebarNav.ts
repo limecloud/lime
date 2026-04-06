@@ -177,7 +177,7 @@ export const FOOTER_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
 export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
   MAIN_SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items);
 
-export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
+const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
   FOOTER_SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items);
 
 export const FIXED_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
@@ -192,7 +192,7 @@ export const FIXED_FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
 export const CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
   FOOTER_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable !== false);
 
-export const CONFIGURABLE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
+const CONFIGURABLE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   ...CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS,
   ...CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
 ];
@@ -208,7 +208,7 @@ const CONFIGURABLE_SIDEBAR_NAV_ITEM_ID_SET = new Set<string>(
   CONFIGURABLE_SIDEBAR_NAV_ITEMS.map((item) => item.id),
 );
 
-export function normalizeEnabledSidebarNavItems(items: string[]): string[] {
+function normalizeEnabledSidebarNavItems(items: string[]): string[] {
   const unique = Array.from(new Set(items));
   return unique.filter((item) =>
     CONFIGURABLE_SIDEBAR_NAV_ITEM_ID_SET.has(item),

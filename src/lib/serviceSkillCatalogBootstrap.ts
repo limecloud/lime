@@ -4,7 +4,7 @@ import {
   type ServiceSkillCatalog,
 } from "@/lib/api/serviceSkills";
 
-export const SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT =
+const SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT =
   "lime:service-skill-catalog-bootstrap";
 
 declare global {

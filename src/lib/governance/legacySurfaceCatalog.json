@@ -152,12 +152,144 @@
       "allowedPaths": []
     },
     {
-      "id": "inputbar-theme-workbench-input-state-entry",
+      "id": "inputbar-workflow-input-state-entry",
       "classification": "dead-candidate",
-      "description": "已迁出 Inputbar 目录的主题工作台输入状态 helper 与测试，当前统一收口到 chat/utils/themeWorkbenchInputState",
+      "description": "已迁出 Inputbar 目录的输入区工作流状态 helper 与测试，当前统一收口到 chat/utils/workflowInputState",
       "targets": [
         "src/components/agent/chat/components/Inputbar/hooks/useThemeWorkbenchInputState.ts",
         "src/components/agent/chat/components/Inputbar/hooks/useThemeWorkbenchInputState.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workspace-theme-workbench-runtime-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧工作区主题工作台 runtime 文件路径，当前统一收口到 useWorkspaceGeneralWorkbenchRuntime",
+      "targets": [
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchRuntime.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workflow-layout-legacy-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的旧主题工作台布局 helper 文件路径，当前统一收口到 chat/utils/workflowLayout",
+      "targets": [
+        "src/components/agent/chat/utils/themeWorkbenchLayout.ts",
+        "src/components/agent/chat/utils/themeWorkbenchLayout.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workspace-theme-workbench-runtime-shell-entries",
+      "classification": "dead-candidate",
+      "description": "已删除的旧工作区主题工作台 runtime 壳文件路径，当前统一收口到 general workbench runtime 链路",
+      "targets": [
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchSidebarRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchSidebarRuntime.test.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchScaffoldRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchScaffoldRuntime.test.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchVersionStatusRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchDocumentPersistenceRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchShellRuntime.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workspace-theme-workbench-helper-and-sidebar-shell-entries",
+      "classification": "dead-candidate",
+      "description": "已删除的旧工作区主题工作台 helper 与 sidebar 壳文件路径，当前统一收口到 general workbench helpers / sidebar presentation 链路",
+      "targets": [
+        "src/components/agent/chat/workspace/themeWorkbenchHelpers.ts",
+        "src/components/agent/chat/workspace/themeWorkbenchHelpers.test.ts",
+        "src/components/agent/chat/workspace/ThemeWorkbenchSidebarSection.tsx",
+        "src/components/agent/chat/workspace/useThemeWorkbenchSidebarPresentation.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-entry-hook-legacy-paths",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 general workbench entry prompt / send boundary hook 文件路径，当前统一收口到 hooks/useGeneralWorkbench* 链路",
+      "targets": [
+        "src/components/agent/chat/hooks/useThemeWorkbenchEntryPrompt.ts",
+        "src/components/agent/chat/hooks/useThemeWorkbenchEntryPrompt.test.tsx",
+        "src/components/agent/chat/hooks/useThemeWorkbenchEntryPromptActions.ts",
+        "src/components/agent/chat/hooks/useThemeWorkbenchEntryPromptActions.test.tsx",
+        "src/components/agent/chat/hooks/useThemeWorkbenchSendBoundary.ts",
+        "src/components/agent/chat/hooks/useThemeWorkbenchSendBoundary.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-entry-prompt-accessory-legacy-paths",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 general workbench entry prompt accessory 组件文件路径，当前统一收口到 components/GeneralWorkbenchEntryPromptAccessory",
+      "targets": [
+        "src/components/agent/chat/components/ThemeWorkbenchEntryPromptAccessory.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchEntryPromptAccessory.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-sidebar-shell-legacy-paths",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 general workbench harness card / workspace sidebar 文件路径，当前统一收口到 GeneralWorkbenchHarnessCard 与 WorkspaceGeneralWorkbenchSidebar",
+      "targets": [
+        "src/components/agent/chat/components/ThemeWorkbenchHarnessCard.tsx",
+        "src/components/agent/chat/workspace/WorkspaceThemeSidebar.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-sidebar-display-legacy-paths",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 general workbench sidebar 展示壳文件路径，当前统一收口到 GeneralWorkbenchSidebar / Shell / Panels",
+      "targets": [
+        "src/components/agent/chat/components/ThemeWorkbenchSidebar.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchSidebar.test.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchSidebarShell.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchSidebarPanels.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-sidebar-support-legacy-paths",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 general workbench sidebar 支撑层文件路径，当前统一收口到 GeneralWorkbench / generalWorkbench 命名组件、状态与契约",
+      "targets": [
+        "src/components/agent/chat/components/ThemeWorkbenchContextPanel.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchExecLog.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchWorkflowPanel.tsx",
+        "src/components/agent/chat/components/buildThemeWorkbenchContextPanelProps.ts",
+        "src/components/agent/chat/components/buildThemeWorkbenchExecLogProps.ts",
+        "src/components/agent/chat/components/buildThemeWorkbenchWorkflowPanelProps.ts",
+        "src/components/agent/chat/components/buildThemeWorkbenchSidebarOrchestrationSource.ts",
+        "src/components/agent/chat/components/themeWorkbenchContextData.ts",
+        "src/components/agent/chat/components/themeWorkbenchExecLogData.ts",
+        "src/components/agent/chat/components/themeWorkbenchWorkflowData.ts",
+        "src/components/agent/chat/components/themeWorkbenchWorkflowData.test.ts",
+        "src/components/agent/chat/components/themeWorkbenchSidebarComparator.ts",
+        "src/components/agent/chat/components/themeWorkbenchSidebarContentContract.ts",
+        "src/components/agent/chat/components/themeWorkbenchSidebarContract.ts",
+        "src/components/agent/chat/components/themeWorkbenchSidebarOrchestrationContract.ts",
+        "src/components/agent/chat/components/themeWorkbenchSidebarShared.ts",
+        "src/components/agent/chat/components/useThemeWorkbenchArtifactActions.ts",
+        "src/components/agent/chat/components/useThemeWorkbenchContextPanelState.ts",
+        "src/components/agent/chat/components/useThemeWorkbenchExecLogState.ts",
+        "src/components/agent/chat/components/useThemeWorkbenchSidebarOrchestration.ts",
+        "src/components/agent/chat/components/useThemeWorkbenchSidebarTelemetry.ts",
+        "src/components/agent/chat/components/useThemeWorkbenchWorkflowPanelState.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "theme-workbench-skills-panel-legacy-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 ThemeWorkbenchSkillsPanel 孤岛组件与测试入口，当前主链不再暴露该独立操作面板",
+      "targets": [
+        "src/components/agent/chat/components/ThemeWorkbenchSkillsPanel.tsx",
+        "src/components/agent/chat/components/ThemeWorkbenchSkillsPanel.test.tsx"
       ],
       "allowedPaths": []
     },
@@ -343,6 +475,17 @@
       "allowedPaths": []
     },
     {
+      "id": "artifact-panel-legacy-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Artifact 面板与列表壳，当前 artifact 主链统一停留在 Renderer/Toolbar/Workspace 预览链路",
+      "targets": [
+        "src/components/artifact/ArtifactPanel.tsx",
+        "src/components/artifact/ArtifactPanel.test.ts",
+        "src/components/artifact/ArtifactList.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "channels-legacy-debug-workbench-entry",
       "classification": "dead-candidate",
       "description": "已删除的 LegacyChannelsWorkbench 旧文件路径，当前统一收口到 ChannelsDebugWorkbench",
@@ -446,6 +589,128 @@
       "classification": "dead-candidate",
       "description": "已删除的零入口 Alert UI primitive，当前前端主链不再暴露该独立警示框壳",
       "targets": ["src/components/ui/alert.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "blocks-workspace-legacy-runtime-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的旧块系统组件、预览壳与独立 workspace store，当前工作台主链统一收口到 theme-context workspace 与 workbench runtime",
+      "targets": [
+        "src/components/blocks/BlockFrame.tsx",
+        "src/components/blocks/PreviewBlock.tsx",
+        "src/components/blocks/TerminalBlock.tsx",
+        "src/components/blocks/WebBlock.tsx",
+        "src/components/preview/ImagePreview.tsx",
+        "src/lib/blocks/blockStore.ts",
+        "src/lib/blocks/index.ts",
+        "src/lib/blocks/registry.ts",
+        "src/lib/blocks/types.ts",
+        "src/lib/workspace/types.ts",
+        "src/lib/workspace/workspaceStore.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "zero-entry-barrel-export-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 barrel 导出文件，当前主链不再通过这些聚合入口暴露 hooks、artifact 或 types",
+      "targets": [
+        "src/hooks/index.ts",
+        "src/lib/artifact/index.ts",
+        "src/types/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "write-file-legacy-module",
+      "classification": "dead-candidate",
+      "description": "已删除的 writeFile 解析器旧模块与 README，当前前端主链不再消费 <write_file> 旧解析链",
+      "targets": [
+        "src/lib/writeFile/index.ts",
+        "src/lib/writeFile/parser.ts",
+        "src/lib/writeFile/README.md"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-frontend-utility-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的零引用前端工具模块，当前主链不再暴露旧通知管理、tauri 事件代理与语法高亮辅助",
+      "targets": [
+        "src/lib/notifications.ts",
+        "src/lib/tauri-event.ts",
+        "src/lib/utils/syntaxHighlight.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "notification-settings-legacy-tauri-api",
+      "classification": "dead-candidate",
+      "description": "已删除的旧通知设置 Tauri API 壳，当前前端主链不再暴露这条通知设置旧链路",
+      "targets": ["src/lib/tauri/notificationApi.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-frontend-api-gateways",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口前端 API 网关，当前主链不再暴露旧 A2UI 表单持久化与窗口控制壳",
+      "targets": [
+        "src/lib/api/a2uiForm.ts",
+        "src/lib/api/a2uiForm.test.ts",
+        "src/lib/api/window.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-thin-api-gateway-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口前端薄 API 网关，当前主链不再暴露旧渠道、凭证、外部工具、注入、机器码、编排器与遥测壳",
+      "targets": [
+        "src/lib/api/channels.ts",
+        "src/lib/api/credentials.ts",
+        "src/lib/api/externalTools.ts",
+        "src/lib/api/injection.ts",
+        "src/lib/api/machineId.ts",
+        "src/lib/api/orchestrator.ts",
+        "src/lib/api/telemetry.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-legacy-api-wrapper-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口前端 API 包装壳与自测，当前主链不再暴露旧 endpoint provider、模型目录、通知、头像、prompt 与 TTS 包装层",
+      "targets": [
+        "src/lib/api/endpointProviders.ts",
+        "src/lib/api/endpointProviders.test.ts",
+        "src/lib/api/modelCatalog.ts",
+        "src/lib/api/modelCatalog.test.ts",
+        "src/lib/api/notification.ts",
+        "src/lib/api/notification.test.ts",
+        "src/lib/api/profileAssets.ts",
+        "src/lib/api/profileAssets.test.ts",
+        "src/lib/api/prompts.ts",
+        "src/lib/api/prompts.test.ts",
+        "src/lib/api/voiceTools.ts",
+        "src/lib/api/voiceTools.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-local-storage-notification-helpers",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口本地通知服务与思考底模记忆 helper，当前前端主链不再暴露这两条本地状态侧链",
+      "targets": [
+        "src/lib/notificationService.ts",
+        "src/lib/model/thinkingBaseModelMemory.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "document-image-insert-wrapper-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的文档专用图片插入适配壳，当前文档与画布统一直接依赖 canvasImageInsertBus",
+      "targets": ["src/lib/documentImageInsertBus.ts"],
       "allowedPaths": []
     },
     {
@@ -1673,9 +1938,9 @@
       "allowedPaths": []
     },
     {
-      "id": "theme-workbench-input-state-inputbar-imports",
+      "id": "workflow-input-state-inputbar-imports",
       "classification": "dead-candidate",
-      "description": "主题工作台状态类型与 helper 不允许继续从 Inputbar/hooks 导入，必须改走 chat/utils/themeWorkbenchInputState",
+      "description": "输入区工作流状态类型与 helper 不允许继续从 Inputbar/hooks 导入，必须改走 chat/utils/workflowInputState",
       "patterns": [
         "../components/Inputbar/hooks/useThemeWorkbenchInputState",
         "./hooks/useThemeWorkbenchInputState",
@@ -1684,10 +1949,137 @@
       "includePathPrefixes": [
         "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
         "src/components/agent/chat/components/Inputbar/index.tsx",
-        "src/components/agent/chat/components/Inputbar/components/ThemeWorkbenchStatusPanel.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarWorkflowStatusPanel.tsx",
         "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
-        "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchRuntime.ts",
-        "src/components/agent/chat/utils/themeWorkbenchLayout.ts"
+        "src/components/agent/chat/workspace/useWorkspaceGeneralWorkbenchRuntime.ts",
+        "src/components/agent/chat/utils/workflowLayout.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-entry-hook-imports",
+      "classification": "dead-candidate",
+      "description": "general workbench 入口提示与发送边界 hooks 不允许继续从旧 themeWorkbench 路径导入，必须统一走 hooks/useGeneralWorkbench*",
+      "patterns": [
+        "./hooks/useThemeWorkbenchEntryPrompt",
+        "./hooks/useThemeWorkbenchEntryPromptActions",
+        "./hooks/useThemeWorkbenchSendBoundary",
+        "./useThemeWorkbenchEntryPrompt",
+        "./useThemeWorkbenchEntryPromptActions",
+        "./useThemeWorkbenchSendBoundary",
+        "../hooks/useThemeWorkbenchEntryPrompt",
+        "../hooks/useThemeWorkbenchEntryPromptActions",
+        "../hooks/useThemeWorkbenchSendBoundary"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/AgentChatWorkspace.tsx",
+        "src/components/agent/chat/components/GeneralWorkbenchEntryPromptAccessory.tsx",
+        "src/components/agent/chat/components/GeneralWorkbenchEntryPromptAccessory.test.tsx",
+        "src/components/agent/chat/hooks/useGeneralWorkbenchEntryPrompt.test.tsx",
+        "src/components/agent/chat/hooks/useGeneralWorkbenchEntryPromptActions.ts",
+        "src/components/agent/chat/hooks/useGeneralWorkbenchEntryPromptActions.test.tsx",
+        "src/components/agent/chat/hooks/useGeneralWorkbenchSendBoundary.test.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceAutoGuideRuntime.ts",
+        "src/components/agent/chat/workspace/useWorkspaceSendActions.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-entry-prompt-accessory-imports",
+      "classification": "dead-candidate",
+      "description": "general workbench entry prompt accessory 不允许继续从旧 ThemeWorkbench 文件路径导入，必须统一走 components/GeneralWorkbenchEntryPromptAccessory",
+      "patterns": [
+        "../components/ThemeWorkbenchEntryPromptAccessory",
+        "./ThemeWorkbenchEntryPromptAccessory"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/workspace/useWorkspaceInputbarPresentation.tsx",
+        "src/components/agent/chat/components/GeneralWorkbenchEntryPromptAccessory.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-sidebar-shell-imports",
+      "classification": "dead-candidate",
+      "description": "general workbench sidebar 壳不允许继续从旧 ThemeWorkbenchHarnessCard / WorkspaceThemeSidebar 路径导入，必须统一走 GeneralWorkbenchHarnessCard 与 WorkspaceGeneralWorkbenchSidebar",
+      "patterns": [
+        "../components/ThemeWorkbenchHarnessCard",
+        "./WorkspaceThemeSidebar"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/workspace/WorkspaceGeneralWorkbenchSidebar.tsx",
+        "src/components/agent/chat/workspace/useGeneralWorkbenchSidebarPresentation.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-sidebar-display-imports",
+      "classification": "dead-candidate",
+      "description": "general workbench sidebar 展示壳不允许继续从旧 ThemeWorkbenchSidebar / Shell / Panels 路径导入，必须统一走 GeneralWorkbenchSidebar / Shell / Panels",
+      "patterns": [
+        "./components/ThemeWorkbenchSidebar",
+        "../components/ThemeWorkbenchSidebar",
+        "./ThemeWorkbenchSidebar",
+        "./ThemeWorkbenchSidebarShell",
+        "./ThemeWorkbenchSidebarPanels"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/index.test.tsx",
+        "src/components/agent/chat/components/GeneralWorkbenchSidebar.tsx",
+        "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx",
+        "src/components/agent/chat/components/useGeneralWorkbenchSidebarOrchestration.ts",
+        "src/components/agent/chat/components/useGeneralWorkbenchSidebarTelemetry.ts",
+        "src/components/agent/chat/workspace/GeneralWorkbenchSidebarSection.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "general-workbench-sidebar-support-imports",
+      "classification": "dead-candidate",
+      "description": "general workbench sidebar 支撑层不允许继续从旧 ThemeWorkbench 文件路径导入，必须统一走 GeneralWorkbench / generalWorkbench 命名文件",
+      "patterns": [
+        "./ThemeWorkbenchContextPanel",
+        "./ThemeWorkbenchExecLog",
+        "./ThemeWorkbenchWorkflowPanel",
+        "./buildThemeWorkbenchContextPanelProps",
+        "./buildThemeWorkbenchExecLogProps",
+        "./buildThemeWorkbenchWorkflowPanelProps",
+        "./buildThemeWorkbenchSidebarOrchestrationSource",
+        "./themeWorkbenchContextData",
+        "./themeWorkbenchExecLogData",
+        "./themeWorkbenchWorkflowData",
+        "./themeWorkbenchSidebarComparator",
+        "./themeWorkbenchSidebarContentContract",
+        "./themeWorkbenchSidebarContract",
+        "./themeWorkbenchSidebarOrchestrationContract",
+        "./themeWorkbenchSidebarShared",
+        "./useThemeWorkbenchArtifactActions",
+        "./useThemeWorkbenchContextPanelState",
+        "./useThemeWorkbenchExecLogState",
+        "./useThemeWorkbenchSidebarOrchestration",
+        "./useThemeWorkbenchSidebarTelemetry",
+        "./useThemeWorkbenchWorkflowPanelState",
+        "../components/themeWorkbenchSidebarContract",
+        "../components/themeWorkbenchWorkflowData"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components",
+        "src/components/agent/chat/workspace/GeneralWorkbenchSidebarSection.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceGeneralWorkbenchScaffoldRuntime.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "theme-workbench-skills-panel-imports",
+      "classification": "dead-candidate",
+      "description": "ThemeWorkbenchSkillsPanel 不允许重新回流到运行时代码或测试夹具，必须保持删除态",
+      "patterns": [
+        "./ThemeWorkbenchSkillsPanel",
+        "../components/ThemeWorkbenchSkillsPanel"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/components",
+        "src/components/agent/chat/index.test.tsx"
       ],
       "allowedPaths": []
     },
@@ -2006,7 +2398,7 @@
     {
       "id": "inputbar-model-extra-legacy-variant-prop-bridge",
       "classification": "dead-candidate",
-      "description": "Inputbar 模型额外面板不允许继续透传 isThemeWorkbenchVariant 旧分支 props，主题工作台展示判断应停留在父层组合边界",
+      "description": "Inputbar 模型额外面板不允许继续透传 isThemeWorkbenchVariant 旧分支 props，工作区工作流展示判断应停留在父层组合边界",
       "patterns": [
         "isThemeWorkbenchVariant?: boolean;",
         "isThemeWorkbenchVariant={isThemeWorkbenchVariant}",
@@ -2084,9 +2476,9 @@
       "allowedPaths": []
     },
     {
-      "id": "theme-workbench-status-panel-legacy-array-fallbacks",
+      "id": "inputbar-workflow-status-panel-legacy-array-fallbacks",
       "classification": "dead-candidate",
-      "description": "ThemeWorkbenchStatusPanel 不允许恢复旧 quickActions / queueItems 默认空数组 fallback，主题工作台状态面板应继续只消费现役输入状态派生结果",
+      "description": "InputbarWorkflowStatusPanel 不允许恢复旧 quickActions / queueItems 默认空数组 fallback，输入区工作流状态面板应继续只消费现役输入状态派生结果",
       "patterns": [
         "quickActions?: ThemeWorkbenchQuickAction[];",
         "queueItems?: ThemeWorkbenchWorkflowStep[];",
@@ -2094,7 +2486,7 @@
         "queueItems = []"
       ],
       "includePathPrefixes": [
-        "src/components/agent/chat/components/Inputbar/components/ThemeWorkbenchStatusPanel.tsx"
+        "src/components/agent/chat/components/Inputbar/components/InputbarWorkflowStatusPanel.tsx"
       ],
       "allowedPaths": []
     },

@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import {
   Tabs,
@@ -509,10 +510,12 @@ export function AutomationSettings({
                 <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
                   {heroTitle}
                 </h2>
+                <WorkbenchInfoTip
+                  ariaLabel="自动化工作台说明"
+                  content={heroDescription}
+                  tone="mint"
+                />
               </div>
-              <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                {heroDescription}
-              </p>
             </div>
           </div>
 
@@ -578,12 +581,16 @@ export function AutomationSettings({
           <CardHeader className="pb-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-xl text-slate-900">
-                  调度器设置
-                </CardTitle>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  这里只保留全局开关、轮询间隔和历史保留。任务创建与运行处理不再和设置区混排。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-xl text-slate-900">
+                    调度器设置
+                  </CardTitle>
+                  <WorkbenchInfoTip
+                    ariaLabel="调度器设置说明"
+                    content="这里只保留全局开关、轮询间隔和历史保留。任务创建与运行处理不再和设置区混排。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <Badge variant={schedulerConfig.enabled ? "default" : "outline"}>
                 {schedulerConfig.enabled ? "已启用" : "已停用"}
@@ -691,12 +698,16 @@ export function AutomationSettings({
                     <div className="text-xs font-medium tracking-[0.14em] text-slate-500">
                       任务入口
                     </div>
-                    <CardTitle className="mt-2 text-xl text-slate-900">
-                      先创建任务，再处理执行细节
-                    </CardTitle>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      默认页只保留 Agent 对话任务相关动作。模板负责预填 schedule、payload 和 delivery，浏览器自动化不再提供创建入口。
-                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-xl text-slate-900">
+                        先创建任务，再处理执行细节
+                      </CardTitle>
+                      <WorkbenchInfoTip
+                        ariaLabel="任务入口说明"
+                        content="默认页只保留 Agent 对话任务相关动作。模板负责预填 schedule、payload 和 delivery，浏览器自动化不再提供创建入口。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <Button variant="outline" onClick={() => openCreateDialog()}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -728,13 +739,17 @@ export function AutomationSettings({
                           </span>
                         </div>
                         <div className="mt-4 text-base font-semibold text-slate-900">
-                          {template.name}
+                          <span className="inline-flex items-center gap-2">
+                            {template.name}
+                            <WorkbenchInfoTip
+                              ariaLabel={`${template.name}模板说明`}
+                              content={template.detail}
+                              tone="slate"
+                            />
+                          </span>
                         </div>
                         <p className="mt-2 text-sm leading-6 text-slate-600">
                           {template.description}
-                        </p>
-                        <p className="mt-3 text-xs leading-5 text-slate-500">
-                          {template.detail}
                         </p>
                         <Button
                           data-testid={`automation-template-${template.id}`}
@@ -757,13 +772,16 @@ export function AutomationSettings({
                 <CardHeader className="pb-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <CardTitle className="text-xl text-slate-900">
-                        任务列表
-                      </CardTitle>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        每个 job 都绑定工作区、调度规则和 payload。详情改为按需打开，
-                        点击任务行或详情按钮查看运行历史、输出投递和 payload 摘要。
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CardTitle className="text-xl text-slate-900">
+                          任务列表
+                        </CardTitle>
+                        <WorkbenchInfoTip
+                          ariaLabel="任务列表说明"
+                          content="每个 job 都绑定工作区、调度规则和 payload。详情改为按需打开，点击任务行或详情按钮查看运行历史、输出投递和 payload 摘要。"
+                          tone="slate"
+                        />
+                      </div>
                     </div>
                     <Badge variant="outline">{jobs.length} 个 job</Badge>
                   </div>
@@ -990,12 +1008,16 @@ export function AutomationSettings({
               <CardHeader className="pb-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <CardTitle className="text-xl text-slate-900">
-                      运行概览
-                    </CardTitle>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      统计、健康与风险提醒统一收在这里，不再进入任务首屏。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-xl text-slate-900">
+                        运行概览
+                      </CardTitle>
+                      <WorkbenchInfoTip
+                        ariaLabel="运行概览说明"
+                        content="统计、健康与风险提醒统一收在这里，不再进入任务首屏。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <LatestRunStatusBadge source="automation" label="统一执行状态" />
                 </div>

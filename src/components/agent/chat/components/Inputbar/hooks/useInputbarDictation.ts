@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/asrProvider";
 import { useVoiceSound } from "@/hooks/useVoiceSound";
 
-export type InputbarDictationState =
+type InputbarDictationState =
   | "idle"
   | "listening"
   | "transcribing"

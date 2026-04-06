@@ -1,10 +1,10 @@
 import type { ComponentProps } from "react";
 import { WorkspaceShellScene } from "./WorkspaceShellScene";
 import { useWorkspaceConversationSceneRuntime } from "./useWorkspaceConversationSceneRuntime";
-import { useWorkspaceThemeWorkbenchShellRuntime } from "./useWorkspaceThemeWorkbenchShellRuntime";
+import { useWorkspaceGeneralWorkbenchShellRuntime } from "./useWorkspaceGeneralWorkbenchShellRuntime";
 
-type ThemeWorkbenchShellRuntime = ReturnType<
-  typeof useWorkspaceThemeWorkbenchShellRuntime
+type GeneralWorkbenchShellRuntime = ReturnType<
+  typeof useWorkspaceGeneralWorkbenchShellRuntime
 >;
 type ConversationSceneRuntime = ReturnType<
   typeof useWorkspaceConversationSceneRuntime
@@ -16,7 +16,7 @@ interface UseWorkspaceShellSceneRuntimeParams {
   isThemeWorkbench: boolean;
   showChatPanel: boolean;
   showSidebar: boolean;
-  themeWorkbenchShellRuntime: ThemeWorkbenchShellRuntime;
+  generalWorkbenchShellRuntime: GeneralWorkbenchShellRuntime;
   conversationSceneRuntime: ConversationSceneRuntime;
   sessionId?: WorkspaceShellSceneProps["currentTopicId"];
   topics: WorkspaceShellSceneProps["topics"];
@@ -40,7 +40,7 @@ export function useWorkspaceShellSceneRuntime({
   isThemeWorkbench,
   showChatPanel,
   showSidebar,
-  themeWorkbenchShellRuntime,
+  generalWorkbenchShellRuntime,
   conversationSceneRuntime,
   sessionId,
   topics,
@@ -63,14 +63,16 @@ export function useWorkspaceShellSceneRuntime({
       <WorkspaceShellScene
         compactChrome={compactChrome}
         isThemeWorkbench={isThemeWorkbench}
-        themeWorkbenchSidebarNode={themeWorkbenchShellRuntime.themeWorkbenchSidebarNode}
+        generalWorkbenchSidebarNode={
+          generalWorkbenchShellRuntime.generalWorkbenchSidebarNode
+        }
         showChatPanel={showChatPanel}
         showSidebar={showSidebar}
-        showThemeWorkbenchLeftExpandButton={
-          themeWorkbenchShellRuntime.showThemeWorkbenchLeftExpandButton
+        showGeneralWorkbenchLeftExpandButton={
+          generalWorkbenchShellRuntime.showGeneralWorkbenchLeftExpandButton
         }
-        onExpandThemeWorkbenchSidebar={
-          themeWorkbenchShellRuntime.onExpandThemeWorkbenchSidebar
+        onExpandGeneralWorkbenchSidebar={
+          generalWorkbenchShellRuntime.onExpandGeneralWorkbenchSidebar
         }
         mainAreaNode={conversationSceneRuntime.mainAreaNode}
         currentTopicId={sessionId ?? null}

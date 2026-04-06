@@ -24,7 +24,7 @@ import {
   isRenderableTaskFile,
   looksLikeSocialPublishPayload,
   resolveTaskFileType,
-} from "./themeWorkbenchHelpers";
+} from "./generalWorkbenchHelpers";
 import { extractFileNameFromPath } from "./workspacePath";
 
 function buildCanvasStateFromContent(params: {

@@ -6,6 +6,22 @@ use crate::app::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+fn normalize_non_empty_api_key(raw: Option<String>) -> Option<String> {
+    raw.and_then(|key| {
+        let trimmed = key.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+fn resolve_api_key_with_env_fallback(config_key: Option<String>, env_key: &str) -> Option<String> {
+    normalize_non_empty_api_key(config_key)
+        .or_else(|| normalize_non_empty_api_key(std::env::var(env_key).ok()))
+}
+
 /// Pixabay 搜索请求
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,53 +153,21 @@ async fn get_pixabay_api_key(app_state: State<'_, AppState>) -> Option<String> {
         state.config.image_gen.image_search_pixabay_api_key.clone()
     };
 
-    key_from_config
-        .and_then(|key| {
-            let trimmed = key.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        })
-        .or_else(|| {
-            std::env::var("PIXABAY_API_KEY").ok().and_then(|key| {
-                let trimmed = key.trim();
-                if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                }
-            })
-        })
+    resolve_api_key_with_env_fallback(key_from_config, "PIXABAY_API_KEY")
+}
+
+pub(crate) fn resolve_pexels_api_key(config_key: Option<String>) -> Option<String> {
+    resolve_api_key_with_env_fallback(config_key, "PEXELS_API_KEY")
 }
 
 /// 获取 Pexels API Key（优先配置，其次环境变量）
-async fn get_pexels_api_key(app_state: State<'_, AppState>) -> Option<String> {
+pub(crate) async fn get_pexels_api_key_from_app_state(app_state: &AppState) -> Option<String> {
     let key_from_config = {
         let state = app_state.read().await;
         state.config.image_gen.image_search_pexels_api_key.clone()
     };
 
-    key_from_config
-        .and_then(|key| {
-            let trimmed = key.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        })
-        .or_else(|| {
-            std::env::var("PEXELS_API_KEY").ok().and_then(|key| {
-                let trimmed = key.trim();
-                if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                }
-            })
-        })
+    resolve_pexels_api_key(key_from_config)
 }
 
 fn map_aspect_to_pexels_orientation(aspect: Option<&str>) -> Option<&'static str> {
@@ -343,13 +327,11 @@ pub async fn search_pixabay_images(
 }
 
 /// 联网搜索图片（Pexels）
-#[tauri::command]
-pub async fn search_web_images(
-    app_state: State<'_, AppState>,
+pub(crate) async fn search_web_images_with_pexels_api_key(
+    api_key: Option<String>,
     req: WebImageSearchRequest,
 ) -> Result<WebImageSearchResponse, String> {
-    let api_key = get_pexels_api_key(app_state)
-        .await
+    let api_key = resolve_pexels_api_key(api_key)
         .ok_or_else(|| "未配置 Pexels API Key，请先在设置 → 系统 → 网络搜索中配置".to_string())?;
 
     let client = reqwest::Client::new();
@@ -390,6 +372,15 @@ pub async fn search_web_images(
         .map_err(|e| format!("解析 Pexels 响应失败: {e}"))?;
 
     Ok(map_pexels_to_web_response(body))
+}
+
+#[tauri::command]
+pub async fn search_web_images(
+    app_state: State<'_, AppState>,
+    req: WebImageSearchRequest,
+) -> Result<WebImageSearchResponse, String> {
+    let api_key = get_pexels_api_key_from_app_state(app_state.inner()).await;
+    search_web_images_with_pexels_api_key(api_key, req).await
 }
 
 #[cfg(test)]

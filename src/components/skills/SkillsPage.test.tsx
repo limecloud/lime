@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SkillsPage } from "./SkillsPage";
@@ -66,18 +66,45 @@ function createSkill(overrides: Partial<Skill> = {}): Skill {
   };
 }
 
-function renderSkillsPage(): RenderResult {
+function renderSkillsPage(
+  props: Partial<ComponentProps<typeof SkillsPage>> = {},
+): RenderResult {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
   act(() => {
-    root.render(<SkillsPage hideHeader />);
+    root.render(<SkillsPage hideHeader {...props} />);
   });
 
   const rendered = { container, root };
   mountedRoots.push(rendered);
   return rendered;
+}
+
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
 }
 
 function fillField(
@@ -238,6 +265,29 @@ describe("groupSkillsBySourceKind", () => {
 });
 
 describe("SkillsPage", () => {
+  it("应将首屏说明与使用规则收进 tips", async () => {
+    renderSkillsPage({ hideHeader: false });
+
+    expect(getBodyText()).not.toContain(
+      "统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。",
+    );
+    expect(getBodyText()).not.toContain(
+      "Built-in Skills 为应用内置技能，默认可用且不可卸载。",
+    );
+
+    const workspaceTip = await hoverTip("技能工作台说明");
+    expect(getBodyText()).toContain(
+      "统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。",
+    );
+    await leaveTip(workspaceTip);
+
+    const usageTip = await hoverTip("技能使用规则");
+    expect(getBodyText()).toContain(
+      "Built-in Skills 为应用内置技能，默认可用且不可卸载。",
+    );
+    await leaveTip(usageTip);
+  });
+
   it("应按 Built-in / Local / Remote Skills 分组渲染，并隐藏内置技能卸载入口", () => {
     mockUseSkills.mockReturnValue({
       skills: [

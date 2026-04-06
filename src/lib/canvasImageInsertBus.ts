@@ -45,7 +45,7 @@ export interface CanvasImageInsertRequest {
   image: InsertableImage;
 }
 
-export interface EmitCanvasImageInsertRequestInput {
+interface EmitCanvasImageInsertRequestInput {
   projectId?: string | null;
   contentId?: string | null;
   canvasType?: CanvasImageTargetType;

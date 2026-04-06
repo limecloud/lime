@@ -46,14 +46,13 @@ function renderHook(props?: Partial<HookProps>) {
   > | null = null;
 
   const defaultProps: HookProps = {
-    appendLocalDispatchMessages: vi.fn(),
-    canvasState: null,
     cancelImageTask: vi.fn().mockResolvedValue({
       task_id: "task-image-1",
       task_type: "image_generate",
       status: "cancelled",
     }),
     contentId: null,
+    createFreshSession: vi.fn().mockResolvedValue("session-1"),
     createImageGenerationTask: vi.fn().mockResolvedValue({
       task_id: "task-image-1",
       task_type: "image_generate",
@@ -113,10 +112,11 @@ function renderHook(props?: Partial<HookProps>) {
       skipped: 0,
       errors: [],
     }),
+    submitImageWorkbenchAgentCommand: vi.fn().mockResolvedValue(true),
     setCanvasState: vi.fn(),
     setInput: vi.fn(),
     setLayoutMode: vi.fn(),
-    setMentionedCharacters: vi.fn(),
+    updateImageWorkbenchStateForSession: vi.fn(),
     updateCurrentImageWorkbenchState: vi.fn(),
   };
 
@@ -172,48 +172,12 @@ afterEach(() => {
 });
 
 describe("useWorkspaceImageWorkbenchActionRuntime", () => {
-  it("应创建标准图片任务 artifact，并只先写入用户消息", async () => {
-    const appendLocalDispatchMessages = vi.fn();
-    const createImageGenerationTask = vi.fn().mockResolvedValue({
-      success: true,
-      task_id: "task-image-1",
-      task_type: "image_generate",
-      task_family: "image",
-      status: "pending_submit",
-      normalized_status: "pending",
-      path: ".lime/tasks/image_generate/task-image-1.json",
-      absolute_path:
-        "/workspace/project-1/.lime/tasks/image_generate/task-image-1.json",
-      artifact_path: ".lime/tasks/image_generate/task-image-1.json",
-      absolute_artifact_path:
-        "/workspace/project-1/.lime/tasks/image_generate/task-image-1.json",
-      reused_existing: false,
-      record: {
-        task_id: "task-image-1",
-        task_type: "image_generate",
-        task_family: "image",
-        status: "pending_submit",
-        normalized_status: "pending",
-        created_at: "2026-04-05T00:00:00Z",
-        payload: {
-          prompt: "城市夜景主视觉",
-          raw_text: "@配图 生成 城市夜景主视觉",
-          count: 1,
-          size: "1024x1024",
-        },
-      },
-    });
-    const setInput = vi.fn();
-    const setMentionedCharacters = vi.fn();
-    const setLayoutMode = vi.fn();
-    const updateCurrentImageWorkbenchState = vi.fn();
+  it("应通过 Agent 主链提交图片 skill launch，而不是前端直建 task", async () => {
+    const submitImageWorkbenchAgentCommand = vi.fn().mockResolvedValue(true);
+    const createImageGenerationTask = vi.fn();
     const { render, getValue } = renderHook({
-      appendLocalDispatchMessages,
+      submitImageWorkbenchAgentCommand,
       createImageGenerationTask,
-      setInput,
-      setMentionedCharacters,
-      setLayoutMode,
-      updateCurrentImageWorkbenchState,
     });
 
     await render();
@@ -228,71 +192,40 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
     });
 
     expect(handled).toBe(true);
-    expect(appendLocalDispatchMessages).toHaveBeenCalledTimes(2);
-    expect(appendLocalDispatchMessages.mock.calls[0]?.[0]).toEqual([
-      expect.objectContaining({
-        role: "user",
-        content: "@配图 生成 城市夜景主视觉",
-      }),
-    ]);
-    expect(appendLocalDispatchMessages.mock.calls[1]?.[0]).toEqual([
-      expect.objectContaining({
-        id: "image-workbench:task-image-1:assistant",
-        role: "assistant",
-        content: "图片任务已创建，正在准备执行。",
-        isThinking: true,
-        toolCalls: [
-          expect.objectContaining({
-            name: "limeCreateImageGenerationTask",
-            status: "running",
-          }),
-        ],
-        imageWorkbenchPreview: expect.objectContaining({
-          taskId: "task-image-1",
-          status: "running",
+    expect(submitImageWorkbenchAgentCommand).toHaveBeenCalledTimes(1);
+    expect(submitImageWorkbenchAgentCommand).toHaveBeenCalledWith({
+      rawText: "@配图 生成 城市夜景主视觉",
+      displayContent: "@配图 生成 城市夜景主视觉",
+      images: [],
+      requestContext: expect.objectContaining({
+        kind: "image_task",
+        image_task: expect.objectContaining({
+          mode: "generate",
+          prompt: "城市夜景主视觉",
+          size: "1024x1024",
+          usage: "claw-image-workbench",
+          session_id: "session-1",
+          project_id: "project-1",
+          entry_source: "at_image_command",
+          requested_target: "generate",
         }),
       }),
-    ]);
-    expect(createImageGenerationTask).toHaveBeenCalledWith({
-      projectRootPath: "/workspace/project-1",
-      prompt: "城市夜景主视觉",
-      title: "城市夜景主视觉",
-      mode: "generate",
-      rawText: "@配图 生成 城市夜景主视觉",
-      size: "1024x1024",
-      aspectRatio: undefined,
-      count: 1,
-      usage: "claw-image-workbench",
-      slotId: undefined,
-      anchorHint: undefined,
-      anchorSectionTitle: undefined,
-      anchorText: undefined,
-      providerId: "fal",
-      model: "fal-ai/nano-banana-pro",
-      sessionId: "session-1",
-      projectId: "project-1",
-      contentId: undefined,
-      entrySource: "at_image_command",
-      requestedTarget: "generate",
-      targetOutputId: undefined,
-      targetOutputRefId: undefined,
-      referenceImages: [],
     });
-    expect(setInput).toHaveBeenCalledWith("");
-    expect(setMentionedCharacters).toHaveBeenCalledWith([]);
-    expect(setLayoutMode).not.toHaveBeenCalled();
-    expect(updateCurrentImageWorkbenchState).toHaveBeenCalledTimes(1);
+    expect(createImageGenerationTask).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("创建 task artifact 失败时应回填本地失败消息", async () => {
-    const appendLocalDispatchMessages = vi.fn();
-    const createImageGenerationTask = vi
-      .fn()
-      .mockRejectedValue(new Error("图片服务暂不可用"));
+  it("本地图片工作台 key 首次提交时应先创建真实会话，并把 Agent 请求绑定到该会话", async () => {
+    const createFreshSession = vi.fn().mockResolvedValue("session-image-1");
+    const submitImageWorkbenchAgentCommand = vi.fn().mockResolvedValue(true);
+    const updateImageWorkbenchStateForSession = vi.fn();
+    const localImageWorkbenchSessionKey =
+      "__local_image_workbench__:draft:image";
     const { render, getValue } = renderHook({
-      appendLocalDispatchMessages,
-      createImageGenerationTask,
+      createFreshSession,
+      submitImageWorkbenchAgentCommand,
+      imageWorkbenchSessionKey: localImageWorkbenchSessionKey,
+      updateImageWorkbenchStateForSession,
     });
 
     await render();
@@ -305,21 +238,27 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
       });
     });
 
-    expect(appendLocalDispatchMessages).toHaveBeenCalledTimes(2);
-    expect(appendLocalDispatchMessages.mock.calls[0]?.[0]).toEqual([
+    expect(createFreshSession).toHaveBeenCalledWith("配图：城市夜景主视觉");
+    expect(submitImageWorkbenchAgentCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        role: "user",
-        content: "@配图 生成 城市夜景主视觉",
+        requestContext: expect.objectContaining({
+          image_task: expect.objectContaining({
+            session_id: "session-image-1",
+          }),
+        }),
       }),
-    ]);
-    expect(appendLocalDispatchMessages.mock.calls[1]?.[0]).toEqual([
+    );
+    expect(updateImageWorkbenchStateForSession).toHaveBeenCalledWith(
+      "session-image-1",
+      expect.any(Function),
       expect.objectContaining({
-        role: "assistant",
-        content: "图片任务创建失败：图片服务暂不可用",
-        isThinking: false,
+        fallbackState: expect.objectContaining({
+          tasks: [],
+          outputs: [],
+        }),
+        removeSessionKeys: [localImageWorkbenchSessionKey],
       }),
-    ]);
-    expect(toast.error).toHaveBeenCalledWith("图片服务暂不可用");
+    );
   });
 
   it("应把编辑命令解析为统一的 skillRequest 上下文", async () => {
@@ -564,13 +503,10 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
     });
   });
 
-  it("文稿插图任务应创建 document-inline slot 绑定", async () => {
-    const createImageGenerationTask = vi.fn().mockResolvedValue({
-      task_id: "task-image-1",
-      task_type: "image_generate",
-    });
+  it("文稿插图任务应把 document-inline slot 信息写入 Agent launch 上下文", async () => {
+    const submitImageWorkbenchAgentCommand = vi.fn().mockResolvedValue(true);
     const { render, getValue } = renderHook({
-      createImageGenerationTask,
+      submitImageWorkbenchAgentCommand,
     });
 
     await render();
@@ -592,13 +528,17 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
       });
     });
 
-    expect(createImageGenerationTask).toHaveBeenCalledWith(
+    expect(submitImageWorkbenchAgentCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        usage: "document-inline",
-        slotId: expect.stringMatching(/^document-image-slot-/),
-        anchorHint: "section_end",
-        anchorSectionTitle: "核心观点",
-        anchorText: "这里是核心观点段落。",
+        requestContext: expect.objectContaining({
+          image_task: expect.objectContaining({
+            usage: "document-inline",
+            slot_id: expect.stringMatching(/^document-image-slot-/),
+            anchor_hint: "section_end",
+            anchor_section_title: "核心观点",
+            anchor_text: "这里是核心观点段落。",
+          }),
+        }),
       }),
     );
   });

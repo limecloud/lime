@@ -44,6 +44,31 @@ async function flushEffects() {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const target = Array.from(container.querySelectorAll("button")).find(
     (button) => button.textContent?.includes(text),
@@ -189,6 +214,30 @@ describe("WebSearchSettings", () => {
     expect(input.value).toBe("old-key");
     const pixabayInput = findInput(container, "web-search-pixabay-key");
     expect(pixabayInput.value).toBe("old-pixabay-key");
+  });
+
+  it("应把联网搜索补充说明收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key 放在同一个宽版视图里，不再让长表单把信息挤成一列。",
+    );
+    expect(getBodyText()).not.toContain(
+      "申请地址：https://www.pexels.com/api/new/",
+    );
+
+    const heroTip = await hoverTip("联网搜索设置总览说明");
+    expect(getBodyText()).toContain(
+      "把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key 放在同一个宽版视图里，不再让长表单把信息挤成一列。",
+    );
+    await leaveTip(heroTip);
+
+    const pexelsTip = await hoverTip("Pexels 接入说明");
+    expect(getBodyText()).toContain("申请地址：https://www.pexels.com/api/new/");
+    expect(getBodyText()).toContain("验证路径：插图 → 图片搜索 → 联网搜索。");
+    await leaveTip(pexelsTip);
   });
 
   it("修改搜索提供商与图片 Key 后应统一保存", async () => {

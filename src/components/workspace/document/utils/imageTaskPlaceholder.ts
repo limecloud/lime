@@ -1,4 +1,4 @@
-import type { InsertableImage } from "@/lib/documentImageInsertBus";
+import type { InsertableImage } from "@/lib/canvasImageInsertBus";
 import {
   insertMarkdownBlock,
   normalizeSelectionAnchorText,

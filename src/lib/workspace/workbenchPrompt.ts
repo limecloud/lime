@@ -5,8 +5,7 @@
  */
 
 export {
-  generateThemeWorkbenchPrompt,
-  needsFullWorkflow,
+  generateGeneralWorkbenchPrompt,
 } from "@/lib/workspace/systemPrompt";
 
 export { generateProjectMemoryPrompt } from "@/lib/workspace/projectPrompt";

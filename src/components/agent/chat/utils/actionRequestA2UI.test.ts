@@ -275,15 +275,26 @@ describe("actionRequestA2UI", () => {
     });
   });
 
-  it("browser_preflight 不应被提升为 A2UI 表单", () => {
+  it("缺少问题的 ask_user 应回退为默认文本输入表单", () => {
     const request: ActionRequired = {
-      requestId: "req-browser",
+      requestId: "req-ask-empty",
       actionType: "ask_user",
-      uiKind: "browser_preflight",
       status: "pending",
     };
 
-    expect(isActionRequestA2UICompatible(request)).toBe(false);
-    expect(buildActionRequestA2UI(request)).toBeNull();
+    expect(isActionRequestA2UICompatible(request)).toBe(true);
+    expect(buildActionRequestA2UI(request)).toMatchObject({
+      id: "action-request-req-ask-empty",
+      submitAction: {
+        label: "确认并继续",
+      },
+      components: expect.arrayContaining([
+        expect.objectContaining({
+          component: "TextField",
+          id: "req-ask-empty_answer",
+          label: "请输入你的回答",
+        }),
+      ]),
+    });
   });
 });

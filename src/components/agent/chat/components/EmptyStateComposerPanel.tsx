@@ -38,6 +38,8 @@ interface EmptyStateComposerPanelProps {
   setInput: (value: string) => void;
   placeholder: string;
   onSend: () => void;
+  isLoading?: boolean;
+  disabled?: boolean;
   activeTheme: string;
   providerType: string;
   setProviderType: (type: string) => void;
@@ -78,6 +80,8 @@ export function EmptyStateComposerPanel({
   setInput,
   placeholder,
   onSend,
+  isLoading = false,
+  disabled = false,
   activeTheme,
   providerType,
   setProviderType,
@@ -314,6 +318,8 @@ export function EmptyStateComposerPanel({
         text={input}
         setText={setInput}
         onSend={onSend}
+        isLoading={isLoading}
+        disabled={disabled}
         onToolClick={handleToolAction}
         activeTools={{
           thinking: thinkingEnabled,

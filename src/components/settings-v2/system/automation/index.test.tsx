@@ -277,7 +277,55 @@ async function openJobDetails(container: HTMLDivElement, jobId: string) {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 describe("AutomationSettings", () => {
+  it("应把工作台说明和任务入口说明收进 tips", async () => {
+    await renderSettings();
+
+    expect(getBodyText()).not.toContain(
+      "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。",
+    );
+    expect(getBodyText()).not.toContain(
+      "默认页只保留 Agent 对话任务相关动作。",
+    );
+
+    const heroTip = await hoverTip("自动化工作台说明");
+    expect(getBodyText()).toContain(
+      "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。",
+    );
+    await leaveTip(heroTip);
+
+    const taskTip = await hoverTip("任务入口说明");
+    expect(getBodyText()).toContain(
+      "默认页只保留 Agent 对话任务相关动作。",
+    );
+    await leaveTip(taskTip);
+  });
+
   it("遗留浏览器任务应展示下线提示并移除接管面板", async () => {
     const container = await renderSettings();
     await openJobDetails(container, "job-browser-1");

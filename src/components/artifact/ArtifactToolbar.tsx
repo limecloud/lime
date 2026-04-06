@@ -160,7 +160,7 @@ SizeSelector.displayName = "SizeSelector";
 /**
  * ArtifactToolbar Props
  */
-export interface ArtifactToolbarProps {
+interface ArtifactToolbarProps {
   /** 要操作的 Artifact 对象 */
   artifact: Artifact;
   /** 当前是否显示源码视图 */
@@ -672,5 +672,3 @@ function getMimeType(type: Artifact["type"]): string {
 
   return mimeTypes[type] || "text/plain";
 }
-
-export default ArtifactToolbar;

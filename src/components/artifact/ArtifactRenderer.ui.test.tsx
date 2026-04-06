@@ -183,7 +183,7 @@ describe("ArtifactRenderer 空内容态", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("结构化报告标题");
     expect(container.textContent).toContain("正文段落");
-    expect(container.textContent).toContain("主题 知识探索");
+    expect(container.textContent).toContain("主题 通用");
     expect(
       container
         .querySelector('[data-testid="artifact-document-renderer"] article')
@@ -240,7 +240,7 @@ describe("ArtifactRenderer 空内容态", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("落盘结构化周报");
     expect(container.textContent).toContain("落盘后的正文内容");
-    expect(container.textContent).toContain("主题 知识探索");
+    expect(container.textContent).toContain("主题 通用");
   });
 
   it("结构化阅读面应渲染摘要卡、统计卡与来源附录", async () => {
@@ -312,7 +312,7 @@ describe("ArtifactRenderer 空内容态", () => {
     expect(container.textContent).toContain("亮点");
     expect(container.textContent).toContain("来源附录");
     expect(container.textContent).toContain("OpenAI Blog");
-    expect(container.textContent).toContain("主题 知识探索");
+    expect(container.textContent).toContain("主题 通用");
     expect(container.textContent).not.toContain("主题 general");
     expect(container.querySelector("#artifact-block-hero-1")).not.toBeNull();
   });

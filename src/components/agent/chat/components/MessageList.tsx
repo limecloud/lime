@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useLayoutEffect,
+} from "react";
 import {
   Copy,
   Quote,
@@ -23,6 +29,7 @@ import { StreamingRenderer } from "./StreamingRenderer";
 import { TokenUsageDisplay } from "./TokenUsageDisplay";
 import { AgentThreadTimeline } from "./AgentThreadTimeline";
 import { ImageWorkbenchMessagePreview } from "./ImageWorkbenchMessagePreview";
+import { TaskMessagePreview } from "./TaskMessagePreview";
 import {
   formatArtifactWritePhaseLabel,
   resolveArtifactPreviewText,
@@ -38,6 +45,7 @@ import {
   type ActionRequired,
   type AgentThreadItem,
   type AgentThreadTurn,
+  type MessagePreviewTarget,
   type SiteSavedContentTarget,
   type WriteArtifactContext,
   type PendingA2UISource,
@@ -89,6 +97,8 @@ interface MessageListProps {
   onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
   /** Artifact 点击回调 */
   onArtifactClick?: (artifact: Artifact) => void;
+  /** 打开消息结果预览 */
+  onOpenMessagePreview?: (target: MessagePreviewTarget, message: Message) => void;
   /** 打开子代理会话 */
   onOpenSubagentSession?: (sessionId: string) => void;
   /** 权限确认响应回调 */
@@ -101,6 +111,8 @@ interface MessageListProps {
   onCodeBlockClick?: (language: string, code: string) => void;
   /** 是否将待处理问答提升为输入区 A2UI 表单 */
   promoteActionRequestsToA2UI?: boolean;
+  /** 会话是否仍在自动恢复 */
+  isRestoringSession?: boolean;
   /** 中断当前执行 */
   onInterruptCurrentTurn?: () => void | Promise<void>;
   /** 恢复当前线程排队执行 */
@@ -232,12 +244,14 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onOpenArtifactFromTimeline,
   onOpenSavedSiteContent,
   onArtifactClick,
+  onOpenMessagePreview,
   onOpenSubagentSession,
   onPermissionResponse,
   collapseCodeBlocks,
   shouldCollapseCodeBlock,
   onCodeBlockClick,
   promoteActionRequestsToA2UI = false,
+  isRestoringSession = false,
   compactLeadingSpacing = false,
   focusedTimelineItemId = null,
   timelineFocusRequestKey = 0,
@@ -245,6 +259,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const previousVisibleMessageCountRef = useRef<number | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -321,12 +336,26 @@ const MessageListInner: React.FC<MessageListProps> = ({
     };
   }, []);
 
-  // 智能自动滚动：只在用户没有手动滚动且在底部时才自动滚动
-  useEffect(() => {
-    if (shouldAutoScroll && !isUserScrolling && scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+  // 恢复历史会话时需要在首帧前把视口定位到底部，避免先闪顶部空白再平滑滚动。
+  useLayoutEffect(() => {
+    const previousVisibleMessageCount = previousVisibleMessageCountRef.current;
+    previousVisibleMessageCountRef.current = visibleMessages.length;
+
+    if (!shouldAutoScroll || isUserScrolling || !scrollRef.current) {
+      return;
     }
-  }, [visibleMessages, shouldAutoScroll, isUserScrolling]);
+
+    const shouldAnimateScroll =
+      !isRestoringSession &&
+      previousVisibleMessageCount !== null &&
+      previousVisibleMessageCount > 0 &&
+      visibleMessages.length <= previousVisibleMessageCount + 1;
+
+    scrollRef.current.scrollIntoView({
+      behavior: shouldAnimateScroll ? "smooth" : "auto",
+      block: "end",
+    });
+  }, [visibleMessages, shouldAutoScroll, isUserScrolling, isRestoringSession]);
 
   const handleCopy = async (content: string, id: string) => {
     try {
@@ -517,6 +546,35 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 {msg.imageWorkbenchPreview ? (
                   <ImageWorkbenchMessagePreview
                     preview={msg.imageWorkbenchPreview}
+                    onOpen={
+                      onOpenMessagePreview
+                        ? (preview) =>
+                            onOpenMessagePreview(
+                              {
+                                kind: "image_workbench",
+                                preview,
+                              },
+                              msg,
+                            )
+                        : undefined
+                    }
+                  />
+                ) : null}
+                {msg.taskPreview ? (
+                  <TaskMessagePreview
+                    preview={msg.taskPreview}
+                    onOpen={
+                      onOpenMessagePreview
+                        ? (preview) =>
+                            onOpenMessagePreview(
+                              {
+                                kind: "task",
+                                preview,
+                              },
+                              msg,
+                            )
+                        : undefined
+                    }
                   />
                 ) : null}
               </>
@@ -700,16 +758,36 @@ const MessageListInner: React.FC<MessageListProps> = ({
             : "mx-auto flex w-full max-w-[1040px] flex-col gap-4 py-4 pl-4 pr-4"
         }
       >
-        {messageGroups.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground opacity-50">
-            <img
-              src={logoImg}
-              alt="Lime"
-              className="w-12 h-12 mb-4 opacity-20"
-            />
-            <p className="text-lg font-medium">开始一段新的对话吧</p>
-          </div>
-        )}
+        {messageGroups.length === 0 &&
+          (isRestoringSession ? (
+            <div
+              className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground"
+              data-testid="message-list-restoring-session"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border/70 bg-background/80 shadow-sm">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-lg font-medium text-foreground">
+                  正在恢复任务中心...
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  正在同步最近一次任务会话，请稍候。
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground opacity-50">
+              <img
+                src={logoImg}
+                alt="Lime"
+                className="w-12 h-12 mb-4 opacity-20"
+              />
+              <p className="text-lg font-medium">开始一段新的对话吧</p>
+            </div>
+          ))}
 
         {messageGroups.map((group, groupIndex) => {
           return (

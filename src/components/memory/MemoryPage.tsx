@@ -38,6 +38,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import type { MemoryPageParams, Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
@@ -379,11 +380,15 @@ function SurfacePanel({
     <section className={cn(PANEL_CLASS_NAME, className)}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? (
           <div className="flex flex-wrap items-center gap-2">{aside}</div>
@@ -406,13 +411,17 @@ function SummaryStat({
 }) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -1250,12 +1259,14 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="flex w-[272px] min-w-[272px] flex-col gap-4 border-r border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(248,250,252,0.96)_100%)] p-4">
           <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
               <BrainCircuit className="h-4 w-4 text-sky-600" />
               记忆
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              按 / 搜索，按 1-6 切换视图
+              <WorkbenchInfoTip
+                ariaLabel="记忆导航说明"
+                content="按 / 搜索，按 1-6 切换视图。"
+                tone="slate"
+              />
             </div>
           </div>
 
@@ -1305,9 +1316,15 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
             })}
           </div>
 
-          <div className="mt-auto rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-xs leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-            记忆页面已接入统一记忆数据库：浏览、分析、删除都直接操作真实数据，不使用
-            Mock 数据。
+          <div className="mt-auto flex items-center justify-between gap-3 rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-xs leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
+            <span>统一记忆数据库</span>
+            <WorkbenchInfoTip
+              ariaLabel="统一记忆数据库说明"
+              content="记忆页面已接入统一记忆数据库：浏览、分析、删除都直接操作真实数据，不使用 Mock 数据。"
+              tone="slate"
+              variant="pill"
+              label="说明"
+            />
           </div>
         </aside>
 
@@ -1348,15 +1365,20 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                           </span>
 
                           <div className="space-y-2">
-                            <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                              {sectionTitle}
-                            </p>
-                            <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                              {sectionDescription}
-                              {activeSection === "home"
-                                ? " 统一记忆、上下文记忆和项目记忆会在这里汇总展示。"
-                                : " 这里会聚焦当前分类下的真实记忆条目与分析结果。"}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                                {sectionTitle}
+                              </p>
+                              <WorkbenchInfoTip
+                                ariaLabel={`${sectionTitle}说明`}
+                                content={`${sectionDescription}${
+                                  activeSection === "home"
+                                    ? " 统一记忆、上下文记忆和项目记忆会在这里汇总展示。"
+                                    : " 这里会聚焦当前分类下的真实记忆条目与分析结果。"
+                                }`}
+                                tone="mint"
+                              />
+                            </div>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
@@ -1414,12 +1436,16 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               搜索词 {searchKeyword.trim() || "未设置"}
                             </StatusPill>
                           </div>
-                          <p className="text-sm leading-6 text-slate-600">
-                            刷新会重取总览、分类和项目记忆状态。请求记忆分析会按当前日期范围扫描真实历史对话。
-                          </p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
+                          <WorkbenchInfoTip
+                            ariaLabel="记忆刷新与分析说明"
+                            content="刷新会重取总览、分类和项目记忆状态。请求记忆分析会按当前日期范围扫描真实历史对话。"
+                            tone="slate"
+                            variant="pill"
+                            label="操作说明"
+                          />
                           <button
                             type="button"
                             onClick={() =>
@@ -1969,12 +1995,20 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
                   <div className="flex items-start gap-3 rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
                     <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
-                    <p>
-                      当前页面是记忆工作台，适合浏览、分析和做快速策略调整；更细的来源、画像和自动记忆配置仍然在“记忆设置”页维护。第三层项目记忆当前状态：
-                      {projectLayerCard
-                        ? ` ${projectLayerCard.value}${projectLayerCard.unit}，${projectLayerCard.description}`
-                        : " 暂未加载。"}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>工作台说明</span>
+                      <WorkbenchInfoTip
+                        ariaLabel="记忆工作台说明"
+                        content={`当前页面是记忆工作台，适合浏览、分析和做快速策略调整；更细的来源、画像和自动记忆配置仍然在“记忆设置”页维护。第三层项目记忆当前状态：${
+                          projectLayerCard
+                            ? ` ${projectLayerCard.value}${projectLayerCard.unit}，${projectLayerCard.description}`
+                            : " 暂未加载。"
+                        }`}
+                        tone="slate"
+                        variant="pill"
+                        label="查看说明"
+                      />
+                    </div>
                   </div>
                 </>
               )}

@@ -1,6 +1,6 @@
-export const DOCUMENT_EDITOR_FOCUS_EVENT = "lime:document-editor-focus";
+const DOCUMENT_EDITOR_FOCUS_EVENT = "lime:document-editor-focus";
 
-export interface DocumentEditorFocusDetail {
+interface DocumentEditorFocusDetail {
   focused: boolean;
 }
 

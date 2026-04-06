@@ -980,6 +980,9 @@ mod tests {
 
     #[test]
     fn test_build_tool_inventory_workbench_with_browser_surface_keeps_small_default_allowlist() {
+        let expected_catalog = tool_catalog_entries_for_surface(
+            WorkspaceToolSurface::workbench_with_browser_assist(),
+        );
         let inventory = build_tool_inventory(AgentToolInventoryBuildInput {
             surface: WorkspaceToolSurface::workbench_with_browser_assist(),
             caller: "assistant".to_string(),
@@ -1001,9 +1004,21 @@ mod tests {
         .map(ToString::to_string)
         .collect::<Vec<_>>();
 
-        assert_eq!(inventory.counts.catalog_total, 56);
-        assert_eq!(inventory.counts.catalog_current_total, 55);
-        assert_eq!(inventory.counts.catalog_compat_total, 1);
+        assert_eq!(inventory.counts.catalog_total, expected_catalog.len());
+        assert_eq!(
+            inventory.counts.catalog_current_total,
+            expected_catalog
+                .iter()
+                .filter(|entry| entry.lifecycle == ToolLifecycle::Current)
+                .count()
+        );
+        assert_eq!(
+            inventory.counts.catalog_compat_total,
+            expected_catalog
+                .iter()
+                .filter(|entry| entry.lifecycle == ToolLifecycle::Compat)
+                .count()
+        );
         assert_eq!(inventory.default_allowed_tools, expected_default_allowed);
         assert_eq!(
             inventory.counts.default_allowed_total,

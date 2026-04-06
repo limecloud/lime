@@ -97,6 +97,11 @@ impl CredentialBridge {
         }
     }
 
+    fn resolve_fallback_api_key_id<'a>(&self, uuid: &'a str) -> Option<&'a str> {
+        uuid.strip_prefix("fallback-")
+            .filter(|value| !value.is_empty())
+    }
+
     /// 从凭证池选择凭证并创建 Aster Provider 配置
     ///
     /// # 参数
@@ -370,6 +375,13 @@ impl CredentialBridge {
 
     /// 记录凭证使用
     pub fn record_usage(&self, db: &DbConnection, uuid: &str) -> Result<(), CredentialBridgeError> {
+        if let Some(api_key_id) = self.resolve_fallback_api_key_id(uuid) {
+            return self
+                .api_key_service
+                .record_usage(db, api_key_id)
+                .map_err(CredentialBridgeError::DatabaseError);
+        }
+
         self.pool_service
             .record_usage(db, uuid)
             .map_err(CredentialBridgeError::DatabaseError)
@@ -382,6 +394,10 @@ impl CredentialBridge {
         uuid: &str,
         model: Option<&str>,
     ) -> Result<(), CredentialBridgeError> {
+        if self.resolve_fallback_api_key_id(uuid).is_some() {
+            return Ok(());
+        }
+
         self.pool_service
             .mark_healthy(db, uuid, model)
             .map_err(CredentialBridgeError::DatabaseError)
@@ -394,6 +410,10 @@ impl CredentialBridge {
         uuid: &str,
         error: Option<&str>,
     ) -> Result<(), CredentialBridgeError> {
+        if self.resolve_fallback_api_key_id(uuid).is_some() {
+            return Ok(());
+        }
+
         self.pool_service
             .mark_unhealthy(db, uuid, error)
             .map_err(CredentialBridgeError::DatabaseError)

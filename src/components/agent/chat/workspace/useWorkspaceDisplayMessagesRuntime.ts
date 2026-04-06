@@ -1,6 +1,5 @@
 import { useEffect, useMemo } from "react";
 import { buildLiveTaskSnapshot } from "../hooks/agentChatShared";
-import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
 import { buildCompatQuestionnaireA2UI } from "../utils/compatQuestionnaireA2UI";
 import { buildRuntimeTeamDispatchPreviewMessages } from "./runtimeTeamPreview";
 import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
@@ -11,7 +10,6 @@ import {
 import type { Message } from "../types";
 
 interface UseWorkspaceDisplayMessagesRuntimeParams {
-  browserTaskPreflight: BrowserTaskPreflight | null;
   bootstrapDispatchPreviewMessages: Message[];
   isSending: boolean;
   messages: Message[];
@@ -70,33 +68,7 @@ function collapseLegacyQuestionnaireMessages(messages: Message[]): Message[] {
   return mutated ? collapsedMessages : messages;
 }
 
-function buildBrowserTaskPreflightPreviewMessages(
-  preflight: BrowserTaskPreflight,
-): Message[] {
-  const timestamp = new Date(preflight.createdAt || Date.now());
-  const assistantContent =
-    preflight.detail?.trim() || "正在准备浏览器上下文，请稍候...";
-
-  return [
-    {
-      id: `browser-preflight:${preflight.requestId}:user`,
-      role: "user",
-      content: preflight.sourceText,
-      images: preflight.images.length > 0 ? preflight.images : undefined,
-      timestamp,
-    },
-    {
-      id: `browser-preflight:${preflight.requestId}:assistant`,
-      role: "assistant",
-      content: assistantContent,
-      timestamp: new Date(timestamp.getTime() + 1),
-      isThinking: preflight.phase === "launching",
-    },
-  ];
-}
-
 export function useWorkspaceDisplayMessagesRuntime({
-  browserTaskPreflight,
   bootstrapDispatchPreviewMessages,
   isSending,
   messages,
@@ -126,10 +98,6 @@ export function useWorkspaceDisplayMessagesRuntime({
       return submissionPreviewMessages;
     }
 
-    if (collapsedMessages.length === 0 && browserTaskPreflight) {
-      return buildBrowserTaskPreflightPreviewMessages(browserTaskPreflight);
-    }
-
     if (
       collapsedMessages.length === 0 &&
       bootstrapDispatchPreviewMessages.length > 0
@@ -139,7 +107,6 @@ export function useWorkspaceDisplayMessagesRuntime({
 
     return collapsedMessages;
   }, [
-    browserTaskPreflight,
     bootstrapDispatchPreviewMessages,
     messages,
     runtimeTeamDispatchPreview,

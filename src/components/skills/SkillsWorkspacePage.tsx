@@ -23,10 +23,10 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -502,13 +502,16 @@ export function SkillsWorkspacePage({
                 CLAW SKILLS · 主入口
               </span>
               <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-                  技能
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
-                  技能中心现在先展示技能组，再进入具体技能项。适配器继续留在后台做治理，
-                  前台不再暴露 adapter、runtime 或 YAML 等技术细节。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
+                    技能
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="技能主入口说明"
+                    content="技能中心现在先展示技能组，再进入具体技能项。适配器继续留在后台做治理，前台不再暴露 adapter、runtime 或 YAML 等技术细节。"
+                    tone="mint"
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 text-[11px] leading-5 text-slate-500">
                 {catalogMeta ? (
@@ -542,12 +545,14 @@ export function SkillsWorkspacePage({
             </div>
 
             <div className="w-full max-w-[420px] rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
-              <div className="text-sm font-semibold text-slate-900">
-                查找技能组 / 技能项
+              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                <span>查找技能组 / 技能项</span>
+                <WorkbenchInfoTip
+                  ariaLabel="技能搜索说明"
+                  content="先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。"
+                  tone="slate"
+                />
               </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。
-              </p>
               <div className="relative mt-4">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
@@ -590,12 +595,16 @@ export function SkillsWorkspacePage({
                     Claw 下的技能主入口
                   </span>
                   <div className="space-y-2">
-                    <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                      先选技能组，再进入真正可执行的技能
-                    </h2>
-                    <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                      站点能力先按 GitHub、知乎、Linux.do 等技能组进入，通用业务技能也统一收进同一份技能目录。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                        先选技能组，再进入真正可执行的技能
+                      </h2>
+                      <WorkbenchInfoTip
+                        ariaLabel="技能组说明"
+                        content="站点能力先按 GitHub、知乎、Linux.do 等技能组进入，通用业务技能也统一收进同一份技能目录。"
+                        tone="mint"
+                      />
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -611,37 +620,43 @@ export function SkillsWorkspacePage({
 
               <div className="mt-6 grid gap-3 md:grid-cols-3">
                 <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-[11px] font-medium tracking-[0.08em] text-slate-400">
-                    技能分组
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium tracking-[0.08em] text-slate-400">
+                    <span>技能分组</span>
+                    <WorkbenchInfoTip
+                      ariaLabel="技能分组说明"
+                      content="先按站点或能力组进入，再选择具体技能项。"
+                      tone="slate"
+                    />
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-slate-950">
                     {skillGroups.length}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    先按站点或能力组进入，再选择具体技能项
-                  </p>
                 </div>
                 <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-[11px] font-medium tracking-[0.08em] text-slate-400">
-                    可用技能
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium tracking-[0.08em] text-slate-400">
+                    <span>可用技能</span>
+                    <WorkbenchInfoTip
+                      ariaLabel="可用技能说明"
+                      content="已进入统一技能目录并可直接启动的技能数量。"
+                      tone="slate"
+                    />
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-slate-950">
                     {serviceSkills.length}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    已进入统一技能目录并可直接启动的技能数量
-                  </p>
                 </div>
                 <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-[11px] font-medium tracking-[0.08em] text-slate-400">
-                    本地已安装
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium tracking-[0.08em] text-slate-400">
+                    <span>本地已安装</span>
+                    <WorkbenchInfoTip
+                      ariaLabel="本地已安装技能说明"
+                      content="本地和项目级补充技能仍保留在高级管理中。"
+                      tone="slate"
+                    />
                   </div>
                   <div className="mt-2 text-2xl font-semibold text-slate-950">
                     {installedLocalSkills.length}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    本地和项目级补充技能仍保留在高级管理中
-                  </p>
                 </div>
               </div>
             </div>
@@ -689,12 +704,16 @@ export function SkillsWorkspacePage({
                       </span>
                     </div>
                     <div className="mt-4 space-y-2">
-                      <h3 className="text-lg font-semibold text-slate-900">
-                        {item.title}
-                      </h3>
-                      <p className="text-sm leading-6 text-slate-600">
-                        {item.description}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          {item.title}
+                        </h3>
+                        <WorkbenchInfoTip
+                          ariaLabel={`${item.title}说明`}
+                          content={item.description}
+                          tone="slate"
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -742,18 +761,26 @@ export function SkillsWorkspacePage({
                           技能组 · {selectedGroup.title}
                         </span>
                         <div>
-                          <h2 className="text-2xl font-semibold text-slate-950">
-                            {selectedGroup.title}
-                          </h2>
-                          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                            {selectedGroup.summary}
-                          </p>
-                        </div>
-                        {selectedGroup.entryHint ? (
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-                            {selectedGroup.entryHint}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="text-2xl font-semibold text-slate-950">
+                              {selectedGroup.title}
+                            </h2>
+                            <WorkbenchInfoTip
+                              ariaLabel={`${selectedGroup.title}技能组说明`}
+                              content={selectedGroup.summary}
+                              tone="slate"
+                            />
+                            {selectedGroup.entryHint ? (
+                              <WorkbenchInfoTip
+                                ariaLabel={`${selectedGroup.title}入口提示`}
+                                content={selectedGroup.entryHint}
+                                tone="mint"
+                                variant="pill"
+                                label="入口提示"
+                              />
+                            ) : null}
                           </div>
-                        ) : null}
+                        </div>
                       </div>
                       <Button
                         type="button"
@@ -807,15 +834,23 @@ export function SkillsWorkspacePage({
                             <h3 className="text-xl font-semibold text-slate-950">
                               {group.title}
                             </h3>
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                              {group.summary}
-                            </p>
-                          </div>
-                          {group.entryHint ? (
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-600">
-                              {group.entryHint}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <WorkbenchInfoTip
+                                ariaLabel={`${group.title}技能组摘要`}
+                                content={group.summary}
+                                tone="slate"
+                              />
+                              {group.entryHint ? (
+                                <WorkbenchInfoTip
+                                  ariaLabel={`${group.title}入口提示`}
+                                  content={group.entryHint}
+                                  tone="mint"
+                                  variant="pill"
+                                  label="入口提示"
+                                />
+                              ) : null}
                             </div>
-                          ) : null}
+                          </div>
                           <div className="space-y-2 text-xs leading-5 text-slate-500">
                             <div>
                               <span className="font-medium text-slate-700">
@@ -867,12 +902,16 @@ export function SkillsWorkspacePage({
               <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      最近使用
-                    </h2>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      最近执行过的技能会沉淀在这里，方便再次启动。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold text-slate-900">
+                        最近使用
+                      </h2>
+                      <WorkbenchInfoTip
+                        ariaLabel="最近使用技能说明"
+                        content="最近执行过的技能会沉淀在这里，方便再次启动。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -912,12 +951,16 @@ export function SkillsWorkspacePage({
               <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      本地已安装技能
-                    </h2>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      项目级、本地补充和内置技能仍然可用，但高阶仓库、导入和标准检查收纳在高级管理中。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold text-slate-900">
+                        本地已安装技能
+                      </h2>
+                      <WorkbenchInfoTip
+                        ariaLabel="本地已安装技能区说明"
+                        content="项目级、本地补充和内置技能仍然可用，但高阶仓库、导入和标准检查收纳在高级管理中。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <Button
                     type="button"
@@ -986,10 +1029,14 @@ export function SkillsWorkspacePage({
         <DialogContent className="max-h-[calc(100vh-40px)] w-[min(1240px,calc(100vw-32px))] max-w-none overflow-hidden border-slate-200 p-0">
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
-              <DialogTitle>高级技能管理</DialogTitle>
-              <DialogDescription>
-                主入口已经迁到 Claw 左侧导航；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。
-              </DialogDescription>
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle>高级技能管理</DialogTitle>
+                <WorkbenchInfoTip
+                  ariaLabel="高级技能管理弹窗说明"
+                  content="主入口已经迁到 Claw 左侧导航；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。"
+                  tone="mint"
+                />
+              </div>
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
               <SkillsPage hideHeader />

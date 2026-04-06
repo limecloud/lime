@@ -21,7 +21,7 @@ import {
   getProjectByRootPath,
   getDefaultProject,
   getProject,
-  getThemeWorkbenchDocumentState,
+  getGeneralWorkbenchDocumentState,
   listContents,
   listProjects,
   requireDefaultProject,
@@ -366,7 +366,7 @@ describe("项目管理 API", () => {
         expect.objectContaining({ id: "content-1" }),
       );
       await expect(
-        getThemeWorkbenchDocumentState("content-1"),
+        getGeneralWorkbenchDocumentState("content-1"),
       ).resolves.toEqual(expect.objectContaining({ current_version_id: "v1" }));
       await expect(
         listContents("project-1", { content_type: "chapter" }),
@@ -395,7 +395,7 @@ describe("项目管理 API", () => {
       });
       expect(safeInvoke).toHaveBeenNthCalledWith(
         3,
-        "content_get_theme_workbench_document_state",
+        "content_get_general_workbench_document_state",
         { id: "content-1" },
       );
       expect(safeInvoke).toHaveBeenNthCalledWith(4, "content_list", {

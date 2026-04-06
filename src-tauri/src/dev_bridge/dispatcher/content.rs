@@ -1,8 +1,8 @@
 use super::{args_or_default, get_db, get_string_arg, parse_nested_arg, parse_optional_nested_arg};
 use crate::commands::content_cmd::{
-    parse_theme_workbench_document_state, ContentDetail, ContentListItem,
-    CreateContentRequest as BridgeCreateContentRequest,
-    ListContentRequest as BridgeListContentRequest, ThemeWorkbenchDocumentState,
+    parse_general_workbench_document_state, ContentDetail, ContentListItem,
+    CreateContentRequest as BridgeCreateContentRequest, GeneralWorkbenchDocumentState,
+    ListContentRequest as BridgeListContentRequest,
     UpdateContentRequest as BridgeUpdateContentRequest,
 };
 use crate::content::{
@@ -81,13 +81,13 @@ pub(super) fn try_handle(
             let manager = content_manager(state)?;
             serde_json::to_value(manager.get(&id)?.map(ContentDetail::from))?
         }
-        "content_get_theme_workbench_document_state" => {
+        "content_get_general_workbench_document_state" => {
             let args = args_or_default(args);
             let id = get_string_arg(&args, "id", "id")?;
             let manager = content_manager(state)?;
             let content = manager.get(&id)?;
-            let document_state: Option<ThemeWorkbenchDocumentState> = content.and_then(|item| {
-                parse_theme_workbench_document_state(&item.id, item.metadata.as_ref())
+            let document_state: Option<GeneralWorkbenchDocumentState> = content.and_then(|item| {
+                parse_general_workbench_document_state(&item.id, item.metadata.as_ref())
             });
             serde_json::to_value(document_state)?
         }

@@ -10,9 +10,7 @@ import {
 import { buildCompatQuestionnaireSubmissionPayload } from "../utils/compatQuestionnaireA2UI";
 
 interface UseWorkspaceA2UISubmitActionsParams {
-  handlePermissionResponseWithBrowserPreflight: (
-    response: ConfirmResponse,
-  ) => Promise<void>;
+  handlePermissionResponse: (response: ConfirmResponse) => Promise<void>;
   pendingLegacyQuestionnaireA2UIForm: A2UIResponse | null;
   pendingPromotedA2UIActionRequest: ActionRequired | null;
   resolvePendingA2UISubmit: (formData: A2UIFormData) => {
@@ -23,7 +21,7 @@ interface UseWorkspaceA2UISubmitActionsParams {
 }
 
 export function useWorkspaceA2UISubmitActions({
-  handlePermissionResponseWithBrowserPreflight,
+  handlePermissionResponse,
   pendingLegacyQuestionnaireA2UIForm,
   pendingPromotedA2UIActionRequest,
   resolvePendingA2UISubmit,
@@ -67,7 +65,7 @@ export function useWorkspaceA2UISubmitActions({
           effectiveFormData,
         );
 
-        void handlePermissionResponseWithBrowserPreflight({
+        void handlePermissionResponse({
           requestId: pendingPromotedA2UIActionRequest.requestId,
           confirmed: true,
           actionType: pendingPromotedA2UIActionRequest.actionType,
@@ -108,7 +106,7 @@ export function useWorkspaceA2UISubmitActions({
     },
     [
       handleA2UISubmit,
-      handlePermissionResponseWithBrowserPreflight,
+      handlePermissionResponse,
       pendingLegacyQuestionnaireA2UIForm,
       pendingPromotedA2UIActionRequest,
       resolvePendingA2UISubmit,

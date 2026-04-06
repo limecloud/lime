@@ -189,6 +189,12 @@ async function flushEffects(times = 3) {
   for (let index = 0; index < times; index += 1) {
     await act(async () => {
       await Promise.resolve();
+      if (typeof vi.dynamicImportSettled === "function") {
+        await vi.dynamicImportSettled();
+      }
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+      });
     });
   }
 }

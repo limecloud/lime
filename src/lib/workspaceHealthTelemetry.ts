@@ -12,7 +12,7 @@ export interface WorkspaceRepairRecord {
   source: WorkspaceRepairSource;
 }
 
-export interface RecordWorkspaceRepairInput {
+interface RecordWorkspaceRepairInput {
   workspaceId: string;
   rootPath: string;
   source: WorkspaceRepairSource;

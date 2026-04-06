@@ -65,7 +65,7 @@ interface TrackedImageTask {
   polling: boolean;
 }
 
-export interface ParsedImageTaskSnapshot {
+interface ParsedImageTaskSnapshot {
   taskId: string;
   message: Message;
   task: ImageWorkbenchTask;
@@ -546,7 +546,7 @@ function sanitizePreviewPrompt(value?: string): string {
   return trimmed;
 }
 
-export function syncDocumentInlineImageTask(params: {
+function syncDocumentInlineImageTask(params: {
   taskRecord: Record<string, unknown>;
   taskId: string;
   outputs: ImageWorkbenchOutput[];
@@ -1266,7 +1266,7 @@ function buildPendingImageTaskSnapshot(params: {
   );
 }
 
-export function buildImageTaskSnapshotFromArtifactOutput(params: {
+function buildImageTaskSnapshotFromArtifactOutput(params: {
   artifact: MediaTaskArtifactOutput;
   projectId?: string | null;
   contentId?: string | null;
@@ -1345,7 +1345,7 @@ function upsertPreviewMessage(
   return nextMessages;
 }
 
-export function mergeImageTaskSnapshot(
+function mergeImageTaskSnapshot(
   current: SessionImageWorkbenchState,
   snapshot: ParsedImageTaskSnapshot,
 ): SessionImageWorkbenchState {

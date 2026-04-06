@@ -1,17 +1,5 @@
 import type { ReactNode } from "react";
 import type { DocumentVersion } from "@/lib/workspace/workbenchCanvas";
-import type { Artifact } from "@/lib/artifact/types";
-import type { CanvasWorkbenchPreviewTarget } from "../components/CanvasWorkbenchLayout";
-import type {
-  ArtifactWorkbenchDocumentController,
-} from "./artifactWorkbenchDocument";
-
-export interface RenderArtifactWorkbenchPreviewOptions {
-  stackedWorkbenchTrigger?: ReactNode;
-  onArtifactDocumentControllerChange?: (
-    controller: ArtifactWorkbenchDocumentController | null,
-  ) => void;
-}
 
 export function resolvePreviousDocumentVersionContent(
   version: DocumentVersion | null | undefined,
@@ -53,66 +41,4 @@ export function wrapPreviewWithWorkbenchTrigger(
       </div>
     </div>
   );
-}
-
-function renderWorkbenchStatePreview(
-  kind: "loading" | "unsupported" | "empty",
-  options: {
-    text: string;
-    stackedWorkbenchTrigger?: ReactNode;
-  },
-) {
-  return wrapPreviewWithWorkbenchTrigger(
-    <div
-      data-testid={`canvas-workbench-preview-${kind}`}
-      className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-sm text-slate-500"
-    >
-      {options.text}
-    </div>,
-    options.stackedWorkbenchTrigger,
-  );
-}
-
-export function renderCanvasWorkbenchPreviewTarget(params: {
-  target: CanvasWorkbenchPreviewTarget;
-  stackedWorkbenchTrigger?: ReactNode;
-  renderDefaultCanvasPreview: (stackedWorkbenchTrigger?: ReactNode) => ReactNode;
-  renderArtifactPreview: (
-    artifact: Artifact,
-    options?: RenderArtifactWorkbenchPreviewOptions,
-  ) => ReactNode;
-  renderTeamWorkbenchPreview: (
-    stackedWorkbenchTrigger?: ReactNode,
-  ) => ReactNode;
-}) {
-  const { target, stackedWorkbenchTrigger } = params;
-
-  switch (target.kind) {
-    case "default-canvas":
-      return params.renderDefaultCanvasPreview(stackedWorkbenchTrigger);
-    case "artifact":
-    case "synthetic-artifact":
-      return params.renderArtifactPreview(target.artifact, {
-        stackedWorkbenchTrigger,
-      });
-    case "loading":
-      return renderWorkbenchStatePreview("loading", {
-        text: "正在准备预览...",
-        stackedWorkbenchTrigger,
-      });
-    case "unsupported":
-      return renderWorkbenchStatePreview("unsupported", {
-        text: target.reason,
-        stackedWorkbenchTrigger,
-      });
-    case "empty":
-      return renderWorkbenchStatePreview("empty", {
-        text: "暂无可预览内容",
-        stackedWorkbenchTrigger,
-      });
-    case "team-workbench":
-      return params.renderTeamWorkbenchPreview(stackedWorkbenchTrigger);
-    default:
-      return null;
-  }
 }

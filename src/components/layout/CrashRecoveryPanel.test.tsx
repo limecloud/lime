@@ -18,7 +18,7 @@ vi.mock("@/lib/api/logs", () => ({
 vi.mock("@/lib/crashDiagnostic", () => ({
   buildCrashDiagnosticPayload: vi.fn(() => ({})),
   clearCrashDiagnosticHistory: vi.fn(async () => undefined),
-  collectThemeWorkbenchDocumentStateForDiagnostic: vi.fn(async () => null),
+  collectGeneralWorkbenchDocumentStateForDiagnostic: vi.fn(async () => null),
   CLEAR_CRASH_DIAGNOSTIC_HISTORY_CONFIRM_TEXT: "confirm",
   copyCrashDiagnosticJsonToClipboard: vi.fn(async () => undefined),
   copyCrashDiagnosticToClipboard: vi.fn(async () => undefined),

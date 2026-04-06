@@ -3,11 +3,6 @@ import { toast } from "sonner";
 import { siteGetAdapterLaunchReadiness } from "@/lib/webview-api";
 import { createAutomationJob } from "@/lib/api/automation";
 import {
-  getSkillCatalog,
-  listSkillCatalogSceneEntries,
-  type SkillCatalogSceneEntry,
-} from "@/lib/api/skillCatalog";
-import {
   createServiceSkillRun,
   getServiceSkillRun,
   isTerminalServiceSkillRunStatus,
@@ -32,7 +27,6 @@ import {
   type WorkspaceEntryPayload,
 } from "../workspaceEntry";
 import {
-  createDefaultServiceSkillSlotValues,
   composeServiceSkillPrompt,
 } from "../service-skills/promptComposer";
 import {
@@ -109,77 +103,6 @@ function resolveServiceSkillLaunchUserInput(
   }
 
   return normalizeOptionalText(currentInput);
-}
-
-interface ParsedRuntimeSceneCommand {
-  sceneKey: string;
-  userInput: string;
-}
-
-function normalizeCommandToken(value?: string | null): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim().replace(/^\/+/, "").toLowerCase();
-}
-
-function parseRuntimeSceneCommand(
-  rawText: string,
-): ParsedRuntimeSceneCommand | null {
-  const sceneMatch = rawText.trim().match(/^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/);
-  if (!sceneMatch) {
-    return null;
-  }
-
-  const [, sceneKey, userInput] = sceneMatch;
-  return {
-    sceneKey,
-    userInput: userInput?.trim() || "",
-  };
-}
-
-function matchesRuntimeSceneEntry(
-  entry: SkillCatalogSceneEntry,
-  sceneKey: string,
-): boolean {
-  const normalizedSceneKey = normalizeCommandToken(sceneKey);
-  if (!normalizedSceneKey) {
-    return false;
-  }
-
-  if (normalizeCommandToken(entry.sceneKey) === normalizedSceneKey) {
-    return true;
-  }
-
-  if (normalizeCommandToken(entry.commandPrefix) === normalizedSceneKey) {
-    return true;
-  }
-
-  return (entry.aliases ?? []).some(
-    (alias) => normalizeCommandToken(alias) === normalizedSceneKey,
-  );
-}
-
-function resolveRuntimeSceneSkill(
-  serviceSkills: ServiceSkillHomeItem[],
-  entry: SkillCatalogSceneEntry,
-): ServiceSkillHomeItem | null {
-  const normalizedSceneKey = normalizeCommandToken(entry.sceneKey);
-  if (!normalizedSceneKey) {
-    return null;
-  }
-
-  return (
-    serviceSkills.find((skill) => skill.id === entry.linkedSkillId) ||
-    serviceSkills.find(
-      (skill) => normalizeCommandToken(skill.skillKey) === normalizedSceneKey,
-    ) ||
-    serviceSkills.find(
-      (skill) => normalizeCommandToken(skill.id) === normalizedSceneKey,
-    ) ||
-    null
-  );
 }
 
 function buildServiceSkillCloudResultBody(
@@ -289,7 +212,6 @@ interface UseWorkspaceServiceSkillEntryActionsParams {
   contentId?: string | null;
   input: string;
   chatToolPreferences: ChatToolPreferences;
-  serviceSkills: ServiceSkillHomeItem[];
   preferredTeamPresetId?: string | null;
   selectedTeam?: TeamDefinition | null;
   selectedTeamLabel?: string | null;
@@ -308,7 +230,6 @@ export function useWorkspaceServiceSkillEntryActions({
   contentId,
   input,
   chatToolPreferences,
-  serviceSkills,
   preferredTeamPresetId,
   selectedTeam,
   selectedTeamLabel,
@@ -933,41 +854,6 @@ export function useWorkspaceServiceSkillEntryActions({
     ],
   );
 
-  const handleRuntimeSceneLaunch = useCallback(
-    async (rawText: string): Promise<boolean> => {
-      const parsedSceneCommand = parseRuntimeSceneCommand(rawText);
-      if (!parsedSceneCommand) {
-        return false;
-      }
-
-      const catalog = await getSkillCatalog();
-      const sceneEntry = listSkillCatalogSceneEntries(catalog).find((entry) =>
-        matchesRuntimeSceneEntry(entry, parsedSceneCommand.sceneKey),
-      );
-      if (!sceneEntry) {
-        return false;
-      }
-
-      const matchedSkill = resolveRuntimeSceneSkill(serviceSkills, sceneEntry);
-      if (!matchedSkill) {
-        return false;
-      }
-
-      await handleServiceSkillLaunch(
-        matchedSkill,
-        createDefaultServiceSkillSlotValues(matchedSkill),
-        {
-          launchUserInput:
-            normalizeOptionalText(parsedSceneCommand.userInput) ?? undefined,
-          fallbackToWorkspaceOnCloudSubmitFailure: true,
-        },
-      );
-
-      return true;
-    },
-    [handleServiceSkillLaunch, serviceSkills],
-  );
-
   const handleAutoLaunchMatchedSiteSkill = useCallback(
     async (match: AutoMatchedSiteSkill<ServiceSkillHomeItem>) => {
       await handleServiceSkillLaunch(match.skill, match.slotValues, {
@@ -1156,7 +1042,6 @@ export function useWorkspaceServiceSkillEntryActions({
     handleServiceSkillSelect,
     handleServiceSkillDialogOpenChange,
     handleServiceSkillLaunch,
-    handleRuntimeSceneLaunch,
     handleAutoLaunchMatchedSiteSkill,
     handleServiceSkillBrowserRuntimeLaunch,
     handleServiceSkillAutomationSetup,

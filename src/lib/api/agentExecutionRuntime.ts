@@ -87,7 +87,7 @@ export interface AsterSessionExecutionRuntime {
   recent_preferences?: AsterSessionExecutionRuntimePreferences | null;
   recent_team_selection?: AsterSessionExecutionRuntimeRecentTeamSelection | null;
   recent_theme?: string | null;
-  recent_session_mode?: "default" | "theme_workbench" | string | null;
+  recent_session_mode?: "default" | "general_workbench" | string | null;
   recent_gate_key?: string | null;
   recent_run_title?: string | null;
   recent_content_id?: string | null;

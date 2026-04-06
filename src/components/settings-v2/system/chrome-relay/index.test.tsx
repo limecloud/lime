@@ -142,6 +142,31 @@ async function flushEffects() {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const target = Array.from(container.querySelectorAll("button")).find(
     (button) => button.textContent?.includes(text),
@@ -449,6 +474,30 @@ describe("ChromeRelaySettings", () => {
     expect(
       container.querySelector('[data-testid="browser-runtime-panel"]'),
     ).not.toBeNull();
+  });
+
+  it("应把连接器补充说明收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。",
+    );
+    expect(getBodyText()).not.toContain(
+      "选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。",
+    );
+
+    const overviewTip = await hoverTip("连接器总览说明");
+    expect(getBodyText()).toContain(
+      "先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。",
+    );
+    await leaveTip(overviewTip);
+
+    const installTip = await hoverTip("安装 Lime Browser Bridge 说明");
+    expect(getBodyText()).toContain(
+      "选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。",
+    );
+    await leaveTip(installTip);
   });
 
   it("选择目录后应安装浏览器连接器到固定子目录", async () => {

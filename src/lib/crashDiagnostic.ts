@@ -15,8 +15,8 @@ import {
 } from "@/lib/api/apiKeyProvider";
 import { mcpApi, type McpServerInfo } from "@/lib/api/mcp";
 import {
-  getThemeWorkbenchDocumentState,
-  type ThemeWorkbenchDocumentState,
+  getGeneralWorkbenchDocumentState,
+  type GeneralWorkbenchDocumentState,
 } from "@/lib/api/project";
 import {
   providerPoolApi,
@@ -66,7 +66,7 @@ export interface CrashDiagnosticPayload {
   windows_startup_diagnostics?: WindowsStartupDiagnostics | null;
   runtime_snapshot?: RuntimeDiagnosticSnapshot | null;
   workspace_repair_history?: WorkspaceRepairRecord[];
-  theme_workbench_document_state?: ThemeWorkbenchDocumentState | null;
+  general_workbench_document_state?: GeneralWorkbenchDocumentState | null;
   diagnostic_collection_notes?: string[];
 }
 
@@ -252,7 +252,7 @@ interface BuildCrashDiagnosticPayloadParams {
   maxInvokeTraces?: number;
   maxPersistedLogs?: number;
   maxWorkspaceRepairs?: number;
-  themeWorkbenchDocumentState?: ThemeWorkbenchDocumentState | null;
+  generalWorkbenchDocumentState?: GeneralWorkbenchDocumentState | null;
   serverDiagnostics?: ServerDiagnostics | null;
   logStorageDiagnostics?: LogStorageDiagnostics | null;
   windowsStartupDiagnostics?: WindowsStartupDiagnostics | null;
@@ -614,7 +614,7 @@ export function buildCrashDiagnosticPayload(
     maxInvokeTraces = 80,
     maxPersistedLogs = 200,
     maxWorkspaceRepairs = 50,
-    themeWorkbenchDocumentState = null,
+    generalWorkbenchDocumentState = null,
     serverDiagnostics = null,
     logStorageDiagnostics = null,
     windowsStartupDiagnostics = null,
@@ -662,7 +662,7 @@ export function buildCrashDiagnosticPayload(
     windows_startup_diagnostics: windowsStartupDiagnostics,
     runtime_snapshot: runtimeSnapshot,
     workspace_repair_history: getWorkspaceRepairHistory(maxWorkspaceRepairs),
-    theme_workbench_document_state: themeWorkbenchDocumentState,
+    general_workbench_document_state: generalWorkbenchDocumentState,
     diagnostic_collection_notes: Array.from(
       new Set(
         [...autoCollectionNotes, ...collectionNotes].filter(
@@ -673,16 +673,16 @@ export function buildCrashDiagnosticPayload(
   };
 }
 
-export async function collectThemeWorkbenchDocumentStateForDiagnostic(): Promise<ThemeWorkbenchDocumentState | null> {
+export async function collectGeneralWorkbenchDocumentStateForDiagnostic(): Promise<GeneralWorkbenchDocumentState | null> {
   const activeTarget = getActiveContentTarget();
   if (!activeTarget?.contentId || activeTarget.canvasType !== "document") {
     return null;
   }
 
   try {
-    return await getThemeWorkbenchDocumentState(activeTarget.contentId);
+    return await getGeneralWorkbenchDocumentState(activeTarget.contentId);
   } catch (error) {
-    console.warn("[crashDiagnostic] 获取主题工作台文稿状态失败:", error);
+    console.warn("[crashDiagnostic] 获取工作区文稿状态失败:", error);
     return null;
   }
 }
@@ -829,7 +829,7 @@ function buildDiagnosticSummary(payload: CrashDiagnosticPayload): string {
     payload.log_storage_diagnostics?.raw_response_files?.length ?? 0;
   const workspaceRepairCount = payload.workspace_repair_history?.length ?? 0;
   const versionCount =
-    payload.theme_workbench_document_state?.version_count ?? 0;
+    payload.general_workbench_document_state?.version_count ?? 0;
   const dsnConfigured = payload.crash_reporting.dsn ? "是" : "否";
   const serverDiagnosticsCollected = payload.server_diagnostics ? "是" : "否";
   const runtimeSnapshotCollected = payload.runtime_snapshot ? "是" : "否";
@@ -877,7 +877,7 @@ function buildDiagnosticSummary(payload: CrashDiagnosticPayload): string {
     `- 关联日志文件数：${relatedLogFileCount}`,
     `- 原始响应文件数：${rawResponseFileCount}`,
     `- Workspace 自动修复记录条数：${workspaceRepairCount}`,
-    `- 主题工作台文稿版本数：${versionCount}`,
+    `- 工作区文稿版本数：${versionCount}`,
     `- 崩溃上报已启用：${payload.crash_reporting.enabled ? "是" : "否"}（DSN 已配置：${dsnConfigured}）`,
   ];
 

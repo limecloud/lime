@@ -64,6 +64,8 @@ describe("agentStreamUserInputSubmission", () => {
       sessionIdRef: { current: null } as MutableRefObject<string | null>,
       getQueuedTurnsCount: () => 0,
       isThreadBusy: () => false,
+      hasPendingPreparedSubmit: () => false,
+      runPreparedSubmit: async (task) => task(),
       getRequiredWorkspaceId: () => "workspace-1",
       getSyncedSessionModelPreference: () => null,
       getSyncedSessionExecutionStrategy: () => "react",

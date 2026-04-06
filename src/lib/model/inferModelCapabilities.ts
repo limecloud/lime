@@ -24,7 +24,7 @@ function buildSearchText(parts: Array<string | null | undefined>): string {
     .join(" ");
 }
 
-export function inferReasoningCapability(modelId: string): boolean {
+function inferReasoningCapability(modelId: string): boolean {
   return REASONING_TOKEN_PATTERN.test(modelId.trim().toLowerCase());
 }
 

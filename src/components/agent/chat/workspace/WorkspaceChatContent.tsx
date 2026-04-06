@@ -26,7 +26,7 @@ interface WorkspaceChatContentProps {
   showChatLayout: boolean;
   compactChrome: boolean;
   contextWorkspaceEnabled: boolean;
-  themeWorkbenchMessageViewportBottomPadding?: string;
+  generalWorkbenchMessageViewportBottomPadding?: string;
   messageListProps: ComponentProps<typeof MessageList>;
   teamWorkspaceDockProps?: ComponentProps<typeof TeamWorkspaceDock> | null;
   emptyStateProps: ComponentProps<typeof EmptyState>;
@@ -49,7 +49,7 @@ export function WorkspaceChatContent({
   showChatLayout,
   compactChrome,
   contextWorkspaceEnabled,
-  themeWorkbenchMessageViewportBottomPadding,
+  generalWorkbenchMessageViewportBottomPadding,
   messageListProps,
   teamWorkspaceDockProps,
   emptyStateProps,
@@ -94,7 +94,7 @@ export function WorkspaceChatContent({
             <>
               {contextWorkspaceEnabled ? (
                 <MessageViewport
-                  $bottomPadding={themeWorkbenchMessageViewportBottomPadding}
+                  $bottomPadding={generalWorkbenchMessageViewportBottomPadding}
                 >
                   {messageListNode}
                 </MessageViewport>

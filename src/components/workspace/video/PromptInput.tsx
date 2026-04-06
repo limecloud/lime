@@ -5,6 +5,7 @@ import { VideoCanvasState } from "./types";
 import { CharacterMention } from "@/components/agent/chat/skill-selection/CharacterMention";
 import { SkillBadge } from "@/components/agent/chat/skill-selection/SkillBadge";
 import { useActiveSkill } from "@/components/agent/chat/skill-selection/useActiveSkill";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import type { Skill } from "@/lib/api/skills";
 
 interface PromptInputProps {
@@ -51,6 +52,13 @@ const HeaderContent = styled.div`
   gap: 6px;
 `;
 
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
 const Eyebrow = styled.span`
   display: inline-flex;
   align-items: center;
@@ -71,14 +79,6 @@ const InputTitle = styled.h2`
   line-height: 1.15;
   font-weight: 700;
   color: hsl(var(--foreground));
-`;
-
-const InputDescription = styled.p`
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.65;
-  color: hsl(var(--muted-foreground));
-  max-width: 720px;
 `;
 
 const MetaRow = styled.div`
@@ -156,12 +156,11 @@ const FooterRow = styled.div`
   flex-wrap: wrap;
 `;
 
-const InputHint = styled.p`
-  margin: 0;
-  max-width: 560px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: hsl(var(--muted-foreground));
+const FooterTips = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const GenerateButton = styled.button<{ $generating?: boolean }>`
@@ -252,10 +251,14 @@ export const PromptInput: React.FC<PromptInputProps> = memo(
           <InputHeader>
             <HeaderContent>
               <Eyebrow>VIDEO STUDIO</Eyebrow>
-              <InputTitle>描述你想生成的画面、镜头与节奏</InputTitle>
-              <InputDescription>
-                先写主体、场景和运动方式，再补充光线、氛围或镜头语言，生成结果会自动回流到项目素材。
-              </InputDescription>
+              <TitleRow>
+                <InputTitle>描述你想生成的画面、镜头与节奏</InputTitle>
+                <WorkbenchInfoTip
+                  ariaLabel="提示词说明"
+                  content="先写主体、场景和运动方式，再补充光线、氛围或镜头语言，生成结果会自动回流到项目素材。"
+                  tone="sky"
+                />
+              </TitleRow>
             </HeaderContent>
             <MetaRow>
               {promptMeta.map((item) => (
@@ -297,10 +300,16 @@ export const PromptInput: React.FC<PromptInputProps> = memo(
           </TextareaSurface>
 
           <FooterRow>
-            <InputHint>
-              按 Enter 直接生成，Shift + Enter 换行；输入 <code>@</code>{" "}
-              可以插入技能辅助改写提示词。
-            </InputHint>
+            <FooterTips>
+              <WorkbenchInfoTip
+                ariaLabel="快捷键说明"
+                label="快捷键"
+                variant="pill"
+                tone="sky"
+                align="start"
+                content="按 Enter 直接生成，Shift + Enter 换行；输入 @ 可以插入技能辅助改写提示词。"
+              />
+            </FooterTips>
             <GenerateButton
               disabled={!state.prompt.trim() || state.status === "generating"}
               $generating={state.status === "generating"}

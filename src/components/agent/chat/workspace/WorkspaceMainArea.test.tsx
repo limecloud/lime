@@ -26,7 +26,7 @@ function WorkspaceMainAreaHarness(
         chatContent={<div data-testid="workspace-chat-content">chat</div>}
         canvasContent={<div data-testid="workspace-canvas-content">canvas</div>}
         generalWorkbenchDialog={null}
-        themeWorkbenchHarnessDialog={null}
+        generalWorkbenchHarnessDialog={null}
         showFloatingInputOverlay={false}
         hasPendingA2UIForm={false}
         inputbarNode={<div data-testid="workspace-inputbar">inputbar</div>}

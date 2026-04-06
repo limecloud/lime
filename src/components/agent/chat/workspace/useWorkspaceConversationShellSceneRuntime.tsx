@@ -7,14 +7,14 @@ import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
 import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime";
 import { useWorkspaceShellSceneRuntime } from "./useWorkspaceShellSceneRuntime";
 import { useWorkspaceTeamSessionRuntime } from "./useWorkspaceTeamSessionRuntime";
-import { useWorkspaceThemeWorkbenchShellRuntime } from "./useWorkspaceThemeWorkbenchShellRuntime";
+import { useWorkspaceGeneralWorkbenchShellRuntime } from "./useWorkspaceGeneralWorkbenchShellRuntime";
 
 type NavigationActions = ReturnType<typeof useWorkspaceNavigationActions>;
 type InputbarScene = ReturnType<typeof useWorkspaceInputbarSceneRuntime>;
 type CanvasScene = ReturnType<typeof useWorkspaceCanvasSceneRuntime>;
 type ShellChromeRuntime = ReturnType<typeof useWorkspaceShellChromeRuntime>;
-type ThemeWorkbenchShellRuntime = ReturnType<
-  typeof useWorkspaceThemeWorkbenchShellRuntime
+type GeneralWorkbenchShellRuntime = ReturnType<
+  typeof useWorkspaceGeneralWorkbenchShellRuntime
 >;
 type ContextHarnessRuntime = ReturnType<typeof useWorkspaceContextHarnessRuntime>;
 type TeamSessionRuntime = ReturnType<typeof useWorkspaceTeamSessionRuntime>;
@@ -32,7 +32,7 @@ type ConversationSceneBridgeParams = Omit<
   | "canvasScene"
   | "conversationSendRuntime"
   | "shellChromeRuntime"
-  | "themeWorkbenchHarnessDialog"
+  | "generalWorkbenchHarnessDialog"
   | "generalCanvasContent"
   | "projectId"
   | "projectCharacters"
@@ -48,7 +48,7 @@ interface UseWorkspaceConversationShellSceneRuntimeParams
   inputbarScene: InputbarScene;
   canvasScene: CanvasScene;
   shellChromeRuntime: ShellChromeRuntime;
-  themeWorkbenchShellRuntime: ThemeWorkbenchShellRuntime;
+  generalWorkbenchShellRuntime: GeneralWorkbenchShellRuntime;
   contextHarnessRuntime: Pick<ContextHarnessRuntime, "handleToggleHarnessPanel">;
   teamSessionRuntime: Pick<TeamSessionRuntime, "showTeamWorkspaceBoard">;
   currentImageWorkbenchState: { active: boolean };
@@ -75,7 +75,7 @@ export function useWorkspaceConversationShellSceneRuntime({
   inputbarScene,
   canvasScene,
   shellChromeRuntime,
-  themeWorkbenchShellRuntime,
+  generalWorkbenchShellRuntime,
   contextHarnessRuntime,
   teamSessionRuntime,
   currentImageWorkbenchState,
@@ -106,8 +106,8 @@ export function useWorkspaceConversationShellSceneRuntime({
     canvasScene,
     conversationSendRuntime,
     shellChromeRuntime,
-    themeWorkbenchHarnessDialog:
-      themeWorkbenchShellRuntime.themeWorkbenchHarnessDialog,
+    generalWorkbenchHarnessDialog:
+      generalWorkbenchShellRuntime.generalWorkbenchHarnessDialog,
     generalCanvasContent: conversationScene.generalCanvasState.content,
     projectId: projectId ?? null,
     projectCharacters: projectMemory?.characters || [],
@@ -131,7 +131,7 @@ export function useWorkspaceConversationShellSceneRuntime({
     isThemeWorkbench: conversationScene.isThemeWorkbench,
     showChatPanel: conversationScene.showChatPanel,
     showSidebar,
-    themeWorkbenchShellRuntime,
+    generalWorkbenchShellRuntime,
     conversationSceneRuntime,
     sessionId: conversationScene.sessionId,
     topics,

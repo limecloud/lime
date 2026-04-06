@@ -24,18 +24,23 @@ use lime_core::workspace::WorkspaceManager;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex as StdMutex;
 
 /// Lime 的 SessionStore 实现
 ///
 /// 将 aster 的会话数据存储到 Lime 的 SQLite 数据库
 pub struct LimeSessionStore {
     db: DbConnection,
+    metadata_cache: StdMutex<HashMap<String, Session>>,
 }
 
 impl LimeSessionStore {
     /// 创建新的 SessionStore 实例
     pub fn new(db: DbConnection) -> Self {
-        Self { db }
+        Self {
+            db,
+            metadata_cache: StdMutex::new(HashMap::new()),
+        }
     }
 
     pub fn load_extension_data_from_conn(
@@ -70,6 +75,42 @@ impl LimeSessionStore {
 
     fn parse_optional_json<T: DeserializeOwned>(raw: Option<String>) -> Option<T> {
         raw.and_then(|text| serde_json::from_str(&text).ok())
+    }
+
+    fn parse_timestamp_or_now(raw: &str) -> chrono::DateTime<Utc> {
+        chrono::DateTime::parse_from_rfc3339(raw)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now())
+    }
+
+    fn cache_session_metadata(&self, session: &Session) {
+        let mut cached = session.clone();
+        cached.conversation = None;
+
+        if let Ok(mut metadata_cache) = self.metadata_cache.lock() {
+            metadata_cache.insert(cached.id.clone(), cached);
+        }
+    }
+
+    fn cached_session_metadata(&self, session_id: &str) -> Option<Session> {
+        self.metadata_cache
+            .lock()
+            .ok()
+            .and_then(|metadata_cache| metadata_cache.get(session_id).cloned())
+    }
+
+    fn invalidate_cached_session_metadata(&self, session_id: &str) {
+        if let Ok(mut metadata_cache) = self.metadata_cache.lock() {
+            metadata_cache.remove(session_id);
+        }
+    }
+
+    fn update_cached_session_metadata(&self, session_id: &str, updater: impl FnOnce(&mut Session)) {
+        if let Ok(mut metadata_cache) = self.metadata_cache.lock() {
+            if let Some(session) = metadata_cache.get_mut(session_id) {
+                updater(session);
+            }
+        }
     }
 
     fn resolve_session_type(raw: Option<String>, model: &str) -> SessionType {
@@ -211,7 +252,7 @@ impl SessionStore for LimeSessionStore {
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         Self::insert_session_row(&conn, &id, &name, &working_dir, session_type)?;
 
-        Ok(Session {
+        let session = Session {
             id,
             working_dir,
             name,
@@ -233,19 +274,33 @@ impl SessionStore for LimeSessionStore {
             message_count: 0,
             provider_name: None,
             model_config: None,
-        })
+        };
+        self.cache_session_metadata(&session);
+
+        Ok(session)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
-        tracing::info!(
-            "[SessionStore] get_session 被调用: id={}, include_messages={}",
+        if !include_messages {
+            if let Some(cached) = self.cached_session_metadata(id) {
+                tracing::debug!(
+                    "[SessionStore] get_session 命中 metadata cache: id={}, include_messages={}",
+                    id,
+                    include_messages
+                );
+                return Ok(cached);
+            }
+        }
+
+        tracing::debug!(
+            "[SessionStore] get_session 读取数据库: id={}, include_messages={}",
             id,
             include_messages
         );
 
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         Self::ensure_session_row(&conn, id)?;
-        tracing::info!("[SessionStore] get_session 已确保会话存在: {}", id);
+        tracing::debug!("[SessionStore] get_session 已确保会话存在: {}", id);
 
         let mut stmt = conn
             .prepare(
@@ -311,12 +366,8 @@ impl SessionStore for LimeSessionStore {
             model_config_json,
         ) = session_row;
 
-        let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
-        let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let created_at = Self::parse_timestamp_or_now(&created_at);
+        let updated_at = Self::parse_timestamp_or_now(&updated_at);
 
         let session_type = Self::resolve_session_type(session_type_raw, &model);
         let working_dir = Self::parse_session_working_dir(&conn, db_working_dir);
@@ -329,7 +380,7 @@ impl SessionStore for LimeSessionStore {
 
         let message_count = self.count_messages(&conn, &id)?;
 
-        Ok(Session {
+        let session = Session {
             id: id.to_string(),
             working_dir,
             name: title.unwrap_or_else(|| "未命名会话".to_string()),
@@ -356,11 +407,14 @@ impl SessionStore for LimeSessionStore {
                     normalized => ModelConfig::new(normalized).ok(),
                 }
             }),
-        })
+        };
+        self.cache_session_metadata(&session);
+
+        Ok(session)
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
-        tracing::info!(
+        tracing::debug!(
             "[SessionStore] add_message 被调用: session_id={}",
             session_id
         );
@@ -413,6 +467,12 @@ impl SessionStore for LimeSessionStore {
             rusqlite::params![timestamp, session_id],
         )
         .map_err(|e| anyhow!("更新会话时间失败: {e}"))?;
+
+        let updated_at = Self::parse_timestamp_or_now(&timestamp);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.updated_at = updated_at;
+            session.message_count = session.message_count.saturating_add(1);
+        });
 
         Ok(())
     }
@@ -473,6 +533,12 @@ impl SessionStore for LimeSessionStore {
             "UPDATE agent_sessions SET updated_at = ? WHERE id = ?",
             rusqlite::params![now, session_id],
         )?;
+
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.updated_at = updated_at;
+            session.message_count = conversation.messages().len();
+        });
 
         Ok(())
     }
@@ -619,6 +685,7 @@ impl SessionStore for LimeSessionStore {
             let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
             conn.execute("DELETE FROM agent_sessions WHERE id = ?", [id])?;
         }
+        self.invalidate_cached_session_metadata(id);
 
         Ok(())
     }
@@ -757,6 +824,7 @@ impl SessionStore for LimeSessionStore {
             "DELETE FROM agent_messages WHERE session_id = ? AND timestamp > ?",
             rusqlite::params![session_id, timestamp_str],
         )?;
+        self.invalidate_cached_session_metadata(session_id);
 
         Ok(())
     }
@@ -769,10 +837,17 @@ impl SessionStore for LimeSessionStore {
     ) -> Result<()> {
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         let now = Utc::now().to_rfc3339();
+        let cached_name = name.clone();
         conn.execute(
             "UPDATE agent_sessions SET title = ?1, user_set_name = ?2, updated_at = ?3 WHERE id = ?4",
             rusqlite::params![name, user_set, now, session_id],
         )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.name = cached_name;
+            session.user_set_name = user_set;
+            session.updated_at = updated_at;
+        });
         Ok(())
     }
 
@@ -783,16 +858,23 @@ impl SessionStore for LimeSessionStore {
     ) -> Result<()> {
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         let now = Utc::now().to_rfc3339();
+        let cached_extension_data = extension_data.clone();
         let extension_data_json = serde_json::to_string(&extension_data)
             .map_err(|e| anyhow!("序列化 extension_data 失败: {e}"))?;
         conn.execute(
             "UPDATE agent_sessions SET extension_data_json = ?1, updated_at = ?2 WHERE id = ?3",
             rusqlite::params![extension_data_json, now, session_id],
         )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.extension_data = cached_extension_data;
+            session.updated_at = updated_at;
+        });
         Ok(())
     }
 
     async fn update_token_stats(&self, session_id: &str, stats: TokenStatsUpdate) -> Result<()> {
+        let normalized_schedule_id = Self::normalize_optional_text(stats.schedule_id.clone());
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         let now = Utc::now().to_rfc3339();
         // 当前 store 边界把 None 视为“跳过更新”，不是“清空字段”。
@@ -815,11 +897,36 @@ impl SessionStore for LimeSessionStore {
                 stats.accumulated_total,
                 stats.accumulated_input,
                 stats.accumulated_output,
-                Self::normalize_optional_text(stats.schedule_id),
+                normalized_schedule_id.clone(),
                 now,
                 session_id,
             ],
         )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            if let Some(total_tokens) = stats.total_tokens {
+                session.total_tokens = Some(total_tokens);
+            }
+            if let Some(input_tokens) = stats.input_tokens {
+                session.input_tokens = Some(input_tokens);
+            }
+            if let Some(output_tokens) = stats.output_tokens {
+                session.output_tokens = Some(output_tokens);
+            }
+            if let Some(accumulated_total) = stats.accumulated_total {
+                session.accumulated_total_tokens = Some(accumulated_total);
+            }
+            if let Some(accumulated_input) = stats.accumulated_input {
+                session.accumulated_input_tokens = Some(accumulated_input);
+            }
+            if let Some(accumulated_output) = stats.accumulated_output {
+                session.accumulated_output_tokens = Some(accumulated_output);
+            }
+            if let Some(schedule_id) = normalized_schedule_id {
+                session.schedule_id = Some(schedule_id);
+            }
+            session.updated_at = updated_at;
+        });
         Ok(())
     }
 
@@ -834,6 +941,8 @@ impl SessionStore for LimeSessionStore {
             .as_ref()
             .map(|config| config.model_name.trim().to_string())
             .filter(|value| !value.is_empty());
+        let cached_provider_name = normalized_provider_name.clone();
+        let cached_model_config = model_config.clone();
         let model_config_json = model_config
             .as_ref()
             .map(serde_json::to_string)
@@ -855,13 +964,23 @@ impl SessionStore for LimeSessionStore {
                 updated_at = ?4
              WHERE id = ?5",
             rusqlite::params![
-                normalized_provider_name,
+                normalized_provider_name.clone(),
                 normalized_model_name,
                 model_config_json,
                 now,
                 session_id,
             ],
         )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            if let Some(provider_name) = cached_provider_name {
+                session.provider_name = Some(provider_name);
+            }
+            if let Some(model_config) = cached_model_config {
+                session.model_config = Some(model_config);
+            }
+            session.updated_at = updated_at;
+        });
         Ok(())
     }
 
@@ -873,6 +992,8 @@ impl SessionStore for LimeSessionStore {
     ) -> Result<()> {
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         let now = Utc::now().to_rfc3339();
+        let cached_recipe = recipe.clone();
+        let cached_user_recipe_values = user_recipe_values.clone();
         let recipe_json = recipe
             .as_ref()
             .map(serde_json::to_string)
@@ -892,6 +1013,12 @@ impl SessionStore for LimeSessionStore {
              WHERE id = ?4",
             rusqlite::params![recipe_json, user_recipe_values_json, now, session_id],
         )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.recipe = cached_recipe;
+            session.user_recipe_values = cached_user_recipe_values;
+            session.updated_at = updated_at;
+        });
         Ok(())
     }
 
@@ -1338,6 +1465,76 @@ mod tests {
         assert_eq!(loaded.provider_name.as_deref(), Some("openai"));
         assert_eq!(
             loaded
+                .model_config
+                .as_ref()
+                .map(|config| config.model_name.as_str()),
+            Some("gpt-4.1")
+        );
+    }
+
+    #[tokio::test]
+    async fn metadata_cache_should_refresh_after_add_message() {
+        let store = setup_test_store();
+        let session = store
+            .create_session(
+                PathBuf::from("."),
+                "缓存消息计数测试".to_string(),
+                SessionType::User,
+            )
+            .await
+            .expect("创建会话失败");
+
+        let cached = store
+            .get_session(&session.id, false)
+            .await
+            .expect("预热缓存失败");
+        assert_eq!(cached.message_count, 0);
+
+        store
+            .add_message(&session.id, &Message::user().with_text("hello"))
+            .await
+            .expect("追加消息失败");
+
+        let refreshed = store
+            .get_session(&session.id, false)
+            .await
+            .expect("读取缓存会话失败");
+        assert_eq!(refreshed.message_count, 1);
+    }
+
+    #[tokio::test]
+    async fn metadata_cache_should_refresh_after_provider_update() {
+        let store = setup_test_store();
+        let session = store
+            .create_session(
+                PathBuf::from("."),
+                "缓存 provider 测试".to_string(),
+                SessionType::User,
+            )
+            .await
+            .expect("创建会话失败");
+
+        store
+            .get_session(&session.id, false)
+            .await
+            .expect("预热缓存失败");
+
+        store
+            .update_provider_config(
+                &session.id,
+                Some("openai".to_string()),
+                Some(ModelConfig::new("gpt-4.1").expect("model config")),
+            )
+            .await
+            .expect("更新 provider 配置失败");
+
+        let refreshed = store
+            .get_session(&session.id, false)
+            .await
+            .expect("读取缓存会话失败");
+        assert_eq!(refreshed.provider_name.as_deref(), Some("openai"));
+        assert_eq!(
+            refreshed
                 .model_config
                 .as_ref()
                 .map(|config| config.model_name.as_str()),

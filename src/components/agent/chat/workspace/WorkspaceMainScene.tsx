@@ -17,7 +17,6 @@ interface WorkspaceMainSceneProps {
   liveCanvasPreview: ReactNode;
   currentImageWorkbenchActive: WorkspaceCanvasContentProps["currentImageWorkbenchActive"];
   shouldShowCanvasLoadingState: WorkspaceCanvasContentProps["shouldShowCanvasLoadingState"];
-  isBrowserAssistCanvasVisible: WorkspaceCanvasContentProps["isBrowserAssistCanvasVisible"];
   teamWorkbenchView: WorkspaceCanvasContentProps["teamWorkbenchView"];
   canvasWorkbenchLayoutProps: WorkspaceCanvasContentProps["canvasWorkbenchLayoutProps"];
   compactChrome: WorkspaceMainAreaProps["compactChrome"];
@@ -27,7 +26,7 @@ interface WorkspaceMainSceneProps {
   chatPanelWidth?: WorkspaceMainAreaProps["chatPanelWidth"];
   chatPanelMinWidth?: WorkspaceMainAreaProps["chatPanelMinWidth"];
   generalWorkbenchDialog: WorkspaceMainAreaProps["generalWorkbenchDialog"];
-  themeWorkbenchHarnessDialog: WorkspaceMainAreaProps["themeWorkbenchHarnessDialog"];
+  generalWorkbenchHarnessDialog: WorkspaceMainAreaProps["generalWorkbenchHarnessDialog"];
   showFloatingInputOverlay: WorkspaceMainAreaProps["showFloatingInputOverlay"];
   hasPendingA2UIForm: WorkspaceMainAreaProps["hasPendingA2UIForm"];
   inputbarNode: WorkspaceMainAreaProps["inputbarNode"];
@@ -42,7 +41,6 @@ export function WorkspaceMainScene({
   liveCanvasPreview,
   currentImageWorkbenchActive,
   shouldShowCanvasLoadingState,
-  isBrowserAssistCanvasVisible,
   teamWorkbenchView,
   canvasWorkbenchLayoutProps,
   compactChrome,
@@ -52,7 +50,7 @@ export function WorkspaceMainScene({
   chatPanelWidth,
   chatPanelMinWidth,
   generalWorkbenchDialog,
-  themeWorkbenchHarnessDialog,
+  generalWorkbenchHarnessDialog,
   showFloatingInputOverlay,
   hasPendingA2UIForm,
   inputbarNode,
@@ -67,7 +65,6 @@ export function WorkspaceMainScene({
       liveCanvasPreview={liveCanvasPreview}
       currentImageWorkbenchActive={currentImageWorkbenchActive}
       shouldShowCanvasLoadingState={shouldShowCanvasLoadingState}
-      isBrowserAssistCanvasVisible={isBrowserAssistCanvasVisible}
       teamWorkbenchView={teamWorkbenchView}
       canvasWorkbenchLayoutProps={canvasWorkbenchLayoutProps}
     />
@@ -89,7 +86,7 @@ export function WorkspaceMainScene({
       chatPanelWidth={chatPanelWidth}
       chatPanelMinWidth={chatPanelMinWidth}
       generalWorkbenchDialog={generalWorkbenchDialog}
-      themeWorkbenchHarnessDialog={themeWorkbenchHarnessDialog}
+      generalWorkbenchHarnessDialog={generalWorkbenchHarnessDialog}
       showFloatingInputOverlay={showFloatingInputOverlay}
       hasPendingA2UIForm={hasPendingA2UIForm}
       inputbarNode={inputbarNode}

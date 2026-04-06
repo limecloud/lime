@@ -730,9 +730,9 @@ describe("Inputbar", () => {
     );
   });
 
-  it("主题工作台模式应启用 PRD 浮层输入配置", async () => {
+  it("工作区工作流模式应启用 PRD 浮层输入配置", async () => {
     renderInputbar({
-      variant: "theme_workbench",
+      variant: "workspace",
       providerType: "openai",
       setProviderType: vi.fn(),
       model: "gpt-4.1",
@@ -757,10 +757,10 @@ describe("Inputbar", () => {
     expect(latestCall.leftExtra).toBeDefined();
   });
 
-  it("主题工作台在待启动状态下不应显示闸门条", async () => {
+  it("工作区工作流在待启动状态下不应显示闸门条", async () => {
     const { container } = renderInputbar({
-      variant: "theme_workbench",
-      themeWorkbenchGate: {
+      variant: "workspace",
+      workflowGate: {
         key: "draft_start",
         title: "编排待启动",
         status: "idle",
@@ -777,12 +777,12 @@ describe("Inputbar", () => {
     expect(container.textContent).not.toContain("待启动");
   });
 
-  it("主题工作台闸门快捷操作应能快速填充输入", async () => {
+  it("工作区工作流闸门快捷操作应能快速填充输入", async () => {
     const setInput = vi.fn();
     const { container } = renderInputbar({
-      variant: "theme_workbench",
+      variant: "workspace",
       setInput,
-      themeWorkbenchGate: {
+      workflowGate: {
         key: "topic_select",
         title: "选题闸门",
         status: "waiting",
@@ -815,10 +815,10 @@ describe("Inputbar", () => {
     );
   });
 
-  it("主题工作台生成中应展示任务面板并支持停止", async () => {
+  it("工作区工作流生成中应展示任务面板并支持停止", async () => {
     const onStop = vi.fn();
     const { container } = renderInputbar({
-      variant: "theme_workbench",
+      variant: "workspace",
       isLoading: true,
       onStop,
       workflowSteps: [
@@ -837,7 +837,7 @@ describe("Inputbar", () => {
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
 
     const stopButton = container.querySelector(
-      '[data-testid="theme-workbench-stop"]',
+      '[data-testid="workflow-stop"]',
     ) as HTMLButtonElement | null;
     expect(stopButton).toBeTruthy();
     act(() => {
@@ -846,9 +846,9 @@ describe("Inputbar", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it("主题工作台生成中应支持折叠与展开待办列表", async () => {
+  it("工作区工作流生成中应支持折叠与展开待办列表", async () => {
     const { container } = renderInputbar({
-      variant: "theme_workbench",
+      variant: "workspace",
       isLoading: true,
       workflowSteps: [
         { id: "research", title: "检索项目素材", status: "active" },
@@ -886,11 +886,11 @@ describe("Inputbar", () => {
     expect(container.textContent).toContain("检索项目素材");
   });
 
-  it("主题工作台在 auto_running 状态下应展示生成面板（不依赖 isLoading）", async () => {
+  it("工作区工作流在 auto_running 状态下应展示生成面板（不依赖 isLoading）", async () => {
     const { container } = renderInputbar({
-      variant: "theme_workbench",
+      variant: "workspace",
       isLoading: false,
-      themeWorkbenchRunState: "auto_running",
+      workflowRunState: "auto_running",
       workflowSteps: [
         { id: "research", title: "检索项目素材", status: "active" },
         { id: "write", title: "编写正文草稿", status: "pending" },
@@ -907,11 +907,11 @@ describe("Inputbar", () => {
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
   });
 
-  it("主题工作台在 await_user_decision 状态下应显示输入框", async () => {
+  it("工作区工作流在 await_user_decision 状态下应显示输入框", async () => {
     const { container } = renderInputbar({
-      variant: "theme_workbench",
+      variant: "workspace",
       isLoading: true,
-      themeWorkbenchRunState: "await_user_decision",
+      workflowRunState: "await_user_decision",
       workflowSteps: [
         { id: "topic", title: "等待用户确认选题", status: "pending" },
       ],

@@ -51,7 +51,7 @@ export interface WorkbenchState {
   leftSidebarCollapsed: boolean;
   /** 当前右侧内容评审面板状态 */
   contentReviewRailState: WorkbenchContentReviewRailState | null;
-  /** 当前右侧主题工作台技能面板状态 */
+  /** 当前右侧工作区技能面板状态 */
   themeSkillsRailState: WorkbenchThemeSkillsRailState | null;
   /** 待触发的技能 key（独立于面板状态，避免同步覆盖） */
   pendingSkillKey: string | null;
@@ -70,10 +70,10 @@ export interface WorkbenchState {
   /** 清空右侧内容评审面板状态 */
   clearContentReviewRailState: () => void;
 
-  /** 设置右侧主题工作台技能面板状态 */
+  /** 设置右侧工作区技能面板状态 */
   setThemeSkillsRailState: (state: WorkbenchThemeSkillsRailState | null) => void;
 
-  /** 清空右侧主题工作台技能面板状态 */
+  /** 清空右侧工作区技能面板状态 */
   clearThemeSkillsRailState: () => void;
 
   /** 触发技能执行 */

@@ -15,7 +15,7 @@ import {
   type TeamWorkspaceRuntimeFormationState,
   type TeamWorkspaceWaitSummary,
 } from "../teamWorkspaceRuntime";
-import { TeamWorkbenchPreview } from "./workbenchPreview";
+import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 
 export type TeamWorkbenchSurfaceProps = Omit<
@@ -23,7 +23,7 @@ export type TeamWorkbenchSurfaceProps = Omit<
   "className" | "embedded" | "defaultShellExpanded"
 >;
 
-export interface UseTeamWorkbenchPresentationParams {
+interface UseTeamWorkbenchPresentationParams {
   enabled: boolean;
   surfaceProps: TeamWorkbenchSurfaceProps;
   hasRealTeamGraph: boolean;
@@ -117,10 +117,14 @@ export function useTeamWorkbenchPresentation({
 
   const renderTeamWorkbenchPreview = useCallback(
     (stackedWorkbenchTrigger?: ReactNode) => (
-      <TeamWorkbenchPreview
-        boardProps={boardProps}
-        stackedWorkbenchTrigger={stackedWorkbenchTrigger}
-      />
+      wrapPreviewWithWorkbenchTrigger(
+        <div className="flex h-full min-h-0 flex-col overflow-hidden pt-4">
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <TeamWorkspaceBoard {...boardProps} />
+          </div>
+        </div>,
+        stackedWorkbenchTrigger,
+      )
     ),
     [boardProps],
   );

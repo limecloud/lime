@@ -1,6 +1,5 @@
 import { useMemo } from "react";
-import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
-import { resolveThemeWorkbenchLayoutBottomSpacing } from "../utils/themeWorkbenchLayout";
+import { resolveWorkflowLayoutBottomSpacing } from "../utils/workflowLayout";
 import {
   TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH,
   TEAM_PRIMARY_CHAT_PANEL_WIDTH,
@@ -8,7 +7,6 @@ import {
 
 interface UseWorkspaceShellChromeRuntimeParams {
   agentEntry?: "new-task" | "claw";
-  browserTaskPreflight: BrowserTaskPreflight | null;
   contextWorkspaceEnabled: boolean;
   hasDisplayMessages: boolean;
   hideTopBar: boolean;
@@ -18,7 +16,7 @@ interface UseWorkspaceShellChromeRuntimeParams {
   isThemeWorkbench: boolean;
   layoutMode: string;
   queuedTurnCount: number;
-  shouldUseCompactThemeWorkbench: boolean;
+  shouldUseCompactGeneralWorkbench: boolean;
   showTeamWorkspaceBoard: boolean;
   topBarChrome: "full" | "workspace-compact";
   themeWorkbenchRunState: "idle" | "auto_running" | "await_user_decision";
@@ -29,7 +27,6 @@ interface UseWorkspaceShellChromeRuntimeParams {
 
 export function useWorkspaceShellChromeRuntime({
   agentEntry,
-  browserTaskPreflight,
   contextWorkspaceEnabled,
   hasDisplayMessages,
   hideTopBar,
@@ -39,7 +36,7 @@ export function useWorkspaceShellChromeRuntime({
   isThemeWorkbench,
   layoutMode,
   queuedTurnCount,
-  shouldUseCompactThemeWorkbench,
+  shouldUseCompactGeneralWorkbench,
   showTeamWorkspaceBoard,
   topBarChrome,
   themeWorkbenchRunState,
@@ -48,7 +45,7 @@ export function useWorkspaceShellChromeRuntime({
   teamDispatchPreviewState,
 }: UseWorkspaceShellChromeRuntimeParams) {
   const hasUnconsumedInitialDispatch =
-    !shouldUseCompactThemeWorkbench && isBootstrapDispatchPending;
+    !shouldUseCompactGeneralWorkbench && isBootstrapDispatchPending;
 
   const showChatLayout =
     agentEntry === "claw" ||
@@ -56,14 +53,14 @@ export function useWorkspaceShellChromeRuntime({
     isThemeWorkbench ||
     hasUnconsumedInitialDispatch ||
     isSending ||
-    queuedTurnCount > 0 ||
-    Boolean(browserTaskPreflight);
+    queuedTurnCount > 0;
 
-  const shouldHideThemeWorkbenchInputForTheme = shouldUseCompactThemeWorkbench;
-  const shouldShowThemeWorkbenchFloatingInputOverlay =
+  const shouldHideGeneralWorkbenchInputForTheme =
+    shouldUseCompactGeneralWorkbench;
+  const shouldShowGeneralWorkbenchFloatingInputOverlay =
     isThemeWorkbench &&
     showChatLayout &&
-    !shouldHideThemeWorkbenchInputForTheme;
+    !shouldHideGeneralWorkbenchInputForTheme;
 
   const isWorkspaceCompactChrome = topBarChrome === "workspace-compact";
   const shouldRenderBrandedEmptyState = !showChatLayout;
@@ -81,20 +78,20 @@ export function useWorkspaceShellChromeRuntime({
     ? TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH
     : undefined;
 
-  const themeWorkbenchLayoutBottomSpacing = useMemo(
+  const workflowLayoutBottomSpacing = useMemo(
     () =>
-      resolveThemeWorkbenchLayoutBottomSpacing({
+      resolveWorkflowLayoutBottomSpacing({
         contextWorkspaceEnabled,
-        showFloatingInputOverlay: shouldShowThemeWorkbenchFloatingInputOverlay,
+        showFloatingInputOverlay: shouldShowGeneralWorkbenchFloatingInputOverlay,
         hasCanvasContent: layoutMode !== "chat",
-        themeWorkbenchRunState,
+        workflowRunState: themeWorkbenchRunState,
         gateStatus: currentGateStatus,
       }),
     [
       contextWorkspaceEnabled,
       currentGateStatus,
       layoutMode,
-      shouldShowThemeWorkbenchFloatingInputOverlay,
+      shouldShowGeneralWorkbenchFloatingInputOverlay,
       themeWorkbenchRunState,
     ],
   );
@@ -104,11 +101,11 @@ export function useWorkspaceShellChromeRuntime({
     isWorkspaceCompactChrome,
     layoutTransitionChatPanelMinWidth,
     layoutTransitionChatPanelWidth,
-    shouldHideThemeWorkbenchInputForTheme,
+    shouldHideGeneralWorkbenchInputForTheme,
     shouldRenderInlineA2UI,
     shouldRenderTopBar,
-    shouldShowThemeWorkbenchFloatingInputOverlay,
+    shouldShowGeneralWorkbenchFloatingInputOverlay,
     showChatLayout,
-    themeWorkbenchLayoutBottomSpacing,
+    workflowLayoutBottomSpacing,
   };
 }

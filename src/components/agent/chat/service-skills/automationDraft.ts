@@ -274,7 +274,7 @@ function buildServiceSkillAutomationRequestMetadata(
         task: false,
         subagent: false,
       },
-      sessionMode: workspaceSeed ? "theme_workbench" : "default",
+      sessionMode: workspaceSeed ? "general_workbench" : "default",
       runTitle: skill.title,
       contentId: contentId || undefined,
     }),

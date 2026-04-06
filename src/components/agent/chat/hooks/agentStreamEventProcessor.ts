@@ -45,6 +45,11 @@ import {
 } from "../utils/artifactToolSources";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { buildContextRuntimeStatus } from "../utils/agentRuntimeStatus";
+import {
+  buildImageTaskPreviewFromToolResult,
+  buildTaskPreviewFromToolResult,
+  buildToolResultArtifactFromToolResult,
+} from "../utils/taskPreviewFromToolResult";
 
 interface BaseProcessorContext {
   assistantMsgId: string;
@@ -623,6 +628,16 @@ export function handleToolEndEvent({
         return message;
       }
 
+      const currentToolCall = message.toolCalls?.find(
+        (toolCall) => toolCall.id === data.tool_id,
+      );
+      const currentToolArguments = currentToolCall?.arguments;
+      const normalizedResultRecord =
+        normalizedResult &&
+        typeof normalizedResult === "object" &&
+        !Array.isArray(normalizedResult)
+          ? (normalizedResult as unknown as Record<string, unknown>)
+          : undefined;
       const updatedToolCalls = (message.toolCalls || []).map((toolCall) =>
         toolCall.id === data.tool_id
           ? {
@@ -649,13 +664,93 @@ export function handleToolEndEvent({
         };
       });
 
+      const imageTaskPreview = buildImageTaskPreviewFromToolResult({
+        toolId: data.tool_id,
+        toolName: currentToolCall?.name || "",
+        toolArguments: currentToolArguments,
+        toolResult: normalizedResultRecord,
+        fallbackPrompt: message.content || "图片任务进行中",
+      });
+      const taskPreview = buildTaskPreviewFromToolResult({
+        toolId: data.tool_id,
+        toolName: currentToolCall?.name || "",
+        toolArguments: currentToolArguments,
+        toolResult: normalizedResultRecord,
+        fallbackPrompt: message.content || "任务进行中",
+      });
+
       return {
         ...message,
         toolCalls: updatedToolCalls,
         contentParts: updatedContentParts,
+        imageWorkbenchPreview: imageTaskPreview
+          ? {
+              ...(message.imageWorkbenchPreview || {}),
+              ...imageTaskPreview,
+            }
+          : message.imageWorkbenchPreview,
+        taskPreview: taskPreview
+          ? {
+              ...(message.taskPreview || {}),
+              ...taskPreview,
+            }
+          : message.taskPreview,
       };
     }),
   );
+
+  const normalizedResultRecord =
+    normalizedResult &&
+    typeof normalizedResult === "object" &&
+    !Array.isArray(normalizedResult)
+      ? (normalizedResult as unknown as Record<string, unknown>)
+      : undefined;
+  const toolResultArtifact = buildToolResultArtifactFromToolResult({
+    toolId: data.tool_id,
+    toolName,
+    toolArguments: undefined,
+    toolResult: normalizedResultRecord,
+    fallbackPrompt: "",
+  });
+  if (toolResultArtifact) {
+    const writeContext: WriteArtifactContext = {
+      artifactId: `artifact:${assistantMsgId}:${toolResultArtifact.filePath}`,
+      source: "tool_result",
+      sourceMessageId: assistantMsgId,
+      status: isSuccess ? "complete" : "error",
+      metadata: buildWriteMetadata(toolResultArtifact.metadata, {
+        source: "tool_result",
+        phase: isSuccess ? "completed" : "failed",
+        content: toolResultArtifact.content,
+        isPartial: false,
+      }),
+    };
+    const nextArtifact = upsertAssistantWriteArtifact({
+      assistantMsgId,
+      setMessages,
+      filePath: toolResultArtifact.filePath,
+      content: toolResultArtifact.content,
+      context: writeContext,
+    });
+    const emittedArtifact =
+      nextArtifact ||
+      buildArtifactFromWrite({
+        filePath: toolResultArtifact.filePath,
+        content: toolResultArtifact.content,
+        context: writeContext,
+      });
+
+    if (emittedArtifact) {
+      onWriteFile?.(emittedArtifact.content, toolResultArtifact.filePath, {
+        artifact: emittedArtifact,
+        artifactId: emittedArtifact.id,
+        source: "tool_result",
+        sourceMessageId: assistantMsgId,
+        status: emittedArtifact.status,
+        metadata: emittedArtifact.meta,
+      });
+    }
+  }
 
   const artifactPaths = extractArtifactProtocolPaths(normalizedResult.metadata);
   if (artifactPaths.length === 0) {

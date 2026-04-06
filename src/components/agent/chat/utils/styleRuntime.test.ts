@@ -73,7 +73,7 @@ describe("styleRuntime", () => {
     expect(result).toBe("final-article.md");
   });
 
-  it("未选中文件时应回退到当前画布内容", () => {
+  it("未选中文件时应回退到当前通用画布内容", () => {
     const result = extractStyleActionContent({
       activeTheme: "general",
       generalCanvasState: {
@@ -93,6 +93,6 @@ describe("styleRuntime", () => {
       taskFiles: [],
     } as any);
 
-    expect(result).toBe("画布正文");
+    expect(result).toBe("通用画布内容");
   });
 });

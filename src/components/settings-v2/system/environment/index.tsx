@@ -18,6 +18,7 @@ import {
   Variable,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
@@ -136,8 +137,12 @@ function SurfacePanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? (
           <div className="flex flex-wrap items-center gap-2">{aside}</div>
@@ -152,13 +157,17 @@ function SurfacePanel({
 function SummaryStat({ label, value, description }: SummaryStatProps) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -166,11 +175,20 @@ function SummaryStat({ label, value, description }: SummaryStatProps) {
 function FieldBlock({ label, htmlFor, hint, children }: FieldBlockProps) {
   return (
     <div className="space-y-2">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-slate-900">
-        {label}
+      <label
+        htmlFor={htmlFor}
+        className="flex items-center gap-2 text-sm font-medium text-slate-900"
+      >
+        <span>{label}</span>
+        {hint ? (
+          <WorkbenchInfoTip
+            ariaLabel={`${label}说明`}
+            content={hint}
+            tone="slate"
+          />
+        ) : null}
       </label>
       {children}
-      {hint ? <p className="text-xs leading-5 text-slate-500">{hint}</p> : null}
     </div>
   );
 }
@@ -383,13 +401,16 @@ export function EnvironmentSettings() {
                 ENVIRONMENT LAYER
               </span>
               <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  用同一层环境变量结果驱动运行时、搜索和服务配置
-                </p>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，
-                  减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                    用同一层环境变量结果驱动运行时、搜索和服务配置
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="环境变量设置总览说明"
+                    content="这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。"
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -500,14 +521,17 @@ export function EnvironmentSettings() {
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      启用 Shell 环境导入
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      适合需要继承 PATH、代理、Node 版本管理器等登录 Shell
-                      环境的场景。
-                    </p>
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        启用 Shell 环境导入
+                      </p>
+                      <WorkbenchInfoTip
+                        ariaLabel="启用 Shell 环境导入说明"
+                        content="适合需要继承 PATH、代理、Node 版本管理器等登录 Shell 环境的场景。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <Switch
                     aria-label="启用 Shell 环境导入"
@@ -654,12 +678,16 @@ export function EnvironmentSettings() {
 
                       <div className="flex flex-col justify-between gap-3 rounded-[18px] border border-slate-200 bg-white p-3">
                         <div className="space-y-1">
-                          <p className="text-sm font-medium text-slate-900">
-                            是否启用
-                          </p>
-                          <p className="text-xs leading-5 text-slate-500">
-                            关闭后会保留该条目，但不参与最终合并。
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-slate-900">
+                              是否启用
+                            </p>
+                            <WorkbenchInfoTip
+                              ariaLabel={`变量 ${index + 1} 启用说明`}
+                              content="关闭后会保留该条目，但不参与最终合并。"
+                              tone="slate"
+                            />
+                          </div>
                         </div>
                         <div className="flex items-center justify-between gap-3">
                           <span
@@ -709,44 +737,54 @@ export function EnvironmentSettings() {
             <div className="space-y-3">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-900">
-                    优先级 1
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      优先级 1
+                    </p>
+                    <WorkbenchInfoTip
+                      ariaLabel="优先级 1 说明"
+                      content="显式环境变量覆盖会直接覆盖同名值，适合保存代理、API Host 或调试开关。"
+                      tone="slate"
+                    />
+                  </div>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                     最终生效
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  显式环境变量覆盖会直接覆盖同名值，适合保存代理、API Host
-                  或调试开关。
-                </p>
               </div>
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-900">
-                    优先级 2
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      优先级 2
+                    </p>
+                    <WorkbenchInfoTip
+                      ariaLabel="优先级 2 说明"
+                      content="Shell 导入负责继承登录环境里的 PATH、代理与工具链变量，适合减少重复录入。"
+                      tone="slate"
+                    />
+                  </div>
                   <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
                     补充来源
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Shell 导入负责继承登录环境里的 PATH、代理与工具链变量，
-                  适合减少重复录入。
-                </p>
               </div>
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-900">
-                    兼容入口
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      兼容入口
+                    </p>
+                    <WorkbenchInfoTip
+                      ariaLabel="兼容入口说明"
+                      content="网络搜索等旧入口仍可编辑，但最终都会回到同一份环境配置，避免来源打架。"
+                      tone="slate"
+                    />
+                  </div>
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
                     已统一
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  网络搜索等旧入口仍可编辑，但最终都会回到同一份环境配置，避免来源打架。
-                </p>
               </div>
             </div>
           </SurfacePanel>
@@ -758,28 +796,40 @@ export function EnvironmentSettings() {
           >
             <div className="space-y-3">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  敏感值默认掩码
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  预览区默认展示掩码，只有在明确点击“显示值”后才会直接显示敏感内容。
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    敏感值默认掩码
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="敏感值默认掩码说明"
+                    content="预览区默认展示掩码，只有在明确点击“显示值”后才会直接显示敏感内容。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  先改覆盖，再看预览
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  如果只是想覆盖少量变量，优先直接添加覆盖项，然后通过底部预览确认来源是否正确。
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    先改覆盖，再看预览
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="先改覆盖再看预览说明"
+                    content="如果只是想覆盖少量变量，优先直接添加覆盖项，然后通过底部预览确认来源是否正确。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  跨平台注意
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Shell 导入会受到当前系统 Shell 与登录环境差异影响。若需要稳定结果，优先使用显式覆盖项。
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    跨平台注意
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="跨平台注意说明"
+                    content="Shell 导入会受到当前系统 Shell 与登录环境差异影响。若需要稳定结果，优先使用显式覆盖项。"
+                    tone="slate"
+                  />
+                </div>
               </div>
             </div>
           </SurfacePanel>

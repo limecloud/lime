@@ -3,7 +3,7 @@ import type { TaskFile } from "../components/TaskFiles";
 import type { CreationMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 import { normalizeInitialTheme } from "../agentChatWorkspaceShared";
-import { normalizeSessionTaskFileType } from "./themeWorkbenchHelpers";
+import { normalizeSessionTaskFileType } from "./generalWorkbenchHelpers";
 
 interface SessionFileSummary {
   name: string;

@@ -38,11 +38,11 @@ interface WorkspaceShellSceneProps extends WorkspacePageShellProps {
 export function WorkspaceShellScene({
   compactChrome,
   isThemeWorkbench,
-  themeWorkbenchSidebarNode,
+  generalWorkbenchSidebarNode,
   showChatPanel,
   showSidebar,
-  showThemeWorkbenchLeftExpandButton,
-  onExpandThemeWorkbenchSidebar,
+  showGeneralWorkbenchLeftExpandButton,
+  onExpandGeneralWorkbenchSidebar,
   mainAreaNode,
   currentTopicId,
   topics,
@@ -87,12 +87,12 @@ export function WorkspaceShellScene({
     <WorkspacePageShell
       compactChrome={compactChrome}
       isThemeWorkbench={isThemeWorkbench}
-      themeWorkbenchSidebarNode={themeWorkbenchSidebarNode}
+      generalWorkbenchSidebarNode={generalWorkbenchSidebarNode}
       showChatPanel={showChatPanel}
       showSidebar={showSidebar}
       chatSidebarProps={chatSidebarProps}
-      showThemeWorkbenchLeftExpandButton={showThemeWorkbenchLeftExpandButton}
-      onExpandThemeWorkbenchSidebar={onExpandThemeWorkbenchSidebar}
+      showGeneralWorkbenchLeftExpandButton={showGeneralWorkbenchLeftExpandButton}
+      onExpandGeneralWorkbenchSidebar={onExpandGeneralWorkbenchSidebar}
       mainAreaNode={mainAreaNode}
     />
   );

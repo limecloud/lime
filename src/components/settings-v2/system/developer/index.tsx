@@ -20,6 +20,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import { useComponentDebug } from "@/contexts/ComponentDebugContext";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
@@ -33,7 +34,7 @@ import {
   buildCrashDiagnosticPayload,
   clearCrashDiagnosticHistory,
   collectRuntimeSnapshotForDiagnostic,
-  collectThemeWorkbenchDocumentStateForDiagnostic,
+  collectGeneralWorkbenchDocumentStateForDiagnostic,
   CLEAR_CRASH_DIAGNOSTIC_HISTORY_CONFIRM_TEXT,
   copyCrashDiagnosticJsonToClipboard,
   copyCrashDiagnosticToClipboard,
@@ -101,8 +102,12 @@ function SurfacePanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? (
           <div className="flex flex-wrap items-center gap-2">{aside}</div>
@@ -117,13 +122,17 @@ function SurfacePanel({
 function SummaryStat({ label, value, description }: SummaryStatProps) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -195,7 +204,7 @@ export function DeveloperSettings() {
       config,
       logs,
       persistedLogs,
-      themeWorkbenchDocumentState,
+      generalWorkbenchDocumentState,
       serverDiagnostics,
       logStorageDiagnostics,
       windowsStartupDiagnostics,
@@ -204,7 +213,7 @@ export function DeveloperSettings() {
       configPromise,
       getLogs(),
       getPersistedLogsTail(200),
-      collectThemeWorkbenchDocumentStateForDiagnostic(),
+      collectGeneralWorkbenchDocumentStateForDiagnostic(),
       getServerDiagnostics().catch(() => null),
       getLogStorageDiagnostics().catch(() => null),
       getWindowsStartupDiagnostics().catch(() => null),
@@ -215,7 +224,7 @@ export function DeveloperSettings() {
       logs,
       persistedLogTail: persistedLogs,
       collectionNotes: runtimeSnapshotResult.collectionNotes,
-      themeWorkbenchDocumentState,
+      generalWorkbenchDocumentState,
       serverDiagnostics,
       logStorageDiagnostics,
       windowsStartupDiagnostics,
@@ -479,9 +488,14 @@ export function DeveloperSettings() {
           </span>
         </div>
 
-        <p className="mt-4 text-sm leading-6 text-slate-500">
-          首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。
-        </p>
+        <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+          <span>首屏说明已收纳</span>
+          <WorkbenchInfoTip
+            ariaLabel="开发者设置首屏说明"
+            content="首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。"
+            tone="slate"
+          />
+        </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.14fr)_minmax(320px,0.86fr)]">
@@ -502,12 +516,16 @@ export function DeveloperSettings() {
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      允许处理工作台进入通用对话
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        允许处理工作台进入通用对话
+                      </p>
+                      <WorkbenchInfoTip
+                        ariaLabel="允许处理工作台进入通用对话说明"
+                        content="关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <Switch
                     aria-label="切换处理工作台"

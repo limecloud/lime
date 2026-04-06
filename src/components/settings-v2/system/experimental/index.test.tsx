@@ -48,7 +48,7 @@ const { mockApplyCrashReportingSettings } = vi.hoisted(() => ({
 const {
   mockBuildCrashDiagnosticPayload,
   mockCollectRuntimeSnapshotForDiagnostic,
-  mockCollectThemeWorkbenchDocumentStateForDiagnostic,
+  mockCollectGeneralWorkbenchDocumentStateForDiagnostic,
   mockCopyCrashDiagnosticJsonToClipboard,
   mockCopyCrashDiagnosticToClipboard,
   mockExportCrashDiagnosticToJson,
@@ -58,7 +58,7 @@ const {
 } = vi.hoisted(() => ({
   mockBuildCrashDiagnosticPayload: vi.fn(),
   mockCollectRuntimeSnapshotForDiagnostic: vi.fn(),
-  mockCollectThemeWorkbenchDocumentStateForDiagnostic: vi.fn(),
+  mockCollectGeneralWorkbenchDocumentStateForDiagnostic: vi.fn(),
   mockCopyCrashDiagnosticJsonToClipboard: vi.fn(),
   mockCopyCrashDiagnosticToClipboard: vi.fn(),
   mockExportCrashDiagnosticToJson: vi.fn(),
@@ -118,8 +118,8 @@ vi.mock("@/lib/crashDiagnostic", () => {
     buildCrashDiagnosticPayload: mockBuildCrashDiagnosticPayload,
     collectRuntimeSnapshotForDiagnostic:
       mockCollectRuntimeSnapshotForDiagnostic,
-    collectThemeWorkbenchDocumentStateForDiagnostic:
-      mockCollectThemeWorkbenchDocumentStateForDiagnostic,
+    collectGeneralWorkbenchDocumentStateForDiagnostic:
+      mockCollectGeneralWorkbenchDocumentStateForDiagnostic,
     copyCrashDiagnosticJsonToClipboard: mockCopyCrashDiagnosticJsonToClipboard,
     copyCrashDiagnosticToClipboard: mockCopyCrashDiagnosticToClipboard,
     DEFAULT_CRASH_REPORTING_CONFIG: defaultCrashReportingConfig,
@@ -187,6 +187,31 @@ async function waitForLoad() {
 
 function getText(container: HTMLElement): string {
   return (container.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
 }
 
 function findSwitchByLabel(
@@ -288,7 +313,7 @@ beforeEach(() => {
     collectionNotes: [],
     runtimeSnapshot: null,
   });
-  mockCollectThemeWorkbenchDocumentStateForDiagnostic.mockResolvedValue(null);
+  mockCollectGeneralWorkbenchDocumentStateForDiagnostic.mockResolvedValue(null);
   mockBuildCrashDiagnosticPayload.mockReturnValue({});
   mockCopyCrashDiagnosticToClipboard.mockResolvedValue(undefined);
   mockCopyCrashDiagnosticJsonToClipboard.mockResolvedValue(undefined);
@@ -332,6 +357,26 @@ describe("ExperimentalSettings", () => {
     expect(text).toContain("当前空闲");
   });
 
+  it("应把实验设置补充说明收进 tips", async () => {
+    renderComponent();
+    await waitForLoad();
+
+    expect(getBodyText()).not.toContain("控制编程式工具调用与动态过滤链路。");
+    expect(getBodyText()).not.toContain(
+      "控制编程式工具调用、动态过滤和 input examples 透传。",
+    );
+
+    const statTip = await hoverTip("Tool Calling说明");
+    expect(getBodyText()).toContain("控制编程式工具调用与动态过滤链路。");
+    await leaveTip(statTip);
+
+    const panelTip = await hoverTip("Tool Calling 2.0说明");
+    expect(getBodyText()).toContain(
+      "控制编程式工具调用、动态过滤和 input examples 透传。",
+    );
+    await leaveTip(panelTip);
+  });
+
   it("应继续渲染后置加载的实验辅助区块", async () => {
     const container = renderComponent();
     await waitForLoad();
@@ -348,7 +393,10 @@ describe("ExperimentalSettings", () => {
 
     const text = getText(container);
     expect(text).toContain("WebMCP（预留）");
-    expect(text).toContain("当前默认关闭，不参与实际执行链");
+    expect(text).not.toContain("当前默认关闭，不参与实际执行链");
+    expect(text).toContain(
+      "当前版本开启后也不会切换执行链，只保留实验配置位，供后续小范围验证使用。",
+    );
     expect(text).toContain("现阶段浏览器业务仍走 Bridge / CDP 主线");
 
     const switchButton = findSwitchByLabel(container, "切换 WebMCP 预留入口");

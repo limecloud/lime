@@ -25,7 +25,7 @@ function isLikelyLocalHost(apiHost?: string | null): boolean {
   );
 }
 
-export interface ProviderModelAutoFetchCapability {
+interface ProviderModelAutoFetchCapability {
   supported: boolean;
   requiresApiKey: boolean;
   unsupportedReason?: string;
@@ -92,12 +92,4 @@ export function getProviderModelAutoFetchCapability(input: {
         unsupportedReason: "当前协议暂不支持自动获取最新模型。",
       };
   }
-}
-
-export function supportsProviderModelAutoFetch(input: {
-  providerId?: string | null;
-  providerType?: string | null;
-  apiHost?: string | null;
-}): boolean {
-  return getProviderModelAutoFetchCapability(input).supported;
 }

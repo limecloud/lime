@@ -88,7 +88,7 @@ pub async fn execution_run_get(
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ThemeWorkbenchRunTodoItem {
+pub struct GeneralWorkbenchRunTodoItem {
     pub run_id: String,
     pub execution_id: Option<String>,
     pub session_id: Option<String>,
@@ -103,7 +103,7 @@ pub struct ThemeWorkbenchRunTodoItem {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ThemeWorkbenchRunTerminalItem {
+pub struct GeneralWorkbenchRunTerminalItem {
     pub run_id: String,
     pub execution_id: Option<String>,
     pub session_id: Option<String>,
@@ -119,19 +119,19 @@ pub struct ThemeWorkbenchRunTerminalItem {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ThemeWorkbenchRunState {
+pub struct GeneralWorkbenchRunState {
     pub run_state: String,
     pub current_gate_key: String,
-    pub queue_items: Vec<ThemeWorkbenchRunTodoItem>,
-    pub latest_terminal: Option<ThemeWorkbenchRunTerminalItem>,
-    pub recent_terminals: Vec<ThemeWorkbenchRunTerminalItem>,
+    pub queue_items: Vec<GeneralWorkbenchRunTodoItem>,
+    pub latest_terminal: Option<GeneralWorkbenchRunTerminalItem>,
+    pub recent_terminals: Vec<GeneralWorkbenchRunTerminalItem>,
     pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ThemeWorkbenchRunHistoryPage {
-    pub items: Vec<ThemeWorkbenchRunTerminalItem>,
+pub struct GeneralWorkbenchRunHistoryPage {
+    pub items: Vec<GeneralWorkbenchRunTerminalItem>,
     pub has_more: bool,
     pub next_offset: Option<usize>,
 }
@@ -239,9 +239,9 @@ fn derive_run_title(run: &AgentRun) -> String {
     }
 
     match run.source.as_str() {
-        "skill" => "执行主题工作台技能".to_string(),
+        "skill" => "执行工作区技能".to_string(),
         "automation" => "执行自动化任务".to_string(),
-        _ => "执行主题工作台编排".to_string(),
+        _ => "执行工作区编排".to_string(),
     }
 }
 
@@ -280,7 +280,7 @@ fn derive_run_gate_key(run: &AgentRun, title: &str) -> String {
     infer_gate_key_from_probe(probe.as_str())
 }
 
-fn derive_current_gate_key(queue_items: &[ThemeWorkbenchRunTodoItem]) -> String {
+fn derive_current_gate_key(queue_items: &[GeneralWorkbenchRunTodoItem]) -> String {
     queue_items
         .iter()
         .find(|item| item.status == AgentRunStatus::Running)
@@ -323,10 +323,10 @@ fn derive_run_artifact_paths(run: &AgentRun) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn build_terminal_item(run: &AgentRun) -> ThemeWorkbenchRunTerminalItem {
+fn build_terminal_item(run: &AgentRun) -> GeneralWorkbenchRunTerminalItem {
     let title = derive_run_title(run);
     let gate_key = derive_run_gate_key(run, title.as_str());
-    ThemeWorkbenchRunTerminalItem {
+    GeneralWorkbenchRunTerminalItem {
         run_id: run.id.clone(),
         execution_id: derive_run_execution_id(run),
         session_id: run.session_id.clone(),
@@ -344,7 +344,7 @@ fn build_terminal_item(run: &AgentRun) -> ThemeWorkbenchRunTerminalItem {
 fn derive_recent_terminal_items(
     runs: &[AgentRun],
     limit: usize,
-) -> Vec<ThemeWorkbenchRunTerminalItem> {
+) -> Vec<GeneralWorkbenchRunTerminalItem> {
     runs.iter()
         .filter(|run| {
             matches!(
@@ -361,11 +361,11 @@ fn derive_recent_terminal_items(
 }
 
 #[tauri::command]
-pub async fn execution_run_get_theme_workbench_state(
+pub async fn execution_run_get_general_workbench_state(
     db: State<'_, DbConnection>,
     session_id: String,
     limit: Option<usize>,
-) -> Result<ThemeWorkbenchRunState, String> {
+) -> Result<GeneralWorkbenchRunState, String> {
     let trimmed_session_id = session_id.trim();
     if trimmed_session_id.is_empty() {
         return Err("session_id 不能为空".to_string());
@@ -381,14 +381,14 @@ pub async fn execution_run_get_theme_workbench_state(
         runs = tracker.list_runs_by_session(trimmed_session_id, safe_limit * 5)?;
     }
 
-    let queue_items: Vec<ThemeWorkbenchRunTodoItem> = runs
+    let queue_items: Vec<GeneralWorkbenchRunTodoItem> = runs
         .iter()
         .filter(|run| matches!(run.status, AgentRunStatus::Running | AgentRunStatus::Queued))
         .take(safe_limit)
         .map(|run| {
             let title = derive_run_title(run);
             let gate_key = derive_run_gate_key(run, title.as_str());
-            ThemeWorkbenchRunTodoItem {
+            GeneralWorkbenchRunTodoItem {
                 run_id: run.id.clone(),
                 execution_id: derive_run_execution_id(run),
                 session_id: run.session_id.clone(),
@@ -413,7 +413,7 @@ pub async fn execution_run_get_theme_workbench_state(
     let recent_terminals = derive_recent_terminal_items(runs.as_slice(), safe_limit);
     let latest_terminal = recent_terminals.first().cloned();
 
-    Ok(ThemeWorkbenchRunState {
+    Ok(GeneralWorkbenchRunState {
         run_state,
         current_gate_key,
         queue_items,
@@ -424,12 +424,12 @@ pub async fn execution_run_get_theme_workbench_state(
 }
 
 #[tauri::command]
-pub async fn execution_run_list_theme_workbench_history(
+pub async fn execution_run_list_general_workbench_history(
     db: State<'_, DbConnection>,
     session_id: String,
     limit: Option<usize>,
     offset: Option<usize>,
-) -> Result<ThemeWorkbenchRunHistoryPage, String> {
+) -> Result<GeneralWorkbenchRunHistoryPage, String> {
     let trimmed_session_id = session_id.trim();
     if trimmed_session_id.is_empty() {
         return Err("session_id 不能为空".to_string());
@@ -455,7 +455,7 @@ pub async fn execution_run_list_theme_workbench_history(
         .map(|run| build_terminal_item(&run))
         .collect::<Vec<_>>();
 
-    Ok(ThemeWorkbenchRunHistoryPage {
+    Ok(GeneralWorkbenchRunHistoryPage {
         items,
         has_more,
         next_offset: if has_more {
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn derive_current_gate_key_should_prefer_running_item() {
         let queue_items = vec![
-            ThemeWorkbenchRunTodoItem {
+            GeneralWorkbenchRunTodoItem {
                 run_id: "run-1".to_string(),
                 execution_id: None,
                 session_id: None,
@@ -528,7 +528,7 @@ mod tests {
                 source_ref: None,
                 started_at: "2026-03-06T00:00:00Z".to_string(),
             },
-            ThemeWorkbenchRunTodoItem {
+            GeneralWorkbenchRunTodoItem {
                 run_id: "run-2".to_string(),
                 execution_id: None,
                 session_id: None,
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn derive_current_gate_key_should_fallback_to_first_item() {
-        let queue_items = vec![ThemeWorkbenchRunTodoItem {
+        let queue_items = vec![GeneralWorkbenchRunTodoItem {
             run_id: "run-1".to_string(),
             execution_id: None,
             session_id: None,

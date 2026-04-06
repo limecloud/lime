@@ -10,8 +10,12 @@ mod lime_cli_runtime;
 mod mcp_resource_tools;
 #[path = "tool_runtime/media_cli_bridge.rs"]
 pub(crate) mod media_cli_bridge;
+#[path = "tool_runtime/resource_search_tools.rs"]
+mod resource_search_tools;
 #[path = "tool_runtime/search_bridge.rs"]
 mod search_bridge;
+#[path = "tool_runtime/service_skill_tools.rs"]
+mod service_skill_tools;
 #[path = "tool_runtime/site_tools.rs"]
 mod site_tools;
 #[path = "tool_runtime/social_tools.rs"]
@@ -31,6 +35,8 @@ pub(crate) use mcp_resource_tools::{ListMcpResourcesBridgeTool, ReadMcpResourceB
 pub(crate) use search_bridge::ensure_tool_search_tool_registered;
 #[allow(unused_imports)]
 pub(crate) use search_bridge::ToolSearchBridgeTool;
+#[allow(unused_imports)]
+pub(crate) use service_skill_tools::LimeRunServiceSkillTool;
 pub(crate) use social_tools::ensure_social_image_tool_registered;
 pub(crate) use social_tools::social_generate_cover_image_cmd;
 #[allow(unused_imports)]
@@ -92,6 +98,11 @@ fn sync_workspace_mode_native_tool_surface(
 
     if surface.workbench {
         social_tools::register_social_image_tool_to_registry(registry, config_manager);
+        resource_search_tools::register_resource_search_tools_to_registry(
+            registry,
+            app_handle.clone(),
+        );
+        service_skill_tools::register_service_skill_tools_to_registry(registry);
         creation_tools::register_creation_task_tools_to_registry(
             registry,
             db,
@@ -101,6 +112,7 @@ fn sync_workspace_mode_native_tool_surface(
     } else {
         let workbench_tools = workbench_tool_names();
         unregister_named_tools(registry, &workbench_tools);
+        service_skill_tools::unregister_service_skill_tools_from_registry(registry);
     }
 }
 

@@ -45,6 +45,7 @@ describe("agentStreamUserInputSendPreparation", () => {
       } as MutableRefObject<ActiveStreamState | null>,
       getQueuedTurnsCount: () => options?.queuedTurnsCount ?? 0,
       isThreadBusy: () => options?.threadBusy ?? false,
+      hasPendingPreparedSubmit: () => false,
       getSyncedSessionModelPreference: () => ({
         providerType: "openai",
         model: "gpt-5.4",
@@ -208,6 +209,39 @@ describe("agentStreamUserInputSendPreparation", () => {
 
     const result = prepareAgentStreamUserInputSend({
       content: "继续分析这个项目",
+      images: [],
+      skipUserMessage: false,
+      env,
+    });
+
+    expect(result.expectingQueue).toBe(true);
+    expect(messages).toHaveLength(2);
+    expect(messages[1]?.runtimeStatus?.title).toBe("已加入排队列表");
+    expect(isSending).toBe(false);
+  });
+
+  it("首轮 submit 尚未完成时也应提前进入 queue 模式", () => {
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000006")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000007");
+
+    let messages: Message[] = [];
+    let isSending = false;
+    const env = {
+      ...createEnv({
+        sessionId: null,
+      }),
+      hasPendingPreparedSubmit: () => true,
+      setMessages: createStateSetter(() => messages, (value) => {
+        messages = value;
+      }),
+      setIsSending: createStateSetter(() => isSending, (value) => {
+        isSending = value;
+      }),
+    };
+
+    const result = prepareAgentStreamUserInputSend({
+      content: "继续处理首页首轮提交",
       images: [],
       skipUserMessage: false,
       env,

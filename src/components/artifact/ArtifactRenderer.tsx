@@ -534,7 +534,7 @@ FallbackRenderer.displayName = "FallbackRenderer";
 /**
  * ArtifactRenderer Props
  */
-export interface ArtifactRendererComponentProps extends ArtifactRendererProps {
+interface ArtifactRendererComponentProps extends ArtifactRendererProps {
   /** 自定义类名 */
   className?: string;
   /** 防抖延迟（毫秒），默认 100ms */
@@ -766,8 +766,3 @@ export const ArtifactRenderer: React.FC<ArtifactRendererComponentProps> = memo(
 );
 
 ArtifactRenderer.displayName = "ArtifactRenderer";
-
-// 导出错误边界组件供外部使用
-export { ArtifactErrorBoundary };
-
-export default ArtifactRenderer;

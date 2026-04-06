@@ -303,6 +303,34 @@ describe("EmptyStateComposerPanel", () => {
     expect(onPaste).toHaveBeenCalledTimes(1);
   });
 
+  it("发送准备中应禁用首页发送入口并展示忙碌态", () => {
+    const onSend = vi.fn();
+    const container = renderPanel({
+      input: "请帮我梳理首页首次发送链路",
+      isLoading: true,
+      disabled: true,
+      onSend,
+    });
+
+    const textarea = container.querySelector("textarea") as
+      | HTMLTextAreaElement
+      | null;
+    const pendingButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("稍后处理"),
+    ) as HTMLButtonElement | undefined;
+
+    expect(textarea?.disabled).toBe(true);
+    expect(pendingButton).toBeTruthy();
+    expect(pendingButton?.disabled).toBe(true);
+    expect(container.querySelector('button[title="发送"]')).toBeNull();
+
+    act(() => {
+      pendingButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("有待发送图片时应显示预览并支持删除", () => {
     const onRemoveImage = vi.fn();
     const container = renderPanel({

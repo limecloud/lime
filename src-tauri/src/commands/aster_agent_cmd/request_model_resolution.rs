@@ -13,6 +13,7 @@ struct ProviderResolutionContext {
     registry_provider_ids: Vec<String>,
     alias_key: String,
     custom_models: Vec<String>,
+    is_custom_provider: bool,
 }
 
 fn normalize_identifier(value: &str) -> String {
@@ -224,6 +225,8 @@ fn build_provider_resolution_context(
     provider_selector: &str,
 ) -> Result<ProviderResolutionContext, String> {
     let provider_selector = normalize_identifier(provider_selector);
+    let is_custom_provider =
+        lime_core::models::provider_type::is_custom_provider_id(&provider_selector);
     let mut compatibility_provider_key = provider_selector.clone();
     let mut registry_provider_ids = vec![
         provider_selector.clone(),
@@ -231,7 +234,7 @@ fn build_provider_resolution_context(
     ];
     let mut custom_models = Vec::new();
 
-    if lime_core::models::provider_type::is_custom_provider_id(&provider_selector) {
+    if is_custom_provider {
         if let Some(provider_with_keys) = api_key_provider_service
             .0
             .get_provider(db, &provider_selector)?
@@ -251,6 +254,7 @@ fn build_provider_resolution_context(
         alias_key: provider_alias_config_key(&provider_selector),
         compatibility_provider_key,
         custom_models,
+        is_custom_provider,
         provider_selector,
         registry_provider_ids,
     })
@@ -419,6 +423,129 @@ fn resolve_base_model_on_thinking_off(
         .into_iter()
         .next()
         .map(|model| model.id.clone())
+        .unwrap_or_else(|| current_model_id.to_string())
+}
+
+fn normalize_model_lineage_key(model_id: &str) -> String {
+    let normalized = normalize_identifier(model_id);
+    let primary = normalized
+        .split('/')
+        .find(|part| !part.is_empty())
+        .unwrap_or(normalized.as_str());
+
+    let mut lineage = String::new();
+    for ch in primary.chars() {
+        if ch.is_ascii_alphabetic() {
+            lineage.push(ch);
+            continue;
+        }
+        if !lineage.is_empty() {
+            break;
+        }
+    }
+
+    if !lineage.is_empty() {
+        return lineage;
+    }
+
+    primary
+        .split(|ch| ['.', '_', '-'].contains(&ch))
+        .find(|part| !part.is_empty())
+        .unwrap_or(primary)
+        .to_string()
+}
+
+fn is_likely_non_chat_model(model: &EnhancedModelMetadata) -> bool {
+    let text = [
+        normalize_identifier(&model.id),
+        normalize_identifier(&model.display_name),
+        model
+            .family
+            .as_deref()
+            .map(normalize_identifier)
+            .unwrap_or_default(),
+        model
+            .description
+            .as_deref()
+            .map(normalize_identifier)
+            .unwrap_or_default(),
+    ]
+    .join(" ");
+
+    is_likely_image_generation_model(model)
+        || text_contains_any(
+            &text,
+            &[
+                "embedding",
+                "embed",
+                "rerank",
+                "tts",
+                "stt",
+                "transcribe",
+                "transcription",
+                "speech",
+                "audio",
+                "moderation",
+            ],
+        )
+}
+
+fn resolve_catalog_fallback_model_id(
+    current_model_id: &str,
+    models: &[EnhancedModelMetadata],
+    prefer_reasoning: bool,
+    prefer_vision: bool,
+) -> String {
+    if let Some(current_model) = find_model_meta(current_model_id, models) {
+        return current_model.id.clone();
+    }
+
+    let current_base_key = normalize_base_model_key(current_model_id);
+    let current_lineage_key = normalize_model_lineage_key(current_model_id);
+    let mut candidates = models
+        .iter()
+        .filter(|candidate| !is_likely_non_chat_model(candidate))
+        .collect::<Vec<_>>();
+
+    candidates.sort_by(|left, right| {
+        let left_same_base = normalize_base_model_key(&left.id) == current_base_key;
+        let right_same_base = normalize_base_model_key(&right.id) == current_base_key;
+        let left_same_lineage = !current_lineage_key.is_empty()
+            && normalize_model_lineage_key(&left.id) == current_lineage_key;
+        let right_same_lineage = !current_lineage_key.is_empty()
+            && normalize_model_lineage_key(&right.id) == current_lineage_key;
+        let left_reasoning_match =
+            model_has_reasoning_capability(Some(left), &left.id) == prefer_reasoning;
+        let right_reasoning_match =
+            model_has_reasoning_capability(Some(right), &right.id) == prefer_reasoning;
+        let left_vision_match = left.capabilities.vision == prefer_vision;
+        let right_vision_match = right.capabilities.vision == prefer_vision;
+
+        left_same_base
+            .cmp(&right_same_base)
+            .reverse()
+            .then(left_same_lineage.cmp(&right_same_lineage).reverse())
+            .then(left_reasoning_match.cmp(&right_reasoning_match).reverse())
+            .then(left_vision_match.cmp(&right_vision_match).reverse())
+            .then(
+                capability_score(left)
+                    .cmp(&capability_score(right))
+                    .reverse(),
+            )
+            .then(left.is_latest.cmp(&right.is_latest).reverse())
+            .then(
+                tier_weight(&left.tier)
+                    .cmp(&tier_weight(&right.tier))
+                    .reverse(),
+            )
+            .then(compare_release_date_desc(left, right).cmp(&0))
+            .then(left.id.cmp(&right.id))
+    });
+
+    candidates
+        .into_iter()
+        .next()
+        .map(|candidate| candidate.id.clone())
         .unwrap_or_else(|| current_model_id.to_string())
 }
 
@@ -738,6 +865,28 @@ pub(super) async fn resolve_runtime_request_provider_config(
     } else {
         resolve_base_model_on_thinking_off(&model_preference, &catalog)
     };
+    let should_fallback_unknown_session_model =
+        matches!(model_preference_source, RequestPreferenceSource::Session)
+            && !context.is_custom_provider
+            && find_model_meta(&resolved_model, &catalog).is_none();
+    if should_fallback_unknown_session_model {
+        let fallback_model = resolve_catalog_fallback_model_id(
+            &resolved_model,
+            &catalog,
+            thinking_enabled,
+            has_images,
+        );
+        if fallback_model != resolved_model {
+            tracing::info!(
+                "[AsterAgent] 会话持久化模型已失效，自动回落到当前可用模型: session={}, provider={}, stale_model={}, fallback_model={}",
+                request.session_id,
+                context.provider_selector,
+                resolved_model,
+                fallback_model
+            );
+            resolved_model = fallback_model;
+        }
+    }
     resolved_model =
         resolve_provider_model_compatibility(&context.compatibility_provider_key, &resolved_model);
     if has_images {
@@ -923,6 +1072,53 @@ mod tests {
         assert_eq!(
             resolve_provider_model_compatibility("codex", "gpt-5.3-codex"),
             "gpt-5.2-codex"
+        );
+    }
+
+    #[test]
+    fn catalog_fallback_prefers_latest_same_lineage_chat_model_for_unknown_session_model() {
+        let models = vec![
+            build_model(
+                "embedding-3",
+                Some("embedding"),
+                false,
+                false,
+                true,
+                ModelTier::Pro,
+                Some("2026-01-05"),
+            ),
+            build_model(
+                "glm-4v",
+                Some("glm"),
+                false,
+                true,
+                true,
+                ModelTier::Pro,
+                Some("2026-01-04"),
+            ),
+            build_model(
+                "glm-4.6",
+                Some("glm"),
+                false,
+                false,
+                false,
+                ModelTier::Pro,
+                Some("2026-01-03"),
+            ),
+            build_model(
+                "glm-4.7",
+                Some("glm"),
+                false,
+                false,
+                true,
+                ModelTier::Pro,
+                Some("2026-01-04"),
+            ),
+        ];
+
+        assert_eq!(
+            resolve_catalog_fallback_model_id("glm-5.1", &models, false, false),
+            "glm-4.7"
         );
     }
 

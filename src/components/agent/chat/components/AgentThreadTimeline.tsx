@@ -604,37 +604,6 @@ function isThinkingTimelineItem(
   );
 }
 
-function normalizeToolMarker(value: string | undefined): string {
-  return (value || "").replace(/[\s_-]+/g, "").trim().toLowerCase();
-}
-
-function isBrowserTimelineItem(item: AgentThreadItem): boolean {
-  if (item.type !== "tool_call") {
-    return false;
-  }
-
-  const normalized = normalizeToolMarker(item.tool_name);
-  return [
-    "browser",
-    "page",
-    "runtime",
-    "dom",
-    "cdp",
-    "playwright",
-    "navigate",
-    "screenshot",
-    "snapshot",
-    "click",
-    "hover",
-    "presskey",
-    "type",
-    "selectoption",
-    "drag",
-    "evaluate",
-    "goto",
-  ].some((marker) => normalized.includes(marker));
-}
-
 function isToolExecutionTimelineItem(item: AgentThreadItem): boolean {
   return (
     item.type === "tool_call" ||
@@ -998,16 +967,6 @@ function resolveFocusBlockIndex(params: {
 
   const pendingAction = findLatestPendingAction(actionRequests);
 
-  if (pendingAction?.uiKind === "browser_preflight") {
-    const browserIndex = findLastBlockIndex(
-      blocks,
-      (block) => block.items.some((item) => isBrowserTimelineItem(item)),
-    );
-    if (browserIndex >= 0) {
-      return browserIndex;
-    }
-  }
-
   if (pendingAction) {
     const pendingIndex = findLastBlockIndex(
       blocks,
@@ -1210,17 +1169,6 @@ function resolveThreadInlineStatusHint(params: {
   actionRequests?: ActionRequired[];
 }) {
   const pendingAction = findLatestPendingAction(params.actionRequests);
-
-  if (pendingAction?.uiKind === "browser_preflight") {
-    return {
-      tone: "warning" as const,
-      label: "待继续",
-      detail:
-        pendingAction.detail?.trim() ||
-        pendingAction.prompt?.trim() ||
-        "浏览器已经打开，等待你完成登录、授权或验证后继续。",
-    };
-  }
 
   if (pendingAction) {
     return {

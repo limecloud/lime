@@ -85,7 +85,7 @@ describe("useSelectedTeamPreference", () => {
     localStorage.clear();
   });
 
-  it("切换 theme 时应读取对应 Team，而不是把旧主题选择写回新主题", async () => {
+  it("general 作用域应读取并回写当前 Team 偏好", async () => {
     const engineeringTeam = createTeamDefinitionFromPreset(
       "code-triage-team",
     ) as TeamDefinition;
@@ -94,22 +94,27 @@ describe("useSelectedTeamPreference", () => {
     ) as TeamDefinition;
 
     persistSelectedTeam(engineeringTeam, "general");
-    persistSelectedTeam(researchTeam, "general");
 
     const harness = mountHook("general");
 
     try {
       await flushEffects();
       expect(harness.getValue().selectedTeam?.id).toBe("code-triage-team");
-
-      harness.rerender("general");
-      await flushEffects();
-
-      expect(harness.getValue().selectedTeam?.id).toBe("research-team");
       expect(loadSelectedTeamReference("general")).toEqual({
         id: "code-triage-team",
         source: "builtin",
       });
+
+      harness.rerender("general");
+      await flushEffects();
+
+      expect(harness.getValue().selectedTeam?.id).toBe("code-triage-team");
+
+      act(() => {
+        harness.getValue().setSelectedTeam(researchTeam);
+      });
+
+      expect(harness.getValue().selectedTeam?.id).toBe("research-team");
       expect(loadSelectedTeamReference("general")).toEqual({
         id: "research-team",
         source: "builtin",
@@ -120,10 +125,6 @@ describe("useSelectedTeamPreference", () => {
       });
 
       expect(loadSelectedTeamReference("general")).toBeNull();
-      expect(loadSelectedTeamReference("general")).toEqual({
-        id: "code-triage-team",
-        source: "builtin",
-      });
     } finally {
       harness.unmount();
     }

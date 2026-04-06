@@ -21,6 +21,7 @@ import {
   TerminalSquare,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import {
   getExperimentalConfig,
@@ -54,13 +55,17 @@ function SummaryMetric({
 }) {
   return (
     <div className="rounded-[20px] border border-slate-200/80 bg-slate-50 p-4">
-      <p className="text-[11px] font-medium text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -114,19 +119,25 @@ function HotkeyRow({ item }: { item: AuditedHotkeyItem }) {
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+            <WorkbenchInfoTip
+              ariaLabel={`${item.label}说明`}
+              content={
+                <div className="space-y-1">
+                  <p>{item.description}</p>
+                  <p>{item.statusDescription}</p>
+                </div>
+              }
+              tone="slate"
+            />
             <HotkeyStatusBadge item={item} />
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
               {item.scope === "global" ? "全局" : "页面内"}
             </span>
           </div>
-          <p className="text-sm leading-6 text-slate-600">{item.description}</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
             <span>来源：{item.source}</span>
             <span>条件：{item.condition}</span>
           </div>
-          <p className="text-xs leading-5 text-slate-500">
-            {item.statusDescription}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:max-w-[320px] sm:justify-end">
@@ -168,10 +179,12 @@ function HotkeySectionCard({ section }: { section: AuditedHotkeySection }) {
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {section.title}
+            <WorkbenchInfoTip
+              ariaLabel={`${section.title}说明`}
+              content={section.description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">
-            {section.description}
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SummaryChip>共 {section.hotkeys.length} 项</SummaryChip>
@@ -325,13 +338,16 @@ export function HotkeysSettings() {
           <div className="space-y-4">
             <div className="space-y-2">
               <p className="text-sm font-medium text-emerald-700">快捷键审计</p>
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                已审计快捷键
-              </h2>
-              <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                当前按 {platformLabel} 展示已接入实现的快捷键。全局项读取运行时注册状态，
-                页面内项直接来自对应模块的真实事件匹配逻辑，不再展示手工拼装的占位清单。
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                  已审计快捷键
+                </h2>
+                <WorkbenchInfoTip
+                  ariaLabel="已审计快捷键说明"
+                  content={`当前按 ${platformLabel} 展示已接入实现的快捷键。全局项读取运行时注册状态，页面内项直接来自对应模块的真实事件匹配逻辑，不再展示手工拼装的占位清单。`}
+                  tone="mint"
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

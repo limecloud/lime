@@ -98,7 +98,7 @@ pub struct AsterChatRequest {
     /// 前端传入的 System Prompt（可选，优先级低于项目上下文）
     #[serde(default, alias = "systemPrompt")]
     pub system_prompt: Option<String>,
-    /// 请求级元数据（可选，用于 harness / 主题工作台状态对齐）
+    /// 请求级元数据（可选，用于 harness / 工作区编排状态对齐）
     #[serde(default)]
     pub metadata: Option<serde_json::Value>,
     /// 回合 ID（可选，由前端提供时透传到 Aster runtime）

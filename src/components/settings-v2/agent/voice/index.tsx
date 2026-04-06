@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
@@ -396,10 +397,14 @@ export function VoiceSettings() {
           <div className="flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-muted-foreground" />
             <div>
-              <h3 className="text-sm font-medium">语音功能</h3>
-              <p className="text-xs text-muted-foreground">
-                控制语音输入和输出功能
-              </p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium">语音功能</h3>
+                <WorkbenchInfoTip
+                  ariaLabel="语音功能说明"
+                  content="控制语音输入和输出功能。"
+                  tone="slate"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -438,10 +443,14 @@ export function VoiceSettings() {
         <div className="flex items-center gap-2 mb-3">
           <Volume2 className="h-4 w-4 text-muted-foreground" />
           <div>
-            <h3 className="text-sm font-medium">文字转语音 (TTS)</h3>
-            <p className="text-xs text-muted-foreground">
-              选择语音合成服务商和参数
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">文字转语音 (TTS)</h3>
+              <WorkbenchInfoTip
+                ariaLabel="文字转语音说明"
+                content="选择语音合成服务商和参数。"
+                tone="slate"
+              />
+            </div>
           </div>
         </div>
 
@@ -464,7 +473,15 @@ export function VoiceSettings() {
                   )}
                 >
                   <div className="font-medium">{service.label}</div>
-                  <div className="text-xs opacity-80">{service.desc}</div>
+                  <div className="mt-1">
+                    <WorkbenchInfoTip
+                      ariaLabel={`${service.label} TTS 说明`}
+                      content={service.desc}
+                      tone={
+                        voiceConfig.tts_service === service.value ? "mint" : "slate"
+                      }
+                    />
+                  </div>
                 </button>
               ))}
             </div>
@@ -613,10 +630,14 @@ export function VoiceSettings() {
         <div className="flex items-center gap-2 mb-3">
           <Mic className="h-4 w-4 text-muted-foreground" />
           <div>
-            <h3 className="text-sm font-medium">语音转文字 (STT)</h3>
-            <p className="text-xs text-muted-foreground">
-              选择语音识别服务商和参数
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">语音转文字 (STT)</h3>
+              <WorkbenchInfoTip
+                ariaLabel="语音转文字说明"
+                content="选择语音识别服务商和参数。"
+                tone="slate"
+              />
+            </div>
           </div>
         </div>
 
@@ -639,7 +660,15 @@ export function VoiceSettings() {
                   )}
                 >
                   <div className="font-medium">{service.label}</div>
-                  <div className="text-xs opacity-80">{service.desc}</div>
+                  <div className="mt-1">
+                    <WorkbenchInfoTip
+                      ariaLabel={`${service.label} STT 说明`}
+                      content={service.desc}
+                      tone={
+                        voiceConfig.stt_service === service.value ? "mint" : "slate"
+                      }
+                    />
+                  </div>
                 </button>
               ))}
             </div>
@@ -667,10 +696,14 @@ export function VoiceSettings() {
           {/* 自动停止 */}
           <label className="flex items-center justify-between py-1.5 cursor-pointer border-t">
             <div>
-              <span className="text-sm">自动停止录音</span>
-              <p className="text-xs text-muted-foreground">
-                检测到停止说话时自动结束录音
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">自动停止录音</span>
+                <WorkbenchInfoTip
+                  ariaLabel="自动停止录音说明"
+                  content="检测到停止说话时自动结束录音。"
+                  tone="slate"
+                />
+              </div>
             </div>
             <input
               type="checkbox"
@@ -688,10 +721,14 @@ export function VoiceSettings() {
       {/* 提示信息 */}
       <div className={INFO_CARD_CLASS}>
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
-        <p>
-          语音功能需要先启用相应的开关。TTS 用于将 AI 的回复转换为语音播放，STT
-          用于将您的语音转换为文字输入。不同的服务商可能有不同的费用和效果。
-        </p>
+        <div className="flex items-center gap-2">
+          <span>语音链路说明已收纳</span>
+          <WorkbenchInfoTip
+            ariaLabel="语音链路说明"
+            content="语音功能需要先启用相应的开关。TTS 用于将 AI 的回复转换为语音播放，STT 用于将你的语音转换为文字输入。不同的服务商可能有不同的费用和效果。"
+            tone="slate"
+          />
+        </div>
       </div>
 
       {/* 消息提示 */}

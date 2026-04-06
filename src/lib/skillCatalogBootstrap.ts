@@ -4,7 +4,7 @@ import {
   type SkillCatalog,
 } from "@/lib/api/skillCatalog";
 
-export const SKILL_CATALOG_BOOTSTRAP_EVENT = "lime:skill-catalog-bootstrap";
+const SKILL_CATALOG_BOOTSTRAP_EVENT = "lime:skill-catalog-bootstrap";
 
 declare global {
   interface Window {
@@ -31,7 +31,7 @@ function extractFromRecord(record: Record<string, unknown>): SkillCatalog | null
   return null;
 }
 
-export function extractSkillCatalogFromBootstrapPayload(
+function extractSkillCatalogFromBootstrapPayload(
   payload: unknown,
 ): SkillCatalog | null {
   const directCatalog = parseSkillCatalog(payload);
@@ -72,18 +72,6 @@ export function applyInitialSkillCatalogBootstrap(): SkillCatalog | null {
   }
 
   return syncSkillCatalogFromBootstrapPayload(window.__LIME_BOOTSTRAP__);
-}
-
-export function emitSkillCatalogBootstrap(payload: unknown): void {
-  if (!hasWindow()) {
-    return;
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(SKILL_CATALOG_BOOTSTRAP_EVENT, {
-      detail: payload,
-    }),
-  );
 }
 
 export function subscribeSkillCatalogBootstrap(

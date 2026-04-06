@@ -43,7 +43,7 @@ const ActionButton: React.FC<ActionButtonProps> = memo(
 );
 ActionButton.displayName = "ActionButton";
 
-export interface ArtifactWorkbenchToolbarActionsProps {
+interface ArtifactWorkbenchToolbarActionsProps {
   showSaveToProject: boolean;
   saveToProjectDisabled: boolean;
   isSavingToProject: boolean;

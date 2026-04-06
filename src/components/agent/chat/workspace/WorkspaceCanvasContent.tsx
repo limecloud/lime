@@ -5,7 +5,6 @@ interface WorkspaceCanvasContentProps {
   liveCanvasPreview: ReactNode;
   currentImageWorkbenchActive: boolean;
   shouldShowCanvasLoadingState: boolean;
-  isBrowserAssistCanvasVisible: boolean;
   teamWorkbenchView: ComponentProps<typeof CanvasWorkbenchLayout>["teamView"];
   canvasWorkbenchLayoutProps: Omit<
     ComponentProps<typeof CanvasWorkbenchLayout>,
@@ -17,7 +16,6 @@ export function WorkspaceCanvasContent({
   liveCanvasPreview,
   currentImageWorkbenchActive,
   shouldShowCanvasLoadingState,
-  isBrowserAssistCanvasVisible,
   teamWorkbenchView,
   canvasWorkbenchLayoutProps,
 }: WorkspaceCanvasContentProps) {
@@ -29,10 +27,7 @@ export function WorkspaceCanvasContent({
     return liveCanvasPreview;
   }
 
-  if (
-    !teamWorkbenchView &&
-    (shouldShowCanvasLoadingState || isBrowserAssistCanvasVisible)
-  ) {
+  if (!teamWorkbenchView && shouldShowCanvasLoadingState) {
     return liveCanvasPreview;
   }
 

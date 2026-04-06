@@ -15,6 +15,7 @@ import {
   importMaterialFromUrl,
   type ImportMaterialFromUrlRequest,
 } from "@/lib/api/materials";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   videoGenerationApi,
   type VideoGenerationTask,
@@ -155,14 +156,6 @@ const HeroTitle = styled.h1`
   color: hsl(var(--foreground));
 `;
 
-const HeroDescription = styled.p`
-  margin: 0;
-  max-width: 720px;
-  font-size: 15px;
-  line-height: 1.75;
-  color: hsl(var(--muted-foreground));
-`;
-
 const StatsGrid = styled.div`
   position: relative;
   z-index: 1;
@@ -191,6 +184,13 @@ const StatCard = styled.div`
   gap: 6px;
 `;
 
+const StatHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`;
+
 const StatLabel = styled.span`
   font-size: 11px;
   font-weight: 700;
@@ -204,12 +204,6 @@ const StatValue = styled.span`
   font-weight: 700;
   color: hsl(var(--foreground));
   word-break: break-word;
-`;
-
-const StatHint = styled.span`
-  font-size: 12px;
-  line-height: 1.55;
-  color: hsl(var(--muted-foreground));
 `;
 
 const PromptBlock = styled.div`
@@ -255,11 +249,11 @@ const WorkspaceTitle = styled.h2`
   color: hsl(var(--foreground));
 `;
 
-const WorkspaceDescription = styled.p`
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.7;
-  color: hsl(var(--muted-foreground));
+const WorkspaceTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 `;
 
 const HeaderBadgeRow = styled.div`
@@ -368,6 +362,13 @@ const ResultPanelTitle = styled.h3`
   color: hsl(var(--foreground));
 `;
 
+const ResultPanelTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
 const ResultPanelDescription = styled.p`
   margin: 0;
   font-size: 13px;
@@ -445,11 +446,11 @@ const StageFooter = styled.div`
   flex-wrap: wrap;
 `;
 
-const StageFooterText = styled.p`
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: hsl(var(--muted-foreground));
+const StageFooterTips = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const TaskCounter = styled.span`
@@ -1148,19 +1149,26 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                       <Video size={28} />
                     </IconBox>
                     <HeroTitle>视频创作</HeroTitle>
+                    <WorkbenchInfoTip
+                      ariaLabel="视频创作说明"
+                      content="用一句清晰的场景描述启动视频生成，再逐步补充镜头运动、情绪和画面锚点。先让结构成立，再慢慢叠加参考图与参数约束。"
+                      tone="sky"
+                    />
                   </HeroTitleRow>
-                  <HeroDescription>
-                    用一句清晰的场景描述启动视频生成，再逐步补充镜头运动、情绪和画面锚点。
-                    先让结构成立，再慢慢叠加参考图与参数约束。
-                  </HeroDescription>
                 </HeroCopy>
 
                 <StatsGrid>
                   {summaryCards.map((item) => (
                     <StatCard key={item.label}>
-                      <StatLabel>{item.label}</StatLabel>
+                      <StatHeader>
+                        <StatLabel>{item.label}</StatLabel>
+                        <WorkbenchInfoTip
+                          ariaLabel={`${item.label}说明`}
+                          content={item.hint}
+                          tone="sky"
+                        />
+                      </StatHeader>
                       <StatValue>{item.value}</StatValue>
-                      <StatHint>{item.hint}</StatHint>
                     </StatCard>
                   ))}
                 </StatsGrid>
@@ -1181,12 +1189,16 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                 <WorkspaceHeaderTop>
                   <WorkspaceHeaderCopy>
                     <Eyebrow>VIDEO SESSION</Eyebrow>
-                    <WorkspaceTitle>
-                      继续调整提示词并追踪最新结果
-                    </WorkspaceTitle>
-                    <WorkspaceDescription>
-                      这里集中展示主预览、历史任务和当前输入入口，避免在多个视图之间来回切换。
-                    </WorkspaceDescription>
+                    <WorkspaceTitleRow>
+                      <WorkspaceTitle>
+                        继续调整提示词并追踪最新结果
+                      </WorkspaceTitle>
+                      <WorkbenchInfoTip
+                        ariaLabel="视频会话说明"
+                        content="这里集中展示主预览、历史任务和当前输入入口，避免在多个视图之间来回切换。"
+                        tone="sky"
+                      />
+                    </WorkspaceTitleRow>
                     <HeaderBadgeRow>
                       <StatusBadge $tone={workspaceStatus.tone}>
                         {workspaceStatus.label}
@@ -1205,9 +1217,15 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                   <StatsGrid>
                     {summaryCards.map((item) => (
                       <StatCard key={item.label}>
-                        <StatLabel>{item.label}</StatLabel>
+                        <StatHeader>
+                          <StatLabel>{item.label}</StatLabel>
+                          <WorkbenchInfoTip
+                            ariaLabel={`${item.label}说明`}
+                            content={item.hint}
+                            tone="sky"
+                          />
+                        </StatHeader>
                         <StatValue>{item.value}</StatValue>
-                        <StatHint>{item.hint}</StatHint>
                       </StatCard>
                     ))}
                   </StatsGrid>
@@ -1271,9 +1289,16 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                   </StageFrame>
 
                   <StageFooter>
-                    <StageFooterText>
-                      成功结果会自动同步到项目素材；切换历史任务预览不会覆盖你当前输入的提示词。
-                    </StageFooterText>
+                    <StageFooterTips>
+                      <WorkbenchInfoTip
+                        ariaLabel="主预览说明"
+                        label="同步规则"
+                        variant="pill"
+                        tone="sky"
+                        align="start"
+                        content="成功结果会自动同步到项目素材；切换历史任务预览不会覆盖你当前输入的提示词。"
+                      />
+                    </StageFooterTips>
                     {latestTask ? (
                       <TaskCounter>
                         最近更新于 {formatTaskTime(latestTask.createdAt)}
@@ -1285,10 +1310,14 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                 <ResultPanel>
                   <ResultPanelHeader>
                     <ResultPanelCopy>
-                      <ResultPanelTitle>最近任务</ResultPanelTitle>
-                      <ResultPanelDescription>
-                        按时间倒序展示最新视频任务，便于切换预览与排查失败原因。
-                      </ResultPanelDescription>
+                      <ResultPanelTitleRow>
+                        <ResultPanelTitle>最近任务</ResultPanelTitle>
+                        <WorkbenchInfoTip
+                          ariaLabel="最近任务说明"
+                          content="按时间倒序展示最新视频任务，便于切换预览与排查失败原因。"
+                          tone="sky"
+                        />
+                      </ResultPanelTitleRow>
                     </ResultPanelCopy>
                     <TaskCounter>{tasks.length} 条</TaskCounter>
                   </ResultPanelHeader>

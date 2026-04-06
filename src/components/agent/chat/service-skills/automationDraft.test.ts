@@ -114,7 +114,7 @@ describe("service skill automation draft", () => {
         }),
         harness: expect.objectContaining({
           theme: "general",
-          session_mode: "theme_workbench",
+          session_mode: "general_workbench",
           run_title: "每日趋势摘要",
         }),
       }),
@@ -145,7 +145,7 @@ describe("service skill automation draft", () => {
           }),
           harness: expect.objectContaining({
             theme: "general",
-            session_mode: "theme_workbench",
+            session_mode: "general_workbench",
             content_id: "content-1",
           }),
         }),

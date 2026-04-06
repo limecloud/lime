@@ -3,7 +3,7 @@
 //! 负责在工作区内生成稳定路径、落盘 JSON 快照，并给前端 workbench
 //! 提供可直接消费的 snapshot metadata。
 
-use crate::commands::content_cmd::THEME_WORKBENCH_DOCUMENT_META_KEY;
+use crate::commands::content_cmd::GENERAL_WORKBENCH_DOCUMENT_META_KEY;
 use crate::content::{ContentManager, ContentUpdateRequest};
 use crate::database::DbConnection;
 use crate::services::artifact_document_validator::{
@@ -29,7 +29,7 @@ pub struct PersistedArtifactDocument {
     pub absolute_path: PathBuf,
     pub serialized_document: String,
     pub snapshot_metadata: Map<String, Value>,
-    pub theme_workbench_document_state: Map<String, Value>,
+    pub general_workbench_document_state: Map<String, Value>,
     pub content_body: String,
     pub title: String,
     pub kind: String,
@@ -274,8 +274,8 @@ pub fn persist_artifact_document_from_text(
         &source_links,
         version_diff.as_ref(),
     );
-    let theme_workbench_document_state =
-        build_theme_workbench_document_state(&version_history, current_version.id.as_str());
+    let general_workbench_document_state =
+        build_general_workbench_document_state(&version_history, current_version.id.as_str());
     let content_body = build_content_body_from_document(&enriched_document);
 
     Ok(PersistedArtifactDocument {
@@ -286,7 +286,7 @@ pub fn persist_artifact_document_from_text(
         absolute_path,
         serialized_document,
         snapshot_metadata,
-        theme_workbench_document_state,
+        general_workbench_document_state,
         content_body,
         title: outcome.title,
         kind: outcome.kind,
@@ -423,7 +423,7 @@ fn resolve_topic_branch_status(status: &str) -> Option<&'static str> {
     }
 }
 
-fn build_theme_workbench_document_state(
+fn build_general_workbench_document_state(
     version_history: &[ArtifactVersionSummary],
     current_version_id: &str,
 ) -> Map<String, Value> {
@@ -628,8 +628,8 @@ pub fn sync_persisted_artifact_document_to_content(
         }
     }
     next_metadata.insert(
-        THEME_WORKBENCH_DOCUMENT_META_KEY.to_string(),
-        Value::Object(persisted.theme_workbench_document_state.clone()),
+        GENERAL_WORKBENCH_DOCUMENT_META_KEY.to_string(),
+        Value::Object(persisted.general_workbench_document_state.clone()),
     );
 
     manager.update(
@@ -1426,7 +1426,7 @@ mod tests {
             .contains("\"currentVersionDiff\""));
         assert_eq!(
             persisted_second
-                .theme_workbench_document_state
+                .general_workbench_document_state
                 .get("currentVersionId")
                 .and_then(Value::as_str),
             Some("artifact-document:artifact:analysis:demo:v2")
@@ -1512,7 +1512,7 @@ mod tests {
         let metadata = updated.metadata.expect("metadata should exist");
         assert_eq!(
             metadata
-                .get(THEME_WORKBENCH_DOCUMENT_META_KEY)
+                .get(GENERAL_WORKBENCH_DOCUMENT_META_KEY)
                 .and_then(Value::as_object)
                 .and_then(|value| value.get("currentVersionId"))
                 .and_then(Value::as_str),

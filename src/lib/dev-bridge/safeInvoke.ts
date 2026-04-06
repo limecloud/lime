@@ -8,8 +8,7 @@
  * @module dev-bridge/safeInvoke
  */
 
-import { invoke as baseInvoke } from "@tauri-apps/api/core";
-import { listen as baseListen, emit as baseEmit } from "@tauri-apps/api/event";
+import { core as tauriCore, event as tauriEvent } from "@tauri-apps/api";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
   hasDevBridgeEventListenerCapability,
@@ -30,6 +29,9 @@ import {
   hasTauriInvokeCapability,
   hasTauriRuntimeMarkers,
 } from "@/lib/tauri-runtime";
+
+const { invoke: baseInvoke } = tauriCore;
+const { listen: baseListen, emit: baseEmit } = tauriEvent;
 
 export interface InvokeErrorBufferEntry {
   timestamp: string;
@@ -589,5 +591,3 @@ export async function safeEmit(
 
   return baseEmit(event, payload);
 }
-
-export default safeInvoke;

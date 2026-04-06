@@ -1,8 +1,8 @@
-export const COMPACT_RIGHT_PANEL_OPEN_EVENT = "lime:compact-right-panel-open";
+const COMPACT_RIGHT_PANEL_OPEN_EVENT = "lime:compact-right-panel-open";
 
-export type CompactRightPanelSource = "chat" | "workbench";
+type CompactRightPanelSource = "chat" | "workbench";
 
-export interface CompactRightPanelOpenDetail {
+interface CompactRightPanelOpenDetail {
   source: CompactRightPanelSource;
 }
 

@@ -253,6 +253,10 @@ fn build_service_skill_launch_run_example(
 fn build_service_skill_launch_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
+    if let Some(prompt) = build_service_scene_launch_system_prompt(request_metadata) {
+        return Some(prompt);
+    }
+
     let launch = extract_harness_nested_object(
         request_metadata,
         &["service_skill_launch", "serviceSkillLaunch"],
@@ -357,6 +361,94 @@ fn build_service_skill_launch_system_prompt(
     lines.push(
         "- 只有在 lime_site_run 完成后，为了补充背景资料或交叉验证，才允许再决定是否追加 WebSearch 或其他通用检索工具。".to_string(),
     );
+
+    Some(lines.join("\n"))
+}
+
+fn build_service_scene_launch_system_prompt(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    let context =
+        super::service_skill_launch::extract_service_scene_launch_context(request_metadata)?;
+    let tool_input = if let Some(user_input) = context
+        .user_input
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+    {
+        serde_json::json!({ "input": user_input }).to_string()
+    } else {
+        "{}".to_string()
+    };
+
+    let mut lines = vec![
+        SERVICE_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
+        "- 当前回合来自服务型场景启动，不要把它当成普通聊天或纯文本分析。".to_string(),
+        "- 先快速确认当前 slash 场景目标，然后立刻调用服务型技能运行工具；不要停留在泛泛解释。".to_string(),
+        "- 第一优先工具调用必须是 lime_run_service_skill。".to_string(),
+        "- lime_run_service_skill 会自动读取当前回合绑定的 serviceSkillId 与 OEM 运行时上下文，通常不需要手动补鉴权字段。".to_string(),
+        format!("- 推荐第一工具调用参数 JSON：{tool_input}。"),
+        "- 如果用户没有追加补充要求，直接传 {} 也可以；不要把 scene metadata 里的 session_token、tenant_id、scene_base_url 重新抄进工具参数。".to_string(),
+        "- 调用 lime_run_service_skill 后，若返回 queued/running，可以继续等待一次或基于当前状态向用户汇报“已提交云端，正在处理中”；不要伪造已完成结果。".to_string(),
+        "- 如果工具返回缺少 OEM 配置、缺少 Session Token 或授权失败，不要伪造成功结果；直接说明当前云端会话不可用，并引导用户先完成登录或注入会话。".to_string(),
+        format!("- 当前服务型技能 ID：{}。", context.service_skill_id),
+        format!(
+            "- 当前服务型技能标题：{}。",
+            context
+                .skill_title
+                .clone()
+                .unwrap_or_else(|| "未提供".to_string())
+        ),
+        format!(
+            "- 当前 scene_key：{}。",
+            context
+                .scene_key
+                .clone()
+                .unwrap_or_else(|| "未提供".to_string())
+        ),
+        format!(
+            "- 当前 command_prefix：{}。",
+            context
+                .command_prefix
+                .clone()
+                .unwrap_or_else(|| "未提供".to_string())
+        ),
+        format!(
+            "- 当前入口来源：{}。",
+            context
+                .entry_source
+                .clone()
+                .unwrap_or_else(|| "slash_scene_command".to_string())
+        ),
+    ];
+
+    if let Some(value) = context.user_input.as_deref() {
+        lines.push(format!("- 当前补充要求：{value}"));
+    } else if let Some(value) = context.raw_text.as_deref() {
+        lines.push(format!("- 当前原始指令：{value}"));
+    }
+    if let Some(value) = context.project_id.as_deref() {
+        lines.push(format!("- 当前 project_id：{value}。"));
+    }
+    if let Some(value) = context.content_id.as_deref() {
+        lines.push(format!("- 当前 content_id：{value}。"));
+    }
+    if let Some(value) = context.skill_summary.as_deref() {
+        lines.push(format!("- 当前技能说明：{value}"));
+    }
+    if let Some(value) = context.oem_runtime.scene_base_url.as_deref() {
+        lines.push(format!("- 当前 scene_base_url：{value}。"));
+    } else {
+        lines.push(
+            "- 当前缺少 scene_base_url。若工具返回缺少 OEM 配置，直接向用户说明未完成云端接线。"
+                .to_string(),
+        );
+    }
+    if context.oem_runtime.session_token.is_some() {
+        lines
+            .push("- 当前回合已绑定 OEM Session Token，可直接调用服务型技能运行工具。".to_string());
+    } else {
+        lines.push("- 当前回合尚未绑定 OEM Session Token。若工具返回授权失败，不要重试伪造结果，直接要求用户先登录 OEM 云端。".to_string());
+    }
 
     Some(lines.join("\n"))
 }

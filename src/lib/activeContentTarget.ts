@@ -2,12 +2,12 @@ import { normalizeThemeCanvasType } from "@/lib/workspace/workbenchContract";
 
 const ACTIVE_CONTENT_TARGET_KEY = "lime-active-content-target";
 
-export type ActiveCanvasType =
+type ActiveCanvasType =
   | "document"
   | "video"
   | null;
 
-export interface ActiveContentTarget {
+interface ActiveContentTarget {
   projectId: string | null;
   contentId: string | null;
   canvasType?: ActiveCanvasType;

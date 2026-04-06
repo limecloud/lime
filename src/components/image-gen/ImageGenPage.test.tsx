@@ -204,6 +204,33 @@ function findButtonByText(
   return target as HTMLButtonElement;
 }
 
+function findButtonByAriaLabel(
+  container: HTMLElement,
+  ariaLabel: string,
+): HTMLButtonElement {
+  const target = container.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  ) as HTMLButtonElement | null;
+  if (!target) {
+    throw new Error(`未找到 tips 按钮: ${ariaLabel}`);
+  }
+  return target;
+}
+
+async function hoverElement(element: HTMLElement) {
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
+async function leaveElement(element: HTMLElement) {
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function getPromptChip(container: HTMLElement): HTMLButtonElement {
   const label = Array.from(container.querySelectorAll("div")).find(
     (node) => node.textContent === "当前图片提示词",
@@ -245,6 +272,31 @@ afterEach(() => {
 });
 
 describe("ImageGenPage", () => {
+  it("AI 生图区应把静态说明文案收进 tips", async () => {
+    const container = renderPage();
+
+    await flushEffects();
+
+    expect(container.textContent).not.toContain(
+      "左侧集中管理模型、参考图与输出规格；主画布负责预览结果与继续迭代。",
+    );
+    expect(container.textContent).not.toContain("当前服务商：Fal");
+
+    const introTip = findButtonByAriaLabel(container, "插图生成参数说明");
+    await hoverElement(introTip);
+    expect(document.body.textContent).toContain(
+      "左侧集中管理模型、参考图与输出规格；主画布负责预览结果与继续迭代。",
+    );
+    await leaveElement(introTip);
+
+    const modelTip = findButtonByAriaLabel(container, "图片模型说明");
+    await hoverElement(modelTip);
+    expect(document.body.textContent).toContain(
+      "当前服务商：Fal。模型切换会影响尺寸支持范围与图片编辑链路。",
+    );
+    await leaveElement(modelTip);
+  });
+
   it("点击左上角返回按钮应回到新建任务页", async () => {
     const onNavigate = vi.fn();
     const container = renderPage(onNavigate);

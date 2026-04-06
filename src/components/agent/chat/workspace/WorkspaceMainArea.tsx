@@ -3,8 +3,8 @@ import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
   LayoutTransitionRenderGate,
   MainArea,
-  ThemeWorkbenchInputOverlay,
-  ThemeWorkbenchLayoutShell,
+  GeneralWorkbenchInputOverlay,
+  GeneralWorkbenchLayoutShell,
 } from "./WorkspaceStyles";
 
 interface WorkspaceMainAreaProps {
@@ -19,7 +19,7 @@ interface WorkspaceMainAreaProps {
   chatPanelWidth?: string;
   chatPanelMinWidth?: string;
   generalWorkbenchDialog: ReactNode;
-  themeWorkbenchHarnessDialog: ReactNode;
+  generalWorkbenchHarnessDialog: ReactNode;
   showFloatingInputOverlay: boolean;
   hasPendingA2UIForm: boolean;
   inputbarNode: ReactNode;
@@ -37,7 +37,7 @@ export function WorkspaceMainArea({
   chatPanelWidth,
   chatPanelMinWidth,
   generalWorkbenchDialog,
-  themeWorkbenchHarnessDialog,
+  generalWorkbenchHarnessDialog,
   showFloatingInputOverlay,
   hasPendingA2UIForm,
   inputbarNode,
@@ -52,7 +52,7 @@ export function WorkspaceMainArea({
     <MainArea $compact={compactChrome}>
       {navbarNode}
       {contentSyncNoticeNode}
-      <ThemeWorkbenchLayoutShell $bottomInset={shellBottomInset}>
+      <GeneralWorkbenchLayoutShell $bottomInset={shellBottomInset}>
         <LayoutTransitionRenderGate
           mode={effectiveLayoutMode}
           chatContent={chatContent}
@@ -61,13 +61,13 @@ export function WorkspaceMainArea({
           chatPanelMinWidth={chatPanelMinWidth}
           forceOpenChatPanel={hasPendingA2UIForm}
         />
-      </ThemeWorkbenchLayoutShell>
+      </GeneralWorkbenchLayoutShell>
       {generalWorkbenchDialog}
-      {themeWorkbenchHarnessDialog}
+      {generalWorkbenchHarnessDialog}
       {showFloatingInputOverlay ? (
-        <ThemeWorkbenchInputOverlay>
+        <GeneralWorkbenchInputOverlay>
           {inputbarNode}
-        </ThemeWorkbenchInputOverlay>
+        </GeneralWorkbenchInputOverlay>
       ) : null}
     </MainArea>
   );

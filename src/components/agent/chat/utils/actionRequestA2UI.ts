@@ -365,7 +365,7 @@ function summarizeValue(value: unknown): string | null {
 export function isActionRequestA2UICompatible(
   request: ActionRequired | null | undefined,
 ): request is ActionRequired {
-  if (!request || request.uiKind === "browser_preflight") {
+  if (!request) {
     return false;
   }
 

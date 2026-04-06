@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo } from "react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   useSettingsCategory,
   type CategoryGroup,
@@ -149,39 +150,55 @@ export function SettingsHomePage({
                 SETTINGS OVERVIEW
               </span>
               <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                  设置首页
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                  在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                    设置首页
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="设置首页说明"
+                    content="在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。"
+                    tone="mint"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[420px]">
               <div className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">设置分组</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  账号、通用、智能体、系统
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>设置分组</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="设置分组说明"
+                    content="账号、通用、智能体、系统。"
+                    tone="slate"
+                  />
+                </div>
                 <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
                   {overview.visibleGroups.length}
                 </p>
               </div>
               <div className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">可配置项</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  当前设置中心入口总数
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>可配置项</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="可配置项说明"
+                    content="当前设置中心入口总数。"
+                    tone="slate"
+                  />
+                </div>
                 <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
                   {overview.totalItems}
                 </p>
               </div>
               <div className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">实验功能</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  需要额外关注稳定性的入口
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>实验功能</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="实验功能说明"
+                    content="需要额外关注稳定性的入口。"
+                    tone="slate"
+                  />
+                </div>
                 <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
                   {overview.experimentalCount}
                 </p>
@@ -217,10 +234,14 @@ export function SettingsHomePage({
                       <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
                     </div>
                     <p className="mt-4 text-base font-semibold text-slate-900">
-                      {meta.title}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      {meta.description}
+                      <span className="inline-flex items-center gap-2">
+                        <span>{meta.title}</span>
+                        <WorkbenchInfoTip
+                          ariaLabel={`${meta.title}说明`}
+                          content={meta.description}
+                          tone="slate"
+                        />
+                      </span>
                     </p>
                   </button>
                 );
@@ -241,10 +262,14 @@ export function SettingsHomePage({
                     <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
                   </div>
                   <p className="mt-4 text-base font-semibold text-slate-900">
-                    桌宠
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    开启桌宠、安装引导与连接诊断
+                    <span className="inline-flex items-center gap-2">
+                      <span>桌宠</span>
+                      <WorkbenchInfoTip
+                        ariaLabel="桌宠说明"
+                        content="开启桌宠、安装引导与连接诊断。"
+                        tone="slate"
+                      />
+                    </span>
                   </p>
                 </button>
               ) : null}
@@ -278,9 +303,13 @@ export function SettingsHomePage({
                       <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                         {group.title}
                       </h2>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        {meta.description}
-                      </p>
+                      <div className="mt-1">
+                        <WorkbenchInfoTip
+                          ariaLabel={`${group.title}说明`}
+                          content={meta.description}
+                          tone="slate"
+                        />
+                      </div>
                     </div>
                   </div>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">

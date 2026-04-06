@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
@@ -306,9 +307,14 @@ export function ImageGenSettings() {
     <div className="space-y-5 max-w-[980px]">
       <div className={INFO_CARD_CLASS}>
         <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-        <p>
-          这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。
-        </p>
+        <div className="flex items-center gap-2">
+          <span>全局默认图片服务说明已收纳</span>
+          <WorkbenchInfoTip
+            ariaLabel="全局默认图片服务说明"
+            content="这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。"
+            tone="slate"
+          />
+        </div>
       </div>
 
       <MediaPreferenceSection
@@ -362,10 +368,14 @@ export function ImageGenSettings() {
         <div className="flex items-center gap-2 mb-3">
           <Settings2 className="h-4 w-4 text-muted-foreground" />
           <div>
-            <h3 className="text-sm font-medium">默认图像生成服务</h3>
-            <p className="text-xs text-muted-foreground">
-              选择默认使用的图像生成服务商
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">默认图像生成服务</h3>
+              <WorkbenchInfoTip
+                ariaLabel="默认图像生成服务说明"
+                content="选择默认使用的图像生成服务商。"
+                tone="slate"
+              />
+            </div>
           </div>
         </div>
 
@@ -383,7 +393,13 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{service.label}</div>
-              <div className="text-xs opacity-80">{service.desc}</div>
+              <div className="mt-1">
+                <WorkbenchInfoTip
+                  ariaLabel={`${service.label}说明`}
+                  content={service.desc}
+                  tone={imageConfig.default_service === service.value ? "mint" : "slate"}
+                />
+              </div>
             </button>
           ))}
         </div>
@@ -428,10 +444,14 @@ export function ImageGenSettings() {
       <div className={PANEL_CARD_CLASS}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-medium">默认图像尺寸</h3>
-            <p className="text-xs text-muted-foreground">
-              选择生成图像的默认尺寸
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">默认图像尺寸</h3>
+              <WorkbenchInfoTip
+                ariaLabel="默认图像尺寸说明"
+                content="选择生成图像的默认尺寸。"
+                tone="slate"
+              />
+            </div>
           </div>
           <span className="text-sm font-semibold text-slate-900">
             {imageConfig.default_size || "1024x1024"}
@@ -451,7 +471,13 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{size.label}</div>
-              <div className="text-xs opacity-80">{size.desc}</div>
+              <div className="mt-1">
+                <WorkbenchInfoTip
+                  ariaLabel={`${size.label}说明`}
+                  content={size.desc}
+                  tone={imageConfig.default_size === size.value ? "mint" : "slate"}
+                />
+              </div>
             </button>
           ))}
         </div>
@@ -462,10 +488,14 @@ export function ImageGenSettings() {
         <div className="flex items-center gap-2 mb-3">
           <Palette className="h-4 w-4 text-muted-foreground" />
           <div>
-            <h3 className="text-sm font-medium">图像质量</h3>
-            <p className="text-xs text-muted-foreground">
-              选择生成图像的质量级别
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">图像质量</h3>
+              <WorkbenchInfoTip
+                ariaLabel="图像质量说明"
+                content="选择生成图像的质量级别。"
+                tone="slate"
+              />
+            </div>
           </div>
         </div>
 
@@ -482,7 +512,15 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{quality.label}</div>
-              <div className="text-xs opacity-80">{quality.desc}</div>
+              <div className="mt-1">
+                <WorkbenchInfoTip
+                  ariaLabel={`${quality.label}说明`}
+                  content={quality.desc}
+                  tone={
+                    imageConfig.default_quality === quality.value ? "mint" : "slate"
+                  }
+                />
+              </div>
             </button>
           ))}
         </div>
@@ -493,10 +531,14 @@ export function ImageGenSettings() {
         <div className="flex items-center gap-2 mb-3">
           <Palette className="h-4 w-4 text-muted-foreground" />
           <div>
-            <h3 className="text-sm font-medium">图像风格</h3>
-            <p className="text-xs text-muted-foreground">
-              选择生成图像的默认风格
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">图像风格</h3>
+              <WorkbenchInfoTip
+                ariaLabel="图像风格说明"
+                content="选择生成图像的默认风格。"
+                tone="slate"
+              />
+            </div>
           </div>
         </div>
 
@@ -513,7 +555,13 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{style.label}</div>
-              <div className="text-xs opacity-80">{style.desc}</div>
+              <div className="mt-1">
+                <WorkbenchInfoTip
+                  ariaLabel={`${style.label}说明`}
+                  content={style.desc}
+                  tone={imageConfig.default_style === style.value ? "mint" : "slate"}
+                />
+              </div>
             </button>
           ))}
         </div>
@@ -524,20 +572,28 @@ export function ImageGenSettings() {
         <div className="flex items-center gap-2 mb-3">
           <Settings2 className="h-4 w-4 text-muted-foreground" />
           <div>
-            <h3 className="text-sm font-medium">其他选项</h3>
-            <p className="text-xs text-muted-foreground">
-              配置图像生成的其他行为
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium">其他选项</h3>
+              <WorkbenchInfoTip
+                ariaLabel="其他选项说明"
+                content="配置图像生成的其他行为。"
+                tone="slate"
+              />
+            </div>
           </div>
         </div>
 
         <div className="space-y-2">
           <label className="flex items-center justify-between py-1.5 cursor-pointer">
             <div>
-              <span className="text-sm">启用图像增强</span>
-              <p className="text-xs text-muted-foreground">
-                自动对生成的图像进行增强处理
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">启用图像增强</span>
+                <WorkbenchInfoTip
+                  ariaLabel="启用图像增强说明"
+                  content="自动对生成的图像进行增强处理。"
+                  tone="slate"
+                />
+              </div>
             </div>
             <input
               type="checkbox"
@@ -552,10 +608,14 @@ export function ImageGenSettings() {
 
           <label className="flex items-center justify-between py-1.5 cursor-pointer border-t">
             <div>
-              <span className="text-sm">自动下载图像</span>
-              <p className="text-xs text-muted-foreground">
-                生成完成后自动下载到本地
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">自动下载图像</span>
+                <WorkbenchInfoTip
+                  ariaLabel="自动下载图像说明"
+                  content="生成完成后自动下载到本地。"
+                  tone="slate"
+                />
+              </div>
             </div>
             <input
               type="checkbox"
@@ -573,10 +633,14 @@ export function ImageGenSettings() {
       {/* 提示信息 */}
       <div className={INFO_CARD_CLASS}>
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
-        <p>
-          不同的图像生成服务商支持的功能和参数可能不同。某些服务商可能不支持特定的尺寸或质量选项。
-          实际生成的效果取决于所选服务商的能力。
-        </p>
+        <div className="flex items-center gap-2">
+          <span>兼容性说明已收纳</span>
+          <WorkbenchInfoTip
+            ariaLabel="图像服务兼容性说明"
+            content="不同的图像生成服务商支持的功能和参数可能不同。某些服务商可能不支持特定的尺寸或质量选项。实际生成的效果取决于所选服务商的能力。"
+            tone="slate"
+          />
+        </div>
       </div>
 
       {/* 消息提示 */}

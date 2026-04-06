@@ -33,7 +33,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   canvasScene: CanvasScene;
   conversationSendRuntime: ConversationSendRuntime;
   shellChromeRuntime: ShellChromeRuntime;
-  themeWorkbenchHarnessDialog: ConversationScenePresentationParams["scene"]["themeWorkbenchHarnessDialog"];
+  generalWorkbenchHarnessDialog: ConversationScenePresentationParams["scene"]["generalWorkbenchHarnessDialog"];
   entryBannerVisible: ConversationScenePresentationParams["scene"]["entryBannerVisible"];
   entryBannerMessage: ConversationScenePresentationParams["scene"]["entryBannerMessage"];
   serviceSkillExecutionCard?: ConversationScenePresentationParams["scene"]["serviceSkillExecutionCard"];
@@ -80,14 +80,12 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleBackHome: ConversationScenePresentationParams["scene"]["onBackHome"];
   handleToggleSidebar: ConversationScenePresentationParams["scene"]["onToggleHistory"];
   chatMode: ConversationScenePresentationParams["scene"]["chatMode"];
-  isBrowserAssistCanvasVisible: ConversationScenePresentationParams["scene"]["isBrowserAssistCanvasVisible"];
-  browserAssistAttentionLevel: ConversationScenePresentationParams["scene"]["browserAssistAttentionLevel"];
-  browserAssistEntryLabel: ConversationScenePresentationParams["scene"]["browserAssistLabel"];
   showHarnessToggle: ConversationScenePresentationParams["scene"]["showHarnessToggle"];
   navbarHarnessPanelVisible: ConversationScenePresentationParams["scene"]["harnessPanelVisible"];
   handleToggleHarnessPanel: ConversationScenePresentationParams["scene"]["onToggleHarnessPanel"];
   harnessPendingCount: ConversationScenePresentationParams["scene"]["harnessPendingCount"];
   harnessAttentionLevel: ConversationScenePresentationParams["scene"]["harnessAttentionLevel"];
+  isAutoRestoringSession: boolean;
   sessionId: string | null | undefined;
   syncStatus: ConversationScenePresentationParams["scene"]["syncStatus"];
   pendingA2UIForm: ConversationScenePresentationParams["scene"]["pendingA2UIForm"];
@@ -112,6 +110,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   pendingActions: ConversationScenePresentationParams["messageList"]["pendingActions"];
   submittedActionsInFlight: ConversationScenePresentationParams["messageList"]["submittedActionsInFlight"];
   queuedTurns: ConversationScenePresentationParams["messageList"]["queuedTurns"];
+  isPreparingSend: boolean;
   isSending: ConversationScenePresentationParams["messageList"]["isSending"];
   stopSending: ConversationScenePresentationParams["messageList"]["onInterruptCurrentTurn"];
   resumeThread: ConversationScenePresentationParams["messageList"]["onResumeThread"];
@@ -131,8 +130,9 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   ) => void;
   handleOpenSavedSiteContent: ConversationScenePresentationParams["messageList"]["onOpenSavedSiteContent"];
   handleArtifactClick: ConversationScenePresentationParams["messageList"]["onArtifactClick"];
+  handleOpenMessagePreview?: ConversationScenePresentationParams["messageList"]["onOpenMessagePreview"];
   handleOpenSubagentSession: ConversationScenePresentationParams["messageList"]["onOpenSubagentSession"];
-  handlePermissionResponseWithBrowserPreflight: ConversationScenePresentationParams["messageList"]["onPermissionResponse"];
+  handlePermissionResponse: ConversationScenePresentationParams["messageList"]["onPermissionResponse"];
   pendingPromotedA2UIActionRequest: unknown;
   shouldCollapseCodeBlocks: ConversationScenePresentationParams["messageList"]["collapseCodeBlocks"];
   shouldCollapseCodeBlockInChat: ConversationScenePresentationParams["messageList"]["shouldCollapseCodeBlock"];
@@ -159,7 +159,7 @@ export function useWorkspaceConversationSceneRuntime({
   canvasScene,
   conversationSendRuntime,
   shellChromeRuntime,
-  themeWorkbenchHarnessDialog,
+  generalWorkbenchHarnessDialog,
   entryBannerVisible,
   entryBannerMessage,
   serviceSkillExecutionCard,
@@ -206,14 +206,12 @@ export function useWorkspaceConversationSceneRuntime({
   handleBackHome,
   handleToggleSidebar,
   chatMode,
-  isBrowserAssistCanvasVisible,
-  browserAssistAttentionLevel,
-  browserAssistEntryLabel,
   showHarnessToggle,
   navbarHarnessPanelVisible,
   handleToggleHarnessPanel,
   harnessPendingCount,
   harnessAttentionLevel,
+  isAutoRestoringSession,
   sessionId,
   syncStatus,
   pendingA2UIForm,
@@ -236,6 +234,7 @@ export function useWorkspaceConversationSceneRuntime({
   pendingActions,
   submittedActionsInFlight,
   queuedTurns,
+  isPreparingSend,
   isSending,
   stopSending,
   resumeThread,
@@ -249,8 +248,9 @@ export function useWorkspaceConversationSceneRuntime({
   handleOpenArtifactFromTimeline,
   handleOpenSavedSiteContent,
   handleArtifactClick,
+  handleOpenMessagePreview,
   handleOpenSubagentSession,
-  handlePermissionResponseWithBrowserPreflight,
+  handlePermissionResponse,
   pendingPromotedA2UIActionRequest,
   shouldCollapseCodeBlocks,
   shouldCollapseCodeBlockInChat,
@@ -305,17 +305,19 @@ export function useWorkspaceConversationSceneRuntime({
       showChatLayout: shellChromeRuntime.showChatLayout,
       compactChrome: shellChromeRuntime.isWorkspaceCompactChrome,
       contextWorkspaceEnabled,
-      themeWorkbenchMessageViewportBottomPadding:
-        shellChromeRuntime.themeWorkbenchLayoutBottomSpacing.messageViewportBottomPadding,
+      generalWorkbenchMessageViewportBottomPadding:
+        shellChromeRuntime.workflowLayoutBottomSpacing.messageViewportBottomPadding,
       onSelectWorkspaceDirectory:
         navigationActions.handleWorkspaceAlertSelectDirectory,
       onDismissWorkspaceAlert: navigationActions.handleDismissWorkspaceAlert,
-      shouldHideThemeWorkbenchInputForTheme:
-        shellChromeRuntime.shouldHideThemeWorkbenchInputForTheme,
+      shouldHideGeneralWorkbenchInputForTheme:
+        shellChromeRuntime.shouldHideGeneralWorkbenchInputForTheme,
       inputbarNode: inputbarScene.inputbarNode,
       input,
       setInput,
       onSendMessage: conversationSendRuntime.handleSendFromEmptyState,
+      emptyStateIsLoading: isPreparingSend || isSending,
+      emptyStateDisabled: isPreparingSend || isSending,
       providerType,
       setProviderType,
       model,
@@ -369,10 +371,6 @@ export function useWorkspaceConversationSceneRuntime({
       onToggleCanvas: handleToggleCanvas,
       onBackHome: handleBackHome,
       chatMode,
-      isBrowserAssistCanvasVisible,
-      browserAssistAttentionLevel,
-      browserAssistLabel: browserAssistEntryLabel,
-      onOpenBrowserAssist: handleOpenBrowserAssistInCanvas,
       showHarnessToggle,
       harnessPanelVisible: navbarHarnessPanelVisible,
       onToggleHarnessPanel: handleToggleHarnessPanel,
@@ -391,13 +389,13 @@ export function useWorkspaceConversationSceneRuntime({
       shouldShowCanvasLoadingState: canvasScene.shouldShowCanvasLoadingState,
       teamWorkbenchView: canvasScene.teamWorkbenchView,
       shellBottomInset:
-        shellChromeRuntime.themeWorkbenchLayoutBottomSpacing.shellBottomInset,
+        shellChromeRuntime.workflowLayoutBottomSpacing.shellBottomInset,
       chatPanelWidth: shellChromeRuntime.layoutTransitionChatPanelWidth,
       chatPanelMinWidth: shellChromeRuntime.layoutTransitionChatPanelMinWidth,
       generalWorkbenchDialog: inputbarScene.generalWorkbenchDialog,
-      themeWorkbenchHarnessDialog,
+      generalWorkbenchHarnessDialog,
       showFloatingInputOverlay:
-        shellChromeRuntime.shouldShowThemeWorkbenchFloatingInputOverlay,
+        shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
       hasPendingA2UIForm: Boolean(pendingA2UIForm),
     },
     stepProgress: {
@@ -417,6 +415,7 @@ export function useWorkspaceConversationSceneRuntime({
       pendingActions,
       submittedActionsInFlight,
       queuedTurns,
+      isRestoringSession: isAutoRestoringSession,
       isSending,
       onInterruptCurrentTurn: stopSending,
       onResumeThread: resumeThread,
@@ -431,8 +430,9 @@ export function useWorkspaceConversationSceneRuntime({
       onOpenArtifactFromTimeline: handleOpenArtifactFromTimeline,
       onOpenSavedSiteContent: handleOpenSavedSiteContent,
       onArtifactClick: handleArtifactClick,
+      onOpenMessagePreview: handleOpenMessagePreview,
       onOpenSubagentSession: handleOpenSubagentSession,
-      onPermissionResponse: handlePermissionResponseWithBrowserPreflight,
+      onPermissionResponse: handlePermissionResponse,
       promoteActionRequestsToA2UI: Boolean(pendingPromotedA2UIActionRequest),
       renderA2UIInline: shellChromeRuntime.shouldRenderInlineA2UI,
       activePendingA2UISource: pendingA2UISource,
@@ -445,13 +445,13 @@ export function useWorkspaceConversationSceneRuntime({
     teamWorkspaceDock: {
       enabled: showTeamWorkspaceBoard,
       shouldShowFloatingInputOverlay:
-        shellChromeRuntime.shouldShowThemeWorkbenchFloatingInputOverlay,
+        shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
       layoutMode: teamWorkspaceDockLayoutMode,
       onActivateWorkbench: handleActivateTeamWorkbench,
       withBottomOverlay:
         isThemeWorkbench &&
         shellChromeRuntime.showChatLayout &&
-        !shellChromeRuntime.shouldHideThemeWorkbenchInputForTheme,
+        !shellChromeRuntime.shouldHideGeneralWorkbenchInputForTheme,
       surfaceProps: inputbarScene.teamWorkbenchSurfaceProps,
     },
     workspaceAlert: {

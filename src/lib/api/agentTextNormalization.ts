@@ -59,7 +59,7 @@ export function normalizeLegacyRuntimeStatusTitle(title: string): string {
   return title.replace(LEGACY_DECISION_PREFIX_RE, "").trim();
 }
 
-export function normalizeLegacyTurnSummaryText(text: string): string {
+function normalizeLegacyTurnSummaryText(text: string): string {
   const normalized = text.trim();
   if (!normalized) {
     return "";
@@ -72,7 +72,9 @@ export function normalizeLegacyTurnSummaryText(text: string): string {
     return normalizedFirstLine;
   }
 
-  return [normalizedFirstLine, ...rest].filter((line, index) => index > 0 || line).join("\n");
+  return [normalizedFirstLine, ...rest]
+    .filter((line, index) => index > 0 || line)
+    .join("\n");
 }
 
 export function normalizeLegacyToolSurfaceName(

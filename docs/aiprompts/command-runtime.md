@@ -69,7 +69,7 @@ Lime 的命令体系固定按以下关系理解：
 
 对图片任务再补一条固定约束：
 
-`@配图/@修图` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；不要把 current 主链重新改回前端预翻 slash skill 或前端直建任务。
+`@配图/@修图/@重绘` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；文稿 inline 配图、封面位、图片工作台编辑/变体这类显式图片动作也一样，必须先组装 `image_task` 上下文后再复用统一发送主线。不要把 current 主链重新改回前端预翻 slash skill、前端直建任务或“按钮直调 task API”。
 
 不要再把命令能力直接叙述成：
 
@@ -102,9 +102,10 @@ Lime 的命令体系固定按以下关系理解：
 当前 `scene` slash 的第一刀执行也固定如下：
 
 - `useWorkspaceSendActions` 先识别 `/scene-key ...`
-- 再通过 `useWorkspaceServiceSkillEntryActions.handleRuntimeSceneLaunch(...)` 从本地缓存 `SkillCatalog.entries` 里解析 `scene`
-- 客户端按 `linkedSkillId -> ServiceSkillHomeItem` 复用已有 `ServiceSkill` 启动链，而不是新增一套 scene 执行器
-- 若云端 `cloud_scene` 在创建 run 之前就失败，例如缺少会话、服务端暂不可达，客户端要自动回退到本地工作区 prompt 主链，不能让 `/scene-key` 直接失能
+- 从统一 `SkillCatalog.entries` 里解析 `scene -> linkedSkillId -> ServiceSkillHomeItem`
+- 前端只负责把结构化 `service_scene_launch` 写进当前 turn metadata，不负责前端直建云端 run
+- Rust 侧会把该 turn 收口到 `workbench`，并通过系统提示强约束 Agent 首刀优先调用 `lime_run_service_skill`
+- `lime_run_service_skill` 再根据当前 turn 绑定的 `serviceSkillId + OEM runtime` 发起服务端 run / 短轮询，保证 slash scene 也走 `Agent -> tool -> timeline` 主链
 - 未命中统一目录的 slash 文本必须继续回到普通 slash 流程，不能被错误吞成“未找到本地 Skill”
 
 一句话：
@@ -123,7 +124,10 @@ Lime 的命令体系固定按以下关系理解：
 - `@修图`
 - `@重绘`
 - `@视频`
+- `@播报`
+- `@素材`
 - `@转写`
+- `@排版`
 
 特点：
 
@@ -135,9 +139,18 @@ Lime 的命令体系固定按以下关系理解：
 其中图片类能力当前已经有额外运行时纪律：
 
 - `@配图` / `@修图` / `@重绘` 的 current 主链必须保留原始用户消息进入 Agent
-- 前端只负责补 `harness.image_skill_launch` 这类结构化上下文，不负责预翻成 slash skill
+- 文稿 inline 配图、封面位、图片工作台编辑/变体等显式动作也必须补成同构的 `harness.image_skill_launch`，而不是绕过 Agent 直建任务
+- 前端只负责补 `harness.image_skill_launch` 这类结构化上下文，不负责预翻成 slash skill 或偷偷发起 task
 - Agent 首刀优先调用 `Skill(image_generate)`，再由 skill / CLI / task file 链路继续执行
 - 聊天区轻卡与 viewer 只消费后端真实运行态，不伪造“已完成”
+
+`@素材` 在这个分型里是一个混合分流特例：
+
+- 命令仍必须先进入 `Agent -> Skill(modal_resource_search)` 主链
+- 当 `resource_type=image` 且关键词明确时，skill 应优先调用 `lime_search_web_images`，直接复用现有 `Pexels API Key` 设置返回候选
+- `lime_search_web_images` 命中后，聊天区应直接展示真实 tool result 生成的素材轻卡与缩略图，点击后在右侧打开同回合 artifact document，而不是只留一段文本总结
+- 当资源类型是 `bgm / sfx / video`，或图片直搜失败时，再回退 `Bash -> lime task create resource-search --json` / `lime_create_modal_resource_search_task`
+- 无论走直搜还是 task，都必须保留真实 `tool_timeline`，不能回到前端直连图库或隐藏底层 tools
 
 ### 2. `Agent + ServiceSkill`
 
@@ -157,8 +170,9 @@ Lime 的命令体系固定按以下关系理解：
 
 - `/scene-key` 不再直接落回本地 slash skill 预处理
 - 先按统一目录找到 `scene` 与其 `linkedSkillId`
-- 复用现有 `ServiceSkill` 启动主链
-- 云端首提失败时自动回退本地工作区，保证 seeded/fallback 仍可推进
+- 把 `service_scene_launch` 作为当前 turn 的 binding 上下文，而不是前端直接调用云端 run
+- 由 Agent 首刀调用 `lime_run_service_skill` 执行服务型技能 run
+- 服务端目录失联或 scene 未命中时，客户端 seeded/fallback 仍要保证 slash 输入能回到普通工作区主链
 
 ### 3. `Agent + Workflow`
 
@@ -177,6 +191,11 @@ Lime 的命令体系固定按以下关系理解：
 
 适合：
 
+- `@搜索`
+- `@深搜`
+- `@研报`
+- `@站点搜索`
+- `@读PDF`
 - `@总结`
 - `@翻译`
 - `@分析`
@@ -184,8 +203,65 @@ Lime 的命令体系固定按以下关系理解：
 特点：
 
 - 首期轻量
+- 保留真实 skills / tools timeline
 - 可以先不独立恢复
 - 后续可升级为更重的形态
+
+当前 `@搜索` 已按这条主链收口：
+
+- 前端只补 `harness.research_skill_launch`
+- Agent 首刀优先调用 `Skill(research)`
+- `research` skill 再驱动 `search_query`
+- 不走 task file，也不允许前端伪造“已搜索完成”
+
+当前 `@深搜` 也已按这条主链收口：
+
+- 前端只补 `harness.deep_search_skill_launch`
+- Agent 首刀优先调用 `Skill(research)`
+- `research` skill 继续驱动 `search_query`，但系统提示强约束至少多轮扩搜
+- 不走 task file，也不允许前端把深搜伪装成“普通搜索加强版”
+
+当前 `@研报` 也已按这条主链收口：
+
+- 前端只补 `harness.report_skill_launch`
+- Agent 首刀优先调用 `Skill(report_generate)`
+- `report_generate` skill 再驱动 `search_query`，并把结果写成结构化研究报告
+- 不走 task file，也不允许前端本地先拼报告再伪装成 skill 结果
+
+当前 `@站点搜索` 也已按这条主链收口：
+
+- 前端只补 `harness.site_search_skill_launch`
+- Agent 首刀优先调用 `Skill(site_search)`
+- `site_search` skill 再驱动 `lime_site_info / lime_site_run / lime_site_search`
+- 不走 task file，也不允许前端先退回 `research / WebSearch`
+
+当前 `@读PDF` 也应按这条主链收口：
+
+- 前端只补 `harness.pdf_read_skill_launch`
+- Agent 首刀优先调用 `Skill(pdf_read)`
+- `pdf_read` skill 再最小化驱动 `list_directory / read_file`
+- 不走 task file，也不允许前端本地直接解析 PDF 或伪造“已读结果”
+
+当前 `@总结` 也已按这条主链收口：
+
+- 前端只补 `harness.summary_skill_launch`
+- Agent 首刀优先调用 `Skill(summary)`
+- `summary` skill 默认直接总结 `summary_request.content` 或当前对话上下文；当用户显式给出本地路径时，才最小化使用 `list_directory / read_file`
+- 不走 task file，也不允许前端本地直接总结后再伪装成 skill 结果
+
+当前 `@翻译` 也已按这条主链收口：
+
+- 前端只补 `harness.translation_skill_launch`
+- Agent 首刀优先调用 `Skill(translation)`
+- `translation` skill 默认直接翻译 `translation_request.content` 或当前对话上下文；当用户显式给出本地路径时，才最小化使用 `list_directory / read_file`
+- 不走 task file，也不允许前端本地直接翻译后再伪装成 skill 结果
+
+当前 `@分析` 也已按这条主链收口：
+
+- 前端只补 `harness.analysis_skill_launch`
+- Agent 首刀优先调用 `Skill(analysis)`
+- `analysis` skill 默认直接分析 `analysis_request.content` 或当前对话上下文；当用户显式给出本地路径时，才最小化使用 `list_directory / read_file`
+- 不走 task file，也不允许前端本地直接分析后再伪装成 skill 结果
 
 ## 公共设计包在哪里
 
@@ -229,6 +305,12 @@ Lime 的命令体系固定按以下关系理解：
 
 - `docs/prd/gongneng/peitu/`
 - `docs/prd/gongneng/xiutu/`
+- `docs/prd/gongneng/sousuo/`
+- `docs/prd/gongneng/shensou/`
+- `docs/prd/gongneng/zhandiansousuo/`
+- `docs/prd/gongneng/zongjie/`
+- `docs/prd/gongneng/fanyi/`
+- `docs/prd/gongneng/fenxi/`
 
 旧平铺文档如果仍保留，只能作为 compat 索引，不再作为 current 主文档。
 

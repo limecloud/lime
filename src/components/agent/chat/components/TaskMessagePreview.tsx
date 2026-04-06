@@ -1,0 +1,406 @@
+import React from "react";
+import {
+  ArrowUpRight,
+  Clapperboard,
+  FileText,
+  Link2,
+  LoaderCircle,
+  Mic,
+  PlayCircle,
+  Search,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { MessageTaskPreview } from "../types";
+
+interface TaskMessagePreviewProps {
+  preview: MessageTaskPreview;
+  onOpen?: (preview: MessageTaskPreview) => void;
+}
+
+function resolveTaskLabel(preview: MessageTaskPreview): string {
+  switch (preview.kind) {
+    case "video_generate":
+      return "视频生成";
+    case "broadcast_generate":
+      return "播报整理";
+    case "modal_resource_search":
+      return "素材检索";
+    case "transcription_generate":
+      return "内容转写";
+    case "url_parse":
+      return "链接解析";
+    case "typesetting":
+      return "排版优化";
+  }
+
+  const exhaustiveCheck: never = preview;
+  return exhaustiveCheck;
+}
+
+function resolveStatusLabel(preview: MessageTaskPreview): string {
+  switch (preview.status) {
+    case "complete":
+      return "已完成";
+    case "partial":
+      return "部分完成";
+    case "failed":
+      return "执行失败";
+    case "cancelled":
+      return "已取消";
+    case "running":
+    default:
+      if ((preview.phase || "").trim().toLowerCase() === "queued") {
+        return "排队中";
+      }
+      return "执行中";
+  }
+}
+
+function resolveStatusTone(preview: MessageTaskPreview): string {
+  switch (preview.status) {
+    case "complete":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "partial":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "failed":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "cancelled":
+      return "border-slate-200 bg-slate-100 text-slate-600";
+    case "running":
+    default:
+      return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+}
+
+function resolveDescription(preview: MessageTaskPreview): string {
+  const statusMessage = preview.statusMessage?.trim();
+  if (statusMessage) {
+    return statusMessage;
+  }
+
+  if (preview.kind === "video_generate") {
+    switch (preview.status) {
+      case "complete":
+        return "视频已经生成完成，打开查看即可继续预览和管理任务。";
+      case "partial":
+        return "任务返回了部分结果，打开查看可继续确认可用片段。";
+      case "failed":
+        return "这次没有拿到可用视频结果，请调整参数后重试。";
+      case "cancelled":
+        return "任务已经取消，当前不会继续生成新的结果。";
+      case "running":
+      default:
+        return "任务已提交到异步队列，工作区会继续同步最新生成状态。";
+    }
+  }
+
+  switch (preview.status) {
+    case "complete":
+    case "partial":
+      return "任务结果已同步，打开查看即可继续处理。";
+    case "failed":
+      return "任务执行失败，请调整输入后重试。";
+    case "cancelled":
+      return "任务已经取消，当前不会继续执行。";
+    case "running":
+    default:
+      return "任务已进入统一执行主链，工作区会继续同步最新状态。";
+  }
+}
+
+function formatDurationLabel(durationSeconds?: number): string | null {
+  if (
+    typeof durationSeconds !== "number" ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
+    return null;
+  }
+  return `${durationSeconds} 秒`;
+}
+
+function formatProgressLabel(progress?: number | null): string | null {
+  if (
+    typeof progress !== "number" ||
+    !Number.isFinite(progress) ||
+    progress <= 0
+  ) {
+    return null;
+  }
+  return `${Math.max(0, Math.min(100, Math.round(progress)))}%`;
+}
+
+function buildMetaItems(preview: MessageTaskPreview): string[] {
+  if (preview.kind === "video_generate") {
+    const items = [
+      preview.aspectRatio?.trim(),
+      preview.resolution?.trim(),
+      formatDurationLabel(preview.durationSeconds),
+      formatProgressLabel(preview.progress),
+    ].filter((item): item is string => Boolean(item));
+
+    if (preview.model?.trim()) {
+      items.push(preview.model.trim());
+    }
+
+    return items;
+  }
+
+  const items = [...(preview.metaItems || [])];
+  if (preview.model?.trim()) {
+    items.push(preview.model.trim());
+  }
+  return items.filter((item) => item.trim().length > 0);
+}
+
+function resolveGenericTaskIcon(
+  preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
+) {
+  switch (preview.kind) {
+    case "broadcast_generate":
+      return Mic;
+    case "modal_resource_search":
+      return Search;
+    case "url_parse":
+      return Link2;
+    case "transcription_generate":
+    case "typesetting":
+    default:
+      return FileText;
+  }
+}
+
+function renderGenericTaskMedia(
+  preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
+  Icon: ReturnType<typeof resolveGenericTaskIcon>,
+) {
+  if (
+    preview.kind === "modal_resource_search" &&
+    preview.imageCandidates &&
+    preview.imageCandidates.length > 0
+  ) {
+    return (
+      <div
+        data-testid={`task-message-preview-media-${preview.taskId}`}
+        className="grid h-20 w-28 shrink-0 grid-cols-2 gap-1 overflow-hidden rounded-[18px] border border-slate-200 bg-slate-100 p-1"
+      >
+        {preview.imageCandidates.slice(0, 4).map((candidate, index) => (
+          <div
+            key={`${candidate.id}-${index}`}
+            className={cn(
+              "overflow-hidden rounded-xl bg-slate-200",
+              preview.imageCandidates!.length === 1 ? "col-span-2" : "",
+              preview.imageCandidates!.length === 3 && index === 0
+                ? "row-span-2"
+                : "",
+            )}
+          >
+            <img
+              src={candidate.thumbnailUrl}
+              alt={candidate.name || "素材候选"}
+              className="h-full w-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-slate-200 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] text-sky-600">
+      <Icon className="h-7 w-7" />
+    </div>
+  );
+}
+
+function renderVideoTaskPreview(
+  preview: Extract<MessageTaskPreview, { kind: "video_generate" }>,
+  onOpen?: (preview: MessageTaskPreview) => void,
+  metaItems: string[] = [],
+) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen?.(preview)}
+      data-testid={`task-message-preview-${preview.taskId}`}
+      className="mt-3 block w-full max-w-[560px] text-left"
+    >
+      <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:shadow-slate-950/10">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
+                resolveStatusTone(preview),
+              )}
+            >
+              {preview.status === "running" ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Clapperboard className="h-3.5 w-3.5" />
+              )}
+              {resolveStatusLabel(preview)}
+            </span>
+            <span className="truncate text-[11px] font-semibold text-slate-500">
+              {resolveTaskLabel(preview)}
+            </span>
+          </div>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+            <span>打开查看</span>
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+
+        <div className="grid gap-3 px-4 pb-4 sm:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
+            {preview.thumbnailUrl ? (
+              <img
+                src={preview.thumbnailUrl}
+                alt={preview.prompt || "视频任务封面"}
+                className="aspect-[16/10] h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[16/10] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
+                <div className="flex flex-col items-center gap-2 text-slate-500">
+                  {preview.videoUrl ? (
+                    <PlayCircle className="h-9 w-9 text-sky-500" />
+                  ) : (
+                    <Clapperboard className="h-9 w-9 text-sky-500" />
+                  )}
+                  <span className="text-sm font-medium">
+                    {preview.videoUrl
+                      ? "已同步视频结果"
+                      : resolveStatusLabel(preview)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-3 py-1">
+            <div className="space-y-1.5">
+              <div className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
+                {preview.prompt || "视频任务"}
+              </div>
+              <p className="text-sm leading-6 text-slate-600">
+                {resolveDescription(preview)}
+              </p>
+            </div>
+
+            {metaItems.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {metaItems.map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {preview.providerId?.trim() ? (
+              <div className="text-xs text-slate-500">
+                服务商: {preview.providerId.trim()}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function renderGenericTaskPreview(
+  preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
+  onOpen?: (preview: MessageTaskPreview) => void,
+  metaItems: string[] = [],
+) {
+  const Icon = resolveGenericTaskIcon(preview);
+  const media = renderGenericTaskMedia(preview, Icon);
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen?.(preview)}
+      data-testid={`task-message-preview-${preview.taskId}`}
+      className="mt-3 block w-full max-w-[560px] text-left"
+    >
+      <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:shadow-slate-950/10">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
+                resolveStatusTone(preview),
+              )}
+            >
+              {preview.status === "running" ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Icon className="h-3.5 w-3.5" />
+              )}
+              {resolveStatusLabel(preview)}
+            </span>
+            <span className="truncate text-[11px] font-semibold text-slate-500">
+              {resolveTaskLabel(preview)}
+            </span>
+          </div>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+            <span>打开查看</span>
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+
+        <div className="flex gap-3 px-4 pb-4">
+          {media}
+
+          <div className="min-w-0 flex-1 space-y-2.5 py-1">
+            <div className="space-y-1.5">
+              <div className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
+                {preview.title?.trim() ||
+                  preview.prompt ||
+                  resolveTaskLabel(preview)}
+              </div>
+              <p className="text-sm leading-6 text-slate-600">
+                {resolveDescription(preview)}
+              </p>
+            </div>
+
+            {metaItems.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {metaItems.map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {preview.artifactPath?.trim() ? (
+              <div className="truncate text-xs text-slate-500">
+                任务文件: {preview.artifactPath.trim()}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+export const TaskMessagePreview: React.FC<TaskMessagePreviewProps> = ({
+  preview,
+  onOpen,
+}) => {
+  const metaItems = buildMetaItems(preview);
+
+  if (preview.kind === "video_generate") {
+    return renderVideoTaskPreview(preview, onOpen, metaItems);
+  }
+
+  return renderGenericTaskPreview(preview, onOpen, metaItems);
+};

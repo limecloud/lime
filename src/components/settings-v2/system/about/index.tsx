@@ -20,6 +20,7 @@ import {
   type DownloadUpdateResult,
   type VersionInfo,
 } from "@/lib/api/appUpdate";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 
 const FALLBACK_RELEASES_URL = "https://github.com/aiclientproxy/lime/releases";
@@ -46,7 +47,7 @@ const TARGET_USERS = [
 ] as const;
 
 const PRODUCT_CAPABILITIES = [
-  "Lime 以本机 AI Agent 工作台为核心，默认围绕主题工作台、资源沉淀与创作链路组织能力。",
+  "Lime 以本机 AI Agent 工作台为核心，默认围绕通用工作区、资源沉淀与创作链路组织能力。",
   "常见凭证路径：Kiro `~/.kiro/kiro_creds.json`、Gemini CLI `~/.gemini/oauth_creds.json`、Qwen `~/.qwen-coder/auth.json`。",
 ] as const;
 
@@ -107,8 +108,12 @@ function AboutPanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
       </div>
@@ -129,13 +134,17 @@ function AboutStat({
 }) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/86 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -289,15 +298,19 @@ export function AboutSection() {
               </span>
 
               <div className="space-y-2">
-                <h2 className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把灵感、素材、出图、改稿和沉淀放进同一个创作工作台
-                </h2>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  {t(
-                    "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
-                    "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
-                  )}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-[28px] font-semibold tracking-tight text-slate-900">
+                    把灵感、素材、出图、改稿和沉淀放进同一个创作工作台
+                  </h2>
+                  <WorkbenchInfoTip
+                    ariaLabel="关于 Lime 总览说明"
+                    content={t(
+                      "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
+                      "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
+                    )}
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -336,6 +349,11 @@ export function AboutSection() {
                     <h3 className="text-xl font-semibold tracking-tight text-slate-900">
                       Lime
                     </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="Lime 产品定位说明"
+                      content={t("创作类 AI Agent 平台", "创作类 AI Agent 平台")}
+                      tone="slate"
+                    />
                     <span
                       className={cn(
                         "rounded-full border px-3 py-1 text-xs font-medium",
@@ -345,9 +363,6 @@ export function AboutSection() {
                       {versionBadge.label}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    {t("创作类 AI Agent 平台", "创作类 AI Agent 平台")}
-                  </p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
                     {t("当前版本 {{version}}", {
                       version: versionInfo.current || t("读取中", "读取中"),

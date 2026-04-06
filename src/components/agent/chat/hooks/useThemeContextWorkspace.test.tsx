@@ -130,6 +130,7 @@ describe("useThemeContextWorkspace", () => {
     });
     await flushEffects();
 
+    expect(snapshot!.generalWorkbenchEnabled).toBe(false);
     expect(snapshot!.enabled).toBe(false);
     expect(snapshot!.sidebarContextItems).toEqual([]);
     expect(snapshot!.activeContextPrompt).toBe("");
@@ -182,6 +183,7 @@ describe("useThemeContextWorkspace", () => {
     });
     await flushEffects(12);
 
+    expect(snapshot!.generalWorkbenchEnabled).toBe(true);
     expect(snapshot!.enabled).toBe(true);
     expect(snapshot!.contextBudget.activeCount).toBe(3);
     expect(snapshot!.activeContextPrompt).toContain("[生效上下文]");

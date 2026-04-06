@@ -183,10 +183,19 @@ npm run bridge:health -- --timeout-ms 120000
 - 检查 harness metadata / execution runtime / 后端 request metadata 的关键字段是否漂移
 - 检查浏览器桥接 / mock 优先路径是否同步
 - 检查 `DevBridge` 是否可用
-- 检查纯文本 `Claw @配图` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file` 主链，以及显式 task 动作是否仍然只写 task file，而不是回流前端直连图片服务
+- 检查纯文本 `Claw @配图` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file` 主链，以及显式图片动作是否也已经走 `synthetic user message / displayContent -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file`，而不是回流前端直连图片服务
 - 检查纯文本 `Claw @封面` 是否已经走 `原始用户消息 -> harness.cover_skill_launch -> Agent 首刀 Skill(cover_generate) -> task file` 主链，而不是回流成普通图片命令或前端本地伪造结果
+- 检查纯文本 `Claw @播报` 是否已经走 `原始用户消息 -> harness.broadcast_skill_launch -> Agent 首刀 Skill(broadcast_generate) -> task file` 主链，而不是退回普通聊天改写
+- 检查纯文本 `Claw @素材` 是否已经走 `原始用户消息 -> harness.resource_search_skill_launch -> Agent 首刀 Skill(modal_resource_search) -> task file` 主链，而不是回流到前端本地素材页逻辑
+- 检查纯文本 `Claw @搜索` 是否已经走 `原始用户消息 -> harness.research_skill_launch -> Agent 首刀 Skill(research) -> search_query / tool timeline` 主链，而不是直接凭模型记忆回答
+- 检查纯文本 `Claw @深搜` 是否已经走 `原始用户消息 -> harness.deep_search_skill_launch -> Agent 首刀 Skill(research) -> 多轮 search_query / tool timeline` 主链，而不是退化成一次普通搜索
+- 检查纯文本 `Claw @研报` 是否已经走 `原始用户消息 -> harness.report_skill_launch -> Agent 首刀 Skill(report_generate) -> search_query / tool timeline` 主链，而不是直接退回普通聊天长文
+- 检查纯文本 `Claw @站点搜索` 是否已经走 `原始用户消息 -> harness.site_search_skill_launch -> Agent 首刀 Skill(site_search) -> lime_site_* / tool timeline` 主链，而不是先退回 `research / WebSearch`
+- 检查纯文本 `Claw @读PDF` 是否已经走 `原始用户消息 -> harness.pdf_read_skill_launch -> Agent 首刀 Skill(pdf_read) -> list_directory / read_file / tool timeline` 主链，而不是退回普通聊天总结或前端本地解析
 - 检查纯文本 `Claw @转写` 是否已经走 `原始用户消息 -> harness.transcription_skill_launch -> Agent 首刀 Skill(transcription_generate) -> task file` 主链，而不是回流到前端直连旧 ASR 接口
 - 检查纯文本 `Claw @链接解析` 是否已经走 `原始用户消息 -> harness.url_parse_skill_launch -> Agent 首刀 Skill(url_parse) -> task file` 主链，而不是退回普通聊天总结
+- 检查纯文本 `Claw @排版` 是否已经走 `原始用户消息 -> harness.typesetting_skill_launch -> Agent 首刀 Skill(typesetting) -> task file` 主链，而不是退回普通聊天润色
+- 检查产品型 `/scene-key` 是否已经走 `原始用户消息 -> harness.service_scene_launch -> Agent 首刀 lime_run_service_skill -> OEM run/timeline` 主链，而不是前端直接调用云端 run API
 
 高频场景：
 
@@ -206,10 +215,22 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改浏览器资料 / 环境预设命令族，或调整它们在 `mockPriorityCommands` 里的优先级
 - 修改浏览器连接器命令族，例如安装目录、启用状态、系统连接器、浏览器动作配置、扩展安装状态、打开 Chrome 扩展 / 远程调试页，或主动断开扩展连接
 - 修改 `get_model_registry_provider_ids`、Provider 模型映射或 `src-tauri/resources/models/index.json` 真相源读取语义
-- 修改 `create_image_generation_task_artifact`、`get_media_task_artifact`、`list_media_task_artifacts`、`cancel_media_task_artifact`、`src/lib/api/mediaTasks.ts`、`src/lib/api/skill-execution.ts`、`useWorkspaceSendActions`、`runtime_turn`，或调整 `Claw @配图 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file` 的异步图片任务主链
+- 修改 `create_image_generation_task_artifact`、`get_media_task_artifact`、`list_media_task_artifacts`、`cancel_media_task_artifact`、`src/lib/api/mediaTasks.ts`、`src/lib/api/skill-execution.ts`、`useWorkspaceSendActions`、`useWorkspaceImageWorkbenchActionRuntime`、`runtime_turn`，或调整 `Claw @配图 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task file` 的异步图片任务主链
 - 修改 `@封面` parser、`useWorkspaceSendActions`、`runtime_turn`、`cover_skill_launch`、`lime task create cover`、`cover_generate` skill 或 `lime_create_cover_generation_task`，尤其是调整 `Claw @封面 -> harness.cover_skill_launch -> Agent 首刀 Skill(cover_generate) -> task file` 主链
+- 修改 `@播报` parser、`useWorkspaceSendActions`、`runtime_turn`、`broadcast_skill_launch`、`lime task create broadcast`、`broadcast_generate` skill 或 `lime_create_broadcast_generation_task`，尤其是调整 `Claw @播报 -> harness.broadcast_skill_launch -> Agent 首刀 Skill(broadcast_generate) -> task file` 主链
+- 修改 `@素材` parser、`useWorkspaceSendActions`、`runtime_turn`、`resource_search_skill_launch`、`lime task create resource-search`、`modal_resource_search` skill 或 `lime_create_modal_resource_search_task`，尤其是调整 `Claw @素材 -> harness.resource_search_skill_launch -> Agent 首刀 Skill(modal_resource_search) -> task file` 主链
+- 修改 `@搜索` parser、`useWorkspaceSendActions`、`runtime_turn`、`research_skill_launch`、`research` 默认 skill 或相关 tool timeline 展示，尤其是调整 `Claw @搜索 -> harness.research_skill_launch -> Agent 首刀 Skill(research) -> search_query / timeline` 主链
+- 修改 `@深搜` parser、`useWorkspaceSendActions`、`runtime_turn`、`deep_search_skill_launch`、`research` 默认 skill 或相关 tool timeline 展示，尤其是调整 `Claw @深搜 -> harness.deep_search_skill_launch -> Agent 首刀 Skill(research) -> 多轮 search_query / timeline` 主链
+- 修改 `@研报` parser、`useWorkspaceSendActions`、`runtime_turn`、`report_skill_launch`、`report_generate` 默认 skill 或相关 tool timeline 展示，尤其是调整 `Claw @研报 -> harness.report_skill_launch -> Agent 首刀 Skill(report_generate) -> search_query / timeline` 主链
+- 修改 `@站点搜索` parser、`useWorkspaceSendActions`、`runtime_turn`、`site_search_skill_launch`、`site_search` 默认 skill 或相关 `lime_site_*` timeline 展示，尤其是调整 `Claw @站点搜索 -> harness.site_search_skill_launch -> Agent 首刀 Skill(site_search) -> lime_site_* / timeline` 主链
+- 修改 `@读PDF` parser、`useWorkspaceSendActions`、`runtime_turn`、`pdf_read_skill_launch`、`pdf_read` 默认 skill 或相关 `list_directory / read_file` timeline 展示，尤其是调整 `Claw @读PDF -> harness.pdf_read_skill_launch -> Agent 首刀 Skill(pdf_read) -> list_directory / read_file / timeline` 主链
+- 修改 `@总结` parser、`useWorkspaceSendActions`、`runtime_turn`、`summary_skill_launch`、`summary` 默认 skill 或相关 skill / tool timeline 展示，尤其是调整 `Claw @总结 -> harness.summary_skill_launch -> Agent 首刀 Skill(summary) -> 可选 list_directory/read_file / timeline` 主链
+- 修改 `@翻译` parser、`useWorkspaceSendActions`、`runtime_turn`、`translation_skill_launch`、`translation` 默认 skill 或相关 skill / tool timeline 展示，尤其是调整 `Claw @翻译 -> harness.translation_skill_launch -> Agent 首刀 Skill(translation) -> 可选 list_directory/read_file / timeline` 主链
+- 修改 `@分析` parser、`useWorkspaceSendActions`、`runtime_turn`、`analysis_skill_launch`、`analysis` 默认 skill 或相关 skill / tool timeline 展示，尤其是调整 `Claw @分析 -> harness.analysis_skill_launch -> Agent 首刀 Skill(analysis) -> 可选 list_directory/read_file / timeline` 主链
 - 修改 `@转写` parser、`useWorkspaceSendActions`、`runtime_turn`、`transcription_skill_launch`、`lime task create transcription`、`transcription_generate` skill 或 `lime_create_transcription_task`，尤其是调整 `Claw @转写 -> harness.transcription_skill_launch -> Agent 首刀 Skill(transcription_generate) -> task file` 主链
 - 修改 `@链接解析` parser、`useWorkspaceSendActions`、`runtime_turn`、`url_parse_skill_launch`、`lime task create url-parse`、`url_parse` skill 或 `lime_create_url_parse_task`，尤其是调整 `Claw @链接解析 -> harness.url_parse_skill_launch -> Agent 首刀 Skill(url_parse) -> task file` 主链
+- 修改 `@排版` parser、`useWorkspaceSendActions`、`runtime_turn`、`typesetting_skill_launch`、`lime task create typesetting`、`typesetting` skill 或 `lime_create_typesetting_task`，尤其是调整 `Claw @排版 -> harness.typesetting_skill_launch -> Agent 首刀 Skill(typesetting) -> task file` 主链
+- 修改 `/scene-key` 解析、`serviceSkillSceneLaunch`、`useWorkspaceSendActions`、`runtime_turn`、`prompt_context`、`lime_run_service_skill` 或 `client/skills` scene 目录协议，尤其是调整 `Claw /scene-key -> harness.service_scene_launch -> Agent 首刀 lime_run_service_skill -> OEM run/timeline` 主链
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
@@ -219,6 +240,7 @@ npm run bridge:health -- --timeout-ms 120000
 
 - `npm run test:contracts`
 - `imageWorkbenchCommand`、`useWorkspaceSendActions`、受影响 skill / image task Hook 单测，以及 `aster_agent_cmd` 图片主链定向测试
+- 如果本轮还改了显式图片动作入口，例如文稿 inline 配图、封面位或图片工作台编辑/重绘，额外覆盖 `useWorkspaceImageWorkbenchActionRuntime` 或对应发送桥接回归
 - 若本轮还改了显式 `execute_skill` 的 `images / requestContext` 透传或 compat 续接，额外覆盖 `skillCommand` 回归
 - 受影响的 `image task` / `image workbench` Hook 单测
 - `npm run verify:gui-smoke`
@@ -238,6 +260,69 @@ npm run bridge:health -- --timeout-ms 120000
 - `npm run test:contracts`
 - `npm run verify:gui-smoke`
 
+如果本轮修改了 `Claw @播报` 或播报任务协议，最低校验至少包含：
+
+- `broadcastWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 播报主链定向测试
+- `lime-cli` 播报任务创建测试、受影响的默认 skill / tool catalog 测试
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @素材` 或素材检索任务协议，最低校验至少包含：
+
+- `resourceSearchWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 素材检索主链定向测试
+- `lime-cli` 资源检索任务创建测试、受影响的默认 skill / tool catalog 测试
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @搜索` 或搜索 prompt skill 协议，最低校验至少包含：
+
+- `searchWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 搜索主链定向测试
+- `research` 默认 skill / tool catalog 相关回归
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @深搜` 或深搜 prompt skill 协议，最低校验至少包含：
+
+- `deepSearchWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 深搜主链定向测试
+- `research` 默认 skill / tool catalog 相关回归，且要确认没有退化成只执行一轮浅搜
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @研报` 或研报 prompt skill 协议，最低校验至少包含：
+
+- `reportWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 研报主链定向测试
+- `report_generate` 默认 skill / `skillCatalog` 相关回归，且要确认没有退回普通聊天长文或跳过真实 `search_query`
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @站点搜索` 或站点搜索 prompt skill 协议，最低校验至少包含：
+
+- `siteSearchWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 站点搜索主链定向测试
+- `site_search` 默认 skill / `lime_site_*` tool catalog 相关回归
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @总结` 或总结 prompt skill 协议，最低校验至少包含：
+
+- `summaryWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 总结主链定向测试
+- `summary` 默认 skill / `skillCatalog` 相关回归；若支持文件路径总结，还要确认没有跳过真实 `list_directory / read_file` timeline
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @翻译` 或翻译 prompt skill 协议，最低校验至少包含：
+
+- `translationWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 翻译主链定向测试
+- `translation` 默认 skill / `skillCatalog` 相关回归；若支持文件路径翻译，还要确认没有跳过真实 `list_directory / read_file` timeline
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @分析` 或分析 prompt skill 协议，最低校验至少包含：
+
+- `analysisWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 分析主链定向测试
+- `analysis` 默认 skill / `skillCatalog` 相关回归；若支持文件路径分析，还要确认没有跳过真实 `list_directory / read_file` timeline
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
 如果本轮修改了 `Claw @转写` 或转写任务协议，最低校验至少包含：
 
 - `transcriptionWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 转写主链定向测试
@@ -249,6 +334,13 @@ npm run bridge:health -- --timeout-ms 120000
 
 - `urlParseWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 链接解析主链定向测试
 - `lime-cli` 链接解析任务创建测试、受影响的默认 skill / tool catalog 测试
+- `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @排版` 或排版任务协议，最低校验至少包含：
+
+- `typesettingWorkbenchCommand`、`useWorkspaceSendActions`、提及面板 builtin command 回归，以及 `aster_agent_cmd` 排版主链定向测试
+- `lime-cli` 排版任务创建测试、受影响的默认 skill / tool catalog 测试
 - `npm run test:contracts`
 - 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
 
@@ -300,7 +392,7 @@ npm run bridge:health -- --timeout-ms 120000
   - 切换到新 content 但 runtime 尚未同步时，前端仍会保留显式 `content_id`
 - 如果这次改动把 `theme / session_mode` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - session 已有 `execution_runtime.recent_theme / recent_session_mode` 时，前端不会重复提交相同 `harness.theme / harness.session_mode`
-  - 切换到新 theme 或 `theme_workbench` 但 runtime 尚未同步时，前端仍会保留显式 `theme / session_mode`
+  - 切换到新 theme 或 `general_workbench` 但 runtime 尚未同步时，前端仍会保留显式 `theme / session_mode`
 - 如果这次改动影响 `harness.team_memory_shadow` 这类 repo-scoped Team 协作上下文，除了契约检查之外，还应补：
   - 前端发送边界回归，确认 `team_memory_shadow` 能随当前请求进入 `agent_runtime_submit_turn`
   - Rust `prompt_context` 定向测试，确认 shadow 只作为低优先级协作参考，不覆盖显式 `selected_team_*` 或 `recent_team_selection`
@@ -315,7 +407,7 @@ npm run bridge:health -- --timeout-ms 120000
   - execution_runtime 缺失但本地 shadow 已命中时，前端仍会回填 `recent_access_mode` 到 session
 - 如果这次改动把 `gate_key / run_title` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：
   - session 已有 `execution_runtime.recent_gate_key / recent_run_title` 时，前端不会重复提交相同 `harness.gate_key / harness.run_title`
-  - 切换到新的 Theme Workbench gate 或运行标题、但 runtime 尚未同步时，前端仍会保留显式 `gate_key / run_title`
+  - 切换到新的通用工作区 gate 或运行标题、但 runtime 尚未同步时，前端仍会保留显式 `gate_key / run_title`
 - 如果这次改动影响浏览器工作台里的站点采集链路，例如推荐区、资料自动选择、`site_get_adapter_launch_readiness` 门禁、`report_hint` 展示、`lime_site_recommend`，或“优先写回当前 `content_id` 而不是新建资源文档”的主线收敛，除了契约检查，还应补对应 `*.test.tsx` 回归并执行 `verify:gui-smoke`。
 - 如果这次改动影响浏览器资料 / 环境预设的真实来源，还应补一次浏览器模式实测，确认控制台不再出现 `[Mock] invoke: list_browser_profiles_cmd` 或 `[Mock] invoke: list_browser_environment_presets_cmd`。
 - 如果这次改动影响设置页“连接器”主路径或 Chrome 扩展导出链路，除了 `test:contracts`，还应补对应设置页回归，并在 GUI smoke 或 Playwright 续测里确认连接器页能打开、目录可选、扩展状态可读。

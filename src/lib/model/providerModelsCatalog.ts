@@ -1,14 +1,11 @@
-import {
-  getAliasConfigKey,
-  isAliasProvider,
-} from "@/lib/constants/providerMappings";
+import { isAliasProvider } from "@/lib/constants/providerMappings";
 import { inferModelCapabilities } from "@/lib/model/inferModelCapabilities";
 import type {
   EnhancedModelMetadata,
   ProviderAliasConfig,
 } from "@/lib/types/modelRegistry";
 
-export interface ProviderModelsCatalogProvider {
+interface ProviderModelsCatalogProvider {
   key: string;
   label: string;
   registryId: string;
@@ -16,7 +13,7 @@ export interface ProviderModelsCatalogProvider {
   customModels?: string[];
 }
 
-export interface BuiltProviderModelsResult {
+interface BuiltProviderModelsResult {
   modelIds: string[];
   models: EnhancedModelMetadata[];
   hasLocalModels: boolean;
@@ -225,15 +222,4 @@ export function buildProviderModelsFromRegistry(
     models: fallbackModels,
     hasLocalModels: false,
   };
-}
-
-export async function loadAliasConfigForProvider(
-  provider: Pick<ProviderModelsCatalogProvider, "key">,
-  loadAliasConfig: (providerKey: string) => Promise<ProviderAliasConfig | null>,
-): Promise<ProviderAliasConfig | null> {
-  if (!isAliasProvider(provider.key)) {
-    return null;
-  }
-
-  return loadAliasConfig(getAliasConfigKey(provider.key));
 }

@@ -30,17 +30,20 @@ import {
   ArtifactWorkbenchPreview,
   WorkspaceLiveCanvasPreview,
 } from "./workbenchPreview";
-import {
-  renderCanvasWorkbenchPreviewTarget,
-  type RenderArtifactWorkbenchPreviewOptions,
-} from "./workbenchPreviewHelpers";
+import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
 import { buildCanvasWorkbenchDefaultPreview } from "./canvasWorkbenchDefaultPreview";
 import {
   useTeamWorkbenchPresentation,
   type TeamWorkbenchSurfaceProps,
-  type UseTeamWorkbenchPresentationParams,
 } from "./teamWorkbenchPresentation";
 import { hasRenderableGeneralCanvasPreview } from "./generalCanvasPreviewState";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
+import type {
+  TeamWorkspaceActivityEntry,
+  TeamWorkspaceControlSummary,
+  TeamWorkspaceRuntimeFormationState,
+  TeamWorkspaceWaitSummary,
+} from "../teamWorkspaceRuntime";
 
 type ArtifactPreviewBaseProps = Omit<
   ComponentProps<typeof ArtifactWorkbenchPreview>,
@@ -53,6 +56,12 @@ type GeneralCanvasPanelProps = Omit<
   ComponentProps<typeof GeneralCanvasPanel>,
   "toolbarActions"
 >;
+type RenderArtifactWorkbenchPreviewOptions = {
+  stackedWorkbenchTrigger?: ReactNode;
+  onArtifactDocumentControllerChange?: ComponentProps<
+    typeof ArtifactWorkbenchPreview
+  >["onArtifactDocumentControllerChange"];
+};
 
 interface WorkspaceCanvasDefaultPreviewParams {
   workspaceRoot: string | null;
@@ -174,12 +183,16 @@ interface WorkspaceCanvasPreviewFactoryParams {
   preferContentReviewInRightRail: boolean;
 }
 
-interface WorkspaceCanvasPreviewTeamWorkbenchParams extends Omit<
-  UseTeamWorkbenchPresentationParams,
-  "surfaceProps"
-> {
+interface WorkspaceCanvasPreviewTeamWorkbenchParams {
+  enabled: boolean;
   surfaceProps: TeamWorkbenchSurfaceProps;
-  teamMemorySnapshot?: UseTeamWorkbenchPresentationParams["teamMemorySnapshot"];
+  hasRealTeamGraph: boolean;
+  autoFocusToken?: string | number | null;
+  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
+  liveActivityBySessionId?: Record<string, TeamWorkspaceActivityEntry[]>;
+  teamWaitSummary?: TeamWorkspaceWaitSummary | null;
+  teamControlSummary?: TeamWorkspaceControlSummary | null;
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
 }
 
 interface UseWorkspaceCanvasPreviewPresentationParams {
@@ -527,14 +540,42 @@ export function useWorkspaceCanvasPreviewPresentation({
       options?: {
         stackedWorkbenchTrigger?: ReactNode;
       },
-    ) =>
-      renderCanvasWorkbenchPreviewTarget({
-        target,
-        stackedWorkbenchTrigger: options?.stackedWorkbenchTrigger,
-        renderDefaultCanvasPreview: renderLiveCanvasPreview,
-        renderArtifactPreview: renderArtifactWorkbenchPreview,
-        renderTeamWorkbenchPreview,
-      }),
+    ) => {
+      const stackedWorkbenchTrigger = options?.stackedWorkbenchTrigger;
+      const renderWorkbenchStatePreview = (
+        kind: "loading" | "unsupported" | "empty",
+        text: string,
+      ) =>
+        wrapPreviewWithWorkbenchTrigger(
+          <div
+            data-testid={`canvas-workbench-preview-${kind}`}
+            className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-sm text-slate-500"
+          >
+            {text}
+          </div>,
+          stackedWorkbenchTrigger,
+        );
+
+      switch (target.kind) {
+        case "default-canvas":
+          return renderLiveCanvasPreview(stackedWorkbenchTrigger);
+        case "artifact":
+        case "synthetic-artifact":
+          return renderArtifactWorkbenchPreview(target.artifact, {
+            stackedWorkbenchTrigger,
+          });
+        case "loading":
+          return renderWorkbenchStatePreview("loading", "正在准备预览...");
+        case "unsupported":
+          return renderWorkbenchStatePreview("unsupported", target.reason);
+        case "empty":
+          return renderWorkbenchStatePreview("empty", "暂无可预览内容");
+        case "team-workbench":
+          return renderTeamWorkbenchPreview(stackedWorkbenchTrigger);
+        default:
+          return null;
+      }
+    },
     [
       renderArtifactWorkbenchPreview,
       renderLiveCanvasPreview,

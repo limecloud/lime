@@ -124,7 +124,7 @@ describe("AutomationJobDialog", () => {
             },
             harness: {
               theme: "general",
-              session_mode: "theme_workbench",
+              session_mode: "general_workbench",
               content_id: "content-1",
             },
           },
@@ -158,7 +158,7 @@ describe("AutomationJobDialog", () => {
             }),
             harness: expect.objectContaining({
               theme: "general",
-              session_mode: "theme_workbench",
+              session_mode: "general_workbench",
               content_id: "content-1",
             }),
           }),

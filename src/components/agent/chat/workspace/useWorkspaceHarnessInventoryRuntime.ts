@@ -5,9 +5,9 @@ import {
 } from "@/lib/api/agentRuntime";
 import { extractArtifactProtocolPathsFromRecord } from "@/lib/artifact-protocol";
 import type {
-  ThemeWorkbenchRunState as BackendThemeWorkbenchRunState,
-  ThemeWorkbenchRunTerminalItem,
-  ThemeWorkbenchRunTodoItem,
+  GeneralWorkbenchRunState as BackendGeneralWorkbenchRunState,
+  GeneralWorkbenchRunTerminalItem,
+  GeneralWorkbenchRunTodoItem,
 } from "@/lib/api/executionRun";
 
 interface UseWorkspaceHarnessInventoryRuntimeParams {
@@ -22,8 +22,8 @@ interface UseWorkspaceHarnessInventoryRuntimeParams {
     title: string;
     description: string;
   };
-  themeWorkbenchBackendRunState: BackendThemeWorkbenchRunState | null;
-  themeWorkbenchActiveQueueItem: ThemeWorkbenchRunTodoItem | null | undefined;
+  themeWorkbenchBackendRunState: BackendGeneralWorkbenchRunState | null;
+  themeWorkbenchActiveQueueItem: GeneralWorkbenchRunTodoItem | null | undefined;
   harnessPendingCount: number;
 }
 
@@ -110,12 +110,12 @@ export function useWorkspaceHarnessInventoryRuntime({
     void refreshToolInventory();
   }, [enabled, harnessPanelVisible, refreshToolInventory]);
 
-  const themeWorkbenchHarnessSummary = useMemo(() => {
+  const generalWorkbenchHarnessSummary = useMemo(() => {
     if (!enabled || !isThemeWorkbench) {
       return null;
     }
 
-    const latestTerminal: ThemeWorkbenchRunTerminalItem | null =
+    const latestTerminal: GeneralWorkbenchRunTerminalItem | null =
       themeWorkbenchBackendRunState?.latest_terminal ?? null;
     const activeRun = themeWorkbenchActiveQueueItem ?? latestTerminal;
     const activeArtifactPaths = extractArtifactProtocolPathsFromRecord(
@@ -160,6 +160,6 @@ export function useWorkspaceHarnessInventoryRuntime({
     toolInventoryLoading,
     toolInventoryError,
     refreshToolInventory,
-    themeWorkbenchHarnessSummary,
+    generalWorkbenchHarnessSummary,
   };
 }

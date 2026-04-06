@@ -11,6 +11,26 @@ export interface UseVoiceSoundReturn {
   playStopSound: () => void;
 }
 
+function tryPreloadAudio(audio: HTMLAudioElement): void {
+  if (typeof audio.load !== "function") {
+    return;
+  }
+
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.userAgent === "string" &&
+    navigator.userAgent.toLowerCase().includes("jsdom")
+  ) {
+    return;
+  }
+
+  try {
+    audio.load();
+  } catch {
+    // jsdom 不支持 HTMLMediaElement.load，测试环境下静默跳过即可。
+  }
+}
+
 /**
  * 语音录音音效 Hook
  * @param enabled 是否启用音效
@@ -24,12 +44,12 @@ export function useVoiceSound(enabled: boolean): UseVoiceSoundReturn {
     if (!startAudioRef.current) {
       startAudioRef.current = new Audio("/sounds/recording-start.wav");
       startAudioRef.current.volume = 0.8;
-      startAudioRef.current.load();
+      tryPreloadAudio(startAudioRef.current);
     }
     if (!stopAudioRef.current) {
       stopAudioRef.current = new Audio("/sounds/recording-stop.wav");
       stopAudioRef.current.volume = 0.8;
-      stopAudioRef.current.load();
+      tryPreloadAudio(stopAudioRef.current);
     }
   }, []);
 

@@ -5,6 +5,9 @@
 
 use serde_json::{Map, Value};
 
+const GENERAL_WORKBENCH_SESSION_MODE: &str = "general_workbench";
+const LEGACY_GENERAL_WORKBENCH_SESSION_MODE_ALIAS: &str = "theme_workbench";
+
 const ARTIFACT_MEANINGFUL_KEYS: &[&str] = &[
     "artifact_mode",
     "artifactMode",
@@ -31,6 +34,16 @@ fn normalize_text(value: Option<&str>) -> Option<String> {
         .map(str::to_string)
 }
 
+fn normalize_session_mode_text(value: Option<&str>) -> Option<String> {
+    match normalize_text(value)?.as_str() {
+        GENERAL_WORKBENCH_SESSION_MODE | LEGACY_GENERAL_WORKBENCH_SESSION_MODE_ALIAS => {
+            Some(GENERAL_WORKBENCH_SESSION_MODE.to_string())
+        }
+        "default" => Some("default".to_string()),
+        _ => None,
+    }
+}
+
 fn root_object(request_metadata: Option<&Value>) -> Option<&Map<String, Value>> {
     request_metadata?.as_object()
 }
@@ -49,6 +62,40 @@ fn extract_harness_string(request_metadata: Option<&Value>, keys: &[&str]) -> Op
         .filter_map(|key| harness.get(*key))
         .find_map(Value::as_str)
         .and_then(|value| normalize_text(Some(value)))
+}
+
+fn extract_harness_session_mode(request_metadata: Option<&Value>) -> Option<String> {
+    normalize_session_mode_text(
+        extract_harness_string(request_metadata, &["session_mode", "sessionMode"]).as_deref(),
+    )
+}
+
+fn normalize_harness_session_mode_field(request_metadata: Value) -> Value {
+    let Some(normalized_session_mode) = extract_harness_session_mode(Some(&request_metadata))
+    else {
+        return request_metadata;
+    };
+
+    let mut request_metadata = request_metadata;
+    let Some(root) = request_metadata.as_object_mut() else {
+        return request_metadata;
+    };
+
+    if let Some(harness) = root.get_mut("harness").and_then(Value::as_object_mut) {
+        harness.insert(
+            "session_mode".to_string(),
+            Value::String(normalized_session_mode),
+        );
+        harness.remove("sessionMode");
+        return request_metadata;
+    }
+
+    root.insert(
+        "session_mode".to_string(),
+        Value::String(normalized_session_mode),
+    );
+    root.remove("sessionMode");
+    request_metadata
 }
 
 fn is_flat_artifact_metadata_key(key: &str) -> bool {
@@ -117,8 +164,8 @@ fn infer_source_policy(kind: Option<&str>) -> Option<&'static str> {
 }
 
 fn should_enable_artifact_draft(request_metadata: Option<&Value>) -> bool {
-    if extract_harness_string(request_metadata, &["session_mode", "sessionMode"]).as_deref()
-        != Some("theme_workbench")
+    if extract_harness_session_mode(request_metadata).as_deref()
+        != Some(GENERAL_WORKBENCH_SESSION_MODE)
     {
         return false;
     }
@@ -183,6 +230,7 @@ pub fn normalize_request_metadata_with_artifact_defaults(
     content_id_fallback: Option<&str>,
 ) -> Option<Value> {
     let request_metadata = request_metadata?;
+    let request_metadata = normalize_harness_session_mode_field(request_metadata);
     let request_metadata = backfill_harness_string_if_missing(
         request_metadata,
         &["theme", "harness_theme", "harnessTheme"],
@@ -294,11 +342,11 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn should_infer_theme_workbench_artifact_defaults_from_harness() {
+    fn should_infer_general_workbench_artifact_defaults_from_harness() {
         let metadata = json!({
             "harness": {
                 "theme": "general",
-                "session_mode": "theme_workbench",
+                "session_mode": "general_workbench",
                 "content_id": "content-1"
             }
         });
@@ -356,7 +404,7 @@ mod tests {
         let metadata = json!({
             "harness": {
                 "theme": "general",
-                "session_mode": "theme_workbench",
+                "session_mode": "general_workbench",
                 "turn_purpose": "content_review",
                 "content_id": "content-1"
             }
@@ -422,7 +470,7 @@ mod tests {
         let metadata = json!({
             "harness": {
                 "theme": "general",
-                "session_mode": "theme_workbench"
+                "session_mode": "general_workbench"
             }
         });
 
@@ -461,7 +509,7 @@ mod tests {
         let normalized = normalize_request_metadata_with_artifact_defaults(
             Some(metadata),
             Some("general"),
-            Some("theme_workbench"),
+            Some("general_workbench"),
             None,
             None,
             None,
@@ -476,7 +524,7 @@ mod tests {
             normalized
                 .pointer("/harness/session_mode")
                 .and_then(Value::as_str),
-            Some("theme_workbench")
+            Some("general_workbench")
         );
         assert_eq!(
             normalized
@@ -491,7 +539,7 @@ mod tests {
         let metadata = json!({
             "harness": {
                 "theme": "general",
-                "session_mode": "theme_workbench",
+                "session_mode": "general_workbench",
                 "content_id": "content-social-1"
             }
         });

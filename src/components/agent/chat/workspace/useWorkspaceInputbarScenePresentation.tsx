@@ -7,7 +7,7 @@ import {
 import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
 import { resolveCanvasTaskFileTarget } from "../utils/taskFileCanvasSync";
-import { isRenderableTaskFile } from "./themeWorkbenchHelpers";
+import { isRenderableTaskFile } from "./generalWorkbenchHelpers";
 import { useWorkspaceInputbarPresentation } from "./useWorkspaceInputbarPresentation";
 
 type WorkspaceInputbarPresentationParams = Parameters<
@@ -32,9 +32,9 @@ interface UseWorkspaceInputbarScenePresentationParams {
       | "onSelectCharacter"
     >;
     floatingTeamWorkspaceDock: WorkspaceInputbarPresentationParams["floatingTeamWorkspaceDock"];
-    themeWorkbenchEntryPrompt: WorkspaceInputbarPresentationParams["themeWorkbenchEntryPrompt"];
-    onRestartThemeWorkbenchEntryPrompt: WorkspaceInputbarPresentationParams["onRestartThemeWorkbenchEntryPrompt"];
-    onContinueThemeWorkbenchEntryPrompt: WorkspaceInputbarPresentationParams["onContinueThemeWorkbenchEntryPrompt"];
+    generalWorkbenchEntryPrompt: WorkspaceInputbarPresentationParams["generalWorkbenchEntryPrompt"];
+    onRestartGeneralWorkbenchEntryPrompt: WorkspaceInputbarPresentationParams["onRestartGeneralWorkbenchEntryPrompt"];
+    onContinueGeneralWorkbenchEntryPrompt: WorkspaceInputbarPresentationParams["onContinueGeneralWorkbenchEntryPrompt"];
     generalWorkbenchDialog: WorkspaceInputbarPresentationParams["generalWorkbenchDialog"];
   };
 }
@@ -117,11 +117,12 @@ export function useWorkspaceInputbarScenePresentation({
     },
     floatingTeamWorkspaceDock:
       inputbarPresentation.floatingTeamWorkspaceDock,
-    themeWorkbenchEntryPrompt: inputbarPresentation.themeWorkbenchEntryPrompt,
-    onRestartThemeWorkbenchEntryPrompt:
-      inputbarPresentation.onRestartThemeWorkbenchEntryPrompt,
-    onContinueThemeWorkbenchEntryPrompt:
-      inputbarPresentation.onContinueThemeWorkbenchEntryPrompt,
+    generalWorkbenchEntryPrompt:
+      inputbarPresentation.generalWorkbenchEntryPrompt,
+    onRestartGeneralWorkbenchEntryPrompt:
+      inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt,
+    onContinueGeneralWorkbenchEntryPrompt:
+      inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
     generalWorkbenchDialog: inputbarPresentation.generalWorkbenchDialog,
   });
 

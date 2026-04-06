@@ -13,6 +13,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
@@ -173,12 +174,16 @@ export function MediaServicesSettings({
                 MEDIA SERVICES
               </span>
               <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                  媒体服务
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                  将图片、视频和语音的全局默认服务集中到一个工作台里管理，减少在侧栏来回切换，也让默认策略更容易统一。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                    媒体服务
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="媒体服务总览说明"
+                    content="将图片、视频和语音的全局默认服务集中到一个工作台里管理，减少在侧栏来回切换，也让默认策略更容易统一。"
+                    tone="mint"
+                  />
+                </div>
               </div>
             </div>
 
@@ -186,10 +191,12 @@ export function MediaServicesSettings({
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 <Sparkles className="h-4 w-4 text-slate-500" />
                 统一入口
+                <WorkbenchInfoTip
+                  ariaLabel="统一入口说明"
+                  content="图片、视频和语音只保留一个设置入口，正式切换交互放在下方 Tabs，Hero 只负责说明页面目的和当前焦点。"
+                  tone="slate"
+                />
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                图片、视频和语音只保留一个设置入口，正式切换交互放在下方 Tabs，Hero 只负责说明页面目的和当前焦点。
-              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {MEDIA_SERVICE_TABS.map((item) => (
                   <span
@@ -219,21 +226,23 @@ export function MediaServicesSettings({
                 </div>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                      {activeMeta.panelTitle}
-                    </h2>
-                    <span
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                      <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                        {activeMeta.panelTitle}
+                      </h2>
+                      <WorkbenchInfoTip
+                        ariaLabel={`${activeMeta.panelTitle}说明`}
+                        content={activeMeta.panelDescription}
+                        tone="slate"
+                      />
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
                         activeMeta.badgeClassName,
                       )}
                     >
                       当前页签
                     </span>
                   </div>
-                  <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                    {activeMeta.panelDescription}
-                  </p>
                 </div>
               </div>
 
@@ -262,9 +271,13 @@ export function MediaServicesSettings({
               <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
                 在一个视图里切换媒体能力
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                三类能力共享同一页的上下文信息，但各自保留独立设置区域，避免页面拆散后产生重复认知成本。
-              </p>
+              <div className="mt-2">
+                <WorkbenchInfoTip
+                  ariaLabel="在一个视图里切换媒体能力说明"
+                  content="三类能力共享同一页的上下文信息，但各自保留独立设置区域，避免页面拆散后产生重复认知成本。"
+                  tone="slate"
+                />
+              </div>
             </div>
 
             <TabsList className="grid h-auto w-full max-w-[560px] grid-cols-1 gap-2 rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-2 shadow-sm sm:grid-cols-3">
@@ -337,9 +350,13 @@ export function MediaServicesSettings({
                           <h3 className="text-lg font-semibold tracking-tight text-slate-900">
                             {item.label}
                           </h3>
-                          <p className="mt-1 text-sm leading-6 text-slate-600">
-                            {item.description}
-                          </p>
+                          <div className="mt-1">
+                            <WorkbenchInfoTip
+                              ariaLabel={`${item.label}说明`}
+                              content={item.description}
+                              tone="slate"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>

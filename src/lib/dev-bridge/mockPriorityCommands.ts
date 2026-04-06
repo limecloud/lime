@@ -33,7 +33,7 @@ const mockPriorityCommands = new Set<string>([
   "session_files_read_file",
   "session_files_delete_file",
   "save_exported_document",
-  "execution_run_get_theme_workbench_state",
+  "execution_run_get_general_workbench_state",
   "get_hint_routes",
   "openclaw_check_installed",
   "openclaw_get_environment_status",
@@ -77,5 +77,3 @@ const mockPriorityCommands = new Set<string>([
 export function shouldPreferMockInBrowser(cmd: string): boolean {
   return mockPriorityCommands.has(cmd);
 }
-
-export { mockPriorityCommands };

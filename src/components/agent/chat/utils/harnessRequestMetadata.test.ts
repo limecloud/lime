@@ -4,6 +4,7 @@ import {
   buildHarnessRequestMetadata,
   extractExistingHarnessMetadata,
 } from "./harnessRequestMetadata";
+import { normalizeHarnessSessionMode } from "./harnessSessionMode";
 
 describe("harnessRequestMetadata", () => {
   it("应保留已有 harness metadata 并覆盖当前字段", () => {
@@ -170,10 +171,31 @@ describe("harnessRequestMetadata", () => {
         task: false,
         subagent: false,
       },
-      sessionMode: "theme_workbench",
+      sessionMode: "general_workbench",
     });
 
     expect(metadata.turn_purpose).toBe("content_review");
+  });
+
+  it("应将 legacy general workbench alias 会话模式归一为 general_workbench", () => {
+    expect(normalizeHarnessSessionMode("theme_workbench")).toBe(
+      "general_workbench",
+    );
+
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: false,
+        subagent: false,
+      },
+      sessionMode: "theme_workbench",
+      gateKey: "write_mode",
+    });
+
+    expect(metadata.session_mode).toBe("general_workbench");
+    expect(metadata.gate_key).toBe("write_mode");
   });
 
   it("应保留 Team 角色的 profileId、roleKey 与 skillIds", () => {
@@ -270,7 +292,7 @@ describe("harnessRequestMetadata", () => {
         task: true,
         subagent: true,
       },
-      sessionMode: "theme_workbench",
+      sessionMode: "general_workbench",
       gateKey: "publish_confirm",
       browserRequirement: "required_with_user_step",
       browserRequirementReason: "需要登录站点后继续",

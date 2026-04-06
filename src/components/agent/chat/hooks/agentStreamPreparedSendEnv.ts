@@ -30,6 +30,8 @@ export interface AgentStreamPreparedSendEnv {
   sessionIdRef: MutableRefObject<string | null>;
   getQueuedTurnsCount: () => number;
   isThreadBusy: () => boolean;
+  hasPendingPreparedSubmit: () => boolean;
+  runPreparedSubmit: <T>(task: () => Promise<T>) => Promise<T>;
   getRequiredWorkspaceId: () => string;
   getSyncedSessionModelPreference: (
     sessionId: string,
@@ -70,7 +72,10 @@ export interface AgentStreamPreparedSendEnv {
 }
 
 export interface CreateAgentStreamPreparedSendEnvOptions
-  extends Omit<AgentStreamPreparedSendEnv, "getQueuedTurnsCount" | "isThreadBusy"> {
+  extends Omit<
+    AgentStreamPreparedSendEnv,
+    "getQueuedTurnsCount" | "isThreadBusy"
+  > {
   queuedTurnsCount: number;
   threadBusy: boolean;
 }

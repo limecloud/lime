@@ -1,8 +1,10 @@
 # Skills 异步图片任务与动态渲染 PRD
 
+> 说明：本文件已降级为历史背景文档，`@配图` current 主方案请以 [docs/prd/gongneng/peitu/prd.md](/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/prd/gongneng/peitu/prd.md) 与 [docs/aiprompts/command-runtime.md](/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/aiprompts/command-runtime.md) 为准。当前首发入口已经统一收敛到 `image_skill_launch -> Agent -> Skill(image_generate) -> task file` 主链，不再保留“前端快路径”作为 current 实现。
+
 > 文档版本：v1.0
 > 状态：Draft
-> 更新时间：2026-04-03
+> 更新时间：2026-04-06
 > 适用范围：`image_generate` skill、`lime-cli`、媒体任务协议、Claw 对话框、图片工作台
 > 目标读者：产品、前端、Rust/CLI、测试
 
@@ -585,4 +587,3 @@ skill 输出的语义是：
 - 测试可做
 - 能力可组合
 - 后续可扩展到队列、重试、自动化与多 worker
-

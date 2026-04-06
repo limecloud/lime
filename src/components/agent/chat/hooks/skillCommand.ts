@@ -12,6 +12,7 @@ import type {
   Message,
   MessageImage,
   MessageImageWorkbenchPreview,
+  MessageTaskPreview,
   WriteArtifactContext,
 } from "../types";
 import {
@@ -26,6 +27,16 @@ import {
   CONTENT_POST_OUTPUT_DIR,
   CONTENT_POST_SKILL_KEY,
 } from "../utils/contentPostSkill";
+import {
+  buildImageTaskPreviewFromToolResult,
+  buildTaskPreviewFromToolResult,
+  buildToolResultArtifactFromToolResult,
+} from "../utils/taskPreviewFromToolResult";
+import {
+  buildArtifactFromWrite,
+  findMessageArtifact,
+  upsertMessageArtifact,
+} from "../utils/messageArtifacts";
 
 /** 解析 /skill-name args 命令 */
 export interface ParsedSkillCommand {
@@ -271,189 +282,6 @@ function resolveSnapshotStatus(
   return "complete";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  return value as Record<string, unknown>;
-}
-
-function readMetadataString(
-  candidates: Array<Record<string, unknown> | null | undefined>,
-  keys: string[],
-): string | undefined {
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-    for (const key of keys) {
-      const value = candidate[key];
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
-    }
-  }
-  return undefined;
-}
-
-function readMetadataPositiveNumber(
-  candidates: Array<Record<string, unknown> | null | undefined>,
-  keys: string[],
-): number | undefined {
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-    for (const key of keys) {
-      const value = candidate[key];
-      if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-        return value;
-      }
-      if (typeof value === "string" && value.trim()) {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed) && parsed > 0) {
-          return parsed;
-        }
-      }
-    }
-  }
-  return undefined;
-}
-
-function resolveImageTaskPreviewStatus(
-  status: string | undefined,
-): MessageImageWorkbenchPreview["status"] {
-  switch ((status || "").trim().toLowerCase()) {
-    case "completed":
-    case "success":
-    case "succeeded":
-      return "complete";
-    case "partial":
-      return "partial";
-    case "failed":
-    case "error":
-      return "failed";
-    case "cancelled":
-    case "canceled":
-      return "cancelled";
-    case "running":
-    case "processing":
-    case "in_progress":
-    case "queued":
-    case "pending_submit":
-    case "pending":
-    default:
-      return "running";
-  }
-}
-
-function resolveImageTaskPreviewPhase(status: string | undefined): string {
-  switch ((status || "").trim().toLowerCase()) {
-    case "queued":
-    case "pending_submit":
-    case "pending":
-      return "queued";
-    case "running":
-    case "processing":
-    case "in_progress":
-      return "running";
-    default:
-      return "queued";
-  }
-}
-
-function extractImageTaskPromptFromToolArguments(
-  toolName: string,
-  toolArguments: string | undefined,
-): { prompt?: string; size?: string; imageCount?: number } {
-  if (!toolArguments) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(toolArguments) as Record<string, unknown>;
-    const prompt = readMetadataString([parsed], ["prompt"]);
-    const size = readMetadataString([parsed], ["size", "resolution"]);
-    const imageCount = readMetadataPositiveNumber([parsed], [
-      "count",
-      "image_count",
-      "imageCount",
-    ]);
-    const command =
-      typeof parsed.command === "string" ? parsed.command.trim() : undefined;
-
-    if (prompt || size || imageCount || !command) {
-      return { prompt, size, imageCount };
-    }
-
-    if (
-      toolName.trim().toLowerCase() === "bash" &&
-      (command.includes("lime media image generate") ||
-        command.includes("lime task create image"))
-    ) {
-      const promptMatch =
-        command.match(/--prompt\s+"([^"]+)"/) ||
-        command.match(/--prompt\s+'([^']+)'/) ||
-        command.match(/--prompt\s+(\S+)/);
-      const sizeMatch = command.match(/--size\s+(\S+)/);
-      const countMatch = command.match(/--count\s+(\d+)/);
-      return {
-        prompt: promptMatch?.[1]?.trim(),
-        size: sizeMatch?.[1]?.trim(),
-        imageCount: countMatch?.[1]
-          ? Number.parseInt(countMatch[1], 10)
-          : undefined,
-      };
-    }
-  } catch {
-    return {};
-  }
-
-  return {};
-}
-
-function buildImageTaskPreviewFromToolResult(params: {
-  toolName: string;
-  toolArguments: string | undefined;
-  toolResult: Record<string, unknown> | undefined;
-  fallbackPrompt: string;
-}): MessageImageWorkbenchPreview | null {
-  const resultRecord = asRecord(params.toolResult);
-  const metadata = asRecord(resultRecord?.metadata);
-  const taskId = readMetadataString([metadata], ["task_id", "taskId"]);
-  const taskType = readMetadataString([metadata], ["task_type", "taskType"]);
-  if (!taskId || !taskType) {
-    return null;
-  }
-
-  const normalizedTaskType = taskType.trim().toLowerCase();
-  if (
-    !normalizedTaskType.includes("image") &&
-    !normalizedTaskType.includes("cover")
-  ) {
-    return null;
-  }
-
-  const parsedArguments = extractImageTaskPromptFromToolArguments(
-    params.toolName,
-    params.toolArguments,
-  );
-  const status = readMetadataString([metadata], ["status"]);
-
-  return {
-    taskId,
-    prompt:
-      parsedArguments.prompt ||
-      params.fallbackPrompt.trim() ||
-      "图片任务进行中",
-    status: resolveImageTaskPreviewStatus(status),
-    imageCount: parsedArguments.imageCount,
-    size: parsedArguments.size,
-    phase: resolveImageTaskPreviewPhase(status),
-    statusMessage: "任务已提交到异步队列，正在同步任务状态。",
-  };
-}
-
 function mergeImageTaskPreviewIntoAssistantMessage(params: {
   messages: Message[];
   assistantMsgId: string;
@@ -474,6 +302,33 @@ function mergeImageTaskPreviewIntoAssistantMessage(params: {
             ...message,
             imageWorkbenchPreview: {
               ...(message.imageWorkbenchPreview || {}),
+              ...params.preview,
+            },
+          }
+        : message,
+    );
+}
+
+function mergeTaskPreviewIntoAssistantMessage(params: {
+  messages: Message[];
+  assistantMsgId: string;
+  preview: MessageTaskPreview;
+}): Message[] {
+  const duplicatePreviewMessage = params.messages.find(
+    (message) =>
+      message.role === "assistant" &&
+      message.id !== params.assistantMsgId &&
+      message.taskPreview?.taskId === params.preview.taskId,
+  );
+
+  return params.messages
+    .filter((message) => message.id !== duplicatePreviewMessage?.id)
+    .map((message) =>
+      message.id === params.assistantMsgId
+        ? {
+            ...message,
+            taskPreview: {
+              ...(message.taskPreview || {}),
               ...params.preview,
             },
           }
@@ -721,11 +576,23 @@ export async function tryExecuteSlashSkillCommand(
         case "tool_end": {
           streamCounters.tool_end += 1;
           const normalizedResult =
-            normalizeIncomingToolResult(streamEvent.result) || streamEvent.result;
+            normalizeIncomingToolResult(streamEvent.result) ||
+            streamEvent.result;
           const success = isToolResultSuccessful(normalizedResult);
+          const normalizedResultRecord =
+            normalizedResult &&
+            typeof normalizedResult === "object" &&
+            !Array.isArray(normalizedResult)
+              ? (normalizedResult as unknown as Record<string, unknown>)
+              : undefined;
+          let emittedArtifact: ReturnType<
+            typeof buildArtifactFromWrite
+          > | null = null;
+          let emittedArtifactPath: string | null = null;
           setMessages((prev) =>
             (() => {
               let imageTaskPreview: MessageImageWorkbenchPreview | null = null;
+              let taskPreview: MessageTaskPreview | null = null;
               const patched = prev.map((msg) => {
                 if (msg.id !== assistantMsgId) return msg;
                 const currentToolCall = msg.toolCalls?.find(
@@ -733,11 +600,27 @@ export async function tryExecuteSlashSkillCommand(
                 );
                 const currentToolArguments = currentToolCall?.arguments;
                 imageTaskPreview = buildImageTaskPreviewFromToolResult({
+                  toolId: streamEvent.tool_id,
                   toolName: currentToolCall?.name || "",
                   toolArguments: currentToolArguments,
-                  toolResult: asRecord(normalizedResult) || undefined,
+                  toolResult: normalizedResultRecord,
                   fallbackPrompt: command.userInput || rawContent,
                 });
+                taskPreview = buildTaskPreviewFromToolResult({
+                  toolId: streamEvent.tool_id,
+                  toolName: currentToolCall?.name || "",
+                  toolArguments: currentToolArguments,
+                  toolResult: normalizedResultRecord,
+                  fallbackPrompt: command.userInput || rawContent,
+                });
+                const toolResultArtifact =
+                  buildToolResultArtifactFromToolResult({
+                    toolId: streamEvent.tool_id,
+                    toolName: currentToolCall?.name || "",
+                    toolArguments: currentToolArguments,
+                    toolResult: normalizedResultRecord,
+                    fallbackPrompt: command.userInput || rawContent,
+                  });
 
                 const updatedToolCalls = (msg.toolCalls || []).map((tc) =>
                   tc.id === streamEvent.tool_id
@@ -772,24 +655,76 @@ export async function tryExecuteSlashSkillCommand(
                   return part;
                 });
 
-                return {
+                const nextMessage = {
                   ...msg,
                   toolCalls: updatedToolCalls,
                   contentParts: updatedParts,
                 };
+
+                if (!toolResultArtifact) {
+                  return nextMessage;
+                }
+
+                const existingArtifact = findMessageArtifact(nextMessage, {
+                  filePath: toolResultArtifact.filePath,
+                });
+                emittedArtifactPath = toolResultArtifact.filePath;
+                emittedArtifact = buildArtifactFromWrite({
+                  filePath: toolResultArtifact.filePath,
+                  content: toolResultArtifact.content,
+                  context: {
+                    artifact: existingArtifact,
+                    artifactId:
+                      existingArtifact?.id ||
+                      `artifact:${assistantMsgId}:${toolResultArtifact.filePath}`,
+                    source: "tool_result",
+                    sourceMessageId: assistantMsgId,
+                    status: success ? "complete" : "error",
+                    metadata: {
+                      ...toolResultArtifact.metadata,
+                      writePhase: success ? "completed" : "failed",
+                    },
+                  },
+                });
+
+                return upsertMessageArtifact(nextMessage, emittedArtifact);
               });
 
-              if (!imageTaskPreview) {
-                return patched;
+              let nextMessages = patched;
+
+              if (imageTaskPreview) {
+                nextMessages = mergeImageTaskPreviewIntoAssistantMessage({
+                  messages: nextMessages,
+                  assistantMsgId,
+                  preview: imageTaskPreview,
+                });
               }
 
-              return mergeImageTaskPreviewIntoAssistantMessage({
-                messages: patched,
-                assistantMsgId,
-                preview: imageTaskPreview,
-              });
+              if (taskPreview) {
+                nextMessages = mergeTaskPreviewIntoAssistantMessage({
+                  messages: nextMessages,
+                  assistantMsgId,
+                  preview: taskPreview,
+                });
+              }
+
+              return nextMessages;
             })(),
           );
+
+          const finalizedArtifact =
+            emittedArtifact as ReturnType<typeof buildArtifactFromWrite> | null;
+          const finalizedArtifactPath = emittedArtifactPath;
+          if (finalizedArtifact && finalizedArtifactPath) {
+            onWriteFile?.(finalizedArtifact.content, finalizedArtifactPath, {
+              artifact: finalizedArtifact,
+              artifactId: finalizedArtifact.id,
+              source: "tool_result",
+              sourceMessageId: assistantMsgId,
+              status: finalizedArtifact.status,
+              metadata: finalizedArtifact.meta,
+            });
+          }
           break;
         }
         case "artifact_snapshot": {

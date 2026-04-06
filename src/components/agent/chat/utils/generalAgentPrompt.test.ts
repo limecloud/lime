@@ -65,7 +65,7 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("主对话负责解释分工");
   });
 
-  it("theme workbench 场景应注入 harness 上下文", () => {
+  it("工作区编排场景应注入 harness 上下文，并兼容旧 general workbench alias", () => {
     const prompt = buildGeneralAgentSystemPrompt("general", {
       harness: {
         sessionMode: "theme_workbench",
@@ -75,7 +75,7 @@ describe("generalAgentPrompt", () => {
       },
     });
 
-    expect(prompt).toContain("theme workbench");
+    expect(prompt).toContain("工作区编排场景");
     expect(prompt).toContain("当前 gate：research_mode");
     expect(prompt).toContain("当前任务标题：行业分析");
     expect(prompt).toContain("当前内容 ID：content-1");

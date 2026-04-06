@@ -40,7 +40,7 @@ const {
   mockBuildCrashDiagnosticPayload,
   mockClearCrashDiagnosticHistory,
   mockCollectRuntimeSnapshotForDiagnostic,
-  mockCollectThemeWorkbenchDocumentStateForDiagnostic,
+  mockCollectGeneralWorkbenchDocumentStateForDiagnostic,
   mockCopyCrashDiagnosticJsonToClipboard,
   mockCopyCrashDiagnosticToClipboard,
   mockExportCrashDiagnosticToJson,
@@ -51,7 +51,7 @@ const {
   mockBuildCrashDiagnosticPayload: vi.fn(),
   mockClearCrashDiagnosticHistory: vi.fn(),
   mockCollectRuntimeSnapshotForDiagnostic: vi.fn(),
-  mockCollectThemeWorkbenchDocumentStateForDiagnostic: vi.fn(),
+  mockCollectGeneralWorkbenchDocumentStateForDiagnostic: vi.fn(),
   mockCopyCrashDiagnosticJsonToClipboard: vi.fn(),
   mockCopyCrashDiagnosticToClipboard: vi.fn(),
   mockExportCrashDiagnosticToJson: vi.fn(),
@@ -120,8 +120,8 @@ vi.mock("@/lib/crashDiagnostic", () => ({
   buildCrashDiagnosticPayload: mockBuildCrashDiagnosticPayload,
   clearCrashDiagnosticHistory: mockClearCrashDiagnosticHistory,
   collectRuntimeSnapshotForDiagnostic: mockCollectRuntimeSnapshotForDiagnostic,
-  collectThemeWorkbenchDocumentStateForDiagnostic:
-    mockCollectThemeWorkbenchDocumentStateForDiagnostic,
+  collectGeneralWorkbenchDocumentStateForDiagnostic:
+    mockCollectGeneralWorkbenchDocumentStateForDiagnostic,
   CLEAR_CRASH_DIAGNOSTIC_HISTORY_CONFIRM_TEXT: "确认清空诊断信息？",
   copyCrashDiagnosticJsonToClipboard: mockCopyCrashDiagnosticJsonToClipboard,
   copyCrashDiagnosticToClipboard: mockCopyCrashDiagnosticToClipboard,
@@ -294,6 +294,14 @@ async function clickButton(button: HTMLButtonElement) {
   });
 }
 
+async function waitForLazyPanels() {
+  await flushEffects();
+  if (typeof vi.dynamicImportSettled === "function") {
+    await vi.dynamicImportSettled();
+  }
+  await flushEffects();
+}
+
 async function inputTextarea(textarea: HTMLTextAreaElement, value: string) {
   const prototype = Object.getPrototypeOf(textarea) as HTMLTextAreaElement;
   const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
@@ -306,6 +314,31 @@ async function inputTextarea(textarea: HTMLTextAreaElement, value: string) {
     setValue.call(textarea, value);
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
     await flushEffects();
+  });
+}
+
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
   });
 }
 
@@ -351,7 +384,7 @@ beforeEach(() => {
     runtimeSnapshot: { summary: "runtime" },
     collectionNotes: ["note-a"],
   });
-  mockCollectThemeWorkbenchDocumentStateForDiagnostic.mockResolvedValue({
+  mockCollectGeneralWorkbenchDocumentStateForDiagnostic.mockResolvedValue({
     documentId: "doc-1",
   });
   mockNormalizeCrashReportingConfig.mockImplementation((config) => config);
@@ -416,7 +449,6 @@ describe("DeveloperSettings", () => {
     await flushEffects();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("目录联调改为区块级按需加载");
     expect(text).toContain("处理工作台与信息收集");
     expect(text).toContain("服务型技能目录联调");
     expect(text).toContain("站点脚本目录联调");
@@ -426,6 +458,30 @@ describe("DeveloperSettings", () => {
     expect(text).toContain("诊断建议");
     expect(text).toContain("动作清单");
     expect(text).toContain("自愈记录卡片占位");
+  });
+
+  it("应把开发页补充说明收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。",
+    );
+    expect(getBodyText()).not.toContain(
+      "关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。",
+    );
+
+    const heroTip = await hoverTip("开发者设置首屏说明");
+    expect(getBodyText()).toContain(
+      "首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。",
+    );
+    await leaveTip(heroTip);
+
+    const harnessTip = await hoverTip("允许处理工作台进入通用对话说明");
+    expect(getBodyText()).toContain(
+      "关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。",
+    );
+    await leaveTip(harnessTip);
   });
 
   it("切换组件调试开关后应调用 setEnabled", async () => {
@@ -500,6 +556,7 @@ describe("DeveloperSettings", () => {
 
   it("点击载入当前目录后应把 serviceSkillCatalog 写入调试输入框", async () => {
     const container = renderComponent();
+    await waitForLazyPanels();
 
     await clickButton(findButton(container, "载入当前目录"));
     await flushEffects();
@@ -511,7 +568,7 @@ describe("DeveloperSettings", () => {
 
   it("输入 JSON 后通过事件注入应调用 bootstrap 桥接", async () => {
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
     const textarea = findTextarea(container, "服务型技能目录调试输入");
 
     await inputTextarea(
@@ -553,7 +610,7 @@ describe("DeveloperSettings", () => {
     mockGetServiceSkillCatalog.mockResolvedValueOnce(seededCatalog);
 
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
 
     await clickButton(findButton(container, "清空目录缓存"));
     await flushEffects();
@@ -566,7 +623,7 @@ describe("DeveloperSettings", () => {
 
   it("应展示站点脚本目录摘要", async () => {
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
 
     expect(container.textContent).toContain("站点脚本目录联调");
     expect(container.textContent).toContain("应用内置");
@@ -576,7 +633,7 @@ describe("DeveloperSettings", () => {
 
   it("导入外部来源 YAML 后应调用 Lime 标准导入命令并刷新摘要", async () => {
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
     const textarea = findTextarea(container, "站点来源 YAML 导入输入");
 
     mockSiteGetAdapterCatalogStatus.mockResolvedValueOnce({
@@ -633,7 +690,7 @@ describe("DeveloperSettings", () => {
 
   it("输入 JSON 后注入站点脚本目录应调用 bootstrap 桥接", async () => {
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
     const textarea = findTextarea(container, "站点脚本目录调试输入");
 
     await inputTextarea(
@@ -674,7 +731,7 @@ describe("DeveloperSettings", () => {
 
   it("清空站点脚本目录缓存后应提示回退到应用内置", async () => {
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
 
     await clickButton(findButton(container, "清空站点目录缓存"));
     await flushEffects();
@@ -687,7 +744,7 @@ describe("DeveloperSettings", () => {
 
   it("站点目录变更事件后应自动刷新开发页摘要", async () => {
     const container = renderComponent();
-    await flushEffects();
+    await waitForLazyPanels();
 
     expect(mockSiteGetAdapterCatalogStatus).toHaveBeenCalledTimes(1);
     expect(mockSiteListAdapters).toHaveBeenCalledTimes(1);

@@ -1,7 +1,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { BrowserTaskPreflight } from "./handleSendTypes";
 import {
   buildInitialDispatchKey,
   useBootstrapDispatchPreview,
@@ -13,12 +12,11 @@ interface HookHarness {
     props?: Partial<{
       initialUserPrompt?: string;
       initialUserImages?: Array<{ data: string; mediaType: string }>;
-      browserTaskPreflight?: BrowserTaskPreflight | null;
       messagesCount: number;
       isSending: boolean;
       queuedTurnCount: number;
       consumedInitialPromptKey?: string | null;
-      shouldUseCompactThemeWorkbench?: boolean;
+      shouldUseCompactGeneralWorkbench?: boolean;
     }>,
   ) => void;
   unmount: () => void;
@@ -28,12 +26,11 @@ function mountHook(
   initialProps?: Partial<{
     initialUserPrompt?: string;
     initialUserImages?: Array<{ data: string; mediaType: string }>;
-    browserTaskPreflight?: BrowserTaskPreflight | null;
     messagesCount: number;
     isSending: boolean;
     queuedTurnCount: number;
     consumedInitialPromptKey?: string | null;
-    shouldUseCompactThemeWorkbench?: boolean;
+    shouldUseCompactGeneralWorkbench?: boolean;
   }>,
 ): HookHarness {
   const container = document.createElement("div");
@@ -44,12 +41,11 @@ function mountHook(
   let currentProps = {
     initialUserPrompt: "",
     initialUserImages: [],
-    browserTaskPreflight: null,
     messagesCount: 0,
     isSending: false,
     queuedTurnCount: 0,
     consumedInitialPromptKey: null,
-    shouldUseCompactThemeWorkbench: false,
+    shouldUseCompactGeneralWorkbench: false,
     ...initialProps,
   };
 
@@ -62,12 +58,11 @@ function mountHook(
     nextProps?: Partial<{
       initialUserPrompt?: string;
       initialUserImages?: Array<{ data: string; mediaType: string }>;
-      browserTaskPreflight?: BrowserTaskPreflight | null;
       messagesCount: number;
       isSending: boolean;
       queuedTurnCount: number;
       consumedInitialPromptKey?: string | null;
-      shouldUseCompactThemeWorkbench?: boolean;
+      shouldUseCompactGeneralWorkbench?: boolean;
     }>,
   ) => {
     currentProps = {
@@ -163,25 +158,13 @@ describe("useBootstrapDispatchPreview", () => {
     }
   });
 
-  it("浏览器前置引导期间应继续展示 bootstrap 预览，避免空白工作台", () => {
+  it("初始意图已标记消费后，只要仍在排队中就继续展示 bootstrap 预览", () => {
     const prompt = "帮我把这篇文章发布到微信公众号后台";
     const dispatchKey = buildInitialDispatchKey(prompt, [])!;
     const harness = mountHook({
       initialUserPrompt: prompt,
       consumedInitialPromptKey: dispatchKey,
-      browserTaskPreflight: {
-        requestId: "browser-preflight-1",
-        createdAt: 1,
-        sourceText: prompt,
-        images: [],
-        requirement: "required_with_user_step",
-        reason: "publish_requires_browser",
-        phase: "awaiting_user",
-        launchUrl: "https://mp.weixin.qq.com",
-        platformLabel: "微信公众号后台",
-        detail:
-          "已打开微信公众号后台。请先完成登录、扫码、验证码或授权，然后回到当前任务重新发起。",
-      },
+      queuedTurnCount: 1,
     });
 
     try {
@@ -189,8 +172,8 @@ describe("useBootstrapDispatchPreview", () => {
       expect(value.shouldShowBootstrapDispatchPreview).toBe(true);
       expect(value.bootstrapDispatchPreviewMessages).toHaveLength(2);
       expect(value.bootstrapDispatchPreviewMessages[0]?.content).toBe(prompt);
-      expect(value.bootstrapDispatchPreviewMessages[1]?.content).toContain(
-        "回到当前任务重新发起",
+      expect(value.bootstrapDispatchPreviewMessages[1]?.content).toBe(
+        "正在开始处理任务…",
       );
     } finally {
       harness.unmount();

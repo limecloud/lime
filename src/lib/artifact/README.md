@@ -30,17 +30,15 @@ Artifact 系统核心库，提供统一的结构化内容抽象层。
   - register、get、has、getAll 方法
   - isCanvasType、getFileExtension 辅助方法
 
-- `store.ts` - Jotai 状态管理（Requirements 9.1-9.6）
+- `store.ts` - Jotai 状态管理（Requirements 9.1-9.5）
   - artifactsAtom - Artifact 列表
   - selectedArtifactIdAtom、selectedArtifactAtom - 选中状态
   - streamingArtifactAtom - 流式状态
-  - artifactPanelStateAtom - 面板状态（持久化）
   - artifactActionsAtom - 操作 atom
 
 - `hooks/` - React Hooks
-  - `useArtifact.ts` - Artifact 状态读取和操作 Hook（Requirements 9.4）✅
-  - `useArtifactParser.ts` - 解析器 Hook（待实现）
-  - `index.ts` - 导出入口（待实现）
+  - `useDebouncedValue.ts` - 现役防抖 Hook（Requirements 11.2）
+  - `index.ts` - 最小公共导出入口
 
 - `index.ts` - 模块导出入口
 

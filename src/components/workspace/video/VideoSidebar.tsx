@@ -3,13 +3,13 @@ import styled from "styled-components";
 import {
   Check,
   ChevronDown,
-  CircleHelp,
   Dices,
   ImagePlus,
   Sparkles,
   X,
 } from "lucide-react";
 import { VideoAspectRatio, VideoCanvasState, VideoResolution } from "./types";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 
 export interface VideoProviderOption {
   id: string;
@@ -67,18 +67,19 @@ const PanelEyebrow = styled.span`
 `;
 
 const PanelTitle = styled.h2`
-  margin: 10px 0 6px;
+  margin: 0;
   font-size: 22px;
   line-height: 1.2;
   font-weight: 700;
   color: hsl(var(--foreground));
 `;
 
-const PanelDescription = styled.p`
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.65;
-  color: hsl(var(--muted-foreground));
+const PanelTitleRow = styled.div`
+  margin: 10px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 `;
 
 const PanelMetaGrid = styled.div`
@@ -133,11 +134,11 @@ const SectionTitle = styled.div`
   color: hsl(var(--foreground));
 `;
 
-const SectionHint = styled.p`
-  margin: -6px 0 0;
-  font-size: 12px;
-  line-height: 1.55;
-  color: hsl(var(--muted-foreground));
+const SectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 `;
 
 const ModelTrigger = styled.button`
@@ -659,7 +660,14 @@ const ToggleRow = styled.div`
 const ToggleCopy = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
+`;
+
+const ToggleTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const ToggleTitle = styled.span`
@@ -667,12 +675,6 @@ const ToggleTitle = styled.span`
   line-height: 1.2;
   font-weight: 700;
   color: hsl(var(--foreground));
-`;
-
-const ToggleDescription = styled.span`
-  font-size: 12px;
-  line-height: 1.5;
-  color: hsl(var(--muted-foreground));
 `;
 
 const ToggleSwitch = styled.button<{ $checked: boolean }>`
@@ -720,11 +722,11 @@ const HelperTitle = styled.div`
   color: hsl(var(--foreground));
 `;
 
-const HelperText = styled.p`
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.65;
-  color: hsl(var(--muted-foreground));
+const HelperTipsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 `;
 
 const RATIOS: { label: string; value: VideoAspectRatio }[] = [
@@ -1033,10 +1035,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
       <SidebarWrapper>
         <PanelIntro>
           <PanelEyebrow>VIDEO CONTROL</PanelEyebrow>
-          <PanelTitle>生成参数</PanelTitle>
-          <PanelDescription>
-            先确定模型，再补参考图和输出规格。这里保持轻量控制，主创作仍留在右侧画布。
-          </PanelDescription>
+          <PanelTitleRow>
+            <PanelTitle>生成参数</PanelTitle>
+            <WorkbenchInfoTip
+              ariaLabel="生成参数说明"
+              content="先确定模型，再补参考图和输出规格。这里保持轻量控制，主创作仍留在右侧画布。"
+              tone="mint"
+            />
+          </PanelTitleRow>
           <PanelMetaGrid>
             <PanelMetaCard>
               <PanelMetaLabel>当前模型</PanelMetaLabel>
@@ -1064,10 +1070,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
         </PanelIntro>
 
         <Section>
-          <SectionTitle>模型</SectionTitle>
-          <SectionHint>
-            模型能力决定可选分辨率、时长和图生视频支持范围。
-          </SectionHint>
+          <SectionHeader>
+            <SectionTitle>模型</SectionTitle>
+            <WorkbenchInfoTip
+              ariaLabel="模型说明"
+              content="模型能力决定可选分辨率、时长和图生视频支持范围。"
+              tone="mint"
+            />
+          </SectionHeader>
           <ModelTrigger
             type="button"
             onClick={() => setModelPanelOpen(true)}
@@ -1169,12 +1179,18 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
 
           return (
             <Section key={frame.field}>
-              <SectionTitle>{frame.title}</SectionTitle>
-              <SectionHint>
-                {frame.field === "startImage"
-                  ? "用于锁定开场构图、人物与场景氛围。"
-                  : "用于约束收尾镜头，让前后画面更连贯。"}
-              </SectionHint>
+              <SectionHeader>
+                <SectionTitle>{frame.title}</SectionTitle>
+                <WorkbenchInfoTip
+                  ariaLabel={`${frame.title}说明`}
+                  content={
+                    frame.field === "startImage"
+                      ? "用于锁定开场构图、人物与场景氛围。"
+                      : "用于约束收尾镜头，让前后画面更连贯。"
+                  }
+                  tone="mint"
+                />
+              </SectionHeader>
               <ImageUploadArea
                 $dragging={draggingArea === frame.area}
                 onDragOver={(event) => {
@@ -1302,10 +1318,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
         </Section>
 
         <Section>
-          <SectionTitle>时长</SectionTitle>
-          <SectionHint>
-            建议先用 4 到 8 秒验证镜头是否成立，再逐步拉长。
-          </SectionHint>
+          <SectionHeader>
+            <SectionTitle>时长</SectionTitle>
+            <WorkbenchInfoTip
+              ariaLabel="时长说明"
+              content="建议先用 4 到 8 秒验证镜头是否成立，再逐步拉长。"
+              tone="mint"
+            />
+          </SectionHeader>
           <DurationRow>
             <DurationSlider
               type="range"
@@ -1340,10 +1360,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
         </Section>
 
         <Section>
-          <SectionTitle>种子</SectionTitle>
-          <SectionHint>
-            需要复现某次结果时再固定种子；探索阶段保持随机即可。
-          </SectionHint>
+          <SectionHeader>
+            <SectionTitle>种子</SectionTitle>
+            <WorkbenchInfoTip
+              ariaLabel="种子说明"
+              content="需要复现某次结果时再固定种子；探索阶段保持随机即可。"
+              tone="mint"
+            />
+          </SectionHeader>
           <SeedRow>
             <SeedInput
               type="number"
@@ -1383,10 +1407,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
         <Section>
           <ToggleRow>
             <ToggleCopy>
-              <ToggleTitle>生成音频</ToggleTitle>
-              <ToggleDescription>
-                需要环境声或基础配乐时再开启。
-              </ToggleDescription>
+              <ToggleTitleRow>
+                <ToggleTitle>生成音频</ToggleTitle>
+                <WorkbenchInfoTip
+                  ariaLabel="生成音频说明"
+                  content="需要环境声或基础配乐时再开启。"
+                  tone="mint"
+                />
+              </ToggleTitleRow>
             </ToggleCopy>
             <ToggleSwitch
               type="button"
@@ -1400,10 +1428,14 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
           </ToggleRow>
           <ToggleRow>
             <ToggleCopy>
-              <ToggleTitle>固定镜头</ToggleTitle>
-              <ToggleDescription>
-                减少镜头摇移，适合产品或静态场景。
-              </ToggleDescription>
+              <ToggleTitleRow>
+                <ToggleTitle>固定镜头</ToggleTitle>
+                <WorkbenchInfoTip
+                  ariaLabel="固定镜头说明"
+                  content="减少镜头摇移，适合产品或静态场景。"
+                  tone="mint"
+                />
+              </ToggleTitleRow>
             </ToggleCopy>
             <ToggleSwitch
               type="button"
@@ -1420,18 +1452,24 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
         <HelperCard>
           <HelperTitle>
             <Sparkles size={14} />
-            生成建议
+            创作 Tips
           </HelperTitle>
-          <HelperText>
-            提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目素材，便于后续复用。
-          </HelperText>
-          <HelperTitle>
-            <CircleHelp size={14} />
-            参数节奏
-          </HelperTitle>
-          <HelperText>
-            推荐先锁模型与比例，再逐步增加参考图和固定镜头等约束，避免一次加入太多变量导致结果难以判断。
-          </HelperText>
+          <HelperTipsRow>
+            <WorkbenchInfoTip
+              ariaLabel="提示词建议"
+              label="提示词"
+              variant="pill"
+              tone="mint"
+              content="提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目素材，便于后续复用。"
+            />
+            <WorkbenchInfoTip
+              ariaLabel="参数节奏建议"
+              label="参数节奏"
+              variant="pill"
+              tone="mint"
+              content="推荐先锁模型与比例，再逐步增加参考图和固定镜头等约束，避免一次加入太多变量导致结果难以判断。"
+            />
+          </HelperTipsRow>
         </HelperCard>
       </SidebarWrapper>
     );

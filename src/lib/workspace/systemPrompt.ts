@@ -6,8 +6,6 @@
 
 import type { CreationMode, ThemeType } from "./workflowTypes";
 
-export { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
-
 const THEME_NAMES: Record<ThemeType, string> = {
   general: "通用对话",
 };
@@ -101,13 +99,9 @@ ${getFileWritingInstructions(theme)}
 - 不要输出与当前主题无关的旧创作模式或历史画布说明`;
 }
 
-export function generateThemeWorkbenchPrompt(
+export function generateGeneralWorkbenchPrompt(
   theme: ThemeType,
   mode: CreationMode = "guided",
 ): string {
   return buildThemePrompt(theme, mode);
-}
-
-export function needsFullWorkflow(_theme: string): boolean {
-  return false;
 }

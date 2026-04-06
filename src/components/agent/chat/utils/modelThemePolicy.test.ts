@@ -40,7 +40,7 @@ function createModel(
 }
 
 describe("modelThemePolicy", () => {
-  it("general 主题应优先保留推理聊天模型", () => {
+  it("general 主题应保留聊天模型，并过滤掉图片模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),
       createModel("deepseek-reasoner", {
@@ -61,11 +61,12 @@ describe("modelThemePolicy", () => {
     expect(result.usedFallback).toBe(false);
     expect(result.models.map((model) => model.id)).toEqual([
       "deepseek-reasoner",
+      "deepseek-chat",
     ]);
-    expect(result.policyName).toBe("reasoning-priority");
+    expect(result.policyName).toBe("chat-only");
   });
 
-  it("general 主题在无推理模型时应回退到聊天模型", () => {
+  it("general 主题在无推理模型时仍应保留聊天模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),
       createModel("deepseek-chat"),
@@ -76,7 +77,7 @@ describe("modelThemePolicy", () => {
 
     expect(result.usedFallback).toBe(false);
     expect(result.models.map((model) => model.id)).toEqual(["deepseek-chat"]);
-    expect(result.policyName).toBe("chat-fallback");
+    expect(result.policyName).toBe("chat-only");
   });
 
   it("general 主题应过滤掉图像和非聊天模型", () => {
@@ -93,7 +94,7 @@ describe("modelThemePolicy", () => {
     expect(result.policyName).toBe("chat-only");
   });
 
-  it("general 主题不应改动模型列表", () => {
+  it("general 主题应过滤掉图片预览模型，但保留聊天预览模型", () => {
     const models = [
       createModel("gemini-3-pro-image-preview"),
       createModel("gemini-3-pro-preview"),
@@ -102,8 +103,10 @@ describe("modelThemePolicy", () => {
     const result = filterModelsByTheme("general", models);
 
     expect(result.usedFallback).toBe(false);
-    expect(result.filteredOutCount).toBe(0);
-    expect(result.models).toEqual(models);
-    expect(result.policyName).toBe("none");
+    expect(result.filteredOutCount).toBe(1);
+    expect(result.models.map((model) => model.id)).toEqual([
+      "gemini-3-pro-preview",
+    ]);
+    expect(result.policyName).toBe("chat-only");
   });
 });

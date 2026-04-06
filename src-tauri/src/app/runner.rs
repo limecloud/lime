@@ -1235,8 +1235,8 @@ pub fn run() {
             // Execution run commands
             commands::execution_run_cmd::execution_run_list,
             commands::execution_run_cmd::execution_run_get,
-            commands::execution_run_cmd::execution_run_get_theme_workbench_state,
-            commands::execution_run_cmd::execution_run_list_theme_workbench_history,
+            commands::execution_run_cmd::execution_run_get_general_workbench_state,
+            commands::execution_run_cmd::execution_run_list_general_workbench_history,
             // Ecommerce Review Reply commands
             commands::ecommerce_review_reply_cmd::execute_ecommerce_review_reply,
             // Provider Pool commands
@@ -1726,7 +1726,7 @@ pub fn run() {
             // Content commands
             commands::content_cmd::content_create,
             commands::content_cmd::content_get,
-            commands::content_cmd::content_get_theme_workbench_document_state,
+            commands::content_cmd::content_get_general_workbench_document_state,
             commands::content_cmd::content_list,
             commands::content_cmd::content_update,
             commands::content_cmd::content_delete,

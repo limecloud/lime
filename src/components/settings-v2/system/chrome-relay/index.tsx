@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getConfig } from "@/lib/api/appConfig";
 import { openPathWithDefaultApp } from "@/lib/api/fileSystem";
@@ -193,8 +194,12 @@ function SurfacePanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? (
           <div className="flex flex-wrap items-center gap-2">{aside}</div>
@@ -1968,24 +1973,32 @@ export function ChromeRelaySettings() {
 
             <div className="relative flex flex-col gap-4 p-5 sm:p-6 lg:p-7">
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                  连接器
-                </h2>
-                <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                  先安装扩展，再开启连接器。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                    连接器
+                  </h2>
+                  <WorkbenchInfoTip
+                    ariaLabel="连接器总览说明"
+                    content="先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。"
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
                 <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <p className="text-base font-semibold text-slate-900">
-                        安装 Lime Browser Bridge
-                      </p>
-                      <p className="text-sm leading-6 text-slate-500">
-                        选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-base font-semibold text-slate-900">
+                          安装 Lime Browser Bridge
+                        </p>
+                        <WorkbenchInfoTip
+                          ariaLabel="安装 Lime Browser Bridge 说明"
+                          content="选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。"
+                          tone="slate"
+                        />
+                      </div>
                     </div>
                     <StatusPill tone={connectorInstallStatusTone}>
                       {connectorInstallStatusLabel}

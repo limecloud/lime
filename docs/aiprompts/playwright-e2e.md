@@ -143,7 +143,7 @@ npm run test:contracts
 4. 点击 `新建文稿`
 5. 选择 `新开帖子（创建新文稿）`
 6. 点击 `确认生成`
-7. 验证页面出现 `Theme Workbench` 或相关工作台内容
+7. 验证页面出现通用工作区相关内容
 8. 再次检查控制台 error
 9. 如能查看运行时摘要，继续确认当前 gate 与任务标题恢复自该话题最近一次 `execution_runtime.recent_gate_key / recent_run_title`
 10. 当前项目管理与工作台侧已下线“项目风格 / 风格策略”旧入口，不再对其做存在性验证；如页面仍出现相关入口，应判定为回流
@@ -189,10 +189,11 @@ npm run test:contracts
 5. 刷新页面或切换会话再返回原话题，确认最近图片任务会从 `.lime/tasks` 恢复
 6. 如手动打开右侧查看器，确认任务卡状态与聊天区一致，且不会自动展开独立图片画布
 7. 如当前界面已暴露任务控制入口，确认 `get/list/retry/cancel` 仍然只经由 task file 主链，不会回流前端直连图片服务
-8. 如果任务来自文稿工具栏的 inline 配图，确认正文先出现占位图块，task file 成功回填后同一位置被真实图片替换，而不是在正文末尾额外追加第二张图
-9. 刷新页面后再次返回该文稿，确认 inline 配图仍能通过 task file 中的 `relationships.slot_id` 恢复并原位替换，不依赖前端内存状态
-10. 如果当前文稿已有明确小节并且用户在某一节内发起配图，确认占位图与最终图片会优先落到 `anchor_section_title` 指向的小节，而不是默认追加到全文末尾
-11. 如果用户是在某个具体段落上发起配图，确认占位图与最终图片会优先落到 `anchor_text` 对应段落之后，而不是只落到该小节顶部
+8. 如果任务来自文稿工具栏的 inline 配图、封面位或图片工作台动作，确认聊天区也会出现一条对应的用户消息与 `image_generate` 工具轨迹，而不是只有 task 卡突然出现
+9. 如果任务来自文稿工具栏的 inline 配图，确认正文先出现占位图块，task file 成功回填后同一位置被真实图片替换，而不是在正文末尾额外追加第二张图
+10. 刷新页面后再次返回该文稿，确认 inline 配图仍能通过 task file 中的 `relationships.slot_id` 恢复并原位替换，不依赖前端内存状态
+11. 如果当前文稿已有明确小节并且用户在某一节内发起配图，确认占位图与最终图片会优先落到 `anchor_section_title` 指向的小节，而不是默认追加到全文末尾
+12. 如果用户是在某个具体段落上发起配图，确认占位图与最终图片会优先落到 `anchor_text` 对应段落之后，而不是只落到该小节顶部
 
 ### Claw `@封面` 异步任务验证
 
@@ -214,6 +215,22 @@ npm run test:contracts
 6. 刷新页面或切换会话再返回原话题，确认最近转写任务仍可从 `.lime/tasks` 恢复
 7. 如当前界面已暴露任务控制入口，确认 `get/list/retry/cancel` 仍然只经由 task file 主链，不会回流前端旧 ASR 接口
 
+### Claw `@研报` Prompt Skill 验证
+
+1. 在 `Claw` 对话框输入 `@研报 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与代表产品 输出:投资人研报`
+2. 确认聊天区先进入 skill 执行态，并能看到 `report_generate` 与 `search_query` 的真实工具轨迹，而不是前端静默直接生成长文
+3. 确认首个 skill 调用来自 `report_generate`，而不是退回 `research` 或普通聊天回答
+4. 等待结果完成后，确认最终输出包含结论、来源、风险/待确认项与建议动作，而不是一段无来源的纯主观总结
+5. 如果输入里没有明确主题，确认 Agent 最多只追问 1 个关键问题，而不是直接伪造研报完成态
+
+### Claw `@读PDF` Prompt Skill 验证
+
+1. 在 `Claw` 对话框输入 `@读PDF /tmp/agent-report.pdf 提炼三点结论并标注关键证据`
+2. 确认聊天区先进入 skill 执行态，并能看到 `pdf_read` 与 `list_directory / read_file` 的真实工具轨迹，而不是前端静默直接给出摘要
+3. 确认首个 skill 调用来自 `pdf_read`，而不是退回 `summary`、`analysis` 或普通聊天回答
+4. 如果输入的是本地路径，确认 Agent 不会再追问“请上传 PDF”，而是直接读取并输出文档信息、核心要点、关键证据
+5. 如果输入里只有 PDF URL，确认 Agent 最多只追问 1 个关键问题请求本地路径或导入工作区，而不是伪造“已读 PDF”
+
 ### Claw `@链接解析` 异步任务验证
 
 1. 在 `Claw` 对话框输入 `@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要`
@@ -230,6 +247,15 @@ npm run test:contracts
 3. 确认前端不会回退普通 `chat_stream`，而是进入 skill 执行态
 4. 打开控制台，确认浏览器模式接通 DevBridge 时不再出现 `execute_skill`、`list_executable_skills` 或 `get_skill_detail` 的 unknown command 报错
 5. 如当前 skill 设计为走 `Bash -> lime ...`，继续确认最终反馈的是任务提交摘要或任务状态，而不是前端本地伪造成功态
+
+### Slash Scene / ServiceSkill 验证
+
+1. 进入 `Claw` 对话框，确认当前租户目录里存在一个 `entries.kind=scene` 的场景，例如 `/daily-trend-brief`
+2. 输入 `/daily-trend-brief 帮我整理今天的小红书趋势赛题`
+3. 确认聊天区先出现正常的用户消息，再进入 Agent 执行态，而不是前端静默直接提交云端 run
+4. 打开时间线，确认首个执行器是 `lime_run_service_skill`，而不是前端本地直接产出结果卡
+5. 如当前 OEM 会话可用，确认工具结果会回流 run 状态或摘要；若当前会话缺失，确认聊天区明确提示需要登录或注入会话，而不是伪造成功
+6. 未命中 scene 目录时，确认 `/unknown-scene ...` 仍回到普通 slash / Codex 流程，不会被误报为本地技能异常
 
 ### 开发者页站点来源导入验证
 
@@ -360,15 +386,15 @@ npm run test:contracts
 
 ### 话题主题上下文恢复验证
 
-1. 进入普通对话话题完成一次发送，再切到 `Theme Workbench` 话题完成一次发送
+1. 进入普通对话话题完成一次发送，再切到通用工作区话题完成一次发送
 2. 在两个话题之间来回切换，必要时新建一个空白话题再切回
 3. 验证 UI 恢复的是该话题最近一次主题上下文，而不是页面一次性参数或主题级缓存
 4. 如能查看调试面板或运行时摘要，继续确认依据是当前话题最近一次 `execution_runtime.recent_theme / recent_session_mode`
-5. 再从普通对话切到新的 `theme_workbench` 后立即发送一次，确认同步窗口内仍命中新 theme / session mode，而不是被旧 runtime 误覆盖
+5. 再从普通对话切到新的 `general_workbench` 后立即发送一次，确认同步窗口内仍命中新 theme / session mode，而不是被旧 runtime 误覆盖
 
-### Theme Workbench 运行阶段恢复验证
+### 通用工作区运行阶段恢复验证
 
-1. 进入同一个 Theme Workbench 话题，至少完成一次 `write_mode` 或 `publish_confirm` 阶段发送
+1. 进入同一个通用工作区话题，至少完成一次 `write_mode` 或 `publish_confirm` 阶段发送
 2. 留在同一话题下再次发送，保持当前 gate 和任务标题不变
 3. 验证本轮仍衔接当前 gate / 任务标题，而不是掉回旧阶段或空标题
 4. 如能查看调试面板或运行时摘要，继续确认恢复依据是当前话题最近一次 `execution_runtime.recent_gate_key / recent_run_title`

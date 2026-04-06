@@ -249,6 +249,6 @@ pub(crate) fn should_enable_model_skill_tool(request_metadata: Option<&serde_jso
 
     matches!(
         extract_harness_string(request_metadata, &["session_mode", "sessionMode"]).as_deref(),
-        Some("theme_workbench")
+        Some("general_workbench") | Some("theme_workbench")
     )
 }

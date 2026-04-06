@@ -184,10 +184,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     useState<AsterSubagentParentContext | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsReady, setTopicsReady] = useState(false);
+  const [isAutoRestoringSession, setIsAutoRestoringSession] = useState(
+    () => !disableSessionRestore && Boolean(workspaceId?.trim()),
+  );
 
   const restoredWorkspaceRef = useRef<string | null>(null);
   const hydratedSessionRef = useRef<string | null>(null);
   const skipAutoRestoreRef = useRef(false);
+  const createFreshSessionPromiseRef = useRef<Promise<string | null> | null>(
+    null,
+  );
   const missingSessionVerificationRef = useRef<string | null>(null);
   const sessionStateWorkspaceRef = useRef<string | null>(
     workspaceId?.trim() || null,
@@ -345,6 +351,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     if (disableSessionRestore || !workspaceId?.trim()) {
       sessionStateWorkspaceRef.current = null;
       applySessionSnapshot(createEmptyAgentSessionSnapshot());
+      setIsAutoRestoringSession(false);
       resetPendingActions();
       resetStreamingRefs();
       restoredWorkspaceRef.current = null;
@@ -355,6 +362,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     }
 
     sessionStateWorkspaceRef.current = workspaceId.trim();
+    setIsAutoRestoringSession(true);
     const scopedSessionCandidate = loadScopedSessionRestoreCandidate();
     const scopedMessages = loadTransient<Message[]>(scopedKeys.messagesKey, []);
     const scopedTurns = loadTransient<AgentThreadTurn[]>(
@@ -494,114 +502,114 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
   const createFreshSession = useCallback(
     async (sessionName?: string): Promise<string | null> => {
+      if (createFreshSessionPromiseRef.current) {
+        return createFreshSessionPromiseRef.current;
+      }
+
       const resolvedWorkspaceId = workspaceId?.trim();
       if (!resolvedWorkspaceId) {
         toast.error("缺少项目工作区，请先选择项目");
         return null;
       }
 
-      try {
-        logAgentDebug("useAgentSession", "createFreshSession.start", {
-          executionStrategy,
-          sessionName: sessionName?.trim() || null,
-          workspaceId: resolvedWorkspaceId,
-        });
-        const newSessionId = await runtime.createSession(
-          resolvedWorkspaceId,
-          sessionName,
-          executionStrategy,
-        );
-
-        const now = new Date();
-        setSessionId(newSessionId);
-        setThreadTurns([]);
-        setThreadItems([]);
-        setCurrentTurnId(null);
-        setQueuedTurns([]);
-        setThreadRead(null);
-        setTodoItems([]);
-        setChildSubagentSessions([]);
-        setSubagentParentContext(null);
-        setTopics((prev) => [
-          {
-            id: newSessionId,
-            title: sessionName?.trim() || "新任务",
-            createdAt: now,
-            updatedAt: now,
-            workspaceId: resolvedWorkspaceId,
-            messagesCount: 0,
+      const creationPromise = (async () => {
+        try {
+          logAgentDebug("useAgentSession", "createFreshSession.start", {
             executionStrategy,
-            status: "draft",
-            lastPreview: "等待你补充任务需求后开始执行。",
-            isPinned: false,
-            hasUnread: false,
-            tag: null,
-            sourceSessionId: newSessionId,
-          },
-          ...prev.filter((topic) => topic.id !== newSessionId),
-        ]);
-        resetPendingActions();
-        resetStreamingRefs();
-        hydratedSessionRef.current = newSessionId;
-        skipAutoRestoreRef.current = false;
-        restoredWorkspaceRef.current = resolvedWorkspaceId;
+            sessionName: sessionName?.trim() || null,
+            workspaceId: resolvedWorkspaceId,
+          });
+          const newSessionId = await runtime.createSession(
+            resolvedWorkspaceId,
+            sessionName,
+            executionStrategy,
+          );
 
-        persistSessionModelPreference(
-          newSessionId,
-          providerTypeRef.current,
-          modelRef.current,
-        );
-        persistSessionAccessMode(newSessionId, accessMode);
-        markSessionExecutionStrategySynced(newSessionId, executionStrategy);
-        void runtime
-          .setSessionProviderSelection(
+          sessionIdRef.current = newSessionId;
+
+          const now = new Date();
+          setSessionId(newSessionId);
+          setThreadTurns([]);
+          setThreadItems([]);
+          setCurrentTurnId(null);
+          setQueuedTurns([]);
+          setThreadRead(null);
+          setTodoItems([]);
+          setChildSubagentSessions([]);
+          setSubagentParentContext(null);
+          setIsAutoRestoringSession(false);
+          setTopics((prev) => [
+            {
+              id: newSessionId,
+              title: sessionName?.trim() || "新任务",
+              createdAt: now,
+              updatedAt: now,
+              workspaceId: resolvedWorkspaceId,
+              messagesCount: 0,
+              executionStrategy,
+              status: "draft",
+              lastPreview: "等待你补充任务需求后开始执行。",
+              isPinned: false,
+              hasUnread: false,
+              tag: null,
+              sourceSessionId: newSessionId,
+            },
+            ...prev.filter((topic) => topic.id !== newSessionId),
+          ]);
+          resetPendingActions();
+          resetStreamingRefs();
+          hydratedSessionRef.current = newSessionId;
+          skipAutoRestoreRef.current = false;
+          restoredWorkspaceRef.current = resolvedWorkspaceId;
+
+          persistSessionModelPreference(
             newSessionId,
             providerTypeRef.current,
             modelRef.current,
-          )
-          .then(() => {
-            markSessionModelPreferenceSynced(
-              newSessionId,
-              providerTypeRef.current,
-              modelRef.current,
-            );
-          })
-          .catch((error) => {
-            console.warn("[AsterChat] 新会话回写 provider/model 失败:", error);
-          });
-        void runtime
-          .setSessionAccessMode?.(newSessionId, accessMode)
-          .catch((error) => {
-            console.warn("[AsterChat] 新会话回写 accessMode 失败:", error);
-          });
-        persistSessionRestoreCandidate(newSessionId);
-        saveTransient(scopedKeys.messagesKey, []);
-        saveTransient(scopedKeys.turnsKey, []);
-        saveTransient(scopedKeys.itemsKey, []);
-        saveTransient(scopedKeys.currentTurnKey, null);
+          );
+          persistSessionAccessMode(newSessionId, accessMode);
+          markSessionExecutionStrategySynced(newSessionId, executionStrategy);
+          persistSessionRestoreCandidate(newSessionId);
+          saveTransient(scopedKeys.messagesKey, []);
+          saveTransient(scopedKeys.turnsKey, []);
+          saveTransient(scopedKeys.itemsKey, []);
+          saveTransient(scopedKeys.currentTurnKey, null);
 
-        void loadTopics();
-        logAgentDebug("useAgentSession", "createFreshSession.success", {
-          newSessionId,
-          sessionName: sessionName?.trim() || null,
-          workspaceId: resolvedWorkspaceId,
-        });
-        return newSessionId;
-      } catch (error) {
-        console.error("[AsterChat] 创建新任务失败:", error);
-        logAgentDebug(
-          "useAgentSession",
-          "createFreshSession.error",
-          {
-            error,
+          void loadTopics();
+          logAgentDebug("useAgentSession", "createFreshSession.success", {
+            newSessionId,
             sessionName: sessionName?.trim() || null,
             workspaceId: resolvedWorkspaceId,
-          },
-          { level: "error" },
-        );
-        toast.error(`创建新任务失败: ${error}`);
-        return null;
-      }
+          });
+          return newSessionId;
+        } catch (error) {
+          console.error("[AsterChat] 创建新任务失败:", error);
+          logAgentDebug(
+            "useAgentSession",
+            "createFreshSession.error",
+            {
+              error,
+              sessionName: sessionName?.trim() || null,
+              workspaceId: resolvedWorkspaceId,
+            },
+            { level: "error" },
+          );
+          toast.error(`创建新任务失败: ${error}`);
+          return null;
+        }
+      })();
+
+      const trackCreationPromise = (promise: Promise<string | null>) =>
+        promise.finally(() => {
+          if (createFreshSessionPromiseRef.current === promise) {
+            createFreshSessionPromiseRef.current = null;
+          }
+        });
+
+      const trackedCreationPromise = trackCreationPromise(creationPromise);
+
+      createFreshSessionPromiseRef.current = trackedCreationPromise;
+      return trackedCreationPromise;
     },
     [
       accessMode,
@@ -611,12 +619,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       markSessionExecutionStrategySynced,
       persistSessionModelPreference,
       persistSessionAccessMode,
-      markSessionModelPreferenceSynced,
       persistSessionRestoreCandidate,
       providerTypeRef,
       resetPendingActions,
       resetStreamingRefs,
       runtime,
+      sessionIdRef,
       scopedKeys,
       workspaceId,
     ],
@@ -633,6 +641,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           executionRuntime: executionRuntimeRef.current,
         }),
       );
+      setIsAutoRestoringSession(false);
       resetPendingActions();
       restoredWorkspaceRef.current = null;
       hydratedSessionRef.current = null;
@@ -909,6 +918,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
               );
             });
         }
+        setIsAutoRestoringSession(false);
       } catch (error) {
         console.error("[AsterChat] 切换话题失败:", error);
         console.error("[AsterChat] 错误详情:", JSON.stringify(error, null, 2));
@@ -926,10 +936,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           applySessionSnapshot(createEmptyAgentSessionSnapshot());
           persistSessionRestoreCandidate(null);
           void loadTopics();
+          setIsAutoRestoringSession(false);
           return;
         }
         applySessionSnapshot(createEmptyAgentSessionSnapshot());
         persistSessionRestoreCandidate(null);
+        setIsAutoRestoringSession(false);
         toast.error(
           `加载对话历史失败: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -1040,6 +1052,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       topics,
     );
     if (!targetSessionId) {
+      setIsAutoRestoringSession(false);
       logAgentDebug(
         "useAgentSession",
         "autoRestore.skipWithoutTarget",
@@ -1053,6 +1066,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       return;
     }
 
+    let cancelled = false;
+    setIsAutoRestoringSession(true);
     logAgentDebug("useAgentSession", "autoRestore.start", {
       candidateSessionId: scopedCandidate,
       targetSessionId,
@@ -1073,7 +1088,15 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         { level: "warn" },
       );
       persistSessionRestoreCandidate(null);
+    }).finally(() => {
+      if (!cancelled) {
+        setIsAutoRestoringSession(false);
+      }
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     disableSessionRestore,
     persistSessionRestoreCandidate,
@@ -1087,6 +1110,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   useEffect(() => {
     if (sessionId) {
       skipAutoRestoreRef.current = false;
+      setIsAutoRestoringSession(false);
     }
   }, [sessionId]);
 
@@ -1425,6 +1449,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     topics,
     setTopics,
     topicsReady,
+    isAutoRestoringSession,
     loadTopics,
     createFreshSession,
     ensureSession,

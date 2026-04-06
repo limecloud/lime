@@ -18,6 +18,7 @@ export type AgentStreamUserInputSendPreparationEnv = Pick<
   | "activeStreamRef"
   | "getQueuedTurnsCount"
   | "isThreadBusy"
+  | "hasPendingPreparedSubmit"
   | "getSyncedSessionModelPreference"
   | "setMessages"
   | "setIsSending"
@@ -94,7 +95,8 @@ export function prepareAgentStreamUserInputSend(
   const expectingQueue =
     Boolean(env.activeStreamRef.current) ||
     env.getQueuedTurnsCount() > 0 ||
-    env.isThreadBusy();
+    env.isThreadBusy() ||
+    env.hasPendingPreparedSubmit();
   const assistantMsgId = crypto.randomUUID();
   const userMsgId = skipUserMessage ? null : crypto.randomUUID();
   const { assistantMsg } = prepareAgentStreamSubmitDraft({

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useMemo,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -30,6 +31,7 @@ import {
   createAgentStreamPreparedSendEnv,
   type AgentStreamPreparedSendEnv,
 } from "./agentStreamPreparedSendEnv";
+import { AgentStreamSubmitGate } from "./agentStreamSubmitGate";
 import {
   normalizeAgentStreamCompactionError,
   runAgentStreamCompaction,
@@ -158,6 +160,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     currentStreamingSessionIdRef,
     currentStreamingEventNameRef,
   });
+  const preparedSubmitGateRef = useRef(new AgentStreamSubmitGate());
 
   const preparedSendEnv = useMemo<AgentStreamPreparedSendEnv>(
     () =>
@@ -171,6 +174,9 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         providerTypeRef,
         modelRef,
         sessionIdRef,
+        hasPendingPreparedSubmit: () =>
+          preparedSubmitGateRef.current.hasPending(),
+        runPreparedSubmit: (task) => preparedSubmitGateRef.current.run(task),
         getRequiredWorkspaceId,
         getSyncedSessionModelPreference,
         getSyncedSessionExecutionStrategy,

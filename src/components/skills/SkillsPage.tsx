@@ -21,7 +21,7 @@ import {
   filterSkillsByQueryAndStatus,
   groupSkillsBySourceKind,
 } from "./skillsUtils";
-import { HelpTip } from "@/components/HelpTip";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   skillsApi,
   type AppType,
@@ -377,17 +377,38 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                   </span>
                   {!hideHeader ? (
                     <div className="space-y-2">
-                      <p className="text-base font-semibold text-slate-900">
-                        在一个工作台里管理内置、本地与远程 Skill
-                      </p>
-                      <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                        统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-semibold text-slate-900">
+                          在一个工作台里管理内置、本地与远程 Skill
+                        </p>
+                        <WorkbenchInfoTip
+                          ariaLabel="技能工作台说明"
+                          content={
+                            <div className="space-y-1">
+                              <p>
+                                统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。
+                              </p>
+                              <p>
+                                内置 Skill 默认可用；本地 Skill 支持直接查看；远程 Skill
+                                通过缓存展示。
+                              </p>
+                            </div>
+                          }
+                          tone="mint"
+                        />
+                      </div>
                     </div>
                   ) : (
-                    <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                      为当前应用编排可用技能、仓库来源与安装状态。
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-slate-900">
+                        高级技能管理
+                      </p>
+                      <WorkbenchInfoTip
+                        ariaLabel="高级技能管理说明"
+                        content="为当前应用编排可用技能、仓库来源与安装状态。"
+                        tone="mint"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -445,12 +466,16 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                         <StatIcon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 whitespace-nowrap">
-                          {stat.label}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          {stat.hint}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-800 whitespace-nowrap">
+                            {stat.label}
+                          </p>
+                          <WorkbenchInfoTip
+                            ariaLabel={`${stat.label}说明`}
+                            content={stat.hint}
+                            tone="mint"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -463,15 +488,19 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-              <span className="rounded-full bg-white/80 px-3 py-1 shadow-sm">
-                内置 Skill 默认可用
-              </span>
-              <span className="rounded-full bg-white/80 px-3 py-1 shadow-sm">
-                本地 Skill 支持直接查看
-              </span>
-              <span className="rounded-full bg-white/80 px-3 py-1 shadow-sm">
-                远程 Skill 通过缓存展示
-              </span>
+              <WorkbenchInfoTip
+                ariaLabel="技能使用规则"
+                label="使用规则"
+                variant="pill"
+                tone="mint"
+                content={
+                  <ul className="list-disc pl-4">
+                    <li>Built-in Skills 为应用内置技能，默认可用且不可卸载。</li>
+                    <li>Local Skills 直接从本地目录加载，不依赖远程仓库。</li>
+                    <li>Remote Skills 使用缓存展示，点击“刷新”才同步远程仓库。</li>
+                  </ul>
+                }
+              />
               {remoteLoading && (
                 <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-emerald-700 shadow-sm">
                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -481,14 +510,6 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
             </div>
           </div>
         </section>
-
-        <HelpTip title="什么是 Skills？" variant="green">
-          <ul className="list-disc list-inside space-y-1 text-sm text-green-700 dark:text-green-400">
-            <li>Built-in Skills 为应用内置技能，默认可用且不可卸载</li>
-            <li>Local Skills 直接从本地目录加载，不依赖远程仓库</li>
-            <li>Remote Skills 使用缓存展示，点击"刷新"才同步远程仓库</li>
-          </ul>
-        </HelpTip>
 
         {error && (
           <div className="rounded-[22px] border border-red-200 bg-red-50/90 p-4 text-red-700 shadow-sm dark:bg-red-950/30">
@@ -606,20 +627,24 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                                 同步中
                               </span>
                             )}
+                            <WorkbenchInfoTip
+                              ariaLabel={`${sectionStyle.displayTitle}说明`}
+                              content={
+                                <div className="space-y-1">
+                                  <p>{section.description}</p>
+                                  <p>{sectionStyle.hint}</p>
+                                </div>
+                              }
+                              tone="slate"
+                            />
                           </div>
                           <div className="text-[11px] font-semibold tracking-[0.22em] text-slate-400">
                             {section.title}
                           </div>
-                          <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                            {section.description}
-                          </p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <span className="hidden sm:inline">
-                          {sectionStyle.hint}
-                        </span>
                         <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
                       </div>
                     </div>

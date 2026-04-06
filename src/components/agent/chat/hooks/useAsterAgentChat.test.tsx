@@ -112,6 +112,16 @@ interface HookHarness {
   unmount: () => void;
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function mountHook(
   workspaceId = "ws-test",
   currentOptions: {
@@ -438,7 +448,7 @@ describe("useAsterAgentChat 首页新会话", () => {
           .getValue()
           .topics.some((topic) => topic.id === "session-live-missing"),
       ).toBe(true);
-      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+      expect(mockUpdateAgentRuntimeSession).not.toHaveBeenCalledWith({
         session_id: "session-live-missing",
         provider_name: harness.getValue().providerType,
         model_name: harness.getValue().model,
@@ -2509,6 +2519,185 @@ describe("useAsterAgentChat runtime routing", () => {
       harness.unmount();
     }
   });
+
+  it("收到通用任务 tool_end 后应把任务预览挂到当前助手消息", async () => {
+    const workspaceId = "ws-generic-task-preview";
+    seedSession(workspaceId, "session-generic-task-preview");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage(
+            "帮我找一组咖啡馆木桌背景素材",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_name: "Bash",
+          tool_id: "tool-resource-task-1",
+          arguments: JSON.stringify({
+            command:
+              "lime task create resource-search --json --resource-type image --query 'cozy coffee table'",
+          }),
+        });
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-resource-task-1",
+          result: {
+            success: true,
+            output: "任务已提交",
+            metadata: {
+              task_id: "task-resource-1",
+              task_type: "modal_resource_search",
+              status: "pending_submit",
+              artifact_path:
+                ".lime/tasks/modal_resource_search/task-resource-1.json",
+              project_id: "project-resource-1",
+              content_id: "content-resource-1",
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.taskPreview).toMatchObject({
+        kind: "modal_resource_search",
+        taskId: "task-resource-1",
+        taskType: "modal_resource_search",
+        status: "running",
+        artifactPath: ".lime/tasks/modal_resource_search/task-resource-1.json",
+        projectId: "project-resource-1",
+        contentId: "content-resource-1",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("收到联网搜图 tool_end 后应挂载素材预览并生成可打开的 artifact", async () => {
+    const workspaceId = "ws-web-image-search-preview";
+    seedSession(workspaceId, "session-web-image-search-preview");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage(
+            "帮我找一组咖啡馆木桌背景图",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_name: "lime_search_web_images",
+          tool_id: "tool-web-search-1",
+          arguments: JSON.stringify({
+            query: "cozy coffee table",
+            count: 3,
+            aspect: "landscape",
+          }),
+        });
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-web-search-1",
+          result: {
+            success: true,
+            output: "已返回 3 张候选图片",
+            metadata: {
+              provider: "pexels",
+              result: {
+                provider: "pexels",
+                query: "cozy coffee table",
+                returnedCount: 3,
+                aspect: "landscape",
+                hits: [
+                  {
+                    id: "hit-1",
+                    thumbnail_url: "https://pexels.example/1-thumb.jpg",
+                    content_url: "https://pexels.example/1.jpg",
+                    width: 1600,
+                    height: 900,
+                    name: "cozy coffee table 1",
+                    host_page_url: "https://www.pexels.com/photo/1",
+                  },
+                  {
+                    id: "hit-2",
+                    thumbnail_url: "https://pexels.example/2-thumb.jpg",
+                    content_url: "https://pexels.example/2.jpg",
+                    width: 1600,
+                    height: 900,
+                    name: "cozy coffee table 2",
+                    host_page_url: "https://www.pexels.com/photo/2",
+                  },
+                  {
+                    id: "hit-3",
+                    thumbnail_url: "https://pexels.example/3-thumb.jpg",
+                    content_url: "https://pexels.example/3.jpg",
+                    width: 1600,
+                    height: 900,
+                    name: "cozy coffee table 3",
+                    host_page_url: "https://www.pexels.com/photo/3",
+                  },
+                ],
+              },
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.taskPreview).toMatchObject({
+        kind: "modal_resource_search",
+        taskId: "resource-search:tool-web-search-1",
+        taskType: "modal_resource_search",
+        status: "complete",
+        artifactPath: ".lime/runtime/resource-search/tool-web-search-1.md",
+        metaItems: expect.arrayContaining(["Pexels", "3 个候选"]),
+      });
+      expect(
+        assistantMessage?.taskPreview &&
+          "imageCandidates" in assistantMessage.taskPreview
+          ? assistantMessage.taskPreview.imageCandidates
+          : undefined,
+      ).toHaveLength(3);
+      expect(assistantMessage?.artifacts?.[0]?.meta).toMatchObject({
+        artifactKind: "brief",
+        provider: "pexels",
+        query: "cozy coffee table",
+        returnedCount: 3,
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
 });
 
 describe("useAsterAgentChat slash skill 执行链路", () => {
@@ -2679,6 +2868,141 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
       expect(mockToast.success).not.toHaveBeenCalledWith(
         "已创建新任务：重构输入命令",
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("并发 ensureSession 应复用同一个新会话创建请求", async () => {
+    const deferredSession = createDeferred<string>();
+    const harness = mountHook();
+
+    mockCreateAgentRuntimeSession.mockImplementationOnce(
+      async () => deferredSession.promise,
+    );
+
+    try {
+      let firstEnsurePromise: Promise<string | null> | null = null;
+      let secondEnsurePromise: Promise<string | null> | null = null;
+
+      await act(async () => {
+        firstEnsurePromise = harness.getValue().ensureSession();
+        secondEnsurePromise = harness.getValue().ensureSession();
+        await Promise.resolve();
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredSession.resolve("session-concurrent");
+        await Promise.all([firstEnsurePromise, secondEnsurePromise]);
+      });
+
+      expect(await firstEnsurePromise).toBe("session-concurrent");
+      expect(await secondEnsurePromise).toBe("session-concurrent");
+
+      await act(async () => {
+        expect(await harness.getValue().ensureSession()).toBe(
+          "session-concurrent",
+        );
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("首条发送创建新会话时不应额外回写 provider/model 或 accessMode", async () => {
+    const workspaceId = "ws-first-send-no-eager-sync";
+    const harness = mountHook(workspaceId);
+
+    mockCreateAgentRuntimeSession.mockResolvedValue("session-first-send");
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage(
+            "请先开始处理这个任务",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledWith(
+        workspaceId,
+        undefined,
+        "react",
+      );
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(1);
+      expect(mockUpdateAgentRuntimeSession).not.toHaveBeenCalledWith({
+        session_id: "session-first-send",
+        provider_name: harness.getValue().providerType,
+        model_name: harness.getValue().model,
+      });
+      expect(mockUpdateAgentRuntimeSession).not.toHaveBeenCalledWith({
+        session_id: "session-first-send",
+        recent_access_mode: harness.getValue().accessMode,
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("首轮发送尚未完成建会话时，后续发送应转入排队并复用同一个会话", async () => {
+    const workspaceId = "ws-first-send-gated-queue";
+    const deferredSession = createDeferred<string>();
+    const harness = mountHook(workspaceId);
+
+    mockCreateAgentRuntimeSession.mockImplementationOnce(
+      async () => deferredSession.promise,
+    );
+
+    try {
+      await flushEffects();
+
+      let firstSendPromise: Promise<void> | null = null;
+      await act(async () => {
+        firstSendPromise = harness
+          .getValue()
+          .sendMessage("先处理第一条任务", [], false, false, false, "react");
+        await Promise.resolve();
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(harness.getValue().messages).toHaveLength(2);
+      expect(harness.getValue().messages[1]?.runtimeStatus?.title).toBe(
+        "正在准备处理",
+      );
+
+      let secondSendPromise: Promise<void> | null = null;
+      await act(async () => {
+        secondSendPromise = harness
+          .getValue()
+          .sendMessage("再补充第二条任务", [], false, false, false, "react");
+        await Promise.resolve();
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(harness.getValue().messages).toHaveLength(4);
+      expect(harness.getValue().messages[3]?.runtimeStatus?.title).toBe(
+        "已加入排队列表",
+      );
+
+      await act(async () => {
+        deferredSession.resolve("session-first-send-gated");
+        await Promise.all([firstSendPromise, secondSendPromise]);
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledTimes(2);
+      expect(harness.getValue().sessionId).toBe("session-first-send-gated");
     } finally {
       harness.unmount();
     }
@@ -5995,7 +6319,7 @@ describe("useAsterAgentChat 兼容接口", () => {
               requestMetadata: {
                 harness: {
                   theme: "general",
-                  session_mode: "theme_workbench",
+                  session_mode: "general_workbench",
                 },
               },
             },
@@ -6011,7 +6335,7 @@ describe("useAsterAgentChat 兼容接口", () => {
           } | null
         )?.harness,
       ).toEqual({
-        session_mode: "theme_workbench",
+        session_mode: "general_workbench",
       });
     } finally {
       harness.unmount();

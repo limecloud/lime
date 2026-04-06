@@ -192,7 +192,7 @@ export const ChatInputSlot = styled.div`
   margin: 0 auto;
 `;
 
-export const ThemeWorkbenchInputOverlay = styled.div`
+export const GeneralWorkbenchInputOverlay = styled.div`
   position: absolute;
   left: 24px;
   right: 24px;
@@ -210,7 +210,7 @@ export const ThemeWorkbenchInputOverlay = styled.div`
   }
 `;
 
-export const ThemeWorkbenchLayoutShell = styled.div<{ $bottomInset: string }>`
+export const GeneralWorkbenchLayoutShell = styled.div<{ $bottomInset: string }>`
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -220,7 +220,7 @@ export const ThemeWorkbenchLayoutShell = styled.div<{ $bottomInset: string }>`
   transition: padding-bottom 0.2s ease;
 `;
 
-export const ThemeWorkbenchCanvasHost = styled.div`
+const GeneralWorkbenchCanvasHost = styled.div`
   flex: 1;
   min-height: 0;
 
@@ -229,7 +229,7 @@ export const ThemeWorkbenchCanvasHost = styled.div`
   }
 `;
 
-export const ThemeWorkbenchLeftExpandButton = styled.button`
+export const GeneralWorkbenchLeftExpandButton = styled.button`
   position: absolute;
   left: 10px;
   top: 50%;
@@ -280,7 +280,7 @@ export const LayoutTransitionRenderGate = memo(
     chatPanelMinWidth,
     forceOpenChatPanel = false,
   }: LayoutTransitionRenderGateProps) => (
-    <ThemeWorkbenchCanvasHost>
+    <GeneralWorkbenchCanvasHost>
       <LayoutTransition
         mode={mode}
         chatContent={chatContent}
@@ -290,7 +290,7 @@ export const LayoutTransitionRenderGate = memo(
         chatPanelMinWidth={chatPanelMinWidth}
         forceOpenChatPanel={forceOpenChatPanel}
       />
-    </ThemeWorkbenchCanvasHost>
+    </GeneralWorkbenchCanvasHost>
   ),
   (previous, next) =>
     previous.mode === next.mode &&

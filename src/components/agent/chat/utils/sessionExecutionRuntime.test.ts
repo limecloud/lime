@@ -3,6 +3,7 @@ import {
   applyModelChangeExecutionRuntime,
   getExecutionRuntimeDisplayLabel,
   applyTurnContextExecutionRuntime,
+  createExecutionRuntimeFromSessionDetail,
   createChatToolPreferencesFromExecutionRuntime,
   createSessionRecentPreferencesFromChatToolPreferences,
   createSessionRecentTeamSelectionFromTeamDefinition,
@@ -109,6 +110,21 @@ describe("sessionExecutionRuntime", () => {
     ).toEqual({
       providerType: "custom-provider-id",
       model: "gpt-5.4",
+    });
+  });
+
+  it("应将 legacy general workbench alias recent_session_mode 归一为 general_workbench", () => {
+    expect(
+      createExecutionRuntimeFromSessionDetail({
+        execution_runtime: {
+          session_id: "session-legacy",
+          source: "session",
+          recent_session_mode: "theme_workbench",
+        },
+      }),
+    ).toMatchObject({
+      session_id: "session-legacy",
+      recent_session_mode: "general_workbench",
     });
   });
 

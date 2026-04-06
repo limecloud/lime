@@ -1,11 +1,11 @@
 import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { getDefaultGuidePromptByTheme } from "../utils/defaultGuidePrompt";
-import type { ThemeWorkbenchEntryPromptState } from "../hooks/useThemeWorkbenchEntryPrompt";
+import type { GeneralWorkbenchEntryPromptState } from "../hooks/useGeneralWorkbenchEntryPrompt";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { MessageImage } from "../types";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
-import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
+import { isCanvasStateEmpty } from "./generalWorkbenchHelpers";
 import type { WorkspaceHandleSend } from "./useWorkspaceSendActions";
 
 const shouldLogWorkspaceInfo = import.meta.env.MODE !== "test";
@@ -32,10 +32,10 @@ interface UseWorkspaceAutoGuideRuntimeParams {
   canvasState: CanvasStateUnion | null;
   isThemeWorkbench: boolean;
   mappedTheme: ThemeType;
-  shouldUseCompactThemeWorkbench: boolean;
-  shouldSkipThemeWorkbenchAutoGuideWithoutPrompt: boolean;
-  themeWorkbenchEntryCheckPending: boolean;
-  themeWorkbenchEntryPrompt: ThemeWorkbenchEntryPromptState | null;
+  shouldUseCompactGeneralWorkbench: boolean;
+  shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt: boolean;
+  generalWorkbenchEntryCheckPending: boolean;
+  generalWorkbenchEntryPrompt: GeneralWorkbenchEntryPromptState | null;
   chatToolPreferences: Pick<ChatToolPreferences, "thinking" | "webSearch">;
   setInput: Dispatch<SetStateAction<string>>;
   handleSend: WorkspaceHandleSend;
@@ -60,10 +60,10 @@ export function useWorkspaceAutoGuideRuntime({
   canvasState,
   isThemeWorkbench,
   mappedTheme,
-  shouldUseCompactThemeWorkbench,
-  shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
-  themeWorkbenchEntryCheckPending,
-  themeWorkbenchEntryPrompt,
+  shouldUseCompactGeneralWorkbench,
+  shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
+  generalWorkbenchEntryCheckPending,
+  generalWorkbenchEntryPrompt,
   chatToolPreferences,
   setInput,
   handleSend,
@@ -76,7 +76,7 @@ export function useWorkspaceAutoGuideRuntime({
   triggerAIGuideRef.current = triggerAIGuide;
 
   useEffect(() => {
-    if (shouldUseCompactThemeWorkbench) {
+    if (shouldUseCompactGeneralWorkbench) {
       return;
     }
 
@@ -99,7 +99,7 @@ export function useWorkspaceAutoGuideRuntime({
       return;
     }
 
-    if (!initialDispatchKey && themeWorkbenchEntryCheckPending) {
+    if (!initialDispatchKey && generalWorkbenchEntryCheckPending) {
       return;
     }
 
@@ -153,7 +153,7 @@ export function useWorkspaceAutoGuideRuntime({
       return;
     }
 
-    if (themeWorkbenchEntryPrompt?.kind === "resume") {
+    if (generalWorkbenchEntryPrompt?.kind === "resume") {
       return;
     }
 
@@ -164,12 +164,12 @@ export function useWorkspaceAutoGuideRuntime({
     }
 
     if (isThemeWorkbench) {
-      if (shouldSkipThemeWorkbenchAutoGuideWithoutPrompt) {
+      if (shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt) {
         return;
       }
 
       hasTriggeredGuideRef.current = true;
-      logWorkspaceInfo("[AgentChatPage] 主题工作台：触发 AI 引导");
+      logWorkspaceInfo("[AgentChatPage] 工作区上下文：触发 AI 引导");
 
       triggerAIGuideRef.current();
       return;
@@ -196,11 +196,11 @@ export function useWorkspaceAutoGuideRuntime({
     onInitialUserPromptConsumed,
     projectReady,
     setInput,
-    shouldSkipThemeWorkbenchAutoGuideWithoutPrompt,
-    shouldUseCompactThemeWorkbench,
+    shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
+    shouldUseCompactGeneralWorkbench,
     systemPromptReady,
-    themeWorkbenchEntryCheckPending,
-    themeWorkbenchEntryPrompt,
+    generalWorkbenchEntryCheckPending,
+    generalWorkbenchEntryPrompt,
     consumedInitialPromptRef,
     hasTriggeredGuideRef,
   ]);
@@ -210,7 +210,7 @@ export function useWorkspaceAutoGuideRuntime({
     const pendingInitialImages = initialUserImages || [];
 
     if (
-      shouldUseCompactThemeWorkbench ||
+      shouldUseCompactGeneralWorkbench ||
       !initialDispatchKey ||
       contentId ||
       !sessionId ||
@@ -267,7 +267,7 @@ export function useWorkspaceAutoGuideRuntime({
     messagesCount,
     onInitialUserPromptConsumed,
     sessionId,
-    shouldUseCompactThemeWorkbench,
+    shouldUseCompactGeneralWorkbench,
     consumedInitialPromptRef,
   ]);
 

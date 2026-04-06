@@ -124,6 +124,31 @@ async function flushEffects() {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -225,6 +250,33 @@ afterEach(() => {
 });
 
 describe("MemorySettings", () => {
+  it("应把首屏说明和问卷副标题收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "这页负责管理用户画像、三层记忆来源与自动记忆入口。",
+    );
+    expect(getBodyText()).not.toContain(
+      "单选，用于帮助代理判断你的知识密度和上下文称呼。",
+    );
+
+    const heroTip = await hoverTip("记忆快照说明");
+    expect(getBodyText()).toContain(
+      "这页负责管理用户画像、三层记忆来源与自动记忆入口。",
+    );
+    await leaveTip(heroTip);
+
+    const questionTip = await hoverTip(
+      "以下哪个选项最能形容你现在的状态?说明",
+    );
+    expect(getBodyText()).toContain(
+      "单选，用于帮助代理判断你的知识密度和上下文称呼。",
+    );
+    await leaveTip(questionTip);
+  });
+
   it("应渲染新的记忆概览与主要分区", async () => {
     const container = renderComponent();
     await flushEffects();

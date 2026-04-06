@@ -45,6 +45,31 @@ async function waitForLoad() {
   await flushEffects();
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await flushEffects();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await flushEffects();
+  });
+}
+
 function findInput(container: HTMLElement, id: string): HTMLInputElement {
   const element = container.querySelector<HTMLInputElement>(`#${id}`);
   if (!element) {
@@ -206,5 +231,22 @@ describe("ProfileSettings", () => {
         }),
       }),
     );
+  });
+
+  it("应把字段说明和资料用途说明收进 tips", async () => {
+    renderComponent();
+    await waitForLoad();
+
+    const nicknameTip = await hoverTip("昵称说明");
+    expect(getBodyText()).toContain(
+      "建议使用你最常用的称呼，便于系统在多处一致展示。",
+    );
+    await leaveTip(nicknameTip);
+
+    const usageTip = await hoverTip("资料如何被使用说明");
+    expect(getBodyText()).toContain(
+      "标签只用于偏好判断，不会替代系统提示词，也不会自动暴露给外部服务。",
+    );
+    await leaveTip(usageTip);
   });
 });

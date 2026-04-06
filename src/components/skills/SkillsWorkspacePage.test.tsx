@@ -195,6 +195,31 @@ function renderPage() {
   };
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 describe("SkillsWorkspacePage", () => {
   beforeEach(() => {
     (
@@ -230,6 +255,29 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("技能");
     expect(container.textContent).toContain("GitHub");
     expect(container.textContent).not.toContain("GitHub 仓库检索围绕关键词采集");
+  });
+
+  it("应把主入口说明和搜索说明收进 tips", async () => {
+    renderPage();
+
+    expect(getBodyText()).not.toContain(
+      "技能中心现在先展示技能组，再进入具体技能项。",
+    );
+    expect(getBodyText()).not.toContain(
+      "先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。",
+    );
+
+    const entryTip = await hoverTip("技能主入口说明");
+    expect(getBodyText()).toContain(
+      "技能中心现在先展示技能组，再进入具体技能项。",
+    );
+    await leaveTip(entryTip);
+
+    const searchTip = await hoverTip("技能搜索说明");
+    expect(getBodyText()).toContain(
+      "先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。",
+    );
+    await leaveTip(searchTip);
   });
 
   it("点击技能组后应进入组内技能列表并可打开启动对话框", () => {

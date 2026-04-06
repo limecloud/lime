@@ -275,6 +275,3 @@ export const skillExecutionApi = {
     return safeInvoke("get_skill_detail", { skillName });
   },
 };
-
-// 导出默认 API 对象
-export default skillExecutionApi;

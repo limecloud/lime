@@ -3,7 +3,6 @@ import {
   Box,
   ChevronDown,
   FolderOpen,
-  Globe,
   Home,
   PanelRightClose,
   PanelRightOpen,
@@ -40,26 +39,6 @@ interface ChatNavbarProps {
   showContextCompactionAction?: boolean;
   contextCompactionRunning?: boolean;
   onCompactContext?: () => void;
-  showBrowserAssistEntry?: boolean;
-  browserAssistActive?: boolean;
-  browserAssistLoading?: boolean;
-  browserAssistAttentionLevel?: "idle" | "info" | "warning";
-  browserAssistLabel?: string;
-  onOpenBrowserAssist?: () => void;
-}
-
-function resolveBrowserAssistTitle(
-  attentionLevel: NonNullable<ChatNavbarProps["browserAssistAttentionLevel"]>,
-): string {
-  if (attentionLevel === "warning") {
-    return "恢复浏览器工作台";
-  }
-
-  if (attentionLevel === "info") {
-    return "查看浏览器工作台状态";
-  }
-
-  return "打开浏览器工作台";
 }
 
 const toolbarGroupClassName =
@@ -102,17 +81,8 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   showContextCompactionAction = false,
   contextCompactionRunning = false,
   onCompactContext,
-  showBrowserAssistEntry = false,
-  browserAssistActive = false,
-  browserAssistLoading = false,
-  browserAssistAttentionLevel = "idle",
-  browserAssistLabel,
-  onOpenBrowserAssist,
 }) => {
   const isWorkspaceCompact = chrome === "workspace-compact";
-  const browserAssistTitle = resolveBrowserAssistTitle(
-    browserAssistAttentionLevel,
-  );
   const groupClassName = cn(
     toolbarGroupClassName,
     isWorkspaceCompact && "rounded-[18px] p-1",
@@ -129,15 +99,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
     toolbarGhostIconButtonClassName,
     isWorkspaceCompact && "h-8 w-8 rounded-[18px]",
   );
-  const shouldShowBrowserAssistEntry =
-    showBrowserAssistEntry &&
-    (browserAssistLoading ||
-      browserAssistAttentionLevel !== "idle" ||
-      browserAssistLabel?.trim() !== "浏览器已就绪");
-  const showStatusTools =
-    shouldShowBrowserAssistEntry ||
-    showHarnessToggle ||
-    showContextCompactionAction;
+  const showStatusTools = showHarnessToggle || showContextCompactionAction;
   const showNavigationTools =
     !isWorkspaceCompact &&
     (Boolean(onBackHome) ||
@@ -298,51 +260,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               </Button>
             ) : null}
 
-            {showContextCompactionAction &&
-            (shouldShowBrowserAssistEntry || showHarnessToggle) ? (
-              <div className={dividerClassName} aria-hidden="true" />
-            ) : null}
-
-            {shouldShowBrowserAssistEntry ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  embeddedButtonClassName,
-                  toolbarTextButtonClassName,
-                  browserAssistActive && "bg-slate-100 text-slate-900",
-                  browserAssistAttentionLevel === "warning" &&
-                    "border-amber-300 bg-amber-50/80 text-amber-800 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/15 dark:hover:text-amber-100",
-                  browserAssistAttentionLevel === "info" &&
-                    "border-sky-300 bg-sky-50/80 text-sky-800 hover:bg-sky-100 hover:text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200 dark:hover:bg-sky-500/15 dark:hover:text-sky-100",
-                )}
-                onClick={onOpenBrowserAssist}
-                disabled={browserAssistLoading}
-                aria-label={browserAssistTitle}
-                title={browserAssistTitle}
-              >
-                <Globe size={14} />
-                {browserAssistAttentionLevel !== "idle" ? (
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "h-2 w-2 rounded-full shadow-sm shadow-slate-950/10",
-                      browserAssistAttentionLevel === "warning"
-                        ? "bg-amber-500"
-                        : "bg-sky-500",
-                    )}
-                  />
-                ) : null}
-                <span>
-                  {browserAssistLoading
-                    ? "启动中..."
-                    : browserAssistLabel?.trim() || "浏览器工作台"}
-                </span>
-              </Button>
-            ) : null}
-
-            {shouldShowBrowserAssistEntry && showHarnessToggle ? (
+            {showContextCompactionAction && showHarnessToggle ? (
               <div className={dividerClassName} aria-hidden="true" />
             ) : null}
 

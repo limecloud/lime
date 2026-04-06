@@ -12,7 +12,7 @@
  * 需要使用别名配置的 Provider 列表
  * 这些 Provider 的模型列表从别名配置文件获取，而不是从模型注册表
  */
-export const ALIAS_PROVIDERS = [
+const ALIAS_PROVIDERS = [
   "antigravity",
   "kiro",
   "codex",
@@ -20,13 +20,13 @@ export const ALIAS_PROVIDERS = [
   "gemini_api_key",
 ] as const;
 
-export type AliasProvider = (typeof ALIAS_PROVIDERS)[number];
+type AliasProvider = (typeof ALIAS_PROVIDERS)[number];
 
 /**
  * 别名配置文件名映射
  * 某些 Provider 共享同一个别名配置文件
  */
-export const ALIAS_CONFIG_MAPPING: Record<string, string> = {
+const ALIAS_CONFIG_MAPPING: Record<string, string> = {
   gemini_api_key: "gemini", // Gemini API Key 使用 gemini 的别名配置
 };
 
@@ -38,7 +38,7 @@ export const ALIAS_CONFIG_MAPPING: Record<string, string> = {
  * Provider 类型到模型注册表 provider_id 的映射
  * 用于从模型注册表获取对应 Provider 的模型列表
  */
-export const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
+const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   // 主流 AI
   openai: "openai",
   anthropic: "anthropic",
@@ -64,7 +64,7 @@ export const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
 /**
  * Provider 显示名称映射
  */
-export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   kiro: "Kiro",
   gemini: "Gemini OAuth",
   qwen: "通义千问",

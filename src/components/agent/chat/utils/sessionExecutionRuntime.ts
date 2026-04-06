@@ -13,6 +13,7 @@ import type {
   AgentEventTurnContext,
 } from "@/lib/api/agentProtocol";
 import type { SessionModelPreference } from "../hooks/agentChatShared";
+import { normalizeHarnessSessionMode } from "./harnessSessionMode";
 import {
   alignChatToolPreferencesWithExecutionStrategy,
   type ChatToolPreferences,
@@ -46,8 +47,9 @@ function mergeExecutionRuntime(
   const recentTeamSelection =
     updates.recent_team_selection ?? current?.recent_team_selection ?? null;
   const recentTheme = updates.recent_theme ?? current?.recent_theme ?? null;
-  const recentSessionMode =
-    updates.recent_session_mode ?? current?.recent_session_mode ?? null;
+  const recentSessionMode = normalizeHarnessSessionMode(
+    updates.recent_session_mode ?? current?.recent_session_mode ?? null,
+  );
   const recentGateKey =
     updates.recent_gate_key ?? current?.recent_gate_key ?? null;
   const recentRunTitle =
@@ -105,7 +107,22 @@ function mergeExecutionRuntime(
 export function createExecutionRuntimeFromSessionDetail(
   detail?: Pick<AsterSessionDetail, "execution_runtime"> | null,
 ): AsterSessionExecutionRuntime | null {
-  return detail?.execution_runtime || null;
+  const runtime = detail?.execution_runtime || null;
+  if (!runtime) {
+    return null;
+  }
+
+  const normalizedRecentSessionMode = normalizeHarnessSessionMode(
+    runtime.recent_session_mode,
+  );
+  if (normalizedRecentSessionMode === runtime.recent_session_mode) {
+    return runtime;
+  }
+
+  return {
+    ...runtime,
+    recent_session_mode: normalizedRecentSessionMode,
+  };
 }
 
 export function createSessionModelPreferenceFromExecutionRuntime(

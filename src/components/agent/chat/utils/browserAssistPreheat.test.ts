@@ -33,12 +33,12 @@ describe("browserAssistPreheat", () => {
     );
   });
 
-  it("非通用模式不应触发预热", () => {
+  it("无浏览器意图时不应触发预热", () => {
     const ensureBrowserAssistCanvas = vi.fn(async () => true);
 
     const started = preheatBrowserAssistInBackground({
       activeTheme: "general",
-      sourceText: "打开 https://example.com",
+      sourceText: "帮我总结一下这段会议纪要，并整理成三点结论。",
       ensureBrowserAssistCanvas,
     });
 

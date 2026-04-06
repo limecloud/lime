@@ -37,20 +37,20 @@ type HarnessPanelBaseProps = Pick<
   | "onOpenFile"
 >;
 
-interface ThemeWorkbenchHarnessDialogSectionProps extends HarnessPanelBaseProps {
+interface GeneralWorkbenchHarnessDialogSectionProps extends HarnessPanelBaseProps {
   enabled: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teamMemorySnapshot?: TeamMemorySnapshot | null;
 }
 
-export function ThemeWorkbenchHarnessDialogSection({
+export function GeneralWorkbenchHarnessDialogSection({
   enabled,
   open,
   onOpenChange,
   teamMemorySnapshot = null,
   ...panelBaseProps
-}: ThemeWorkbenchHarnessDialogSectionProps) {
+}: GeneralWorkbenchHarnessDialogSectionProps) {
   if (!enabled) {
     return null;
   }

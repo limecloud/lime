@@ -48,6 +48,31 @@ async function waitForLoad() {
   await flushEffects();
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await flushEffects();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await flushEffects();
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const button = Array.from(container.querySelectorAll("button")).find((item) =>
     item.textContent?.includes(text),
@@ -251,5 +276,26 @@ describe("EnvironmentSettings", () => {
 
     expect(container.textContent).toContain("sk-live-secret-value");
     expect(container.textContent).toContain("已覆盖来源：Shell 环境导入");
+  });
+
+  it("应把首屏说明和字段 hint 收进 tips", async () => {
+    renderComponent();
+    await waitForLoad();
+
+    expect(getBodyText()).not.toContain(
+      "这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。",
+    );
+
+    const heroTip = await hoverTip("环境变量设置总览说明");
+    expect(getBodyText()).toContain(
+      "这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。",
+    );
+    await leaveTip(heroTip);
+
+    const fieldTip = await hoverTip("导入超时（ms）说明");
+    expect(getBodyText()).toContain(
+      "超时后会回退为仅使用显式覆盖，不阻塞整体运行。",
+    );
+    await leaveTip(fieldTip);
   });
 });

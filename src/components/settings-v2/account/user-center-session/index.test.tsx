@@ -93,6 +93,31 @@ function renderPage() {
   return page;
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function findButton(container: HTMLElement, text: string) {
   const button = Array.from(container.querySelectorAll("button")).find((item) =>
     item.textContent?.includes(text),
@@ -226,7 +251,7 @@ describe("UserCenterSessionSettings", () => {
     expect(text).toContain("fmt:2026-03-25T08:00:00.000Z");
     expect(text).toContain("2 项技能 / 1 个入口");
     expect(text).toContain("Lime Hub 主服务 · gpt-5.2-pro");
-    expect(text).toContain("资料修改请前往账号中心完成");
+    expect(text).toContain("资料维护已统一到账号中心");
     expect(text).toContain("前往账号中心修改资料");
     expect(text).not.toContain("会话说明");
 
@@ -245,5 +270,23 @@ describe("UserCenterSessionSettings", () => {
     });
 
     expect(handleLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("应把账户总览和登录结果说明收进 tips", async () => {
+    renderPage();
+
+    expect(getBodyText()).not.toContain(
+      "昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。",
+    );
+
+    const accountTip = await hoverTip("账户资料说明");
+    expect(getBodyText()).toContain(
+      "昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。",
+    );
+    await leaveTip(accountTip);
+
+    const loginTip = await hoverTip("登录后自动完成说明");
+    expect(getBodyText()).toContain("同步默认 AI 服务、模型目录与已开通能力。");
+    await leaveTip(loginTip);
   });
 });

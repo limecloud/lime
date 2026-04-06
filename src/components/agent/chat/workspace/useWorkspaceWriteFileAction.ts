@@ -21,9 +21,9 @@ import {
 } from "../utils/messageArtifacts";
 import {
   MAX_PERSISTED_DOCUMENT_VERSIONS,
-  isThemeWorkbenchPrimaryDocumentArtifact,
+  isGeneralWorkbenchPrimaryDocumentArtifact,
   resolveTaskFileType,
-} from "./themeWorkbenchHelpers";
+} from "./generalWorkbenchHelpers";
 import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeControl";
 
@@ -38,6 +38,44 @@ function shouldAutoOpenCanvasForActiveWrite(
     writePhase === "preparing" ||
     writePhase === "streaming"
   );
+}
+
+function isContentPostDocumentFile(fileName: string, fileType: string): boolean {
+  return fileType === "document" && /^content-posts\/.+\.md$/i.test(fileName);
+}
+
+function resolveThemeWorkbenchDocumentStage(
+  gateKey?: string,
+): string | undefined {
+  if (gateKey === "write_mode") {
+    return "drafting";
+  }
+  if (gateKey === "publish_confirm") {
+    return "publishing";
+  }
+  if (gateKey === "topic_select") {
+    return "topic_selection";
+  }
+  return undefined;
+}
+
+function resolveThemeWorkbenchVersionLabel(params: {
+  fileName: string;
+  fileType: string;
+  gateKey?: string;
+  fallbackLabel: string;
+}): string {
+  if (isContentPostDocumentFile(params.fileName, params.fileType)) {
+    if (params.gateKey === "publish_confirm") {
+      return "发布终稿";
+    }
+    if (params.gateKey === "topic_select") {
+      return "选题草案";
+    }
+    return "社媒初稿";
+  }
+
+  return params.fallbackLabel;
 }
 
 function logWorkspaceWriteInfo(...args: Parameters<typeof console.log>) {
@@ -130,7 +168,7 @@ export function useWorkspaceWriteFileAction({
           context?.metadata?.writePhase,
         );
 
-      if (activeTheme === "general") {
+      if (activeTheme === "general" && !isThemeWorkbench) {
         const existingArtifact = artifacts.find((artifact) => {
           if (context?.artifactId && artifact.id === context.artifactId) {
             return true;
@@ -233,7 +271,7 @@ export function useWorkspaceWriteFileAction({
           ? currentGateKey
           : undefined;
       const isPrimaryArtifact =
-        !isThemeWorkbench || isThemeWorkbenchPrimaryDocumentArtifact(fileName);
+        !isThemeWorkbench || isGeneralWorkbenchPrimaryDocumentArtifact(fileName);
       const shouldApplyToMainDocument =
         nextFileType === "document" &&
         isPrimaryArtifact &&
@@ -243,7 +281,14 @@ export function useWorkspaceWriteFileAction({
         (isThemeWorkbench && shouldApplyToMainDocument
           ? `artifact:${fileName}`
           : null);
-      const effectiveVersionDescription = activeRunDescription;
+      const effectiveVersionDescription = resolveThemeWorkbenchVersionLabel({
+        fileName,
+        fileType: nextFileType,
+        gateKey: socialGateKey,
+        fallbackLabel: activeRunDescription,
+      });
+      const themeWorkbenchDocumentStage =
+        resolveThemeWorkbenchDocumentStage(socialGateKey);
       const baseVersionMetadata =
         shouldApplyToMainDocument
           ? {
@@ -252,6 +297,11 @@ export function useWorkspaceWriteFileAction({
               runId: activeRunVersionId || undefined,
               correlationId:
                 effectiveDocumentVersionId || activeRunVersionId || undefined,
+              artifactType: isContentPostDocumentFile(fileName, nextFileType)
+                ? "draft"
+                : undefined,
+              stage: themeWorkbenchDocumentStage,
+              versionLabel: effectiveVersionDescription,
             }
           : undefined;
       const existingTaskFile = taskFilesRef.current.find(
@@ -299,7 +349,7 @@ export function useWorkspaceWriteFileAction({
           });
       } else if (isThemeWorkbench && !shouldApplyToMainDocument) {
         logWorkspaceWriteInfo(
-          "[AgentChatPage] 主题工作台非成文阶段，跳过主稿写入:",
+          "[AgentChatPage] 工作区编排非成文阶段，跳过主稿写入:",
           {
             gate: currentGateKey,
             fileName,

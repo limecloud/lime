@@ -62,6 +62,31 @@ function getText(container: HTMLElement): string {
   return (container.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await flushEffects();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await flushEffects();
+  });
+}
+
 function findButtonByText(
   container: HTMLElement,
   text: string,
@@ -262,5 +287,26 @@ describe("HotkeysSettings", () => {
     expect(text).toContain("功能未启用");
     expect(text).toContain("未注册到系统");
     expect(text).toContain("未绑定翻译指令");
+  });
+
+  it("应把首屏和统计说明收进 tips", async () => {
+    renderComponent();
+    await waitForLoad();
+
+    expect(getBodyText()).not.toContain(
+      "当前按 macOS 展示已接入实现的快捷键。全局项读取运行时注册状态，页面内项直接来自对应模块的真实事件匹配逻辑，不再展示手工拼装的占位清单。",
+    );
+
+    const heroTip = await hoverTip("已审计快捷键说明");
+    expect(getBodyText()).toContain(
+      "当前按 macOS 展示已接入实现的快捷键。全局项读取运行时注册状态，页面内项直接来自对应模块的真实事件匹配逻辑，不再展示手工拼装的占位清单。",
+    );
+    await leaveTip(heroTip);
+
+    const statTip = await hoverTip("已审计说明");
+    expect(getBodyText()).toContain(
+      "当前页只列出已接入实现且已核对的快捷键。",
+    );
+    await leaveTip(statTip);
   });
 });

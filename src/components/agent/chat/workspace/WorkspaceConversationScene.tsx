@@ -8,7 +8,7 @@ import {
   buildWorkspaceEmptyStateProps,
   buildWorkspaceNavbarProps,
 } from "./chatSurfaceProps";
-import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
+import { isCanvasStateEmpty } from "./generalWorkbenchHelpers";
 
 type WorkspaceMainSceneProps = Omit<
   ComponentProps<typeof WorkspaceMainScene>,
@@ -32,7 +32,7 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   stepProgressProps?: ComponentProps<typeof WorkspaceChatContent>["stepProgressProps"];
   showChatLayout: boolean;
   contextWorkspaceEnabled: boolean;
-  themeWorkbenchMessageViewportBottomPadding?: string;
+  generalWorkbenchMessageViewportBottomPadding?: string;
   messageListProps: ComponentProps<typeof WorkspaceChatContent>["messageListProps"];
   teamWorkspaceDockProps?: ComponentProps<
     typeof WorkspaceChatContent
@@ -49,10 +49,12 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   a2uiSubmissionNotice?: ComponentProps<
     typeof WorkspaceChatContent
   >["a2uiSubmissionNotice"];
-  shouldHideThemeWorkbenchInputForTheme: boolean;
+  shouldHideGeneralWorkbenchInputForTheme: boolean;
   input: ComponentProps<typeof EmptyState>["input"];
   setInput: ComponentProps<typeof EmptyState>["setInput"];
   onSendMessage: ComponentProps<typeof EmptyState>["onSend"];
+  emptyStateIsLoading?: ComponentProps<typeof EmptyState>["isLoading"];
+  emptyStateDisabled?: ComponentProps<typeof EmptyState>["disabled"];
   providerType: ComponentProps<typeof EmptyState>["providerType"];
   setProviderType: ComponentProps<typeof EmptyState>["setProviderType"];
   model: ComponentProps<typeof EmptyState>["model"];
@@ -114,11 +116,6 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   onToggleCanvas?: ComponentProps<typeof ChatNavbar>["onToggleCanvas"];
   onBackHome?: ComponentProps<typeof ChatNavbar>["onBackHome"];
   chatMode: string;
-  browserAssistAttentionLevel: ComponentProps<
-    typeof ChatNavbar
-  >["browserAssistAttentionLevel"];
-  browserAssistLabel?: ComponentProps<typeof ChatNavbar>["browserAssistLabel"];
-  onOpenBrowserAssist?: () => Promise<void> | void;
   showHarnessToggle: boolean;
   harnessPanelVisible: boolean;
   onToggleHarnessPanel?: ComponentProps<typeof ChatNavbar>["onToggleHarnessPanel"];
@@ -144,7 +141,7 @@ export function WorkspaceConversationScene({
   showChatLayout,
   compactChrome,
   contextWorkspaceEnabled,
-  themeWorkbenchMessageViewportBottomPadding,
+  generalWorkbenchMessageViewportBottomPadding,
   messageListProps,
   teamWorkspaceDockProps,
   workspaceAlertVisible,
@@ -153,11 +150,13 @@ export function WorkspaceConversationScene({
   pendingA2UIForm,
   onPendingA2UISubmit,
   a2uiSubmissionNotice,
-  shouldHideThemeWorkbenchInputForTheme,
+  shouldHideGeneralWorkbenchInputForTheme,
   inputbarNode,
   input,
   setInput,
   onSendMessage,
+  emptyStateIsLoading = false,
+  emptyStateDisabled = false,
   providerType,
   setProviderType,
   model,
@@ -205,10 +204,6 @@ export function WorkspaceConversationScene({
   onToggleCanvas,
   onBackHome,
   chatMode,
-  isBrowserAssistCanvasVisible,
-  browserAssistAttentionLevel,
-  browserAssistLabel,
-  onOpenBrowserAssist,
   showHarnessToggle,
   harnessPanelVisible,
   onToggleHarnessPanel,
@@ -228,7 +223,7 @@ export function WorkspaceConversationScene({
   chatPanelWidth,
   chatPanelMinWidth,
   generalWorkbenchDialog,
-  themeWorkbenchHarnessDialog,
+  generalWorkbenchHarnessDialog,
   showFloatingInputOverlay,
   hasPendingA2UIForm,
 }: WorkspaceConversationSceneProps) {
@@ -236,6 +231,8 @@ export function WorkspaceConversationScene({
     input,
     setInput,
     onSendMessage,
+    isLoading: emptyStateIsLoading,
+    disabled: emptyStateDisabled,
     providerType,
     setProviderType,
     model,
@@ -275,17 +272,17 @@ export function WorkspaceConversationScene({
   });
 
   const chatContent = (
-      <WorkspaceChatContent
-        entryBannerVisible={entryBannerVisible}
-        entryBannerMessage={entryBannerMessage}
-        onDismissEntryBanner={onDismissEntryBanner}
-        serviceSkillExecutionCard={serviceSkillExecutionCard}
-        stepProgressProps={stepProgressProps}
-        showChatLayout={showChatLayout}
+    <WorkspaceChatContent
+      entryBannerVisible={entryBannerVisible}
+      entryBannerMessage={entryBannerMessage}
+      onDismissEntryBanner={onDismissEntryBanner}
+      serviceSkillExecutionCard={serviceSkillExecutionCard}
+      stepProgressProps={stepProgressProps}
+      showChatLayout={showChatLayout}
       compactChrome={compactChrome}
       contextWorkspaceEnabled={contextWorkspaceEnabled}
-      themeWorkbenchMessageViewportBottomPadding={
-        themeWorkbenchMessageViewportBottomPadding
+      generalWorkbenchMessageViewportBottomPadding={
+        generalWorkbenchMessageViewportBottomPadding
       }
       messageListProps={messageListProps}
       teamWorkspaceDockProps={teamWorkspaceDockProps}
@@ -297,7 +294,7 @@ export function WorkspaceConversationScene({
       onPendingA2UISubmit={onPendingA2UISubmit}
       a2uiSubmissionNotice={a2uiSubmissionNotice}
       showInlineInputbar={
-        !contextWorkspaceEnabled && !shouldHideThemeWorkbenchInputForTheme
+        !contextWorkspaceEnabled && !shouldHideGeneralWorkbenchInputForTheme
       }
       inputbarNode={inputbarNode}
     />
@@ -318,12 +315,6 @@ export function WorkspaceConversationScene({
     onProjectChange,
     workspaceType: activeTheme,
     onBackHome,
-    showBrowserAssistEntry: chatMode === "general" && !isThemeWorkbench,
-    browserAssistActive: isBrowserAssistCanvasVisible,
-    browserAssistLoading,
-    browserAssistAttentionLevel,
-    browserAssistLabel,
-    onOpenBrowserAssist,
     showHarnessToggle,
     harnessPanelVisible,
     onToggleHarnessPanel,
@@ -347,7 +338,6 @@ export function WorkspaceConversationScene({
       liveCanvasPreview={liveCanvasPreview}
       currentImageWorkbenchActive={currentImageWorkbenchActive}
       shouldShowCanvasLoadingState={shouldShowCanvasLoadingState}
-      isBrowserAssistCanvasVisible={isBrowserAssistCanvasVisible}
       teamWorkbenchView={teamWorkbenchView}
       canvasWorkbenchLayoutProps={canvasWorkbenchLayoutProps}
       compactChrome={compactChrome}
@@ -357,7 +347,7 @@ export function WorkspaceConversationScene({
       chatPanelWidth={chatPanelWidth}
       chatPanelMinWidth={chatPanelMinWidth}
       generalWorkbenchDialog={generalWorkbenchDialog}
-      themeWorkbenchHarnessDialog={themeWorkbenchHarnessDialog}
+      generalWorkbenchHarnessDialog={generalWorkbenchHarnessDialog}
       showFloatingInputOverlay={showFloatingInputOverlay}
       hasPendingA2UIForm={hasPendingA2UIForm}
       inputbarNode={inputbarNode}

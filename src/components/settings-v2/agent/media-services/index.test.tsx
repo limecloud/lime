@@ -46,6 +46,31 @@ async function flushEffects(times = 6) {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await flushEffects();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await flushEffects();
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const button = Array.from(container.querySelectorAll("button")).find((item) =>
     item.textContent?.includes(text),
@@ -114,5 +139,26 @@ describe("MediaServicesSettings", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("视频配置内容");
     expect(text).not.toContain("图片配置内容");
+  });
+
+  it("应把首屏说明和当前策略说明收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "将图片、视频和语音的全局默认服务集中到一个工作台里管理，减少在侧栏来回切换，也让默认策略更容易统一。",
+    );
+
+    const heroTip = await hoverTip("媒体服务总览说明");
+    expect(getBodyText()).toContain(
+      "将图片、视频和语音的全局默认服务集中到一个工作台里管理，减少在侧栏来回切换，也让默认策略更容易统一。",
+    );
+    await leaveTip(heroTip);
+
+    const panelTip = await hoverTip("图片生成默认策略说明");
+    expect(getBodyText()).toContain(
+      "适合统一新项目的出图入口、常用模型和默认质量参数，避免重复在项目里逐个配置。",
+    );
+    await leaveTip(panelTip);
   });
 });

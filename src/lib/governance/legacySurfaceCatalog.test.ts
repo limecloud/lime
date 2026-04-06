@@ -104,9 +104,9 @@ describe("legacySurfaceCatalog", () => {
     );
   });
 
-  it("应记录已迁出 Inputbar 的主题工作台输入状态 helper", () => {
+  it("应记录已迁出 Inputbar 的工作流输入状态 helper", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
-      (entry) => entry.id === "inputbar-theme-workbench-input-state-entry",
+      (entry) => entry.id === "inputbar-workflow-input-state-entry",
     );
 
     expect(monitor).toBeTruthy();
@@ -118,6 +118,180 @@ describe("legacySurfaceCatalog", () => {
         "src/components/agent/chat/components/Inputbar/hooks/useThemeWorkbenchInputState.test.ts",
       ]),
     );
+  });
+
+  it("应记录已删除的旧工作区 runtime 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "workspace-theme-workbench-runtime-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchRuntime.ts",
+    ]);
+  });
+
+  it("应记录已删除的旧工作流布局 helper 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "workflow-layout-legacy-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/utils/themeWorkbenchLayout.ts",
+      "src/components/agent/chat/utils/themeWorkbenchLayout.test.ts",
+    ]);
+  });
+
+  it("应记录已删除的旧工作区主题工作台 runtime 壳文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "workspace-theme-workbench-runtime-shell-entries",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchSidebarRuntime.ts",
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchSidebarRuntime.test.tsx",
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchScaffoldRuntime.ts",
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchScaffoldRuntime.test.tsx",
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchVersionStatusRuntime.ts",
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchDocumentPersistenceRuntime.ts",
+      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchShellRuntime.tsx",
+    ]);
+  });
+
+  it("应记录已删除的旧工作区主题工作台 helper 与 sidebar 壳文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) =>
+        entry.id === "workspace-theme-workbench-helper-and-sidebar-shell-entries",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/workspace/themeWorkbenchHelpers.ts",
+      "src/components/agent/chat/workspace/themeWorkbenchHelpers.test.ts",
+      "src/components/agent/chat/workspace/ThemeWorkbenchSidebarSection.tsx",
+      "src/components/agent/chat/workspace/useThemeWorkbenchSidebarPresentation.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 general workbench entry hooks 旧文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "general-workbench-entry-hook-legacy-paths",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/hooks/useThemeWorkbenchEntryPrompt.ts",
+      "src/components/agent/chat/hooks/useThemeWorkbenchEntryPrompt.test.tsx",
+      "src/components/agent/chat/hooks/useThemeWorkbenchEntryPromptActions.ts",
+      "src/components/agent/chat/hooks/useThemeWorkbenchEntryPromptActions.test.tsx",
+      "src/components/agent/chat/hooks/useThemeWorkbenchSendBoundary.ts",
+      "src/components/agent/chat/hooks/useThemeWorkbenchSendBoundary.test.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 general workbench entry prompt accessory 旧文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) =>
+        entry.id === "general-workbench-entry-prompt-accessory-legacy-paths",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/components/ThemeWorkbenchEntryPromptAccessory.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchEntryPromptAccessory.test.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 general workbench sidebar 壳旧文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "general-workbench-sidebar-shell-legacy-paths",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/components/ThemeWorkbenchHarnessCard.tsx",
+      "src/components/agent/chat/workspace/WorkspaceThemeSidebar.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 general workbench sidebar 展示壳旧文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "general-workbench-sidebar-display-legacy-paths",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/components/ThemeWorkbenchSidebar.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchSidebar.test.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchSidebarShell.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchSidebarPanels.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 general workbench sidebar 支撑层旧文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "general-workbench-sidebar-support-legacy-paths",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/components/ThemeWorkbenchContextPanel.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchExecLog.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchWorkflowPanel.tsx",
+      "src/components/agent/chat/components/buildThemeWorkbenchContextPanelProps.ts",
+      "src/components/agent/chat/components/buildThemeWorkbenchExecLogProps.ts",
+      "src/components/agent/chat/components/buildThemeWorkbenchWorkflowPanelProps.ts",
+      "src/components/agent/chat/components/buildThemeWorkbenchSidebarOrchestrationSource.ts",
+      "src/components/agent/chat/components/themeWorkbenchContextData.ts",
+      "src/components/agent/chat/components/themeWorkbenchExecLogData.ts",
+      "src/components/agent/chat/components/themeWorkbenchWorkflowData.ts",
+      "src/components/agent/chat/components/themeWorkbenchWorkflowData.test.ts",
+      "src/components/agent/chat/components/themeWorkbenchSidebarComparator.ts",
+      "src/components/agent/chat/components/themeWorkbenchSidebarContentContract.ts",
+      "src/components/agent/chat/components/themeWorkbenchSidebarContract.ts",
+      "src/components/agent/chat/components/themeWorkbenchSidebarOrchestrationContract.ts",
+      "src/components/agent/chat/components/themeWorkbenchSidebarShared.ts",
+      "src/components/agent/chat/components/useThemeWorkbenchArtifactActions.ts",
+      "src/components/agent/chat/components/useThemeWorkbenchContextPanelState.ts",
+      "src/components/agent/chat/components/useThemeWorkbenchExecLogState.ts",
+      "src/components/agent/chat/components/useThemeWorkbenchSidebarOrchestration.ts",
+      "src/components/agent/chat/components/useThemeWorkbenchSidebarTelemetry.ts",
+      "src/components/agent/chat/components/useThemeWorkbenchWorkflowPanelState.ts",
+    ]);
+  });
+
+  it("应记录已删除的 ThemeWorkbenchSkillsPanel 孤岛组件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "theme-workbench-skills-panel-legacy-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/agent/chat/components/ThemeWorkbenchSkillsPanel.tsx",
+      "src/components/agent/chat/components/ThemeWorkbenchSkillsPanel.test.tsx",
+    ]);
   });
 
   it("应记录已删除的 WorkspaceSelector 旧入口", () => {
@@ -269,6 +443,74 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.classification).toBe("dead-candidate");
     expect(monitor?.allowedPaths).toEqual([]);
     expect(monitor?.targets).toEqual(["src/components/ui/alert.tsx"]);
+  });
+
+  it("应记录已删除的旧块系统与独立 workspace store", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "blocks-workspace-legacy-runtime-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/blocks/BlockFrame.tsx",
+      "src/components/blocks/PreviewBlock.tsx",
+      "src/components/blocks/TerminalBlock.tsx",
+      "src/components/blocks/WebBlock.tsx",
+      "src/components/preview/ImagePreview.tsx",
+      "src/lib/blocks/blockStore.ts",
+      "src/lib/blocks/index.ts",
+      "src/lib/blocks/registry.ts",
+      "src/lib/blocks/types.ts",
+      "src/lib/workspace/types.ts",
+      "src/lib/workspace/workspaceStore.ts",
+    ]);
+  });
+
+  it("应记录已删除的零入口 barrel 导出文件", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "zero-entry-barrel-export-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/hooks/index.ts",
+      "src/lib/artifact/index.ts",
+      "src/types/index.ts",
+    ]);
+  });
+
+  it("应记录已删除的 writeFile 旧解析模块", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "write-file-legacy-module",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/lib/writeFile/index.ts",
+      "src/lib/writeFile/parser.ts",
+      "src/lib/writeFile/README.md",
+    ]);
+  });
+
+  it("应记录已删除的零引用前端工具模块", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "unused-frontend-utility-modules",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/lib/notifications.ts",
+      "src/lib/tauri-event.ts",
+      "src/lib/utils/syntaxHighlight.ts",
+    ]);
   });
 
   it("应记录已删除的旧 WebSocket 状态组件入口", () => {
@@ -669,9 +911,9 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
-  it("应禁止主题工作台状态 helper 回流到 Inputbar hooks 路径", () => {
+  it("应禁止工作流输入状态 helper 回流到 Inputbar hooks 路径", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
-      (entry) => entry.id === "theme-workbench-input-state-inputbar-imports",
+      (entry) => entry.id === "workflow-input-state-inputbar-imports",
     );
 
     expect(monitor).toBeTruthy();
@@ -680,15 +922,166 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.includePathPrefixes).toEqual([
       "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
       "src/components/agent/chat/components/Inputbar/index.tsx",
-      "src/components/agent/chat/components/Inputbar/components/ThemeWorkbenchStatusPanel.tsx",
+      "src/components/agent/chat/components/Inputbar/components/InputbarWorkflowStatusPanel.tsx",
       "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
-      "src/components/agent/chat/workspace/useWorkspaceThemeWorkbenchRuntime.ts",
-      "src/components/agent/chat/utils/themeWorkbenchLayout.ts",
+      "src/components/agent/chat/workspace/useWorkspaceGeneralWorkbenchRuntime.ts",
+      "src/components/agent/chat/utils/workflowLayout.ts",
     ]);
     expect(monitor?.patterns).toEqual([
       "../components/Inputbar/hooks/useThemeWorkbenchInputState",
       "./hooks/useThemeWorkbenchInputState",
       "../hooks/useThemeWorkbenchInputState",
+    ]);
+  });
+
+  it("应禁止 general workbench entry hooks 回流到旧 themeWorkbench 路径", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "general-workbench-entry-hook-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.includePathPrefixes).toEqual([
+      "src/components/agent/chat/AgentChatWorkspace.tsx",
+      "src/components/agent/chat/components/GeneralWorkbenchEntryPromptAccessory.tsx",
+      "src/components/agent/chat/components/GeneralWorkbenchEntryPromptAccessory.test.tsx",
+      "src/components/agent/chat/hooks/useGeneralWorkbenchEntryPrompt.test.tsx",
+      "src/components/agent/chat/hooks/useGeneralWorkbenchEntryPromptActions.ts",
+      "src/components/agent/chat/hooks/useGeneralWorkbenchEntryPromptActions.test.tsx",
+      "src/components/agent/chat/hooks/useGeneralWorkbenchSendBoundary.test.tsx",
+      "src/components/agent/chat/workspace/useWorkspaceAutoGuideRuntime.ts",
+      "src/components/agent/chat/workspace/useWorkspaceSendActions.ts",
+    ]);
+    expect(monitor?.patterns).toEqual([
+      "./hooks/useThemeWorkbenchEntryPrompt",
+      "./hooks/useThemeWorkbenchEntryPromptActions",
+      "./hooks/useThemeWorkbenchSendBoundary",
+      "./useThemeWorkbenchEntryPrompt",
+      "./useThemeWorkbenchEntryPromptActions",
+      "./useThemeWorkbenchSendBoundary",
+      "../hooks/useThemeWorkbenchEntryPrompt",
+      "../hooks/useThemeWorkbenchEntryPromptActions",
+      "../hooks/useThemeWorkbenchSendBoundary",
+    ]);
+  });
+
+  it("应禁止 general workbench entry prompt accessory 回流到旧 ThemeWorkbench 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "general-workbench-entry-prompt-accessory-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.includePathPrefixes).toEqual([
+      "src/components/agent/chat/workspace/useWorkspaceInputbarPresentation.tsx",
+      "src/components/agent/chat/components/GeneralWorkbenchEntryPromptAccessory.test.tsx",
+    ]);
+    expect(monitor?.patterns).toEqual([
+      "../components/ThemeWorkbenchEntryPromptAccessory",
+      "./ThemeWorkbenchEntryPromptAccessory",
+    ]);
+  });
+
+  it("应禁止 general workbench sidebar 壳回流到旧 ThemeWorkbenchHarnessCard / WorkspaceThemeSidebar 路径", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "general-workbench-sidebar-shell-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.includePathPrefixes).toEqual([
+      "src/components/agent/chat/workspace/WorkspaceGeneralWorkbenchSidebar.tsx",
+      "src/components/agent/chat/workspace/useGeneralWorkbenchSidebarPresentation.tsx",
+    ]);
+    expect(monitor?.patterns).toEqual([
+      "../components/ThemeWorkbenchHarnessCard",
+      "./WorkspaceThemeSidebar",
+    ]);
+  });
+
+  it("应禁止 general workbench sidebar 展示壳回流到旧 ThemeWorkbenchSidebar / Shell / Panels 路径", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "general-workbench-sidebar-display-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.includePathPrefixes).toEqual([
+      "src/components/agent/chat/index.test.tsx",
+      "src/components/agent/chat/components/GeneralWorkbenchSidebar.tsx",
+      "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx",
+      "src/components/agent/chat/components/useGeneralWorkbenchSidebarOrchestration.ts",
+      "src/components/agent/chat/components/useGeneralWorkbenchSidebarTelemetry.ts",
+      "src/components/agent/chat/workspace/GeneralWorkbenchSidebarSection.tsx",
+    ]);
+    expect(monitor?.patterns).toEqual([
+      "./components/ThemeWorkbenchSidebar",
+      "../components/ThemeWorkbenchSidebar",
+      "./ThemeWorkbenchSidebar",
+      "./ThemeWorkbenchSidebarShell",
+      "./ThemeWorkbenchSidebarPanels",
+    ]);
+  });
+
+  it("应禁止 general workbench sidebar 支撑层回流到旧 ThemeWorkbench 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "general-workbench-sidebar-support-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.includePathPrefixes).toEqual([
+      "src/components/agent/chat/components",
+      "src/components/agent/chat/workspace/GeneralWorkbenchSidebarSection.tsx",
+      "src/components/agent/chat/workspace/useWorkspaceGeneralWorkbenchScaffoldRuntime.ts",
+    ]);
+    expect(monitor?.patterns).toEqual([
+      "./ThemeWorkbenchContextPanel",
+      "./ThemeWorkbenchExecLog",
+      "./ThemeWorkbenchWorkflowPanel",
+      "./buildThemeWorkbenchContextPanelProps",
+      "./buildThemeWorkbenchExecLogProps",
+      "./buildThemeWorkbenchWorkflowPanelProps",
+      "./buildThemeWorkbenchSidebarOrchestrationSource",
+      "./themeWorkbenchContextData",
+      "./themeWorkbenchExecLogData",
+      "./themeWorkbenchWorkflowData",
+      "./themeWorkbenchSidebarComparator",
+      "./themeWorkbenchSidebarContentContract",
+      "./themeWorkbenchSidebarContract",
+      "./themeWorkbenchSidebarOrchestrationContract",
+      "./themeWorkbenchSidebarShared",
+      "./useThemeWorkbenchArtifactActions",
+      "./useThemeWorkbenchContextPanelState",
+      "./useThemeWorkbenchExecLogState",
+      "./useThemeWorkbenchSidebarOrchestration",
+      "./useThemeWorkbenchSidebarTelemetry",
+      "./useThemeWorkbenchWorkflowPanelState",
+      "../components/themeWorkbenchSidebarContract",
+      "../components/themeWorkbenchWorkflowData",
+    ]);
+  });
+
+  it("应禁止 ThemeWorkbenchSkillsPanel 回流到运行时代码或测试夹具", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "theme-workbench-skills-panel-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.includePathPrefixes).toEqual([
+      "src/components/agent/chat/components",
+      "src/components/agent/chat/index.test.tsx",
+    ]);
+    expect(monitor?.patterns).toEqual([
+      "./ThemeWorkbenchSkillsPanel",
+      "../components/ThemeWorkbenchSkillsPanel",
     ]);
   });
 
@@ -998,7 +1391,7 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
-  it("应禁止 InputbarModelExtra 恢复旧主题工作台 variant 透传", () => {
+  it("应禁止 InputbarModelExtra 恢复旧工作流 variant 透传", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
       (entry) => entry.id === "inputbar-model-extra-legacy-variant-prop-bridge",
     );
@@ -1099,9 +1492,10 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
-  it("应禁止 ThemeWorkbenchStatusPanel 恢复旧数组 fallback", () => {
+  it("应禁止 InputbarWorkflowStatusPanel 恢复旧数组 fallback", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
-      (entry) => entry.id === "theme-workbench-status-panel-legacy-array-fallbacks",
+      (entry) =>
+        entry.id === "inputbar-workflow-status-panel-legacy-array-fallbacks",
     );
 
     expect(monitor).toBeTruthy();
@@ -1114,7 +1508,7 @@ describe("legacySurfaceCatalog", () => {
       "queueItems = []",
     ]);
     expect(monitor?.includePathPrefixes).toEqual([
-      "src/components/agent/chat/components/Inputbar/components/ThemeWorkbenchStatusPanel.tsx",
+      "src/components/agent/chat/components/Inputbar/components/InputbarWorkflowStatusPanel.tsx",
     ]);
   });
 

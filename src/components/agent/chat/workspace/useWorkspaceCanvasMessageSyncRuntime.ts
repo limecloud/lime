@@ -8,7 +8,7 @@ import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
-import { isCanvasStateEmpty } from "./themeWorkbenchHelpers";
+import { isCanvasStateEmpty } from "./generalWorkbenchHelpers";
 
 interface UseWorkspaceCanvasMessageSyncRuntimeParams {
   canvasState: CanvasStateUnion | null;

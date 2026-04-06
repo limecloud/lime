@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@/components/Modal";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   Collapsible,
   CollapsibleContent,
@@ -2372,12 +2373,16 @@ export function ImConfigPage() {
                 能力 / IM 配置
               </span>
               <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                  把常用 IM 接到 Lime
-                </h1>
-                <p className="text-sm leading-6 text-slate-500">
-                  首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                    把常用 IM 接到 Lime
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="IM 配置说明"
+                    content="首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。"
+                    tone="mint"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2500,10 +2505,14 @@ export function ImConfigPage() {
         <section className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 px-5 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-1">
-              <div className="text-sm font-medium text-slate-700">即将开放</div>
-              <p className="text-xs leading-5 text-slate-500">
-                这些渠道先保留同级占位，灰态展示，不开放点击。
-              </p>
+              <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
+                <span>即将开放</span>
+                <WorkbenchInfoTip
+                  ariaLabel="即将开放渠道说明"
+                  content="这些渠道先保留同级占位，灰态展示，不开放点击。"
+                  tone="slate"
+                />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <div
@@ -2541,12 +2550,14 @@ export function ImConfigPage() {
                 className="flex w-full items-center justify-between px-6 py-5 text-left"
               >
                 <div className="space-y-1">
-                  <div className="text-lg font-semibold tracking-tight text-slate-900">
-                    高级排障
+                  <div className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight text-slate-900">
+                    <span>高级排障</span>
+                    <WorkbenchInfoTip
+                      ariaLabel="高级排障说明"
+                      content="网关、日志和运行状态都收在这里。"
+                      tone="slate"
+                    />
                   </div>
-                  <p className="text-sm text-slate-500">
-                    网关、日志和运行状态都收在这里。
-                  </p>
                 </div>
                 {debugToolsOpen ? (
                   <ChevronDown className="h-5 w-5 text-slate-500" />

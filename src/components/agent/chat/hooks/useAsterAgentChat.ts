@@ -353,6 +353,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     triggerAIGuide: context.triggerAIGuide,
 
     topics: session.topics,
+    isAutoRestoringSession: session.isAutoRestoringSession,
     sessionId: session.sessionId,
     createFreshSession: session.createFreshSession,
     ensureSession: session.ensureSession,

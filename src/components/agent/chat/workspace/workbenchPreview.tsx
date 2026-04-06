@@ -9,12 +9,9 @@ import { CanvasFactory } from "@/lib/workspace/workbenchCanvas";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import {
   CanvasPanel as GeneralCanvasPanel,
-  type CanvasState as GeneralCanvasState,
 } from "@/components/general-chat/bridge";
 import type { Artifact } from "@/lib/artifact/types";
-import type { CanvasWorkbenchDefaultPreview } from "../components/CanvasWorkbenchLayout";
 import { ImageTaskViewer } from "../components/ImageTaskViewer";
-import { TeamWorkspaceBoard } from "../components/TeamWorkspaceBoard";
 import { ArtifactWorkbenchShell } from "./ArtifactWorkbenchShell";
 import { hasRenderableGeneralCanvasPreview } from "./generalCanvasPreviewState";
 import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
@@ -179,12 +176,7 @@ export function ArtifactWorkbenchPreview({
         onViewModeChange={onArtifactViewModeChange}
         previewSize={artifactPreviewSize}
         onPreviewSizeChange={onArtifactPreviewSizeChange}
-        onSaveArtifactDocument={onSaveArtifactDocument}
         onArtifactBlockRewriteRun={onArtifactBlockRewriteRun}
-        threadItems={threadItems}
-        focusedBlockId={focusedBlockId}
-        blockFocusRequestKey={blockFocusRequestKey}
-        onJumpToTimelineItem={onJumpToTimelineItem}
         onCloseCanvas={onCloseCanvas}
         actionsSlot={combinedActionsSlot}
         documentController={documentController}
@@ -329,25 +321,3 @@ export function WorkspaceLiveCanvasPreview({
     stackedWorkbenchTrigger,
   );
 }
-
-interface TeamWorkbenchPreviewProps {
-  boardProps: ComponentProps<typeof TeamWorkspaceBoard>;
-  stackedWorkbenchTrigger?: ReactNode;
-}
-
-export function TeamWorkbenchPreview({
-  boardProps,
-  stackedWorkbenchTrigger,
-}: TeamWorkbenchPreviewProps) {
-  return wrapPreviewWithWorkbenchTrigger(
-    <div className="flex h-full min-h-0 flex-col overflow-hidden pt-4">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <TeamWorkspaceBoard {...boardProps} />
-      </div>
-    </div>,
-    stackedWorkbenchTrigger,
-  );
-}
-
-export type { CanvasWorkbenchDefaultPreview };
-export type { GeneralCanvasState };

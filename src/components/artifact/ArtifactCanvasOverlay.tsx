@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ArtifactDisplayOverlayState } from "@/components/agent/chat/hooks/useArtifactDisplayState";
 
-export interface ArtifactCanvasOverlayProps {
+interface ArtifactCanvasOverlayProps {
   overlay: ArtifactDisplayOverlayState;
   className?: string;
 }
@@ -72,5 +72,3 @@ export function ArtifactCanvasOverlay({
     </div>
   );
 }
-
-export default ArtifactCanvasOverlay;

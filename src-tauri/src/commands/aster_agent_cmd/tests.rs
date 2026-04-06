@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use crate::commands::aster_agent_cmd::action_runtime::{
         build_runtime_action_scope, build_runtime_action_session_config,
     };
@@ -10,6 +9,7 @@ mod tests {
         RunSiteAdapterRequest, SiteAdapterDefinition, SiteAdapterRunResult,
     };
     use async_trait::async_trait;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use lime_agent::request_tool_policy::resolve_request_tool_policy;
     use lime_agent::AgentEvent as RuntimeAgentEvent;
     use regex::Regex;
@@ -377,11 +377,11 @@ mod tests {
     }
 
     #[test]
-    fn test_should_enable_model_skill_tool_allows_theme_workbench() {
+    fn test_should_enable_model_skill_tool_allows_general_workbench() {
         let metadata = serde_json::json!({
             "harness": {
                 "theme": "general",
-                "session_mode": "theme_workbench"
+                "session_mode": "general_workbench"
             }
         });
 
@@ -393,7 +393,7 @@ mod tests {
         let metadata = serde_json::json!({
             "harness": {
                 "theme": "general",
-                "session_mode": "theme_workbench",
+                "session_mode": "general_workbench",
                 "allow_model_skills": false
             }
         });
@@ -1920,14 +1920,14 @@ mod tests {
             fast_mode_enabled: false,
             continuation_length: 1,
             sensitivity: 55,
-            source: Some("theme_workbench_document_auto_continue".to_string()),
+            source: Some("general_workbench_document_auto_continue".to_string()),
         };
         let merged =
             merge_system_prompt_with_auto_continue(Some("你是助手".to_string()), Some(&config))
                 .expect("should contain merged prompt");
         assert!(merged.contains(AUTO_CONTINUE_PROMPT_MARKER));
         assert!(merged.contains("续写长度"));
-        assert!(merged.contains("theme_workbench_document_auto_continue"));
+        assert!(merged.contains("general_workbench_document_auto_continue"));
     }
 
     #[test]
@@ -2073,6 +2073,45 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_system_prompt_with_service_scene_launch_appends_runtime_tool_contract() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_scene_launch": {
+                    "kind": "cloud_scene",
+                    "service_scene_run": {
+                        "skill_id": "skill-scene-1",
+                        "skill_title": "趋势赛题日报",
+                        "skill_summary": "拉取热点赛题并整理成日报摘要。",
+                        "scene_key": "daily-trend-brief",
+                        "command_prefix": "/daily-trend-brief",
+                        "user_input": "帮我输出今天的小红书趋势赛题",
+                        "entry_source": "slash_scene_command",
+                        "project_id": "project-1",
+                        "content_id": "content-1",
+                        "oem_runtime": {
+                            "scene_base_url": "https://example.com/scene-api",
+                            "session_token": "session-token-demo"
+                        }
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_service_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains(SERVICE_SKILL_LAUNCH_PROMPT_MARKER));
+        assert!(merged.contains("第一优先工具调用必须是 lime_run_service_skill"));
+        assert!(merged.contains("不要把 scene metadata 里的 session_token"));
+        assert!(merged.contains("当前服务型技能 ID：skill-scene-1"));
+        assert!(merged.contains("当前 scene_key：daily-trend-brief"));
+        assert!(merged.contains("当前回合已绑定 OEM Session Token"));
+    }
+
+    #[test]
     fn test_merge_system_prompt_with_image_skill_launch_appends_prompt() {
         let metadata = serde_json::json!({
             "harness": {
@@ -2215,6 +2254,626 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_system_prompt_with_broadcast_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "broadcast_skill_launch": {
+                    "skill_name": "broadcast_generate",
+                    "kind": "broadcast_task",
+                    "broadcast_task": {
+                        "prompt": "整理成 5 分钟创始人口播",
+                        "raw_text": "@播报 标题: 创始人周报 听众: 创业者 语气: 口语化 时长: 5分钟 把下面文章整理成播报文本",
+                        "content": "今天我们重点讨论 AI Agent 产品化的三个观察。",
+                        "title": "创始人周报",
+                        "audience": "创业者",
+                        "tone": "口语化",
+                        "duration_hint_minutes": 5
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_broadcast_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_BROADCAST_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"broadcast_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"broadcast_task\":"));
+        assert!(merged.contains("不要伪造“播报已完成”"));
+        assert!(merged.contains("当前任务已经显式进入播报技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_resource_search_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "resource_search_skill_launch": {
+                    "skill_name": "modal_resource_search",
+                    "kind": "resource_search_task",
+                    "resource_search_task": {
+                        "prompt": "咖啡馆木桌背景 公众号头图",
+                        "raw_text": "@素材 类型:图片 关键词:咖啡馆木桌背景 用途:公众号头图 数量:8",
+                        "resource_type": "image",
+                        "query": "咖啡馆木桌背景",
+                        "usage": "公众号头图",
+                        "count": 8
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_resource_search_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_RESOURCE_SEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"modal_resource_search\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"resource_search_task\":"));
+        assert!(merged.contains("lime_search_web_images"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Grep"));
+        assert!(merged.contains("当前任务已经显式进入素材检索技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_research_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "research_skill_launch": {
+                    "skill_name": "research",
+                    "kind": "research_request",
+                    "research_request": {
+                        "prompt": "AI Agent 融资 36Kr 近30天 融资额与产品发布",
+                        "raw_text": "@搜索 关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+                        "query": "AI Agent 融资",
+                        "site": "36Kr",
+                        "time_range": "近30天",
+                        "depth": "deep",
+                        "focus": "融资额与产品发布",
+                        "output_format": "要点"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_research_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_RESEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"research\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"research_request\":"));
+        assert!(merged.contains("research skill 内部必须真正执行联网检索"));
+        assert!(merged.contains("当前任务已经显式进入搜索技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_deep_search_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "deep_search_skill_launch": {
+                    "skill_name": "research",
+                    "kind": "deep_search_request",
+                    "deep_search_request": {
+                        "prompt": "AI Agent 融资 36Kr 近30天 融资额与产品发布",
+                        "raw_text": "@深搜 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与产品发布 输出:对比表",
+                        "query": "AI Agent 融资",
+                        "site": "36Kr",
+                        "time_range": "近30天",
+                        "depth": "deep",
+                        "focus": "融资额与产品发布",
+                        "output_format": "对比表"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_deep_search_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_DEEP_SEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("skill=\"research\""));
+        assert!(merged.contains("\"deep_search_request\":"));
+        assert!(merged.contains("深搜至少执行 2 轮以上扩搜"));
+        assert!(merged.contains("已确认事实"));
+        assert!(merged.contains("当前任务已经显式进入深搜技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_report_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "report_skill_launch": {
+                    "skill_name": "report_generate",
+                    "kind": "report_request",
+                    "report_request": {
+                        "prompt": "AI Agent 融资 36Kr 近30天 融资额与代表产品 投资人研报",
+                        "raw_text": "@研报 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与代表产品 输出:投资人研报",
+                        "query": "AI Agent 融资",
+                        "site": "36Kr",
+                        "time_range": "近30天",
+                        "depth": "deep",
+                        "focus": "融资额与代表产品",
+                        "output_format": "投资人研报"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_report_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_REPORT_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("skill=\"report_generate\""));
+        assert!(merged.contains("\"report_request\":"));
+        assert!(merged.contains("report_generate skill 内部必须先执行真实联网检索"));
+        assert!(merged.contains("核心结论、关键证据、风险/待确认项与建议动作"));
+        assert!(merged.contains("当前任务已经显式进入研报技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_site_search_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "site_search_skill_launch": {
+                    "skill_name": "site_search",
+                    "kind": "site_search_request",
+                    "site_search_request": {
+                        "prompt": "openai agents sdk issue",
+                        "raw_text": "@站点搜索 站点:GitHub 关键词:openai agents sdk issue 数量:8",
+                        "site": "GitHub",
+                        "query": "openai agents sdk issue",
+                        "limit": 8
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_site_search_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_SITE_SEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"site_search\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"site_search_request\":"));
+        assert!(merged.contains("不要先改用 WebSearch、research"));
+        assert!(merged.contains("当前任务已经显式进入站点搜索技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_pdf_read_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "pdf_read_skill_launch": {
+                    "skill_name": "pdf_read",
+                    "kind": "pdf_read_request",
+                    "pdf_read_request": {
+                        "prompt": "提炼三点结论并标注关键证据",
+                        "raw_text": "@读PDF /tmp/agent-report.pdf 提炼三点结论并标注关键证据",
+                        "source_path": "/tmp/agent-report.pdf",
+                        "focus": "融资数据",
+                        "output_format": "投资人摘要"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_pdf_read_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_PDF_READ_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("skill=\"pdf_read\""));
+        assert!(merged.contains("\"pdf_read_request\":"));
+        assert!(merged.contains("list_directory / read_file"));
+        assert!(merged.contains("当前任务已经显式提供 PDF 路径"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_summary_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "summary_skill_launch": {
+                    "skill_name": "summary",
+                    "kind": "summary_request",
+                    "summary_request": {
+                        "prompt": "请总结这篇长文的三点要点",
+                        "raw_text": "@总结 内容:这是一篇关于 AI Agent 融资的长文 重点:融资额与发布时间 长度:简短 风格:投资人简报 输出:三点要点",
+                        "content": "这是一篇关于 AI Agent 融资的长文",
+                        "focus": "融资额与发布时间",
+                        "length": "short",
+                        "style": "投资人简报",
+                        "output_format": "三点要点"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_summary_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_SUMMARY_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("skill=\"summary\""));
+        assert!(merged.contains("\"summary_request\":"));
+        assert!(merged.contains("结果必须忠于原文"));
+        assert!(merged.contains("当前任务已经显式进入总结技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_translation_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "translation_skill_launch": {
+                    "skill_name": "translation",
+                    "kind": "translation_request",
+                    "translation_request": {
+                        "prompt": "将 hello world 翻译成中文",
+                        "raw_text": "@翻译 内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
+                        "content": "hello world",
+                        "source_language": "英语",
+                        "target_language": "中文",
+                        "style": "产品文案",
+                        "output_format": "只输出译文"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_translation_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_TRANSLATION_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("skill=\"translation\""));
+        assert!(merged.contains("\"translation_request\":"));
+        assert!(merged.contains("译文必须忠于原文"));
+        assert!(merged.contains("当前任务已经显式进入翻译技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_analysis_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "analysis_skill_launch": {
+                    "skill_name": "analysis",
+                    "kind": "analysis_request",
+                    "analysis_request": {
+                        "prompt": "判断 OpenAI 新模型发布的商业影响",
+                        "raw_text": "@分析 内容:OpenAI 发布新模型 重点:商业影响 风格:投资备忘 输出:三点判断",
+                        "content": "OpenAI 发布新模型",
+                        "focus": "商业影响",
+                        "style": "投资备忘",
+                        "output_format": "三点判断"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_analysis_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_ANALYSIS_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("skill=\"analysis\""));
+        assert!(merged.contains("\"analysis_request\":"));
+        assert!(merged.contains("分析结果必须区分原文事实、你的判断与待确认项"));
+        assert!(merged.contains("当前任务已经显式进入分析技能主链"));
+    }
+
+    #[test]
+    fn test_prepare_broadcast_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "broadcast_skill_launch": {
+                    "skill_name": "broadcast_generate",
+                    "kind": "broadcast_task",
+                    "broadcast_task": {
+                        "content": "待整理原文"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_broadcast_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_resource_search_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "resource_search_skill_launch": {
+                    "skill_name": "modal_resource_search",
+                    "kind": "resource_search_task",
+                    "resource_search_task": {
+                        "resource_type": "image",
+                        "query": "咖啡馆木桌背景"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_resource_search_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_site_search_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "site_search_skill_launch": {
+                    "skill_name": "site_search",
+                    "kind": "site_search_request",
+                    "site_search_request": {
+                        "site": "GitHub",
+                        "query": "openai agents sdk issue"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_site_search_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_pdf_read_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "pdf_read_skill_launch": {
+                    "skill_name": "pdf_read",
+                    "kind": "pdf_read_request",
+                    "pdf_read_request": {
+                        "source_path": "/tmp/agent-report.pdf"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_pdf_read_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_research_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "research_skill_launch": {
+                    "skill_name": "research",
+                    "kind": "research_request",
+                    "research_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_research_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_deep_search_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "deep_search_skill_launch": {
+                    "skill_name": "research",
+                    "kind": "deep_search_request",
+                    "deep_search_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_deep_search_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_report_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "report_skill_launch": {
+                    "skill_name": "report_generate",
+                    "kind": "report_request",
+                    "report_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_report_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_summary_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "summary_skill_launch": {
+                    "skill_name": "summary",
+                    "kind": "summary_request",
+                    "summary_request": {
+                        "prompt": "请总结当前对话"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_summary_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_translation_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "translation_skill_launch": {
+                    "skill_name": "translation",
+                    "kind": "translation_request",
+                    "translation_request": {
+                        "prompt": "请把当前对话翻译成英文"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_translation_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_analysis_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "analysis_skill_launch": {
+                    "skill_name": "analysis",
+                    "kind": "analysis_request",
+                    "analysis_request": {
+                        "prompt": "请分析当前对话"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_analysis_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
     fn test_merge_system_prompt_with_url_parse_skill_launch_appends_prompt() {
         let metadata = serde_json::json!({
             "harness": {
@@ -2245,6 +2904,66 @@ mod tests {
         assert!(merged.contains("\"url_parse_task\":"));
         assert!(merged.contains("extractStatus 设为 pending_extract"));
         assert!(merged.contains("当前任务已经显式进入链接解析技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_typesetting_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "typesetting_skill_launch": {
+                    "skill_name": "typesetting",
+                    "kind": "typesetting_task",
+                    "typesetting_task": {
+                        "prompt": "整理成更适合小红书阅读的短句节奏",
+                        "raw_text": "@排版 平台:小红书 帮我把下面文案整理成短句节奏",
+                        "content": "平台:小红书 帮我把下面文案整理成短句节奏",
+                        "target_platform": "小红书"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_typesetting_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_TYPESETTING_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"typesetting\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("\"typesetting_task\":"));
+        assert!(merged.contains("不要伪造“排版已完成”"));
+        assert!(merged.contains("当前任务已经显式进入排版技能主链"));
+    }
+
+    #[test]
+    fn test_prepare_typesetting_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "typesetting_skill_launch": {
+                    "skill_name": "typesetting",
+                    "kind": "typesetting_task",
+                    "typesetting_task": {
+                        "content": "待排版正文"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_typesetting_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
     }
 
     #[test]
@@ -2341,6 +3060,33 @@ mod tests {
             None,
         )
         .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_service_scene_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_scene_launch": {
+                    "kind": "cloud_scene",
+                    "service_scene_run": {
+                        "skill_id": "skill-scene-1",
+                        "scene_key": "daily-trend-brief"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_service_scene_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
 
         let harness = prepared
             .get("harness")

@@ -38,6 +38,77 @@ export interface MessageImageWorkbenchPreview {
   placeholderText?: string | null;
 }
 
+export type MessageTaskPreviewStatus = MessageImageWorkbenchPreview["status"];
+
+export interface MessageVideoTaskPreview {
+  kind: "video_generate";
+  taskId: string;
+  taskType: "video_generate";
+  prompt: string;
+  status: MessageTaskPreviewStatus;
+  projectId?: string | null;
+  contentId?: string | null;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  durationSeconds?: number;
+  aspectRatio?: string;
+  resolution?: string;
+  providerId?: string | null;
+  model?: string | null;
+  progress?: number | null;
+  phase?: string | null;
+  statusMessage?: string | null;
+  retryable?: boolean;
+}
+
+export interface MessageTaskPreviewImageCandidate {
+  id: string;
+  thumbnailUrl: string;
+  contentUrl?: string | null;
+  hostPageUrl?: string | null;
+  width?: number;
+  height?: number;
+  name?: string;
+}
+
+export interface MessageGenericTaskPreview {
+  kind:
+    | "broadcast_generate"
+    | "modal_resource_search"
+    | "transcription_generate"
+    | "url_parse"
+    | "typesetting";
+  taskId: string;
+  taskType: MessageGenericTaskPreview["kind"];
+  prompt: string;
+  title?: string;
+  status: MessageTaskPreviewStatus;
+  projectId?: string | null;
+  contentId?: string | null;
+  artifactPath?: string | null;
+  providerId?: string | null;
+  model?: string | null;
+  phase?: string | null;
+  statusMessage?: string | null;
+  retryable?: boolean;
+  metaItems?: string[];
+  imageCandidates?: MessageTaskPreviewImageCandidate[];
+}
+
+export type MessageTaskPreview =
+  | MessageVideoTaskPreview
+  | MessageGenericTaskPreview;
+
+export type MessagePreviewTarget =
+  | {
+      kind: "image_workbench";
+      preview: MessageImageWorkbenchPreview;
+    }
+  | {
+      kind: "task";
+      preview: MessageTaskPreview;
+    };
+
 /**
  * 内容片段类型（用于交错显示）
  *
@@ -57,14 +128,6 @@ export type BrowserTaskRequirement =
   | "optional"
   | "required"
   | "required_with_user_step";
-
-export type BrowserPreflightState =
-  | "idle"
-  | "launching"
-  | "awaiting_user"
-  | "ready_to_resume"
-  | "failed"
-  | "degraded";
 
 export interface SiteSavedContentTarget {
   projectId: string;
@@ -129,15 +192,7 @@ export interface ActionRequired {
   submittedResponse?: string;
   /** 已提交的原始用户数据 */
   submittedUserData?: unknown;
-  /** 前端专用渲染类型 */
-  uiKind?: "browser_preflight";
-  /** 浏览器任务要求等级（前端本地引导使用） */
-  browserRequirement?: BrowserTaskRequirement;
-  /** 浏览器前置阶段（前端本地引导使用） */
-  browserPrepState?: BrowserPreflightState;
-  /** 是否允许改为能力降级路径 */
-  allowCapabilityFallback?: boolean;
-  /** 浏览器引导失败或附加说明 */
+  /** 附加说明 */
   detail?: string;
   /** 单轮澄清治理元数据 */
   governance?: ActionRequestGovernanceMeta;
@@ -264,6 +319,8 @@ export interface Message {
   artifacts?: Artifact[];
   /** 图片工作台消息卡预览 */
   imageWorkbenchPreview?: MessageImageWorkbenchPreview;
+  /** 通用任务消息卡预览 */
+  taskPreview?: MessageTaskPreview;
   /** 首个流式事件到达前的本地运行态 */
   runtimeStatus?: AgentRuntimeStatus;
   /** 消息用途（用于跳过特定副作用） */

@@ -7,15 +7,15 @@ import { useImageAttachments } from "./useImageAttachments";
 import { useInputbarAdapter } from "./useInputbarAdapter";
 import { useInputbarSend } from "./useInputbarSend";
 import {
-  useInputbarToolState,
   type InputbarToolStates,
+  useInputbarToolState,
 } from "./useInputbarToolState";
 import type { SkillSelectionSourceProps } from "../../../skill-selection/skillSelectionBindings";
 import type {
-  ThemeWorkbenchGateState,
-  ThemeWorkbenchWorkflowStep,
-} from "../../../utils/themeWorkbenchInputState";
-import { useThemeWorkbenchInputState } from "../../../utils/themeWorkbenchInputState";
+  WorkflowGateState,
+  WorkflowStep,
+} from "../../../utils/workflowInputState";
+import { useWorkflowInputState } from "../../../utils/workflowInputState";
 import { TeamSuggestionBar } from "@/components/agent/chat/components/TeamSuggestionBar";
 import { getTeamSuggestion } from "@/components/agent/chat/utils/teamSuggestion";
 import type { MessageImage } from "../../../types";
@@ -42,10 +42,10 @@ interface UseInputbarControllerParams {
   toolStates?: Partial<InputbarToolStates>;
   onToolStatesChange?: (states: InputbarToolStates) => void;
   activeTheme?: string;
-  variant?: "default" | "theme_workbench";
-  themeWorkbenchGate?: ThemeWorkbenchGateState | null;
-  workflowSteps?: ThemeWorkbenchWorkflowStep[];
-  themeWorkbenchRunState?: "idle" | "auto_running" | "await_user_decision";
+  variant?: "default" | "workspace";
+  workflowGate?: WorkflowGateState | null;
+  workflowSteps?: WorkflowStep[];
+  workflowRunState?: "idle" | "auto_running" | "await_user_decision";
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
 }
 
@@ -65,9 +65,9 @@ export function useInputbarController({
   onToolStatesChange,
   activeTheme,
   variant = "default",
-  themeWorkbenchGate,
+  workflowGate,
   workflowSteps = [],
-  themeWorkbenchRunState,
+  workflowRunState,
   onEnableSuggestedTeam,
   skills,
   serviceSkills,
@@ -93,7 +93,7 @@ export function useInputbarController({
     openFileDialog,
   } = useImageAttachments();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isThemeWorkbenchVariant = variant === "theme_workbench";
+  const isWorkspaceVariant = variant === "workspace";
 
   const {
     activeTools,
@@ -150,14 +150,14 @@ export function useInputbarController({
   });
 
   const {
-    themeWorkbenchQuickActions,
-    themeWorkbenchQueueItems,
-    renderThemeWorkbenchGeneratingPanel,
-  } = useThemeWorkbenchInputState({
-    isThemeWorkbenchVariant,
-    themeWorkbenchGate,
+    workflowQuickActions,
+    workflowQueueItems,
+    renderWorkflowGeneratingPanel,
+  } = useWorkflowInputState({
+    isWorkspaceVariant,
+    workflowGate,
     workflowSteps,
-    themeWorkbenchRunState,
+    workflowRunState,
     isSending: inputAdapter.state.isSending,
   });
 
@@ -229,7 +229,7 @@ export function useInputbarController({
 
   return {
     textareaRef,
-    isThemeWorkbenchVariant,
+    isWorkspaceVariant,
     pendingImages,
     fileInputRef,
     handleFileSelect,
@@ -248,9 +248,9 @@ export function useInputbarController({
     handleSend,
     inputAdapter,
     topExtra,
-    themeWorkbenchQuickActions,
-    themeWorkbenchQueueItems,
-    renderThemeWorkbenchGeneratingPanel,
+    workflowQuickActions,
+    workflowQueueItems,
+    renderWorkflowGeneratingPanel,
     skillSelection,
     setActiveBuiltinCommand: (command: BuiltinInputCommand | null) => {
       if (command) {

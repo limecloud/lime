@@ -152,6 +152,58 @@ describe("ModelSelector", () => {
     );
   });
 
+  it("默认后台预加载开启时，应在未展开选择器前纠正失效持久化模型", async () => {
+    const setModel = vi.fn();
+
+    mockUseProviderModels.mockReturnValue({
+      modelIds: ["gpt-5.2-codex", "gpt-5.1-codex-mini"],
+      models: [
+        {
+          id: "gpt-5.2-codex",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+        },
+        {
+          id: "gpt-5.1-codex-mini",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: false,
+          },
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    renderModelSelector({
+      model: "gpt-5.9-codex-preview",
+      setModel,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockUseProviderModels).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "custom-codex" }),
+      expect.objectContaining({
+        returnFullMetadata: true,
+        autoLoad: true,
+      }),
+    );
+    expect(setModel).toHaveBeenCalledWith("gpt-5.2-codex");
+  });
+
   it("打开选择器后应加载数据并回退到兼容模型", () => {
     const setModel = vi.fn();
     const { container } = renderModelSelector({

@@ -258,22 +258,33 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
 }
 
 pub(crate) mod action_runtime;
+mod analysis_skill_launch;
+mod broadcast_skill_launch;
 mod browser_assist;
 pub(crate) mod command_api;
 mod cover_skill_launch;
+mod deep_search_skill_launch;
 mod dto;
 mod image_skill_launch;
 mod mcp_bridge;
+mod pdf_read_skill_launch;
 mod prompt_context;
 mod reply_runtime;
+mod report_skill_launch;
 mod request_model_resolution;
+mod research_skill_launch;
+mod resource_search_skill_launch;
 mod run_metadata;
 mod runtime_turn;
 mod service_skill_launch;
 mod session_runtime;
+mod site_search_skill_launch;
 mod subagent_runtime;
+mod summary_skill_launch;
 pub(crate) mod tool_runtime;
 mod transcription_skill_launch;
+mod translation_skill_launch;
+mod typesetting_skill_launch;
 mod url_parse_skill_launch;
 mod video_skill_launch;
 #[cfg(test)]
@@ -293,6 +304,13 @@ include!("tests.rs");
 pub(crate) use action_runtime::{
     build_action_resume_runtime_status, build_runtime_action_user_data,
     validate_elicitation_submission,
+};
+pub(crate) use analysis_skill_launch::{
+    merge_system_prompt_with_analysis_skill_launch, prepare_analysis_skill_launch_request_metadata,
+};
+pub(crate) use broadcast_skill_launch::{
+    merge_system_prompt_with_broadcast_skill_launch,
+    prepare_broadcast_skill_launch_request_metadata,
 };
 pub(crate) use browser_assist::{
     append_browser_assist_session_permissions, apply_browser_requirement_to_request_tool_policy,
@@ -320,6 +338,10 @@ pub(crate) use command_api::{
     aster_agent_configure_provider, aster_agent_init, aster_agent_reset, aster_agent_status,
 };
 pub(crate) use cover_skill_launch::merge_system_prompt_with_cover_skill_launch;
+pub(crate) use deep_search_skill_launch::{
+    merge_system_prompt_with_deep_search_skill_launch,
+    prepare_deep_search_skill_launch_request_metadata,
+};
 #[allow(unused_imports)]
 pub(crate) use dto::{
     build_incidents, build_last_outcome, build_pending_requests, AgentRuntimeActionType,
@@ -343,6 +365,9 @@ pub(crate) use image_skill_launch::{
     merge_system_prompt_with_image_skill_launch, prepare_image_skill_launch_request_metadata,
 };
 pub(crate) use mcp_bridge::{ensure_lime_mcp_servers_running, inject_mcp_extensions};
+pub(crate) use pdf_read_skill_launch::{
+    merge_system_prompt_with_pdf_read_skill_launch, prepare_pdf_read_skill_launch_request_metadata,
+};
 #[cfg(test)]
 pub(crate) use prompt_context::build_team_preference_system_prompt;
 pub(crate) use prompt_context::{
@@ -358,7 +383,17 @@ use reply_runtime::{
     emit_runtime_status_with_projection, ensure_code_execution_extension_enabled,
     should_fallback_to_react_from_code_orchestrated, stream_reply_once,
 };
+pub(crate) use report_skill_launch::{
+    merge_system_prompt_with_report_skill_launch, prepare_report_skill_launch_request_metadata,
+};
 use request_model_resolution::resolve_runtime_request_provider_config;
+pub(crate) use research_skill_launch::{
+    merge_system_prompt_with_research_skill_launch, prepare_research_skill_launch_request_metadata,
+};
+pub(crate) use resource_search_skill_launch::{
+    merge_system_prompt_with_resource_search_skill_launch,
+    prepare_resource_search_skill_launch_request_metadata,
+};
 use run_metadata::{
     build_chat_run_finish_metadata, build_chat_run_metadata_base, extract_harness_array,
     extract_harness_bool, extract_harness_nested_object, extract_harness_string,
@@ -378,7 +413,8 @@ pub(crate) use runtime_turn::{
 pub(crate) use service_skill_launch::build_service_skill_launch_run_request;
 pub(crate) use service_skill_launch::{
     append_service_skill_launch_session_permissions, preload_service_skill_launch_execution,
-    should_lock_service_skill_launch_to_site_tools, ServiceSkillLaunchPreloadExecution,
+    prepare_service_scene_launch_request_metadata, should_lock_service_skill_launch_to_site_tools,
+    ServiceSkillLaunchPreloadExecution,
 };
 pub(crate) use session_runtime::{
     delete_runtime_session_internal, persist_session_provider_routing,
@@ -387,12 +423,19 @@ pub(crate) use session_runtime::{
     resolve_session_recent_runtime_context, SessionRecentHarnessContext,
     SessionRecentRuntimeContext,
 };
+pub(crate) use site_search_skill_launch::{
+    merge_system_prompt_with_site_search_skill_launch,
+    prepare_site_search_skill_launch_request_metadata,
+};
 #[allow(unused_imports)]
 pub(crate) use subagent_runtime::{
     agent_runtime_close_subagent_internal, agent_runtime_resume_subagent_internal,
     agent_runtime_send_subagent_input_internal, agent_runtime_spawn_subagent_internal,
     agent_runtime_wait_subagents_internal, emit_subagent_status_changed_events,
     maybe_emit_subagent_status_for_runtime_event, SubagentControlRuntime,
+};
+pub(crate) use summary_skill_launch::{
+    merge_system_prompt_with_summary_skill_launch, prepare_summary_skill_launch_request_metadata,
 };
 #[allow(unused_imports)]
 pub(crate) use tool_runtime::social_generate_cover_image_cmd;
@@ -410,6 +453,14 @@ pub(crate) use tool_runtime::{
     ensure_runtime_support_tools_registered, ensure_social_image_tool_registered,
 };
 pub(crate) use transcription_skill_launch::merge_system_prompt_with_transcription_skill_launch;
+pub(crate) use translation_skill_launch::{
+    merge_system_prompt_with_translation_skill_launch,
+    prepare_translation_skill_launch_request_metadata,
+};
+pub(crate) use typesetting_skill_launch::{
+    merge_system_prompt_with_typesetting_skill_launch,
+    prepare_typesetting_skill_launch_request_metadata,
+};
 pub(crate) use url_parse_skill_launch::merge_system_prompt_with_url_parse_skill_launch;
 pub(crate) use video_skill_launch::merge_system_prompt_with_video_skill_launch;
 

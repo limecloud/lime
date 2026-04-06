@@ -51,6 +51,31 @@ async function waitForLoad() {
   await flushEffects();
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await flushEffects();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await flushEffects();
+  });
+}
+
 async function clickButton(button: HTMLButtonElement) {
   await act(async () => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -163,5 +188,26 @@ describe("StatsSettings", () => {
     expect(mockGetUsageStats).toHaveBeenLastCalledWith("week");
     expect(mockGetModelUsageRanking).toHaveBeenLastCalledWith("week");
     expect(mockGetDailyUsageTrends).toHaveBeenLastCalledWith("week");
+  });
+
+  it("应把总览说明和观察说明收进 tips", async () => {
+    renderComponent();
+    await waitForLoad();
+
+    expect(getBodyText()).not.toContain(
+      "将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，方便快速判断近期是否进入高频使用状态。",
+    );
+
+    const heroTip = await hoverTip("使用统计总览说明");
+    expect(getBodyText()).toContain(
+      "将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，方便快速判断近期是否进入高频使用状态。",
+    );
+    await leaveTip(heroTip);
+
+    const observeTip = await hoverTip("当前观察说明");
+    expect(getBodyText()).toContain(
+      "用一个摘要面板快速查看这段时间的主要节奏。",
+    );
+    await leaveTip(observeTip);
   });
 });

@@ -3,9 +3,9 @@
  * @description 用于跨页面同步 Provider 相关数据，避免必须重启应用
  */
 
-export const PROVIDER_DATA_CHANGED_EVENT = "provider-data-changed";
+const PROVIDER_DATA_CHANGED_EVENT = "provider-data-changed";
 
-export type ProviderDataChangedSource = "provider_pool" | "api_key";
+type ProviderDataChangedSource = "provider_pool" | "api_key";
 
 interface ProviderDataChangedDetail {
   source: ProviderDataChangedSource;

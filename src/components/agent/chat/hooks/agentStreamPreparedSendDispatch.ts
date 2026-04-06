@@ -22,8 +22,10 @@ export async function dispatchPreparedAgentStreamSend(
     return;
   }
 
-  await submitAgentStreamUserInput({
-    preparedSend,
-    env,
-  });
+  await env.runPreparedSubmit(() =>
+    submitAgentStreamUserInput({
+      preparedSend,
+      env,
+    }),
+  );
 }

@@ -1,6 +1,6 @@
 import type { Config, DeveloperConfig } from "@/lib/api/appConfig";
 
-export const DEFAULT_DEVELOPER_CONFIG: DeveloperConfig = {
+const DEFAULT_DEVELOPER_CONFIG: DeveloperConfig = {
   workspace_harness_enabled: false,
 };
 

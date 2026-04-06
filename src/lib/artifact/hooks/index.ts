@@ -5,13 +5,6 @@
  * @requirements 9.4, 11.2
  */
 
-// useArtifact Hook 导出
-export { useArtifact } from "./useArtifact";
-
-// useArtifactParser Hook 导出
-export { useArtifactParser } from "./useArtifactParser";
-export type { UseArtifactParserReturn } from "./useArtifactParser";
-
-// useDebouncedValue Hook 导出
+// 现役公共入口仅保留通用防抖 Hook。
 // @requirements 11.2
 export { useDebouncedValue, useDebouncedCallback } from "./useDebouncedValue";

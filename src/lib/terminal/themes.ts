@@ -22,7 +22,7 @@ export type ThemeName =
   | "gruvbox-dark";
 
 /** 主题配置接口 */
-export interface TerminalTheme {
+interface TerminalTheme {
   name: ThemeName;
   displayName: string;
   theme: ITheme;
@@ -245,7 +245,7 @@ const gruvboxDark: ITheme = {
 };
 
 /** 所有主题配置 */
-export const TERMINAL_THEMES: Record<ThemeName, TerminalTheme> = {
+const TERMINAL_THEMES: Record<ThemeName, TerminalTheme> = {
   "tokyo-night": {
     name: "tokyo-night",
     displayName: "Tokyo Night",
@@ -289,16 +289,11 @@ export const TERMINAL_THEMES: Record<ThemeName, TerminalTheme> = {
 };
 
 /** 默认主题 */
-export const DEFAULT_THEME: ThemeName = "tokyo-night";
+const DEFAULT_THEME: ThemeName = "tokyo-night";
 
 /** 获取主题配置 */
 export function getTheme(name: ThemeName): ITheme {
   return TERMINAL_THEMES[name]?.theme ?? TERMINAL_THEMES[DEFAULT_THEME].theme;
-}
-
-/** 获取所有主题列表 */
-export function getThemeList(): TerminalTheme[] {
-  return Object.values(TERMINAL_THEMES);
 }
 
 /** 主题存储键 */
@@ -306,11 +301,11 @@ const THEME_STORAGE_KEY = "terminal-theme";
 /** 字体大小存储键 */
 const FONT_SIZE_STORAGE_KEY = "terminal-font-size";
 /** 默认字体大小 */
-export const DEFAULT_FONT_SIZE = 14;
+const DEFAULT_FONT_SIZE = 14;
 /** 最小字体大小 */
-export const MIN_FONT_SIZE = 8;
+const MIN_FONT_SIZE = 8;
 /** 最大字体大小 */
-export const MAX_FONT_SIZE = 32;
+const MAX_FONT_SIZE = 32;
 
 /** 保存主题到本地存储
  * _Requirements: 12.4_
@@ -346,29 +341,4 @@ export function loadFontSizePreference(): number {
     }
   }
   return DEFAULT_FONT_SIZE;
-}
-
-/** 应用透明度到主题
- * _Requirements: 12.3_
- */
-export function applyThemeOpacity(theme: ITheme, opacity: number): ITheme {
-  if (opacity >= 1) return theme;
-
-  // 将背景色转换为带透明度的颜色
-  const bgColor = theme.background || "#000000";
-  const alpha = Math.max(0, Math.min(1, opacity));
-
-  // 如果是 hex 颜色，转换为 rgba
-  if (bgColor.startsWith("#")) {
-    const hex = bgColor.slice(1);
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return {
-      ...theme,
-      background: `rgba(${r}, ${g}, ${b}, ${alpha})`,
-    };
-  }
-
-  return theme;
 }

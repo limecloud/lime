@@ -42,7 +42,6 @@ function renderHook(props?: Partial<HookProps>) {
     hasCurrentCanvasArtifact: false,
     currentCanvasArtifactType: null,
     currentImageWorkbenchActive: false,
-    isBrowserAssistCanvasVisible: false,
     onHasMessagesChange: vi.fn(),
     dismissActiveTeamWorkbenchAutoOpen: vi.fn(),
     suppressGeneralCanvasArtifactAutoOpen: vi.fn(),

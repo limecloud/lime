@@ -66,7 +66,7 @@ import {
   type NotionEditorHandle,
 } from "@/lib/workspace/workbenchCanvas";
 
-export type ArtifactWorkbenchInspectorTab =
+type ArtifactWorkbenchInspectorTab =
   | "overview"
   | "sources"
   | "versions"
@@ -77,7 +77,7 @@ export type {
   EditableArtifactBlockEntry,
 } from "./artifactWorkbenchEditableDraft";
 
-export interface ArtifactRecoveryPresentation {
+interface ArtifactRecoveryPresentation {
   kind: "recovered_draft" | "recovered_failed" | "repaired_structure";
   tone: "info" | "warning";
   title: string;
@@ -136,7 +136,7 @@ function normalizeBoolean(value: unknown): boolean {
   return value === true;
 }
 
-export function formatVersionDate(value?: string): string | undefined {
+function formatVersionDate(value?: string): string | undefined {
   if (!value) {
     return undefined;
   }

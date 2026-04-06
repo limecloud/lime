@@ -463,6 +463,19 @@ async fn execute_aster_chat_request(
         request.metadata.as_ref(),
         request.images.as_deref(),
     );
+    request.metadata = prepare_broadcast_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata =
+        prepare_resource_search_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_research_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_report_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_deep_search_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_site_search_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_pdf_read_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_summary_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_translation_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_analysis_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_typesetting_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_service_scene_launch_request_metadata(request.metadata.as_ref());
     let runtime_config = config_manager.config();
     apply_web_search_runtime_env(&runtime_config);
     let auto_continue_config = request
@@ -726,9 +739,100 @@ async fn execute_aster_chat_request(
         prompt_with_video_skill_launch.clone(),
     );
 
+    let prompt_with_broadcast_skill_launch = merge_system_prompt_with_broadcast_skill_launch(
+        prompt_with_video_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::BroadcastSkillLaunch,
+        prompt_with_broadcast_skill_launch.clone(),
+    );
+
+    let prompt_with_resource_search_skill_launch =
+        merge_system_prompt_with_resource_search_skill_launch(
+            prompt_with_broadcast_skill_launch,
+            request.metadata.as_ref(),
+        );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ResourceSearchSkillLaunch,
+        prompt_with_resource_search_skill_launch.clone(),
+    );
+
+    let prompt_with_research_skill_launch = merge_system_prompt_with_research_skill_launch(
+        prompt_with_resource_search_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ResearchSkillLaunch,
+        prompt_with_research_skill_launch.clone(),
+    );
+
+    let prompt_with_report_skill_launch = merge_system_prompt_with_report_skill_launch(
+        prompt_with_research_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ReportSkillLaunch,
+        prompt_with_report_skill_launch.clone(),
+    );
+
+    let prompt_with_deep_search_skill_launch = merge_system_prompt_with_deep_search_skill_launch(
+        prompt_with_report_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::DeepSearchSkillLaunch,
+        prompt_with_deep_search_skill_launch.clone(),
+    );
+
+    let prompt_with_site_search_skill_launch = merge_system_prompt_with_site_search_skill_launch(
+        prompt_with_deep_search_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::SiteSearchSkillLaunch,
+        prompt_with_site_search_skill_launch.clone(),
+    );
+
+    let prompt_with_pdf_read_skill_launch = merge_system_prompt_with_pdf_read_skill_launch(
+        prompt_with_site_search_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::PdfReadSkillLaunch,
+        prompt_with_pdf_read_skill_launch.clone(),
+    );
+
+    let prompt_with_summary_skill_launch = merge_system_prompt_with_summary_skill_launch(
+        prompt_with_pdf_read_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::SummarySkillLaunch,
+        prompt_with_summary_skill_launch.clone(),
+    );
+
+    let prompt_with_translation_skill_launch = merge_system_prompt_with_translation_skill_launch(
+        prompt_with_summary_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::TranslationSkillLaunch,
+        prompt_with_translation_skill_launch.clone(),
+    );
+
+    let prompt_with_analysis_skill_launch = merge_system_prompt_with_analysis_skill_launch(
+        prompt_with_translation_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::AnalysisSkillLaunch,
+        prompt_with_analysis_skill_launch.clone(),
+    );
+
     let prompt_with_transcription_skill_launch =
         merge_system_prompt_with_transcription_skill_launch(
-            prompt_with_video_skill_launch,
+            prompt_with_analysis_skill_launch,
             request.metadata.as_ref(),
         );
     turn_input_builder.apply_prompt_stage(
@@ -745,8 +849,17 @@ async fn execute_aster_chat_request(
         prompt_with_url_parse_skill_launch.clone(),
     );
 
-    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+    let prompt_with_typesetting_skill_launch = merge_system_prompt_with_typesetting_skill_launch(
         prompt_with_url_parse_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::TypesettingSkillLaunch,
+        prompt_with_typesetting_skill_launch.clone(),
+    );
+
+    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+        prompt_with_typesetting_skill_launch,
         request.metadata.as_ref(),
     );
     turn_input_builder.apply_prompt_stage(
@@ -2432,7 +2545,7 @@ mod tests {
             metadata: Some(json!({
                 "harness": {
                     "theme": "general",
-                    "session_mode": "theme_workbench",
+                    "session_mode": "general_workbench",
                     "content_id": "content-1"
                 }
             })),
@@ -2603,7 +2716,7 @@ mod tests {
             metadata: Some(json!({
                 "harness": {
                     "theme": "general",
-                    "session_mode": "theme_workbench"
+                    "session_mode": "general_workbench"
                 }
             })),
             turn_id: None,
@@ -2614,7 +2727,7 @@ mod tests {
         normalize_runtime_turn_request_metadata(
             &mut request,
             Some("general"),
-            Some("theme_workbench"),
+            Some("general_workbench"),
             None,
             None,
             Some("content-from-session"),
@@ -2631,7 +2744,7 @@ mod tests {
             normalized_metadata
                 .pointer("/harness/session_mode")
                 .and_then(Value::as_str),
-            Some("theme_workbench")
+            Some("general_workbench")
         );
         assert_eq!(
             normalized_metadata
@@ -2651,7 +2764,7 @@ mod tests {
     fn normalize_runtime_turn_request_metadata_should_backfill_theme_and_session_mode_from_session_runtime(
     ) {
         let mut request = AsterChatRequest {
-            message: "继续推进当前主题工作台".to_string(),
+            message: "继续推进当前工作区编排".to_string(),
             session_id: "session-artifact-theme-fallback".to_string(),
             event_name: "agent_stream".to_string(),
             images: None,
@@ -2681,7 +2794,7 @@ mod tests {
         normalize_runtime_turn_request_metadata(
             &mut request,
             Some("general"),
-            Some("theme_workbench"),
+            Some("general_workbench"),
             None,
             None,
             Some("content-from-session"),
@@ -2698,7 +2811,7 @@ mod tests {
             normalized_metadata
                 .pointer("/harness/session_mode")
                 .and_then(Value::as_str),
-            Some("theme_workbench")
+            Some("general_workbench")
         );
         assert_eq!(
             normalized_metadata
@@ -2732,7 +2845,7 @@ mod tests {
             metadata: Some(json!({
                 "harness": {
                     "theme": "general",
-                    "session_mode": "theme_workbench",
+                    "session_mode": "general_workbench",
                     "content_id": "content-social-1"
                 }
             })),
@@ -2744,7 +2857,7 @@ mod tests {
         normalize_runtime_turn_request_metadata(
             &mut request,
             Some("general"),
-            Some("theme_workbench"),
+            Some("general_workbench"),
             Some("write_mode"),
             Some("社媒初稿"),
             Some("content-social-1"),

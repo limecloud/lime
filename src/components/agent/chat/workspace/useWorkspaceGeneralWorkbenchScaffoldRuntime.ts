@@ -1,0 +1,222 @@
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { safeListen } from "@/lib/dev-bridge";
+import {
+  createInitialCanvasState,
+  type CanvasStateUnion,
+} from "@/lib/workspace/workbenchCanvas";
+import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
+import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import type { GeneralWorkbenchCreationTaskEvent } from "../components/generalWorkbenchWorkflowData";
+import { useTopicBranchBoard } from "../hooks";
+import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
+
+const GENERAL_WORKBENCH_CREATION_TASK_EVENT_NAME =
+  "lime://creation_task_submitted";
+const MAX_GENERAL_WORKBENCH_CREATION_TASK_EVENTS = 120;
+
+interface CreationTaskSubmittedPayload {
+  task_id?: string;
+  task_type?: string;
+  path?: string;
+  absolute_path?: string;
+}
+
+function normalizeGeneralWorkbenchCreationTaskEvent(
+  payload: CreationTaskSubmittedPayload,
+): GeneralWorkbenchCreationTaskEvent | null {
+  const taskId = payload.task_id?.trim();
+  const taskType = payload.task_type?.trim();
+  const path = payload.path?.trim();
+  if (!taskId || !taskType || !path) {
+    return null;
+  }
+  const createdAt = Date.now();
+  return {
+    taskId,
+    taskType,
+    path,
+    absolutePath: payload.absolute_path?.trim() || undefined,
+    createdAt,
+    timeLabel: new Date(createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
+}
+
+interface UseWorkspaceGeneralWorkbenchScaffoldRuntimeParams {
+  isGeneralWorkbench: boolean;
+  mappedTheme: ThemeType;
+  sessionId?: string | null;
+  projectId?: string | null;
+  canvasState: CanvasStateUnion | null;
+  documentVersionStatusMap: Record<string, TopicBranchStatus>;
+  setDocumentVersionStatusMap: Dispatch<
+    SetStateAction<Record<string, TopicBranchStatus>>
+  >;
+  clearThemeSkillsRailState: () => void;
+  setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
+  setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
+}
+
+export function useWorkspaceGeneralWorkbenchScaffoldRuntime({
+  isGeneralWorkbench,
+  mappedTheme,
+  sessionId,
+  projectId,
+  canvasState,
+  documentVersionStatusMap,
+  setDocumentVersionStatusMap,
+  clearThemeSkillsRailState,
+  setCanvasState,
+  setLayoutMode,
+}: UseWorkspaceGeneralWorkbenchScaffoldRuntimeParams) {
+  const [generalWorkbenchSidebarCollapsed, setGeneralWorkbenchSidebarCollapsed] =
+    useState(false);
+  const [
+    generalWorkbenchCreationTaskEvents,
+    setGeneralWorkbenchCreationTaskEvents,
+  ] = useState<GeneralWorkbenchCreationTaskEvent[]>([]);
+
+  const shouldUseCompactGeneralWorkbench = false;
+  const shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt =
+    isGeneralWorkbench && shouldUseCompactGeneralWorkbench;
+  const enableGeneralWorkbenchPanelCollapse = false;
+
+  useEffect(() => {
+    if (!isGeneralWorkbench) {
+      clearThemeSkillsRailState();
+    }
+  }, [isGeneralWorkbench, clearThemeSkillsRailState]);
+
+  useEffect(() => {
+    return () => {
+      clearThemeSkillsRailState();
+    };
+  }, [clearThemeSkillsRailState]);
+
+  useEffect(() => {
+    if (!isGeneralWorkbench) {
+      setGeneralWorkbenchCreationTaskEvents([]);
+    }
+  }, [isGeneralWorkbench]);
+
+  useEffect(() => {
+    if (!isGeneralWorkbench || !sessionId) {
+      return;
+    }
+
+    setGeneralWorkbenchCreationTaskEvents([]);
+
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    safeListen<CreationTaskSubmittedPayload>(
+      GENERAL_WORKBENCH_CREATION_TASK_EVENT_NAME,
+      (event) => {
+        if (cancelled) {
+          return;
+        }
+        const normalized = normalizeGeneralWorkbenchCreationTaskEvent(
+          event.payload || {},
+        );
+        if (!normalized) {
+          return;
+        }
+        setGeneralWorkbenchCreationTaskEvents((previous) => {
+          const deduplicated = previous.filter(
+            (item) =>
+              item.taskId !== normalized.taskId &&
+              item.path !== normalized.path,
+          );
+          return [normalized, ...deduplicated].slice(
+            0,
+            MAX_GENERAL_WORKBENCH_CREATION_TASK_EVENTS,
+          );
+        });
+      },
+    )
+      .then((dispose) => {
+        if (cancelled) {
+          void dispose();
+          return;
+        }
+        unlisten = dispose;
+      })
+      .catch((error) => {
+        console.warn("[AgentChatPage] 监听任务提交事件失败:", error);
+      });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [isGeneralWorkbench, sessionId]);
+
+  useEffect(() => {
+    if (!isGeneralWorkbench || canvasState) {
+      return;
+    }
+
+    const initialGeneralWorkbenchCanvas =
+      createInitialCanvasState(mappedTheme, "") ||
+      createInitialDocumentState("");
+    if (!initialGeneralWorkbenchCanvas) {
+      return;
+    }
+
+    setCanvasState(initialGeneralWorkbenchCanvas);
+    setLayoutMode((previous) => (previous === "chat" ? "canvas" : previous));
+  }, [canvasState, isGeneralWorkbench, mappedTheme, setCanvasState, setLayoutMode]);
+
+  useEffect(() => {
+    if (enableGeneralWorkbenchPanelCollapse) {
+      return;
+    }
+    setGeneralWorkbenchSidebarCollapsed(false);
+  }, [enableGeneralWorkbenchPanelCollapse]);
+
+  const versionTopics = useMemo(() => {
+    if (!isGeneralWorkbench || !canvasState || canvasState.type !== "document") {
+      return [];
+    }
+    return canvasState.versions.map((version, index) => ({
+      id: version.id,
+      title: version.description?.trim() || `版本 ${index + 1}`,
+      messagesCount: version.content.trim() ? 2 : 0,
+    }));
+  }, [canvasState, isGeneralWorkbench]);
+
+  const currentVersionId =
+    isGeneralWorkbench && canvasState?.type === "document"
+      ? canvasState.currentVersionId
+      : null;
+
+  const { branchItems, setTopicStatus } = useTopicBranchBoard({
+    enabled: isGeneralWorkbench && canvasState?.type === "document",
+    projectId: projectId ?? undefined,
+    currentTopicId: currentVersionId,
+    topics: versionTopics,
+    externalStatusMap: documentVersionStatusMap,
+    onStatusMapChange: setDocumentVersionStatusMap,
+  });
+
+  return {
+    shouldUseCompactGeneralWorkbench,
+    shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
+    enableGeneralWorkbenchPanelCollapse,
+    generalWorkbenchSidebarCollapsed,
+    setGeneralWorkbenchSidebarCollapsed,
+    generalWorkbenchCreationTaskEvents,
+    branchItems,
+    setTopicStatus,
+  };
+}

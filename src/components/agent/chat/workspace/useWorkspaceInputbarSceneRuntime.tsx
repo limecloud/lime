@@ -7,7 +7,7 @@ import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
 import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime";
 import { useWorkspaceTeamSessionControlRuntime } from "./useWorkspaceTeamSessionControlRuntime";
 import { useWorkspaceTeamSessionRuntime } from "./useWorkspaceTeamSessionRuntime";
-import { useWorkspaceThemeWorkbenchSidebarRuntime } from "./useWorkspaceThemeWorkbenchSidebarRuntime";
+import { useWorkspaceGeneralWorkbenchSidebarRuntime } from "./useWorkspaceGeneralWorkbenchSidebarRuntime";
 import type { Message } from "../types";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
@@ -38,8 +38,8 @@ type TeamSessionRuntime = ReturnType<typeof useWorkspaceTeamSessionRuntime>;
 type TeamSessionControlRuntime = ReturnType<
   typeof useWorkspaceTeamSessionControlRuntime
 >;
-type ThemeWorkbenchSidebarRuntime = ReturnType<
-  typeof useWorkspaceThemeWorkbenchSidebarRuntime
+type GeneralWorkbenchSidebarRuntime = ReturnType<
+  typeof useWorkspaceGeneralWorkbenchSidebarRuntime
 >;
 
 interface UseWorkspaceInputbarSceneRuntimeParams {
@@ -62,11 +62,12 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   handleReturnToParentSession: TeamWorkbenchParams["onReturnToParentSession"];
   input: InputbarParams["input"];
   setInput: InputbarParams["setInput"];
-  currentGate: InputbarParams["themeWorkbenchGate"];
-  themeWorkbenchSidebarRuntime: ThemeWorkbenchSidebarRuntime;
+  currentGate: InputbarParams["workflowGate"];
+  generalWorkbenchSidebarRuntime: GeneralWorkbenchSidebarRuntime;
   steps: InputbarParams["workflowSteps"];
-  themeWorkbenchRunState: InputbarParams["themeWorkbenchRunState"];
+  workflowRunState: InputbarParams["workflowRunState"];
   handleSend: InputbarParams["onSend"];
+  isPreparingSend: boolean;
   isSending: boolean;
   providerType: InputbarParams["providerType"];
   setProviderType: InputbarParams["setProviderType"];
@@ -111,9 +112,9 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   removeQueuedTurn: InputbarParams["onRemoveQueuedTurn"];
   latestAssistantMessageId: string | null;
   sessionIdForDiagnostics: string | null;
-  themeWorkbenchEntryPrompt: InputbarPresentationParams["themeWorkbenchEntryPrompt"];
-  handleRestartThemeWorkbenchEntryPrompt: InputbarPresentationParams["onRestartThemeWorkbenchEntryPrompt"];
-  handleContinueThemeWorkbenchEntryPrompt: InputbarPresentationParams["onContinueThemeWorkbenchEntryPrompt"];
+  generalWorkbenchEntryPrompt: InputbarPresentationParams["generalWorkbenchEntryPrompt"];
+  handleRestartGeneralWorkbenchEntryPrompt: InputbarPresentationParams["onRestartGeneralWorkbenchEntryPrompt"];
+  handleContinueGeneralWorkbenchEntryPrompt: InputbarPresentationParams["onContinueGeneralWorkbenchEntryPrompt"];
   generalWorkbenchEnabled: boolean;
   contextHarnessRuntime: ContextHarnessRuntime;
   harnessState: GeneralWorkbenchDialogParams["harnessState"];
@@ -148,10 +149,11 @@ export function useWorkspaceInputbarSceneRuntime({
   input,
   setInput,
   currentGate,
-  themeWorkbenchSidebarRuntime,
+  generalWorkbenchSidebarRuntime,
   steps,
-  themeWorkbenchRunState,
+  workflowRunState,
   handleSend,
+  isPreparingSend,
   isSending,
   providerType,
   setProviderType,
@@ -193,9 +195,9 @@ export function useWorkspaceInputbarSceneRuntime({
   removeQueuedTurn,
   latestAssistantMessageId,
   sessionIdForDiagnostics,
-  themeWorkbenchEntryPrompt,
-  handleRestartThemeWorkbenchEntryPrompt,
-  handleContinueThemeWorkbenchEntryPrompt,
+  generalWorkbenchEntryPrompt,
+  handleRestartGeneralWorkbenchEntryPrompt,
+  handleContinueGeneralWorkbenchEntryPrompt,
   generalWorkbenchEnabled,
   contextHarnessRuntime,
   harnessState,
@@ -273,12 +275,12 @@ export function useWorkspaceInputbarSceneRuntime({
       inputbar: {
         input,
         setInput,
-        variant: isThemeWorkbench ? "theme_workbench" : "default",
-        themeWorkbenchGate: isThemeWorkbench ? currentGate : null,
+        variant: isThemeWorkbench ? "workspace" : "default",
+        workflowGate: isThemeWorkbench ? currentGate : null,
         workflowSteps: isThemeWorkbench
-          ? themeWorkbenchSidebarRuntime.themeWorkbenchWorkflowSteps
+          ? generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps
           : steps,
-        themeWorkbenchRunState,
+        workflowRunState,
         onSend: handleSend,
         onStop: teamSessionControlRuntime.handleStopSending,
         isLoading: isSending || resolvedQueuedTurns.length > 0,
@@ -296,7 +298,7 @@ export function useWorkspaceInputbarSceneRuntime({
         selectedTeam,
         onSelectTeam: handleSelectTeam,
         onEnableSuggestedTeam: handleEnableSuggestedTeam,
-        disabled: !projectId,
+        disabled: !projectId || isPreparingSend,
         onTaskFileClick: handleTaskFileClick,
         characters,
         skills,
@@ -323,14 +325,14 @@ export function useWorkspaceInputbarSceneRuntime({
         enabled: teamSessionRuntime.showTeamWorkspaceBoard,
         layoutMode: dockLayoutMode,
         showFloatingInputOverlay:
-          shellChromeRuntime.shouldShowThemeWorkbenchFloatingInputOverlay,
+          shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
         onActivateWorkbench: handleActivateTeamWorkbench,
       },
-      themeWorkbenchEntryPrompt,
-      onRestartThemeWorkbenchEntryPrompt:
-        handleRestartThemeWorkbenchEntryPrompt,
-      onContinueThemeWorkbenchEntryPrompt:
-        handleContinueThemeWorkbenchEntryPrompt,
+      generalWorkbenchEntryPrompt,
+      onRestartGeneralWorkbenchEntryPrompt:
+        handleRestartGeneralWorkbenchEntryPrompt,
+      onContinueGeneralWorkbenchEntryPrompt:
+        handleContinueGeneralWorkbenchEntryPrompt,
       generalWorkbenchDialog: {
         enabled: generalWorkbenchEnabled && !isThemeWorkbench,
         open: contextHarnessRuntime.harnessPanelVisible,

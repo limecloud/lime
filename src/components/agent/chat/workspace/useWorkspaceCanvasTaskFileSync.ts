@@ -12,7 +12,7 @@ import {
   resolveCanvasTaskFileTarget,
   shouldDeferCanvasSyncWhileEditing,
 } from "../utils/taskFileCanvasSync";
-import { isRenderableTaskFile } from "./themeWorkbenchHelpers";
+import { isRenderableTaskFile } from "./generalWorkbenchHelpers";
 
 interface UseWorkspaceCanvasTaskFileSyncParams {
   taskFiles: TaskFile[];

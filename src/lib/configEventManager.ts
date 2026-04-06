@@ -230,4 +230,3 @@ class ConfigEventManager {
 
 // 导出单例
 export const configEventManager = ConfigEventManager.getInstance();
-export default configEventManager;

@@ -5,6 +5,7 @@ import type {
 } from "@/lib/api/agentRuntime";
 import type { SessionModelPreference } from "../hooks/agentChatShared";
 import type { ChatToolPreferences } from "./chatToolPreferences";
+import { normalizeHarnessSessionMode } from "./harnessSessionMode";
 
 const HARNESS_WEB_SEARCH_PREFERENCE_KEYS = [
   "web_search",
@@ -568,10 +569,10 @@ export function buildSubmitOpRuntimeCompaction(
     metadata = omitHarnessFieldsFromRequestMetadata(metadata, HARNESS_THEME_KEYS);
   }
 
-  const requestSessionMode = normalizeComparableText(
+  const requestSessionMode = normalizeHarnessSessionMode(
     readHarnessStringFromRequestMetadata(metadata, HARNESS_SESSION_MODE_KEYS),
   );
-  const knownRecentSessionMode = normalizeComparableText(
+  const knownRecentSessionMode = normalizeHarnessSessionMode(
     executionRuntime?.recent_session_mode,
   );
   if (

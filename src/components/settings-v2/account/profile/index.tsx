@@ -10,7 +10,6 @@ import {
   Camera,
   CheckCircle2,
   Edit2,
-  Info,
   Mail,
   Plus,
   Sparkles,
@@ -19,6 +18,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import {
   getConfig,
@@ -139,13 +139,22 @@ function ProfileFieldCard({
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-slate-900">{label}</p>
+              <WorkbenchInfoTip
+                ariaLabel={`${label}说明`}
+                content={
+                  <div className="space-y-1">
+                    <p>{description}</p>
+                    <p>{hint}</p>
+                  </div>
+                }
+                tone="slate"
+              />
               {!editable && (
                 <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
                   只读
                 </span>
               )}
             </div>
-            <p className="text-sm leading-6 text-slate-500">{description}</p>
           </div>
         </div>
 
@@ -220,7 +229,7 @@ function ProfileFieldCard({
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs leading-5 text-slate-500">{hint}</p>
+        <span className="text-xs leading-5 text-slate-500">通过 Tips 查看说明</span>
         {isEditing && (
           <div className="flex items-center gap-2">
             <button
@@ -522,10 +531,10 @@ export function ProfileSettings() {
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                    {profile.bio ||
-                      "补充几句你的工作背景、关注方向或使用目标，AI 会更快进入正确语境。"}
-                  </p>
+                <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                  {profile.bio ||
+                    "补充几句你的工作背景、关注方向或使用目标，AI 会更快进入正确语境。"}
+                </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -556,42 +565,53 @@ export function ProfileSettings() {
                   )}
                 </div>
 
-                <p className="text-xs leading-5 text-slate-500">
-                  头像支持 PNG / JPG / GIF / WEBP，单文件不超过 5MB。
-                </p>
+                <div className="flex items-center gap-2 text-xs leading-5 text-slate-500">
+                  <span>头像格式限制已收纳</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="头像上传限制说明"
+                    content="头像支持 PNG / JPG / GIF / WEBP，单文件不超过 5MB。"
+                    tone="slate"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
               <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">
-                  资料完成度
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  昵称、简介、邮箱与偏好标签
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>资料完成度</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="资料完成度说明"
+                    content="昵称、简介、邮箱与偏好标签。"
+                    tone="slate"
+                  />
+                </div>
                 <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
                   {completionPercent}%
                 </p>
               </div>
               <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">
-                  兴趣标签
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  用于偏好理解与内容召回
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>兴趣标签</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="兴趣标签说明"
+                    content="用于偏好理解与内容召回。"
+                    tone="slate"
+                  />
+                </div>
                 <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
                   {tags.length}
                 </p>
               </div>
               <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">
-                  个性化状态
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  当前资料可用于 AI 上下文提示
-                </p>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <span>个性化状态</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="个性化状态说明"
+                    content="当前资料可用于 AI 上下文提示。"
+                    tone="slate"
+                  />
+                </div>
                 <p className="mt-4 text-xl font-semibold tracking-tight text-slate-900">
                   {statusLabel}
                 </p>
@@ -606,10 +626,16 @@ export function ProfileSettings() {
           <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900">基础资料</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  这些信息会参与欢迎语、工作区称呼和部分个性化提示生成。
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    基础资料
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="基础资料说明"
+                    content="这些信息会参与欢迎语、工作区称呼和部分个性化提示生成。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
                 {PROFILE_FIELDS.length} 项
@@ -648,10 +674,12 @@ export function ProfileSettings() {
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <Tag className="h-4 w-4 text-emerald-600" />
                   偏好标签
+                  <WorkbenchInfoTip
+                    ariaLabel="偏好标签说明"
+                    content="标签帮助 AI 判断你更关注的主题和表达风格。"
+                    tone="slate"
+                  />
                 </div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  标签帮助 AI 判断你更关注的主题和表达风格。
-                </p>
               </div>
               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                 {tags.length} 个已选
@@ -741,26 +769,20 @@ export function ProfileSettings() {
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Sparkles className="h-4 w-4 text-sky-600" />
               资料如何被使用
+              <WorkbenchInfoTip
+                ariaLabel="资料如何被使用说明"
+                content={
+                  <div className="space-y-1">
+                    <p>昵称和简介会帮助 AI 在开场、建议和工作区提示中更自然地引用你的背景。</p>
+                    <p>标签只用于偏好判断，不会替代系统提示词，也不会自动暴露给外部服务。</p>
+                    <p>邮箱由账号体系维护，当前页面仅做展示，避免在多入口出现不一致状态。</p>
+                  </div>
+                }
+                tone="slate"
+              />
             </div>
-            <div className="mt-4 space-y-3 rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
-              <div className="flex items-start gap-3">
-                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                <p className="text-sm leading-6 text-slate-600">
-                  昵称和简介会帮助 AI 在开场、建议和工作区提示中更自然地引用你的背景。
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <Tag className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                <p className="text-sm leading-6 text-slate-600">
-                  标签只用于偏好判断，不会替代系统提示词，也不会自动暴露给外部服务。
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <Mail className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                <p className="text-sm leading-6 text-slate-600">
-                  邮箱由账号体系维护，当前页面仅做展示，避免在多入口出现不一致状态。
-                </p>
-              </div>
+            <div className="mt-4 rounded-[22px] border border-slate-100 bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500">
+              说明已收纳到标题旁 Tips。
             </div>
           </article>
         </div>

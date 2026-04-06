@@ -75,13 +75,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const hasInitialized = useRef(false);
   const modelRef = useRef(model);
   modelRef.current = model;
+  const shouldBackgroundLoadModels =
+    backgroundPreload === "immediate" ||
+    backgroundProviderLoadReady ||
+    !providerType.trim() ||
+    !model.trim();
   const shouldLoadProviders =
     open ||
     backgroundPreload === "immediate" ||
     backgroundProviderLoadReady ||
     !providerType.trim() ||
     !model.trim();
-  const shouldLoadModels = open || !providerType.trim() || !model.trim();
+  const shouldLoadModels = open || shouldBackgroundLoadModels;
 
   useEffect(() => {
     if (

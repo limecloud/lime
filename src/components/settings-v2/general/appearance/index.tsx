@@ -23,6 +23,7 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { useOnboardingState } from "@/components/onboarding";
@@ -130,8 +131,12 @@ function SurfacePanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
       </div>
@@ -144,13 +149,17 @@ function SurfacePanel({
 function StatCard({ label, value, description }: StatCardProps) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -417,12 +426,16 @@ export function AppearanceSettings() {
               </span>
 
               <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把界面观感、主导航入口和推荐行为放在同一个视图里调整
-                </p>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                    把界面观感、主导航入口和推荐行为放在同一个视图里调整
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="外观设置总览说明"
+                    content="主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。"
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -469,12 +482,16 @@ export function AppearanceSettings() {
             <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    主题模式
-                  </h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    优先控制整个应用的明暗观感，适配不同设备环境。
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      主题模式
+                    </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="主题模式说明"
+                      content="优先控制整个应用的明暗观感，适配不同设备环境。"
+                      tone="slate"
+                    />
+                  </div>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
                   当前：{resolveThemeLabel(theme)}
@@ -526,12 +543,16 @@ export function AppearanceSettings() {
                     <Languages className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      界面语言
-                    </h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      切换设置、工作区与提示文案的主要显示语言。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        界面语言
+                      </h3>
+                      <WorkbenchInfoTip
+                        ariaLabel="界面语言说明"
+                        content="切换设置、工作区与提示文案的主要显示语言。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
@@ -580,12 +601,16 @@ export function AppearanceSettings() {
                   <Volume2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    提示音效
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    在工具调用和消息生成时播放提示音，提升状态感知。
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      提示音效
+                    </p>
+                    <WorkbenchInfoTip
+                      ariaLabel="提示音效说明"
+                      content="在工具调用和消息生成时播放提示音，提升状态感知。"
+                      tone="slate"
+                    />
+                  </div>
                 </div>
               </div>
               <Switch
@@ -613,18 +638,27 @@ export function AppearanceSettings() {
                 <RotateCcw className="h-5 w-5" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-base font-semibold text-slate-900">
-                  重新运行初始化向导
-                </h3>
-                <p className="text-sm leading-6 text-slate-500">
-                  会重新展示首次启动时的关键配置步骤，适合在更换工作方式或排查环境问题时使用。
-                </p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-slate-900">
+                    重新运行初始化向导
+                  </h3>
+                  <WorkbenchInfoTip
+                    ariaLabel="重新运行初始化向导说明"
+                    content="会重新展示首次启动时的关键配置步骤，适合在更换工作方式或排查环境问题时使用。"
+                    tone="slate"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="space-y-3">
-              <div className="rounded-[18px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500">
-                重新运行后会刷新当前界面，但不会删除已有的账号、聊天和工作区数据。
+              <div className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500">
+                <span>重新运行不会删除现有数据</span>
+                <WorkbenchInfoTip
+                  ariaLabel="重新运行引导注意事项"
+                  content="重新运行后会刷新当前界面，但不会删除已有的账号、聊天和工作区数据。"
+                  tone="slate"
+                />
               </div>
               <button
                 type="button"
@@ -652,12 +686,16 @@ export function AppearanceSettings() {
                   <LayoutPanelLeft className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    左侧边栏导航
-                  </h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    控制工作区左侧常驻入口，保留高频内容即可，减少视觉干扰。
-                  </p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        左侧边栏导航
+                      </h3>
+                      <WorkbenchInfoTip
+                        ariaLabel="左侧边栏导航说明"
+                        content="控制工作区左侧常驻入口，保留高频内容即可，减少视觉干扰。"
+                        tone="slate"
+                      />
+                    </div>
                 </div>
               </div>
               <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
@@ -669,12 +707,16 @@ export function AppearanceSettings() {
               <section className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      主导航入口
-                    </h4>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      控制主导航区展示的工作台、资料库和系统功能入口，任务与能力核心入口会固定保留。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        主导航入口
+                      </h4>
+                      <WorkbenchInfoTip
+                        ariaLabel="主导航入口说明"
+                        content="控制主导航区展示的工作台、资料库和系统功能入口，任务与能力核心入口会固定保留。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
                     {enabledWorkspaceNavCount} 个已启用
@@ -717,12 +759,16 @@ export function AppearanceSettings() {
               <section className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      系统入口
-                    </h4>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      设置入口固定显示，这里只管理系统区的其余功能入口。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        系统入口
+                      </h4>
+                      <WorkbenchInfoTip
+                        ariaLabel="系统入口说明"
+                        content="设置入口固定显示，这里只管理系统区的其余功能入口。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
                     {enabledFooterNavCount} 个已启用
@@ -762,24 +808,32 @@ export function AppearanceSettings() {
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    推荐行为
-                  </h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    控制首页推荐问题是否自动带上当前选中内容，减少重复粘贴上下文。
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      推荐行为
+                    </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="推荐行为说明"
+                      content="控制首页推荐问题是否自动带上当前选中内容，减少重复粘贴上下文。"
+                      tone="slate"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      推荐自动附带选中内容
-                    </h4>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      在文档或画布中有选区时，推荐问题会自动把该段内容作为上下文带入，减少手工复制粘贴。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        推荐自动附带选中内容
+                      </h4>
+                      <WorkbenchInfoTip
+                        ariaLabel="推荐自动附带选中内容说明"
+                        content="在文档或画布中有选区时，推荐问题会自动把该段内容作为上下文带入，减少手工复制粘贴。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">

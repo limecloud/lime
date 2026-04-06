@@ -1,5 +1,5 @@
 import { useMemo, type ComponentProps, type ReactNode } from "react";
-import { ThemeWorkbenchEntryPromptAccessory } from "../components/ThemeWorkbenchEntryPromptAccessory";
+import { GeneralWorkbenchEntryPromptAccessory } from "../components/GeneralWorkbenchEntryPromptAccessory";
 import { GeneralWorkbenchDialogSection } from "./WorkspaceHarnessDialogs";
 import { WorkspaceInputbar } from "./WorkspaceInputbar";
 import {
@@ -48,11 +48,11 @@ interface UseWorkspaceInputbarPresentationParams {
   teamWorkbench: WorkspaceTeamWorkbenchSurfaceParams;
   inputbar: WorkspaceInputbarBuilderParams;
   floatingTeamWorkspaceDock: FloatingTeamWorkspaceDockParams;
-  themeWorkbenchEntryPrompt:
-    | ComponentProps<typeof ThemeWorkbenchEntryPromptAccessory>["prompt"]
+  generalWorkbenchEntryPrompt:
+    | ComponentProps<typeof GeneralWorkbenchEntryPromptAccessory>["prompt"]
     | null;
-  onRestartThemeWorkbenchEntryPrompt: () => void;
-  onContinueThemeWorkbenchEntryPrompt: () => Promise<void> | void;
+  onRestartGeneralWorkbenchEntryPrompt: () => void;
+  onContinueGeneralWorkbenchEntryPrompt: () => Promise<void> | void;
   generalWorkbenchDialog: ComponentProps<typeof GeneralWorkbenchDialogSection>;
 }
 
@@ -66,9 +66,9 @@ export function useWorkspaceInputbarPresentation({
   teamWorkbench,
   inputbar,
   floatingTeamWorkspaceDock,
-  themeWorkbenchEntryPrompt,
-  onRestartThemeWorkbenchEntryPrompt,
-  onContinueThemeWorkbenchEntryPrompt,
+  generalWorkbenchEntryPrompt,
+  onRestartGeneralWorkbenchEntryPrompt,
+  onContinueGeneralWorkbenchEntryPrompt,
   generalWorkbenchDialog,
 }: UseWorkspaceInputbarPresentationParams): WorkspaceInputbarPresentationResult {
   const teamWorkbenchSurfaceProps = useMemo<TeamWorkbenchSurfaceProps>(
@@ -131,19 +131,19 @@ export function useWorkspaceInputbarPresentation({
     ],
   );
 
-  const themeWorkbenchEntryPromptAccessory = useMemo(
+  const generalWorkbenchEntryPromptAccessory = useMemo(
     () =>
-      themeWorkbenchEntryPrompt ? (
-        <ThemeWorkbenchEntryPromptAccessory
-          prompt={themeWorkbenchEntryPrompt}
-          onRestart={onRestartThemeWorkbenchEntryPrompt}
-          onContinue={onContinueThemeWorkbenchEntryPrompt}
+      generalWorkbenchEntryPrompt ? (
+        <GeneralWorkbenchEntryPromptAccessory
+          prompt={generalWorkbenchEntryPrompt}
+          onRestart={onRestartGeneralWorkbenchEntryPrompt}
+          onContinue={onContinueGeneralWorkbenchEntryPrompt}
         />
       ) : null,
     [
-      onContinueThemeWorkbenchEntryPrompt,
-      onRestartThemeWorkbenchEntryPrompt,
-      themeWorkbenchEntryPrompt,
+      generalWorkbenchEntryPrompt,
+      onContinueGeneralWorkbenchEntryPrompt,
+      onRestartGeneralWorkbenchEntryPrompt,
     ],
   );
 
@@ -159,7 +159,7 @@ export function useWorkspaceInputbarPresentation({
     inputbarNode: (
       <WorkspaceInputbar
         inputbarProps={workspaceInputbarProps}
-        accessory={themeWorkbenchEntryPromptAccessory}
+        accessory={generalWorkbenchEntryPromptAccessory}
         teamWorkspaceDockProps={floatingTeamWorkspaceDockProps}
       />
     ),

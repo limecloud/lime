@@ -168,6 +168,31 @@ async function clickButton(button: HTMLButtonElement) {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 describe("ImConfigPage", () => {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -256,6 +281,26 @@ describe("ImConfigPage", () => {
     expect(text).toContain("钉钉");
     expect(text).toContain("高级排障");
     expect(text).not.toContain("调试配置");
+  });
+
+  it("应把首页说明和高级排障说明收进 tips", async () => {
+    renderPage();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。",
+    );
+    expect(getBodyText()).not.toContain("网关、日志和运行状态都收在这里。");
+
+    const introTip = await hoverTip("IM 配置说明");
+    expect(getBodyText()).toContain(
+      "首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。",
+    );
+    await leaveTip(introTip);
+
+    const debugTip = await hoverTip("高级排障说明");
+    expect(getBodyText()).toContain("网关、日志和运行状态都收在这里。");
+    await leaveTip(debugTip);
   });
 
   it("点击 Telegram 配置后应打开弹窗并支持保存", async () => {

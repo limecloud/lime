@@ -7,6 +7,7 @@ import { RenderableTaskImage } from "./RenderableTaskImage";
 
 interface ImageWorkbenchMessagePreviewProps {
   preview: MessageImageWorkbenchPreview;
+  onOpen?: (preview: MessageImageWorkbenchPreview) => void;
 }
 
 function resolveModeEyebrow(
@@ -208,18 +209,22 @@ function resolveSourcePlaceholderLabel(
 
 export const ImageWorkbenchMessagePreview: React.FC<
   ImageWorkbenchMessagePreviewProps
-> = ({ preview }) => {
+> = ({ preview, onOpen }) => {
   const showSourcePanel = shouldShowSourcePanel(preview);
 
   return (
     <button
       type="button"
-      onClick={() =>
+      onClick={() => {
+        if (onOpen) {
+          onOpen(preview);
+          return;
+        }
         emitImageWorkbenchFocus({
           projectId: preview.projectId ?? null,
           contentId: preview.contentId ?? null,
-        })
-      }
+        });
+      }}
       data-testid={`image-workbench-message-preview-${preview.taskId}`}
       className="mt-3 block w-full max-w-[560px] text-left"
     >

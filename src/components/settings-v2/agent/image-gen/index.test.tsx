@@ -54,6 +54,31 @@ async function flushEffects() {
   });
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const target = Array.from(container.querySelectorAll("button")).find(
     (button) => button.textContent?.includes(text),
@@ -118,6 +143,31 @@ describe("ImageGenSettings", () => {
     expect(container.textContent).toContain("全局默认图片服务");
     expect(container.textContent).toContain("默认图像生成服务");
     expect(container.textContent).toContain("默认图像数量");
+  });
+
+  it("应把图像设置补充说明收进 tips", async () => {
+    renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain(
+      "这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。",
+    );
+    expect(getBodyText()).not.toContain(
+      "关闭后，若全局默认图片服务缺失、被禁用或无可用 Key，将直接提示错误。",
+    );
+
+    const globalTip = await hoverTip("全局默认图片服务说明");
+    expect(getBodyText()).toContain(
+      "这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。",
+    );
+    await leaveTip(globalTip);
+
+    const fallbackTip = await hoverTip("默认图片服务不可用时自动回退说明");
+    expect(getBodyText()).toContain(
+      "关闭后，若全局默认图片服务缺失、被禁用或无可用 Key，将直接提示错误。",
+    );
+    await leaveTip(fallbackTip);
   });
 
   it("修改默认图像数量后应调用保存配置", async () => {

@@ -11,7 +11,7 @@ import { getLogs, getPersistedLogsTail } from "@/lib/api/logs";
 import {
   buildCrashDiagnosticPayload,
   clearCrashDiagnosticHistory,
-  collectThemeWorkbenchDocumentStateForDiagnostic,
+  collectGeneralWorkbenchDocumentStateForDiagnostic,
   CLEAR_CRASH_DIAGNOSTIC_HISTORY_CONFIRM_TEXT,
   copyCrashDiagnosticJsonToClipboard,
   copyCrashDiagnosticToClipboard,
@@ -94,7 +94,7 @@ export function CrashRecoveryPanel({
       notes.push(`boundary_component_stack: ${stackPreview}`);
     }
 
-    const [config, logs, persistedLogs, themeWorkbenchDocumentState] =
+    const [config, logs, persistedLogs, generalWorkbenchDocumentState] =
       await Promise.all([
         getConfig().catch(() => {
           notes.push("get_config_failed");
@@ -108,8 +108,8 @@ export function CrashRecoveryPanel({
           notes.push("get_persisted_logs_tail_failed");
           return [];
         }),
-        collectThemeWorkbenchDocumentStateForDiagnostic().catch(() => {
-          notes.push("get_theme_workbench_document_state_failed");
+        collectGeneralWorkbenchDocumentStateForDiagnostic().catch(() => {
+          notes.push("get_general_workbench_document_state_failed");
           return null;
         }),
       ]);
@@ -118,7 +118,7 @@ export function CrashRecoveryPanel({
       crashConfig: normalizeCrashReportingConfig(config?.crash_reporting),
       logs,
       persistedLogTail: persistedLogs,
-      themeWorkbenchDocumentState,
+      generalWorkbenchDocumentState,
       appVersion: import.meta.env.VITE_APP_VERSION,
       platform: navigator.platform,
       userAgent: navigator.userAgent,

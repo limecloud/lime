@@ -34,6 +34,7 @@ import {
 import { CharacterMention } from "@/components/agent/chat/skill-selection/CharacterMention";
 import { SkillBadge } from "@/components/agent/chat/skill-selection/SkillBadge";
 import { useActiveSkill } from "@/components/agent/chat/skill-selection/useActiveSkill";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { skillsApi, type Skill } from "@/lib/api/skills";
 import { useGlobalMediaGenerationDefaults } from "@/hooks/useGlobalMediaGenerationDefaults";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
@@ -309,18 +310,19 @@ const PanelEyebrow = styled.span`
 `;
 
 const PanelTitle = styled.h2`
-  margin: 10px 0 6px;
+  margin: 0;
   font-size: 22px;
   line-height: 1.2;
   font-weight: 700;
   color: hsl(var(--foreground));
 `;
 
-const PanelDescription = styled.p`
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.65;
-  color: hsl(var(--muted-foreground));
+const PanelTitleRow = styled.div`
+  margin: 10px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 `;
 
 const PanelMetaGrid = styled.div`
@@ -372,15 +374,22 @@ const SectionTitle = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   font-size: 14px;
   font-weight: 700;
   color: hsl(var(--foreground));
 `;
 
-const Hint = styled.div`
-  font-size: 12px;
-  line-height: 1.6;
-  color: hsl(var(--muted-foreground));
+const SectionTitleGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`;
+
+const SectionTitleText = styled.span`
+  display: inline-flex;
+  align-items: center;
 `;
 
 const Select = styled.select`
@@ -1496,10 +1505,14 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
       <ControlPanel>
         <PanelIntro>
           <PanelEyebrow>IMAGE STUDIO</PanelEyebrow>
-          <PanelTitle>生成参数</PanelTitle>
-          <PanelDescription>
-            左侧集中管理模型、参考图与输出规格；主画布负责预览结果与继续迭代。
-          </PanelDescription>
+          <PanelTitleRow>
+            <PanelTitle>生成参数</PanelTitle>
+            <WorkbenchInfoTip
+              ariaLabel="插图生成参数说明"
+              content="左侧集中管理模型、参考图与输出规格；主画布负责预览结果与继续迭代。"
+              tone="mint"
+            />
+          </PanelTitleRow>
           <PanelMetaGrid>
             <PanelMetaCard>
               <PanelMetaLabel>当前服务</PanelMetaLabel>
@@ -1543,7 +1556,14 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
 
         <Section>
           <SectionTitle>
-            模型
+            <SectionTitleGroup>
+              <SectionTitleText>模型</SectionTitleText>
+              <WorkbenchInfoTip
+                ariaLabel="图片模型说明"
+                content={`当前服务商：${selectedProvider?.name || "未选择"}。模型切换会影响尺寸支持范围与图片编辑链路。`}
+                tone="mint"
+              />
+            </SectionTitleGroup>
             <SmallButton onClick={goCredentialManagement} title="去凭证管理">
               <Settings size={14} />
             </SmallButton>
@@ -1559,11 +1579,23 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
               </option>
             ))}
           </Select>
-          <Hint>当前服务商：{selectedProvider?.name || "未选择"}</Hint>
         </Section>
 
         <Section>
-          <SectionTitle>目标资源库</SectionTitle>
+          <SectionTitle>
+            <SectionTitleGroup>
+              <SectionTitleText>目标资源库</SectionTitleText>
+              <WorkbenchInfoTip
+                ariaLabel="目标资源库说明"
+                content={
+                  targetProjectId
+                    ? `生成成功后会自动写入「${selectedTargetProject?.name || "已选项目"}」资源库。`
+                    : "未启用自动入库，生成结果仅保存在当前页面历史。"
+                }
+                tone="mint"
+              />
+            </SectionTitleGroup>
+          </SectionTitle>
           <Select
             value={targetProjectId}
             onChange={(event) => setTargetProjectId(event.target.value)}
@@ -1576,11 +1608,6 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
               </option>
             ))}
           </Select>
-          <Hint>
-            {targetProjectId
-              ? `生成成功后会自动写入「${selectedTargetProject?.name || "已选项目"}」资源库`
-              : "未启用自动入库，生成结果仅保存在当前页面历史"}
-          </Hint>
           <FullButton
             type="button"
             onClick={() => {
@@ -1598,7 +1625,20 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
         </Section>
 
         <Section>
-          <SectionTitle>参考图</SectionTitle>
+          <SectionTitle>
+            <SectionTitleGroup>
+              <SectionTitleText>参考图</SectionTitleText>
+              <WorkbenchInfoTip
+                ariaLabel="参考图说明"
+                content={
+                  isFalProvider
+                    ? "Fal 上传参考图会启用图片编辑参数；Nano Banana 会优先尝试 /edit 接口。"
+                    : "上传参考图会随请求发送给模型，是否执行编辑由模型能力决定。"
+                }
+                tone="mint"
+              />
+            </SectionTitleGroup>
+          </SectionTitle>
           {referenceImages.length > 0 ? (
             <Thumbs>
               {referenceImages.map((item) => (
@@ -1649,11 +1689,6 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
             hidden
             onChange={handleUploadChange}
           />
-          <Hint>
-            {isFalProvider
-              ? "Fal 上传参考图会启用图片编辑参数；Nano Banana 会优先尝试 /edit 接口。"
-              : "上传参考图会随请求发送给模型，是否执行编辑由模型能力决定。"}
-          </Hint>
         </Section>
 
         <Section>

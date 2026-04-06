@@ -4,9 +4,9 @@ import {
   type SiteAdapterCatalogStatus,
 } from "@/lib/webview-api";
 
-export const SITE_ADAPTER_CATALOG_BOOTSTRAP_EVENT =
+const SITE_ADAPTER_CATALOG_BOOTSTRAP_EVENT =
   "lime:site-adapter-catalog-bootstrap";
-export const SITE_ADAPTER_CATALOG_CHANGED_EVENT =
+const SITE_ADAPTER_CATALOG_CHANGED_EVENT =
   "lime:site-adapter-catalog-changed";
 
 declare global {

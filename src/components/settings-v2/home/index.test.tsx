@@ -43,6 +43,31 @@ function renderPage(
   return rendered;
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -169,5 +194,23 @@ describe("SettingsHomePage", () => {
     });
 
     expect(onOpenCompanion).toHaveBeenCalledTimes(1);
+  });
+
+  it("应把首页说明和常用入口说明收进 tips", async () => {
+    renderPage();
+
+    expect(getBodyText()).not.toContain(
+      "在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。",
+    );
+
+    const heroTip = await hoverTip("设置首页说明");
+    expect(getBodyText()).toContain(
+      "在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。",
+    );
+    await leaveTip(heroTip);
+
+    const cardTip = await hoverTip("外观说明");
+    expect(getBodyText()).toContain("主题、语言与提示音效");
+    await leaveTip(cardTip);
   });
 });

@@ -1,6 +1,6 @@
 import { reportFrontendDebugLog } from "@/lib/api/frontendDebug";
 
-export const AGENT_DEBUG_FLAG_KEY = "lime:agent-debug";
+const AGENT_DEBUG_FLAG_KEY = "lime:agent-debug";
 
 type AgentDebugLevel = "debug" | "info" | "warn" | "error";
 
@@ -32,7 +32,7 @@ function readAgentDebugFlag(): string | null {
   }
 }
 
-export function isAgentDebugEnabled(): boolean {
+function isAgentDebugEnabled(): boolean {
   const flag = readAgentDebugFlag();
   if (flag === "0") {
     return false;

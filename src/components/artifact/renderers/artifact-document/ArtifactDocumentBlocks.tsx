@@ -255,7 +255,7 @@ const ArtifactImagePlaceholder = memo(function ArtifactImagePlaceholder({
   );
 });
 
-export const ArtifactSectionHeader = memo(function ArtifactSectionHeader({
+const ArtifactSectionHeader = memo(function ArtifactSectionHeader({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -304,7 +304,7 @@ export const ArtifactSectionHeader = memo(function ArtifactSectionHeader({
   );
 });
 
-export const ArtifactHeroSummaryCard = memo(function ArtifactHeroSummaryCard({
+const ArtifactHeroSummaryCard = memo(function ArtifactHeroSummaryCard({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -379,7 +379,7 @@ export const ArtifactHeroSummaryCard = memo(function ArtifactHeroSummaryCard({
   );
 });
 
-export const ArtifactKeyPointsList = memo(function ArtifactKeyPointsList({
+const ArtifactKeyPointsList = memo(function ArtifactKeyPointsList({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -419,7 +419,7 @@ export const ArtifactKeyPointsList = memo(function ArtifactKeyPointsList({
   );
 });
 
-export const ArtifactRichTextRenderer = memo(function ArtifactRichTextRenderer({
+const ArtifactRichTextRenderer = memo(function ArtifactRichTextRenderer({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -437,7 +437,7 @@ export const ArtifactRichTextRenderer = memo(function ArtifactRichTextRenderer({
   );
 });
 
-export const ArtifactCallout = memo(function ArtifactCallout({
+const ArtifactCallout = memo(function ArtifactCallout({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -474,7 +474,7 @@ export const ArtifactCallout = memo(function ArtifactCallout({
   );
 });
 
-export const ArtifactStructuredTable = memo(function ArtifactStructuredTable({
+const ArtifactStructuredTable = memo(function ArtifactStructuredTable({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -568,7 +568,7 @@ export const ArtifactStructuredTable = memo(function ArtifactStructuredTable({
   );
 });
 
-export const ArtifactChecklist = memo(function ArtifactChecklist({
+const ArtifactChecklist = memo(function ArtifactChecklist({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -622,7 +622,7 @@ export const ArtifactChecklist = memo(function ArtifactChecklist({
   );
 });
 
-export const ArtifactMetricGrid = memo(function ArtifactMetricGrid({
+const ArtifactMetricGrid = memo(function ArtifactMetricGrid({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -682,7 +682,7 @@ export const ArtifactMetricGrid = memo(function ArtifactMetricGrid({
   );
 });
 
-export const ArtifactQuote = memo(function ArtifactQuote({
+const ArtifactQuote = memo(function ArtifactQuote({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -771,7 +771,7 @@ function resolveCitationEntries(
   return resolvedItems;
 }
 
-export const ArtifactCitationList = memo(function ArtifactCitationList({
+const ArtifactCitationList = memo(function ArtifactCitationList({
   block,
   tone,
   sourceLookup,
@@ -845,7 +845,7 @@ export const ArtifactCitationList = memo(function ArtifactCitationList({
   );
 });
 
-export const ArtifactImageBlock = memo(function ArtifactImageBlock({
+const ArtifactImageBlock = memo(function ArtifactImageBlock({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -894,7 +894,7 @@ export const ArtifactImageBlock = memo(function ArtifactImageBlock({
   );
 });
 
-export const ArtifactCodeBlockRenderer = memo(function ArtifactCodeBlockRenderer({
+const ArtifactCodeBlockRenderer = memo(function ArtifactCodeBlockRenderer({
   block,
   tone,
 }: ArtifactDocumentBlockComponentProps) {
@@ -950,7 +950,7 @@ export const ArtifactCodeBlockRenderer = memo(function ArtifactCodeBlockRenderer
   );
 });
 
-export const ArtifactDivider = memo(function ArtifactDivider({
+const ArtifactDivider = memo(function ArtifactDivider({
   tone,
 }: Pick<ArtifactDocumentBlockComponentProps, "tone">) {
   return (

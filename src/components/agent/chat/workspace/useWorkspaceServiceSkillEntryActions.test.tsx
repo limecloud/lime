@@ -13,8 +13,6 @@ const mockGetServiceSkillRun = vi.fn();
 const mockIsTerminalServiceSkillRunStatus = vi.fn();
 const mockCreateContent = vi.fn();
 const mockListProjects = vi.fn();
-const mockGetSkillCatalog = vi.fn();
-const mockListSkillCatalogSceneEntries = vi.fn();
 const mockRecordServiceSkillAutomationLink = vi.fn();
 const mockSiteGetAdapterLaunchReadiness = vi.fn();
 const mockToastSuccess = vi.fn();
@@ -55,12 +53,6 @@ vi.mock("@/lib/api/project", () => ({
         return "document";
     }
   },
-}));
-
-vi.mock("@/lib/api/skillCatalog", () => ({
-  getSkillCatalog: () => mockGetSkillCatalog(),
-  listSkillCatalogSceneEntries: (catalog: unknown) =>
-    mockListSkillCatalogSceneEntries(catalog),
 }));
 
 vi.mock("@/lib/webview-api", () => ({
@@ -273,7 +265,6 @@ function renderHook(props?: Partial<HookProps>) {
     contentId: "content-current",
     input: "请结合当前上下文继续",
     chatToolPreferences: DEFAULT_CHAT_TOOL_PREFERENCES,
-    serviceSkills: [],
     onNavigate: vi.fn(),
     recordServiceSkillUsage: vi.fn(),
   };
@@ -331,15 +322,6 @@ beforeEach(() => {
     id: "content-created-by-service-skill",
   });
   mockListProjects.mockResolvedValue([createProject()]);
-  mockGetSkillCatalog.mockResolvedValue({
-    version: "test-catalog",
-    tenantId: "tenant-test",
-    syncedAt: "2026-04-05T00:00:00.000Z",
-    groups: [],
-    items: [],
-    entries: [],
-  });
-  mockListSkillCatalogSceneEntries.mockReturnValue([]);
   mockRecordServiceSkillAutomationLink.mockReset();
   mockToastSuccess.mockReset();
   mockToastError.mockReset();
@@ -645,117 +627,6 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     );
   });
 
-  it("/scene-key 应从统一目录解析到 cloud scene 技能并复用现有云端启动链", async () => {
-    const onNavigate = vi.fn();
-    const recordServiceSkillUsage = vi.fn();
-    mockListSkillCatalogSceneEntries.mockReturnValue([
-      {
-        id: "scene:campaign-launch",
-        kind: "scene",
-        title: "活动启动场景",
-        summary: "围绕活动目标生成启动方案。",
-        sceneKey: "campaign-launch",
-        commandPrefix: "/campaign-launch",
-        linkedSkillId: "cloud-video-dubbing",
-      },
-    ]);
-    mockCreateServiceSkillRun.mockResolvedValue({
-      id: "service-skill-run-scene-1",
-      status: "success",
-      outputSummary: "活动启动方案已生成",
-      outputText: "# 活动启动方案\n\n第一版方案",
-      finishedAt: "2026-04-05T10:00:00.000Z",
-    });
-
-    const { render, getValue } = renderHook({
-      onNavigate,
-      recordServiceSkillUsage,
-      serviceSkills: [createCloudServiceSkill()],
-    });
-    await render();
-
-    let handled = false;
-    await act(async () => {
-      handled = await getValue().handleRuntimeSceneLaunch(
-        "/campaign-launch 帮我做一版新品活动启动方案",
-      );
-    });
-
-    expect(handled).toBe(true);
-    expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
-      "cloud-video-dubbing",
-      expect.stringContaining("[技能任务] 云端视频配音"),
-    );
-    expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
-      "cloud-video-dubbing",
-      expect.stringContaining("[补充要求] 帮我做一版新品活动启动方案"),
-    );
-    expect(recordServiceSkillUsage).toHaveBeenCalledWith({
-      skillId: "cloud-video-dubbing",
-      runnerType: "instant",
-    });
-    expect(onNavigate).toHaveBeenCalledWith(
-      "agent",
-      expect.objectContaining({
-        contentId: "content-created-by-service-skill",
-      }),
-    );
-  });
-
-  it("/scene-key 云端提交失败时应自动回退到本地工作区", async () => {
-    const onNavigate = vi.fn();
-    const recordServiceSkillUsage = vi.fn();
-    mockListSkillCatalogSceneEntries.mockReturnValue([
-      {
-        id: "scene:campaign-launch",
-        kind: "scene",
-        title: "活动启动场景",
-        summary: "围绕活动目标生成启动方案。",
-        sceneKey: "campaign-launch",
-        commandPrefix: "/campaign-launch",
-        linkedSkillId: "cloud-video-dubbing",
-      },
-    ]);
-    mockCreateServiceSkillRun.mockRejectedValue(
-      new Error("缺少 OEM 云端 Session Token，请先完成登录或注入会话。"),
-    );
-
-    const { render, getValue } = renderHook({
-      onNavigate,
-      recordServiceSkillUsage,
-      serviceSkills: [createCloudServiceSkill()],
-    });
-    await render();
-
-    let handled = false;
-    await act(async () => {
-      handled = await getValue().handleRuntimeSceneLaunch(
-        "/campaign-launch 帮我做一版新品活动启动方案",
-      );
-    });
-
-    expect(handled).toBe(true);
-    expect(onNavigate).toHaveBeenCalledWith(
-      "agent",
-      expect.objectContaining({
-        projectId: "project-1",
-        contentId: "content-current",
-        autoRunInitialPromptOnMount: true,
-        initialUserPrompt: expect.stringContaining("[技能任务] 云端视频配音"),
-      }),
-    );
-    expect(recordServiceSkillUsage).toHaveBeenCalledWith({
-      skillId: "cloud-video-dubbing",
-      runnerType: "instant",
-    });
-    expect(mockToastInfo).toHaveBeenCalledWith(
-      "云端视频配音 云端暂不可用，已切换到本地工作区继续。",
-      {
-        id: "toast-loading",
-      },
-    );
-  });
-
   it("普通技能进入工作区时应在保留 seed metadata 的同时注入当前 Team", async () => {
     const onNavigate = vi.fn();
     const { render, getValue } = renderHook({
@@ -900,7 +771,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
             }),
             harness: expect.objectContaining({
               theme: "general",
-              session_mode: "theme_workbench",
+              session_mode: "general_workbench",
               content_id: "content-current",
             }),
           }),

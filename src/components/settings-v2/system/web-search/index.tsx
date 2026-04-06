@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 
@@ -217,8 +218,12 @@ function SurfacePanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? (
           <div className="flex flex-wrap items-center gap-2">{aside}</div>
@@ -233,13 +238,17 @@ function SurfacePanel({
 function SummaryStat({ label, value, description }: SummaryStatProps) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -247,11 +256,20 @@ function SummaryStat({ label, value, description }: SummaryStatProps) {
 function FieldBlock({ label, htmlFor, hint, children }: FieldBlockProps) {
   return (
     <div className="space-y-2">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-slate-900">
-        {label}
+      <label
+        htmlFor={htmlFor}
+        className="flex items-center gap-2 text-sm font-medium text-slate-900"
+      >
+        <span>{label}</span>
+        {hint ? (
+          <WorkbenchInfoTip
+            ariaLabel={`${label}说明`}
+            content={hint}
+            tone="slate"
+          />
+        ) : null}
       </label>
       {children}
-      {hint ? <p className="text-xs leading-5 text-slate-500">{hint}</p> : null}
     </div>
   );
 }
@@ -664,13 +682,16 @@ export function WebSearchSettings() {
                 SEARCH STACK
               </span>
               <div className="space-y-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  统一管理联网搜索链路、回退策略和图片搜索凭证
-                </p>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key
-                  放在同一个宽版视图里，不再让长表单把信息挤成一列。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                    统一管理联网搜索链路、回退策略和图片搜索凭证
+                  </p>
+                  <WorkbenchInfoTip
+                    ariaLabel="联网搜索设置总览说明"
+                    content="把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key 放在同一个宽版视图里，不再让长表单把信息挤成一列。"
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -820,22 +841,28 @@ export function WebSearchSettings() {
                   </div>
 
                   <div className="rounded-[20px] border border-slate-200/80 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">
-                      当前回退预览
-                    </p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <span>当前回退预览</span>
+                      <WorkbenchInfoTip
+                        ariaLabel="当前回退预览说明"
+                        content="按当前 Provider 顺序展示搜索回退链。"
+                        tone="slate"
+                      />
+                    </div>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
                       {providerChainPreview}
                     </p>
                   </div>
 
                   <div className="rounded-[20px] border border-slate-200/80 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">
-                      配置建议
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      如果需要更稳定的通用联网搜索，优先补齐 Tavily、Bing 或
-                      Google Custom Search；MSE 更适合做聚合兜底。
-                    </p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <span>配置建议</span>
+                      <WorkbenchInfoTip
+                        ariaLabel="联网搜索配置建议"
+                        content="如果需要更稳定的通用联网搜索，优先补齐 Tavily、Bing 或 Google Custom Search；MSE 更适合做聚合兜底。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                 </div>
               </article>
@@ -1113,13 +1140,14 @@ export function WebSearchSettings() {
               <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="space-y-4">
                   <div className="rounded-[20px] border border-slate-200/80 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-900">
-                      MSE 使用建议
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      优先把常用引擎放在前面，避免总上限太高导致响应慢；超时建议维持在
-                      4s 左右作为桌面端均衡值。
-                    </p>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <span>MSE 使用建议</span>
+                      <WorkbenchInfoTip
+                        ariaLabel="MSE 使用建议说明"
+                        content="优先把常用引擎放在前面，避免总上限太高导致响应慢；超时建议维持在 4s 左右作为桌面端均衡值。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <div className="rounded-[20px] border border-slate-200/80 bg-white p-4">
                     <p className="text-sm font-semibold text-slate-900">
@@ -1192,10 +1220,13 @@ export function WebSearchSettings() {
                   </>
                 </FieldBlock>
 
-                <div className="mt-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-500">
-                  申请地址：{PEXELS_APPLY_URL}
-                  <br />
-                  验证路径：插图 → 图片搜索 → 联网搜索。
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-500">
+                  <span>Pexels 接入说明已收纳</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="Pexels 接入说明"
+                    content={`申请地址：${PEXELS_APPLY_URL}\n验证路径：插图 → 图片搜索 → 联网搜索。`}
+                    tone="slate"
+                  />
                 </div>
               </article>
 
@@ -1235,10 +1266,13 @@ export function WebSearchSettings() {
                   </>
                 </FieldBlock>
 
-                <div className="mt-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-500">
-                  申请地址：{PIXABAY_APPLY_URL}
-                  <br />
-                  验证路径：插图 → 图片搜索 → Pixabay 图库。
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-500">
+                  <span>Pixabay 接入说明已收纳</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="Pixabay 接入说明"
+                    content={`申请地址：${PIXABAY_APPLY_URL}\n验证路径：插图 → 图片搜索 → Pixabay 图库。`}
+                    tone="slate"
+                  />
                 </div>
               </article>
             </div>

@@ -12,7 +12,7 @@ import {
   normalizeSelectionAnchorText,
   resolveSectionTitleForSelection,
 } from "@/components/workspace/document/utils/autoImageInsert";
-import type { ContentPart, Message, MessageImage } from "../types";
+import type { ContentPart } from "../types";
 import type {
   ImageWorkbenchOutputView,
   ImageWorkbenchTaskMode,
@@ -96,16 +96,6 @@ interface BuildImageWorkbenchProcessDescriptorParams {
   failureMessage?: string | null;
   startedAt: Date;
   endedAt?: Date;
-}
-
-function resolveImageWorkbenchModeLabel(mode: ImageWorkbenchTaskMode): string {
-  if (mode === "edit") {
-    return "图片编辑";
-  }
-  if (mode === "variation") {
-    return "图片重绘";
-  }
-  return "图片生成";
 }
 
 function resolveImageWorkbenchProgressLabel(
@@ -258,166 +248,6 @@ export function buildImageWorkbenchProcessDescriptor(
   };
 }
 
-export function buildImageWorkbenchDispatchMessages(params: {
-  rawText: string;
-  images: MessageImage[];
-  taskId: string;
-  prompt: string;
-  mode: ImageWorkbenchTaskMode;
-  count: number;
-  size?: string;
-  projectId?: string | null;
-  contentId?: string | null;
-}): Message[] {
-  const timestamp = new Date();
-  const modeLabel = resolveImageWorkbenchModeLabel(params.mode);
-  const processDescriptor = buildImageWorkbenchProcessDescriptor({
-    taskId: params.taskId,
-    prompt: params.prompt,
-    mode: params.mode,
-    status: "running",
-    rawText: params.rawText,
-    count: params.count,
-    size: params.size,
-    startedAt: timestamp,
-  });
-
-  return [
-    {
-      id: `image-workbench:${params.taskId}:user`,
-      role: "user",
-      content: params.rawText,
-      images: params.images.length > 0 ? params.images : undefined,
-      timestamp,
-    },
-    {
-      id: resolveImageWorkbenchAssistantMessageId(params.taskId),
-      role: "assistant",
-      content: `已创建${modeLabel}任务，正在准备 ${params.count} 张结果。`,
-      timestamp: new Date(timestamp.getTime() + 1),
-      isThinking: true,
-      toolCalls: processDescriptor.toolCalls,
-      contentParts: processDescriptor.contentParts,
-      imageWorkbenchPreview: {
-        taskId: params.taskId,
-        prompt: params.prompt,
-        status: "running",
-        projectId: params.projectId ?? null,
-        contentId: params.contentId ?? null,
-        imageCount: params.count,
-        size: params.size,
-      },
-      runtimeStatus: {
-        phase: "routing",
-        title: `${modeLabel}进行中`,
-        detail: params.prompt.trim()
-          ? `任务已进入图片工作台，对话区会持续同步进度：${params.prompt.trim()}`
-          : "任务已进入图片工作台，对话区会持续同步进度与结果摘要。",
-        checkpoints: ["记录当前调度", "提交图片服务", "回填结果摘要"],
-      },
-    },
-  ];
-}
-
-export function buildImageWorkbenchCompletionMessage(params: {
-  taskId: string;
-  successCount: number;
-  failedCount: number;
-  mode: ImageWorkbenchTaskMode;
-  prompt: string;
-  projectId?: string | null;
-  contentId?: string | null;
-  imageUrl?: string | null;
-  size?: string;
-}): Message {
-  const timestamp = new Date();
-  const modeLabel = resolveImageWorkbenchModeLabel(params.mode);
-  const detail =
-    params.failedCount > 0
-      ? `${modeLabel}完成 ${params.successCount} 张，失败 ${params.failedCount} 张。`
-      : `${modeLabel}已完成，共生成 ${params.successCount} 张。`;
-  const previewStatus =
-    params.successCount === 0
-      ? "failed"
-      : params.failedCount > 0
-        ? "partial"
-        : "complete";
-  const processDescriptor = buildImageWorkbenchProcessDescriptor({
-    taskId: params.taskId,
-    prompt: params.prompt,
-    mode: params.mode,
-    status: previewStatus,
-    count: params.successCount + params.failedCount,
-    successCount: params.successCount,
-    size: params.size,
-    imageUrl: params.imageUrl ?? null,
-    startedAt: timestamp,
-    endedAt: timestamp,
-  });
-
-  return {
-    id: resolveImageWorkbenchAssistantMessageId(params.taskId),
-    role: "assistant",
-    content: detail,
-    timestamp,
-    isThinking: false,
-    toolCalls: processDescriptor.toolCalls,
-    contentParts: processDescriptor.contentParts,
-    imageWorkbenchPreview: {
-      taskId: params.taskId,
-      prompt: params.prompt,
-      status: previewStatus,
-      projectId: params.projectId ?? null,
-      contentId: params.contentId ?? null,
-      imageUrl: params.imageUrl ?? null,
-      imageCount: params.successCount,
-      size: params.size,
-    },
-  };
-}
-
-export function buildImageWorkbenchFailureMessage(params: {
-  taskId: string;
-  failureMessage: string;
-  mode: ImageWorkbenchTaskMode;
-  prompt: string;
-  projectId?: string | null;
-  contentId?: string | null;
-  size?: string;
-}): Message {
-  const timestamp = new Date();
-  const modeLabel = resolveImageWorkbenchModeLabel(params.mode);
-  const processDescriptor = buildImageWorkbenchProcessDescriptor({
-    taskId: params.taskId,
-    prompt: params.prompt,
-    mode: params.mode,
-    status: "failed",
-    size: params.size,
-    failureMessage: params.failureMessage,
-    startedAt: timestamp,
-    endedAt: timestamp,
-  });
-
-  return {
-    id: resolveImageWorkbenchAssistantMessageId(params.taskId),
-    role: "assistant",
-    content: `${modeLabel}失败：${params.failureMessage}`,
-    timestamp,
-    isThinking: false,
-    toolCalls: processDescriptor.toolCalls,
-    contentParts: processDescriptor.contentParts,
-    imageWorkbenchPreview: {
-      taskId: params.taskId,
-      prompt: params.prompt,
-      status: "failed",
-      projectId: params.projectId ?? null,
-      contentId: params.contentId ?? null,
-      imageCount: 0,
-      size: params.size,
-    },
-  };
-}
-
 export function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -461,42 +291,6 @@ export function resolveCoverAspectRatio(platform?: PlatformType): string {
   return "16:9";
 }
 
-export function resolveClosestImageAspectRatio(
-  width: number,
-  height: number,
-): string | undefined {
-  if (width <= 0 || height <= 0) {
-    return undefined;
-  }
-
-  const currentRatio = width / height;
-  const candidates: Array<[string, number]> = [
-    ["1:1", 1],
-    ["16:9", 16 / 9],
-    ["9:16", 9 / 16],
-    ["4:3", 4 / 3],
-    ["3:4", 3 / 4],
-    ["3:2", 3 / 2],
-    ["2:3", 2 / 3],
-    ["21:9", 21 / 9],
-    ["4:5", 4 / 5],
-    ["5:4", 5 / 4],
-  ];
-
-  return candidates.reduce(
-    (closest, candidate) => {
-      if (!closest) {
-        return candidate;
-      }
-      return Math.abs(candidate[1] - currentRatio) <
-        Math.abs(closest[1] - currentRatio)
-        ? candidate
-        : closest;
-    },
-    null as [string, number] | null,
-  )?.[0];
-}
-
 export function buildImageWorkbenchCommandText(
   prompt: string,
   options?: {
@@ -526,16 +320,6 @@ export function buildDocumentImageWorkbenchPrompt(params: {
     collapseWhitespace(params.projectName || "") ||
     "当前主题";
   return `为当前${platformLabel}文稿补一张主视觉配图，重点内容：${subject}`;
-}
-
-export function buildPosterImageWorkbenchPrompt(params: {
-  projectName?: string | null;
-  width: number;
-  height: number;
-}): string {
-  const subject =
-    collapseWhitespace(params.projectName || "") || "当前海报主题";
-  return `为当前海报生成一张主视觉图片，主题：${subject}，画布尺寸约 ${params.width}x${params.height}`;
 }
 
 function findDocumentCoverPlaceholder(content: string): string | null {

@@ -13,9 +13,9 @@ import { TaskFilesPanel } from "./components/TaskFilesPanel";
 import { InputbarSurface } from "./components/InputbarSurface";
 import type { SkillSelectionSourceProps } from "../../skill-selection/skillSelectionBindings";
 import type {
-  ThemeWorkbenchGateState,
-  ThemeWorkbenchWorkflowStep,
-} from "../../utils/themeWorkbenchInputState";
+  WorkflowGateState,
+  WorkflowStep,
+} from "../../utils/workflowInputState";
 import { type InputbarToolStates } from "./hooks/useInputbarToolState";
 import { useInputbarController } from "./hooks/useInputbarController";
 import type { TeamDefinition } from "../../utils/teamDefinitions";
@@ -86,10 +86,10 @@ interface InputbarProps extends SkillSelectionSourceProps {
   onToolStatesChange?: (states: InputbarToolStates) => void;
   activeTheme?: string;
   onManageProviders?: () => void;
-  variant?: "default" | "theme_workbench";
-  themeWorkbenchGate?: ThemeWorkbenchGateState | null;
-  workflowSteps?: ThemeWorkbenchWorkflowStep[];
-  themeWorkbenchRunState?: "idle" | "auto_running" | "await_user_decision";
+  variant?: "default" | "workspace";
+  workflowGate?: WorkflowGateState | null;
+  workflowSteps?: WorkflowStep[];
+  workflowRunState?: "idle" | "auto_running" | "await_user_decision";
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
@@ -136,9 +136,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
   activeTheme,
   onManageProviders,
   variant = "default",
-  themeWorkbenchGate,
+  workflowGate,
   workflowSteps = [],
-  themeWorkbenchRunState,
+  workflowRunState,
   queuedTurns = [],
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
@@ -150,7 +150,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
 }) => {
   const {
     textareaRef,
-    isThemeWorkbenchVariant,
+    isWorkspaceVariant,
     pendingImages,
     fileInputRef,
     handleFileSelect,
@@ -169,9 +169,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
     handleSend,
     inputAdapter,
     topExtra,
-    themeWorkbenchQuickActions,
-    themeWorkbenchQueueItems,
-    renderThemeWorkbenchGeneratingPanel,
+    workflowQuickActions,
+    workflowQueueItems,
+    renderWorkflowGeneratingPanel,
     skillSelection,
     setActiveBuiltinCommand,
   } = useInputbarController({
@@ -190,9 +190,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
     onToolStatesChange,
     activeTheme,
     variant,
-    themeWorkbenchGate,
+    workflowGate,
     workflowSteps,
-    themeWorkbenchRunState,
+    workflowRunState,
     onEnableSuggestedTeam,
     skills,
     serviceSkills,
@@ -238,12 +238,10 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onChange={handleFileSelect}
       />
       <InputbarComposerSection
-        renderThemeWorkbenchGeneratingPanel={
-          renderThemeWorkbenchGeneratingPanel
-        }
-        themeWorkbenchGate={themeWorkbenchGate}
-        themeWorkbenchQuickActions={themeWorkbenchQuickActions}
-        themeWorkbenchQueueItems={themeWorkbenchQueueItems}
+        renderWorkflowGeneratingPanel={renderWorkflowGeneratingPanel}
+        workflowGate={workflowGate}
+        workflowQuickActions={workflowQuickActions}
+        workflowQueueItems={workflowQueueItems}
         inputAdapter={inputAdapter}
         characters={characters}
         skillSelection={skillSelection}
@@ -263,7 +261,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onRemoveImage={handleRemoveImage}
         onPaste={handlePaste}
         isFullscreen={isFullscreen}
-        isThemeWorkbenchVariant={isThemeWorkbenchVariant}
+        isWorkspaceVariant={isWorkspaceVariant}
         activeTheme={activeTheme}
         onManageProviders={onManageProviders}
         executionRuntime={executionRuntime}

@@ -301,7 +301,7 @@ function summarizeChangedBlock(
   }
 }
 
-export function buildArtifactDocumentVersionDiff(
+function buildArtifactDocumentVersionDiff(
   previousDocument: ArtifactDocumentV1,
   nextDocument: ArtifactDocumentV1,
 ): ArtifactDocumentVersionDiff {

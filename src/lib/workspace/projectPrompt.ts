@@ -11,8 +11,6 @@ import type {
   OutlineNode,
 } from "@/lib/api/memory";
 
-export { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
-
 /**
  * 生成角色提示词
  */

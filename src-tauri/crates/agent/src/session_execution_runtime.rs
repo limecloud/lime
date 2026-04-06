@@ -511,10 +511,23 @@ fn extract_recent_harness_context_from_metadata(
             .and_then(|value| extract_text_from_object(value, keys))
             .or_else(|| extract_text_from_metadata(metadata, keys))
     };
+    let normalize_session_mode = |value: Option<String>| -> Option<String> {
+        match value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            Some("theme_workbench") | Some("general_workbench") => {
+                Some("general_workbench".to_string())
+            }
+            Some("default") => Some("default".to_string()),
+            _ => None,
+        }
+    };
 
     RecentHarnessContext {
         theme: resolve_text(&["theme", "harness_theme", "harnessTheme"]),
-        session_mode: resolve_text(&["session_mode", "sessionMode"]),
+        session_mode: normalize_session_mode(resolve_text(&["session_mode", "sessionMode"])),
         gate_key: resolve_text(&["gate_key", "gateKey"]),
         run_title: resolve_text(&["run_title", "runTitle", "title"]),
         content_id: resolve_text(&["content_id", "contentId"]),
@@ -1170,7 +1183,7 @@ mod tests {
                     "harness".to_string(),
                     json!({
                         "theme": "general",
-                        "session_mode": "theme_workbench",
+                        "session_mode": "general_workbench",
                         "gate_key": "write_mode",
                         "run_title": "社媒初稿",
                         "content_id": "content-current"
@@ -1204,7 +1217,7 @@ mod tests {
         assert_eq!(runtime.recent_theme.as_deref(), Some("general"));
         assert_eq!(
             runtime.recent_session_mode.as_deref(),
-            Some("theme_workbench")
+            Some("general_workbench")
         );
         assert_eq!(runtime.recent_gate_key.as_deref(), Some("write_mode"));
         assert_eq!(runtime.recent_run_title.as_deref(), Some("社媒初稿"));
@@ -1291,7 +1304,7 @@ mod tests {
             .insert("theme".to_string(), json!("document"));
         thread
             .metadata
-            .insert("session_mode".to_string(), json!("theme_workbench"));
+            .insert("session_mode".to_string(), json!("general_workbench"));
         thread
             .metadata
             .insert("gate_key".to_string(), json!("publish_confirm"));
@@ -1323,7 +1336,7 @@ mod tests {
         assert_eq!(runtime.recent_theme.as_deref(), Some("document"));
         assert_eq!(
             runtime.recent_session_mode.as_deref(),
-            Some("theme_workbench")
+            Some("general_workbench")
         );
         assert_eq!(runtime.recent_gate_key.as_deref(), Some("publish_confirm"));
         assert_eq!(runtime.recent_run_title.as_deref(), Some("发布确认"));

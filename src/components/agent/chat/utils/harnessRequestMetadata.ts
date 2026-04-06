@@ -2,6 +2,11 @@ import type { BrowserTaskRequirement, Message } from "../types";
 import type { TeamRoleDefinition, TeamDefinitionSource } from "./teamDefinitions";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
 import type { TeamMemoryShadowRequestMetadata } from "@/lib/teamMemorySync";
+import {
+  isGeneralWorkbenchSessionMode,
+  normalizeHarnessSessionMode,
+  type HarnessSessionModeInput,
+} from "./harnessSessionMode";
 
 export interface BuildHarnessRequestMetadataOptions {
   base?: Record<string, unknown>;
@@ -14,7 +19,7 @@ export interface BuildHarnessRequestMetadataOptions {
     subagent: boolean;
   };
   accessMode?: AgentAccessMode;
-  sessionMode: "default" | "theme_workbench";
+  sessionMode: HarnessSessionModeInput;
   gateKey?: string | null;
   runTitle?: string | null;
   contentId?: string | null;
@@ -123,6 +128,8 @@ export function buildHarnessRequestMetadata(
               : undefined,
         }))
       : undefined;
+  const normalizedSessionMode =
+    normalizeHarnessSessionMode(sessionMode) || "default";
 
   const metadata: Record<string, unknown> = {
     ...(base || {}),
@@ -135,9 +142,11 @@ export function buildHarnessRequestMetadata(
       subagent: preferences.subagent,
     },
     access_mode: accessMode || undefined,
-    session_mode: sessionMode,
+    session_mode: normalizedSessionMode,
     gate_key:
-      sessionMode === "theme_workbench" ? gateKey || undefined : undefined,
+      isGeneralWorkbenchSessionMode(normalizedSessionMode)
+        ? gateKey || undefined
+        : undefined,
     run_title: runTitle || undefined,
     content_id: contentId || undefined,
     preferred_team_preset_id: preferredTeamPresetId || undefined,

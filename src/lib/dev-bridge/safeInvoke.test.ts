@@ -19,13 +19,14 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: mocks.baseInvoke,
-}));
-
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: mocks.baseListen,
-  emit: mocks.baseEmit,
+vi.mock("@tauri-apps/api", () => ({
+  core: {
+    invoke: mocks.baseInvoke,
+  },
+  event: {
+    listen: mocks.baseListen,
+    emit: mocks.baseEmit,
+  },
 }));
 
 vi.mock("./explicitMockFallback", () => ({

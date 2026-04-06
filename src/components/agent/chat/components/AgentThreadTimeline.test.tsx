@@ -586,13 +586,13 @@ describe("AgentThreadTimeline", () => {
     expect(container.textContent).toContain("Mac mini 最新价格");
   });
 
-  it("浏览器前置等待时应显示轻量待继续提示", () => {
+  it("存在待处理请求时应显示轻量待处理提示", () => {
     const items: AgentThreadItem[] = [
       {
-        ...createBaseItem("browser-1", 1),
+        ...createBaseItem("action-1", 1),
         type: "tool_call",
-        tool_name: "browser_navigate",
-        arguments: { url: "https://mp.weixin.qq.com" },
+        tool_name: "write_file",
+        arguments: { path: "publish.md" },
       },
     ];
 
@@ -602,13 +602,11 @@ describe("AgentThreadTimeline", () => {
       },
       actionRequests: [
         {
-          requestId: "req-browser",
+          requestId: "req-title",
           actionType: "ask_user",
           status: "pending",
-          uiKind: "browser_preflight",
-          browserPrepState: "awaiting_user",
-          prompt: "请先在浏览器完成登录。",
-          detail: "浏览器已经打开，请先完成登录、扫码或验证码后继续。",
+          prompt: "请先确认文章标题。",
+          questions: [{ question: "这篇文章的最终标题是什么？" }],
         },
       ],
     });
@@ -616,8 +614,8 @@ describe("AgentThreadTimeline", () => {
     expect(
       container.querySelector('[data-testid="agent-thread-inline-status"]')
         ?.textContent,
-    ).toContain("待继续");
-    expect(container.textContent).toContain("完成登录");
+    ).toContain("待处理");
+    expect(container.textContent).toContain("确认文章标题");
     expect(container.textContent).not.toContain("已中断");
   });
 

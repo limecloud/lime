@@ -2,9 +2,9 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  ThemeWorkbenchRunState,
-  ThemeWorkbenchRunTerminalItem,
-  ThemeWorkbenchRunTodoItem,
+  GeneralWorkbenchRunState,
+  GeneralWorkbenchRunTerminalItem,
+  GeneralWorkbenchRunTodoItem,
 } from "@/lib/api/executionRun";
 import { useWorkspaceHarnessInventoryRuntime } from "./useWorkspaceHarnessInventoryRuntime";
 
@@ -129,7 +129,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
       started_at: "2026-03-24T14:00:00.000Z",
       filePath: "content-posts/demo.md",
       artifactPath: "content-posts\\demo-cover.png",
-    } as unknown as ThemeWorkbenchRunTodoItem;
+    } as unknown as GeneralWorkbenchRunTodoItem;
 
     const harness = mountHook({
       themeWorkbenchActiveQueueItem: activeQueueItem,
@@ -137,7 +137,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     });
 
     try {
-      expect(harness.getValue().themeWorkbenchHarnessSummary).toMatchObject({
+      expect(harness.getValue().generalWorkbenchHarnessSummary).toMatchObject({
         runState: "auto_running",
         runTitle: "生成首版草稿",
         artifactCount: 2,
@@ -159,14 +159,14 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
       started_at: "2026-03-24T14:00:00.000Z",
       finished_at: "2026-03-24T14:00:08.000Z",
       outputPath: "content-posts/final.md",
-    } as unknown as ThemeWorkbenchRunTerminalItem;
+    } as unknown as GeneralWorkbenchRunTerminalItem;
     const backendRunState = {
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [],
       latest_terminal: latestTerminal,
       updated_at: "2026-03-24T14:00:08.000Z",
-    } as ThemeWorkbenchRunState;
+    } as GeneralWorkbenchRunState;
 
     const harness = mountHook({
       themeWorkbenchActiveQueueItem: {
@@ -182,7 +182,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     });
 
     try {
-      expect(harness.getValue().themeWorkbenchHarnessSummary?.artifactCount).toBe(1);
+      expect(harness.getValue().generalWorkbenchHarnessSummary?.artifactCount).toBe(1);
     } finally {
       harness.unmount();
     }
@@ -201,7 +201,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
 
       expect(mockGetAgentRuntimeToolInventory).not.toHaveBeenCalled();
       expect(harness.getValue().toolInventory).toBeNull();
-      expect(harness.getValue().themeWorkbenchHarnessSummary).toBeNull();
+      expect(harness.getValue().generalWorkbenchHarnessSummary).toBeNull();
     } finally {
       harness.unmount();
     }

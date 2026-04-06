@@ -8,7 +8,6 @@ import {
 import { toast } from "sonner";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
-import type { Character } from "@/lib/api/memory";
 import type {
   CreateImageGenerationTaskArtifactRequest,
   MediaTaskArtifactOutput,
@@ -16,23 +15,19 @@ import type {
 } from "@/lib/api/mediaTasks";
 import { emitCanvasImageInsertRequest } from "@/lib/canvasImageInsertBus";
 import { onImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
-import type { Message, MessageImage } from "../types";
-import {
-  buildMessageImageDataUrl,
-  readMessageImageFromDataUrl,
-} from "../utils/imageAttachments";
+import type { MessageImage } from "../types";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
+import {
+  buildImageWorkbenchSessionTitle,
+  isLocalImageWorkbenchSessionKey,
+  resolveImageWorkbenchSkillRequest,
+} from "./imageSkillLaunch";
 import {
   collapseWhitespace,
   resolveImageWorkbenchActionLabel,
   type ImageWorkbenchApplyTarget,
   type SessionImageWorkbenchState,
 } from "./imageWorkbenchHelpers";
-import {
-  buildImageTaskSnapshotFromArtifactOutput,
-  mergeImageTaskSnapshot,
-  syncDocumentInlineImageTask,
-} from "./useWorkspaceImageTaskPreviewRuntime";
 
 interface SaveImagesToResourceResult {
   saved: number;
@@ -40,156 +35,16 @@ interface SaveImagesToResourceResult {
   errors: string[];
 }
 
-export interface ImageWorkbenchSkillRequest {
+export interface SubmitImageWorkbenchAgentCommandParams {
+  rawText: string;
+  displayContent?: string;
   images: MessageImage[];
   requestContext: Record<string, unknown>;
 }
 
-interface ResolveImageWorkbenchSkillRequestParams {
-  rawText: string;
-  parsedCommand: NonNullable<ReturnType<typeof parseImageWorkbenchCommand>>;
-  images: MessageImage[];
-  currentImageWorkbenchState: SessionImageWorkbenchState;
-  imageWorkbenchSelectedModelId?: string;
-  imageWorkbenchSelectedProviderId?: string;
-  imageWorkbenchSelectedSize: string;
-  imageWorkbenchSessionKey: string;
-  projectId?: string | null;
-  projectRootPath?: string | null;
-  contentId?: string | null;
-}
-
-function createSkillInputImageRef(index: number): string {
-  return `skill-input-image://${index + 1}`;
-}
-
-function maybeReadMessageImageFromValue(value: string): MessageImage | null {
-  const normalized = value.trim();
-  if (!normalized.toLowerCase().startsWith("data:image/")) {
-    return null;
-  }
-
-  try {
-    return readMessageImageFromDataUrl(normalized);
-  } catch {
-    return null;
-  }
-}
-
-export function resolveImageWorkbenchSkillRequest(
-  params: ResolveImageWorkbenchSkillRequestParams,
-): ImageWorkbenchSkillRequest | null {
-  if (!params.projectId) {
-    toast.error("请先选择项目后再开始配图");
-    return null;
-  }
-  if (!params.projectRootPath?.trim()) {
-    toast.error("当前项目目录未就绪，暂时无法创建图片任务");
-    return null;
-  }
-
-  const { rawText, parsedCommand, images } = params;
-  const targetOutput = parsedCommand.targetRef
-    ? params.currentImageWorkbenchState.outputs.find(
-        (item) =>
-          item.refId.toLowerCase() === parsedCommand.targetRef?.toLowerCase(),
-      ) || null
-    : null;
-
-  if (
-    (parsedCommand.mode === "edit" || parsedCommand.mode === "variation") &&
-    !targetOutput &&
-    images.length === 0
-  ) {
-    toast.error("修图或重绘任务需要选择已有图片，或先附加参考图");
-    return null;
-  }
-
-  const effectivePrompt =
-    parsedCommand.prompt.trim() ||
-    (parsedCommand.mode === "generate" ? "" : "请基于参考图继续优化画面表现");
-  if (!effectivePrompt) {
-    toast.error("请补充清晰的配图描述后再提交");
-    return null;
-  }
-
-  const skillImages: MessageImage[] = [];
-  const referenceImages: string[] = [];
-  const pushSkillImage = (image: MessageImage) => {
-    skillImages.push(image);
-    referenceImages.push(createSkillInputImageRef(skillImages.length - 1));
-  };
-  const pushReferenceImage = (value: string | undefined | null) => {
-    const normalized = value?.trim();
-    if (!normalized || referenceImages.includes(normalized)) {
-      return;
-    }
-    referenceImages.push(normalized);
-  };
-
-  const targetOutputImage = targetOutput
-    ? maybeReadMessageImageFromValue(targetOutput.url)
-    : null;
-  if (targetOutputImage) {
-    pushSkillImage(targetOutputImage);
-  } else {
-    pushReferenceImage(targetOutput?.url);
-  }
-
-  images.forEach((image) => {
-    pushSkillImage(image);
-  });
-
-  const requestContext = {
-    kind: "image_task",
-    image_task: {
-      mode: parsedCommand.mode,
-      prompt: effectivePrompt,
-      raw_text: rawText,
-      count: parsedCommand.count,
-      size: parsedCommand.size || params.imageWorkbenchSelectedSize,
-      aspect_ratio: parsedCommand.aspectRatio,
-      provider_id: params.imageWorkbenchSelectedProviderId,
-      model: params.imageWorkbenchSelectedModelId,
-      session_id: params.imageWorkbenchSessionKey,
-      project_id: params.projectId,
-      content_id: params.contentId || undefined,
-      entry_source: "at_image_command",
-      requested_target: "generate",
-      target_output_id: targetOutput?.id,
-      target_output_ref_id: targetOutput?.refId,
-      reference_images: referenceImages,
-      target_output_summary: targetOutput
-        ? {
-            prompt: collapseWhitespace(targetOutput.prompt) || undefined,
-            provider_name: targetOutput.providerName,
-            model_name: targetOutput.modelName,
-            size: targetOutput.size,
-            url:
-              targetOutputImage || !targetOutput.url.trim()
-                ? undefined
-                : targetOutput.url.trim(),
-          }
-        : undefined,
-      skill_input_images: skillImages.map((image, index) => ({
-        ref: createSkillInputImageRef(index),
-        media_type: image.mediaType,
-        source:
-          index === 0 && targetOutputImage ? "target_output" : "attachment",
-      })),
-    },
-  } satisfies Record<string, unknown>;
-
-  return {
-    images: skillImages,
-    requestContext,
-  };
-}
-
 interface UseWorkspaceImageWorkbenchActionRuntimeParams {
-  appendLocalDispatchMessages: (messages: Message[]) => void;
-  canvasState: CanvasStateUnion | null;
   contentId?: string | null;
+  createFreshSession: (sessionName?: string) => Promise<string | null>;
   createImageGenerationTask: (
     request: CreateImageGenerationTaskArtifactRequest,
   ) => Promise<MediaTaskArtifactOutput>;
@@ -208,10 +63,22 @@ interface UseWorkspaceImageWorkbenchActionRuntimeParams {
     imageIds: string[],
     targetProjectId: string,
   ) => Promise<SaveImagesToResourceResult>;
+  submitImageWorkbenchAgentCommand: (
+    params: SubmitImageWorkbenchAgentCommandParams,
+  ) => Promise<boolean>;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   setInput: Dispatch<SetStateAction<string>>;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
-  setMentionedCharacters: Dispatch<SetStateAction<Character[]>>;
+  updateImageWorkbenchStateForSession: (
+    sessionKey: string,
+    updater: (
+      current: SessionImageWorkbenchState,
+    ) => SessionImageWorkbenchState,
+    options?: {
+      fallbackState?: SessionImageWorkbenchState;
+      removeSessionKeys?: string[];
+    },
+  ) => void;
   updateCurrentImageWorkbenchState: (
     updater: (
       current: SessionImageWorkbenchState,
@@ -401,15 +268,10 @@ function matchesTaskActionContext(params: {
   return true;
 }
 
-function createDocumentImageTaskSlotId(): string {
-  return `document-image-slot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 export function useWorkspaceImageWorkbenchActionRuntime({
-  appendLocalDispatchMessages,
-  canvasState,
   cancelImageTask,
   contentId,
+  createFreshSession,
   createImageGenerationTask,
   getImageTask,
   currentImageWorkbenchState,
@@ -420,12 +282,49 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   projectId,
   projectRootPath,
   saveImageWorkbenchImagesToResource,
+  submitImageWorkbenchAgentCommand,
   setCanvasState,
   setInput,
   setLayoutMode,
-  setMentionedCharacters,
+  updateImageWorkbenchStateForSession,
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageWorkbenchActionRuntimeParams) {
+  const resolveImageWorkbenchSessionKey = useCallback(
+    async (params: {
+      preferredSessionKey?: string | null;
+      mode: NonNullable<ReturnType<typeof parseImageWorkbenchCommand>>["mode"];
+      prompt: string;
+    }) => {
+      const normalizedPreferredSessionKey =
+        params.preferredSessionKey?.trim() || null;
+      if (
+        normalizedPreferredSessionKey &&
+        !isLocalImageWorkbenchSessionKey(normalizedPreferredSessionKey)
+      ) {
+        return normalizedPreferredSessionKey;
+      }
+
+      const normalizedCurrentSessionKey = imageWorkbenchSessionKey.trim();
+      if (
+        normalizedCurrentSessionKey &&
+        !isLocalImageWorkbenchSessionKey(normalizedCurrentSessionKey)
+      ) {
+        return normalizedCurrentSessionKey;
+      }
+
+      const createdSessionId = await createFreshSession(
+        buildImageWorkbenchSessionTitle(params.mode, params.prompt),
+      );
+      const normalizedCreatedSessionId = createdSessionId?.trim();
+      if (!normalizedCreatedSessionId) {
+        throw new Error("图片会话创建失败，请稍后重试");
+      }
+
+      return normalizedCreatedSessionId;
+    },
+    [createFreshSession, imageWorkbenchSessionKey],
+  );
+
   const handleImageWorkbenchViewportChange = useCallback(
     (viewport: SessionImageWorkbenchState["viewport"]) => {
       updateCurrentImageWorkbenchState((current) => ({
@@ -815,49 +714,9 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         return false;
       }
 
-      const { rawText, parsedCommand, images } = params;
-      const targetOutput = parsedCommand.targetRef
-        ? currentImageWorkbenchState.outputs.find(
-            (item) =>
-              item.refId.toLowerCase() ===
-              parsedCommand.targetRef?.toLowerCase(),
-          ) || null
-        : null;
-      const effectiveApplyTarget =
-        params.applyTarget ?? targetOutput?.applyTarget ?? null;
-      const documentInlineSlotId =
-        effectiveApplyTarget?.kind === "canvas-insert" &&
-        effectiveApplyTarget.canvasType === "document"
-          ? createDocumentImageTaskSlotId()
-          : undefined;
-      const documentInlineAnchorHint =
-        effectiveApplyTarget?.kind === "canvas-insert" &&
-        effectiveApplyTarget.canvasType === "document"
-          ? effectiveApplyTarget.anchorHint
-          : undefined;
-      const documentInlineAnchorSectionTitle =
-        effectiveApplyTarget?.kind === "canvas-insert" &&
-        effectiveApplyTarget.canvasType === "document"
-          ? effectiveApplyTarget.sectionTitle
-          : undefined;
-      const documentInlineAnchorText =
-        effectiveApplyTarget?.kind === "canvas-insert" &&
-        effectiveApplyTarget.canvasType === "document"
-          ? effectiveApplyTarget.anchorText
-          : undefined;
-
-      if (
-        (parsedCommand.mode === "edit" || parsedCommand.mode === "variation") &&
-        !targetOutput &&
-        images.length === 0
-      ) {
-        toast.error("修图或重绘任务需要选择已有图片，或先附加参考图");
-        return false;
-      }
-
       const effectivePrompt =
-        parsedCommand.prompt.trim() ||
-        (parsedCommand.mode === "generate"
+        params.parsedCommand.prompt.trim() ||
+        (params.parsedCommand.mode === "generate"
           ? ""
           : "请基于参考图继续优化画面表现");
       if (!effectivePrompt) {
@@ -865,135 +724,63 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         return false;
       }
 
-      const localDispatchId = `image-task-dispatch-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
-      const referenceImages = dedupeReferenceImages([
-        targetOutput?.url,
-        ...images.map((image) => buildMessageImageDataUrl(image)),
-      ]);
-      const requestedTarget =
-        effectiveApplyTarget?.kind === "document-cover" ? "cover" : "generate";
+      const resolvedSessionKey = await resolveImageWorkbenchSessionKey({
+        mode: params.parsedCommand.mode,
+        prompt: effectivePrompt,
+      });
 
-      appendLocalDispatchMessages([
-        {
-          id: `image-workbench:${localDispatchId}:user`,
-          role: "user",
-          content: rawText,
-          images: images.length > 0 ? images : undefined,
-          timestamp: new Date(),
-        },
-      ]);
-
-      setInput("");
-      setMentionedCharacters([]);
-
-      try {
-        const createdArtifact = await createImageGenerationTask({
-          projectRootPath: projectRootPath.trim(),
-          prompt: effectivePrompt,
-          title: effectivePrompt,
-          mode: parsedCommand.mode,
-          rawText,
-          size: parsedCommand.size || imageWorkbenchSelectedSize,
-          aspectRatio: parsedCommand.aspectRatio,
-          count: parsedCommand.count,
-          usage:
-            requestedTarget === "cover"
-              ? "cover"
-              : documentInlineSlotId
-                ? "document-inline"
-                : "claw-image-workbench",
-          slotId: documentInlineSlotId,
-          anchorHint: documentInlineAnchorHint,
-          anchorSectionTitle: documentInlineAnchorSectionTitle ?? undefined,
-          anchorText: documentInlineAnchorText ?? undefined,
-          providerId: imageWorkbenchSelectedProviderId,
-          model: imageWorkbenchSelectedModelId,
-          sessionId: imageWorkbenchSessionKey,
-          projectId,
-          contentId: contentId ?? undefined,
-          entrySource: "at_image_command",
-          requestedTarget,
-          targetOutputId: targetOutput?.id ?? undefined,
-          targetOutputRefId: targetOutput?.refId ?? undefined,
-          referenceImages,
-        });
-        const createdSnapshot = buildImageTaskSnapshotFromArtifactOutput({
-          artifact: createdArtifact,
-          projectId,
-          contentId: contentId ?? null,
-          canvasState,
-        });
-        if (createdSnapshot) {
-          appendLocalDispatchMessages([createdSnapshot.message]);
-          updateCurrentImageWorkbenchState((current) =>
-            mergeImageTaskSnapshot(current, createdSnapshot),
-          );
-          syncDocumentInlineImageTask({
-            taskRecord:
-              asRecord(createdArtifact.record) || {
-                    task_id: createdArtifact.task_id,
-                    task_type: createdArtifact.task_type,
-                    status: createdArtifact.status,
-                    normalized_status: createdArtifact.normalized_status,
-                    payload: {
-                      prompt: effectivePrompt,
-                      slot_id: documentInlineSlotId,
-                      anchor_hint: documentInlineAnchorHint,
-                      anchor_section_title: documentInlineAnchorSectionTitle,
-                      anchor_text: documentInlineAnchorText,
-                      usage:
-                        requestedTarget === "cover"
-                          ? "cover"
-                          : documentInlineSlotId
-                            ? "document-inline"
-                            : "claw-image-workbench",
-                    },
-                    relationships: documentInlineSlotId
-                      ? {
-                          slot_id: documentInlineSlotId,
-                        }
-                      : undefined,
-                  },
-            taskId: createdArtifact.task_id,
-            outputs: createdSnapshot.outputs,
-            setCanvasState,
-          });
-        }
-        return true;
-      } catch (error) {
-        const failureMessage =
-          error instanceof Error ? error.message : "图片任务创建失败";
-        appendLocalDispatchMessages([
-          {
-            id: `image-workbench:${localDispatchId}:assistant-error`,
-            role: "assistant",
-            content: `图片任务创建失败：${failureMessage}`,
-            timestamp: new Date(),
-            isThinking: false,
-          },
-        ]);
-        toast.error(failureMessage);
-        return true;
+      const skillRequest = resolveImageWorkbenchSkillRequest({
+        rawText: params.rawText,
+        parsedCommand: params.parsedCommand,
+        images: params.images,
+        currentImageWorkbenchState,
+        imageWorkbenchSelectedModelId,
+        imageWorkbenchSelectedProviderId,
+        imageWorkbenchSelectedSize,
+        imageWorkbenchSessionKey,
+        sessionIdOverride: resolvedSessionKey,
+        projectId,
+        projectRootPath,
+        contentId,
+        applyTarget: params.applyTarget,
+        entrySource: params.applyTarget
+          ? "image_workbench_action"
+          : "at_image_command",
+      });
+      if (!skillRequest) {
+        return false;
       }
+
+      if (resolvedSessionKey !== imageWorkbenchSessionKey) {
+        updateImageWorkbenchStateForSession(
+          resolvedSessionKey,
+          (current) => current,
+          {
+            fallbackState: currentImageWorkbenchState,
+            removeSessionKeys: [imageWorkbenchSessionKey],
+          },
+        );
+      }
+
+      return submitImageWorkbenchAgentCommand({
+        rawText: params.rawText,
+        displayContent: params.rawText,
+        images: skillRequest.images,
+        requestContext: skillRequest.requestContext,
+      });
     },
     [
-      appendLocalDispatchMessages,
-      canvasState,
-      createImageGenerationTask,
       contentId,
-      currentImageWorkbenchState.outputs,
+      currentImageWorkbenchState,
       imageWorkbenchSelectedModelId,
       imageWorkbenchSelectedProviderId,
       imageWorkbenchSelectedSize,
       imageWorkbenchSessionKey,
       projectId,
       projectRootPath,
-      setInput,
-      setCanvasState,
-      setMentionedCharacters,
-      updateCurrentImageWorkbenchState,
+      resolveImageWorkbenchSessionKey,
+      submitImageWorkbenchAgentCommand,
+      updateImageWorkbenchStateForSession,
     ],
   );
 
@@ -1013,6 +800,9 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       rawText: string;
       parsedCommand: NonNullable<ReturnType<typeof parseImageWorkbenchCommand>>;
       images: MessageImage[];
+      sessionIdOverride?: string | null;
+      applyTarget?: ImageWorkbenchApplyTarget | null;
+      entrySource?: string;
     }) =>
       resolveImageWorkbenchSkillRequest({
         ...params,

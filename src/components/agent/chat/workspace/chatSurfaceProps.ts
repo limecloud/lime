@@ -3,7 +3,6 @@ import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { ChatNavbar } from "../components/ChatNavbar";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { EmptyState } from "../components/EmptyState";
-import { MessageList } from "../components/MessageList";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import type { TeamWorkbenchSurfaceProps } from "./teamWorkbenchPresentation";
 
@@ -81,6 +80,8 @@ interface BuildWorkspaceEmptyStatePropsParams {
   input: ComponentProps<typeof EmptyState>["input"];
   setInput: ComponentProps<typeof EmptyState>["setInput"];
   onSendMessage: ComponentProps<typeof EmptyState>["onSend"];
+  isLoading: ComponentProps<typeof EmptyState>["isLoading"];
+  disabled: ComponentProps<typeof EmptyState>["disabled"];
   providerType: ComponentProps<typeof EmptyState>["providerType"];
   setProviderType: ComponentProps<typeof EmptyState>["setProviderType"];
   model: ComponentProps<typeof EmptyState>["model"];
@@ -135,6 +136,8 @@ export function buildWorkspaceEmptyStateProps({
   input,
   setInput,
   onSendMessage,
+  isLoading,
+  disabled,
   providerType,
   setProviderType,
   model,
@@ -173,6 +176,8 @@ export function buildWorkspaceEmptyStateProps({
     input,
     setInput,
     onSend: onSendMessage,
+    isLoading,
+    disabled,
     providerType,
     setProviderType,
     model,
@@ -236,14 +241,6 @@ interface BuildWorkspaceNavbarPropsParams {
   onProjectChange?: ComponentProps<typeof ChatNavbar>["onProjectChange"];
   workspaceType?: ComponentProps<typeof ChatNavbar>["workspaceType"];
   onBackHome?: ComponentProps<typeof ChatNavbar>["onBackHome"];
-  showBrowserAssistEntry: boolean;
-  browserAssistActive: boolean;
-  browserAssistLoading: boolean;
-  browserAssistAttentionLevel: ComponentProps<
-    typeof ChatNavbar
-  >["browserAssistAttentionLevel"];
-  browserAssistLabel?: ComponentProps<typeof ChatNavbar>["browserAssistLabel"];
-  onOpenBrowserAssist?: () => Promise<void> | void;
   showHarnessToggle: boolean;
   harnessPanelVisible: boolean;
   onToggleHarnessPanel?: ComponentProps<typeof ChatNavbar>["onToggleHarnessPanel"];
@@ -277,12 +274,6 @@ export function buildWorkspaceNavbarProps({
   onProjectChange,
   workspaceType,
   onBackHome,
-  showBrowserAssistEntry,
-  browserAssistActive,
-  browserAssistLoading,
-  browserAssistAttentionLevel,
-  browserAssistLabel,
-  onOpenBrowserAssist,
   showHarnessToggle,
   harnessPanelVisible,
   onToggleHarnessPanel,
@@ -313,16 +304,6 @@ export function buildWorkspaceNavbarProps({
     onProjectChange,
     workspaceType,
     onBackHome,
-    showBrowserAssistEntry,
-    browserAssistActive,
-    browserAssistLoading,
-    browserAssistAttentionLevel,
-    browserAssistLabel,
-    onOpenBrowserAssist: onOpenBrowserAssist
-      ? () => {
-          void onOpenBrowserAssist();
-        }
-      : undefined,
     showHarnessToggle,
     harnessPanelVisible,
     onToggleHarnessPanel,

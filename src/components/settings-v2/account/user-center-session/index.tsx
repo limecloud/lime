@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { ProviderIcon } from "@/icons/providers";
 import {
   formatOemCloudDateTime,
@@ -27,13 +28,17 @@ function SessionValueCard(props: {
 }) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm shadow-slate-950/5">
-      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
-        {props.label}
-      </p>
+      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
+        <span>{props.label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${props.label}说明`}
+          content={props.hint}
+          tone="slate"
+        />
+      </div>
       <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
         {props.value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{props.hint}</p>
     </div>
   );
 }
@@ -166,6 +171,11 @@ export function UserCenterSessionSettings() {
                   <h2 className="text-3xl font-semibold tracking-tight text-slate-900">
                     账户资料
                   </h2>
+                  <WorkbenchInfoTip
+                    ariaLabel="账户资料说明"
+                    content="昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。"
+                    tone="mint"
+                  />
                   <span
                     className={cn(
                       "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
@@ -177,9 +187,6 @@ export function UserCenterSessionSettings() {
                     {session ? "已登录" : "未登录"}
                   </span>
                 </div>
-                <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                  昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。
-                </p>
               </div>
             </div>
 
@@ -263,9 +270,16 @@ export function UserCenterSessionSettings() {
                           </span>
                         </div>
 
-                        <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                          资料修改请前往账号中心完成。客户端会同步最新昵称、头像、邮箱与默认服务状态，不再在本地维护第二份个人资料。
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm text-slate-600">
+                            资料维护已统一到账号中心
+                          </span>
+                          <WorkbenchInfoTip
+                            ariaLabel="账号中心同步说明"
+                            content="资料修改请前往账号中心完成。客户端会同步最新昵称、头像、邮箱与默认服务状态，不再在本地维护第二份个人资料。"
+                            tone="slate"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -330,15 +344,21 @@ export function UserCenterSessionSettings() {
 
               <article className={SURFACE_CLASS_NAME}>
                 <div className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-900">
-                    资料维护方式
-                  </h3>
-                  <p className="text-sm leading-6 text-slate-600">
-                    昵称、头像、邮箱等资料由账号中心统一维护。这里专注展示当前账户状态，不再提供单独的本地资料编辑入口。
-                  </p>
-                  <p className="text-sm leading-6 text-slate-600">
-                    如需调整资料，请前往账号中心完成修改，然后回到这里点击“同步最新状态”。
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-slate-900">
+                      资料维护方式
+                    </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="资料维护方式说明"
+                      content={
+                        <div className="space-y-1">
+                          <p>昵称、头像、邮箱等资料由账号中心统一维护。这里专注展示当前账户状态，不再提供单独的本地资料编辑入口。</p>
+                          <p>如需调整资料，请前往账号中心完成修改，然后回到这里点击“同步最新状态”。</p>
+                        </div>
+                      }
+                      tone="slate"
+                    />
+                  </div>
                   {codeDelivery ? (
                     <p className="text-sm leading-6 text-slate-600">
                       最近一次验证码已发送到 {codeDelivery.maskedEmail}。
@@ -355,12 +375,16 @@ export function UserCenterSessionSettings() {
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      使用 Google 一键登录
-                    </h3>
-                    <p className="text-sm leading-6 text-slate-600">
-                      Google 是默认登录方式。授权完成后，客户端会自动同步账户资料、默认服务与已开通能力。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        使用 Google 一键登录
+                      </h3>
+                      <WorkbenchInfoTip
+                        ariaLabel="Google 一键登录说明"
+                        content="Google 是默认登录方式。授权完成后，客户端会自动同步账户资料、默认服务与已开通能力。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
 
                   <button
@@ -416,14 +440,22 @@ export function UserCenterSessionSettings() {
 
                 <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/90 p-5">
                   <div className="space-y-3">
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      登录后会自动完成
-                    </h4>
-                    <ul className="space-y-2 text-sm leading-6 text-slate-600">
-                      <li>同步当前账户资料与头像、昵称显示。</li>
-                      <li>同步默认 AI 服务、模型目录与已开通能力。</li>
-                      <li>个人资料统一在账号中心维护，避免多入口重复编辑。</li>
-                    </ul>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        登录后会自动完成
+                      </h4>
+                      <WorkbenchInfoTip
+                        ariaLabel="登录后自动完成说明"
+                        content={
+                          <div className="space-y-1">
+                            <p>同步当前账户资料与头像、昵称显示。</p>
+                            <p>同步默认 AI 服务、模型目录与已开通能力。</p>
+                            <p>个人资料统一在账号中心维护，避免多入口重复编辑。</p>
+                          </div>
+                        }
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -432,12 +464,16 @@ export function UserCenterSessionSettings() {
                 <div className="mt-5 rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-2">
-                      <h4 className="text-base font-semibold text-slate-900">
-                        备用登录方式
-                      </h4>
-                      <p className="text-sm leading-6 text-slate-600">
-                        如果当前组织没有启用 Google，或需要兼容已有账号体系，可以改用邮箱验证码或账号密码登录。
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-semibold text-slate-900">
+                          备用登录方式
+                        </h4>
+                        <WorkbenchInfoTip
+                          ariaLabel="备用登录方式说明"
+                          content="如果当前组织没有启用 Google，或需要兼容已有账号体系，可以改用邮箱验证码或账号密码登录。"
+                          tone="slate"
+                        />
+                      </div>
                     </div>
 
                     <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">

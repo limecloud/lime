@@ -3661,6 +3661,8 @@ const defaultMocks: Record<string, any> = {
     updatedAt: Date.now(),
   }),
   session_files_read_file: () => "",
+  session_files_resolve_file_path: (args: any) =>
+    `/mock/sessions/${args?.sessionId ?? "mock-session"}/${args?.fileName ?? "mock.txt"}`,
   session_files_delete_file: () => undefined,
   save_exported_document: () => undefined,
 
@@ -4273,7 +4275,7 @@ const defaultMocks: Record<string, any> = {
   execution_run_list: () => mockAutomationRuns,
   execution_run_get: (args: any) =>
     mockAutomationRuns.find((run) => run.id === args?.runId) ?? null,
-  execution_run_get_theme_workbench_state: () => ({
+  execution_run_get_general_workbench_state: () => ({
     run_state: "idle",
     current_gate_key: "idle",
     queue_items: [],
@@ -4281,12 +4283,12 @@ const defaultMocks: Record<string, any> = {
     recent_terminals: [],
     updated_at: new Date().toISOString(),
   }),
-  execution_run_list_theme_workbench_history: () => ({
+  execution_run_list_general_workbench_history: () => ({
     items: [],
     has_more: false,
     next_offset: null,
   }),
-  content_get_theme_workbench_document_state: () => null,
+  content_get_general_workbench_document_state: () => null,
 
   // Workspace 相关
   workspace_list: () => [

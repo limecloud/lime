@@ -11,7 +11,7 @@ import { InputbarCore } from "./InputbarCore";
 import { SkillSelector } from "../../../skill-selection/SkillSelector";
 import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
 import { TeamSelector } from "./TeamSelector";
-import { ThemeWorkbenchStatusPanel } from "./ThemeWorkbenchStatusPanel";
+import { InputbarWorkflowStatusPanel } from "./InputbarWorkflowStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
 import { InputbarVisionCapabilityNotice } from "./InputbarVisionCapabilityNotice";
 import { InputbarExecutionStrategySelect } from "./InputbarExecutionStrategySelect";
@@ -25,16 +25,16 @@ import {
 } from "../../../skill-selection/skillSelectionBindings";
 import type { AgentAccessMode } from "../../../hooks/agentChatStorage";
 import type {
-  ThemeWorkbenchGateState,
-  ThemeWorkbenchQuickAction,
-  ThemeWorkbenchWorkflowStep,
-} from "../../../utils/themeWorkbenchInputState";
+  WorkflowGateState,
+  WorkflowQuickAction,
+  WorkflowStep,
+} from "../../../utils/workflowInputState";
 
 interface InputbarComposerSectionProps {
-  renderThemeWorkbenchGeneratingPanel: boolean;
-  themeWorkbenchGate?: ThemeWorkbenchGateState | null;
-  themeWorkbenchQuickActions: ThemeWorkbenchQuickAction[];
-  themeWorkbenchQueueItems: ThemeWorkbenchWorkflowStep[];
+  renderWorkflowGeneratingPanel: boolean;
+  workflowGate?: WorkflowGateState | null;
+  workflowQuickActions: WorkflowQuickAction[];
+  workflowQueueItems: WorkflowStep[];
   inputAdapter: ChatInputAdapter;
   characters: Character[];
   skillSelection: SkillSelectionProps;
@@ -54,7 +54,7 @@ interface InputbarComposerSectionProps {
   onRemoveImage: (index: number) => void;
   onPaste: (event: React.ClipboardEvent) => void;
   isFullscreen: boolean;
-  isThemeWorkbenchVariant: boolean;
+  isWorkspaceVariant: boolean;
   activeTheme?: string;
   onManageProviders?: () => void;
   executionRuntime?: AsterSessionExecutionRuntime | null;
@@ -72,10 +72,10 @@ interface InputbarComposerSectionProps {
 export const InputbarComposerSection: React.FC<
   InputbarComposerSectionProps
 > = ({
-  renderThemeWorkbenchGeneratingPanel,
-  themeWorkbenchGate,
-  themeWorkbenchQuickActions,
-  themeWorkbenchQueueItems,
+  renderWorkflowGeneratingPanel,
+  workflowGate,
+  workflowQuickActions,
+  workflowQueueItems,
   inputAdapter,
   characters,
   skillSelection,
@@ -95,7 +95,7 @@ export const InputbarComposerSection: React.FC<
   onRemoveImage,
   onPaste,
   isFullscreen,
-  isThemeWorkbenchVariant,
+  isWorkspaceVariant,
   activeTheme,
   onManageProviders,
   executionRuntime,
@@ -111,7 +111,7 @@ export const InputbarComposerSection: React.FC<
     number | null
   >(null);
   const showSkillSelector =
-    !isThemeWorkbenchVariant && isGeneralResearchTheme(activeTheme);
+    !isWorkspaceVariant && isGeneralResearchTheme(activeTheme);
   const currentPendingImages =
     (inputAdapter.state.attachments as MessageImage[] | undefined) ||
     pendingImages;
@@ -150,12 +150,12 @@ export const InputbarComposerSection: React.FC<
     onToolClick(tool);
   };
 
-  if (renderThemeWorkbenchGeneratingPanel) {
+  if (renderWorkflowGeneratingPanel) {
     return (
-      <ThemeWorkbenchStatusPanel
-        gate={themeWorkbenchGate}
-        quickActions={themeWorkbenchQuickActions}
-        queueItems={themeWorkbenchQueueItems}
+      <InputbarWorkflowStatusPanel
+        gate={workflowGate}
+        quickActions={workflowQuickActions}
+        queueItems={workflowQueueItems}
         renderGeneratingPanel
         onQuickAction={inputAdapter.actions.setText}
         onStop={inputAdapter.actions.stop}
@@ -165,10 +165,10 @@ export const InputbarComposerSection: React.FC<
 
   return (
     <>
-      <ThemeWorkbenchStatusPanel
-        gate={themeWorkbenchGate}
-        quickActions={themeWorkbenchQuickActions}
-        queueItems={themeWorkbenchQueueItems}
+      <InputbarWorkflowStatusPanel
+        gate={workflowGate}
+        quickActions={workflowQuickActions}
+        queueItems={workflowQueueItems}
         renderGeneratingPanel={false}
         onQuickAction={inputAdapter.actions.setText}
         onStop={inputAdapter.actions.stop}
@@ -197,15 +197,15 @@ export const InputbarComposerSection: React.FC<
         onPaste={onPaste}
         isFullscreen={isFullscreen}
         placeholder={
-          isThemeWorkbenchVariant
-            ? themeWorkbenchGate?.status === "waiting"
+          isWorkspaceVariant
+            ? workflowGate?.status === "waiting"
               ? "说说你的选择，剩下的交给我"
               : "试着输入任何指令，剩下的交给我"
             : undefined
         }
-        toolMode={isThemeWorkbenchVariant ? "attach-only" : "default"}
-        showDragHandle={!isThemeWorkbenchVariant}
-        visualVariant={isThemeWorkbenchVariant ? "floating" : "default"}
+        toolMode={isWorkspaceVariant ? "attach-only" : "default"}
+        showDragHandle={!isWorkspaceVariant}
+        visualVariant={isWorkspaceVariant ? "floating" : "default"}
         topExtra={resolvedTopExtra}
         activeTheme={activeTheme}
         queuedTurns={queuedTurns}
@@ -234,7 +234,7 @@ export const InputbarComposerSection: React.FC<
               executionStrategy={executionStrategy}
               setExecutionStrategy={setExecutionStrategy}
             />
-            {!isThemeWorkbenchVariant ? (
+            {!isWorkspaceVariant ? (
               <InputbarModelExtra
                 isFullscreen={isFullscreen}
                 providerType={inputAdapter.model?.providerType}

@@ -5,7 +5,7 @@ import {
   type CrashReportingConfig as TauriCrashReportingConfig,
 } from "@/lib/api/appConfig";
 import { reportFrontendCrash as reportFrontendCrashToBackend } from "@/lib/api/frontendCrash";
-import configEventManager from "@/lib/configEventManager";
+import { configEventManager } from "@/lib/configEventManager";
 import { getRuntimeAppVersion } from "@/lib/appVersion";
 
 export type CrashContext = Record<string, unknown>;

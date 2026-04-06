@@ -11,9 +11,11 @@ pub const LIME_CREATE_BROADCAST_TASK_TOOL_NAME: &str = "lime_create_broadcast_ge
 pub const LIME_CREATE_COVER_TASK_TOOL_NAME: &str = "lime_create_cover_generation_task";
 pub const LIME_CREATE_RESOURCE_SEARCH_TASK_TOOL_NAME: &str =
     "lime_create_modal_resource_search_task";
+pub const LIME_SEARCH_WEB_IMAGES_TOOL_NAME: &str = "lime_search_web_images";
 pub const LIME_CREATE_IMAGE_TASK_TOOL_NAME: &str = "lime_create_image_generation_task";
 pub const LIME_CREATE_URL_PARSE_TASK_TOOL_NAME: &str = "lime_create_url_parse_task";
 pub const LIME_CREATE_TYPESETTING_TASK_TOOL_NAME: &str = "lime_create_typesetting_task";
+pub const LIME_RUN_SERVICE_SKILL_TOOL_NAME: &str = "lime_run_service_skill";
 pub const LIME_SITE_LIST_TOOL_NAME: &str = "lime_site_list";
 pub const LIME_SITE_RECOMMEND_TOOL_NAME: &str = "lime_site_recommend";
 pub const LIME_SITE_SEARCH_TOOL_NAME: &str = "lime_site_search";
@@ -565,6 +567,15 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
+        name: LIME_SEARCH_WEB_IMAGES_TOOL_NAME,
+        profiles: WORKBENCH_PROFILES,
+        capabilities: SEARCH_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
         name: LIME_CREATE_IMAGE_TASK_TOOL_NAME,
         profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
@@ -586,6 +597,15 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         name: LIME_CREATE_TYPESETTING_TASK_TOOL_NAME,
         profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: LIME_RUN_SERVICE_SKILL_TOOL_NAME,
+        profiles: WORKBENCH_PROFILES,
+        capabilities: EXECUTION_CAP,
         lifecycle: ToolLifecycle::Current,
         source: ToolSourceKind::LimeInjected,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
@@ -1085,10 +1105,12 @@ mod tests {
     #[test]
     fn test_workbench_tool_names_only_returns_workbench_increment() {
         let names = workbench_tool_names().into_iter().collect::<BTreeSet<_>>();
-        assert_eq!(names.len(), 9);
+        assert_eq!(names.len(), 11);
         assert!(names.contains(SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(LIME_CREATE_VIDEO_TASK_TOOL_NAME));
         assert!(names.contains(LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME));
+        assert!(names.contains(LIME_RUN_SERVICE_SKILL_TOOL_NAME));
+        assert!(names.contains(LIME_SEARCH_WEB_IMAGES_TOOL_NAME));
         assert!(!names.contains(TOOL_SEARCH_TOOL_NAME));
         assert!(!names.contains(BROWSER_RUNTIME_TOOL_PREFIX));
     }
@@ -1099,7 +1121,7 @@ mod tests {
         let names = workspace_default_allowed_tool_names(
             WorkspaceToolSurface::workbench_with_browser_assist(),
         );
-        assert_eq!(names.len(), 43);
+        assert_eq!(names.len(), 45);
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&TOOL_SEARCH_TOOL_NAME));
         assert!(names.contains(&LIST_MCP_RESOURCES_TOOL_NAME));
@@ -1108,6 +1130,8 @@ mod tests {
         assert!(names.contains(&"TeamCreate"));
         assert!(names.contains(&"TeamDelete"));
         assert!(names.contains(&LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME));
+        assert!(names.contains(&LIME_RUN_SERVICE_SKILL_TOOL_NAME));
+        assert!(names.contains(&LIME_SEARCH_WEB_IMAGES_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RECOMMEND_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));
         assert!(!names

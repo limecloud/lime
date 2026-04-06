@@ -14,7 +14,7 @@ describe("submitOpRuntimeCompaction", () => {
             subagent: true,
           },
           theme: "general",
-          session_mode: "theme_workbench",
+          session_mode: "general_workbench",
           gate_key: "write_mode",
           run_title: "社媒初稿",
           content_id: "content-social-1",
@@ -68,7 +68,7 @@ describe("submitOpRuntimeCompaction", () => {
           ],
         },
         recent_theme: "general",
-        recent_session_mode: "theme_workbench",
+        recent_session_mode: "general_workbench",
         recent_gate_key: "write_mode",
         recent_run_title: "社媒初稿",
         recent_content_id: "content-social-1",
@@ -111,7 +111,7 @@ describe("submitOpRuntimeCompaction", () => {
             thinking: true,
           },
           theme: "general",
-          session_mode: "theme_workbench",
+          session_mode: "general_workbench",
           gate_key: "publish_confirm",
           run_title: "发布确认",
           content_id: "content-social-1",
@@ -130,7 +130,7 @@ describe("submitOpRuntimeCompaction", () => {
           subagent: false,
         },
         recent_theme: "general",
-        recent_session_mode: "theme_workbench",
+        recent_session_mode: "general_workbench",
         recent_gate_key: "write_mode",
         recent_run_title: "社媒初稿",
         recent_content_id: "content-social-1",
@@ -166,6 +166,38 @@ describe("submitOpRuntimeCompaction", () => {
         },
         gate_key: "publish_confirm",
         run_title: "发布确认",
+      },
+    });
+  });
+
+  it("应将 legacy general workbench alias runtime 视为 general_workbench 做裁剪", () => {
+    const result = buildSubmitOpRuntimeCompaction({
+      requestMetadata: {
+        harness: {
+          theme: "general",
+          session_mode: "general_workbench",
+          gate_key: "write_mode",
+        },
+      },
+      executionRuntime: {
+        session_id: "session-social-legacy",
+        source: "runtime_snapshot",
+        recent_session_mode: "theme_workbench",
+        recent_gate_key: "write_mode",
+      },
+      syncedRecentPreferences: null,
+      syncedSessionModelPreference: null,
+      syncedExecutionStrategy: null,
+      effectiveExecutionStrategy: "react",
+      effectiveProviderType: "openai",
+      effectiveModel: "gpt-5.4",
+      webSearch: false,
+      thinking: false,
+    });
+
+    expect(result.metadata).toEqual({
+      harness: {
+        theme: "general",
       },
     });
   });

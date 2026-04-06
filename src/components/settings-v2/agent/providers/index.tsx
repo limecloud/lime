@@ -11,6 +11,7 @@ import {
   LogIn,
   RefreshCw,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { ProviderPoolPage } from "@/components/provider-pool";
 import { openUrl } from "@/components/openclaw/openUrl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,16 +60,20 @@ function SessionValueCard(props: {
 }) {
   return (
     <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+      <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
         {props.icon ? (
           <span className="text-slate-400">{props.icon}</span>
         ) : null}
         <span>{props.label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${props.label}说明`}
+          content={props.hint}
+          tone="slate"
+        />
       </div>
       <p className="mt-2 break-all text-sm font-semibold text-slate-900">
         {props.value}
       </p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{props.hint}</p>
     </div>
   );
 }
@@ -120,13 +125,19 @@ function RuntimeSummaryItem(props: {
 }) {
   return (
     <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-medium text-slate-500">{props.label}</p>
+      <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+        <span>{props.label}</span>
+        {props.hint ? (
+          <WorkbenchInfoTip
+            ariaLabel={`${props.label}说明`}
+            content={props.hint}
+            tone="slate"
+          />
+        ) : null}
+      </div>
       <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">
         {props.value}
       </p>
-      {props.hint ? (
-        <p className="mt-1 text-xs leading-5 text-slate-500">{props.hint}</p>
-      ) : null}
     </div>
   );
 }
@@ -626,12 +637,12 @@ function CompanionProviderBridgeCard() {
                   }
                   tone={supportsProviderOverview ? "emerald" : "slate"}
                 />
+                <WorkbenchInfoTip
+                  ariaLabel="桌宠 Companion 说明"
+                  content="桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态，只接收脱敏后的可用性摘要，不会直接读取 API Key、OAuth 凭证或本地凭证文件。"
+                  tone="mint"
+                />
               </div>
-              <p className="text-sm leading-6 text-slate-600">
-                桌宠通过本地 Companion 通道复用 Lime 的 AI
-                服务商状态，只接收脱敏后的可用性摘要，不会直接读取 API
-                Key、OAuth 凭证或本地凭证文件。
-              </p>
             </div>
           </div>
 
@@ -672,10 +683,14 @@ function CompanionProviderBridgeCard() {
           <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-slate-900">接入检查</p>
-                <p className="text-xs leading-5 text-slate-500">
-                  按“宿主监听、桌宠连接、能力声明、摘要准备”这四步排查桌宠接入状态。
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                  <span>接入检查</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="桌宠接入检查说明"
+                    content="按“宿主监听、桌宠连接、能力声明、摘要准备”这四步排查桌宠接入状态。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <div className="rounded-[14px] border border-slate-200/80 bg-white px-3 py-2 text-xs text-slate-600">
                 当前建议：
@@ -728,13 +743,14 @@ function CompanionProviderBridgeCard() {
           <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-slate-900">
-                  桌宠视角预览
-                </p>
-                <p className="text-xs leading-5 text-slate-500">
-                  这里展示 Lime 准备发给桌宠的服务商脱敏摘要，会合并当前 AI
-                  服务商配置与凭证池状态，但不会带出原始凭证。
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                  <span>桌宠视角预览</span>
+                  <WorkbenchInfoTip
+                    ariaLabel="桌宠视角预览说明"
+                    content="这里展示 Lime 准备发给桌宠的服务商脱敏摘要，会合并当前 AI 服务商配置与凭证池状态，但不会带出原始凭证。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <InfoPill
@@ -1186,14 +1202,16 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
 
       <article className={SURFACE_CLASS_NAME}>
         <div className="space-y-2">
-          <h3 className="text-base font-semibold text-slate-900">
-            云端页面承接什么
-          </h3>
-          <p className="text-sm leading-6 text-slate-600">
-            这里保留 OEM 商业化相关的
-            Offer、套餐、模型目录、默认来源和会话状态，不再和本地 Provider
-            配置共用一个长页。
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-900">
+              云端页面承接什么
+            </h3>
+            <WorkbenchInfoTip
+              ariaLabel="云端页面说明"
+              content="这里保留 OEM 商业化相关的 Offer、套餐、模型目录、默认来源和会话状态，不再和本地 Provider 配置共用一个长页。"
+              tone="slate"
+            />
+          </div>
         </div>
       </article>
     </section>
@@ -1211,17 +1229,20 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                   <Cloud className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-lg font-semibold text-slate-900">
-                    {session.user.displayName || session.user.email || "已登录"}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-lg font-semibold text-slate-900">
+                      {session.user.displayName || session.user.email || "已登录"}
+                    </p>
+                    <WorkbenchInfoTip
+                      ariaLabel="当前云端会话说明"
+                      content="当前云端会话将驱动 OEM Offer、模型目录和默认来源。商业化套餐、可用模型和是否开放开发者入口都以服务端治理结果为准。"
+                      tone="slate"
+                    />
+                  </div>
                   <p className="text-sm text-slate-500">
                     {session.user.email ||
                       session.user.username ||
                       session.user.id}
-                  </p>
-                  <p className="text-sm leading-6 text-slate-600">
-                    当前云端会话将驱动 OEM
-                    Offer、模型目录和默认来源。商业化套餐、可用模型和是否开放开发者入口都以服务端治理结果为准。
                   </p>
                 </div>
               </div>
@@ -1281,13 +1302,16 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
         <article className={SURFACE_CLASS_NAME}>
           <div className="space-y-4">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-slate-900">
-                当前云端摘要
-              </h3>
-              <p className="text-sm leading-6 text-slate-600">
-                这里只展示 OEM
-                云端的最终接入态，方便快速确认默认来源、模型目录和开发者入口是否符合当前租户策略。
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  当前云端摘要
+                </h3>
+                <WorkbenchInfoTip
+                  ariaLabel="当前云端摘要说明"
+                  content="这里只展示 OEM 云端的最终接入态，方便快速确认默认来源、模型目录和开发者入口是否符合当前租户策略。"
+                  tone="slate"
+                />
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1321,11 +1345,14 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-slate-900">云端服务目录</h3>
-        <p className="text-sm leading-6 text-slate-600">
-          卡片以服务端返回为主，并结合当前桌面会话做状态归一。是否允许 API Key
-          模式、当前模型来源、租户覆盖是否生效，都以服务端治理结果为准。
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-lg font-semibold text-slate-900">云端服务目录</h3>
+          <WorkbenchInfoTip
+            ariaLabel="云端服务目录说明"
+            content="卡片以服务端返回为主，并结合当前桌面会话做状态归一。是否允许 API Key 模式、当前模型来源、租户覆盖是否生效，都以服务端治理结果为准。"
+            tone="slate"
+          />
+        </div>
       </div>
 
       {offers.length === 0 ? (

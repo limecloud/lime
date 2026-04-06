@@ -126,7 +126,7 @@ export interface ContentDetail extends ContentListItem {
   session_id?: string;
 }
 
-export interface ThemeWorkbenchVersionState {
+export interface GeneralWorkbenchVersionState {
   id: string;
   created_at: number;
   description?: string;
@@ -134,11 +134,11 @@ export interface ThemeWorkbenchVersionState {
   is_current: boolean;
 }
 
-export interface ThemeWorkbenchDocumentState {
+export interface GeneralWorkbenchDocumentState {
   content_id: string;
   current_version_id: string;
   version_count: number;
-  versions: ThemeWorkbenchVersionState[];
+  versions: GeneralWorkbenchVersionState[];
 }
 
 /** 创建项目请求 */
@@ -334,12 +334,12 @@ export async function getContent(id: string): Promise<ContentDetail | null> {
   return safeInvoke<ContentDetail | null>("content_get", { id });
 }
 
-/** 获取主题工作台文稿版本状态（后端解析 content.metadata） */
-export async function getThemeWorkbenchDocumentState(
+/** 获取工作区文稿版本状态（后端解析 content.metadata，并兼容旧协议元数据键） */
+export async function getGeneralWorkbenchDocumentState(
   id: string,
-): Promise<ThemeWorkbenchDocumentState | null> {
-  return safeInvoke<ThemeWorkbenchDocumentState | null>(
-    "content_get_theme_workbench_document_state",
+): Promise<GeneralWorkbenchDocumentState | null> {
+  return safeInvoke<GeneralWorkbenchDocumentState | null>(
+    "content_get_general_workbench_document_state",
     { id },
   );
 }

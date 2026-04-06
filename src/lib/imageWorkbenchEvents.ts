@@ -1,11 +1,11 @@
-export const IMAGE_WORKBENCH_REQUEST_EVENT = "lime:image-workbench-request";
-export const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
-export const IMAGE_WORKBENCH_TASK_ACTION_EVENT =
+const IMAGE_WORKBENCH_REQUEST_EVENT = "lime:image-workbench-request";
+const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
+const IMAGE_WORKBENCH_TASK_ACTION_EVENT =
   "lime:image-workbench-task-action";
 
-export type ImageWorkbenchExternalRequestSource = "workspace-right-rail";
-export type ImageWorkbenchExternalRequestTarget = "generate" | "cover";
-export type ImageWorkbenchExternalRequestModelPreset =
+type ImageWorkbenchExternalRequestSource = "workspace-right-rail";
+type ImageWorkbenchExternalRequestTarget = "generate" | "cover";
+type ImageWorkbenchExternalRequestModelPreset =
   | "basic"
   | "jimeng"
   | "kling";
@@ -28,9 +28,9 @@ export interface ImageWorkbenchFocusDetail {
   contentId?: string | null;
 }
 
-export type ImageWorkbenchTaskAction = "retry" | "cancel";
+type ImageWorkbenchTaskAction = "retry" | "cancel";
 
-export interface ImageWorkbenchTaskActionDetail {
+interface ImageWorkbenchTaskActionDetail {
   action: ImageWorkbenchTaskAction;
   taskId: string;
   projectId?: string | null;
@@ -39,28 +39,6 @@ export interface ImageWorkbenchTaskActionDetail {
 
 function hasWindow(): boolean {
   return typeof window !== "undefined";
-}
-
-export function emitImageWorkbenchRequest(
-  input: Omit<ImageWorkbenchExternalRequestDetail, "requestId"> & {
-    requestId?: string;
-  },
-): ImageWorkbenchExternalRequestDetail {
-  const detail: ImageWorkbenchExternalRequestDetail = {
-    ...input,
-    requestId: input.requestId || crypto.randomUUID(),
-  };
-
-  if (hasWindow()) {
-    window.dispatchEvent(
-      new CustomEvent<ImageWorkbenchExternalRequestDetail>(
-        IMAGE_WORKBENCH_REQUEST_EVENT,
-        { detail },
-      ),
-    );
-  }
-
-  return detail;
 }
 
 export function onImageWorkbenchRequest(

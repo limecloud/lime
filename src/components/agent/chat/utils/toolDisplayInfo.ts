@@ -393,6 +393,17 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
+    "limesearchwebimages",
+    {
+      family: "search",
+      label: "联网搜图",
+      verb: "搜索",
+      icon: Search,
+      groupTitle: "搜索",
+      actionKey: "search",
+    },
+  ],
+  [
     "toolsearch",
     {
       family: "search",

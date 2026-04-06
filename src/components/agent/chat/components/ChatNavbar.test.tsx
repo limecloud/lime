@@ -188,87 +188,35 @@ describe("ChatNavbar", () => {
     expect(container.querySelector('[data-testid="harness-panel"]')).toBeNull();
   });
 
-  it("通用对话应支持从顶栏打开浏览器协助", () => {
-    const onOpenBrowserAssist = vi.fn();
+  it("Harness 告警态应使用强调样式", () => {
     const container = renderChatNavbar({
-      showBrowserAssistEntry: true,
-      onOpenBrowserAssist,
+      showHarnessToggle: true,
+      harnessAttentionLevel: "warning",
+      harnessToggleLabel: "执行提醒",
     });
 
     const button = container.querySelector(
-      'button[aria-label="打开浏览器工作台"]',
+      'button[aria-label="展开执行提醒"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
-    expect(button?.textContent).toContain("浏览器工作台");
-
-    act(() => {
-      button?.click();
-    });
-
-    expect(onOpenBrowserAssist).toHaveBeenCalledTimes(1);
-  });
-
-  it("应支持显示浏览器协助状态文案", () => {
-    const container = renderChatNavbar({
-      showBrowserAssistEntry: true,
-      browserAssistLabel: "等待登录",
-    });
-
-    const button = container.querySelector(
-      'button[aria-label="打开浏览器工作台"]',
-    ) as HTMLButtonElement | null;
-
-    expect(button?.textContent).toContain("等待登录");
-  });
-
-  it("浏览器已就绪时不应再占用顶栏状态入口", () => {
-    const container = renderChatNavbar({
-      showBrowserAssistEntry: true,
-      browserAssistLabel: "浏览器已就绪",
-    });
-
-    const button = container.querySelector(
-      'button[aria-label="打开浏览器工作台"]',
-    ) as HTMLButtonElement | null;
-
-    expect(button).toBeNull();
-    expect(container.textContent).not.toContain("浏览器已就绪");
-  });
-
-  it("浏览器待继续时顶栏按钮应显示恢复态语义", () => {
-    const container = renderChatNavbar({
-      showBrowserAssistEntry: true,
-      browserAssistAttentionLevel: "warning",
-      browserAssistLabel: "等待登录",
-    });
-
-    const button = container.querySelector(
-      'button[aria-label="恢复浏览器工作台"]',
-    ) as HTMLButtonElement | null;
-
-    expect(button).not.toBeNull();
-    expect(button?.textContent).toContain("等待登录");
     expect(button?.className).toContain("border-amber-300");
     expect(button?.className).toContain("text-amber-800");
   });
 
-  it("浏览器启动中时顶栏按钮应显示启动态语义", () => {
+  it("压缩上下文运行中时应禁用顶栏操作", () => {
     const container = renderChatNavbar({
-      showBrowserAssistEntry: true,
-      browserAssistAttentionLevel: "info",
-      browserAssistLoading: true,
+      showContextCompactionAction: true,
+      contextCompactionRunning: true,
     });
 
     const button = container.querySelector(
-      'button[aria-label="查看浏览器工作台状态"]',
+      'button[aria-label="压缩上下文"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
     expect(button?.disabled).toBe(true);
-    expect(button?.textContent).toContain("启动中...");
-    expect(button?.className).toContain("border-sky-300");
-    expect(button?.className).toContain("text-sky-800");
+    expect(button?.textContent).toContain("压缩中...");
   });
 
   it("通用对话项目选择器应启用管理能力", () => {

@@ -1,5 +1,9 @@
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { ChatToolPreferences } from "./chatToolPreferences";
+import {
+  isGeneralWorkbenchSessionMode,
+  type HarnessSessionModeInput,
+} from "./harnessSessionMode";
 
 const GENERAL_AGENT_THEMES = new Set<string>(["general"]);
 
@@ -46,7 +50,7 @@ export interface GeneralAgentPromptOptions {
   now?: Date;
   toolPreferences?: Partial<ChatToolPreferences>;
   harness?: {
-    sessionMode?: "default" | "theme_workbench";
+    sessionMode?: HarnessSessionModeInput | null;
     gateKey?: string | null;
     runTitle?: string | null;
     contentId?: string | null;
@@ -80,9 +84,9 @@ export function buildGeneralAgentSystemPrompt(
     `- 多代理：${describeEnabledState(toolPreferences?.subagent)}`,
   ].join("\n");
   const harnessLines =
-    harness?.sessionMode === "theme_workbench"
+    harness && isGeneralWorkbenchSessionMode(harness.sessionMode)
       ? [
-          "- 当前会话运行在 harness / theme workbench 场景中。",
+          "- 当前会话运行在 harness / 工作区编排场景中。",
           harness.gateKey ? `- 当前 gate：${harness.gateKey}` : null,
           harness.runTitle ? `- 当前任务标题：${harness.runTitle}` : null,
           harness.contentId ? `- 当前内容 ID：${harness.contentId}` : null,

@@ -81,6 +81,31 @@ async function renderPage() {
   return rendered;
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -224,5 +249,28 @@ describe("AppearanceSettings", () => {
       "terminal",
       "tools",
     ]);
+  });
+
+  it("应把首屏和基础外观说明收进 tips", async () => {
+    await renderPage();
+
+    expect(getBodyText()).not.toContain(
+      "主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。",
+    );
+    expect(getBodyText()).not.toContain(
+      "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
+    );
+
+    const heroTip = await hoverTip("外观设置总览说明");
+    expect(getBodyText()).toContain(
+      "主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。",
+    );
+    await leaveTip(heroTip);
+
+    const sectionTip = await hoverTip("基础外观说明");
+    expect(getBodyText()).toContain(
+      "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
+    );
+    await leaveTip(sectionTip);
   });
 });

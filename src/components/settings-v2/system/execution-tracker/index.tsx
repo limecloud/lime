@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -90,8 +91,12 @@ function ExecutionPanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
           </div>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {aside ? <div className="flex flex-wrap items-center gap-2">{aside}</div> : null}
       </div>
@@ -112,13 +117,17 @@ function SummaryStat({
 }) {
   return (
     <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -425,13 +434,16 @@ export function ExecutionTrackerSettings() {
               </span>
 
               <div className="space-y-2">
-                <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  把 Chat、Skill 和 Automation 的执行轨迹放进同一个排查工作台
-                </h1>
-                <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                  这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、
-                  来源引用和错误信息，再决定是否继续下钻到单条详情。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
+                    把 Chat、Skill 和 Automation 的执行轨迹放进同一个排查工作台
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="执行轨迹工作台说明"
+                    content="这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、来源引用和错误信息，再决定是否继续下钻到单条详情。"
+                    tone="mint"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -463,13 +475,15 @@ export function ExecutionTrackerSettings() {
                     <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                       当前同步概览
                     </h2>
+                    <WorkbenchInfoTip
+                      ariaLabel="当前同步概览说明"
+                      content="列表默认抓取最近一页记录；需要更早记录时可继续向后加载。"
+                      tone="slate"
+                    />
                     <SurfacePill className="border-slate-200 bg-slate-100 text-slate-600">
                       已加载 {summary.totalCount} 条
                     </SurfacePill>
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    列表默认抓取最近一页记录；需要更早记录时可继续向后加载。
-                  </p>
                 </div>
               </div>
 
@@ -696,12 +710,16 @@ export function ExecutionTrackerSettings() {
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      自动刷新
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      打开后会按固定周期静默同步，便于持续观察近期执行状态。
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        自动刷新
+                      </p>
+                      <WorkbenchInfoTip
+                        ariaLabel="自动刷新说明"
+                        content="打开后会按固定周期静默同步，便于持续观察近期执行状态。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
                   <Switch
                     checked={autoRefreshEnabled}

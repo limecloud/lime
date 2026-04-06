@@ -17,6 +17,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
@@ -190,13 +191,17 @@ function MemoryPanel({
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
+            {description ? (
+              <WorkbenchInfoTip
+                ariaLabel={`${title}说明`}
+                content={description}
+                tone="slate"
+              />
+            ) : null}
           </div>
-          {description ? (
-            <p className="text-sm leading-6 text-slate-500">{description}</p>
-          ) : null}
         </div>
         {aside ? <div className="flex flex-wrap items-center gap-2">{aside}</div> : null}
       </div>
@@ -232,10 +237,16 @@ function MultiSelectSection({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          {subtitle && (
-            <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+            {subtitle ? (
+              <WorkbenchInfoTip
+                ariaLabel={`${title}说明`}
+                content={subtitle}
+                tone="slate"
+              />
+            ) : null}
+          </div>
         </div>
         <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
           {badgeText}
@@ -277,13 +288,17 @@ function SummaryStat({
 }) {
   return (
     <div className="rounded-[20px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-        {label}
-      </p>
+      <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
+        <span>{label}</span>
+        <WorkbenchInfoTip
+          ariaLabel={`${label}说明`}
+          content={description}
+          tone="slate"
+        />
+      </div>
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
 }
@@ -676,13 +691,16 @@ export function MemorySettings() {
               MEMORY SNAPSHOT
             </span>
             <div className="space-y-2">
-              <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                让记忆真正参与上下文
-              </p>
-              <p className="max-w-2xl text-sm leading-7 text-slate-600">
-                这页负责管理用户画像、三层记忆来源与自动记忆入口。目标不是堆更多配置，
-                而是让代理在长期使用里更稳定地理解你的背景与偏好。
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
+                  让记忆真正参与上下文
+                </p>
+                <WorkbenchInfoTip
+                  ariaLabel="记忆快照说明"
+                  content="这页负责管理用户画像、三层记忆来源与自动记忆入口。目标不是堆更多配置，而是让代理在长期使用里更稳定地理解你的背景与偏好。"
+                  tone="mint"
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -709,13 +727,15 @@ export function MemorySettings() {
           <article className="flex h-full flex-col rounded-[26px] border border-white/90 bg-white/84 p-5 shadow-sm shadow-slate-950/5 backdrop-blur-[2px]">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
                   <Brain className="h-4 w-4 text-sky-600" />
                   记忆控制台
+                  <WorkbenchInfoTip
+                    ariaLabel="记忆控制台说明"
+                    content="统一管理开关、保存动作与核心状态摘要。"
+                    tone="slate"
+                  />
                 </div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  统一管理开关、保存动作与核心状态摘要。
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -740,10 +760,14 @@ export function MemorySettings() {
 
             <div className="mt-5 flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50/70 px-4 py-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">启用记忆</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  启用对话记忆功能，以便更好地理解上下文。
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">启用记忆</p>
+                  <WorkbenchInfoTip
+                    ariaLabel="启用记忆说明"
+                    content="启用对话记忆功能，以便更好地理解上下文。"
+                    tone="slate"
+                  />
+                </div>
               </div>
               <Switch
                 aria-label="启用记忆"

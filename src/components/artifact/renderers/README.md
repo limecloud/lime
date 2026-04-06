@@ -1,6 +1,6 @@
 # Artifact 渲染器
 
-各类型 Artifact 的渲染器组件。
+各类型 Artifact 的渲染器组件。当前 `renderers/index.ts` 只保留注册相关公共入口，不再继续暴露单个 renderer 的聚合导出。
 
 ## 文件索引
 
@@ -41,7 +41,8 @@ registerLightweightRenderers();
 ### 导入单个渲染器
 
 ```typescript
-import { CodeRenderer, HtmlRenderer } from '@/components/artifact/renderers';
+import { CodeRenderer } from '@/components/artifact/renderers/CodeRenderer';
+import { HtmlRenderer } from '@/components/artifact/renderers/HtmlRenderer';
 ```
 
 ### 检查注册状态

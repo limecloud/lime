@@ -444,12 +444,6 @@ export const ToolButton = styled.button`
   }
 `;
 
-export const Divider = styled.div`
-  width: 1px;
-  height: 16px;
-  background-color: rgba(148, 163, 184, 0.28);
-`;
-
 export const InputIconButton = styled.button<{
   $primary?: boolean;
   $destructive?: boolean;

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -78,10 +79,16 @@ export function MediaPreferenceSection({
     <div className="space-y-5 rounded-[24px] border border-slate-200/80 bg-white/95 p-5 shadow-sm shadow-slate-950/5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold tracking-tight text-slate-900">
-            {title}
-          </h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold tracking-tight text-slate-900">
+              {title}
+            </h3>
+            <WorkbenchInfoTip
+              ariaLabel={`${title}说明`}
+              content={description}
+              tone="slate"
+            />
+          </div>
         </div>
         {onReset ? (
           <Button
@@ -98,8 +105,15 @@ export function MediaPreferenceSection({
       </div>
 
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">
-          {providerLabel}
+        <Label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <span>{providerLabel}</span>
+          {emptyHint ? (
+            <WorkbenchInfoTip
+              ariaLabel={`${providerLabel}说明`}
+              content={emptyHint}
+              tone="slate"
+            />
+          ) : null}
         </Label>
         <Select
           value={providerValue}
@@ -123,14 +137,16 @@ export function MediaPreferenceSection({
             ))}
           </SelectContent>
         </Select>
-        {emptyHint ? (
-          <p className="text-xs leading-5 text-slate-500">{emptyHint}</p>
-        ) : null}
       </div>
 
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-slate-700">
-          {modelLabel}
+        <Label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <span>{modelLabel}</span>
+          <WorkbenchInfoTip
+            ariaLabel={`${modelLabel}说明`}
+            content={modelHint}
+            tone="slate"
+          />
         </Label>
         <Select
           value={modelValue}
@@ -154,17 +170,18 @@ export function MediaPreferenceSection({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs leading-5 text-slate-500">{modelHint}</p>
       </div>
 
       <div className="flex items-center justify-between rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4">
         <div className="space-y-1">
-          <Label className="text-sm font-medium text-slate-800">
-            {fallbackTitle}
+          <Label className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <span>{fallbackTitle}</span>
+            <WorkbenchInfoTip
+              ariaLabel={`${fallbackTitle}说明`}
+              content={fallbackDescription}
+              tone="slate"
+            />
           </Label>
-          <p className="text-xs leading-5 text-slate-500">
-            {fallbackDescription}
-          </p>
         </div>
         <Switch
           checked={allowFallback}

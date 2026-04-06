@@ -30,6 +30,29 @@ pub(crate) struct ServiceSkillLaunchPreloadExecution {
     pub(crate) result: SiteAdapterRunResult,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ServiceSceneLaunchOemRuntimeContext {
+    pub(crate) scene_base_url: Option<String>,
+    pub(crate) tenant_id: Option<String>,
+    pub(crate) session_token: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ServiceSceneLaunchContext {
+    pub(crate) raw_text: Option<String>,
+    pub(crate) user_input: Option<String>,
+    pub(crate) scene_key: Option<String>,
+    pub(crate) command_prefix: Option<String>,
+    pub(crate) service_skill_id: String,
+    pub(crate) service_skill_key: Option<String>,
+    pub(crate) skill_title: Option<String>,
+    pub(crate) skill_summary: Option<String>,
+    pub(crate) project_id: Option<String>,
+    pub(crate) content_id: Option<String>,
+    pub(crate) entry_source: Option<String>,
+    pub(crate) oem_runtime: ServiceSceneLaunchOemRuntimeContext,
+}
+
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
     keys: &[&str],
@@ -46,6 +69,38 @@ fn normalized_optional_object(
     value: Option<&serde_json::Value>,
 ) -> Option<&serde_json::Map<String, serde_json::Value>> {
     value.and_then(serde_json::Value::as_object)
+}
+
+fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {
+    let Some(root) = value.as_object_mut() else {
+        return;
+    };
+    let harness = if root.contains_key("harness") {
+        match root
+            .get_mut("harness")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            Some(harness) => harness,
+            None => return,
+        }
+    } else {
+        root
+    };
+
+    let has_launch = launch_keys.iter().any(|key| {
+        harness
+            .get(*key)
+            .and_then(serde_json::Value::as_object)
+            .is_some()
+    });
+    if !has_launch {
+        return;
+    }
+
+    harness.insert(
+        "chat_mode".to_string(),
+        serde_json::Value::String("workbench".to_string()),
+    );
 }
 
 pub(crate) fn extract_service_skill_launch_site_adapter_context(
@@ -88,6 +143,71 @@ pub(crate) fn extract_service_skill_launch_site_adapter_context(
         save_title: extract_object_string(launch, &["save_title", "saveTitle"]),
         skill_title: extract_object_string(launch, &["skill_title", "skillTitle"]),
     })
+}
+
+pub(crate) fn extract_service_scene_launch_context(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<ServiceSceneLaunchContext> {
+    let launch = extract_harness_nested_object(
+        request_metadata,
+        &["service_scene_launch", "serviceSceneLaunch"],
+    )?;
+    let kind =
+        extract_object_string(launch, &["kind"]).unwrap_or_else(|| "cloud_scene".to_string());
+    if kind != "cloud_scene" {
+        return None;
+    }
+
+    let service_scene_run = launch
+        .get("service_scene_run")
+        .or_else(|| launch.get("serviceSceneRun"))
+        .and_then(serde_json::Value::as_object)?;
+    let service_skill_id = extract_object_string(
+        service_scene_run,
+        &["skill_id", "skillId", "linked_skill_id", "linkedSkillId"],
+    )?;
+    let oem_runtime = service_scene_run
+        .get("oem_runtime")
+        .or_else(|| service_scene_run.get("oemRuntime"))
+        .and_then(serde_json::Value::as_object);
+
+    Some(ServiceSceneLaunchContext {
+        raw_text: extract_object_string(service_scene_run, &["raw_text", "rawText"]),
+        user_input: extract_object_string(service_scene_run, &["user_input", "userInput"]),
+        scene_key: extract_object_string(service_scene_run, &["scene_key", "sceneKey"]),
+        command_prefix: extract_object_string(
+            service_scene_run,
+            &["command_prefix", "commandPrefix"],
+        ),
+        service_skill_id,
+        service_skill_key: extract_object_string(service_scene_run, &["skill_key", "skillKey"]),
+        skill_title: extract_object_string(service_scene_run, &["skill_title", "skillTitle"]),
+        skill_summary: extract_object_string(service_scene_run, &["skill_summary", "skillSummary"]),
+        project_id: extract_object_string(service_scene_run, &["project_id", "projectId"]),
+        content_id: extract_object_string(service_scene_run, &["content_id", "contentId"]),
+        entry_source: extract_object_string(service_scene_run, &["entry_source", "entrySource"]),
+        oem_runtime: ServiceSceneLaunchOemRuntimeContext {
+            scene_base_url: oem_runtime.and_then(|value| {
+                extract_object_string(value, &["scene_base_url", "sceneBaseUrl"])
+            }),
+            tenant_id: oem_runtime
+                .and_then(|value| extract_object_string(value, &["tenant_id", "tenantId"])),
+            session_token: oem_runtime
+                .and_then(|value| extract_object_string(value, &["session_token", "sessionToken"])),
+        },
+    })
+}
+
+pub(crate) fn prepare_service_scene_launch_request_metadata(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let mut metadata = request_metadata.cloned()?;
+    ensure_harness_workbench_chat_mode(
+        &mut metadata,
+        &["service_scene_launch", "serviceSceneLaunch"],
+    );
+
+    Some(metadata)
 }
 
 pub(crate) fn should_lock_service_skill_launch_to_site_tools(

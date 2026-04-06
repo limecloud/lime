@@ -34,6 +34,16 @@ export interface ContextWorkspaceSummary {
   prepareActiveContextPrompt: () => Promise<string>;
 }
 
+type PreparedActiveContextPromptResult =
+  | {
+      ok: true;
+      value: string;
+    }
+  | {
+      ok: false;
+      error: unknown;
+    };
+
 function asRecord(
   value: unknown,
 ): Record<string, unknown> | undefined {
@@ -167,6 +177,7 @@ interface BuildWorkspaceSendTextOptions {
   contextWorkspace: ContextWorkspaceSummary;
   mentionedCharacters: Character[];
   sendOptions?: HandleSendOptions;
+  preparedActiveContextPrompt?: Promise<PreparedActiveContextPromptResult> | null;
 }
 
 interface PrimeBrowserAssistBeforeSendOptions {
@@ -256,22 +267,35 @@ function applyMentionedCharacterContext(
 export async function buildWorkspaceSendText(
   options: BuildWorkspaceSendTextOptions,
 ): Promise<string> {
-  const { sourceText, contextWorkspace, mentionedCharacters } = options;
+  const {
+    sourceText,
+    contextWorkspace,
+    mentionedCharacters,
+    preparedActiveContextPrompt: preparedActiveContextPromptPromise,
+  } = options;
 
   let text = sourceText;
-  let preparedActiveContextPrompt = contextWorkspace.enabled
+  let activeContextPrompt = contextWorkspace.enabled
     ? contextWorkspace.activeContextPrompt.trim()
     : "";
-  if (!preparedActiveContextPrompt && contextWorkspace.enabled) {
-    preparedActiveContextPrompt =
-      (await contextWorkspace.prepareActiveContextPrompt()).trim();
-  } else if (preparedActiveContextPrompt) {
+  if (!activeContextPrompt && contextWorkspace.enabled) {
+    if (preparedActiveContextPromptPromise) {
+      const result = await preparedActiveContextPromptPromise;
+      if (!result.ok) {
+        throw result.error;
+      }
+      activeContextPrompt = result.value.trim();
+    } else {
+      activeContextPrompt =
+        (await contextWorkspace.prepareActiveContextPrompt()).trim();
+    }
+  } else if (activeContextPrompt) {
     // 发送路径优先使用现成上下文快照，后台继续补齐正文缓存以优化后续轮次。
     void contextWorkspace.prepareActiveContextPrompt().catch(() => undefined);
   }
 
-  if (preparedActiveContextPrompt) {
-    text = applyActiveContextPrompt(text, preparedActiveContextPrompt);
+  if (activeContextPrompt) {
+    text = applyActiveContextPrompt(text, activeContextPrompt);
   }
 
   text = applyMentionedCharacterContext(text, mentionedCharacters);
@@ -295,6 +319,57 @@ export function hasServiceSkillLaunchRequestMetadata(
 
   const adapterName = launch.adapter_name ?? launch.adapterName;
   return typeof adapterName === "string" && adapterName.trim().length > 0;
+}
+
+export function hasModelSkillLaunchRequestMetadata(
+  requestMetadata?: Record<string, unknown>,
+): boolean {
+  const harness = extractExistingHarnessMetadata(requestMetadata);
+  if (!harness) {
+    return false;
+  }
+
+  const launchKeys = [
+    "image_skill_launch",
+    "imageSkillLaunch",
+    "cover_skill_launch",
+    "coverSkillLaunch",
+    "video_skill_launch",
+    "videoSkillLaunch",
+    "broadcast_skill_launch",
+    "broadcastSkillLaunch",
+    "resource_search_skill_launch",
+    "resourceSearchSkillLaunch",
+    "research_skill_launch",
+    "researchSkillLaunch",
+    "report_skill_launch",
+    "reportSkillLaunch",
+    "deep_search_skill_launch",
+    "deepSearchSkillLaunch",
+    "site_search_skill_launch",
+    "siteSearchSkillLaunch",
+    "pdf_read_skill_launch",
+    "pdfReadSkillLaunch",
+    "summary_skill_launch",
+    "summarySkillLaunch",
+    "translation_skill_launch",
+    "translationSkillLaunch",
+    "analysis_skill_launch",
+    "analysisSkillLaunch",
+    "transcription_skill_launch",
+    "transcriptionSkillLaunch",
+    "url_parse_skill_launch",
+    "urlParseSkillLaunch",
+    "typesetting_skill_launch",
+    "typesettingSkillLaunch",
+    "service_scene_launch",
+    "serviceSceneLaunch",
+  ] as const;
+
+  return launchKeys.some((key) => {
+    const launch = asRecord(harness[key]);
+    return Boolean(launch && Object.keys(launch).length > 0);
+  });
 }
 
 export function primeBrowserAssistBeforeSend(
@@ -407,7 +482,7 @@ export function buildWorkspaceRequestMetadata(
         subagent: effectiveToolPreferences.subagent,
       },
       accessMode,
-      sessionMode: isThemeWorkbench ? "theme_workbench" : "default",
+      sessionMode: isThemeWorkbench ? "general_workbench" : "default",
       gateKey: isThemeWorkbench ? currentGateKey : undefined,
       runTitle: themeWorkbenchActiveQueueTitle?.trim() || undefined,
       contentId: contentId || undefined,

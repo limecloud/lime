@@ -81,6 +81,7 @@ export interface SidebarActivityLog {
 }
 
 export interface ThemeContextWorkspaceState {
+  generalWorkbenchEnabled: boolean;
   enabled: boolean;
   contextSearchQuery: string;
   setContextSearchQuery: (value: string) => void;
@@ -1158,6 +1159,7 @@ export function useThemeContextWorkspace({
   );
 
   return {
+    generalWorkbenchEnabled: enabled,
     enabled,
     contextSearchQuery,
     setContextSearchQuery,

@@ -18,9 +18,6 @@ export type TaskStatus = "draft" | "running" | "waiting" | "done" | "failed";
 export type TaskStatusReason =
   | "default"
   | "workspace_error"
-  | "browser_launching"
-  | "browser_awaiting_user"
-  | "browser_failed"
   | "user_action"
   | "tool_failure";
 
@@ -197,14 +194,6 @@ function extractActionRequestPreview(message: Message): string {
     return "";
   }
 
-  if (pendingAction.uiKind === "browser_preflight") {
-    return normalizeTaskPreviewText(
-      pendingAction.detail ||
-        pendingAction.prompt ||
-        "等待你启动或恢复浏览器后继续执行。",
-    );
-  }
-
   const questionText = pendingAction.questions
     ?.map((question) => question.question || question.header || "")
     .join(" ");
@@ -230,24 +219,9 @@ function resolveLatestPendingAction(messages: Message[]) {
 }
 
 function resolvePendingActionStatusReason(
-  pendingAction: NonNullable<ReturnType<typeof resolveLatestPendingAction>>,
+  _pendingAction: NonNullable<ReturnType<typeof resolveLatestPendingAction>>,
 ): TaskStatusReason {
-  if (pendingAction.uiKind !== "browser_preflight") {
-    return "user_action";
-  }
-
-  if (pendingAction.browserPrepState === "launching") {
-    return "browser_launching";
-  }
-
-  if (
-    pendingAction.browserPrepState === "awaiting_user" ||
-    pendingAction.browserPrepState === "ready_to_resume"
-  ) {
-    return "browser_awaiting_user";
-  }
-
-  return "browser_failed";
+  return "user_action";
 }
 
 export function extractTaskPreviewFromMessages(messages: Message[]): string {

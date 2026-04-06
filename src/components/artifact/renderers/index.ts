@@ -1,6 +1,6 @@
 /**
  * @file Artifact 渲染器导出入口
- * @description 导出所有轻量渲染器并提供注册函数，将渲染器注册到 ArtifactRegistry
+ * @description 对外仅暴露轻量渲染器注册边界，具体渲染器实现保持文件级入口
  * @module components/artifact/renderers
  * @requirements 3.1
  */
@@ -9,19 +9,6 @@ import { lazy } from "react";
 import { artifactRegistry } from "@/lib/artifact/registry";
 import type { RendererEntry, ArtifactType } from "@/lib/artifact/types";
 import { DocumentRenderer } from "./DocumentRenderer";
-
-// ============================================================================
-// 渲染器组件导出
-// ============================================================================
-
-export { CodeRenderer } from "./CodeRenderer";
-export { ArtifactDocumentRenderer } from "./ArtifactDocumentRenderer";
-export { DocumentRenderer } from "./DocumentRenderer";
-export { HtmlRenderer } from "./HtmlRenderer";
-export { SvgRenderer } from "./SvgRenderer";
-export { MermaidRenderer } from "./MermaidRenderer";
-export { ReactRenderer } from "./ReactRenderer";
-export { BrowserAssistRenderer } from "./BrowserAssistRenderer";
 
 // ============================================================================
 // 懒加载渲染器组件
@@ -149,16 +136,6 @@ export function registerLightweightRenderers(): void {
   for (const entry of LIGHTWEIGHT_RENDERER_ENTRIES) {
     artifactRegistry.register(entry);
   }
-}
-
-/**
- * 获取所有轻量渲染器注册项
- * 用于调试或自定义注册逻辑
- *
- * @returns 轻量渲染器注册项列表
- */
-export function getLightweightRendererEntries(): RendererEntry[] {
-  return [...LIGHTWEIGHT_RENDERER_ENTRIES];
 }
 
 /**

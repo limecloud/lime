@@ -279,6 +279,31 @@ function findButton(container: HTMLElement, text: string) {
   return button as HTMLButtonElement;
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -338,6 +363,29 @@ afterEach(() => {
 });
 
 describe("CloudProviderSettings", () => {
+  it("桌宠页应把 Companion 说明和桥接 hint 收进 tips", async () => {
+    await renderPage({ initialView: "companion" });
+
+    expect(getBodyText()).not.toContain(
+      "桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态",
+    );
+    expect(getBodyText()).not.toContain(
+      "Lime 负责本地 Companion 宿主，桌宠作为独立原生壳接入。",
+    );
+
+    const introTip = await hoverTip("桌宠 Companion 说明");
+    expect(getBodyText()).toContain(
+      "桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态",
+    );
+    await leaveTip(introTip);
+
+    const bridgeTip = await hoverTip("桥接状态说明");
+    expect(getBodyText()).toContain(
+      "Lime 负责本地 Companion 宿主，桌宠作为独立原生壳接入。",
+    );
+    await leaveTip(bridgeTip);
+  });
+
   it("默认应直接进入本地 Provider 主区，并保持切换器激活态清晰", async () => {
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({

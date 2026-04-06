@@ -28,7 +28,7 @@ struct SocialSkillOutputEnvelope {
     file_content: String,
 }
 
-pub fn infer_theme_workbench_gate_key(skill_name: &str, user_input: &str) -> &'static str {
+pub fn infer_general_workbench_gate_key(skill_name: &str, user_input: &str) -> &'static str {
     let probe = format!("{} {}", skill_name, user_input).to_lowercase();
     if probe.contains("publish")
         || probe.contains("adapt")

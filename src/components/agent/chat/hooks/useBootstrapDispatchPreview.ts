@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import type { BrowserTaskPreflight } from "./handleSendTypes";
 import type { Message, MessageImage } from "../types";
 
 export interface InitialDispatchPreviewSnapshot {
@@ -11,12 +10,11 @@ export interface InitialDispatchPreviewSnapshot {
 interface UseBootstrapDispatchPreviewOptions {
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
-  browserTaskPreflight?: BrowserTaskPreflight | null;
   messagesCount: number;
   isSending: boolean;
   queuedTurnCount: number;
   consumedInitialPromptKey?: string | null;
-  shouldUseCompactThemeWorkbench?: boolean;
+  shouldUseCompactGeneralWorkbench?: boolean;
 }
 
 export function buildInitialDispatchKey(
@@ -80,12 +78,11 @@ export function buildInitialDispatchPreviewMessages(
 export function useBootstrapDispatchPreview({
   initialUserPrompt,
   initialUserImages,
-  browserTaskPreflight,
   messagesCount,
   isSending,
   queuedTurnCount,
   consumedInitialPromptKey,
-  shouldUseCompactThemeWorkbench = false,
+  shouldUseCompactGeneralWorkbench = false,
 }: UseBootstrapDispatchPreviewOptions) {
   const initialDispatchKey = useMemo(
     () => buildInitialDispatchKey(initialUserPrompt, initialUserImages),
@@ -140,15 +137,11 @@ export function useBootstrapDispatchPreview({
   const isBootstrapDispatchPending =
     activeBootstrapDispatch !== null &&
     consumedInitialPromptKey !== activeBootstrapDispatch.key;
-  const bootstrapDispatchPreviewDetail =
-    browserTaskPreflight?.detail?.trim() || undefined;
   const shouldShowBootstrapDispatchPreview =
-    !shouldUseCompactThemeWorkbench &&
+    !shouldUseCompactGeneralWorkbench &&
     Boolean(activeBootstrapDispatch) &&
     messagesCount === 0 &&
-    (isSending ||
-      queuedTurnCount > 0 ||
-      Boolean(bootstrapDispatchPreviewDetail));
+    (isSending || queuedTurnCount > 0);
   const bootstrapDispatchPreviewMessages = useMemo(() => {
     if (!shouldShowBootstrapDispatchPreview || !activeBootstrapDispatch) {
       return [] as Message[];
@@ -158,13 +151,8 @@ export function useBootstrapDispatchPreview({
       activeBootstrapDispatch.key,
       activeBootstrapDispatch.prompt,
       activeBootstrapDispatch.images,
-      bootstrapDispatchPreviewDetail,
     );
-  }, [
-    activeBootstrapDispatch,
-    bootstrapDispatchPreviewDetail,
-    shouldShowBootstrapDispatchPreview,
-  ]);
+  }, [activeBootstrapDispatch, shouldShowBootstrapDispatchPreview]);
 
   return {
     initialDispatchKey,

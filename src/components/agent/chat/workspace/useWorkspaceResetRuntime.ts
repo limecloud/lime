@@ -4,7 +4,6 @@ import { DEFAULT_CANVAS_STATE } from "@/components/general-chat/bridge";
 import type { CreationMode, LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { TaskFile } from "../components/TaskFiles";
-import type { BrowserTaskPreflight } from "../hooks/handleSendTypes";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import type { Project } from "@/lib/api/project";
 import type { Character, ProjectMemory } from "@/lib/api/memory";
@@ -44,9 +43,6 @@ interface UseWorkspaceResetRuntimeParams {
   setGeneralCanvasState: Dispatch<SetStateAction<typeof DEFAULT_CANVAS_STATE>>;
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
   setSelectedFileId: Dispatch<SetStateAction<string | undefined>>;
-  setBrowserTaskPreflight: Dispatch<
-    SetStateAction<BrowserTaskPreflight | null>
-  >;
   setMentionedCharacters: Dispatch<SetStateAction<Character[]>>;
   setProject: Dispatch<SetStateAction<Project | null>>;
   setProjectMemory: Dispatch<SetStateAction<ProjectMemory | null>>;
@@ -82,7 +78,6 @@ export function useWorkspaceResetRuntime({
   setGeneralCanvasState,
   setTaskFiles,
   setSelectedFileId,
-  setBrowserTaskPreflight,
   setMentionedCharacters,
   setProject,
   setProjectMemory,
@@ -108,7 +103,6 @@ export function useWorkspaceResetRuntime({
   const resetTopicLocalState = useCallback(() => {
     resetWorkbenchSurface();
     clearRuntimeTeamState();
-    setBrowserTaskPreflight(null);
     resetRestoredSessionState();
     resetGuideState();
   }, [
@@ -116,7 +110,6 @@ export function useWorkspaceResetRuntime({
     resetGuideState,
     resetRestoredSessionState,
     resetWorkbenchSurface,
-    setBrowserTaskPreflight,
   ]);
 
   const handleBackHome = useCallback(() => {
@@ -163,7 +156,6 @@ export function useWorkspaceResetRuntime({
     });
     setInput("");
     setSelectedText("");
-    setBrowserTaskPreflight(null);
     autoCollapsedTopicSidebarRef.current = false;
     setShowSidebar(defaultTopicSidebarVisible);
     resetWorkbenchSurface();
@@ -222,7 +214,6 @@ export function useWorkspaceResetRuntime({
     resetRestoredSessionState,
     resetWorkbenchSurface,
     setActiveTheme,
-    setBrowserTaskPreflight,
     setCreationMode,
     setInput,
     setMentionedCharacters,

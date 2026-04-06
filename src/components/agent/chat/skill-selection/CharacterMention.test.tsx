@@ -412,6 +412,10 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("@修图");
     expect(document.body.textContent).toContain("@重绘");
     expect(document.body.textContent).toContain("@视频");
+    expect(document.body.textContent).toContain("@播报");
+    expect(document.body.textContent).toContain("@素材");
+    expect(document.body.textContent).toContain("@研报");
+    expect(document.body.textContent).toContain("@读PDF");
     expect(document.body.textContent).toContain("@转写");
     expect(document.body.textContent).toContain("@链接解析");
   });
@@ -547,6 +551,276 @@ describe("CharacterMention", () => {
       expect.objectContaining({
         key: "video_generate",
         commandPrefix: "@视频",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择播报命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@播报"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "broadcast_generate",
+        commandPrefix: "@播报",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择素材命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@素材"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "modal_resource_search",
+        commandPrefix: "@素材",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择搜索命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@搜索"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "research",
+        commandPrefix: "@搜索",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择深搜命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@深搜"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "deep_search",
+        commandPrefix: "@深搜",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择研报命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@研报"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "research_report",
+        commandPrefix: "@研报",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择站点搜索命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@站点搜索"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "site_search",
+        commandPrefix: "@站点搜索",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择读PDF命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@读PDF"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "read_pdf",
+        commandPrefix: "@读PDF",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择总结命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@总结"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "summary",
+        commandPrefix: "@总结",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择翻译命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@翻译"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "translation",
+        commandPrefix: "@翻译",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择分析命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@分析"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "analysis",
+        commandPrefix: "@分析",
       }),
     );
   });

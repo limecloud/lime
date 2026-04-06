@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { createInitialCanvasState, type CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import {
@@ -33,7 +41,6 @@ interface UseWorkspaceCanvasLayoutRuntimeParams {
   hasCurrentCanvasArtifact: boolean;
   currentCanvasArtifactType?: string | null;
   currentImageWorkbenchActive: boolean;
-  isBrowserAssistCanvasVisible: boolean;
   onHasMessagesChange?: (hasMessages: boolean) => void;
   dismissActiveTeamWorkbenchAutoOpen: () => void;
   suppressGeneralCanvasArtifactAutoOpen: () => void;
@@ -68,7 +75,6 @@ export function useWorkspaceCanvasLayoutRuntime({
   hasCurrentCanvasArtifact,
   currentCanvasArtifactType,
   currentImageWorkbenchActive,
-  isBrowserAssistCanvasVisible,
   onHasMessagesChange,
   dismissActiveTeamWorkbenchAutoOpen,
   suppressGeneralCanvasArtifactAutoOpen,
@@ -79,6 +85,8 @@ export function useWorkspaceCanvasLayoutRuntime({
   setCanvasState,
   setCanvasWorkbenchLayoutMode,
 }: UseWorkspaceCanvasLayoutRuntimeParams) {
+  const previousThemeWorkbenchStateRef = useRef(false);
+
   useEffect(() => {
     autoCollapsedTopicSidebarRef.current = false;
     setShowSidebar(defaultTopicSidebarVisible);
@@ -165,6 +173,22 @@ export function useWorkspaceCanvasLayoutRuntime({
   ]);
 
   useEffect(() => {
+    const wasThemeWorkbench = previousThemeWorkbenchStateRef.current;
+    previousThemeWorkbenchStateRef.current = isThemeWorkbench;
+
+    if (
+      !isThemeWorkbench ||
+      wasThemeWorkbench ||
+      !showChatPanel ||
+      hasPendingA2UIForm
+    ) {
+      return;
+    }
+
+    setShowSidebar(true);
+  }, [hasPendingA2UIForm, isThemeWorkbench, setShowSidebar, showChatPanel]);
+
+  useEffect(() => {
     if (!hasPendingA2UIForm) {
       return;
     }
@@ -222,8 +246,7 @@ export function useWorkspaceCanvasLayoutRuntime({
 
     if (
       !hasCurrentCanvasArtifact &&
-      !currentImageWorkbenchActive &&
-      !isBrowserAssistCanvasVisible
+      !currentImageWorkbenchActive
     ) {
       return;
     }
@@ -235,19 +258,18 @@ export function useWorkspaceCanvasLayoutRuntime({
     activeTheme,
     currentImageWorkbenchActive,
     hasCurrentCanvasArtifact,
-    isBrowserAssistCanvasVisible,
     setGeneralCanvasState,
   ]);
 
   useEffect(() => {
     if (
+      isThemeWorkbench ||
       activeTheme !== "general" ||
       !showChatPanel ||
       layoutMode === "chat" ||
       showTeamWorkspaceBoard ||
       hasCurrentCanvasArtifact ||
-      currentImageWorkbenchActive ||
-      isBrowserAssistCanvasVisible
+      currentImageWorkbenchActive
     ) {
       return;
     }
@@ -262,7 +284,7 @@ export function useWorkspaceCanvasLayoutRuntime({
     currentImageWorkbenchActive,
     generalCanvasState,
     hasCurrentCanvasArtifact,
-    isBrowserAssistCanvasVisible,
+    isThemeWorkbench,
     layoutMode,
     setLayoutMode,
     showChatPanel,
@@ -320,7 +342,7 @@ export function useWorkspaceCanvasLayoutRuntime({
   }, [setShowSidebar, showChatPanel]);
 
   const handleToggleCanvas = useCallback(() => {
-    if (activeTheme === "general") {
+    if (activeTheme === "general" && !isThemeWorkbench) {
       const shouldManageStandaloneGeneralCanvas =
         !showTeamWorkspaceBoard &&
         !hasCurrentCanvasArtifact &&
@@ -329,9 +351,6 @@ export function useWorkspaceCanvasLayoutRuntime({
       if (layoutMode !== "chat") {
         dismissActiveTeamWorkbenchAutoOpen();
         suppressGeneralCanvasArtifactAutoOpen();
-        if (isBrowserAssistCanvasVisible) {
-          suppressBrowserAssistCanvasAutoOpen();
-        }
         if (shouldManageStandaloneGeneralCanvas) {
           setGeneralCanvasState((previous) => ({ ...previous, isOpen: false }));
         }
@@ -371,14 +390,13 @@ export function useWorkspaceCanvasLayoutRuntime({
     currentImageWorkbenchActive,
     dismissActiveTeamWorkbenchAutoOpen,
     hasCurrentCanvasArtifact,
-    isBrowserAssistCanvasVisible,
+    isThemeWorkbench,
     layoutMode,
     mappedTheme,
     setCanvasState,
     setGeneralCanvasState,
     setLayoutMode,
     showTeamWorkspaceBoard,
-    suppressBrowserAssistCanvasAutoOpen,
     suppressGeneralCanvasArtifactAutoOpen,
   ]);
 

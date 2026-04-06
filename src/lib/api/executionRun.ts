@@ -26,7 +26,7 @@ export interface AgentRun {
   updated_at: string;
 }
 
-export interface ThemeWorkbenchRunTodoItem {
+export interface GeneralWorkbenchRunTodoItem {
   run_id: string;
   execution_id?: string | null;
   session_id?: string | null;
@@ -39,7 +39,7 @@ export interface ThemeWorkbenchRunTodoItem {
   started_at: string;
 }
 
-export interface ThemeWorkbenchRunTerminalItem {
+export interface GeneralWorkbenchRunTerminalItem {
   run_id: string;
   execution_id?: string | null;
   session_id?: string | null;
@@ -53,7 +53,7 @@ export interface ThemeWorkbenchRunTerminalItem {
   finished_at: string | null;
 }
 
-export interface ThemeWorkbenchRunState {
+export interface GeneralWorkbenchRunState {
   run_state: "idle" | "auto_running";
   current_gate_key?:
     | "idle"
@@ -61,14 +61,14 @@ export interface ThemeWorkbenchRunState {
     | "write_mode"
     | "publish_confirm"
     | null;
-  queue_items: ThemeWorkbenchRunTodoItem[];
-  latest_terminal: ThemeWorkbenchRunTerminalItem | null;
-  recent_terminals?: ThemeWorkbenchRunTerminalItem[] | null;
+  queue_items: GeneralWorkbenchRunTodoItem[];
+  latest_terminal: GeneralWorkbenchRunTerminalItem | null;
+  recent_terminals?: GeneralWorkbenchRunTerminalItem[] | null;
   updated_at: string;
 }
 
-export interface ThemeWorkbenchRunHistoryPage {
-  items: ThemeWorkbenchRunTerminalItem[];
+export interface GeneralWorkbenchRunHistoryPage {
+  items: GeneralWorkbenchRunTerminalItem[];
   has_more: boolean;
   next_offset: number | null;
 }
@@ -86,23 +86,23 @@ export async function executionRunGet(
   return await safeInvoke("execution_run_get", { runId });
 }
 
-export async function executionRunGetThemeWorkbenchState(
+export async function executionRunGetGeneralWorkbenchState(
   sessionId: string,
   limit: number = 3,
-): Promise<ThemeWorkbenchRunState> {
-  return await safeInvoke("execution_run_get_theme_workbench_state", {
+): Promise<GeneralWorkbenchRunState> {
+  return await safeInvoke("execution_run_get_general_workbench_state", {
     sessionId,
     session_id: sessionId,
     limit,
   });
 }
 
-export async function executionRunListThemeWorkbenchHistory(
+export async function executionRunListGeneralWorkbenchHistory(
   sessionId: string,
   limit: number = 20,
   offset: number = 0,
-): Promise<ThemeWorkbenchRunHistoryPage> {
-  return await safeInvoke("execution_run_list_theme_workbench_history", {
+): Promise<GeneralWorkbenchRunHistoryPage> {
+  return await safeInvoke("execution_run_list_general_workbench_history", {
     sessionId,
     session_id: sessionId,
     limit,

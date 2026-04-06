@@ -4,10 +4,8 @@ import {
   ArtifactRenderer,
   ArtifactToolbar,
 } from "@/components/artifact";
-import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
 import { cn } from "@/lib/utils";
-import type { AgentThreadItem } from "../types";
 import type {
   ArtifactBlockRewriteCompletion,
   ArtifactBlockRewriteRunPayload,
@@ -16,7 +14,6 @@ import {
   ArtifactWorkbenchEditSurface,
   type EditableArtifactBlockDraft,
   type ArtifactWorkbenchDocumentController,
-  useArtifactWorkbenchDocumentController,
 } from "./artifactWorkbenchDocument";
 
 interface ArtifactWorkbenchShellProps {
@@ -32,20 +29,12 @@ interface ArtifactWorkbenchShellProps {
   onPreviewSizeChange: NonNullable<
     React.ComponentProps<typeof ArtifactToolbar>["onPreviewSizeChange"]
   >;
-  onSaveArtifactDocument?: (
-    artifact: Artifact,
-    document: ArtifactDocumentV1,
-  ) => Promise<void> | void;
   onArtifactBlockRewriteRun?: (
     payload: ArtifactBlockRewriteRunPayload,
   ) => Promise<ArtifactBlockRewriteCompletion> | ArtifactBlockRewriteCompletion | void;
-  threadItems?: AgentThreadItem[];
-  focusedBlockId?: string | null;
-  blockFocusRequestKey?: number;
-  onJumpToTimelineItem?: (itemId: string) => void;
   onCloseCanvas: () => void;
   actionsSlot?: React.ReactNode;
-  documentController?: ArtifactWorkbenchDocumentController | null;
+  documentController: ArtifactWorkbenchDocumentController;
 }
 
 function ArtifactWorkbenchShellLayout({
@@ -59,19 +48,9 @@ function ArtifactWorkbenchShellLayout({
   onPreviewSizeChange,
   onCloseCanvas,
   actionsSlot,
-  controller,
+  documentController: controller,
   onArtifactBlockRewriteRun,
-}: Omit<
-  ArtifactWorkbenchShellProps,
-  | "onSaveArtifactDocument"
-  | "threadItems"
-  | "focusedBlockId"
-  | "blockFocusRequestKey"
-  | "onJumpToTimelineItem"
-  | "documentController"
-> & {
-  controller: ArtifactWorkbenchDocumentController;
-}) {
+}: ArtifactWorkbenchShellProps) {
   const handleBlockRewriteRun = React.useCallback(
     async ({
       draft,
@@ -167,58 +146,7 @@ function ArtifactWorkbenchShellLayout({
     </div>
   );
 }
-
-const LocalArtifactWorkbenchShell = ({
-  artifact,
-  artifactOverlay,
-  isStreaming,
-  showPreviousVersionBadge,
-  viewMode,
-  onViewModeChange,
-  previewSize,
-  onPreviewSizeChange,
-  onSaveArtifactDocument,
-  onArtifactBlockRewriteRun,
-  threadItems = [],
-  focusedBlockId = null,
-  blockFocusRequestKey = 0,
-  onJumpToTimelineItem,
-  onCloseCanvas,
-  actionsSlot,
-}: Omit<ArtifactWorkbenchShellProps, "documentController">) => {
-  const controller = useArtifactWorkbenchDocumentController({
-    artifact,
-    onSaveArtifactDocument,
-    threadItems,
-    focusedBlockId,
-    blockFocusRequestKey,
-    onJumpToTimelineItem,
-  });
-
-  return (
-    <ArtifactWorkbenchShellLayout
-      artifact={artifact}
-      artifactOverlay={artifactOverlay}
-      isStreaming={isStreaming}
-      showPreviousVersionBadge={showPreviousVersionBadge}
-      viewMode={viewMode}
-      onViewModeChange={onViewModeChange}
-      previewSize={previewSize}
-      onPreviewSizeChange={onPreviewSizeChange}
-      onCloseCanvas={onCloseCanvas}
-      actionsSlot={actionsSlot}
-      controller={controller}
-      onArtifactBlockRewriteRun={onArtifactBlockRewriteRun}
-    />
-  );
-};
-
 export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = memo(
-  ({ documentController, ...props }) =>
-    documentController ? (
-      <ArtifactWorkbenchShellLayout {...props} controller={documentController} />
-    ) : (
-      <LocalArtifactWorkbenchShell {...props} />
-    ),
+  (props) => <ArtifactWorkbenchShellLayout {...props} />,
 );
 ArtifactWorkbenchShell.displayName = "ArtifactWorkbenchShell";

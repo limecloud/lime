@@ -155,7 +155,7 @@ interface ServiceSkillCatalogResponseEnvelope {
 }
 
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
-export const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
+const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
 const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-04";
 
@@ -1309,7 +1309,7 @@ export function getSeededServiceSkillCatalog(): ServiceSkillCatalog {
   return cloneServiceSkillCatalog(SEEDED_SERVICE_SKILL_CATALOG);
 }
 
-export function isSeededServiceSkillCatalog(
+function isSeededServiceSkillCatalog(
   catalog: ServiceSkillCatalog,
 ): boolean {
   return (

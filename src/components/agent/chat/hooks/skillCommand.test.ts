@@ -20,10 +20,9 @@ vi.mock("@/lib/dev-bridge", () => ({
 }));
 
 vi.mock("@/lib/api/agentProtocol", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
-      "@/lib/api/agentProtocol",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/agentProtocol")
+  >("@/lib/api/agentProtocol");
   return {
     ...actual,
     parseAgentEvent: mockParseAgentEvent,
@@ -88,11 +87,12 @@ afterEach(() => {
 
 describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
   it("不应再归一非当前 skill 名", () => {
-    expect(parseSkillSlashCommand("/legacy_content_post 写一版主稿"))
-      .toMatchObject({
-        skillName: "legacy_content_post",
-        userInput: "写一版主稿",
-      });
+    expect(
+      parseSkillSlashCommand("/legacy_content_post 写一版主稿"),
+    ).toMatchObject({
+      skillName: "legacy_content_post",
+      userInput: "写一版主稿",
+    });
   });
 
   it("当后端连续发出 write_file 工具事件时应写入主稿与辅助产物", async () => {
@@ -433,7 +433,8 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
               task_type: "image_generate",
               task_family: "image",
               status: "pending_submit",
-              artifact_path: ".lime/tasks/image_generate/task-image-skill-1.json",
+              artifact_path:
+                ".lime/tasks/image_generate/task-image-skill-1.json",
             },
           },
         },
@@ -476,6 +477,234 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
         status: "running",
         phase: "queued",
       },
+    });
+  });
+
+  it("视频 skill 返回媒体任务 metadata 时应直接挂载通用任务预览卡", async () => {
+    const store = createMessageStore([buildBaseMessage("assistant-video-1")]);
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+
+    mockListExecutableSkills.mockResolvedValueOnce([
+      {
+        name: "video_generate",
+        display_name: "video_generate",
+        description: "video",
+        execution_mode: "prompt",
+        has_workflow: false,
+      },
+    ]);
+    mockSafeListen.mockImplementation(async (_eventName, handler) => {
+      streamHandler = handler as (event: { payload: unknown }) => void;
+      return () => {
+        streamHandler = null;
+      };
+    });
+
+    mockExecuteSkill.mockImplementation(async () => {
+      streamHandler?.({
+        payload: {
+          type: "tool_start",
+          tool_id: "tool-video-1",
+          tool_name: "Bash",
+          arguments: JSON.stringify({
+            command:
+              "lime task create video --prompt '新品发布会短视频' --duration 15 --aspect-ratio 16:9 --resolution 720p --json",
+          }),
+        },
+      });
+      streamHandler?.({
+        payload: {
+          type: "tool_end",
+          tool_id: "tool-video-1",
+          result: {
+            success: true,
+            output: "任务已提交",
+            metadata: {
+              task_id: "task-video-skill-1",
+              task_type: "video_generate",
+              task_family: "video",
+              status: "pending_submit",
+              project_id: "project-video-1",
+              content_id: "content-video-1",
+              artifact_path:
+                ".lime/tasks/video_generate/task-video-skill-1.json",
+            },
+          },
+        },
+      });
+      streamHandler?.({ payload: { type: "final_done" } });
+
+      return {
+        success: true,
+        output:
+          "任务类型：video_generate\n任务 ID：task-video-skill-1\n状态：pending_submit",
+        steps_completed: [],
+      };
+    });
+
+    const handled = await tryExecuteSlashSkillCommand({
+      command: {
+        skillName: "video_generate",
+        userInput: "新品发布会短视频",
+      },
+      rawContent: "/video_generate 新品发布会短视频",
+      assistantMsgId: "assistant-video-1",
+      providerType: "openai",
+      model: "gpt-5.4",
+      ensureSession: async () => "session-video-1",
+      setMessages: store.setMessages,
+      setIsSending: vi.fn(),
+      setCurrentAssistantMsgId: vi.fn(),
+      setStreamUnlisten: vi.fn(),
+      setActiveSessionIdForStop: vi.fn(),
+      isExecutionCancelled: () => false,
+      playTypewriterSound: vi.fn(),
+      playToolcallSound: vi.fn(),
+    });
+
+    expect(handled).toBe(true);
+    expect(store.getMessages()[0]).toMatchObject({
+      taskPreview: {
+        kind: "video_generate",
+        taskId: "task-video-skill-1",
+        prompt: "新品发布会短视频",
+        status: "running",
+        durationSeconds: 15,
+        aspectRatio: "16:9",
+        resolution: "720p",
+        projectId: "project-video-1",
+        contentId: "content-video-1",
+        phase: "queued",
+      },
+    });
+  });
+
+  it("素材 skill 直搜图片时应挂载图片候选预览与 artifact", async () => {
+    const store = createMessageStore([
+      buildBaseMessage("assistant-resource-1"),
+    ]);
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+
+    mockListExecutableSkills.mockResolvedValueOnce([
+      {
+        name: "modal_resource_search",
+        display_name: "modal_resource_search",
+        description: "resource",
+        execution_mode: "prompt",
+        has_workflow: false,
+      },
+    ]);
+    mockSafeListen.mockImplementation(async (_eventName, handler) => {
+      streamHandler = handler as (event: { payload: unknown }) => void;
+      return () => {
+        streamHandler = null;
+      };
+    });
+
+    mockExecuteSkill.mockImplementation(async () => {
+      streamHandler?.({
+        payload: {
+          type: "tool_start",
+          tool_id: "tool-resource-web-1",
+          tool_name: "lime_search_web_images",
+          arguments: JSON.stringify({
+            query: "cozy coffee table",
+            count: 3,
+            aspect: "landscape",
+          }),
+        },
+      });
+      streamHandler?.({
+        payload: {
+          type: "tool_end",
+          tool_id: "tool-resource-web-1",
+          result: {
+            success: true,
+            output: "已找到 3 张图片候选",
+            metadata: {
+              provider: "pexels",
+              result: {
+                provider: "pexels",
+                query: "cozy coffee table",
+                returnedCount: 3,
+                aspect: "landscape",
+                hits: [
+                  {
+                    id: "hit-1",
+                    thumbnail_url: "https://pexels.example/1-thumb.jpg",
+                    content_url: "https://pexels.example/1.jpg",
+                    width: 1600,
+                    height: 900,
+                    name: "cozy coffee table 1",
+                    host_page_url: "https://www.pexels.com/photo/1",
+                  },
+                  {
+                    id: "hit-2",
+                    thumbnail_url: "https://pexels.example/2-thumb.jpg",
+                    content_url: "https://pexels.example/2.jpg",
+                    width: 1600,
+                    height: 900,
+                    name: "cozy coffee table 2",
+                    host_page_url: "https://www.pexels.com/photo/2",
+                  },
+                  {
+                    id: "hit-3",
+                    thumbnail_url: "https://pexels.example/3-thumb.jpg",
+                    content_url: "https://pexels.example/3.jpg",
+                    width: 1600,
+                    height: 900,
+                    name: "cozy coffee table 3",
+                    host_page_url: "https://www.pexels.com/photo/3",
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+      streamHandler?.({ payload: { type: "final_done" } });
+
+      return {
+        success: true,
+        output: "已返回 3 张图片候选",
+        steps_completed: [],
+      };
+    });
+
+    const handled = await tryExecuteSlashSkillCommand({
+      command: {
+        skillName: "modal_resource_search",
+        userInput: "找一组咖啡馆木桌背景图",
+      },
+      rawContent: "/modal_resource_search 找一组咖啡馆木桌背景图",
+      assistantMsgId: "assistant-resource-1",
+      providerType: "openai",
+      model: "gpt-5.4",
+      ensureSession: async () => "session-resource-1",
+      setMessages: store.setMessages,
+      setIsSending: vi.fn(),
+      setCurrentAssistantMsgId: vi.fn(),
+      setStreamUnlisten: vi.fn(),
+      setActiveSessionIdForStop: vi.fn(),
+      isExecutionCancelled: () => false,
+      playTypewriterSound: vi.fn(),
+      playToolcallSound: vi.fn(),
+    });
+
+    expect(handled).toBe(true);
+    expect(store.getMessages()[0]).toMatchObject({
+      taskPreview: {
+        kind: "modal_resource_search",
+        taskId: "resource-search:tool-resource-web-1",
+        status: "complete",
+        artifactPath: ".lime/runtime/resource-search/tool-resource-web-1.md",
+      },
+      artifacts: [
+        expect.objectContaining({
+          title: "tool-resource-web-1.md",
+          type: "document",
+        }),
+      ],
     });
   });
 
@@ -556,7 +785,9 @@ describe("tryExecuteSlashSkillCommand 浏览器工具链路", () => {
   it("收到 tool_end error 时应清洗 Lime 元数据块", async () => {
     let messages: Message[] = [buildBaseMessage("assistant-skill-1")];
 
-    const setMessages = (next: Message[] | ((prev: Message[]) => Message[])) => {
+    const setMessages = (
+      next: Message[] | ((prev: Message[]) => Message[]),
+    ) => {
       messages = typeof next === "function" ? next(messages) : next;
     };
 

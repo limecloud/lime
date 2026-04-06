@@ -2,9 +2,10 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { IMAGE_WORKBENCH_FOCUS_EVENT } from "@/lib/imageWorkbenchEvents";
 import { MessageList } from "./MessageList";
 import type { Message } from "../types";
+
+const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
 
 vi.mock("./MarkdownRenderer", () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
@@ -138,6 +139,19 @@ function render(
 }
 
 describe("MessageList", () => {
+  it("自动恢复任务中心时应展示恢复占位而不是空白引导", () => {
+    const container = render([], { isRestoringSession: true });
+
+    expect(
+      container.querySelector('[data-testid="message-list-restoring-session"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("正在恢复任务中心...");
+    expect(container.textContent).toContain(
+      "正在同步最近一次任务会话，请稍候。",
+    );
+    expect(container.textContent).not.toContain("开始一段新的对话吧");
+  });
+
   it("应过滤空白 user 消息，避免渲染空白气泡", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -244,6 +258,167 @@ describe("MessageList", () => {
       contentId: "content-1",
     });
     window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+  });
+
+  it("视频任务消息卡应在聊天区渲染预览并支持打开工作区查看", () => {
+    const now = new Date();
+    const onOpenMessagePreview = vi.fn();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-video-task",
+        role: "assistant",
+        content: "视频任务已提交，正在生成。",
+        timestamp: now,
+        taskPreview: {
+          kind: "video_generate",
+          taskId: "task-video-1",
+          taskType: "video_generate",
+          prompt: "新品发布会短视频，镜头缓慢推进主角产品",
+          status: "running",
+          progress: 42,
+          durationSeconds: 15,
+          aspectRatio: "16:9",
+          resolution: "720p",
+          projectId: "project-video-1",
+          contentId: "content-video-1",
+        },
+      },
+    ];
+
+    const container = render(messages, { onOpenMessagePreview });
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-video-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("视频生成");
+    expect(previewCard?.textContent).toContain("16:9");
+    expect(previewCard?.textContent).toContain("720p");
+    expect(previewCard?.textContent).toContain("42%");
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(onOpenMessagePreview).toHaveBeenCalledWith(
+      {
+        kind: "task",
+        preview: expect.objectContaining({
+          kind: "video_generate",
+          taskId: "task-video-1",
+        }),
+      },
+      expect.objectContaining({
+        id: "msg-assistant-video-task",
+      }),
+    );
+  });
+
+  it("通用任务消息卡应在聊天区渲染预览并支持打开对应产物", () => {
+    const now = new Date();
+    const onOpenMessagePreview = vi.fn();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-resource-task",
+        role: "assistant",
+        content: "素材检索任务已提交。",
+        timestamp: now,
+        taskPreview: {
+          kind: "modal_resource_search",
+          taskId: "task-resource-1",
+          taskType: "modal_resource_search",
+          prompt: "咖啡馆木桌背景",
+          title: "公众号头图素材",
+          status: "running",
+          artifactPath:
+            ".lime/tasks/modal_resource_search/task-resource-1.json",
+          metaItems: ["image", "公众号头图", "8 个候选"],
+        },
+      },
+    ];
+
+    const container = render(messages, { onOpenMessagePreview });
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-resource-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("素材检索");
+    expect(previewCard?.textContent).toContain("公众号头图素材");
+    expect(previewCard?.textContent).toContain("8 个候选");
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(onOpenMessagePreview).toHaveBeenCalledWith(
+      {
+        kind: "task",
+        preview: expect.objectContaining({
+          kind: "modal_resource_search",
+          taskId: "task-resource-1",
+        }),
+      },
+      expect.objectContaining({
+        id: "msg-assistant-resource-task",
+      }),
+    );
+  });
+
+  it("联网搜图结果消息卡应展示缩略图候选", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-resource-search-preview",
+        role: "assistant",
+        content: "已找到一组图片素材候选。",
+        timestamp: now,
+        taskPreview: {
+          kind: "modal_resource_search",
+          taskId: "resource-search:tool-1",
+          taskType: "modal_resource_search",
+          prompt: "cozy coffee table",
+          title: "Pexels 图片候选",
+          status: "complete",
+          artifactPath: ".lime/runtime/resource-search/tool-1.md",
+          metaItems: ["Pexels", "3 个候选"],
+          imageCandidates: [
+            {
+              id: "hit-1",
+              thumbnailUrl: "https://pexels.example/1-thumb.jpg",
+              contentUrl: "https://pexels.example/1.jpg",
+              name: "cozy coffee table 1",
+            },
+            {
+              id: "hit-2",
+              thumbnailUrl: "https://pexels.example/2-thumb.jpg",
+              contentUrl: "https://pexels.example/2.jpg",
+              name: "cozy coffee table 2",
+            },
+            {
+              id: "hit-3",
+              thumbnailUrl: "https://pexels.example/3-thumb.jpg",
+              contentUrl: "https://pexels.example/3.jpg",
+              name: "cozy coffee table 3",
+            },
+          ],
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const media = container.querySelector(
+      '[data-testid="task-message-preview-media-resource-search:tool-1"]',
+    );
+
+    expect(media).not.toBeNull();
+    expect(
+      container.querySelector('img[src="https://pexels.example/1-thumb.jpg"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('img[src="https://pexels.example/2-thumb.jpg"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('img[src="https://pexels.example/3-thumb.jpg"]'),
+    ).toBeTruthy();
   });
 
   it("修图任务消息卡应展示来源图区域与修图语义", () => {
@@ -1355,17 +1530,16 @@ describe("MessageList", () => {
     const now = new Date();
     const messages: Message[] = [
       {
-        id: "msg-assistant-browser",
+        id: "msg-assistant-action",
         role: "assistant",
-        content: "请先完成浏览器登录。",
+        content: "请先确认文章标题。",
         timestamp: now,
         actionRequests: [
           {
-            requestId: "req-browser",
+            requestId: "req-ask-title",
             actionType: "ask_user",
-            uiKind: "browser_preflight",
-            browserPrepState: "awaiting_user",
-            prompt: "请先在浏览器完成登录",
+            prompt: "请先确认文章标题",
+            questions: [{ question: "这篇文章的最终标题是什么？" }],
           },
         ],
       },
@@ -1374,9 +1548,9 @@ describe("MessageList", () => {
     render(messages, {
       turns: [
         {
-          id: "turn-browser",
+          id: "turn-action",
           thread_id: "thread-1",
-          prompt_text: "发布到公众号",
+          prompt_text: "确认文章标题",
           status: "aborted",
           started_at: "2026-03-15T09:00:00Z",
           completed_at: "2026-03-15T09:00:05Z",
@@ -1386,9 +1560,9 @@ describe("MessageList", () => {
       ],
       threadItems: [
         {
-          id: "item-browser-1",
+          id: "item-action-1",
           thread_id: "thread-1",
-          turn_id: "turn-browser",
+          turn_id: "turn-action",
           sequence: 1,
           status: "completed",
           started_at: "2026-03-15T09:00:01Z",

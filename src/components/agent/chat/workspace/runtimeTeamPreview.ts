@@ -59,7 +59,7 @@ function buildRuntimeTeamMemberPlanLines(
   return lines;
 }
 
-export function buildRuntimeTeamAssistantDraft(
+function buildRuntimeTeamAssistantDraft(
   state: TeamWorkspaceRuntimeFormationState | null | undefined,
 ): AssistantDraftState | undefined {
   if (!state || state.status !== "formed") {

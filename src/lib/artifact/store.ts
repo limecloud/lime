@@ -1,12 +1,11 @@
 /**
  * @file Artifact 状态管理
- * @description 使用 Jotai 实现 Artifact 系统的状态管理，包括列表、选中状态、流式状态和面板状态
+ * @description 使用 Jotai 实现 Artifact 系统的状态管理，包括列表、选中状态和流式状态
  * @module lib/artifact/store
  * @requirements 9.1, 9.2, 9.3, 9.4, 9.6
  */
 
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
 import type { Artifact } from "./types";
 
 /**
@@ -19,25 +18,6 @@ export type ArtifactAction =
   | { type: "remove"; id: string }
   | { type: "select"; id: string | null }
   | { type: "clear" };
-
-/**
- * 面板状态接口
- * 定义 Artifact 面板的持久化状态
- */
-export interface ArtifactPanelState {
-  /** 面板是否打开 */
-  isOpen: boolean;
-  /** 面板宽度（像素） */
-  width: number;
-}
-
-/**
- * 默认面板状态
- */
-const DEFAULT_PANEL_STATE: ArtifactPanelState = {
-  isOpen: false,
-  width: 480,
-};
 
 /**
  * Artifact 列表 atom
@@ -76,20 +56,6 @@ export const selectedArtifactAtom = atom((get) => {
  * @requirements 9.5 (流式更新支持)
  */
 export const streamingArtifactAtom = atom<Artifact | null>(null);
-
-/**
- * 面板状态 atom (持久化)
- * 使用 atomWithStorage 将面板状态持久化到 sessionStorage
- * 包括面板开关状态和宽度设置
- *
- * @requirements 9.6
- */
-export const artifactPanelStateAtom = atomWithStorage<ArtifactPanelState>(
-  "artifact-panel",
-  DEFAULT_PANEL_STATE,
-  undefined,
-  { getOnInit: true },
-);
 
 /**
  * Artifact 操作 atom

@@ -30,11 +30,16 @@ pub const IMAGE_GENERATE_SKILL_DIRECTORY: &str = "image_generate";
 pub const LIBRARY_SKILL_DIRECTORY: &str = "library";
 pub const URL_PARSE_SKILL_DIRECTORY: &str = "url_parse";
 pub const RESEARCH_SKILL_DIRECTORY: &str = "research";
+pub const REPORT_GENERATE_SKILL_DIRECTORY: &str = "report_generate";
 pub const SITE_SEARCH_SKILL_DIRECTORY: &str = "site_search";
+pub const PDF_READ_SKILL_DIRECTORY: &str = "pdf_read";
+pub const SUMMARY_SKILL_DIRECTORY: &str = "summary";
+pub const TRANSLATION_SKILL_DIRECTORY: &str = "translation";
+pub const ANALYSIS_SKILL_DIRECTORY: &str = "analysis";
 pub const TYPESETTING_SKILL_DIRECTORY: &str = "typesetting";
 pub const CONTENT_POST_WITH_COVER_SKILL_DIRECTORY: &str = "content_post_with_cover";
 
-pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 12] = [
+pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 17] = [
     VIDEO_GENERATE_SKILL_DIRECTORY,
     TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
     BROADCAST_GENERATE_SKILL_DIRECTORY,
@@ -44,7 +49,12 @@ pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 12] = [
     LIBRARY_SKILL_DIRECTORY,
     URL_PARSE_SKILL_DIRECTORY,
     RESEARCH_SKILL_DIRECTORY,
+    REPORT_GENERATE_SKILL_DIRECTORY,
     SITE_SEARCH_SKILL_DIRECTORY,
+    PDF_READ_SKILL_DIRECTORY,
+    SUMMARY_SKILL_DIRECTORY,
+    TRANSLATION_SKILL_DIRECTORY,
+    ANALYSIS_SKILL_DIRECTORY,
     TYPESETTING_SKILL_DIRECTORY,
     CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
 ];
@@ -563,7 +573,10 @@ mod tests {
     #[test]
     fn test_default_lime_skill_directories_include_embedded_defaults() {
         assert!(is_default_lime_skill(VIDEO_GENERATE_SKILL_DIRECTORY));
+        assert!(is_default_lime_skill(REPORT_GENERATE_SKILL_DIRECTORY));
         assert!(is_default_lime_skill(SITE_SEARCH_SKILL_DIRECTORY));
+        assert!(is_default_lime_skill(PDF_READ_SKILL_DIRECTORY));
+        assert!(is_default_lime_skill(SUMMARY_SKILL_DIRECTORY));
         assert!(is_default_lime_skill(
             CONTENT_POST_WITH_COVER_SKILL_DIRECTORY
         ));

@@ -6,7 +6,7 @@ import type { CanvasWorkbenchDefaultPreview } from "../components/CanvasWorkbenc
 import {
   isCanvasStateEmpty,
   serializeCanvasStateForSync,
-} from "./themeWorkbenchHelpers";
+} from "./generalWorkbenchHelpers";
 import { resolvePreviousDocumentVersionContent } from "./workbenchPreviewHelpers";
 import {
   extractFileNameFromPath,

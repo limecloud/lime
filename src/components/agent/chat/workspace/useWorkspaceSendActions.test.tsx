@@ -7,9 +7,22 @@ import { useWorkspaceSendActions } from "./useWorkspaceSendActions";
 import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
 
 const mockPreheatBrowserAssistInBackground = vi.hoisted(() => vi.fn());
+const mockGetSkillCatalog = vi.hoisted(() => vi.fn());
+const mockListSkillCatalogSceneEntries = vi.hoisted(() => vi.fn());
+const mockResolveOemCloudRuntimeContext = vi.hoisted(() => vi.fn());
 
 vi.mock("../utils/browserAssistPreheat", () => ({
   preheatBrowserAssistInBackground: mockPreheatBrowserAssistInBackground,
+}));
+
+vi.mock("@/lib/api/skillCatalog", () => ({
+  getSkillCatalog: () => mockGetSkillCatalog(),
+  listSkillCatalogSceneEntries: (catalog: unknown) =>
+    mockListSkillCatalogSceneEntries(catalog),
+}));
+
+vi.mock("@/lib/api/oemCloudRuntime", () => ({
+  resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
 }));
 
 type HookProps = Parameters<typeof useWorkspaceSendActions>[0];
@@ -31,10 +44,9 @@ const mockSetChatToolPreferences = vi.fn();
 const mockSetRuntimeTeamDispatchPreview = vi.fn();
 const mockEnsureBrowserAssistCanvas = vi.fn(async () => true);
 const mockHandleAutoLaunchMatchedSiteSkill = vi.fn(async () => undefined);
-const mockHandleRuntimeSceneLaunch = vi.fn(async () => false);
-const mockHandleImageWorkbenchCommand = vi.fn<
-  HookProps["handleImageWorkbenchCommand"]
->(async () => true);
+const mockEnsureSessionForCommandMetadata = vi.fn<
+  NonNullable<HookProps["ensureSessionForCommandMetadata"]>
+>(async () => null);
 const mockResolveImageWorkbenchSkillRequest = vi.fn<
   HookProps["resolveImageWorkbenchSkillRequest"]
 >(() => null);
@@ -90,6 +102,39 @@ function createGithubSiteSkill(): ServiceSkillHomeItem {
         limit: 10,
       },
     },
+  };
+}
+
+function createCloudSceneSkill(): ServiceSkillHomeItem {
+  return {
+    id: "cloud-video-dubbing",
+    skillKey: "campaign-launch",
+    title: "云端视频配音",
+    summary: "把视频文案与素材提交到云端，生成一版可继续加工的配音结果。",
+    category: "视频创作",
+    outputHint: "配音文案 + 结果摘要",
+    source: "cloud_catalog",
+    runnerType: "instant",
+    defaultExecutorBinding: "cloud_scene",
+    executionLocation: "cloud_required",
+    version: "seed-v1",
+    badge: "云目录",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "云端托管执行",
+    runnerTone: "slate",
+    runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
+    actionLabel: "提交云端",
+    automationStatus: null,
+    slotSchema: [
+      {
+        key: "reference_video",
+        label: "参考视频链接/素材",
+        type: "url",
+        required: true,
+        placeholder: "输入视频链接",
+      },
+    ],
   };
 }
 
@@ -187,11 +232,9 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     resolveSendBoundary: (({ sourceText }) => ({
       sourceText,
       browserRequirementMatch: null,
-      shouldConsumePendingThemeWorkbenchInitialPrompt: false,
-      shouldDismissThemeWorkbenchEntryPrompt: false,
+      shouldConsumePendingGeneralWorkbenchInitialPrompt: false,
+      shouldDismissGeneralWorkbenchEntryPrompt: false,
     })) as HookProps["resolveSendBoundary"],
-    maybeStartBrowserTaskPreflight: (() =>
-      false) as HookProps["maybeStartBrowserTaskPreflight"],
     finalizeAfterSendSuccess:
       mockFinalizeAfterSendSuccess as HookProps["finalizeAfterSendSuccess"],
     rollbackAfterSendFailure:
@@ -204,10 +247,8 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       mockEnsureBrowserAssistCanvas as HookProps["ensureBrowserAssistCanvas"],
     handleAutoLaunchMatchedSiteSkill:
       mockHandleAutoLaunchMatchedSiteSkill as HookProps["handleAutoLaunchMatchedSiteSkill"],
-    handleRuntimeSceneLaunch:
-      mockHandleRuntimeSceneLaunch as HookProps["handleRuntimeSceneLaunch"],
-    handleImageWorkbenchCommand:
-      mockHandleImageWorkbenchCommand as HookProps["handleImageWorkbenchCommand"],
+    ensureSessionForCommandMetadata:
+      mockEnsureSessionForCommandMetadata as HookProps["ensureSessionForCommandMetadata"],
     resolveImageWorkbenchSkillRequest:
       mockResolveImageWorkbenchSkillRequest as HookProps["resolveImageWorkbenchSkillRequest"],
     ...initialProps,
@@ -247,9 +288,11 @@ describe("useWorkspaceSendActions", () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
 
     vi.clearAllMocks();
-    mockHandleImageWorkbenchCommand.mockResolvedValue(true);
-    mockHandleRuntimeSceneLaunch.mockResolvedValue(false);
     mockResolveImageWorkbenchSkillRequest.mockReturnValue(null);
+    mockEnsureSessionForCommandMetadata.mockResolvedValue(null);
+    mockGetSkillCatalog.mockResolvedValue({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValue([]);
+    mockResolveOemCloudRuntimeContext.mockReturnValue(null);
   });
 
   it("普通发送不应把当前工作区模型当成 modelOverride", async () => {
@@ -415,6 +458,100 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("首页首轮普通发送在等待上下文时应并行预热会话", async () => {
+    const deferredContext = createDeferred<string>();
+    const deferredSession = createDeferred<string | null>();
+    const deferredSend = createDeferred<void>();
+    mockEnsureSessionForCommandMetadata.mockImplementationOnce(
+      async () => deferredSession.promise,
+    );
+    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
+    const harness = mountHook({
+      input: "帮我整理一下今天的重要新闻",
+      messagesCount: 0,
+      contextWorkspace: {
+        enabled: true,
+        activeContextPrompt: "",
+        prepareActiveContextPrompt: async () => deferredContext.promise,
+      },
+    });
+
+    let sendPromise: Promise<boolean> | null = null;
+
+    try {
+      await act(async () => {
+        sendPromise = harness.getValue().handleSend();
+        await Promise.resolve();
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        deferredContext.resolve("[上下文]\n今天关注科技与国际新闻。");
+        await Promise.resolve();
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(
+        mockEnsureSessionForCommandMetadata.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockSendMessage.mock.invocationCallOrder[0] ?? Infinity);
+
+      await act(async () => {
+        deferredSession.resolve("session-prewarmed");
+        deferredSend.resolve();
+        await sendPromise;
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("发送准备阶段不应重复递交同一条首页消息", async () => {
+    const deferredContext = createDeferred<string>();
+    const deferredSend = createDeferred<void>();
+    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
+    const harness = mountHook({
+      input: "帮我生成一版首页插图方案",
+      contextWorkspace: {
+        enabled: true,
+        activeContextPrompt: "",
+        prepareActiveContextPrompt: async () => deferredContext.promise,
+      },
+    });
+
+    let firstSendPromise: Promise<boolean> | null = null;
+    let secondSendPromise: Promise<boolean> | null = null;
+
+    try {
+      await act(async () => {
+        firstSendPromise = harness.getValue().handleSend();
+        secondSendPromise = harness.getValue().handleSend();
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().isPreparingSend).toBe(true);
+      expect(await secondSendPromise).toBe(false);
+      expect(mockSendMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        deferredContext.resolve("");
+        await Promise.resolve();
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredSend.resolve();
+        expect(await firstSendPromise).toBe(true);
+      });
+
+      expect(harness.getValue().isPreparingSend).toBe(false);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("普通自然句命中站点 service skill 时应直接走自动启动链", async () => {
     const harness = mountHook({
       input: "请帮我使用 GitHub 查一下 AI Agent 项目",
@@ -445,7 +582,19 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
-  it("纯文本 @配图 应直接命中本地图片任务主链，而不是走 Agent 工具搜索", async () => {
+  it("纯文本 @配图 应保留原始消息，并通过 image_skill_launch metadata 交给 Agent", async () => {
+    mockResolveImageWorkbenchSkillRequest.mockReturnValueOnce({
+      images: [],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "generate",
+          prompt: "一张春日咖啡馆插画",
+          count: 2,
+          aspect_ratio: "16:9",
+        },
+      },
+    });
     const harness = mountHook({
       input: "@配图 生成 一张春日咖啡馆插画，16:9，出 2 张",
     });
@@ -456,8 +605,8 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledTimes(1);
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledWith(
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledTimes(1);
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           rawText: "@配图 生成 一张春日咖啡馆插画，16:9，出 2 张",
           parsedCommand: expect.objectContaining({
@@ -468,10 +617,132 @@ describe("useWorkspaceSendActions", () => {
             count: 2,
           }),
           images: [],
+          sessionIdOverride: undefined,
         }),
       );
-      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@配图 生成 一张春日咖啡馆插画，16:9，出 2 张",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            image_skill_launch: {
+              skill_name: "image_generate",
+              kind: "image_task",
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@配图 首次发送时应先绑定真实 session_id 到 image_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-image-1");
+    mockResolveImageWorkbenchSkillRequest.mockReturnValueOnce({
+      images: [],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "generate",
+          prompt: "一张春日咖啡馆插画",
+          session_id: "session-image-1",
+        },
+      },
+    });
+    const harness = mountHook({
+      input: "@配图 生成 一张春日咖啡馆插画",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            image_skill_launch: {
+              image_task: {
+                session_id: "session-image-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@配图 首次发送建会话较慢时，也应先展示 submission preview", async () => {
+    const deferredSession = createDeferred<string | null>();
+    const deferredSend = createDeferred<void>();
+    mockEnsureSessionForCommandMetadata.mockImplementationOnce(
+      async () => deferredSession.promise,
+    );
+    mockResolveImageWorkbenchSkillRequest.mockReturnValueOnce({
+      images: [],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "generate",
+          prompt: "一张春日咖啡馆插画",
+          session_id: "__local_image_workbench__:draft",
+        },
+      },
+    });
+    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
+    const harness = mountHook({
+      input: "@配图 生成 一张春日咖啡馆插画",
+    });
+
+    let sendPromise: Promise<boolean> | null = null;
+
+    try {
+      await act(async () => {
+        sendPromise = harness.getValue().handleSend();
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().submissionPreview).toMatchObject({
+        prompt: "@配图 生成 一张春日咖啡馆插画",
+        runtimeStatus: expect.objectContaining({
+          title: "正在启动处理流程",
+        }),
+      });
       expect(mockSendMessage).not.toHaveBeenCalled();
+
+      await act(async () => {
+        deferredSession.resolve("session-image-1");
+        await Promise.resolve();
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            image_skill_launch: {
+              image_task: {
+                session_id: "session-image-1",
+              },
+            },
+          },
+        },
+      });
+
+      await act(async () => {
+        deferredSend.resolve();
+        await sendPromise;
+      });
+
+      expect(harness.getValue().submissionPreview).toBeNull();
     } finally {
       harness.unmount();
     }
@@ -518,7 +789,48 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
-  it("带引用图的图片命令应直接交给本地图片任务运行时", async () => {
+  it("@封面 首次发送时应先绑定真实 session_id 到 cover_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-cover-1");
+    const harness = mountHook({
+      input:
+        "@封面 小红书 标题: 春日咖啡快闪 风格: 清新插画, 1:1 春日咖啡市集封面",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            cover_skill_launch: {
+              cover_task: {
+                session_id: "session-cover-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("带引用图的图片命令也应先交给 Agent，而不是直建任务", async () => {
+    mockResolveImageWorkbenchSkillRequest.mockReturnValueOnce({
+      images: [],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "edit",
+          prompt: "去掉角标，保留主体",
+          target_output_ref_id: "img-2",
+        },
+      },
+    });
     const harness = mountHook({
       input: "@配图 编辑 #img-2 去掉角标，保留主体",
     });
@@ -529,8 +841,8 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledTimes(1);
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledWith(
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledTimes(1);
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           rawText: "@配图 编辑 #img-2 去掉角标，保留主体",
           parsedCommand: expect.objectContaining({
@@ -541,14 +853,24 @@ describe("useWorkspaceSendActions", () => {
           images: [],
         }),
       );
-      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
-      expect(mockSendMessage).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
     } finally {
       harness.unmount();
     }
   });
 
-  it("@修图 应直达当前图片任务主链", async () => {
+  it("@修图 应保留原始消息，并通过 image_skill_launch metadata 交给 Agent", async () => {
+    mockResolveImageWorkbenchSkillRequest.mockReturnValueOnce({
+      images: [],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "edit",
+          prompt: "去掉角标，保留主体",
+          target_output_ref_id: "img-2",
+        },
+      },
+    });
     const harness = mountHook({
       input: "@修图 #img-2 去掉角标，保留主体",
     });
@@ -559,8 +881,8 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledTimes(1);
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledWith(
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledTimes(1);
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           rawText: "@修图 #img-2 去掉角标，保留主体",
           parsedCommand: expect.objectContaining({
@@ -571,14 +893,24 @@ describe("useWorkspaceSendActions", () => {
           images: [],
         }),
       );
-      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
-      expect(mockSendMessage).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
     } finally {
       harness.unmount();
     }
   });
 
-  it("@重绘 应直达当前图片任务主链", async () => {
+  it("@重绘 应保留原始消息，并通过 image_skill_launch metadata 交给 Agent", async () => {
+    mockResolveImageWorkbenchSkillRequest.mockReturnValueOnce({
+      images: [],
+      requestContext: {
+        kind: "image_task",
+        image_task: {
+          mode: "variation",
+          prompt: "更偏插画风，保留主视觉",
+          target_output_ref_id: "img-2",
+        },
+      },
+    });
     const harness = mountHook({
       input: "@重绘 #img-2 更偏插画风，保留主视觉",
     });
@@ -589,8 +921,8 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledTimes(1);
-      expect(mockHandleImageWorkbenchCommand).toHaveBeenCalledWith(
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledTimes(1);
+      expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           rawText: "@重绘 #img-2 更偏插画风，保留主视觉",
           parsedCommand: expect.objectContaining({
@@ -601,8 +933,7 @@ describe("useWorkspaceSendActions", () => {
           images: [],
         }),
       );
-      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
-      expect(mockSendMessage).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
     } finally {
       harness.unmount();
     }
@@ -629,7 +960,6 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockHandleImageWorkbenchCommand).not.toHaveBeenCalled();
       expect(mockResolveImageWorkbenchSkillRequest).toHaveBeenCalledTimes(1);
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
       expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
@@ -642,6 +972,54 @@ describe("useWorkspaceSendActions", () => {
             image_skill_launch: {
               skill_name: "image_generate",
               kind: "image_task",
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("预绑定 image_skill_launch metadata 时不应重新解析图片命令", async () => {
+    const harness = mountHook({
+      input: "@配图 生成 一张春日咖啡馆插画",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend(
+          [],
+          false,
+          false,
+          "@配图 生成 一张春日咖啡馆插画",
+          undefined,
+          undefined,
+          {
+            requestMetadata: {
+              harness: {
+                allow_model_skills: true,
+                image_skill_launch: {
+                  skill_name: "image_generate",
+                  kind: "image_task",
+                  image_task: {
+                    prompt: "一张春日咖啡馆插画",
+                  },
+                },
+              },
+            },
+          },
+        );
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            image_skill_launch: {
+              skill_name: "image_generate",
             },
           },
         },
@@ -680,6 +1058,514 @@ describe("useWorkspaceSendActions", () => {
                 aspect_ratio: "16:9",
                 resolution: "720p",
                 entry_source: "at_video_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@视频 首次发送时应先绑定真实 session_id 到 video_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-video-1");
+    const harness = mountHook({
+      input: "@视频 15秒 新品发布短视频，16:9，720p",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            video_skill_launch: {
+              video_task: {
+                session_id: "session-video-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@播报 应保留原始消息，并通过 broadcast_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input:
+        "@播报 标题: 创始人周报 听众: AI 创业者 语气: 口语化 时长: 5分钟 把下面文章整理成播报文本",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@播报 标题: 创始人周报 听众: AI 创业者 语气: 口语化 时长: 5分钟 把下面文章整理成播报文本",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            broadcast_skill_launch: {
+              skill_name: "broadcast_generate",
+              kind: "broadcast_task",
+              broadcast_task: {
+                prompt: "把下面文章整理成播报文本",
+                content: "把下面文章整理成播报文本",
+                title: "创始人周报",
+                audience: "AI 创业者",
+                tone: "口语化",
+                duration_hint_minutes: 5,
+                entry_source: "at_broadcast_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@播报 首次发送时应先绑定真实 session_id 到 broadcast_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-broadcast-1");
+    const harness = mountHook({
+      input:
+        "@播报 标题: 创始人周报 听众: AI 创业者 语气: 口语化 时长: 5分钟 把下面文章整理成播报文本",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            broadcast_skill_launch: {
+              broadcast_task: {
+                session_id: "session-broadcast-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@素材 应保留原始消息，并通过 resource_search_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input: "@素材 类型:图片 关键词:咖啡馆木桌背景 用途:公众号头图 数量:8",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@素材 类型:图片 关键词:咖啡馆木桌背景 用途:公众号头图 数量:8",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            resource_search_skill_launch: {
+              skill_name: "modal_resource_search",
+              kind: "resource_search_task",
+              resource_search_task: {
+                prompt: "咖啡馆木桌背景 公众号头图",
+                resource_type: "image",
+                query: "咖啡馆木桌背景",
+                usage: "公众号头图",
+                count: 8,
+                entry_source: "at_resource_search_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@素材 首次发送时应先绑定真实 session_id 到 resource_search_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-resource-1");
+    const harness = mountHook({
+      input: "@素材 类型:图片 关键词:咖啡馆木桌背景 用途:公众号头图 数量:8",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            resource_search_skill_launch: {
+              resource_search_task: {
+                session_id: "session-resource-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@搜索 应保留原始消息，并通过 research_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input:
+        "@搜索 关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@搜索 关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            research_skill_launch: {
+              skill_name: "research",
+              kind: "research_request",
+              research_request: {
+                prompt: "AI Agent 融资 36Kr 近30天 融资额与产品发布",
+                query: "AI Agent 融资",
+                site: "36Kr",
+                time_range: "近30天",
+                depth: "deep",
+                focus: "融资额与产品发布",
+                output_format: "要点",
+                entry_source: "at_search_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@深搜 应保留原始消息，并通过 deep_search_skill_launch metadata 交给 Agent 调度 research 技能", async () => {
+    const harness = mountHook({
+      input:
+        "@深搜 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与产品发布 输出:对比表",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@深搜 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与产品发布 输出:对比表",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            deep_search_skill_launch: {
+              skill_name: "research",
+              kind: "deep_search_request",
+              deep_search_request: {
+                prompt: "AI Agent 融资 36Kr 近30天 融资额与产品发布",
+                query: "AI Agent 融资",
+                site: "36Kr",
+                time_range: "近30天",
+                depth: "deep",
+                focus: "融资额与产品发布",
+                output_format: "对比表",
+                entry_source: "at_deep_search_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@研报 应保留原始消息，并通过 report_skill_launch metadata 交给 Agent 调度 report_generate 技能", async () => {
+    const harness = mountHook({
+      input:
+        "@研报 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与代表产品 输出:投资人研报",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@研报 关键词:AI Agent 融资 站点:36Kr 时间:近30天 重点:融资额与代表产品 输出:投资人研报",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            report_skill_launch: {
+              skill_name: "report_generate",
+              kind: "report_request",
+              report_request: {
+                prompt: "AI Agent 融资 36Kr 近30天 融资额与代表产品 投资人研报",
+                query: "AI Agent 融资",
+                site: "36Kr",
+                time_range: "近30天",
+                depth: "deep",
+                focus: "融资额与代表产品",
+                output_format: "投资人研报",
+                entry_source: "at_report_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@站点搜索 应保留原始消息，并通过 site_search_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input: "@站点搜索 站点:GitHub 关键词:openai agents sdk issue 数量:8",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@站点搜索 站点:GitHub 关键词:openai agents sdk issue 数量:8",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            site_search_skill_launch: {
+              skill_name: "site_search",
+              kind: "site_search_request",
+              site_search_request: {
+                prompt: "openai agents sdk issue",
+                site: "GitHub",
+                query: "openai agents sdk issue",
+                limit: 8,
+                entry_source: "at_site_search_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@读PDF 应保留原始消息，并通过 pdf_read_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input: '@读PDF "/tmp/agent-report.pdf" 提炼三点结论 输出:投资人摘要',
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        '@读PDF "/tmp/agent-report.pdf" 提炼三点结论 输出:投资人摘要',
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            pdf_read_skill_launch: {
+              skill_name: "pdf_read",
+              kind: "pdf_read_request",
+              pdf_read_request: {
+                prompt: "提炼三点结论",
+                source_path: "/tmp/agent-report.pdf",
+                output_format: "投资人摘要",
+                entry_source: "at_pdf_read_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@总结 应保留原始消息，并通过 summary_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input:
+        "@总结 内容:这是一篇关于 AI Agent 融资的长文 重点:融资额与发布时间 长度:简短 风格:投资人简报 输出:三点要点",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@总结 内容:这是一篇关于 AI Agent 融资的长文 重点:融资额与发布时间 长度:简短 风格:投资人简报 输出:三点要点",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            summary_skill_launch: {
+              skill_name: "summary",
+              kind: "summary_request",
+              summary_request: {
+                prompt:
+                  "这是一篇关于 AI Agent 融资的长文 融资额与发布时间 short 投资人简报",
+                content: "这是一篇关于 AI Agent 融资的长文",
+                focus: "融资额与发布时间",
+                length: "short",
+                style: "投资人简报",
+                output_format: "三点要点",
+                entry_source: "at_summary_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@翻译 应保留原始消息，并通过 translation_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input:
+        "@翻译 内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@翻译 内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            translation_skill_launch: {
+              skill_name: "translation",
+              kind: "translation_request",
+              translation_request: {
+                prompt: "hello world 从英语 译为中文 产品文案 只输出译文",
+                content: "hello world",
+                source_language: "英语",
+                target_language: "中文",
+                style: "产品文案",
+                output_format: "只输出译文",
+                entry_source: "at_translation_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@分析 应保留原始消息，并通过 analysis_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input:
+        "@分析 内容:OpenAI 发布新模型 重点:商业影响 风格:投资备忘 输出:三点判断",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@分析 内容:OpenAI 发布新模型 重点:商业影响 风格:投资备忘 输出:三点判断",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            analysis_skill_launch: {
+              skill_name: "analysis",
+              kind: "analysis_request",
+              analysis_request: {
+                prompt: "OpenAI 发布新模型 围绕商业影响 投资备忘 三点判断",
+                content: "OpenAI 发布新模型",
+                focus: "商业影响",
+                style: "投资备忘",
+                output_format: "三点判断",
+                entry_source: "at_analysis_command",
               },
             },
           },
@@ -731,6 +1617,38 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("@转写 首次发送时应先绑定真实 session_id 到 transcription_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue(
+      "session-transcription-1",
+    );
+    const harness = mountHook({
+      input:
+        "@转写 https://example.com/interview.mp4 生成逐字稿 导出 srt 带时间戳 区分说话人",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            transcription_skill_launch: {
+              transcription_task: {
+                session_id: "session-transcription-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@链接解析 应保留原始消息，并通过 url_parse_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
       input:
@@ -770,10 +1688,10 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
-  it("/scene-key 命中运行时场景时应走统一 scene 启动入口，而不是继续发送普通消息", async () => {
-    mockHandleRuntimeSceneLaunch.mockResolvedValueOnce(true);
+  it("@链接解析 首次发送时应先绑定真实 session_id 到 url_parse_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-url-parse-1");
     const harness = mountHook({
-      input: "/campaign-launch 帮我做一版新品活动启动方案",
+      input: "@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要",
     });
 
     try {
@@ -782,19 +1700,165 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockHandleRuntimeSceneLaunch).toHaveBeenCalledTimes(1);
-      expect(mockHandleRuntimeSceneLaunch).toHaveBeenCalledWith(
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            url_parse_skill_launch: {
+              url_parse_task: {
+                session_id: "session-url-parse-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@排版 应保留原始消息，并通过 typesetting_skill_launch metadata 交给 Agent 调度技能", async () => {
+    const harness = mountHook({
+      input: "@排版 平台:小红书 帮我把下面文案整理成短句节奏",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockResolveImageWorkbenchSkillRequest).not.toHaveBeenCalled();
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@排版 平台:小红书 帮我把下面文案整理成短句节奏",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            allow_model_skills: true,
+            typesetting_skill_launch: {
+              skill_name: "typesetting",
+              kind: "typesetting_task",
+              typesetting_task: {
+                prompt: "帮我把下面文案整理成短句节奏",
+                content: "平台:小红书 帮我把下面文案整理成短句节奏",
+                target_platform: "小红书",
+                entry_source: "at_typesetting_command",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@排版 首次发送时应先绑定真实 session_id 到 typesetting_task", async () => {
+    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-typesetting-1");
+    const harness = mountHook({
+      input: "@排版 平台:公众号 帮我整理成更适合阅读的段落节奏",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            typesetting_skill_launch: {
+              typesetting_task: {
+                session_id: "session-typesetting-1",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("/scene-key 命中运行时场景时应注入统一 scene launch metadata 后继续走 Agent 发送主线", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({
+      entries: [
+        {
+          id: "scene:campaign-launch",
+        },
+      ],
+    });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:campaign-launch",
+        kind: "scene",
+        title: "活动启动场景",
+        summary: "围绕活动目标生成启动方案。",
+        sceneKey: "campaign-launch",
+        commandPrefix: "/campaign-launch",
+        linkedSkillId: "cloud-video-dubbing",
+        executionKind: "cloud_scene",
+      },
+    ]);
+    mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
+      baseUrl: "https://user.150404.xyz",
+      controlPlaneBaseUrl: "https://user.150404.xyz/api",
+      sceneBaseUrl: "https://user.150404.xyz/scene-api",
+      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      tenantId: "tenant-demo",
+      sessionToken: "session-token-demo",
+      hubProviderName: null,
+      loginPath: "/login",
+      desktopClientId: "desktop-client",
+      desktopOauthRedirectUrl: "lime://oauth/callback",
+      desktopOauthNextPath: "/welcome",
+    });
+    const harness = mountHook({
+      input: "/campaign-launch 帮我做一版新品活动启动方案",
+      serviceSkills: [createCloudSceneSkill()],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
         "/campaign-launch 帮我做一版新品活动启动方案",
       );
-      expect(mockSendMessage).not.toHaveBeenCalled();
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            service_scene_launch: {
+              kind: "cloud_scene",
+              service_scene_run: expect.objectContaining({
+                scene_key: "campaign-launch",
+                skill_id: "cloud-video-dubbing",
+                skill_title: "云端视频配音",
+                user_input: "帮我做一版新品活动启动方案",
+                project_id: "project-1",
+                oem_runtime: expect.objectContaining({
+                  scene_base_url: "https://user.150404.xyz/scene-api",
+                  tenant_id: "tenant-demo",
+                }),
+              }),
+            },
+          },
+        },
+      });
       expect(mockHandleAutoLaunchMatchedSiteSkill).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }
   });
 
-  it("已携带 service_skill_launch metadata 时不应再被前端二次命中站点技能或浏览器前置引导", async () => {
-    const mockMaybeStartBrowserTaskPreflight = vi.fn(() => false);
+  it("已携带 service_skill_launch metadata 时不应再被前端二次命中站点技能或浏览器预热", async () => {
     const harness = mountHook({
       input: "请帮我使用 GitHub 查一下 AI Agent 项目",
       serviceSkills: [createGithubSiteSkill()],
@@ -809,11 +1873,9 @@ describe("useWorkspaceSendActions", () => {
           launchUrl: "https://github.com",
           platformLabel: "GitHub",
         },
-        shouldConsumePendingThemeWorkbenchInitialPrompt: false,
-        shouldDismissThemeWorkbenchEntryPrompt: false,
+        shouldConsumePendingGeneralWorkbenchInitialPrompt: false,
+        shouldDismissGeneralWorkbenchEntryPrompt: false,
       })) as HookProps["resolveSendBoundary"],
-      maybeStartBrowserTaskPreflight:
-        mockMaybeStartBrowserTaskPreflight as HookProps["maybeStartBrowserTaskPreflight"],
     });
 
     try {
@@ -842,7 +1904,6 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockHandleAutoLaunchMatchedSiteSkill).not.toHaveBeenCalled();
-      expect(mockMaybeStartBrowserTaskPreflight).not.toHaveBeenCalled();
       expect(mockPreheatBrowserAssistInBackground).not.toHaveBeenCalled();
       expect(mockEnsureBrowserAssistCanvas).not.toHaveBeenCalled();
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
@@ -932,7 +1993,7 @@ describe("useWorkspaceSendActions", () => {
           },
           harness: expect.objectContaining({
             theme: "general",
-            session_mode: "theme_workbench",
+            session_mode: "general_workbench",
             content_id: "content-service-skill-1",
           }),
         },

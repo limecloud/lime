@@ -11,6 +11,7 @@ import {
   areLightweightRenderersRegistered,
   registerLightweightRenderers,
 } from "@/components/artifact/renderers";
+import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
 import type { AgentThreadItem } from "../types";
 
@@ -76,6 +77,20 @@ interface MountedShell {
 }
 
 const mountedShells: MountedShell[] = [];
+
+interface ArtifactWorkbenchHarnessOverrides
+  extends Partial<
+    Omit<React.ComponentProps<typeof ArtifactWorkbenchShell>, "documentController">
+  > {
+  onSaveArtifactDocument?: (
+    artifact: Artifact,
+    document: ArtifactDocumentV1,
+  ) => Promise<void> | void;
+  threadItems?: AgentThreadItem[];
+  focusedBlockId?: string | null;
+  blockFocusRequestKey?: number;
+  onJumpToTimelineItem?: (itemId: string) => void;
+}
 
 function createArtifactDocumentArtifact(
   options: {
@@ -361,14 +376,31 @@ function createArtifactTimelineItems(): AgentThreadItem[] {
 
 function renderShell(
   artifact: Artifact,
-  overrides: Partial<React.ComponentProps<typeof ArtifactWorkbenchShell>> = {},
+  overrides: ArtifactWorkbenchHarnessOverrides = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
+  const {
+    onSaveArtifactDocument,
+    threadItems,
+    focusedBlockId,
+    blockFocusRequestKey,
+    onJumpToTimelineItem,
+    ...shellOverrides
+  } = overrides;
 
-  act(() => {
-    root.render(
+  function ShellHarness() {
+    const controller = useArtifactWorkbenchDocumentController({
+      artifact,
+      onSaveArtifactDocument,
+      threadItems,
+      focusedBlockId,
+      blockFocusRequestKey,
+      onJumpToTimelineItem,
+    });
+
+    return (
       <ArtifactWorkbenchShell
         artifact={artifact}
         artifactOverlay={null}
@@ -379,9 +411,14 @@ function renderShell(
         previewSize="desktop"
         onPreviewSizeChange={() => {}}
         onCloseCanvas={() => {}}
-        {...overrides}
-      />,
+        {...shellOverrides}
+        documentController={controller}
+      />
     );
+  }
+
+  act(() => {
+    root.render(<ShellHarness />);
   });
 
   mountedShells.push({ container, root });
@@ -390,20 +427,28 @@ function renderShell(
 
 function renderWorkbench(
   artifact: Artifact,
-  overrides: Partial<React.ComponentProps<typeof ArtifactWorkbenchShell>> = {},
+  overrides: ArtifactWorkbenchHarnessOverrides = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
+  const {
+    onSaveArtifactDocument,
+    threadItems,
+    focusedBlockId,
+    blockFocusRequestKey,
+    onJumpToTimelineItem,
+    ...shellOverrides
+  } = overrides;
 
   function WorkbenchHarness() {
     const controller = useArtifactWorkbenchDocumentController({
       artifact,
-      onSaveArtifactDocument: overrides.onSaveArtifactDocument,
-      threadItems: overrides.threadItems,
-      focusedBlockId: overrides.focusedBlockId,
-      blockFocusRequestKey: overrides.blockFocusRequestKey,
-      onJumpToTimelineItem: overrides.onJumpToTimelineItem,
+      onSaveArtifactDocument,
+      threadItems,
+      focusedBlockId,
+      blockFocusRequestKey,
+      onJumpToTimelineItem,
     });
 
     return (
@@ -418,7 +463,7 @@ function renderWorkbench(
           previewSize="desktop"
           onPreviewSizeChange={() => {}}
           onCloseCanvas={() => {}}
-          {...overrides}
+          {...shellOverrides}
           documentController={controller}
         />
         <ArtifactWorkbenchDocumentInspector

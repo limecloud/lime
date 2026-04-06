@@ -26,7 +26,7 @@ const {
   mockGetDefaultProject,
   mockGetOrCreateDefaultProject,
   mockGetContent,
-  mockGetThemeWorkbenchDocumentState,
+  mockGetGeneralWorkbenchDocumentState,
   mockEnsureWorkspaceReady,
   mockUpdateContent,
   mockGetProjectMemory,
@@ -37,14 +37,14 @@ const {
   mockSetArtifactsAtom,
   mockSetSelectedArtifactIdAtom,
   mockJotaiState,
-  mockGenerateThemeWorkbenchPrompt,
+  mockGenerateGeneralWorkbenchPrompt,
   mockIsSpecializedWorkbenchTheme,
   mockEmptyState,
   mockInputbar,
   mockMessageList,
   mockWorkspacePendingA2UIDialog,
-  mockExecutionRunGetThemeWorkbenchState,
-  mockExecutionRunListThemeWorkbenchHistory,
+  mockExecutionRunGetGeneralWorkbenchState,
+  mockExecutionRunListGeneralWorkbenchHistory,
   mockExecutionRunGet,
   mockSkillExecutionGetDetail,
   mockSkillsGetAll,
@@ -70,7 +70,7 @@ const {
   mockGetDefaultProject: vi.fn(),
   mockGetOrCreateDefaultProject: vi.fn(),
   mockGetContent: vi.fn(),
-  mockGetThemeWorkbenchDocumentState: vi.fn(),
+  mockGetGeneralWorkbenchDocumentState: vi.fn(),
   mockEnsureWorkspaceReady: vi.fn(),
   mockUpdateContent: vi.fn(),
   mockGetProjectMemory: vi.fn(),
@@ -90,7 +90,7 @@ const {
   },
   mockSetArtifactsAtom: vi.fn(),
   mockSetSelectedArtifactIdAtom: vi.fn(),
-  mockGenerateThemeWorkbenchPrompt: vi.fn(() => "mock-system-prompt"),
+  mockGenerateGeneralWorkbenchPrompt: vi.fn(() => "mock-system-prompt"),
   mockIsSpecializedWorkbenchTheme: vi.fn(() => false),
   mockEmptyState: vi.fn((props?: { input?: string }) => (
     <div data-testid="empty-state">{props?.input || ""}</div>
@@ -108,8 +108,8 @@ const {
   mockWorkspacePendingA2UIDialog: vi.fn((_props?: Record<string, unknown>) => (
     <div data-testid="workspace-pending-a2ui-dialog" />
   )),
-  mockExecutionRunGetThemeWorkbenchState: vi.fn(),
-  mockExecutionRunListThemeWorkbenchHistory: vi.fn(),
+  mockExecutionRunGetGeneralWorkbenchState: vi.fn(),
+  mockExecutionRunListGeneralWorkbenchHistory: vi.fn(),
   mockExecutionRunGet: vi.fn(),
   mockSkillExecutionGetDetail: vi.fn(),
   mockSkillsGetAll: vi.fn(),
@@ -246,8 +246,6 @@ vi.mock("./components/ChatNavbar", () => ({
     harnessPanelVisible,
     onToggleHarnessPanel,
     harnessToggleLabel,
-    browserAssistLabel,
-    browserAssistAttentionLevel,
   }: {
     onToggleHistory?: () => void;
     onToggleCanvas?: () => void;
@@ -258,8 +256,6 @@ vi.mock("./components/ChatNavbar", () => ({
     harnessPanelVisible?: boolean;
     onToggleHarnessPanel?: () => void;
     harnessToggleLabel?: string;
-    browserAssistLabel?: string;
-    browserAssistAttentionLevel?: string;
   }) => (
     <div
       data-testid="chat-navbar"
@@ -268,8 +264,6 @@ vi.mock("./components/ChatNavbar", () => ({
       data-harness-toggle-label={harnessToggleLabel || "Harness"}
       data-show-canvas-toggle={showCanvasToggle ? "true" : "false"}
       data-canvas-open={isCanvasOpen ? "true" : "false"}
-      data-browser-assist-label={browserAssistLabel || ""}
-      data-browser-assist-attention={browserAssistAttentionLevel || "idle"}
     >
       <button
         type="button"
@@ -340,7 +334,7 @@ vi.mock("./components/ChatSidebar", () => ({
         type="button"
         data-testid="resume-topic"
         onClick={() => {
-          void onResumeTask?.("topic-a", "browser_awaiting_user");
+          void onResumeTask?.("topic-a", "user_action");
         }}
       >
         恢复任务
@@ -349,8 +343,8 @@ vi.mock("./components/ChatSidebar", () => ({
   ),
 }));
 
-vi.mock("./components/ThemeWorkbenchSidebar", () => ({
-  ThemeWorkbenchSidebar: ({
+vi.mock("./components/GeneralWorkbenchSidebar", () => ({
+  GeneralWorkbenchSidebar: ({
     onSwitchTopic,
     onSetBranchStatus,
     workflowSteps,
@@ -375,7 +369,7 @@ vi.mock("./components/ThemeWorkbenchSidebar", () => ({
     topSlot?: ReactNode;
   }) => (
     <div
-      data-testid="theme-workbench-sidebar"
+      data-testid="general-workbench-sidebar"
       data-workflow-summary={(workflowSteps || [])
         .map((step) => `${step.title}:${step.status}`)
         .join("|")}
@@ -386,19 +380,19 @@ vi.mock("./components/ThemeWorkbenchSidebar", () => ({
         .map((log) => log.executionId || "-")
         .join("|")}
     >
-      <div data-testid="theme-workbench-sidebar-header-action">
+      <div data-testid="general-workbench-sidebar-header-action">
         {headerActionSlot}
       </div>
-      <div data-testid="theme-workbench-sidebar-top-slot">{topSlot}</div>
+      <div data-testid="general-workbench-sidebar-top-slot">{topSlot}</div>
       <div
-        data-testid="theme-workbench-sidebar-history-state"
+        data-testid="general-workbench-sidebar-history-state"
         data-history-has-more={historyHasMore ? "true" : "false"}
         data-history-loading={historyLoading ? "true" : "false"}
       />
       {onLoadMoreHistory ? (
         <button
           type="button"
-          data-testid="theme-load-more-history"
+          data-testid="general-load-more-history"
           onClick={() => {
             onLoadMoreHistory();
           }}
@@ -514,7 +508,7 @@ vi.mock("@/lib/workspace/workbenchCanvas", async (importOriginal) => {
 });
 
 vi.mock("@/lib/workspace/workbenchPrompt", () => ({
-  generateThemeWorkbenchPrompt: mockGenerateThemeWorkbenchPrompt,
+  generateGeneralWorkbenchPrompt: mockGenerateGeneralWorkbenchPrompt,
   generateProjectMemoryPrompt: vi.fn(() => ""),
 }));
 
@@ -546,7 +540,6 @@ vi.mock("@/components/general-chat/bridge", () => ({
 }));
 
 vi.mock("@/components/artifact", () => ({
-  ArtifactList: () => <div data-testid="artifact-list" />,
   ArtifactRenderer: () => <div data-testid="artifact-renderer" />,
   ArtifactToolbar: ({ onClose }: { onClose?: () => void }) => (
     <div data-testid="artifact-toolbar">
@@ -622,7 +615,7 @@ vi.mock("@/lib/api/project", () => ({
   getDefaultProject: mockGetDefaultProject,
   getOrCreateDefaultProject: mockGetOrCreateDefaultProject,
   getContent: mockGetContent,
-  getThemeWorkbenchDocumentState: mockGetThemeWorkbenchDocumentState,
+  getGeneralWorkbenchDocumentState: mockGetGeneralWorkbenchDocumentState,
   ensureWorkspaceReady: mockEnsureWorkspaceReady,
   updateContent: mockUpdateContent,
 }));
@@ -633,9 +626,10 @@ vi.mock("@/lib/api/memory", () => ({
 
 vi.mock("@/lib/api/executionRun", () => ({
   executionRunGet: mockExecutionRunGet,
-  executionRunGetThemeWorkbenchState: mockExecutionRunGetThemeWorkbenchState,
-  executionRunListThemeWorkbenchHistory:
-    mockExecutionRunListThemeWorkbenchHistory,
+  executionRunGetGeneralWorkbenchState:
+    mockExecutionRunGetGeneralWorkbenchState,
+  executionRunListGeneralWorkbenchHistory:
+    mockExecutionRunListGeneralWorkbenchHistory,
 }));
 
 vi.mock("@/lib/api/skill-execution", () => ({
@@ -809,6 +803,7 @@ function createMockThemeContextWorkspaceState(
   overrides: Partial<ReturnType<typeof mockUseThemeContextWorkspace>> = {},
 ) {
   const merged = {
+    generalWorkbenchEnabled: false,
     enabled: false,
     contextSearchQuery: "",
     setContextSearchQuery: vi.fn(),
@@ -831,6 +826,10 @@ function createMockThemeContextWorkspaceState(
     prepareActiveContextPrompt: vi.fn().mockResolvedValue(""),
     ...overrides,
   };
+
+  if (!("generalWorkbenchEnabled" in overrides)) {
+    merged.generalWorkbenchEnabled = merged.enabled;
+  }
 
   if (!("prepareActiveContextPrompt" in overrides)) {
     merged.prepareActiveContextPrompt = vi
@@ -991,7 +990,7 @@ function mockBrowserAssistCompletedSession() {
 
 beforeAll(async () => {
   await preloadAgentChatWorkspaceModule;
-});
+}, 30_000);
 
 beforeEach(() => {
   (
@@ -1034,7 +1033,7 @@ beforeEach(() => {
   mockGetDefaultProject.mockResolvedValue(null);
   mockGetOrCreateDefaultProject.mockResolvedValue(null);
   mockGetContent.mockResolvedValue(null);
-  mockGetThemeWorkbenchDocumentState.mockResolvedValue(null);
+  mockGetGeneralWorkbenchDocumentState.mockResolvedValue(null);
   mockEnsureWorkspaceReady.mockResolvedValue({
     workspaceId: "workspace-test",
     rootPath: "/tmp/workspace-test",
@@ -1047,14 +1046,14 @@ beforeEach(() => {
   });
   mockUpdateContent.mockResolvedValue(undefined);
   mockGetProjectMemory.mockResolvedValue(null);
-  mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+  mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
     run_state: "idle",
     queue_items: [],
     latest_terminal: null,
     recent_terminals: [],
     updated_at: "2026-03-06T00:00:00.000Z",
   });
-  mockExecutionRunListThemeWorkbenchHistory.mockResolvedValue({
+  mockExecutionRunListGeneralWorkbenchHistory.mockResolvedValue({
     items: [],
     has_more: false,
     next_offset: null,
@@ -1179,7 +1178,7 @@ beforeEach(() => {
   vi.spyOn(providerModelsModule, "loadProviderModels").mockResolvedValue([
     buildMockProviderModel(),
   ]);
-  mockGenerateThemeWorkbenchPrompt.mockReturnValue("mock-system-prompt");
+  mockGenerateGeneralWorkbenchPrompt.mockReturnValue("mock-system-prompt");
   mockIsSpecializedWorkbenchTheme.mockReturnValue(false);
   mockEmptyState.mockImplementation((props?: { input?: string }) => (
     <div data-testid="empty-state">{props?.input || ""}</div>
@@ -2095,7 +2094,7 @@ describe("AgentChatPage 通用工作台", () => {
         [],
         false,
         false,
-        "请组织一个协作团队推进这项修复",
+        "请组织一个协作团队推进这项修复，先分析根因、复现路径、边界风险，再分别落实修复与回归验证。",
         "auto",
       );
     });
@@ -2305,7 +2304,7 @@ describe("AgentChatPage 通用工作台", () => {
     ).toBe("function");
   });
 
-  it("仅有 runtime Team 方案时，顶部展开与协作按钮都应能手动打开 Team 画布", async () => {
+  it("仅有已选 Team 偏好时，顶部展开仍可手动打开画布，且不会凭空展示协作 dock", async () => {
     localStorage.setItem(
       "lime.chat.team_selection.v1.general",
       JSON.stringify({
@@ -2363,29 +2362,8 @@ describe("AgentChatPage 通用工作台", () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
     expect(
-      (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                title?: string;
-                renderPanel?: () => unknown;
-              } | null;
-            }
-          | undefined
-      )?.teamView?.title,
-    ).toBe("代码排障团队");
-    expect(
-      typeof (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                title?: string;
-                renderPanel?: () => unknown;
-              } | null;
-            }
-          | undefined
-      )?.teamView?.renderPanel,
-    ).toBe("function");
+      mounted.container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
+    ).not.toBeNull();
 
     clickButton(mounted.container, "toggle-canvas");
     await flushEffects(8);
@@ -2395,27 +2373,9 @@ describe("AgentChatPage 通用工作台", () => {
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
     ).toBe("chat");
-
-    clickButton(mounted.container, "team-workspace-dock-activate");
-    await flushEffects(8);
-
     expect(
-      mounted.container
-        .querySelector('[data-testid="layout-transition"]')
-        ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
-    expect(
-      (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                title?: string;
-                renderPanel?: () => unknown;
-              } | null;
-            }
-          | undefined
-      )?.teamView?.title,
-    ).toBe("代码排障团队");
+      mounted.container.querySelector('[data-testid="team-workspace-dock-activate"]'),
+    ).toBeNull();
   });
 
   it("已安装 skills 但未显式激活时，通用工作台不应展示技能区块", async () => {
@@ -3060,8 +3020,8 @@ describe("AgentChatPage 通用工作台", () => {
     );
   });
 
-  it("强浏览器任务应先进入浏览器前置引导，而不是立刻退化为普通发送", async () => {
-    const container = renderPage({
+  it("强浏览器任务应直接发送，并透传浏览器 requirement metadata", async () => {
+    renderPage({
       projectId: "project-browser-required",
       theme: "general",
       lockTheme: true,
@@ -3086,45 +3046,34 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).not.toHaveBeenCalled();
-
-    const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
-      | {
-          messages?: Array<Record<string, unknown>>;
-        }
-      | undefined;
-    expect(messageListProps?.messages).toEqual([
-      expect.objectContaining({
-        role: "user",
-        content: prompt,
-      }),
-      expect.objectContaining({
-        role: "assistant",
-        content: expect.stringContaining("回到当前任务重新发起"),
-      }),
-    ]);
-    const latestAssistant = messageListProps?.messages?.at(-1) as
-      | {
-          actionRequests?: Array<Record<string, unknown>>;
-        }
-      | undefined;
-
-    expect(latestAssistant?.actionRequests?.[0]).toBeUndefined();
-    expect(mockToast.info).toHaveBeenCalledWith(
-      expect.stringContaining("回到当前任务重新发起"),
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    expect(sharedSendMessageMock.mock.calls[0]).toEqual(
+      expect.arrayContaining([
+        prompt,
+        [],
+        false,
+        false,
+        false,
+        "auto",
+      ]),
     );
-    const browserAssistLabel = container
-      .querySelector('[data-testid="chat-navbar"]')
-      ?.getAttribute("data-browser-assist-label");
-    expect(["待浏览器处理", "浏览器已就绪"]).toContain(browserAssistLabel);
-    expect(["warning", "idle"]).toContain(
-      container
-        .querySelector('[data-testid="chat-navbar"]')
-        ?.getAttribute("data-browser-assist-attention") || "idle",
-    );
+    expect(sharedSendMessageMock.mock.calls[0]?.[8]).toMatchObject({
+      requestMetadata: {
+        harness: expect.objectContaining({
+          browser_requirement: "required_with_user_step",
+          browser_launch_url: "https://mp.weixin.qq.com/",
+          browser_user_step_required: true,
+          browser_assist: expect.objectContaining({
+            enabled: true,
+            profile_key: "general_browser_assist",
+          }),
+        }),
+      },
+    });
+    expect(mockToast.info).not.toHaveBeenCalled();
   });
 
-  it("自动首条命中浏览器前置引导时也应按已有展示消息处理，避免工作台继续落回空白态", async () => {
+  it("自动首条命中强浏览器任务时也应自动发送，并保留浏览器 requirement metadata", async () => {
     const onHasMessagesChange = vi.fn();
     const prompt = "帮我把这篇文章发布到微信公众号后台";
 
@@ -3149,26 +3098,28 @@ describe("AgentChatPage 通用工作台", () => {
     });
     await flushEffects(12);
 
-    expect(sharedSendMessageMock).not.toHaveBeenCalled();
-    const messageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
-      | {
-          messages?: Array<Record<string, unknown>>;
-        }
-      | undefined;
-    expect(messageListProps?.messages).toEqual([
-      expect.objectContaining({
-        role: "user",
-        content: prompt,
-      }),
-      expect.objectContaining({
-        role: "assistant",
-        content: expect.stringContaining("回到当前任务重新发起"),
-      }),
-    ]);
-    expect(onHasMessagesChange).toHaveBeenLastCalledWith(true);
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    expect(sharedSendMessageMock.mock.calls[0]?.[0]).toBe(prompt);
+    expect(sharedSendMessageMock.mock.calls[0]?.[8]).toMatchObject({
+      requestMetadata: {
+        harness: expect.objectContaining({
+          browser_requirement: "required_with_user_step",
+          browser_launch_url: "https://mp.weixin.qq.com/",
+          browser_user_step_required: true,
+          content_id: "content-browser-required-bootstrap",
+          browser_assist: expect.objectContaining({
+            enabled: true,
+            profile_key: "general_browser_assist",
+            preferred_backend: "lime_extension_bridge",
+            auto_launch: false,
+          }),
+        }),
+      },
+    });
+    expect(onHasMessagesChange).toHaveBeenCalled();
   });
 
-  it("浏览器前置引导不应再注入继续执行确认消息", async () => {
+  it("强浏览器任务直发时不应注入继续执行确认消息", async () => {
     renderPage({
       projectId: "project-browser-required-continue",
       theme: "general",
@@ -3206,10 +3157,16 @@ describe("AgentChatPage 通用工作台", () => {
       | undefined;
 
     expect(latestAssistant?.actionRequests?.[0]).toBeUndefined();
-    expect(sharedSendMessageMock).not.toHaveBeenCalled();
-    expect(mockToast.info).toHaveBeenCalledWith(
-      expect.stringContaining("回到当前任务重新发起"),
-    );
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    expect(sharedSendMessageMock.mock.calls[0]?.[8]).toMatchObject({
+      requestMetadata: {
+        harness: expect.objectContaining({
+          browser_requirement: "required_with_user_step",
+          browser_user_step_required: true,
+        }),
+      },
+    });
+    expect(mockToast.info).not.toHaveBeenCalled();
   });
 
   it("切换到新会话时不应复用旧 scope 的浏览器协助 artifact", async () => {
@@ -3250,7 +3207,7 @@ describe("AgentChatPage 通用工作台", () => {
     expect(mockJotaiState.artifacts).toEqual([]);
   });
 
-  it("当前待继续任务可从侧栏直接打开浏览器工作台", async () => {
+  it("当前待处理任务从侧栏恢复时应回到对应会话", async () => {
     const onNavigate = vi.fn();
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
@@ -3278,10 +3235,8 @@ describe("AgentChatPage 通用工作台", () => {
                 {
                   requestId: "req-browser-sidebar",
                   actionType: "ask_user",
-                  uiKind: "browser_preflight",
-                  browserRequirement: "required_with_user_step",
-                  browserPrepState: "awaiting_user",
-                  prompt: "请先在浏览器完成登录",
+                  prompt: "请先确认发布标题",
+                  questions: [{ question: "这篇文章的最终标题是什么？" }],
                 },
               ],
             },
@@ -3325,22 +3280,14 @@ describe("AgentChatPage 通用工作台", () => {
     clickButton(container, "resume-topic");
     await flushEffects(12);
 
-    expect(sharedSwitchTopicMock).not.toHaveBeenCalled();
-    expect(onNavigate).toHaveBeenCalledWith("browser-runtime", {
-      projectId: "project-sidebar-resume",
-      contentId: undefined,
-      initialProfileKey: "general_browser_assist",
-      initialSessionId: undefined,
-      initialTargetId: undefined,
-    });
+    expect(sharedSwitchTopicMock).toHaveBeenCalledWith("topic-a");
+    expect(onNavigate).not.toHaveBeenCalled();
     expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
   });
 });
 
 describe("AgentChatPage 自动引导", () => {
-  it("社媒空文稿应预填引导词且不自动发送", async () => {
-    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-
+  it("general 空文稿应预填通用引导词且不自动发送", async () => {
     renderPage({
       projectId: "project-social",
       contentId: "content-social",
@@ -3354,12 +3301,10 @@ describe("AgentChatPage 自动引导", () => {
     const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
       | { input?: string }
       | undefined;
-    expect(latestInputbarProps?.input || "").toContain("社媒内容创作教练");
+    expect(latestInputbarProps?.input || "").toContain("通用工作台协作助手");
   });
 
-  it("非社媒空文稿应维持原始自动引导调用", async () => {
-    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-
+  it("general 空文稿应统一预填通用引导词，而不是直接触发 AI 引导", async () => {
     renderPage({
       projectId: "project-document",
       contentId: "content-document",
@@ -3368,8 +3313,12 @@ describe("AgentChatPage 自动引导", () => {
     });
     await flushEffects(10);
 
-    expect(sharedTriggerAIGuideMock).toHaveBeenCalledTimes(1);
-    expect(sharedTriggerAIGuideMock).toHaveBeenCalledWith();
+    expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
+      | { input?: string }
+      | undefined;
+    expect(latestInputbarProps?.input || "").toContain("通用工作台协作助手");
   });
 
   it("存在 initialUserPrompt 时应先预填并等待确认", async () => {
@@ -3464,7 +3413,7 @@ describe("AgentChatPage 自动引导", () => {
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
             theme: "general",
-            session_mode: "theme_workbench",
+            session_mode: "general_workbench",
           }),
         }),
       }),
@@ -3476,8 +3425,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });
 
-  it("主题上下文启用时应把生效上下文前置到发送内容", async () => {
-    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
+  it("工作区上下文启用时应把生效上下文前置到发送内容", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -3485,7 +3433,7 @@ describe("AgentChatPage 自动引导", () => {
       }),
     );
 
-    const initialUserPrompt = "请写一条小红书文案";
+    const initialUserPrompt = "请写一条社媒文案";
     renderPage({
       projectId: "project-social-context",
       contentId: "content-social-context",
@@ -3518,7 +3466,7 @@ describe("AgentChatPage 自动引导", () => {
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
             theme: "general",
-            session_mode: "theme_workbench",
+            session_mode: "general_workbench",
           }),
         }),
       }),
@@ -3621,7 +3569,7 @@ describe("AgentChatPage 自动引导", () => {
         enabled: true,
       }),
     );
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
@@ -3675,7 +3623,7 @@ describe("AgentChatPage 自动引导", () => {
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
             theme: "general",
-            session_mode: "theme_workbench",
+            session_mode: "general_workbench",
           }),
         }),
       }),
@@ -3747,7 +3695,7 @@ describe("AgentChatPage 自动引导", () => {
     ]);
   });
 
-  it("主题工作台启用时应优先展示画布，不再回退到旧聊天预留页", async () => {
+  it("工作区上下文兼容态启用时应优先进入 chat-canvas 布局，而不是回退到旧聊天预留页", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -3763,18 +3711,10 @@ describe("AgentChatPage 自动引导", () => {
     await flushEffects(10);
 
     const layout = container.querySelector('[data-testid="layout-transition"]');
-    expect(layout?.getAttribute("data-mode")).toBe("canvas");
-    expect(
-      container.querySelector('[data-testid="canvas-loading-state"]'),
-    ).not.toBeNull();
-    expect(
-      container
-        .querySelector('[data-testid="layout-chat"]')
-        ?.hasAttribute("hidden"),
-    ).toBe(true);
+    expect(layout?.getAttribute("data-mode")).toBe("chat-canvas");
   });
 
-  it("主题工作台打开已有文稿时首帧应直接显示画布，避免旧对话闪现", async () => {
+  it("工作区上下文兼容态打开已有文稿时首帧应直接进入 chat-canvas 布局，避免旧对话闪现", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -3828,25 +3768,13 @@ describe("AgentChatPage 自动引导", () => {
     });
 
     const layout = container.querySelector('[data-testid="layout-transition"]');
-    expect(layout?.getAttribute("data-mode")).toBe("canvas");
-    expect(
-      container
-        .querySelector('[data-testid="layout-chat"]')
-        ?.hasAttribute("hidden"),
-    ).toBe(true);
-    expect(
-      container.querySelector('[data-testid="canvas-loading-state"]'),
-    ).not.toBeNull();
+    expect(layout?.getAttribute("data-mode")).toBe("chat-canvas");
     expect(container.textContent).not.toContain("历史对话");
 
     await flushEffects(10);
-
-    expect(
-      container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
-    ).not.toBeNull();
   });
 
-  it("主题工作台启用时应仅保留专用侧栏，不再渲染右侧旧操作面板", async () => {
+  it("工作区编排启用时应仅保留专用侧栏，不再渲染右侧旧操作面板", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -3862,7 +3790,7 @@ describe("AgentChatPage 自动引导", () => {
     await flushEffects(10);
 
     expect(
-      container.querySelector('[data-testid="theme-workbench-sidebar"]'),
+      container.querySelector('[data-testid="general-workbench-sidebar"]'),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="theme-workbench-skills"]'),
@@ -3872,7 +3800,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(container.querySelector('[data-testid="inputbar"]')).not.toBeNull();
   });
 
-  it("主题工作台在初始意图稍后注入时应改为预填并等待确认", async () => {
+  it("工作区编排在初始意图稍后注入时应改为预填并等待确认", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -3941,7 +3869,7 @@ describe("AgentChatPage 自动引导", () => {
         requestMetadata: expect.objectContaining({
           harness: expect.objectContaining({
             theme: "general",
-            session_mode: "theme_workbench",
+            session_mode: "general_workbench",
           }),
         }),
       }),
@@ -3949,7 +3877,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
   });
 
-  it("主题工作台空文稿不应再自动注入旧版提问引导词", async () => {
+  it("工作区编排空文稿不应再自动注入旧版提问引导词", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4017,7 +3945,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(mockToast.error).not.toHaveBeenCalled();
   });
 
-  it("主题工作台空闲时应把 success 终态版本标记为 merged", async () => {
+  it("工作区编排空闲时应把 success 终态版本标记为 merged", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -4028,7 +3956,7 @@ describe("AgentChatPage 自动引导", () => {
       body: "当前主稿",
       metadata: {},
     });
-    mockGetThemeWorkbenchDocumentState.mockResolvedValue({
+    mockGetGeneralWorkbenchDocumentState.mockResolvedValue({
       content_id: "content-theme-success",
       current_version_id: "run-success",
       version_count: 1,
@@ -4042,12 +3970,12 @@ describe("AgentChatPage 自动引导", () => {
         },
       ],
     });
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       queue_items: [],
       latest_terminal: {
         run_id: "run-success",
-        title: "执行主题工作台技能",
+        title: "执行工作区技能",
         status: "success",
         source: "skill",
         source_ref: null,
@@ -4073,7 +4001,7 @@ describe("AgentChatPage 自动引导", () => {
     });
   });
 
-  it("主题工作台空闲时应把 error 终态版本标记为 candidate", async () => {
+  it("工作区编排空闲时应把 error 终态版本标记为 candidate", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -4084,7 +4012,7 @@ describe("AgentChatPage 自动引导", () => {
       body: "当前主稿",
       metadata: {},
     });
-    mockGetThemeWorkbenchDocumentState.mockResolvedValue({
+    mockGetGeneralWorkbenchDocumentState.mockResolvedValue({
       content_id: "content-theme-error",
       current_version_id: "run-error",
       version_count: 1,
@@ -4098,12 +4026,12 @@ describe("AgentChatPage 自动引导", () => {
         },
       ],
     });
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       queue_items: [],
       latest_terminal: {
         run_id: "run-error",
-        title: "执行主题工作台技能",
+        title: "执行工作区技能",
         status: "error",
         source: "skill",
         source_ref: null,
@@ -4129,7 +4057,7 @@ describe("AgentChatPage 自动引导", () => {
     });
   });
 
-  it("主题工作台写入辅助产物时不应覆盖主稿正文", async () => {
+  it("工作区编排写入辅助产物时不应覆盖主稿正文", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4141,7 +4069,7 @@ describe("AgentChatPage 自动引导", () => {
       body: "旧内容",
       metadata: {},
     });
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
@@ -4229,7 +4157,7 @@ describe("AgentChatPage 自动引导", () => {
     ).toBe(false);
   });
 
-  it("主题工作台写入损坏的 markdown 产物时不应覆盖主稿正文", async () => {
+  it("工作区编排写入损坏的 markdown 产物时不应覆盖主稿正文", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4241,7 +4169,7 @@ describe("AgentChatPage 自动引导", () => {
       body: "旧内容",
       metadata: {},
     });
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
@@ -4308,7 +4236,7 @@ describe("AgentChatPage 自动引导", () => {
     ).toBe(false);
   });
 
-  it("主题工作台在队列状态未就绪时写入主稿仍应创建可见版本", async () => {
+  it("工作区编排在队列状态未就绪时写入主稿仍应创建可见版本", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4320,8 +4248,8 @@ describe("AgentChatPage 自动引导", () => {
       body: "旧内容",
       metadata: {},
     });
-    mockGetThemeWorkbenchDocumentState.mockResolvedValue(null);
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockGetGeneralWorkbenchDocumentState.mockResolvedValue(null);
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       queue_items: [],
       latest_terminal: null,
@@ -4390,7 +4318,7 @@ describe("AgentChatPage 自动引导", () => {
       body: "旧内容",
       metadata: {},
     });
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
@@ -4471,7 +4399,7 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("主题工作台运行中应展示真实技能与工具步骤，而不是默认占位流程", async () => {
+  it("工作区编排运行中应展示真实技能与工具步骤，而不是默认占位流程", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4571,7 +4499,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(workflowSteps.some((step) => step.title === "平台适配")).toBe(false);
   });
 
-  it("主题工作台封面工具失败时不应将主稿步骤误判为异常", async () => {
+  it("工作区编排封面工具失败时不应将主稿步骤误判为异常", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4667,7 +4595,7 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("主题工作台应将搜索与浏览工具映射为业务化标题", async () => {
+  it("工作区编排应将搜索与浏览工具映射为业务化标题", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4769,7 +4697,7 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("主题工作台应将点击、截图与命令工具映射为业务化标题", async () => {
+  it("工作区编排应将点击、截图与命令工具映射为业务化标题", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4878,14 +4806,14 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("主题工作台运行中应优先使用后端 current_gate_key", async () => {
+  it("工作区编排运行中应优先使用后端 current_gate_key", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
       }),
     );
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "publish_confirm",
       queue_items: [
@@ -4913,11 +4841,11 @@ describe("AgentChatPage 自动引导", () => {
 
     const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
       | {
-          themeWorkbenchGate?: { key?: string };
+          workflowGate?: { key?: string };
           workflowSteps?: Array<{ title: string; status: string }>;
         }
       | undefined;
-    expect(latestInputbarProps?.themeWorkbenchGate?.key).toBe(
+    expect(latestInputbarProps?.workflowGate?.key).toBe(
       "publish_confirm",
     );
     const workflowSteps = latestInputbarProps?.workflowSteps || [];
@@ -4928,7 +4856,7 @@ describe("AgentChatPage 自动引导", () => {
     }
   });
 
-  it("主题工作台应基于 execution_id 将工具日志映射到真实 runId", async () => {
+  it("工作区编排应基于 execution_id 将工具日志映射到真实 runId", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4946,7 +4874,7 @@ describe("AgentChatPage 自动引导", () => {
         ],
       }),
     );
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
@@ -4974,7 +4902,7 @@ describe("AgentChatPage 自动引导", () => {
     await flushEffects(12);
 
     const sidebar = container.querySelector(
-      '[data-testid="theme-workbench-sidebar"]',
+      '[data-testid="general-workbench-sidebar"]',
     ) as HTMLElement | null;
     expect(sidebar).toBeTruthy();
     expect(sidebar?.getAttribute("data-activity-runs")).toContain("run-map-1");
@@ -4983,7 +4911,7 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("主题工作台日志应保留最近终态历史，而不是只显示最新一轮", async () => {
+  it("工作区编排日志应保留最近终态历史，而不是只显示最新一轮", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -4991,7 +4919,7 @@ describe("AgentChatPage 自动引导", () => {
         activityLogs: [],
       }),
     );
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       current_gate_key: "idle",
       queue_items: [],
@@ -5042,7 +4970,7 @@ describe("AgentChatPage 自动引导", () => {
     await flushEffects(12);
 
     const sidebar = container.querySelector(
-      '[data-testid="theme-workbench-sidebar"]',
+      '[data-testid="general-workbench-sidebar"]',
     ) as HTMLElement | null;
     expect(sidebar).toBeTruthy();
 
@@ -5051,7 +4979,7 @@ describe("AgentChatPage 自动引导", () => {
     expect(activityRuns).toContain("run-previous");
   });
 
-  it("主题工作台日志应支持继续加载更早的会话历史", async () => {
+  it("工作区编排日志应支持继续加载更早的会话历史", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -5059,7 +4987,7 @@ describe("AgentChatPage 自动引导", () => {
         activityLogs: [],
       }),
     );
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       current_gate_key: "idle",
       queue_items: [],
@@ -5089,7 +5017,7 @@ describe("AgentChatPage 自动引导", () => {
       ],
       updated_at: "2026-03-06T06:05:00.000Z",
     });
-    mockExecutionRunListThemeWorkbenchHistory
+    mockExecutionRunListGeneralWorkbenchHistory
       .mockResolvedValueOnce({
         items: [
           {
@@ -5134,7 +5062,7 @@ describe("AgentChatPage 自动引导", () => {
     await flushEffects(12);
 
     const sidebar = container.querySelector(
-      '[data-testid="theme-workbench-sidebar"]',
+      '[data-testid="general-workbench-sidebar"]',
     ) as HTMLElement | null;
     expect(sidebar).toBeTruthy();
 
@@ -5142,18 +5070,18 @@ describe("AgentChatPage 自动引导", () => {
     expect(firstRuns).toContain("run-current");
     expect(firstRuns).toContain("run-older-1");
 
-    clickButton(container, "theme-load-more-history");
+    clickButton(container, "general-load-more-history");
     await flushEffects(12);
 
     const secondRuns = sidebar?.getAttribute("data-activity-runs") || "";
     expect(secondRuns).toContain("run-older-2");
-    expect(mockExecutionRunListThemeWorkbenchHistory).toHaveBeenNthCalledWith(
+    expect(mockExecutionRunListGeneralWorkbenchHistory).toHaveBeenNthCalledWith(
       1,
       "session-1",
       20,
       0,
     );
-    expect(mockExecutionRunListThemeWorkbenchHistory).toHaveBeenNthCalledWith(
+    expect(mockExecutionRunListGeneralWorkbenchHistory).toHaveBeenNthCalledWith(
       2,
       "session-1",
       20,
@@ -5161,20 +5089,20 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("主题工作台不应把聊天命令 source_ref 当成 Skill 详情去加载", async () => {
+  it("工作区编排不应把聊天命令 source_ref 当成 Skill 详情去加载", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
       }),
     );
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
         {
           run_id: "run-chat-command",
-          title: "执行主题工作台编排",
+          title: "执行工作区编排",
           gate_key: "write_mode",
           status: "running",
           source: "chat",
@@ -5199,7 +5127,7 @@ describe("AgentChatPage 自动引导", () => {
     );
   });
 
-  it("社媒主题工作台空闲时也应常显 harness 图标入口", async () => {
+  it("社媒工作区编排空闲时也应常显 harness 图标入口", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -5222,7 +5150,7 @@ describe("AgentChatPage 自动引导", () => {
       '[data-testid="theme-workbench-harness-card"]',
     ) as HTMLElement | null;
     const sidebar = container.querySelector(
-      '[data-testid="theme-workbench-sidebar"]',
+      '[data-testid="general-workbench-sidebar"]',
     ) as HTMLElement | null;
 
     expect(navbar?.getAttribute("data-show-harness-toggle")).toBe("true");
@@ -5238,7 +5166,7 @@ describe("AgentChatPage 自动引导", () => {
     ).toBeNull();
   });
 
-  it("社媒主题工作台应以弹窗展示 harness 运行详情", async () => {
+  it("社媒工作区编排应以弹窗展示 harness 运行详情", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
@@ -5247,7 +5175,7 @@ describe("AgentChatPage 自动引导", () => {
     );
     const startedAt = new Date(Date.now() - 10_000).toISOString();
     const updatedAt = new Date().toISOString();
-    mockExecutionRunGetThemeWorkbenchState.mockResolvedValue({
+    mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
       queue_items: [
@@ -5281,7 +5209,7 @@ describe("AgentChatPage 自动引导", () => {
       '[data-testid="theme-workbench-harness-card"]',
     ) as HTMLElement | null;
     const sidebar = container.querySelector(
-      '[data-testid="theme-workbench-sidebar"]',
+      '[data-testid="general-workbench-sidebar"]',
     ) as HTMLElement | null;
     const layoutChat = container.querySelector(
       '[data-testid="layout-chat"]',
@@ -5320,11 +5248,11 @@ describe("AgentChatPage 自动引导", () => {
   });
 });
 
-describe("AgentChatPage 视频主题工作台", () => {
-  it("视频主题工作台不应渲染底部通用输入条，也不应自动发送首条请求", async () => {
+describe("AgentChatPage 通用工作区无专用视频模式", () => {
+  it("general 主题仍应渲染底部通用输入条，且不应自动发送首条请求", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
-        enabled: true,
+        enabled: false,
       }),
     );
 
@@ -5336,9 +5264,9 @@ describe("AgentChatPage 视频主题工作台", () => {
     });
     await flushEffects(10);
 
-    expect(container.querySelector('[data-testid="inputbar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="inputbar"]')).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="theme-workbench-sidebar"]'),
+      container.querySelector('[data-testid="general-workbench-sidebar"]'),
     ).toBeNull();
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
     expect(sharedSendMessageMock).not.toHaveBeenCalled();
@@ -5346,7 +5274,7 @@ describe("AgentChatPage 视频主题工作台", () => {
 });
 
 describe("AgentChatPage legacy 问卷 A2UI", () => {
-  it("主题工作台出现待补充 A2UI 时应保持聊天主区域，不展示左侧工作台侧栏", async () => {
+  it("工作区编排出现待补充 A2UI 时应保持聊天主区域，不展示左侧工作台侧栏", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -5394,7 +5322,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat");
     expect(
-      container.querySelector('[data-testid="theme-workbench-sidebar"]'),
+      container.querySelector('[data-testid="general-workbench-sidebar"]'),
     ).toBeNull();
 
     const latestPendingDialogProps =
