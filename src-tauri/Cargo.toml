@@ -3,7 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "1.5.0"
+version = "1.5.1"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -129,8 +129,8 @@ enigo = "0.3"
 # 如需联调本地 aster-rust，请运行：
 #   npm run setup:local-aster -- /path/to/aster-rust
 # 脚本会在仓库根 .cargo/config.toml 写入本地 patch 覆盖；该文件已被 .gitignore 忽略。
-aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.27.1" }
-aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.27.1" }
+aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.27.2" }
+aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.27.2" }
 
 # MCP (Model Context Protocol)
 rmcp = { version = "0.12.0", features = ["client", "transport-io", "transport-child-process"] }
@@ -194,7 +194,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.5.0"
+version = "1.5.1"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
